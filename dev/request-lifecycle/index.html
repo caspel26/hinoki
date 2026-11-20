@@ -207,7 +207,7 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Overview</span></a></li>
+                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Concepts</span></a></li>
               
             
               
@@ -215,15 +215,15 @@
               
             
               
-                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Architecture patterns</span></a></li>
+                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Structure an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ecosystem/"><i>4.4</i><span>Own schemas and ORM</span></a></li>
+                <li><a class="side__link" href="../glossary/"><i>4.4</i><span>Glossary</span></a></li>
               
             
               
-                <li><a class="side__link" href="../glossary/"><i>4.5</i><span>Glossary</span></a></li>
+                <li><a class="side__link" href="../ecosystem/"><i>4.5</i><span>Use other libraries</span></a></li>
               
             
             </ul>
@@ -236,26 +236,73 @@
       <article class="prose" style="--sheet: '4.2'">
         <p class="kicker" data-search-exclude>4.2 · Concepts</p>
         <h1 id="request-lifecycle">Request lifecycle<a class="headerlink" href="#request-lifecycle" title="Permanent link">&para;</a></h1>
-<p>The order matters because validation, access and transactions have different failure behavior.</p>
+<p>The order matters: validation, access and transactions fail in different ways and at different moments.</p>
 <ol>
-<li>Kiso accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see <a href="../serving/#kiso">serving</a>. (With <code>--server granian</code>, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)</li>
-<li>Hinoki matches the method and path.</li>
-<li>For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. A <code>rate_limit=</code> policy runs next. The request body has not been read yet, so an unauthenticated or rate-limited client cannot make the server buffer it.</li>
-<li>Hinoki negotiates the response type from <code>Accept</code> (<code>406</code> when nothing fits), reads the body of <code>POST</code>/<code>PUT</code>/<code>PATCH</code>/<code>QUERY</code> requests, then binds and validates path, query, header and body values before the handler runs.</li>
-<li>For <code>atomic=True</code>, Hinoki opens a transaction before calling the handler.</li>
-<li>The handler returns. Hinoki checks the value against the return annotation (a mismatch is <code>500 internal_error</code>, inside the transaction, unless the action sets <code>validate_response=False</code>), then a configured renderer turns it into bytes. A returned <code>Response</code> is not checked or rendered.</li>
-<li>The transaction commits after successful response preparation. An exception or cancellation rolls back before an HTTP error is produced.</li>
+<li><strong>Accept.</strong> Kiso accepts the connection, answers what needs no application code and hands the rest to the request pipeline (<a href="../kiso/">Kiso</a>). With <code>--server granian</code>, Granian calls the ASGI application, which reaches the same pipeline.</li>
+<li><strong>Route.</strong> Hinoki matches the method and path.</li>
+<li><strong>Authenticate and authorize.</strong> For an action with an access policy, the provider resolves a <code>Caller</code> and the policy checks permissions. A <code>rate_limit=</code> policy runs next. The body has not been read yet, so an unauthenticated or rate-limited client cannot make the server buffer it.</li>
+<li><strong>Bind.</strong> Hinoki negotiates the response type from <code>Accept</code> (<code>406</code> when nothing fits), reads the body of <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>QUERY</code> requests, then binds and validates path, query, header and body values.</li>
+<li><strong>Open the transaction</strong> for an <code>atomic=True</code> action.</li>
+<li><strong>Run the handler</strong>, then check its value against the return annotation (a mismatch is <code>500 internal_error</code>, inside the transaction, unless the action sets <code>validate_response=False</code>) and render it. A returned <code>Response</code> is neither checked nor rendered.</li>
+<li><strong>Commit</strong> after the response is prepared. An exception or cancellation rolls back before the HTTP error is produced.</li>
 </ol>
-<p>An unhandled exception does not become a successful response. A failed commit is an error. A response renderer should not perform hidden database I/O.</p>
-<p>The default <code>execution.request_timeout</code> is 30 seconds and covers request processing through response preparation. Expiry returns <code>504 timeout</code>; an open transaction is rolled back. A synchronous handler already running in a worker thread cannot be forcibly stopped, so it continues occupying its executor slot until it returns, and its result is not sent. The default <code>execution.max_body_bytes</code> is 1 MiB; an oversized body returns <code>413 payload_too_large</code>. <code>MultiPartParser</code> (selected automatically for actions that bind <code>UploadedFile</code>) also bounds part count and per-part bytes; an oversized multipart part returns the same <code>413</code> code. Raw query strings default to an 8 KiB limit (<code>execution.max_query_bytes</code>, <code>414 uri_too_long</code>), and combined header names/values default to 32 KiB (<code>execution.max_header_bytes</code>, <code>431 headers_too_large</code>). These checks run before routing and header parsing. The ASGI server or reverse proxy should also enforce its own request-line and header limits.</p>
-<p>Each request gets a request ID in the configured <code>server.request_id_header</code> response header (<code>x-request-id</code> by default). Hinoki generates it by default; with <code>server.trust_request_id=True</code>, it accepts a validated inbound ID only from a configured trusted proxy. Built-in error JSON includes the same value as <code>request_id</code>. Startup and shutdown have separate defaults of 30 and 10 seconds in <code>lifecycle.startup_timeout</code> and <code>lifecycle.shutdown_timeout</code>; startup failure is reported through the ASGI lifespan protocol, and shutdown runs resource cleanup under its deadline. Application <a href="../modules/#startup-and-shutdown-hooks">startup and shutdown hooks</a> run inside those limits.</p>
-<p>The router, parsing, validation and selected serialization work use Rust, but the server hand-off (Granian and the ASGI adapter, or Kiso's queue) crosses Python objects. See <a href="../sync-async/">sync and async</a> for what runs on which executor.</p>
+<p>An unhandled exception never becomes a successful response, and a failed commit is an error. A renderer must not perform hidden database I/O.</p>
+<h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>When exceeded</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>execution.request_timeout</code></td>
+<td>30 s, through response preparation</td>
+<td><code>504 timeout</code>; an open transaction rolls back</td>
+</tr>
+<tr>
+<td><code>execution.max_body_bytes</code></td>
+<td>1 MiB (also each multipart part)</td>
+<td><code>413 payload_too_large</code></td>
+</tr>
+<tr>
+<td><code>execution.max_query_bytes</code></td>
+<td>8 KiB</td>
+<td><code>414 uri_too_long</code></td>
+</tr>
+<tr>
+<td><code>execution.max_header_bytes</code></td>
+<td>32 KiB, names and values combined</td>
+<td><code>431 headers_too_large</code></td>
+</tr>
+</tbody>
+</table>
+<p>The size checks run before routing. A sync handler already running when the timeout expires cannot be stopped: it keeps its executor slot until it returns, and its result is discarded. Let the proxy or ASGI server enforce its own request-line and header limits too.</p>
+<h2 id="request-ids">Request IDs<a class="headerlink" href="#request-ids" title="Permanent link">&para;</a></h2>
+<p>Each response carries a request ID in <code>server.request_id_header</code> (<code>x-request-id</code>), and built-in error JSON repeats it as <code>request_id</code>. Hinoki generates it; with <code>server.trust_request_id=True</code> it accepts a validated inbound ID, only from a trusted proxy.</p>
+<h2 id="startup-and-shutdown">Startup and shutdown<a class="headerlink" href="#startup-and-shutdown" title="Permanent link">&para;</a></h2>
+<p><code>lifecycle.startup_timeout</code> (30 s) and <code>lifecycle.shutdown_timeout</code> (10 s) bound the worker lifespan. A startup failure is reported through the ASGI lifespan protocol; shutdown cleans up resources within its deadline. <a href="../modules/#startup-and-shutdown-hooks">Startup and shutdown hooks</a> run inside those limits.</p>
+<h2 id="where-rust-runs">Where Rust runs<a class="headerlink" href="#where-rust-runs" title="Permanent link">&para;</a></h2>
+<p>Routing, parsing, validation and selected serialization run in Rust; the server hand-off (Granian and the ASGI adapter, or Kiso's queue) crosses Python objects. See <a href="../sync-async/">sync and async code</a> for which executor runs what.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../transactions/">Transactions</a></li>
+<li><a href="../errors/">Errors</a></li>
+<li><a href="../serving/">Serving</a></li>
+</ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../concepts/">Concepts</a></li><li><a href="../transactions/">Transactions</a></li><li><a href="../sync-async/">Sync and async code</a></li></ul>
+        </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../concepts/"><small>Previous</small><span>Overview</span></a>
-        <a class="pager__link pager__link--next" href="../patterns/"><small>Next</small><span>Architecture patterns</span></a>
+        <a class="pager__link pager__link--prev" href="../concepts/"><small>Previous</small><span>Concepts</span></a>
+        <a class="pager__link pager__link--next" href="../patterns/"><small>Next</small><span>Structure an application</span></a>
       </nav>
     </main>
 
@@ -267,14 +314,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#request-lifecycle">Request lifecycle</a></li></ul>
+            <ul><li><a href="#limits">Limits</a></li><li><a href="#request-ids">Request IDs</a></li><li><a href="#startup-and-shutdown">Startup and shutdown</a></li><li><a href="#where-rust-runs">Where Rust runs</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.2</dd></div>
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/request-lifecycle.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Development tools · Hinoki</title>
+  <title>Build with a coding agent · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Development tools · Hinoki">
+  <meta property="og:title" content="Build with a coding agent · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="3.29">
+  <div class="shell" data-sheet="3.42">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -397,64 +441,132 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.29'">
-        <p class="kicker" data-search-exclude>3.29 · Guides</p>
-        <h1 id="building-a-backend-with-an-ai-agent-and-hinoki">Building a backend with an AI agent and Hinoki<a class="headerlink" href="#building-a-backend-with-an-ai-agent-and-hinoki" title="Permanent link">&para;</a></h1>
-<p>What exists today (2026-11-13), what it guarantees, and what it does not.</p>
-<h2 id="1-start-a-project-an-agent-can-work-in">1. Start a project an agent can work in<a class="headerlink" href="#1-start-a-project-an-agent-can-work-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>new<span class="w"> </span>shop<span class="w"> </span>--dir<span class="w"> </span>~/projects<span class="w">     </span><span class="c1"># lower-case letters and digits only</span>
-<span class="nb">cd</span><span class="w"> </span>~/projects/shop<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>pytest
+      <article class="prose" style="--sheet: '3.42'">
+        <p class="kicker" data-search-exclude>3.42 · Guides</p>
+        <h1 id="build-with-a-coding-agent">Build with a coding agent<a class="headerlink" href="#build-with-a-coding-agent" title="Permanent link">&para;</a></h1>
+<p>A project made by <code>hinoki new</code> is ready for a coding agent: rules already on, an <code>AGENTS.md</code> with the conventions, and a read-only MCP server that describes the app. This page shows the loop and where the agent's authority ends.</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>new<span class="w"> </span>shop<span class="w">    </span><span class="c1"># asks for the directory, database, server, agent files, skills, git and uv sync</span>
+<span class="nb">cd</span><span class="w"> </span>shop
+pytest
+hinoki<span class="w"> </span>check<span class="w"> </span>shop.main:app
 </code></pre></div>
-<p>The generated project contains a health route, <strong>rules that are already on</strong> (<code>HNK-ACC-001</code> actions name an access policy and <code>HNK-ACC-002</code> a permission, <code>HNK-API-001</code> and <code>HNK-API-002</code> responses are concrete <code>Schema</code> types, <code>HNK-API-003</code> lists are paginated, <code>HNK-TXN-001</code> writes use a transaction, <code>HNK-SCH-001</code> fields such as <code>password_hash</code> never appear in a response schema, <code>HNK-SCH-002</code> request text has a length limit); the two model rules <code>HNK-DB-001</code> and <code>HNK-DB-002</code> are written in <code>rules.py</code> as comments to turn on with your first model, because a model rule that matches no model fails the check, <code>AGENTS.md</code> (commands, conventions, and where the agent's authority ends), <code>CLAUDE.md</code> (a pointer to it), <code>.mcp.json</code> (starts the read-only development MCP) and <code>hinoki-rules.toml</code> (the owner's exceptions). The project's own tests pass and <code>hinoki check</code> exits 0; the test suite of this repository generates a project and runs both on every change.</p>
-<h2 id="2-what-the-agent-gets">2. What the agent gets<a class="headerlink" href="#2-what-the-agent-gets" title="Permanent link">&para;</a></h2>
+<p>The generated tests pass and <code>hinoki check</code> exits 0; this repository's own test suite generates a project and runs both on every change.</p>
+<h2 id="what-the-project-contains">What the project contains<a class="headerlink" href="#what-the-project-contains" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AGENTS.md</code></td>
+<td>Commands, conventions and where the agent's authority ends; <code>CLAUDE.md</code> points to it</td>
+</tr>
+<tr>
+<td><code>rules.py</code></td>
+<td>Eight rules on from the start (below); the model rules <code>HNK-DB-001</code> and <code>HNK-DB-002</code> commented out until the first model exists, because a model rule that matches no model fails</td>
+</tr>
+<tr>
+<td><code>.mcp.json</code></td>
+<td>Starts the <a href="../dev-mcp/">development MCP</a></td>
+</tr>
+<tr>
+<td><code>hinoki-rules.toml</code></td>
+<td>The owner's waivers</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Promise</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HNK-ACC-001</code>, <code>HNK-ACC-002</code></td>
+<td>Every action names an access policy and a permission</td>
+</tr>
+<tr>
+<td><code>HNK-API-001</code>, <code>HNK-API-002</code></td>
+<td>Responses are concrete <code>Schema</code> types</td>
+</tr>
+<tr>
+<td><code>HNK-API-003</code></td>
+<td>Lists are paginated</td>
+</tr>
+<tr>
+<td><code>HNK-TXN-001</code></td>
+<td>Writes run in a transaction</td>
+</tr>
+<tr>
+<td><code>HNK-SCH-001</code></td>
+<td>Fields such as <code>password_hash</code> never appear in a response <code>Schema</code></td>
+</tr>
+<tr>
+<td><code>HNK-SCH-002</code></td>
+<td>Request text has a length limit</td>
+</tr>
+</tbody>
+</table>
+<p><code>AGENTS.md</code> states the same conventions as <a href="../patterns/">structure an application</a>: public only on purpose, <code>atomic=True</code> for writes, <code>Schema</code> classes in responses, explicit relation loading, server values win on create, migrations as reviewed SQL.</p>
+<h2 id="give-the-agent-tools">Give the agent tools<a class="headerlink" href="#give-the-agent-tools" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>AGENTS.md</code></strong>: the same conventions this repository uses: public unless protected on purpose, <code>atomic=True</code> for writes, <code>Schema</code> classes in responses, no model responses, explicit relation loading, create from a <code>Schema</code> with server values winning, migrations as reviewed SQL.</li>
-<li><strong>The development MCP</strong> (<code>hinoki mcp</code>, read only): <code>inspect_project</code> (the real registry), <code>list_rules</code>, <code>explain_action</code> (signature, <code>Schema</code> types, access, diagnostics for one action), <code>check_project</code> (rule diagnostics with stable IDs and locations) <code>explain_error</code> (what a validation or HTTP error code means and how to fix it) and <code>propose_model</code> (source text for a model, its In/Patch/Out <code>Schema</code> classes and CRUD actions from a field list; returned, never written). The tools never write code, rules or waivers.</li>
-<li><strong>Optional <code>run_scenario</code></strong>, off by default: <code>hinoki mcp --scenarios read</code> lets the agent send GET/HEAD/OPTIONS/QUERY requests to the app in-process and see status and body; <code>--scenarios write</code> allows any method. It runs the real handlers and the app's lifespan even in <code>read</code> mode (a GET handler may write), so it is not annotated read-only and should only face a disposable database. A failed startup is reported without its message (which may hold a connection string); the details go to the server's stderr. Only the owner can switch it on; the agent cannot.</li>
-<li><strong>Errors that say what to do</strong>: validation errors list every problem with its path and a stable code; <code>explain_error</code> maps a code to its meaning and fix; a registration error names the action and parameter.</li>
+<li><strong>The development MCP</strong> lets the agent read the real registry, rules and models, explain one action or error code, check the project and draft a model. It never writes. See <a href="../dev-mcp/">development MCP</a>.</li>
+<li><strong>Skills</strong> (optional): <code>hinoki skills install</code> writes four playbooks under <code>.claude/skills/</code>: <code>hinoki-add-endpoint</code>, <code>hinoki-fix-rule</code>, <code>hinoki-review-api</code> and <code>hinoki-test-api</code>. Each names the MCP tool or command to run and what belongs to the owner. See <a href="../cli/#skills"><code>hinoki skills</code></a>.</li>
+<li><strong>Errors that say what to do</strong>: validation errors list every problem with a path and a stable code, and a registration error names the action and parameter.</li>
 </ul>
-<p>See the <a href="../dev-mcp/">development MCP guide</a> for tool arguments, result shapes and the effectful scenario option.</p>
-<h3 id="optional-agent-skills">Optional agent skills<a class="headerlink" href="#optional-agent-skills" title="Permanent link">&para;</a></h3>
-<p><code>hinoki new shop --skills</code> (or the prompt in a terminal) and <code>hinoki skills install</code> in an existing project write four Markdown playbooks under <code>.claude/skills/</code>: <code>hinoki-add-endpoint</code>, <code>hinoki-fix-rule</code>, <code>hinoki-review-api</code> and <code>hinoki-test-api</code>. Each one tells an assistant which MCP tool or CLI command to run and which changes belong to the owner (never <code>hinoki-rules.toml</code>). They are off by default; see <a href="../cli/#skills"><code>hinoki skills</code></a>.</p>
-<h3 id="checking-a-change-against-clients">Checking a change against clients<a class="headerlink" href="#checking-a-change-against-clients" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--output<span class="w"> </span>openapi-baseline.json<span class="w">     </span><span class="c1"># released version</span>
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
-</code></pre></div>
-<p>Exit status <code>1</code> lists each change that would break an existing client (removed operations or response fields, new required request input, narrowed enums, changed types); see <a href="../cli/#openapi"><code>openapi</code></a>.</p>
-<h3 id="generated-request-bodies">Generated request bodies<a class="headerlink" href="#generated-request-bodies" title="Permanent link">&para;</a></h3>
-<p><code>hinoki.ai.samples.request_cases(app.openapi())</code> returns one <code>RequestCase</code> per operation with a JSON body: a <code>method</code>, a <code>path</code>, a <code>body</code> that satisfies the declared schema, and <code>invalid</code>, a list of <code>(description, body)</code> pairs that each break one rule (wrong type, missing property, too long, below a bound, and so on).</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.samples</span><span class="w"> </span><span class="kn">import</span> <span class="n">request_cases</span>
-
-<span class="k">for</span> <span class="n">case</span> <span class="ow">in</span> <span class="n">request_cases</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">openapi</span><span class="p">()):</span>
-    <span class="o">...</span>  <span class="c1"># send case.body: expect 2xx; send each body in case.invalid: expect 422</span>
-</code></pre></div>
-<p>The generator reads only the OpenAPI document. It raises <code>CannotSample</code> for a schema it cannot build a value for (such as a regular-expression pattern), and a path with parameters needs real values before it is sent. Use a disposable database and synthetic data.</p>
-<h2 id="3-the-loop">3. The loop<a class="headerlink" href="#3-the-loop" title="Permanent link">&para;</a></h2>
+<h2 id="the-loop">The loop<a class="headerlink" href="#the-loop" title="Permanent link">&para;</a></h2>
 <ol>
-<li>The agent asks the MCP for the project (<code>inspect_project</code>) to read the registered routes and models.</li>
-<li>It makes a small change (a model, a <code>Schema</code>, an action).</li>
+<li>The agent reads the project with <code>inspect_project</code>.</li>
+<li>It makes one small change: a model, a <code>Schema</code>, an action.</li>
 <li>It runs <code>pytest</code>, <code>ruff</code>, <code>mypy</code> and <code>hinoki check</code>.</li>
-<li>A rule violation is a stable ID, a location and an explanation. The fix is to change the code. <strong>Waivers are the owner's decision</strong>: <code>hinoki-rules.toml</code> is read by the tools, never written, and a waiver needs a reason, an owner and a bounded target. An agent that edits it to pass a check is violating <code>AGENTS.md</code>; the framework cannot stop someone with write access, it makes the change visible in review (put the file under CODEOWNERS).</li>
+<li>A violation is a stable rule ID, a location and an explanation; the fix is a code change.</li>
 </ol>
-<h2 id="4-limits-what-this-does-not-do">4. Limits (what this does not do)<a class="headerlink" href="#4-limits-what-this-does-not-do" title="Permanent link">&para;</a></h2>
+<p><strong>Waivers are the owner's decision.</strong> <code>hinoki-rules.toml</code> is read by the tools, never written, and a waiver needs a reason, an owner and a bounded target. An agent that edits it to pass a check breaks <code>AGENTS.md</code>; the framework cannot stop someone with write access, but the change is visible in review. Put the file under <code>CODEOWNERS</code>.</p>
+<h2 id="check-a-change-against-clients">Check a change against clients<a class="headerlink" href="#check-a-change-against-clients" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--output<span class="w"> </span>openapi-baseline.json
+hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
+</code></pre></div>
+<p>Take the baseline from the released version. The second command exits <code>1</code> and lists each change that breaks an existing client: removed operations or response fields, new required input, narrowed enums, changed types. See <a href="../inspect/#openapi"><code>hinoki openapi</code></a>.</p>
+<h2 id="generate-request-bodies">Generate request bodies<a class="headerlink" href="#generate-request-bodies" title="Permanent link">&para;</a></h2>
+<p><code>request_cases</code> reads an OpenAPI document and returns one <code>RequestCase</code> per operation with a JSON body: <code>method</code>, <code>path</code>, a valid <code>body</code>, and <code>invalid</code>, a list of <code>(description, body)</code> pairs that each break one constraint.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tests/bodiestest.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.samples</span><span class="w"> </span><span class="kn">import</span> <span class="n">request_cases</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">shop.main</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span>
+
+<span class="n">CASES</span> <span class="o">=</span> <span class="n">request_cases</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">openapi</span><span class="p">())</span>  <span class="c1"># one per operation with a JSON body</span>
+</code></pre></div>
+<p>Parametrize a test over <code>CASES</code>: send <code>case.body</code> and expect a <code>2xx</code>, then send each body in <code>case.invalid</code> and expect <code>422</code>.</p>
+<p>It raises <code>CannotSample</code> for a schema it cannot build a value for, such as a regular-expression pattern. Fill path parameters with real values before sending, and use a disposable database.</p>
+<h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The development MCP describes and checks a project; to let an agent use a running app, publish selected actions with <code>hinoki.ai.mcpapp.expose_as_mcp</code> (allowlist, caller's own credentials, reads by default; see <a href="../app-mcp/">Application MCP</a>).</li>
-<li>The development MCP was exercised with the official <code>mcp</code> Python client (<code>tests/mcpclient/verify.py</code>: initialize, <code>tools/list</code>, <code>tools/call</code>); other clients are untested.</li>
-<li><code>propose_model</code> is a starting point: it can scope rows to an owner (<code>owner=</code>), paginates the list and takes <code>unique_together</code>, but business rules, state transitions and relations beyond the owner are yours to write.</li>
-<li>Rules decide declarations, not what a function body does; static import rules read the project's own files and report dynamic imports as unverifiable.</li>
-<li>The guide was verified twice: by generating a project and running its tests and <code>check</code>, and by having a fresh agent add an owner-scoped <code>Bookmark</code> resource from the generated <code>AGENTS.md</code> alone. That run found the problems now fixed (the framework path in the generated <code>pyproject.toml</code>, the missing test client, the database variable for <code>check</code>, the missing recipe, <code>explain_error</code> gaps, <code>propose_model</code> without ownership). It is one run by one agent, not a benchmark.</li>
+<li>The development MCP describes and checks a project. To let an agent use a running app, <a href="../app-mcp/">expose selected actions over MCP</a>.</li>
+<li>Rules check declarations, not what a function body does. Import rules read the project's own files and report dynamic imports as unverifiable.</li>
+<li><code>propose_model</code> is a starting point: owner scoping, pagination and <code>unique_together</code>, but no business rules, state transitions or other relations.</li>
+<li>This workflow was verified by generating a project and running its tests and <code>check</code>, and by one fresh agent adding an owner-scoped resource from <code>AGENTS.md</code> alone. One run by one agent is evidence, not a benchmark.</li>
+</ul>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../dev-mcp/">Development MCP</a></li>
+<li><a href="../rules/">Rules</a></li>
+<li><a href="../patterns/">Structure an application</a></li>
 </ul>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../rules/">Rules</a></li><li><a href="../app-mcp/">Application MCP</a></li></ul>
+          <ul><li><a href="../dev-mcp/">Development MCP</a></li><li><a href="../rules/">Rules</a></li><li><a href="../app-mcp/">Expose actions over MCP</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../dev-mcp/"><small>Previous</small><span>Development MCP</span></a>
-        <a class="pager__link pager__link--next" href="../sync-async/"><small>Next</small><span>Sync and async</span></a>
+        <a class="pager__link pager__link--next" href="../sync-async/"><small>Next</small><span>Sync and async code</span></a>
       </nav>
     </main>
 
@@ -466,17 +578,15 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#1-start-a-project-an-agent-can-work-in">1. Start a project an agent can work in</a></li><li><a href="#2-what-the-agent-gets">2. What the agent gets</a>
-            <ul><li><a href="#optional-agent-skills">Optional agent skills</a></li><li><a href="#checking-a-change-against-clients">Checking a change against clients</a></li><li><a href="#generated-request-bodies">Generated request bodies</a></li></ul>
-          </li><li><a href="#3-the-loop">3. The loop</a></li><li><a href="#4-limits-what-this-does-not-do">4. Limits (what this does not do)</a></li></ul>
+            <ul><li><a href="#what-the-project-contains">What the project contains</a></li><li><a href="#give-the-agent-tools">Give the agent tools</a></li><li><a href="#the-loop">The loop</a></li><li><a href="#check-a-change-against-clients">Check a change against clients</a></li><li><a href="#generate-request-bodies">Generate request bodies</a></li><li><a href="#limits">Limits</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.29</dd></div>
+          <div><dt>Sheet</dt><dd>3.42</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:50:52 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ai-workflow.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="4.5">
+  <div class="shell" data-sheet="4.4">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -207,7 +207,7 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Overview</span></a></li>
+                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Concepts</span></a></li>
               
             
               
@@ -215,15 +215,15 @@
               
             
               
-                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Architecture patterns</span></a></li>
+                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Structure an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ecosystem/"><i>4.4</i><span>Own schemas and ORM</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>4.4</i><span>Glossary</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>4.5</i><span>Glossary</span></a></li>
+                <li><a class="side__link" href="../ecosystem/"><i>4.5</i><span>Use other libraries</span></a></li>
               
             
             </ul>
@@ -233,55 +233,110 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '4.5'">
-        <p class="kicker" data-search-exclude>4.5 · Concepts</p>
-        <h1 id="glossary-one-word-one-meaning">Glossary: one word, one meaning<a class="headerlink" href="#glossary-one-word-one-meaning" title="Permanent link">&para;</a></h1>
-<p>"Schema" means four different things in this field, so the docs use it for one of them only.</p>
+      <article class="prose" style="--sheet: '4.4'">
+        <p class="kicker" data-search-exclude>4.4 · Concepts</p>
+        <h1 id="glossary">Glossary<a class="headerlink" href="#glossary" title="Permanent link">&para;</a></h1>
+<p>One word, one meaning. "Schema" has four meanings in this field, so the docs keep the word for one of them.</p>
+<h2 id="the-four-schemas">The four schemas<a class="headerlink" href="#the-four-schemas" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Write</th>
-<th>Means</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>Schema</code> (code font)</td>
-<td>The Hinoki class for typed, validated request and response data: <code>class NoteIn(Schema)</code>. Always capitalised and in code font.</td>
+<td>The Hinoki class for typed, validated request and response data: <code>class InvoiceIn(Schema)</code>. Always capitalised and in code font; say "a response <code>Schema</code>".</td>
 </tr>
 <tr>
 <td>table state, migration state</td>
-<td>What the migration planner records about the database tables (<code>migrations/NNNN-name.state.json</code>). Never "the database schema".</td>
+<td>What the migration planner records about the tables (<code>migrations/NNNN-name.state.json</code>). Never "the database schema".</td>
 </tr>
 <tr>
 <td>OpenAPI document</td>
-<td>The generated <code>/openapi.json</code> description of the API. Its <code>components.schemas</code> entries are "OpenAPI schema objects".</td>
+<td>The generated <code>/openapi.json</code>. Its <code>components.schemas</code> entries are "OpenAPI schema objects".</td>
 </tr>
 <tr>
 <td>JSON Schema</td>
-<td>The standard of that name, which the OpenAPI document uses to describe bodies. Always with its proper name.</td>
-</tr>
-<tr>
-<td><code>Model</code></td>
-<td>A class that maps to a table (<code>class Note(Model)</code> maps to <code>notes</code>). Not a <code>Schema</code>: a column reaches a client only when a <code>Schema</code> names it.</td>
-</tr>
-<tr>
-<td><code>Access</code>, <code>Caller</code></td>
-<td>The access policy of an action, and who is making the request.</td>
-</tr>
-<tr>
-<td>action</td>
-<td>One declared endpoint (<code>@http.get</code>, <code>@http.post</code>, ...), plain function or API-class method.</td>
+<td>The standard the OpenAPI document uses to describe bodies, always by its name.</td>
 </tr>
 </tbody>
 </table>
-<p>When you write about the rule <code>HNK-SCH-001</code>, say "a response <code>Schema</code>", not "a response schema".</p>
+<h2 id="projects-and-apps">Projects and apps<a class="headerlink" href="#projects-and-apps" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>manifest</td>
+<td><code>hinoki.toml</code>: the project's application, its apps, their prefixes and dependencies.</td>
+</tr>
+<tr>
+<td>project application</td>
+<td>The <code>Hinoki</code> object named by <code>project.application</code> (<code>notes.main:app</code>); the one a server process serves.</td>
+</tr>
+<tr>
+<td>app</td>
+<td>A package listed under <code>[[apps]]</code>: models, migrations and a <code>routes.py</code>. Not a second <code>Hinoki</code> object.</td>
+</tr>
+<tr>
+<td>app prefix</td>
+<td>The path an app's routes are mounted under, set only in <code>hinoki.toml</code> (<code>/billing</code>).</td>
+</tr>
+<tr>
+<td>target</td>
+<td><code>module:attribute</code> naming an app or a no-argument factory, given to commands such as <code>hinoki dev notes.main:app</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="code">Code<a class="headerlink" href="#code" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Model</code></td>
+<td>A class mapped to a table. Without <code>@db.table</code>, the name is <code>&lt;app&gt;_&lt;plural&gt;</code>: <code>notes.apps.billing.models.Invoice</code> → <code>billing_invoices</code>. A column reaches a client only through a <code>Schema</code>.</td>
+</tr>
+<tr>
+<td>action</td>
+<td>One declared endpoint (<code>@http.get</code>, <code>@invoices.post</code>, ...): a function or an <code>API</code> class method.</td>
+</tr>
+<tr>
+<td>route group</td>
+<td>A <code>RouteGroup</code>: functions under one path prefix with shared <code>access=</code>, <code>atomic=</code> and <code>errors=</code>.</td>
+</tr>
+<tr>
+<td><code>Access</code></td>
+<td>The access policy of an action: an authentication provider and required permissions.</td>
+</tr>
+<tr>
+<td><code>Caller</code></td>
+<td>Who is making the request, as resolved by the provider.</td>
+</tr>
+</tbody>
+</table>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../concepts/">Concepts</a></li><li><a href="../schemas/">Schemas</a></li></ul>
+        </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../ecosystem/"><small>Previous</small><span>Own schemas and ORM</span></a>
-        <a class="pager__link pager__link--next" href="../reference/"><small>Next</small><span>Overview</span></a>
+        <a class="pager__link pager__link--prev" href="../patterns/"><small>Previous</small><span>Structure an application</span></a>
+        <a class="pager__link pager__link--next" href="../ecosystem/"><small>Next</small><span>Use other libraries</span></a>
       </nav>
     </main>
 
@@ -293,14 +348,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#glossary-one-word-one-meaning">Glossary: one word, one meaning</a></li></ul>
+            <ul><li><a href="#the-four-schemas">The four schemas</a></li><li><a href="#projects-and-apps">Projects and apps</a></li><li><a href="#code">Code</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>4.5</dd></div>
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:20:26 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Sheet</dt><dd>4.4</dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/glossary.md">Edit on GitHub</a></dd></div>
         </dl>

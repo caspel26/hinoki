@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Utilities · Hinoki</title>
+  <title>Time and utilities · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Utilities · Hinoki">
+  <meta property="og:title" content="Time and utilities · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="3.7">
+  <div class="shell" data-sheet="3.14">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -397,87 +441,130 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.7'">
-        <p class="kicker" data-search-exclude>3.7 · Guides</p>
-        <h1 id="utilities">Utilities<a class="headerlink" href="#utilities" title="Permanent link">&para;</a></h1>
-<p>Hinoki includes a small set of helpers where the framework can define clear behavior. Use the Python standard library for ordinary IDs, paths, and application-specific formatting.</p>
+      <article class="prose" style="--sheet: '3.14'">
+        <p class="kicker" data-search-exclude>3.14 · Guides</p>
+        <h1 id="time-and-utilities">Time and utilities<a class="headerlink" href="#time-and-utilities" title="Permanent link">&para;</a></h1>
+<p>Hinoki ships a few helpers where the framework defines the behaviour. Use the
+standard library for everything else.</p>
 <h2 id="utc-time">UTC time<a class="headerlink" href="#utc-time" title="Permanent link">&para;</a></h2>
-<p><code>utc_now()</code> returns a timezone-aware <code>datetime</code> in UTC. It is suitable for field factories and application code:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<p><code>utc_now()</code> returns a timezone-aware <code>datetime</code> in UTC; use it for field
+factories and application code.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">pk</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Event</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
 </code></pre></div>
-<p>The clock is a callable, so code that depends on time can accept a <code>Clock</code> and tests can supply a fixed function. No process-wide clock patch is needed.</p>
-<p>For tests that need to move time more than once, use <code>ManualClock</code> from <code>hinoki.testing</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTC</span><span class="p">,</span> <span class="n">datetime</span>
+<p>A clock is any callable returning an aware <code>datetime</code> (<code>hinoki.utils.Clock</code>).
+Code that depends on time accepts a clock; tests pass a fixed one. No
+process-wide patching is needed.</p>
+<p><code>utc_today(clock=utc_now)</code> returns the date in UTC, independent of the
+machine's timezone: <code>2026-01-02 00:30+02:00</code> is <code>2026-01-01</code>.</p>
+<h2 id="test-clocks">Test clocks<a class="headerlink" href="#test-clocks" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># tests/clocktest.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTC</span><span class="p">,</span> <span class="n">datetime</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManualClock</span>
 
-<span class="n">clock</span> <span class="o">=</span> <span class="n">ManualClock</span><span class="p">(</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">tzinfo</span><span class="o">=</span><span class="n">UTC</span><span class="p">))</span>
-<span class="n">first</span> <span class="o">=</span> <span class="n">clock</span><span class="p">()</span>
-<span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
-<span class="n">second</span> <span class="o">=</span> <span class="n">clock</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_clock_moves</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">clock</span> <span class="o">=</span> <span class="n">ManualClock</span><span class="p">(</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">tzinfo</span><span class="o">=</span><span class="n">UTC</span><span class="p">))</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="n">clock</span><span class="p">()</span>
+    <span class="n">clock</span><span class="o">.</span><span class="n">advance</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">clock</span><span class="p">()</span> <span class="o">-</span> <span class="n">first</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span> <span class="o">==</span> <span class="mi">60</span>
 </code></pre></div>
-<p>It stores instants in UTC, accepts only timezone-aware values, and can be passed to <code>app.now(clock)</code> or <code>utc_today(clock)</code>.</p>
+<p><code>ManualClock</code> stores UTC instants, accepts only aware values and works with
+<code>app.now(clock)</code>, <code>utc_today(clock)</code> and <code>@timestamps(clock=...)</code>.</p>
 <h2 id="application-timezone">Application timezone<a class="headerlink" href="#application-timezone" title="Permanent link">&para;</a></h2>
-<p>Set an IANA timezone name in the app's global settings. It defaults to <code>UTC</code>; invalid names fail while settings are constructed:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">settings</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
     <span class="n">timezone</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"Europe/Rome"</span>
-
-
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">)</span>
-<span class="n">current_time</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>  <span class="c1"># aware datetime in Europe/Rome</span>
 </code></pre></div>
-<p><code>app.now()</code> reads the timezone from that app's settings and returns an aware <code>datetime</code>. Apps in one process can use different settings. There is no <code>Hinoki(timezone=...)</code> argument. To make time-dependent code deterministic, pass a <code>Clock</code> to <code>app.now(clock)</code>.</p>
-<p><code>utc_today(clock=utc_now)</code> returns the calendar date in UTC. The framework uses it for waiver expiry so the result does not depend on the machine's local timezone. For example, <code>2026-01-02 00:30+02:00</code> is <code>2026-01-01</code> in UTC.</p>
+<p><code>app.now()</code> returns an aware <code>datetime</code> in the settings' IANA timezone
+(default <code>UTC</code>); an invalid name fails while settings load. Apps in one
+process can use different timezones; there is no <code>Hinoki(timezone=...)</code>.
+<code>app.now(clock)</code> takes a clock for tests.</p>
 <h2 id="model-update-timestamps">Model update timestamps<a class="headerlink" href="#model-update-timestamps" title="Permanent link">&para;</a></h2>
-<p>Declare the columns explicitly and decorate the model with <code>@timestamps()</code> to refresh <code>updated_at</code> on each ORM update:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">timestamps</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">timestamps</span>
 
 
 <span class="nd">@timestamps</span><span class="p">()</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Note</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Statement</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
     <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
 </code></pre></div>
-<p>The decorator requires a non-nullable <code>datetime</code> field named <code>updated_at</code>. Use <code>@timestamps("modified_at", clock=my_clock)</code> for another field or an injected clock. Clock values must be timezone-aware; Hinoki converts them to UTC. A value supplied for the managed field in an update is replaced by the clock value.</p>
-<p>The behavior applies to <code>Model.aupdate</code>/<code>update_where</code>, instance <code>asave</code>/<code>aupdate_from</code>, and <code>QuerySet.aupdate</code>, including sync counterparts. All rows changed by one statement receive the same time. Creation uses the declared field factories. Raw SQL bypasses this ORM behavior; use an explicit database trigger if independent writers need database-authoritative timestamps.</p>
-<p>These fields are ordinary model columns. They remain visible to type checkers and the migration planner; Hinoki does not add hidden fields or apply migrations automatically.</p>
-<h2 id="other-common-needs">Other common needs<a class="headerlink" href="#other-common-needs" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Use <code>uuid.uuid4()</code> for ordinary UUID identifiers.</li>
-<li>Use <code>secrets</code> or <code>hinoki.crypto.random_token</code> for secret tokens, depending on whether the token is part of Hinoki authentication.</li>
-<li>Use <code>pathlib.Path</code> for filesystem paths and the existing <code>Settings</code> loader for environment and dotenv configuration.</li>
-<li>Use <code>hinoki.testing</code> clients for application requests; inject a clock callable when behavior depends on time.</li>
+<li><code>@timestamps()</code> sets the non-nullable <code>updated_at: datetime</code> column on every
+  ORM update: <code>Model.aupdate</code>, <code>aupdate_where</code>, <code>asave</code>, <code>aupdate_from</code>,
+  <code>QuerySet.aupdate</code> and their sync forms. One statement gives every row the
+  same time; a value supplied for the column is replaced.</li>
+<li><code>@timestamps("modified_at", clock=my_clock)</code> names another column or injects
+  a clock; clock values must be aware and are stored in UTC.</li>
+<li>Creation uses the field factories. Raw SQL bypasses the decorator: use a
+  database trigger if independent writers need database-authoritative times.</li>
+<li>Both columns are ordinary fields, visible to type checkers and migrations.</li>
 </ul>
-<p>Hinoki does not provide generic slug, retry, or environment helpers because their rules depend on the application.</p>
+<h2 id="other-common-needs">Other common needs<a class="headerlink" href="#other-common-needs" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UUID identifiers</td>
+<td><code>uuid.uuid4()</code></td>
+</tr>
+<tr>
+<td>secret tokens</td>
+<td><code>secrets</code>, or <code>hinoki.crypto.random_token()</code> for Hinoki authentication</td>
+</tr>
+<tr>
+<td>file system paths</td>
+<td><code>pathlib.Path</code></td>
+</tr>
+<tr>
+<td>configuration</td>
+<td><a href="../settings/">settings</a></td>
+</tr>
+<tr>
+<td>requests in tests</td>
+<td><code>hinoki.testing</code> clients (<a href="../testing/">testing</a>)</td>
+</tr>
+</tbody>
+</table>
+<p>Hinoki has no slug, retry or environment helpers: their rules belong to the
+application.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../model-options/">Model options</a></li>
+<li><a href="../testing/">Testing</a></li>
+</ul>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../models/">Models and queries</a></li><li><a href="../testing/">Testing</a></li></ul>
+          <ul><li><a href="../models/">Define models</a></li><li><a href="../model-options/">Model options</a></li><li><a href="../testing/">Test an application</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../model-options/"><small>Previous</small><span>Model options</span></a>
-        <a class="pager__link pager__link--next" href="../relations/"><small>Next</small><span>Relations</span></a>
+        <a class="pager__link pager__link--prev" href="../model-schemas/"><small>Previous</small><span>Schemas from models</span></a>
+        <a class="pager__link pager__link--next" href="../function-endpoints/"><small>Next</small><span>Function-based APIs</span></a>
       </nav>
     </main>
 
@@ -489,14 +576,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#utc-time">UTC time</a></li><li><a href="#application-timezone">Application timezone</a></li><li><a href="#model-update-timestamps">Model update timestamps</a></li><li><a href="#other-common-needs">Other common needs</a></li></ul>
+            <ul><li><a href="#utc-time">UTC time</a></li><li><a href="#test-clocks">Test clocks</a></li><li><a href="#application-timezone">Application timezone</a></li><li><a href="#model-update-timestamps">Model update timestamps</a></li><li><a href="#other-common-needs">Other common needs</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.7</dd></div>
+          <div><dt>Sheet</dt><dd>3.14</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:20:26 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/utilities.md">Edit on GitHub</a></dd></div>
         </dl>

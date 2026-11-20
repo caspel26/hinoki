@@ -252,14 +252,26 @@
       <article class="prose" style="--sheet: '2.7'">
         <p class="kicker" data-search-exclude>2.7 · Tutorial</p>
         <h1 id="6-run-and-test-it">6. Run and test it<a class="headerlink" href="#6-run-and-test-it" title="Permanent link">&para;</a></h1>
-<h2 id="settings-and-serving">Settings and serving<a class="headerlink" href="#settings-and-serving" title="Permanent link">&para;</a></h2>
-<p>The Tracker example's factory assembles the HTTP routes, rules and MCP tool; the <code>database</code> field of its settings opens the database. It uses typed <code>TrackerSettings</code>; local SQLite is the default and <code>TRACKER_DATABASE__URL</code> selects another database.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracker_rules</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackerSettings</span>
+<h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
+<p>Settings are a typed class. Tracker declares a database; local SQLite is the
+default, and <code>TRACKER_DATABASE__URL</code> selects another database:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/settings.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TrackerSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"TRACKER_"</span><span class="p">):</span>
+    <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
+</code></pre></div>
+<p>The factory loads the settings, builds the application with its rules and
+includes the routes and an MCP tool:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/app.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracker_rules</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackerSettings</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">database_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Hinoki</span><span class="p">:</span>
@@ -274,66 +286,76 @@
         <span class="n">rules</span><span class="o">=</span><span class="n">tracker_rules</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="n">api</span><span class="o">.</span><span class="n">health</span><span class="p">,</span> <span class="n">api</span><span class="o">.</span><span class="n">tasks</span><span class="p">)</span>
+    <span class="c1"># The MCP endpoint exposes only this action and uses the caller's own token.</span>
     <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span>
         <span class="o">*</span><span class="n">expose_as_mcp</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">api</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.list_tasks"</span><span class="p">],</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">)</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">app</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="c1"># Omit these variables to use .hinoki/local.sqlite3.</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">TRACKER_DATABASE__URL</span><span class="o">=</span><span class="s1">'postgresql://user:password@127.0.0.1:5432/tracker'</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE__URL</span><span class="s2">"</span>
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0001</span>-initial
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0002</span>-indexes
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>tracker
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>tracker.app:create_app
+<p>Tracker uses a factory because tests build it with a disposable database URL.
+A project created with <code>hinoki new</code> declares a module-level <code>app</code> and lists its
+routes in <code>routes.py</code> instead (<a href="../8-projects/">chapter 8</a>).</p>
+<h2 id="serve-it">Serve it<a class="headerlink" href="#serve-it" title="Permanent link">&para;</a></h2>
+<p>From <code>examples/</code>:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">SQLite (default)</label><label for="__tabbed_1_2">PostgreSQL</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>tracker
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>tracker.app:create_app
 </code></pre></div>
-<p>The Tracker example already includes its initial and index migrations, so this
-command sequence inspects and applies those checked-in files. After changing a
-model, generate a new migration with <code>hinoki migrations plan --app tracker</code>
-and review its SQL before applying it to a disposable database; do not expect
-the planner to recreate the existing initial migration.
-<code>dev</code> reloads on change; <code>serve</code> runs without reload and takes host, port and
-workers from the <code>server</code> settings (<a href="../../serving/">serving</a>). Open <code>/docs</code> or
-<code>/redoc</code>.</p>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">TRACKER_DATABASE__URL</span><span class="o">=</span>postgresql://user:password@127.0.0.1:5432/tracker
+<span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="nv">$TRACKER_DATABASE__URL</span>
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>tracker
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>tracker.app:create_app
+</code></pre></div>
+</div>
+</div>
+</div>
+<p><code>HINOKI_DATABASE_URL</code> is the database of the migration commands; the
+application reads its own settings. <code>hinoki dev</code> serves on
+<code>http://127.0.0.1:8000</code> and reloads on change; open <code>/docs</code> or <code>/redoc</code>.
+<code>hinoki serve</code> runs without reload and takes host, port and workers from the
+<code>server</code> settings (<a href="../../serving/">serving</a>).</p>
 <h2 id="test-it">Test it<a class="headerlink" href="#test-it" title="Permanent link">&para;</a></h2>
-<p>Operations need no HTTP at all, so test them directly; then drive the whole
-stack with the in-process client. The repository test fixture applies the
-migrations and creates the Ann and Ben members used by the bearer tokens below:
-<a href="https://github.com/caspel26/hinoki/blob/main/tests/trackertest.py">tests/trackertest.py</a>.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_app</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ASGIClient</span>
-
-<span class="n">URL</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"HINOKI_TEST_DATABASE_URL"</span><span class="p">)</span>
-<span class="n">needs_database</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">skipif</span><span class="p">(</span><span class="n">URL</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">"no database"</span><span class="p">)</span>
-
-
+<p>Operations need no HTTP, so test them directly. Then drive the whole stack with
+the in-process client:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tests/trackertest.py (excerpt)</span>
 <span class="nd">@needs_database</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_tracker_api</span><span class="p">(</span><span class="n">members</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Member</span><span class="p">,</span> <span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_every_business_error_of_the_tracker_is_declared</span><span class="p">(</span>
+    <span class="n">members</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Member</span><span class="p">,</span> <span class="n">Member</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">assert</span> <span class="n">URL</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
     <span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">(</span><span class="n">URL</span><span class="p">),</span> <span class="n">strict_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
         <span class="n">made</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">},</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">)</span>
         <span class="n">path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"/tasks/</span><span class="si">{</span><span class="n">made</span><span class="o">.</span><span class="n">body</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
         <span class="k">assert</span> <span class="p">(</span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ben-token"</span><span class="p">))</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">404</span>
         <span class="k">assert</span> <span class="p">(</span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">))</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">200</span>
-        <span class="k">assert</span> <span class="p">(</span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">))</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">409</span>
+        <span class="n">again</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">again</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">409</span>
 </code></pre></div>
-<p>This is an excerpt of <code>test_every_business_error_of_the_tracker_is_declared</code>;
-its <code>members</code> fixture creates the two users and provides a fresh migrated
-database. Run the repository test with a disposable database URL, which the
-fixture empties first (PostgreSQL, or a throwaway SQLite file such as
-<code>sqlite://./.hinoki/tracker-test.sqlite3</code>):</p>
-<div class="highlight"><pre><span></span><code><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$TRACKER_DATABASE__URL</span><span class="s2">"</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/trackertest.py
+<p>The <code>members</code> fixture of
+<a href="https://github.com/caspel26/hinoki/blob/main/tests/trackertest.py"><code>tests/trackertest.py</code></a>
+migrates a fresh database and creates the members Ann and Ben. Run it from the
+repository root against a disposable database, which the fixture empties first:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span>sqlite://./.hinoki/tracker-test.sqlite3
+uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/trackertest.py
 </code></pre></div>
-<p><code>strict_errors=True</code> fails the test if an action answers an error it did not
+<p><code>strict_errors=True</code> fails a test when an action answers an error it did not
 declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
-<h2 id="where-next">Where next<a class="headerlink" href="#where-next" title="Permanent link">&para;</a></h2>
-<p><a href="../../patterns/">Patterns and best practices</a>, <a href="../../app-mcp/">the application MCP</a> (the tracker already exposes <code>list_tasks</code> to MCP clients), and <a href="../../ai-workflow/">development tools</a>.</p>
+<h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Settings are typed and read from prefixed environment variables.</li>
+<li><code>hinoki dev</code> serves with reload; migrations stay a separate step.</li>
+<li>Test operations directly and the stack with <code>ASGIClient</code>.</li>
+</ul>
+<p>Next: <a href="../7-validation/">7. Validate input</a>.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../../settings/">Settings</a></li><li><a href="../../serving/">Serve an application</a></li><li><a href="../../testing/">Test an application</a></li></ul>
+        </aside>
         
       </article>
 
@@ -351,14 +373,14 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#settings-and-serving">Settings and serving</a></li><li><a href="#test-it">Test it</a></li><li><a href="#where-next">Where next</a></li></ul>
+            <ul><li><a href="#settings">Settings</a></li><li><a href="#serve-it">Serve it</a></li><li><a href="#test-it">Test it</a></li><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>

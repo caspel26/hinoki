@@ -251,12 +251,15 @@
     <main class="main" id="main">
       <article class="prose" style="--sheet: '2.1'">
         <p class="kicker" data-search-exclude>2.1 · Tutorial</p>
-        <h1 id="tutorial-a-task-tracker-layer-by-layer">Tutorial: a task tracker, layer by layer<a class="headerlink" href="#tutorial-a-task-tracker-layer-by-layer" title="Permanent link">&para;</a></h1>
-<p>Chapters 1–6 follow the Tracker in <a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker"><code>examples/tracker</code></a>: members keep their own tasks, complete them, and a few rules stop it from rotting. Chapter 7 uses standalone validation examples. Chapter 8 starts a fresh project with the scaffold and app commands.</p>
+        <h1 id="tutorial">Tutorial<a class="headerlink" href="#tutorial" title="Permanent link">&para;</a></h1>
+<p>Build the Tracker, an API where members keep their own tasks, one layer per
+chapter. The code is the checked-in example in
+<a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker"><code>examples/tracker</code></a>,
+so every step runs as shown.</p>
 <table>
 <thead>
 <tr>
-<th>Step</th>
+<th>Chapter</th>
 <th>You add</th>
 <th>You learn</th>
 </tr>
@@ -265,17 +268,17 @@
 <tr>
 <td><a href="1-models/">1. Models</a></td>
 <td>tables, an index, a default order</td>
-<td>how a model and a migration relate</td>
+<td>models and migrations</td>
 </tr>
 <tr>
 <td><a href="2-schemas/">2. Schemas</a></td>
-<td>what clients send and see</td>
-<td>strict validation, schemas derived from models</td>
+<td>what clients send and receive</td>
+<td>strict validation, derived schemas</td>
 </tr>
 <tr>
 <td><a href="3-operations/">3. Operations</a></td>
 <td>the business rules</td>
-<td>row permission inside the statement</td>
+<td>ownership inside the statement</td>
 </tr>
 <tr>
 <td><a href="4-endpoints/">4. Endpoints</a></td>
@@ -285,34 +288,47 @@
 <tr>
 <td><a href="5-rules/">5. Rules</a></td>
 <td>checks that keep the layers apart</td>
-<td><code>hinoki check</code>, import boundaries</td>
+<td><code>hinoki check</code></td>
 </tr>
 <tr>
 <td><a href="6-run/">6. Run and test it</a></td>
-<td>settings, serving, tests</td>
-<td><code>dev</code>, <code>serve</code>, the test client</td>
+<td>settings, a server, tests</td>
+<td><code>hinoki dev</code>, the test client</td>
 </tr>
 <tr>
 <td><a href="7-validation/">7. Validate input</a></td>
-<td>Schema config, normalization/checks and Model write validators</td>
-<td>ignored external metadata, canonical fields, field-level and cross-field errors</td>
+<td>normalizers and checks</td>
+<td>field and cross-field errors</td>
 </tr>
 <tr>
 <td><a href="8-projects/">8. Projects and apps</a></td>
-<td><code>hinoki new</code>, modular apps and migration commands</td>
-<td>generated project manifest, automatic migration names and local SQLite setup</td>
+<td>an app in your own project</td>
+<td><code>hinoki app create</code>, planned migrations</td>
 </tr>
 </tbody>
 </table>
-<p>The Tracker chapters build and run an existing, versioned example. The validation chapter uses focused examples; the final chapter separately walks through creating a project and app, where Hinoki writes the manifest and discovers migrations automatically.</p>
+<p>Chapters 1–6 build the Tracker. Chapter 7 uses standalone examples, and
+chapter 8 continues the project from the <a href="../quick-start/">Quick start</a>.</p>
 <p>The shape you end with:</p>
 <div class="highlight"><pre><span></span><code>api.py          HTTP: shapes, status codes, access, transactions
    ↓
-operations.py   business rules, plain async functions, no HTTP types
+operations.py   business rules: plain async functions, no HTTP types
    ↓
 models.py       tables and relations
 </code></pre></div>
-<p>Prerequisites: <a href="../getting-started/">install</a> from a checkout. The Tracker tests in chapters 1–6 need a disposable database in <code>HINOKI_TEST_DATABASE_URL</code> (PostgreSQL, or a throwaway SQLite file; chapter 6 shows both). The standalone validation examples in chapter 7 need no database; chapter 8 uses local SQLite by default.</p>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p><a href="../getting-started/">Install Hinoki</a>. Chapters 1–6 run in the checkout's
+<code>examples/</code> directory:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+</code></pre></div>
+<p>That directory hosts three applications (Notes, Tracker and Blog) under one
+<code>hinoki.toml</code>, so server and check commands name the application, such as
+<code>tracker.app:create_app</code>. In your own project they take no target.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../patterns/">Structure an application</a></li><li><a href="../quick-start/">Quick start</a></li></ul>
+        </aside>
         
       </article>
 
@@ -330,14 +346,14 @@ models.py       tables and relations
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#tutorial-a-task-tracker-layer-by-layer">Tutorial: a task tracker, layer by layer</a></li></ul>
+            <ul><li><a href="#before-you-start">Before you start</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.1</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/index.md">Edit on GitHub</a></dd></div>
         </dl>

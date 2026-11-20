@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OpenAPI · Hinoki</title>
+  <title>OpenAPI document · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="OpenAPI · Hinoki">
+  <meta property="og:title" content="OpenAPI document · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="3.12">
+  <div class="shell" data-sheet="3.23">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -397,16 +441,16 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.12'">
-        <p class="kicker" data-search-exclude>3.12 · Guides</p>
+      <article class="prose" style="--sheet: '3.23'">
+        <p class="kicker" data-search-exclude>3.23 · Guides</p>
         <h1 id="openapi-document">OpenAPI document<a class="headerlink" href="#openapi-document" title="Permanent link">&para;</a></h1>
 <p><code>Hinoki.openapi()</code> builds an OpenAPI 3.1 document from the routes registered with the app. Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.</p>
-<p>Generate the document from a project target without starting a server:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span class="w"> </span>--output<span class="w"> </span>openapi.json
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>notes.main:app<span class="w"> </span>--check<span class="w"> </span>openapi.json
+<p>Generate the document from the application without starting a server:</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>--output<span class="w"> </span>openapi.json
+hinoki<span class="w"> </span>openapi<span class="w"> </span>--check<span class="w"> </span>openapi.json
+hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
 </code></pre></div>
-<p>The command does not open a database and works even when <code>openapi_url</code> is disabled. It writes stable, sorted JSON, and <code>--check</code> compares parsed JSON so whitespace-only changes do not report drift. See the <a href="../cli/#openapi">command-line guide</a> for output and exit-status details.</p>
+<p><code>--output</code> writes stable, sorted JSON. <code>--check</code> compares parsed JSON with a committed file, so whitespace-only changes do not report drift. <code>--breaking-against</code> compares with an earlier document (the released one) and prints one <code>breaking: …</code> line per change that would break an existing client. The three options are exclusive. The command opens no database and works even when <code>openapi_url</code> is disabled. See <a href="../inspect/#openapi">inspect an application</a> for output and exit status.</p>
 <h2 id="serve-the-document-and-viewers">Serve the document and viewers<a class="headerlink" href="#serve-the-document-and-viewers" title="Permanent link">&para;</a></h2>
 <p>All three URLs are disabled by default. Set <code>openapi_url</code> to serve JSON; add <code>docs_url</code> for the bundled Swagger UI or <code>redoc_url</code> for ReDoc:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
@@ -432,11 +476,11 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <li><code>access=...</code> adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.</li>
 <li>Admin HTML routes marked <code>hide_from_docs</code> are omitted.</li>
 </ul>
-<p>A <code>dict[str, X]</code> field becomes <code>type: object</code> with <code>additionalProperties</code> (the value schema), <code>propertyNames</code> (the key schema) and <code>minProperties</code>/<code>maxProperties</code> from its declared entry limits. The framework bounds on client input (1000 entries, 256-character keys) are not part of the document because components describe responses too; see <a href="../schemas/#dictionary-fields">dictionary fields</a>.</p>
-<p><code>date</code>, <code>time</code> and <code>timedelta</code> fields become <code>type: string</code> with <code>format: date</code>, <code>time</code> and <code>duration</code>. A <code>Decimal</code> field becomes <code>type: string</code>, <code>format: decimal</code> and a <code>pattern</code> for its text form, with <code>ge</code>/<code>le</code>/<code>gt</code>/<code>lt</code> as <code>minimum</code>/<code>maximum</code>/<code>exclusiveMinimum</code>/<code>exclusiveMaximum</code>; <code>max_digits</code> and <code>decimal_places</code> are not written, nor is a <code>Decimal</code> field's <code>multiple_of</code>. An <code>int</code> field's <code>multiple_of</code> becomes <code>multipleOf</code>. IP address and network fields become <code>type: string</code> with <code>format: ipv4</code>, <code>ipv6</code>, <code>ipv4network</code> or <code>ipv6network</code>. A <code>Path</code> field becomes <code>type: string</code> with <code>format: path</code>, and a <code>SecretStr</code> field <code>type: string</code> with <code>format: password</code> and <code>writeOnly: true</code>. A <code>bytes</code> field becomes <code>type: string</code>, <code>format: byte</code> and <code>contentEncoding: base64</code>, and its decoded-size limits are not written either, since they count bytes rather than characters. See <a href="../schemas/#dates-durations-decimals-and-bytes">dates, durations, decimals and bytes</a>.</p>
-<p>An <code>Enum</code> or <code>Literal</code> field becomes <code>type: string</code> or <code>type: integer</code> with an <code>enum</code> list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in <code>anyOf</code> with <code>null</code>. See <a href="../schemas/#enums-and-literals">enums and literals</a>.</p>
-<p>A <code>set[X]</code> or <code>frozenset[X]</code> field becomes an array with <code>uniqueItems: true</code>, <code>tuple[X, ...]</code> an array of <code>X</code>, and a fixed <code>tuple[X, Y]</code> an array with <code>prefixItems</code>, <code>items: false</code> and equal <code>minItems</code>/<code>maxItems</code>. See <a href="../schemas/#sets-and-tuples">sets and tuples</a>.</p>
-<p>A plain union such as <code>int | str</code> becomes <code>anyOf</code> of its variants, and <code>Any</code> or <code>object</code> an unconstrained schema (<code>{}</code>). See <a href="../schemas/#plain-unions-and-any">plain unions and <code>Any</code></a>.</p>
+<p>A <code>dict[str, X]</code> field becomes <code>type: object</code> with <code>additionalProperties</code> (the value schema), <code>propertyNames</code> (the key schema) and <code>minProperties</code>/<code>maxProperties</code> from its declared entry limits. The framework bounds on client input (1000 entries, 256-character keys) are not part of the document because components describe responses too; see <a href="../schema-collections/#dictionary-fields">dictionary fields</a>.</p>
+<p><code>date</code>, <code>time</code> and <code>timedelta</code> fields become <code>type: string</code> with <code>format: date</code>, <code>time</code> and <code>duration</code>. A <code>Decimal</code> field becomes <code>type: string</code>, <code>format: decimal</code> and a <code>pattern</code> for its text form, with <code>ge</code>/<code>le</code>/<code>gt</code>/<code>lt</code> as <code>minimum</code>/<code>maximum</code>/<code>exclusiveMinimum</code>/<code>exclusiveMaximum</code>; <code>max_digits</code> and <code>decimal_places</code> are not written, nor is a <code>Decimal</code> field's <code>multiple_of</code>. An <code>int</code> field's <code>multiple_of</code> becomes <code>multipleOf</code>. IP address and network fields become <code>type: string</code> with <code>format: ipv4</code>, <code>ipv6</code>, <code>ipv4network</code> or <code>ipv6network</code>. A <code>Path</code> field becomes <code>type: string</code> with <code>format: path</code>, and a <code>SecretStr</code> field <code>type: string</code> with <code>format: password</code> and <code>writeOnly: true</code>. A <code>bytes</code> field becomes <code>type: string</code>, <code>format: byte</code> and <code>contentEncoding: base64</code>, and its decoded-size limits are not written either, since they count bytes rather than characters. See <a href="../schema-types/#dates-durations-decimals-and-bytes">dates, durations, decimals and bytes</a>.</p>
+<p>An <code>Enum</code> or <code>Literal</code> field becomes <code>type: string</code> or <code>type: integer</code> with an <code>enum</code> list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in <code>anyOf</code> with <code>null</code>. See <a href="../schema-types/#enums-and-literals">enums and literals</a>.</p>
+<p>A <code>set[X]</code> or <code>frozenset[X]</code> field becomes an array with <code>uniqueItems: true</code>, <code>tuple[X, ...]</code> an array of <code>X</code>, and a fixed <code>tuple[X, Y]</code> an array with <code>prefixItems</code>, <code>items: false</code> and equal <code>minItems</code>/<code>maxItems</code>. See <a href="../schema-collections/#sets-and-tuples">sets and tuples</a>.</p>
+<p>A plain union such as <code>int | str</code> becomes <code>anyOf</code> of its variants, and <code>Any</code> or <code>object</code> an unconstrained schema (<code>{}</code>). See <a href="../schema-collections/#plain-unions-and-any">plain unions and <code>Any</code></a>.</p>
 <p>Discriminated unions declared as <code>Schema</code> fields become OpenAPI <code>oneOf</code> schemas with a <code>discriminator</code> and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper <code>Schema</code>; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">oneOf</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">$ref</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Cat"</span>
@@ -447,7 +491,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
 <span class="w">    </span><span class="nt">cat</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Cat"</span>
 <span class="w">    </span><span class="nt">dog</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Dog"</span>
 </code></pre></div>
-<p>See <a href="../schemas/#discriminated-unions">Schemas: discriminated unions</a> for the Python declarations and validation behavior.</p>
+<p>See <a href="../schema-collections/#discriminated-unions">Collections and unions: discriminated unions</a> for the Python declarations and validation behavior.</p>
 <p>For file binding syntax, limits and the in-memory boundary, see <a href="../endpoints/#upload-files">upload files</a>.</p>
 <p>Add a useful docstring to each handler because it is the source for operation text:</p>
 <div class="highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks/</span><span class="si">{task_id}</span><span class="s2">"</span><span class="p">)</span>
@@ -463,14 +507,14 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../endpoints/">Endpoint declarations</a></li><li><a href="../schemas/">Schemas</a></li><li><a href="../settings/">Settings</a></li><li><a href="../errors/">Errors</a></li></ul>
+          <ul><li><a href="../endpoints/">Requests and responses</a></li><li><a href="../schemas/">Schemas</a></li><li><a href="../settings/">Settings</a></li><li><a href="../errors/">Errors</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../crud/"><small>Previous</small><span>Generate CRUD routes</span></a>
-        <a class="pager__link pager__link--next" href="../errors/"><small>Next</small><span>Errors</span></a>
+        <a class="pager__link pager__link--prev" href="../codecs/"><small>Previous</small><span>Parsers and renderers</span></a>
+        <a class="pager__link pager__link--next" href="../authentication/"><small>Next</small><span>Authentication and access</span></a>
       </nav>
     </main>
 
@@ -487,10 +531,10 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.12</dd></div>
+          <div><dt>Sheet</dt><dd>3.23</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 13:05:22 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

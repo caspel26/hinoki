@@ -252,8 +252,10 @@
       <article class="prose" style="--sheet: '2.6'">
         <p class="kicker" data-search-exclude>2.6 · Tutorial</p>
         <h1 id="5-rules">5. Rules<a class="headerlink" href="#5-rules" title="Permanent link">&para;</a></h1>
-<p>Rules turn promises into failures with a stable id and a location.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Imports</span><span class="p">,</span> <span class="n">Models</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>
+<p>Rules turn the project's promises into checks. A failure names the rule, the
+file and the line.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/rules.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Imports</span><span class="p">,</span> <span class="n">Models</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
 
 <span class="n">PKG</span> <span class="o">=</span> <span class="s2">"tracker"</span>
@@ -271,25 +273,46 @@
     <span class="c1"># Tables are pinned, and a foreign key is always indexed.</span>
     <span class="n">Models</span><span class="o">.</span><span class="n">require_explicit_table</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span>
     <span class="n">Models</span><span class="o">.</span><span class="n">require_foreign_key_index</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span>
-    <span class="c1"># api -&gt; operations -&gt; models, never the other way</span>
+    <span class="c1"># The direction of dependencies: api -&gt; operations -&gt; models.</span>
     <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"tracker.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"tracker.operations"</span><span class="p">),</span>
     <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.api"</span><span class="p">),</span>
     <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.operations"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.api"</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>Run them from the command line or let the app enforce them when it starts (<code>Hinoki(rules=tracker_rules)</code>):</p>
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>check<span class="w"> </span>tracker.app:create_app<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--rules<span class="w"> </span>tracker.rules:tracker_rules<span class="w"> </span>--package<span class="w"> </span>tracker
+<p>The application passes them to <code>Hinoki(rules=tracker_rules)</code>, so a worker
+refuses to start while one is violated.</p>
+<h2 id="run-the-check">Run the check<a class="headerlink" href="#run-the-check" title="Permanent link">&para;</a></h2>
+<p>From <code>examples/</code>:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check<span class="w"> </span>tracker.app:create_app
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>13 rule(s): 0 violated, 0 unverifiable, 0 waived
 </code></pre></div>
-<p>Break one on purpose (remove <code>access=</code> from an action) and the failure names the rule and the line:</p>
-<div class="highlight"><pre><span></span><code>tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
-tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare atomic=True
+<p>The check reads the rules from the application and scans the <code>tracker</code>
+package for the import rules.</p>
+<h2 id="break-a-rule">Break a rule<a class="headerlink" href="#break-a-rule" title="Permanent link">&para;</a></h2>
+<p>Take <code>create_task</code> out of the group's transaction by adding <code>atomic=False</code> to its
+decorator, then run the check again:</p>
+<div class="highlight"><pre><span></span><code>tracker/api.py:29: HNK-TXN-001 [violated] POST /tasks (create_task) does not declare atomic=True
+  fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
+13 rule(s): 1 violated, 0 unverifiable, 0 waived
 </code></pre></div>
-<p>An exception is a <strong>waiver</strong> in <code>hinoki-rules.toml</code> with a reason, an owner and a bounded target. The owner writes waivers; tools and agents read them but never edit them to pass a check. See <a href="../../rules/">Rules</a>.</p>
+<p>The command exits with status 1. Remove <code>atomic=False</code> to restore the check.</p>
+<h2 id="waivers">Waivers<a class="headerlink" href="#waivers" title="Permanent link">&para;</a></h2>
+<p>An accepted exception is a <strong>waiver</strong> in <code>hinoki-rules.toml</code>, with a reason, an
+owner and a bounded target. The project owner writes waivers; tools and agents
+read them but never edit them to make a check pass.</p>
+<h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Rules are Python values in the project, checked by <code>hinoki check</code> and at startup.</li>
+<li>Each failure has a stable id, a location and a fix.</li>
+<li>Exceptions are explicit, owned waivers.</li>
+</ul>
 <p>Next: <a href="../6-run/">6. Run and test it</a>.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../../rules/">Rules</a></li><li><a href="../../patterns/">Structure an application</a></li></ul>
+        </aside>
         
       </article>
 
@@ -307,14 +330,14 @@ tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does 
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#5-rules">5. Rules</a></li></ul>
+            <ul><li><a href="#run-the-check">Run the check</a></li><li><a href="#break-a-rule">Break a rule</a></li><li><a href="#waivers">Waivers</a></li><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/5-rules.md">Edit on GitHub</a></dd></div>
         </dl>

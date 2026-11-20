@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Overview · Hinoki</title>
+  <title>Concepts · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Overview · Hinoki">
+  <meta property="og:title" content="Concepts · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -207,7 +207,7 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link is-active" href="./"><i>4.1</i><span>Overview</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>4.1</i><span>Concepts</span></a></li>
               
             
               
@@ -215,15 +215,15 @@
               
             
               
-                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Architecture patterns</span></a></li>
+                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Structure an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ecosystem/"><i>4.4</i><span>Own schemas and ORM</span></a></li>
+                <li><a class="side__link" href="../glossary/"><i>4.4</i><span>Glossary</span></a></li>
               
             
               
-                <li><a class="side__link" href="../glossary/"><i>4.5</i><span>Glossary</span></a></li>
+                <li><a class="side__link" href="../ecosystem/"><i>4.5</i><span>Use other libraries</span></a></li>
               
             
             </ul>
@@ -236,40 +236,51 @@
       <article class="prose" style="--sheet: '4.1'">
         <p class="kicker" data-search-exclude>4.1 · Concepts</p>
         <h1 id="concepts">Concepts<a class="headerlink" href="#concepts" title="Permanent link">&para;</a></h1>
-<p>This page connects the main parts of Hinoki. The guides explain each API in detail.</p>
-<h2 id="a-model-is-stored-data-a-schema-is-api-data">A model is stored data; a Schema is API data<a class="headerlink" href="#a-model-is-stored-data-a-schema-is-api-data" title="Permanent link">&para;</a></h2>
-<p><code>Model</code> describes a database row and its queries (SQLite, PostgreSQL, MySQL or MariaDB). <code>Schema</code> validates the values an endpoint accepts or returns. A response schema should expose only the fields clients are meant to see. Model-derived <code>Schema</code> classes are a convenience, not a replacement for deciding that boundary.</p>
+<p>How the parts of Hinoki fit together. Each guide explains one part in detail.</p>
+<h2 id="a-model-is-stored-data-a-schema-is-api-data">A model is stored data; a <code>Schema</code> is API data<a class="headerlink" href="#a-model-is-stored-data-a-schema-is-api-data" title="Permanent link">&para;</a></h2>
+<p>A <code>Model</code> describes a table and its queries (SQLite, PostgreSQL, MySQL or MariaDB). A <code>Schema</code> validates what an endpoint accepts or returns. A response <code>Schema</code> exposes only the fields clients should see: <code>@derive(Invoice)</code> copies fields from a model, but you still decide the boundary, and a handler returns <code>InvoiceOut.from_model(row)</code>, never the row.</p>
 <h2 id="a-declaration-is-reused">A declaration is reused<a class="headerlink" href="#a-declaration-is-reused" title="Permanent link">&para;</a></h2>
-<p>An action's Python signature and decorator options describe routing, binding, access, <code>atomic</code> transactions, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an <code>API</code> resource class, or collected in an includable <code>RouteGroup</code> of functions with shared defaults.</p>
+<p>An action's signature and decorator options state its route, inputs, access policy, transaction (<code>atomic=</code>), declared errors and response. Routing, binding, the OpenAPI document, the rules, the admin and MCP all read that one declaration. Actions are <a href="../function-endpoints/">plain functions</a>, optionally grouped in a <code>RouteGroup</code> with shared options, or <a href="../class-endpoints/">methods of an <code>API</code> class</a>. Each app lists them in its <code>routes.py</code>, and <code>hinoki.toml</code> mounts every app under its prefix (<a href="../routes/">register routes</a>).</p>
 <h2 id="one-application-object">One application object<a class="headerlink" href="#one-application-object" title="Permanent link">&para;</a></h2>
-<p>A server process serves one <code>Hinoki</code> object, the one <code>hinoki serve module:app</code> or <code>project.application</code> in <code>hinoki.toml</code> names. Declare it at module level, as the generated project does:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># blog/main.py</span>
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="p">,</span> <span class="n">rules</span><span class="o">=</span><span class="n">blog_rules</span><span class="p">)</span>  <span class="c1"># routes come from hinoki.toml</span>
+<p>A server process serves one <code>Hinoki</code> object: the one <code>project.application</code> in <code>hinoki.toml</code> names, or the target given to <code>hinoki serve</code>. Declare it at module level:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">stripe</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">errors</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span> <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">)</span>
 
 
-<span class="nd">@app</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span class="n">stripe</span><span class="o">.</span><span class="n">CardError</span><span class="p">)</span>  <span class="c1"># decorators on the app</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span class="n">stripe</span><span class="o">.</span><span class="n">CardError</span><span class="p">)</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">card_error</span><span class="p">(</span><span class="n">error</span><span class="p">:</span> <span class="n">stripe</span><span class="o">.</span><span class="n">CardError</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">errors</span><span class="o">.</span><span class="n">APIError</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">errors</span><span class="o">.</span><span class="n">APIError</span><span class="p">(</span><span class="n">error</span><span class="o">.</span><span class="n">user_message</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">402</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">"card_declined"</span><span class="p">)</span>
 </code></pre></div>
-<p>Building <code>Hinoki(...)</code> declares and opens nothing, so importing the module is safe. Use a factory (<code>def create_app(...) -&gt; Hinoki</code>, target <code>module:create_app</code>) when constructing the application needs arguments or conditions, such as the Blog's optional accounts or the Tracker's per-test database; inside a factory, register handlers with the same call after the app exists (<code>app.error_handler(Kind)(handler)</code>). The <code>[[apps]]</code> of <code>hinoki.toml</code> are something else: model and migration packages of the project, not further <code>Hinoki</code> objects.</p>
+<p><code>Hinoki(...)</code> includes the routes listed in <code>hinoki.toml</code> and opens nothing, so importing the module is safe. Use a factory (<code>def create_app(...) -&gt; Hinoki</code>, named <code>module:create_app</code>) only when construction needs runtime values, such as the Tracker's per-test database; inside it, register a handler with <code>app.error_handler(Kind)(handler)</code>. The <code>[[apps]]</code> of <code>hinoki.toml</code> are packages of models, migrations and routes, not further <code>Hinoki</code> objects.</p>
 <h2 id="one-request">One request<a class="headerlink" href="#one-request" title="Permanent link">&para;</a></h2>
-<p>The server passes an ASGI request through the Python adapter, the compiled router and binding layer. Hinoki validates inputs, resolves authentication and access, runs the handler, then encodes and renders its response. The return value is checked against the action's return annotation (see <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>); a mismatch is a <code>500</code>. For a transactional action, commit happens after successful response encoding and rendering; failures roll back before HTTP error translation. The ASGI boundary still crosses Python objects; the runtime is not an all-Rust server.</p>
+<p>The server hands each request through the Python adapter to the compiled router and binding layer. Hinoki authenticates the caller, checks access, validates inputs, runs the handler, checks the return value against its annotation and renders the response. A transactional action commits after the response is prepared; a failure rolls back before it becomes an HTTP error. The ASGI boundary still crosses Python objects: the runtime is not an all-Rust server. Details: <a href="../request-lifecycle/">request lifecycle</a>.</p>
 <h2 id="worker-resources">Worker resources<a class="headerlink" href="#worker-resources" title="Permanent link">&para;</a></h2>
-<p>Each server worker owns its module lifespan and database pool. Startup creates resources; shutdown closes them. A pool is not opened at import or shared across workers. Scripts outside the server manage their own short-lived connections.</p>
+<p>Each server worker owns its module lifespan and database pool: startup creates them, shutdown closes them. Nothing is opened at import or shared across workers. Scripts outside the server manage their own short-lived connections. See <a href="../modules/">modules</a>.</p>
 <h2 id="optional-rules">Optional rules<a class="headerlink" href="#optional-rules" title="Permanent link">&para;</a></h2>
-<p>Rules inspect declared routes, schemas, models, imports or other known project structure. Hinoki ships eleven; see <a href="../rules/">rules</a>. They report a violation or say they could not verify the promise. They do not prove arbitrary function behavior. Enable the checks that suit the application and run them both at startup and in development.</p>
-<h2 id="where-to-continue">Where to continue<a class="headerlink" href="#where-to-continue" title="Permanent link">&para;</a></h2>
+<p>Rules check declared routes, schemas, models and imports. Hinoki ships eleven; each reports a violation, a pass, or that it could not verify its promise. They do not prove what a function body does. Turn on the ones that suit the application and run them at startup and in development. See <a href="../rules/">rules</a>.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../request-lifecycle/">Request lifecycle</a></li>
-<li><a href="../transactions/">Transactions</a></li>
-<li><a href="../sync-async/">Sync and async</a></li>
-<li><a href="../patterns/">Architecture patterns</a></li>
+<li><a href="../patterns/">Structure an application</a></li>
+<li><a href="../sync-async/">Sync and async code</a></li>
+<li><a href="../glossary/">Glossary</a></li>
 </ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../request-lifecycle/">Request lifecycle</a></li><li><a href="../patterns/">Structure an application</a></li><li><a href="../glossary/">Glossary</a></li></ul>
+        </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../rust-crud-orientation/"><small>Previous</small><span>Native CRUD orientation</span></a>
+        <a class="pager__link pager__link--prev" href="../rust-crud-orientation/"><small>Previous</small><span>Generated CRUD on the native path</span></a>
         <a class="pager__link pager__link--next" href="../request-lifecycle/"><small>Next</small><span>Request lifecycle</span></a>
       </nav>
     </main>
@@ -282,14 +293,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#a-model-is-stored-data-a-schema-is-api-data">A model is stored data; a Schema is API data</a></li><li><a href="#a-declaration-is-reused">A declaration is reused</a></li><li><a href="#one-application-object">One application object</a></li><li><a href="#one-request">One request</a></li><li><a href="#worker-resources">Worker resources</a></li><li><a href="#optional-rules">Optional rules</a></li><li><a href="#where-to-continue">Where to continue</a></li></ul>
+            <ul><li><a href="#a-model-is-stored-data-a-schema-is-api-data">A model is stored data; a Schema is API data</a></li><li><a href="#a-declaration-is-reused">A declaration is reused</a></li><li><a href="#one-application-object">One application object</a></li><li><a href="#one-request">One request</a></li><li><a href="#worker-resources">Worker resources</a></li><li><a href="#optional-rules">Optional rules</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.1</dd></div>
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/concepts.md">Edit on GitHub</a></dd></div>
         </dl>

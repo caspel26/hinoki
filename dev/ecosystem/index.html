@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Own schemas and ORM · Hinoki</title>
+  <title>Use other libraries · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Own schemas and ORM · Hinoki">
+  <meta property="og:title" content="Use other libraries · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="4.4">
+  <div class="shell" data-sheet="4.5">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -207,7 +207,7 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Overview</span></a></li>
+                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Concepts</span></a></li>
               
             
               
@@ -215,15 +215,15 @@
               
             
               
-                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Architecture patterns</span></a></li>
+                <li><a class="side__link" href="../patterns/"><i>4.3</i><span>Structure an application</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>4.4</i><span>Own schemas and ORM</span></a></li>
+                <li><a class="side__link" href="../glossary/"><i>4.4</i><span>Glossary</span></a></li>
               
             
               
-                <li><a class="side__link" href="../glossary/"><i>4.5</i><span>Glossary</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>4.5</i><span>Use other libraries</span></a></li>
               
             
             </ul>
@@ -233,25 +233,28 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '4.4'">
-        <p class="kicker" data-search-exclude>4.4 · Concepts</p>
-        <h1 id="own-schemas-and-orm-what-it-means-for-integrations">Own schemas and ORM: what it means for integrations<a class="headerlink" href="#own-schemas-and-orm-what-it-means-for-integrations" title="Permanent link">&para;</a></h1>
-<p>Hinoki has its own <code>Schema</code> and <code>Model</code> classes. It does not accept Pydantic models, SQLAlchemy models or Django models as request bodies, responses or tables. This page says why, what that costs when you bring existing libraries, and which extension points exist today. It describes what is implemented; it is not a plugin roadmap.</p>
+      <article class="prose" style="--sheet: '4.5'">
+        <p class="kicker" data-search-exclude>4.5 · Concepts</p>
+        <h1 id="use-other-libraries">Use other libraries<a class="headerlink" href="#use-other-libraries" title="Permanent link">&para;</a></h1>
+<p>Hinoki has its own <code>Schema</code> and <code>Model</code> classes. It does not accept Pydantic, SQLAlchemy or Django models as request bodies, responses or tables. This page says why, what that costs, and which extension points exist today.</p>
 <h2 id="why-the-framework-owns-them">Why the framework owns them<a class="headerlink" href="#why-the-framework-owns-them" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>One declaration feeds every output.</strong> A <code>Schema</code> and a <code>Model</code> are read by request binding, response checking, OpenAPI, application MCP, the admin and <a href="../rules/">rules</a>. Those tools can only promise the same contract everywhere if they read the same classes.</li>
-<li><strong>The hot paths are native.</strong> Routing, selected request parsing and ORM execution run in Rust against Hinoki's own declarations, so they do not call back into a validation library or a foreign ORM per request.</li>
-<li><strong>Rules need known structure.</strong> A rule such as "a response <code>Schema</code> never exposes <code>password_hash</code>" is checkable because the schema is a Hinoki class that can be inspected, not arbitrary validation code.</li>
+<li><strong>One declaration feeds every output.</strong> Request binding, the response check, OpenAPI, application MCP, the admin and <a href="../rules/">rules</a> read the same <code>Schema</code> and <code>Model</code> classes, so they can promise the same contract.</li>
+<li><strong>The hot paths are native.</strong> Routing, selected request parsing and ORM execution run in Rust against Hinoki's own declarations, without calling back into a validation library or a foreign ORM per request.</li>
+<li><strong>Rules need known structure.</strong> "A response <code>Schema</code> never exposes <code>password_hash</code>" is checkable because the <code>Schema</code> is an inspectable Hinoki class.</li>
 </ul>
 <h2 id="what-this-costs">What this costs<a class="headerlink" href="#what-this-costs" title="Permanent link">&para;</a></h2>
 <ul>
-<li>A library that expects its own model type does not plug in directly: a Pydantic-based client SDK, a SQLAlchemy extension or a Django app that needs a Django <code>Model</code> cannot be passed a Hinoki <code>Model</code> or <code>Schema</code>.</li>
-<li>There is no adapter that converts SQLAlchemy, Django or Pydantic models into Hinoki ones, and no package registry or plugin system.</li>
-<li>Supported databases are SQLite, PostgreSQL, MySQL and MariaDB through Hinoki's own drivers. Your existing ORM session or connection is not shared with Hinoki's pool.</li>
+<li>A library that expects its own model type does not plug in: a Pydantic-based SDK, a SQLAlchemy extension or a Django app cannot be given a Hinoki <code>Model</code> or <code>Schema</code>.</li>
+<li>There is no adapter from SQLAlchemy, Django or Pydantic models, and no plugin system.</li>
+<li>Databases are SQLite, PostgreSQL, MySQL and MariaDB through Hinoki's own drivers; another ORM's connections are not shared with its pool.</li>
 </ul>
-<h2 id="using-other-libraries-anyway">Using other libraries anyway<a class="headerlink" href="#using-other-libraries-anyway" title="Permanent link">&para;</a></h2>
-<p>Anything that works on plain Python data works with Hinoki. <code>Schema.to_dict()</code> and <code>Schema.dump()</code> give plain dictionaries, and a <code>Schema</code> is built from plain values, so the boundary with another library is ordinary Python:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+<h2 id="bring-a-library-anyway">Bring a library anyway<a class="headerlink" href="#bring-a-library-anyway" title="Permanent link">&para;</a></h2>
+<p>Anything that works on plain Python data works with Hinoki. <code>Schema.to_dict()</code> and <code>Schema.dump()</code> return plain data, and a <code>Schema</code> is built from plain values:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/quotes/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.apps.quotes.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">fetch_quote</span>  <span class="c1"># any library returning plain data</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Quote</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -259,13 +262,13 @@
     <span class="n">price</span><span class="p">:</span> <span class="nb">float</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/quotes/</span><span class="si">{symbol}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{symbol}</span><span class="s2">"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">quote</span><span class="p">(</span><span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Quote</span><span class="p">:</span>
-    <span class="n">raw</span> <span class="o">=</span> <span class="k">await</span> <span class="n">pricing_client</span><span class="o">.</span><span class="n">fetch</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>  <span class="c1"># any library, returning plain data</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="k">await</span> <span class="n">fetch_quote</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">Quote</span><span class="p">(</span><span class="n">symbol</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">"symbol"</span><span class="p">],</span> <span class="n">price</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">"price"</span><span class="p">])</span>
 </code></pre></div>
-<p>Keep the translation at the edge of the handler and keep your own database access (for a second store, for example) in a <a href="../modules/">module</a> so its lifetime follows the worker. Hinoki does not protect or time-box what that code does.</p>
-<h2 id="extension-points-that-exist">Extension points that exist<a class="headerlink" href="#extension-points-that-exist" title="Permanent link">&para;</a></h2>
+<p>Keep the translation at the edge of the handler, and keep a second store's connections in a <a href="../modules/">module</a> so their lifetime follows the worker. Hinoki does not time-box what that code does.</p>
+<h2 id="extension-points">Extension points<a class="headerlink" href="#extension-points" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -297,7 +300,7 @@
 </tr>
 <tr>
 <td>Own a resource per worker</td>
-<td>A module with <code>ctx.provide</code> and <code>ctx.get</code>, or a subclass that replaces <code>DatabaseModule</code></td>
+<td>A module with <code>ctx.provide</code> and <code>ctx.get</code>, or a <code>DatabaseModule</code> subclass</td>
 <td><a href="../modules/">Modules</a></td>
 </tr>
 <tr>
@@ -311,17 +314,17 @@
 <td><a href="../settings/">Settings</a></td>
 </tr>
 <tr>
-<td>Add routes from a package</td>
-<td>Anything <code>include</code> accepts: an <code>API</code> class, a function, a <code>RouteGroup</code>, a <code>Mount</code> or an object with an <code>api()</code> method</td>
-<td><a href="../endpoints/">Endpoints</a></td>
+<td>Ship routes in a package</td>
+<td>Anything a <code>routes</code> list accepts: a function, a <code>RouteGroup</code>, an <code>API</code> class, a <code>Mount</code>, or an object with an <code>api()</code> method</td>
+<td><a href="../routes/">Register routes</a></td>
 </tr>
 <tr>
 <td>Expose actions to an agent</td>
-<td><code>expose_as_mcp</code> with an explicit allowlist</td>
-<td><a href="../app-mcp/">Application MCP</a></td>
+<td><code>expose_as_mcp</code> with an allowlist</td>
+<td><a href="../app-mcp/">Expose actions over MCP</a></td>
 </tr>
 <tr>
-<td>Add metrics, tracing or other cross-cutting behavior</td>
+<td>Add metrics, tracing or other cross-cutting behaviour</td>
 <td>Wrap the ASGI application</td>
 <td><a href="../serving/#metrics-and-tracing">Serving</a></td>
 </tr>
@@ -332,19 +335,24 @@
 </tr>
 </tbody>
 </table>
-<p>There is no middleware API of Hinoki's own: cross-cutting behavior outside a request's declared access, errors and transactions belongs in an ASGI wrapper, which sees the request before and after Hinoki. Hinoki also has no documented way to host another web application inside it; put the other service beside it behind a reverse proxy, or dispatch by path in your own ASGI code.</p>
-<h2 id="where-to-continue">Where to continue<a class="headerlink" href="#where-to-continue" title="Permanent link">&para;</a></h2>
+<p>Hinoki has no middleware API of its own: behaviour outside an action's declared access, errors and transaction belongs in an ASGI wrapper, which sees the request before and after Hinoki. To run another web application next to Hinoki, put it behind the same reverse proxy or dispatch by path in your own ASGI code.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../concepts/">Concepts</a></li>
 <li><a href="../status/">Project status</a></li>
 <li><a href="../glossary/">Glossary</a></li>
 </ul>
         
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../concepts/">Concepts</a></li><li><a href="../status/">Status</a></li></ul>
+        </aside>
+        
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../patterns/"><small>Previous</small><span>Architecture patterns</span></a>
-        <a class="pager__link pager__link--next" href="../glossary/"><small>Next</small><span>Glossary</span></a>
+        <a class="pager__link pager__link--prev" href="../glossary/"><small>Previous</small><span>Glossary</span></a>
+        <a class="pager__link pager__link--next" href="../reference/"><small>Next</small><span>Overview</span></a>
       </nav>
     </main>
 
@@ -356,14 +364,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#why-the-framework-owns-them">Why the framework owns them</a></li><li><a href="#what-this-costs">What this costs</a></li><li><a href="#using-other-libraries-anyway">Using other libraries anyway</a></li><li><a href="#extension-points-that-exist">Extension points that exist</a></li><li><a href="#where-to-continue">Where to continue</a></li></ul>
+            <ul><li><a href="#why-the-framework-owns-them">Why the framework owns them</a></li><li><a href="#what-this-costs">What this costs</a></li><li><a href="#bring-a-library-anyway">Bring a library anyway</a></li><li><a href="#extension-points">Extension points</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>4.4</dd></div>
+          <div><dt>Sheet</dt><dd>4.5</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ecosystem.md">Edit on GitHub</a></dd></div>
         </dl>

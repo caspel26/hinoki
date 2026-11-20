@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Architecture patterns · Hinoki</title>
+  <title>Structure an application · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Architecture patterns · Hinoki">
+  <meta property="og:title" content="Structure an application · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -207,7 +207,7 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Overview</span></a></li>
+                <li><a class="side__link" href="../concepts/"><i>4.1</i><span>Concepts</span></a></li>
               
             
               
@@ -215,15 +215,15 @@
               
             
               
-                <li><a class="side__link is-active" href="./"><i>4.3</i><span>Architecture patterns</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>4.3</i><span>Structure an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ecosystem/"><i>4.4</i><span>Own schemas and ORM</span></a></li>
+                <li><a class="side__link" href="../glossary/"><i>4.4</i><span>Glossary</span></a></li>
               
             
               
-                <li><a class="side__link" href="../glossary/"><i>4.5</i><span>Glossary</span></a></li>
+                <li><a class="side__link" href="../ecosystem/"><i>4.5</i><span>Use other libraries</span></a></li>
               
             
             </ul>
@@ -235,24 +235,25 @@
     <main class="main" id="main">
       <article class="prose" style="--sheet: '4.3'">
         <p class="kicker" data-search-exclude>4.3 · Concepts</p>
-        <h1 id="structuring-a-hinoki-application-pattern-and-best-practices">Structuring a Hinoki application: pattern and best practices<a class="headerlink" href="#structuring-a-hinoki-application-pattern-and-best-practices" title="Permanent link">&para;</a></h1>
-<p>Opinionated, with reasons. It describes how the framework's features fit together; each rule is something the framework either enforces, can check with an optional rule, or leaves to review (marked <strong>enforced</strong>, <strong>rule</strong> or <strong>convention</strong>). The reference blog (<code>examples/blog</code>) and the small notes example (<code>examples/notes</code>) show the parts; <code>examples/tracker</code> is the layered example: <code>api</code> → <code>operations</code> → <code>models</code>, row permission in the statements, the direction enforced by <code>Imports.forbid</code>, operations tested without HTTP.</p>
+        <h1 id="structure-an-application">Structure an application<a class="headerlink" href="#structure-an-application" title="Permanent link">&para;</a></h1>
+<p>Opinionated, with reasons. Each practice below is <strong>enforced</strong> by the framework, checkable with an optional <strong>rule</strong>, or a <strong>convention</strong> left to review. The <a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker">Tracker example</a> shows them together: <code>api</code> → <code>operations</code> → <code>models</code>, row permission in the statements, the direction enforced by <code>Imports.forbid</code>, operations tested without HTTP.</p>
 <h2 id="1-three-layers-one-direction">1. Three layers, one direction<a class="headerlink" href="#1-three-layers-one-direction" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>HTTP layer      API classes / functions   shapes, status codes, access policy, atomic=True
-   │            (hinoki.routing, Access, Schema)
+<div class="highlight"><pre><span></span><code>HTTP layer      actions (functions or API classes)   shapes, status codes, access, atomic=True
+   │
    ▼
-Operations      plain async functions     one business operation each; no Request, no HTTP types
-   │            (commands/queries)
+Operations      plain async functions                one business operation each; no HTTP types
+   │
    ▼
-Persistence     Model / QuerySet          tables, relations, explicit loading
+Persistence     Model / QuerySet                     tables, relations, explicit loading
 </code></pre></div>
 <ul>
-<li><strong>HTTP layer</strong> turns a request into typed values (<code>Schema</code>, path/query parameters, <code>Caller</code>) and an operation's result into a response schema. It contains no business rules and no SQL.</li>
-<li><strong>Operations</strong> hold the rules ("an editor may publish only their own draft"). They take plain arguments (<code>principal</code>, a <code>Schema</code>, ids) so they can be called from an action, a CLI, a test, an admin hook (<code>ModelAdmin.save</code>) or an MCP tool. <strong>Why:</strong> an action that reads cookies or headers cannot be reused; an operation can.</li>
-<li><strong>Persistence</strong> never imports the HTTP layer. <strong>Rule:</strong> <code>Imports.forbid(source="shop.models", target="shop.api")</code> (and the same for operations → api).</li>
-<li>Small apps may skip the middle layer (the notes example does). Add it when an action contains a rule you would want to call from somewhere else.</li>
+<li><strong>HTTP layer</strong> turns a request into typed values (<code>Schema</code>, path and query parameters, <code>Caller</code>) and an operation's result into a response <code>Schema</code>. No business rules, no SQL.</li>
+<li><strong>Operations</strong> hold the rules ("an editor may publish only their own draft"). They take plain arguments (<code>principal</code>, a <code>Schema</code>, IDs), so an action, a CLI command, a test, an admin hook or an MCP tool can call them. An action that reads cookies or headers cannot be reused; an operation can.</li>
+<li><strong>Persistence</strong> never imports the HTTP layer. <strong>Rule:</strong> <code>Imports.forbid(source="notes.apps.billing.models", target="notes.apps.billing.api")</code>, and the same for operations → api.</li>
+<li>Small apps may skip the middle layer. Add it when an action holds a rule another entry point needs.</li>
 </ul>
 <h2 id="2-where-each-concern-lives">2. Where each concern lives<a class="headerlink" href="#2-where-each-concern-lives" title="Permanent link">&para;</a></h2>
+<p>Actions are <a href="../function-endpoints/">functions</a> by default, grouped in a <code>RouteGroup</code> that states shared options once; an <a href="../class-endpoints/"><code>API</code> class</a> earns its place for <code>crud(...)</code> resources with hooks or inherited actions.</p>
 <table>
 <thead>
 <tr>
@@ -263,19 +264,24 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 </thead>
 <tbody>
 <tr>
+<td>Routes</td>
+<td>Each app's <code>routes.py</code>; prefixes only in <code>hinoki.toml</code> (<a href="../routes/">register routes</a>). <strong>Convention</strong></td>
+<td>One place to read the map; one source per path segment</td>
+</tr>
+<tr>
 <td>Authentication</td>
-<td>An auth provider (<code>BearerAuth</code>, <code>JWTAuth</code>, …) returning a <code>Caller</code></td>
-<td>One path, identical for HTTP, admin and MCP</td>
+<td>A provider (<code>BearerAuth</code>, <code>JWTAuth</code>, …) returning a <code>Caller</code></td>
+<td>One path for HTTP, admin and MCP</td>
 </tr>
 <tr>
 <td>Coarse permission</td>
-<td><code>Access(auth=…, permissions=[…])</code> on the action (or once for a function group: <code>tasks = RouteGroup("/tasks", access=member_only, atomic=True)</code>, then <code>@tasks.get("/")</code>). <strong>Public is the default</strong>: protect on purpose. <strong>Rule:</strong> <code>Actions.require_access</code></td>
+<td><code>access=</code> on the action, or once on its <code>RouteGroup</code>. <strong>Public is the default</strong>: protect on purpose. <strong>Rule:</strong> <code>Actions.require_access</code></td>
 <td>A forgotten policy is the most common hole</td>
 </tr>
 <tr>
-<td>Row permission (ownership, tenant)</td>
-<td>Prefer the <strong>statement</strong>: scope <code>aupdate</code>/<code>adelete</code> by owner so the check and write are one operation.</td>
-<td>Avoids a check-then-write race. Hidden rows usually look missing (404). If the API promises a distinct 403 for another owner's row, preserve that contract with a conditional write and explicit fallback classification; document the information it reveals.</td>
+<td>Row permission (owner, tenant)</td>
+<td>The <strong>statement</strong>: scope <code>aupdate</code>/<code>adelete</code> by owner so check and write are one operation</td>
+<td>No check-then-write race; hidden rows look missing (<code>404</code>). If the API promises a distinct <code>403</code>, make the conditional write and its fallback explicit, and document what it reveals</td>
 </tr>
 <tr>
 <td>Input validation</td>
@@ -289,78 +295,85 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
 </tr>
 <tr>
 <td>Transactions</td>
-<td><code>atomic=True</code> on the action (writes)</td>
-<td>Commit after the response is encoded, rollback before the error becomes HTTP. <strong>Rule:</strong> <code>Transactions.require_atomic</code></td>
+<td><code>atomic=True</code> on every write. <strong>Rule:</strong> <code>Transactions.require_atomic</code></td>
+<td>Commit after the response is encoded; rollback before the error becomes HTTP</td>
 </tr>
 <tr>
 <td>Errors</td>
-<td>Raise <code>APIError</code> subclasses and <strong>declare them on the action</strong>: <code>@http.post(..., errors=(PostAlreadyPublished, errors.Forbidden))</code>. A database <code>UniqueViolation</code> is already a <code>409 unique_conflict</code>; answer exceptions you cannot change once with <code>@app.error_handler(...)</code></td>
-<td>Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, <code>ASGIClient(app, strict_errors=True)</code>, which fails on an error answer the action did not declare. <strong>A returned <code>Response</code> commits the transaction</strong></td>
+<td>Raise <code>APIError</code> subclasses and declare them: <code>errors=(InvoiceAlreadyPaid,)</code>. Translate exceptions you cannot change once with <code>@app.error_handler(...)</code></td>
+<td>The declaration feeds OpenAPI, MCP and <code>ASGIClient(app, strict_errors=True)</code>. A database <code>UniqueViolation</code> is already <code>409 unique_conflict</code>. <strong>A returned <code>Response</code> commits the transaction</strong></td>
 </tr>
 <tr>
 <td>Secrets</td>
-<td>Settings/environment, passed to <code>JWTKey</code>, <code>Admin(secret=…)</code>, never defaults</td>
+<td>Settings and the environment, never defaults</td>
 <td>Nothing to leak from the repository</td>
 </tr>
 </tbody>
 </table>
 <h2 id="3-schema-classes-and-models">3. <code>Schema</code> classes and models<a class="headerlink" href="#3-schema-classes-and-models" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Models describe tables; <code>Schema</code> classes describe the API. <strong>Never return a model.</strong> Name them by role: <code>PostIn</code>/<code>PostCreate</code> (what a client may set), <code>PostPatch</code> (every field <code>UNSET</code> by default), <code>PostOut</code> (what a client may see). <strong>Rules:</strong> <code>Actions.forbid_model_responses()</code> refuses an action whose return type is a <code>Model</code> (also inside <code>list</code>/<code>Page</code>/unions); <code>Schemas.forbid_exposure("password_hash", …)</code> keeps columns out of responses even through nesting and subclasses.</li>
-<li>Create from a <code>Schema</code> and add what only the server knows: <code>await Post.acreate(data, author_id=principal.user.id)</code> (server values win over the client's). Update with <code>await row.aupdate_from(patch)</code> (writes only what was sent). Respond with <code>PostOut.from_model(row, author_name=row.author.name)</code>.</li>
-<li>A server-assigned field must not exist in the input schema at all; the keyword override is a second line of defence.</li>
-<li>Constraints and patterns belong on the <code>Schema</code>, using the Rust pattern syntax (whole-value, no look-around).</li>
+<li>Models describe tables; <code>Schema</code> classes describe the API. <strong>Never return a model</strong>: respond with <code>InvoiceOut.from_model(row)</code>. Name classes by role: <code>InvoiceIn</code> (what a client may set), <code>InvoicePatch</code> (every field <code>UNSET</code> by default), <code>InvoiceOut</code> (what a client may see, often <code>@derive(Invoice)</code>). <strong>Rules:</strong> <code>Actions.forbid_model_responses()</code> refuses a <code>Model</code> return type, also inside <code>list</code>, <code>Page</code> and unions; <code>Schemas.forbid_exposure("password_hash", …)</code> keeps columns out of responses through nesting and subclasses.</li>
+<li>Create from a <code>Schema</code> and add what only the server knows: <code>await Post.acreate(data, author_id=principal.user.id)</code>; server values win. Update with <code>await row.aupdate_from(patch)</code>, which writes only what was sent.</li>
+<li>A server-assigned field does not exist in the input <code>Schema</code> at all; the keyword override is a second line of defence.</li>
+<li>Constraints and patterns belong on the <code>Schema</code>, in the Rust pattern syntax (whole value, no look-around).</li>
 </ul>
 <h2 id="4-relations-and-queries">4. Relations and queries<a class="headerlink" href="#4-relations-and-queries" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Relations are never lazy. Load what the response shows (<code>select_related</code> for single values, <code>prefetch_related</code> for collections) in the same place that builds the response, so the cost is visible in one function.</li>
-<li>Paginate every list (<code>pagination=…</code> + <code>PageParams</code>). Never return an unbounded list; never <code>await</code> a whole table to count or aggregate (use <code>acount()</code>, filters, or SQL).</li>
-<li>Filter and order only by names you choose; never pass client-supplied column names to <code>filter</code> or <code>order_by</code> (the admin only sorts by its displayed columns for this reason).</li>
+<li>Relations are never lazy. Load what the response shows (<code>select_related</code> for single values, <code>prefetch_related</code> for collections) in the function that builds the response, so the cost is visible in one place.</li>
+<li>Paginate every list (<code>pagination=</code> + <code>PageParams</code> + <code>Page[...]</code>). Never return an unbounded list; never load a whole table to count or aggregate (use <code>acount()</code>, filters or SQL). <strong>Rule:</strong> <code>Actions.require_pagination</code>.</li>
+<li>Filter and order only by names you choose; never pass client-supplied column names to <code>filter</code> or <code>order_by</code>.</li>
 </ul>
 <h2 id="5-sync-and-async">5. Sync and async<a class="headerlink" href="#5-sync-and-async" title="Permanent link">&para;</a></h2>
-<p>Prefer <code>async</code> handlers. A sync handler runs on a bounded thread pool and may use the sync model methods (<code>Model.get</code>, <code>create</code>, …) through the worker's event loop; it must not block for long, and the queue is bounded (<code>overloaded</code> → 503). CPU-heavy work (password hashing) goes through <code>PasswordHasher</code>, which has its own bounded pool and releases the GIL. Never call blocking code from an <code>async</code> handler.</p>
+<p>Prefer <code>async</code> handlers. A sync handler runs on a bounded pool and uses the sync model methods; it must not block for long, and a full queue answers <code>503 overloaded</code>. Password hashing has its own bounded pool. Never call blocking code from an <code>async</code> handler. See <a href="../sync-async/">sync and async code</a>.</p>
 <h2 id="6-modules">6. Modules<a class="headerlink" href="#6-modules" title="Permanent link">&para;</a></h2>
-<p>An application is a set of modules with explicit dependencies and a lifespan (<code>DatabaseModule</code>, your own <code>Module</code>). Importing a module registers nothing and opens nothing. Resources are created in the worker's lifespan, once per worker; migrations are applied by a deploy step, never at startup, never from every worker. A standalone maintenance script such as <code>examples/blog/seed.py</code> owns and closes its short-lived database connection directly because it runs outside a server lifecycle.</p>
+<p>An application is a set of modules with explicit dependencies and a lifespan (<code>DatabaseModule</code>, your own <code>Module</code>). Importing a module registers and opens nothing. Resources are created once per worker, in its lifespan. Migrations are a deploy step, never run at startup or from every worker. A standalone script owns and closes its own short-lived connection.</p>
 <h2 id="7-migrations">7. Migrations<a class="headerlink" href="#7-migrations" title="Permanent link">&para;</a></h2>
-<p><code>hinoki migrations plan</code> writes reviewable SQL and a state file; destructive operations are flagged and need <code>--allow-destructive</code>; adding a NOT NULL column without a default is flagged. Review the SQL like code, apply with <code>migrations apply</code> against a disposable database first.</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>billing
+hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
+</code></pre></div>
+<p><code>plan</code> writes reviewable SQL and a state file; destructive operations are flagged and need <code>--allow-destructive</code>, and a new <code>NOT NULL</code> column without a default is flagged. Review the SQL like code and apply it to a disposable database first. See <a href="../migrations/">migrations</a>.</p>
 <h2 id="8-testing">8. Testing<a class="headerlink" href="#8-testing" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Run the database tests against disposable servers for the backends you support: PostgreSQL uses <code>HINOKI_TEST_DATABASE_URL</code>, with separate migration conformance runs for MySQL (<code>HINOKI_TEST_MYSQL_URL</code>) and MariaDB (<code>HINOKI_TEST_MARIADB_URL</code>). Without a URL, tests that require that backend are skipped; read the skip summary and do not treat another backend's green run as conformance for it.</li>
-<li>Drive the application through the ASGI harness (no sockets) for HTTP behaviour; test operations directly.</li>
-<li>For security code, use independent test vectors and known expected outputs; inject the clock (<code>JWTAuth.now</code>) so tests do not depend on elapsed time.</li>
-<li>Look at rendered UI in real browsers (<code>tests/browser/verify.py</code>) before calling it done.</li>
+<li>Run database tests against disposable servers for each backend you support: <code>HINOKI_TEST_DATABASE_URL</code> (PostgreSQL), <code>HINOKI_TEST_MYSQL_URL</code>, <code>HINOKI_TEST_MARIADB_URL</code>. Without a URL those tests are skipped: read the skip summary; one backend's green run is not conformance for another.</li>
+<li>Drive HTTP behaviour through the ASGI client (no sockets); test operations directly.</li>
+<li>For security code, use independent test vectors and inject the clock (<code>JWTAuth.now</code>).</li>
 </ul>
 <h2 id="9-security-defaults-to-keep">9. Security defaults to keep<a class="headerlink" href="#9-security-defaults-to-keep" title="Permanent link">&para;</a></h2>
-<p>HTTPS terminates somewhere you control (set <code>Admin(secure_cookies=True)</code> behind a proxy); <code>Access</code> on everything that is not public on purpose; CSRF on every cookie-authenticated form (the admin does it); strict CSP; passwords with Argon2id only; JWT keys with a fixed algorithm and a <code>kid</code>; no token, password or hash in logs or error bodies; uploads held within the 1 MiB body cap unless you add streaming; real personal data never in tests or fixtures.</p>
+<p>HTTPS terminates somewhere you control (<code>Admin(secure_cookies=True)</code> behind a proxy); <code>access=</code> on everything that is not public on purpose; CSRF on every cookie-authenticated form (the admin does it); a strict CSP; Argon2id passwords; JWT keys with a fixed algorithm and a <code>kid</code>; no token, password or hash in logs or error bodies; uploads within the 1 MiB body limit; no real personal data in tests or fixtures.</p>
 <h2 id="10-rules-to-turn-on-from-day-one">10. Rules to turn on from day one<a class="headerlink" href="#10-rules-to-turn-on-from-day-one" title="Permanent link">&para;</a></h2>
-<p><code>hinoki new</code> generates a project with eight rules enabled (<code>HNK-ACC-001</code>, <code>HNK-ACC-002</code>, <code>HNK-API-001</code>, <code>HNK-API-002</code>, <code>HNK-API-003</code>, <code>HNK-TXN-001</code>, <code>HNK-SCH-001</code>, <code>HNK-SCH-002</code>) and the two model rules (<code>HNK-DB-001</code>, <code>HNK-DB-002</code>) commented out until the first model exists. Turn them on then, and add <code>Imports.forbid</code> (<code>HNK-IMP-001</code>) for the layer direction in section 1. Waivers live in <code>hinoki-rules.toml</code>, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.</p>
+<p><code>hinoki new</code> enables eight rules (<code>HNK-ACC-001</code>, <code>HNK-ACC-002</code>, <code>HNK-API-001</code>, <code>HNK-API-002</code>, <code>HNK-API-003</code>, <code>HNK-TXN-001</code>, <code>HNK-SCH-001</code>, <code>HNK-SCH-002</code>) and leaves the model rules <code>HNK-DB-001</code> and <code>HNK-DB-002</code> commented out until the first model exists. Turn those on then, and add <code>Imports.forbid</code> (<code>HNK-IMP-001</code>) for the direction in <a href="#1-three-layers-one-direction">section 1</a>. Waivers live in <code>hinoki-rules.toml</code>, are the owner's decision, carry a reason and a bounded target, and are never edited by tools or agents to pass a check.</p>
 <h2 id="11-anti-patterns">11. Anti-patterns<a class="headerlink" href="#11-anti-patterns" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Returning a <code>Model</code> or a dict built from one.</li>
-<li>For a distinct 403 response on a write that can race, make the conditional write and fallback explicit.</li>
+<li>Returning a <code>Model</code>, or a dict built from one.</li>
 <li>A business rule inside an action that another entry point also needs.</li>
-<li><code>Response(4xx)</code> inside a <code>atomic=True</code> action (it commits).</li>
-<li>Client-supplied column names reaching <code>filter</code>/<code>order_by</code>.</li>
-<li>Applying migrations at startup; creating a pool at import time.</li>
-<li>A broad waiver (<code>*</code>) or editing waivers to silence a rule.</li>
+<li><code>Response(4xx)</code> from an <code>atomic=True</code> action: it commits.</li>
+<li>Client-supplied column names reaching <code>filter</code> or <code>order_by</code>.</li>
+<li>Applying migrations at startup; creating a pool at import.</li>
+<li>A broad waiver (<code>*</code>), or editing waivers to silence a rule.</li>
 <li>Catching <code>Exception</code> in an action to "keep going": let the framework translate it and roll back.</li>
+<li><code>app.include(...)</code> in a project with <code>hinoki.toml</code>: list the routes in <code>routes.py</code>.</li>
 </ul>
 <h2 id="12-more-than-one-service">12. More than one service<a class="headerlink" href="#12-more-than-one-service" title="Permanent link">&para;</a></h2>
-<p>Split a system only for a reason you can name (independent deploys, different scaling, a team boundary), because every split costs something the framework cannot hide:</p>
+<p>Split a system only for a reason you can name (independent deploys, different scaling, a team boundary); every split costs something the framework cannot hide.</p>
 <ul>
-<li><strong>No joins, no shared transaction.</strong> A foreign key never crosses a service. Store the other service's id as a plain value, and treat what it returns as a snapshot. A write that must touch two services is a sequence of calls that can half-fail: make each step idempotent (a client-supplied key, or a natural unique constraint) and decide what a retry does before writing the code.</li>
-<li><strong>Each service owns its tables.</strong> Other services call its API; they never read its database. Migrations belong to the owner and are applied by its deploy step (<a href="#7-migrations">section 7</a>).</li>
-<li><strong>The caller is a <code>Caller</code> too.</strong> Service-to-service calls authenticate like any client (a JWT with a service identity and narrow <code>permissions</code>, verified by <code>JWTAuth</code>); do not forward the end user's token unless the callee must act as that user.</li>
-<li><strong>Wrap every remote call in an operation</strong> (<a href="#1-three-layers-one-direction">section 1</a>) with a timeout and a mapped failure (a 502/503 you chose), never letting a client library's exception become the response.</li>
-<li><strong>Share contracts, not models.</strong> Publish the response <code>Schema</code> classes (or the OpenAPI document) that other services depend on; keep <code>Model</code>s private.</li>
+<li><strong>No joins, no shared transaction.</strong> A foreign key never crosses a service. Store the other service's ID as a plain value and treat its answers as snapshots. A write across two services is a sequence of calls that can half-fail: make each step idempotent and decide what a retry does before writing the code.</li>
+<li><strong>Each service owns its tables.</strong> Others call its API, never its database. Its migrations belong to it and are applied by its deploy step (<a href="#7-migrations">section 7</a>).</li>
+<li><strong>The caller is a <code>Caller</code> too.</strong> Service-to-service calls authenticate like any client (a JWT with a service identity and narrow permissions); do not forward the end user's token unless the callee must act as that user.</li>
+<li><strong>Wrap every remote call in an operation</strong> (<a href="#1-three-layers-one-direction">section 1</a>) with a timeout and a failure you chose (<code>502</code> or <code>503</code>), never a client library's exception.</li>
+<li><strong>Share contracts, not models.</strong> Publish the response <code>Schema</code> classes or the OpenAPI document; keep models private.</li>
 </ul>
-<p>Not covered yet: a runnable two-service example and a client helper.</p>
+<p>A runnable two-service example and a client helper do not exist yet.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../function-endpoints/">Function-based APIs</a></li><li><a href="../class-endpoints/">Class-based APIs</a></li><li><a href="../rules/">Rules</a></li></ul>
+        </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../request-lifecycle/"><small>Previous</small><span>Request lifecycle</span></a>
-        <a class="pager__link pager__link--next" href="../ecosystem/"><small>Next</small><span>Own schemas and ORM</span></a>
+        <a class="pager__link pager__link--next" href="../glossary/"><small>Next</small><span>Glossary</span></a>
       </nav>
     </main>
 
@@ -378,9 +391,9 @@ Persistence     Model / QuerySet          tables, relations, explicit loading
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>4.3</dd></div>
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>7 min</dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

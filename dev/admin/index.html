@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin · Hinoki</title>
+  <title>Add an admin · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Admin · Hinoki">
+  <meta property="og:title" content="Add an admin · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="3.26">
+  <div class="shell" data-sheet="3.38">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link is-active" href="./"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -397,247 +441,259 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.26'">
-        <p class="kicker" data-search-exclude>3.26 · Guides</p>
-        <h1 id="the-admin">The admin<a class="headerlink" href="#the-admin" title="Permanent link">&para;</a></h1>
-<p>The optional <code>hinoki.admin</code> module gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with the same access policies and CSRF protection as the rest of the app. It is included in the framework package; nothing is mounted unless you ask, and importing it never touches a database.</p>
-<p>The following excerpt follows the <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py">Blog admin module</a>. <code>PostAdmin</code> names its model once and configures how it is shown; <code>build_admin()</code> creates the <code>Admin</code> (with the admin's own users, so there is no sign-in code) and registers the model admins; the app includes the admin under a <code>Mount</code>. The snippet shows the relevant imports and function context; consult the linked module for the complete version.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span><span class="p">,</span> <span class="n">User</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mount</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Tone</span><span class="p">,</span> <span class="n">action</span>
+      <article class="prose" style="--sheet: '3.38'">
+        <p class="kicker" data-search-exclude>3.38 · Guides</p>
+        <h1 id="add-an-admin">Add an admin<a class="headerlink" href="#add-an-admin" title="Permanent link">&para;</a></h1>
+<p><code>hinoki.admin</code> gives staff a list, search, create, edit, bulk actions and a dashboard for your models, behind its own sign-in page, users and per-model permissions. It ships with the framework; nothing is served until you include it, and importing it never touches a database.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Tone</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span><span class="p">,</span> <span class="n">User</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
     <span class="n">columns</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
     <span class="n">readonly</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"created_at"</span><span class="p">,)</span>
     <span class="n">badges</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"published"</span><span class="p">:</span> <span class="p">{</span><span class="kc">True</span><span class="p">:</span> <span class="p">(</span><span class="s2">"Published"</span><span class="p">,</span> <span class="n">Tone</span><span class="o">.</span><span class="n">OK</span><span class="p">),</span> <span class="kc">False</span><span class="p">:</span> <span class="p">(</span><span class="s2">"Draft"</span><span class="p">,</span> <span class="n">Tone</span><span class="o">.</span><span class="n">WARN</span><span class="p">)}}</span>
-    <span class="n">tabs</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"published"</span><span class="p">,)</span>  <span class="c1"># one tab for each badge: Published | Draft</span>
-    <span class="n">fieldsets</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Organization"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">)}</span>
-
-    <span class="nd">@action</span><span class="p">(</span><span class="n">confirm</span><span class="o">=</span><span class="s2">"Publish the selected posts?"</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">posts</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
-        <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">])</span><span class="o">.</span><span class="n">aupdate</span><span class="p">({</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">build_admin</span><span class="p">(</span><span class="n">theme</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"studio"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Admin</span><span class="p">:</span>
-    <span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">theme</span><span class="o">=</span><span class="n">theme</span><span class="p">,</span> <span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span> <span class="n">per_page</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
-    <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>  <span class="c1"># a customised admin ...</span>
-    <span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>  <span class="c1"># ... or a model, for the default admin</span>
-    <span class="k">return</span> <span class="n">site</span>
-
-
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">Mount</span><span class="p">(</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">build_admin</span><span class="p">())])</span>
+<span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>
+<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>  <span class="c1"># a configured model admin</span>
+<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>  <span class="c1"># or a model, with the default admin</span>
 </code></pre></div>
-<p>A model admin names its model with the class keyword <code>model=</code> (<code>ModelAdmin[Post]</code> still works; naming two different models is a <code>RegistrationError</code>). <code>site.register(...)</code> takes a <code>ModelAdmin</code> class, which names its model, or a model class, which gets the default admin; it returns what it was given, so <code>@site.register</code> also works as a class decorator. When the site already exists where the class is written, <code>@site.admin(Post)</code> registers a class that need not repeat <code>model=Post</code>. The site signs its forms with <code>admin.secret</code> from the app's settings (<code>PREFIX_ADMIN__SECRET</code>, at least 32 bytes); <code>Admin(secret=...)</code> overrides it for one site, and an admin with neither stops the app at startup. The slug of a model is its table name with dashes, or the class attribute <code>slug = "posts"</code>. <code>site.register(Post, PostAdmin, slug="posts")</code> remains available.</p>
-<p>Short forms: a badge is <code>Badge(label, tone, icon)</code> or the tuple <code>(label, tone)</code> / <code>(label, tone, icon)</code>; <code>tabs = ("published",)</code> makes one tab for each value that <code>badges</code> names for that column, labelled with the badge; <code>fieldsets</code> may be a dictionary of title to field names. <code>Tone</code> (<code>NEUTRAL</code>, <code>ACCENT</code>, <code>OK</code>, <code>WARN</code>, <code>DANGER</code>, <code>INFO</code>) is the color role of badges, stats and events; the matching strings are still accepted.</p>
-<p><code>search</code> names the columns the list's search box and the global search look in: a row matches when any of them contains the typed text, compared case-insensitively as text (so a number or date column matches on its printed form). Without <code>search</code> the box looks in the first three text columns that the list shows (never in a column it does not show, such as an <code>exclude</code>d token). Naming an <code>exclude</code>d column in <code>search</code> is refused at registration, because which rows match would reveal its value.</p>
-<p>Row visibility, field assignment and which columns are shown are decided in the admin class; hooks (<code>queryset</code>, <code>can</code>, <code>display</code>, <code>stats</code>, <code>check</code>, <code>save</code>, <code>remove</code>) override what you need. <code>queryset(principal)</code> is the primary way to decide which rows a caller sees: counts and page numbers come from it. <code>can(principal, "view", row)</code> is also applied row by row to what a list page or the dashboard fetched, so a denied row is not shown; it can only trim the page already fetched, so a page may hold fewer rows than <code>per_page</code> and the totals still count the queryset. Mass assignment, excluded columns and out-of-scope rows are refused by the framework, and every form carries a signed CSRF token bound to the signed-in subject.</p>
-<p>Datetime fields in the admin use the including app's <code>settings.timezone</code> (UTC when the app has no built-in settings). Forms display stored instants in that timezone and interpret edited <code>datetime-local</code> values there before saving them as UTC-aware datetimes. Times that do not exist or occur twice during a daylight-saving clock change are rejected for correction. API datetimes with offsets remain absolute instants; <code>utc_today()</code> continues to use UTC.</p>
-<h2 id="who-may-sign-in">Who may sign in<a class="headerlink" href="#who-may-sign-in" title="Permanent link">&para;</a></h2>
-<p><code>Admin()</code> with no <code>access=</code> uses the admin's <strong>own users</strong>: accounts, a sign-in page, sessions and per-model permissions, kept in three tables of your database. Nothing is created until you ask for it, and importing Hinoki never touches a database.</p>
-<p>Register the tables as an app and apply their migration once:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>admin<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--models<span class="w"> </span>hinoki.admin.users.models<span class="w"> </span>--migrations<span class="w"> </span>hinoki.admin.users.migrations
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>admin
+<div class="highlight"><pre><span></span><code><span class="c1"># blog/routes.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">Mount</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">blog.adminsite</span><span class="w"> </span><span class="kn">import</span> <span class="n">site</span>
+
+<span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Mount</span><span class="p">(</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">site</span><span class="p">)]</span>
 </code></pre></div>
-<p>The admin also needs its signing secret: <code>admin.secret</code> in the settings (<code>PREFIX_ADMIN__SECRET</code>, at least 32 bytes). The sessions and passwords follow <code>admin.session_hours</code> (12), <code>admin.idle_minutes</code> (120) and <code>admin.min_password_length</code> (12).</p>
-<div class="highlight"><pre><span></span><code><span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>  <span class="c1"># its own users; nothing else to pass</span>
-<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>
-<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">BlogSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">Mount</span><span class="p">(</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">site</span><span class="p">)])</span>
+<p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py">Blog example</a> builds the same site inside a function, because its theme comes from a setting.</p>
+<h2 id="create-the-admins-tables">Create the admin's tables<a class="headerlink" href="#create-the-admins-tables" title="Permanent link">&para;</a></h2>
+<p>The admin keeps its users in four tables of your database. Register them as an app, apply the migrations, then create the first user:</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>admin<span class="w"> </span>--models<span class="w"> </span>hinoki.admin.users.models<span class="w"> </span>--migrations<span class="w"> </span>hinoki.admin.users.migrations
+hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>admin
+hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span class="w"> </span>alice<span class="w">    </span><span class="c1"># asks for the password twice</span>
 </code></pre></div>
-<ul>
-<li><strong>Pages.</strong> <code>GET/POST /login</code>, <code>POST /logout</code> and <code>GET/POST /password</code> live under the admin's prefix. A visitor without a session is redirected (<code>303</code>) to the sign-in page. Every form carries a CSRF token; the sign-in form's token proves the server issued it and must match the <code>SameSite=Strict</code> cookie and the <code>Origin</code> check, and the others are bound to the signed-in user.</li>
-<li><strong>Passwords</strong> are Argon2id hashes. Unknown usernames cost the same work as a wrong password and get the same answer, and an inactive user cannot sign in. Changing a password ends every session of the user and gives the current browser a new one.</li>
-<li><strong>Sessions</strong> are a random token in an <code>HttpOnly</code>, <code>SameSite=Lax</code> cookie scoped to the admin's path (<code>Secure</code> on HTTPS, which behind a TLS-terminating proxy needs <code>server.trusted_proxies</code> so the forwarded scheme is believed, or whenever <code>Admin(secure_cookies=True)</code>, which is the safer choice there and also names the cookies <code>__Secure-hinoki_admin_session</code> and <code>__Secure-hinoki_csrf</code>, so a browser refuses to store them over plain HTTP and a sibling site cannot plant them; the <code>__Host-</code> prefix is not used because it requires <code>Path=/</code> and these cookies are scoped to the admin's path; switching <code>secure_cookies</code> signs everyone out once); the database keeps only the token's SHA-256, so a copy of the table cannot be replayed. A session ends after <code>session_hours</code>, after <code>idle_minutes</code> without a request, on sign-out, on a password change (also one made while a sign-in was in flight) and when its user is deactivated; reactivating a user never brings an old session back. Deactivate with <code>AdminAccounts.set_active(user, False)</code>, which also ends the sessions. A new sign-in never reuses a token.</li>
-<li><strong>Permissions</strong> are per model and per action (<code>view</code>, <code>add</code>, <code>change</code>, <code>delete</code>; a bulk action needs <code>change</code>), stored as grants. A <strong>superuser</strong> holds every grant. The names <code>view</code>, <code>add</code>, <code>change</code> and <code>delete</code> are reserved: a bulk action cannot take one. The check is applied around each model admin's <code>can</code>, so an override of <code>can</code> can narrow what a grant allows but never widen it. A user without a grant for a model does not see it in the sidebar and gets <code>404</code> for its pages.</li>
-<li><strong>Rate limit.</strong> The sign-in and password routes are protected by <code>LoginWindow</code>, a fixed window per client address (10 attempts a minute; an IPv6 address counts by its /64) kept in one worker's memory, so each worker counts on its own: it is a brake, not a defence, and the cost of hashing is the main one. The table holds at most 10,000 addresses and drops the oldest. Requests with no known address share one window ten times as large; configure <code>server.trusted_proxies</code> so the real client address is known. These routes hold no database connection while a password is hashed. For a limit shared by every worker and host, pass <code>DatabaseLoginWindow</code> (from <code>hinoki.admin.users.limits</code>), which keeps the same window in the <code>hinoki_admin_login_windows</code> table: <code>Admin(users=AdminAccounts(login_limit=DatabaseLoginWindow()))</code>. Apply the admin users' migrations first (<code>0002-login-windows</code> adds the table); clients are stored as SHA-256 digests and expired windows are deleted on each attempt. Hosts should keep their clocks in sync, because each stamps the windows it opens, and an attempt that keeps losing the race for the count (many sign-ins from one address at the same instant) is refused with <code>429</code> rather than let through. Or pass your own policy (see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>).</li>
-</ul>
-<p>The first user is a superuser made with <a href="../cli/#admin"><code>hinoki admin create-superuser</code></a>; <code>hinoki admin set-password</code> resets a password from a shell.</p>
-<h3 id="the-users-section">The Users section<a class="headerlink" href="#the-users-section" title="Permanent link">&para;</a></h3>
-<p>A superuser sees a <strong>Users</strong> section in the sidebar and manages everyone else there: create a user (username and password), choose which models and actions the user may use, rename, deactivate, change a password or delete. The first superuser comes from the command line (<code>hinoki admin create-superuser</code>), every other user from this section.</p>
-<ul>
-<li>Only a <strong>superuser</strong> can open it. A user who could edit users could grant itself every permission, so no grant opens this section.</li>
-<li>The permission checkboxes list <code>view</code>, <code>add</code>, <code>change</code> and <code>delete</code> for each registered model except the users themselves; a superuser holds all of them whatever is checked.</li>
-<li>Leaving the password empty on edit keeps it. Typing one changes it and signs the user out everywhere. A password is never written back into the page.</li>
-<li>Deactivating a user ends their sessions. You cannot deactivate yourself, remove your own superuser status or delete yourself, so the admin cannot lock itself out.</li>
-<li>Deleting removes the user's sessions and grants too. Every write checks that some active superuser remains (two superusers editing each other at the very same instant could still defeat that; <code>hinoki admin create-superuser</code> recovers).</li>
-<li>The admin's own tables (<code>AdminUser</code>, <code>AdminSession</code>, <code>AdminGrant</code>) cannot be registered as ordinary models: <code>register</code> refuses them, because a plain model admin would show the password hash and let a grant holder promote themselves.</li>
-</ul>
-<p><code>Admin(users=AdminAccounts(), manage_users=False)</code> leaves the section out, for a site that creates its users another way.</p>
-<p>To use your own identity instead (single sign-on, an existing user table), pass <code>Admin(access=Access(auth=MyAuth(), permissions=[...]))</code>: the admin then has no sign-in pages of its own, and the permissions of your callers decide what they see through <code>ModelAdmin.can</code>, as before. <code>Admin(access=..., users=...)</code> is an error.</p>
-<h2 id="overriding-behaviour">Overriding behaviour<a class="headerlink" href="#overriding-behaviour" title="Permanent link">&para;</a></h2>
-<p>A <code>ModelAdmin</code> states what the model does not already say, and its methods are the places to change behaviour. Each one below is called by the framework; override what you need and call <code>super()</code> for the rest.</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
-    <span class="c1"># who sees which rows: part of every list, lookup, update and delete statement</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">author_id</span><span class="o">=</span><span class="n">principal</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"author"</span><span class="p">)</span>
-
-    <span class="c1"># a rule per action or row; with the admin's own users it can narrow a grant,</span>
-    <span class="c1"># never widen it</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">can</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"delete"</span> <span class="ow">and</span> <span class="n">row</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">row</span><span class="o">.</span><span class="n">published</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># published posts are never deleted here</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">can</span><span class="p">(</span><span class="n">principal</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
-
-    <span class="c1"># what a list cell shows: a Badge or an Avatar for something richer than text</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">display</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span>
-            <span class="n">Avatar</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">column</span> <span class="o">==</span> <span class="s2">"author_id"</span>
-            <span class="k">else</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">)</span>
-        <span class="p">)</span>
-
-    <span class="c1"># cross-field validation before anything is written: {field: message} refuses</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"published"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">row</span> <span class="ow">and</span> <span class="n">row</span><span class="o">.</span><span class="n">title</span><span class="p">)):</span>
-            <span class="k">return</span> <span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"A published post needs a title."</span><span class="p">}</span>
-        <span class="k">return</span> <span class="p">{}</span>
-
-    <span class="c1"># the single places that write: run a domain command instead of a raw write</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">post</span> <span class="o">=</span> <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
-        <span class="k">await</span> <span class="n">audit</span><span class="p">(</span><span class="s2">"post.saved"</span><span class="p">,</span> <span class="n">post</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">principal</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">post</span>
-
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
-        <span class="k">if</span> <span class="k">await</span> <span class="n">has_comments</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">Refusal</span><span class="p">(</span><span class="s2">"Delete the comments first."</span><span class="p">)</span>  <span class="c1"># shown on the page</span>
-        <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">principal</span><span class="p">)</span>
-</code></pre></div>
-<p><code>Refusal</code> (from <code>hinoki.admin</code>) raised inside <code>save</code> or <code>remove</code> rolls the write back and shows its message to the person instead of an error page.</p>
-<h3 id="fields-that-are-not-columns">Fields that are not columns<a class="headerlink" href="#fields-that-are-not-columns" title="Permanent link">&para;</a></h3>
-<p><code>extra_fields</code> (or an <code>extras()</code> method, when the choices depend on what is registered) adds form fields that are not columns of the model. <code>Extra("password", "Password", "password")</code> is a masked input that is never filled in again; <code>Extra("tags", "Tags", "choices", choices=(("a", "A"), ("b", "B")))</code> is a group of checkboxes whose submitted value is a <code>frozenset</code> of the checked values. They reach <code>check</code> and <code>save</code> next to the model's columns, so <code>save</code> must take them out before writing the row, and <code>extra_initial(row)</code> returns what they show on the edit form. The Users section is built this way (<code>hinoki.admin.users.useradmin</code>).</p>
-<h3 id="replace-the-html-or-the-stylesheet">Replace the HTML or the stylesheet<a class="headerlink" href="#replace-the-html-or-the-stylesheet" title="Permanent link">&para;</a></h3>
-<p><code>Admin(templates="admin_ui")</code> reads <code>admin_ui/components/NAME.html</code> before the built-in component of the same name (<code>shell</code>, <code>sidebar</code>, <code>table</code>, <code>form</code>, <code>field</code>, <code>auth</code> for the sign-in page...), and appends <code>admin_ui/admin.css</code> after the theme, so an application can override anything last. A component keeps its <code>{{ value }}</code> (escaped) and <code>{{{ raw }}}</code> placeholders; copy the built-in file from the package as the starting point.</p>
-<p>The overrides are checked when the <code>Admin</code> is created, so a mistake fails at startup and not on the first request: a file whose name is not a component, a placeholder the built-in component is never given (or one that changes between <code>{{ }}</code> and <code>{{{ }}}</code>) and a <code>form</code>, <code>table</code>, <code>confirm</code> or <code>auth</code> override that drops <code>{{ csrf }}</code> raise <code>TemplateError</code>. A component may leave out other placeholders.</p>
-<div class="highlight"><pre><span></span><code><span class="c">/* admin_ui/admin.css */</span>
-<span class="p">.</span><span class="nc">hn-auth-card</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">border-radius</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-<span class="p">.</span><span class="nc">hn-nav-item</span><span class="o">[</span><span class="nt">aria-current</span><span class="o">=</span><span class="s2">"page"</span><span class="o">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">font-weight</span><span class="p">:</span><span class="w"> </span><span class="mi">800</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
-</code></pre></div>
-<h3 id="a-custom-theme">A custom theme<a class="headerlink" href="#a-custom-theme" title="Permanent link">&para;</a></h3>
-<p>A <code>Theme</code> is a set of <code>--hn-*</code> design tokens for the light and dark schemes, plus where the edit form opens (<code>edit</code>: <code>"drawer"</code> or <code>"page"</code>), a <code>layout</code> (<code>"sidebar"</code>, <code>"topbar"</code>, <code>"index"</code>, <code>"rail"</code>) and a <code>list_style</code> (<code>"table"</code>, <code>"rows"</code>, <code>"cards"</code>). Every token must be given; the easiest start is to copy a built-in theme and change what you want, then pass it as <code>Admin(theme=...)</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">THEMES</span><span class="p">,</span> <span class="n">Admin</span>
-
-<span class="n">studio</span> <span class="o">=</span> <span class="n">THEMES</span><span class="p">[</span><span class="s2">"studio"</span><span class="p">]</span>
-<span class="n">forest</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
-    <span class="n">studio</span><span class="p">,</span>
-    <span class="n">name</span><span class="o">=</span><span class="s2">"forest"</span><span class="p">,</span>
-    <span class="n">label</span><span class="o">=</span><span class="s2">"Forest"</span><span class="p">,</span>
-    <span class="n">light</span><span class="o">=</span><span class="p">{</span>
-        <span class="o">**</span><span class="n">studio</span><span class="o">.</span><span class="n">light</span><span class="p">,</span>
-        <span class="s2">"accent"</span><span class="p">:</span> <span class="s2">"#1f6f50"</span><span class="p">,</span>
-        <span class="s2">"accent-hover"</span><span class="p">:</span> <span class="s2">"#17543c"</span><span class="p">,</span>
-        <span class="s2">"bg"</span><span class="p">:</span> <span class="s2">"#f6f8f5"</span><span class="p">,</span>
-    <span class="p">},</span>
-    <span class="n">dark</span><span class="o">=</span><span class="p">{</span>
-        <span class="o">**</span><span class="n">studio</span><span class="o">.</span><span class="n">dark</span><span class="p">,</span>
-        <span class="s2">"accent"</span><span class="p">:</span> <span class="s2">"#5cc79b"</span><span class="p">,</span>
-        <span class="s2">"accent-hover"</span><span class="p">:</span> <span class="s2">"#7ad6b0"</span><span class="p">,</span>
-        <span class="s2">"bg"</span><span class="p">:</span> <span class="s2">"#0f1a14"</span><span class="p">,</span>
-    <span class="p">},</span>
-    <span class="n">layout</span><span class="o">=</span><span class="s2">"topbar"</span><span class="p">,</span>
-    <span class="n">extra_css</span><span class="o">=</span><span class="s2">".hn-brand-text strong { letter-spacing: .04em; }"</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">theme</span><span class="o">=</span><span class="n">forest</span><span class="p">)</span>
-</code></pre></div>
-<p>A theme with a missing token, an unknown layout or a bad name is refused when the <code>Admin</code> is created, not on a half-styled page. <code>extra_css</code> is appended after the tokens; <code>default_mode="dark"</code> makes the theme dark until the user switches.</p>
-<h2 id="what-needs-no-configuration">What needs no configuration<a class="headerlink" href="#what-needs-no-configuration" title="Permanent link">&para;</a></h2>
-<p>A model admin states only what the model does not already say. Without being declared: the label and plural come from the model, the list's order from the model's <code>@ordered_by</code>, the "last modified" line from its <code>@timestamps</code> column, text search from the first three shown text columns, and a bulk delete wherever <code>can(principal, "delete")</code> allows it (set <code>bulk_delete = False</code> to remove it). <code>Admin(per_page=20, show_count=False)</code> sets the page size and whether the sidebar shows row counts for every model, and a model admin overrides either with its own <code>per_page</code> or <code>show_count</code>. A model with no configuration at all is <code>site.register(Post)</code>.</p>
-<h2 id="bulk-actions">Bulk actions<a class="headerlink" href="#bulk-actions" title="Permanent link">&para;</a></h2>
-<p>Add an async method to the model admin and mark it with <code>@action</code>. The list shows its action button after rows are selected:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">action</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
-    <span class="nd">@action</span><span class="p">(</span><span class="n">confirm</span><span class="o">=</span><span class="s2">"Publish the selected posts?"</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">posts</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Post</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="p">[</span><span class="n">post</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">post</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">])</span><span class="o">.</span><span class="n">aupdate</span><span class="p">(</span>
-            <span class="p">{</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
-        <span class="p">)</span>
-</code></pre></div>
-<p><code>@action</code> takes an optional label and <code>confirm</code>; the name is the method's with <code>_</code> written as <code>-</code>, and the label defaults to "Publish selected". The earlier form, a <code>BulkAction(name=..., label=..., confirm=..., handler=...)</code> in <code>bulk_actions</code>, still works.</p>
-<p>The action name is also the permission checked by <code>ModelAdmin.can(principal, name, row)</code>. Hinoki checks model access before showing the button and checks every selected row against the scoped queryset and row permission both before confirmation and before execution. The confirmation includes the selected row count. If any selected row is unavailable or denied, the whole action is refused. The handler receives only the selected rows and the caller. During execution, Hinoki locks the selected model rows until the action transaction finishes, so another transaction cannot change their row-level authorization fields between the check and the handler's writes. Handlers should still apply their domain conditions to writes, especially when those conditions involve related records or external state.</p>
-<p>Each action requires confirmation and runs inside the admin write transaction. A failure rolls back the selected work; successful actions redirect to the list with a notice. Actions accept at most 200 distinct rows. The built-in delete action is on by default (<code>bulk_delete = False</code> removes it).</p>
-<h2 id="four-styles-each-with-light-and-dark">Four styles, each with light and dark<a class="headerlink" href="#four-styles-each-with-light-and-dark" title="Permanent link">&para;</a></h2>
-<p>Each theme sets navigation, list presentation, typography and color. All four use the same components and provide light and dark modes; the system preference selects the initial mode, and the toggle overrides it.</p>
 <table>
 <thead>
 <tr>
-<th>Style</th>
-<th>Navigation</th>
-<th>List</th>
-<th>Edit</th>
-<th>Look</th>
+<th>Table</th>
+<th>Migration</th>
+<th>Holds</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Studio</strong> (default)</td>
-<td>sidebar</td>
-<td>cards with a table</td>
-<td>drawer beside the list</td>
-<td>soft violet, rounded</td>
+<td><code>hinoki_admin_users</code></td>
+<td><code>0001-initial</code></td>
+<td>Username, Argon2id password hash, active and superuser flags, last sign-in</td>
 </tr>
 <tr>
-<td><strong>Console</strong></td>
-<td>horizontal top bar</td>
-<td>dense monospaced grid</td>
-<td>drawer</td>
-<td>neon cyan / teal, square</td>
+<td><code>hinoki_admin_sessions</code></td>
+<td><code>0001-initial</code></td>
+<td>The SHA-256 of each session token, its user, expiry and last request</td>
 </tr>
 <tr>
-<td><strong>Paper</strong></td>
-<td>quiet text index, centred column</td>
-<td>document rows</td>
-<td>its own page</td>
-<td>serif type, terracotta</td>
+<td><code>hinoki_admin_grants</code></td>
+<td><code>0001-initial</code></td>
+<td>One row per user, model and action</td>
 </tr>
 <tr>
-<td><strong>Bento</strong></td>
-<td>dark icon rail (bottom tab bar on phones)</td>
-<td>a grid of cards</td>
-<td>its own page</td>
-<td>hard ink outlines and offset shadows, bold type, solid colour tiles, yellow accent</td>
+<td><code>hinoki_admin_login_windows</code></td>
+<td><code>0002-login-windows</code></td>
+<td>Sign-in attempts per client, read only by <code>DatabaseLoginWindow</code></td>
 </tr>
 </tbody>
 </table>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Studio</label><label for="__tabbed_1_2">Console</label><label for="__tabbed_1_3">Paper</label><label for="__tabbed_1_4">Bento</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<p><img alt="Studio, light" src="../screenshots/admin-studio-list-light.png" />
-<img alt="Studio, dark" src="../screenshots/admin-studio-list-dark.png" /></p>
-</div>
-<div class="tabbed-block">
-<p><img alt="Console, light" src="../screenshots/admin-console-list-light.png" />
-<img alt="Console, dark" src="../screenshots/admin-console-list-dark.png" /></p>
-</div>
-<div class="tabbed-block">
-<p><img alt="Paper, light" src="../screenshots/admin-paper-list-light.png" />
-<img alt="Paper, dark" src="../screenshots/admin-paper-list-dark.png" /></p>
-</div>
-<div class="tabbed-block">
-<p><img alt="Bento, light" src="../screenshots/admin-bento-list-light.png" />
-<img alt="Bento, dark" src="../screenshots/admin-bento-list-dark.png" />
-<img alt="Bento edit form in dark mode" src="../screenshots/admin-bento-edit-dark.png" />
-<img alt="Bento on a phone: the rail becomes a bottom tab bar" src="../screenshots/admin-bento-phone-light.png" /></p>
-</div>
-</div>
-</div>
-<p>Pick one with <code>Admin(theme="bento")</code>, or build your own: a <code>Theme</code> is a set of <code>--hn-*</code> design tokens for the two schemes plus a <code>layout</code> (<code>sidebar</code>, <code>topbar</code>, <code>index</code>, <code>rail</code>) and a <code>list_style</code> (<code>table</code>, <code>rows</code>, <code>cards</code>). The text and surface colour pairs of every built-in theme are tested against WCAG AA contrast. Bento's pages were checked in Chromium and Firefox at 1440, 390, 360 and 320 px; WebKit was not run.</p>
-<h2 id="mounting-under-a-prefix">Mounting under a prefix<a class="headerlink" href="#mounting-under-a-prefix" title="Permanent link">&para;</a></h2>
-<p>Include the admin under a <code>Mount</code> to choose where it lives: <code>Hinoki(include=[Mount("/ops", admin)])</code> serves it at <code>/ops</code>, and its links, assets and the CSRF cookie path use that address. Without a <code>Mount</code> the admin is at <code>/admin</code>. <code>Admin(prefix="/staff")</code> adds a path of its own after the mount (<code>/ops/staff</code>). Including <code>admin.api()</code> instead keeps the prefix it was built with.</p>
+<p>Every other user is created from the admin's Users section. <code>hinoki admin set-password alice</code> resets a password from a shell; both commands are described in <a href="../cli/#admin"><code>hinoki admin</code></a>.</p>
+<h2 id="set-the-signing-secret">Set the signing secret<a class="headerlink" href="#set-the-signing-secret" title="Permanent link">&para;</a></h2>
+<p>The admin signs its forms and cookies with <code>admin.secret</code> from the app's settings. Give it at least 32 random bytes through the environment:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_ADMIN__SECRET</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import secrets; print(secrets.token_urlsafe(48))'</span><span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>admin.secret</code></td>
+<td>none</td>
+<td>Signing key, at least 32 bytes</td>
+</tr>
+<tr>
+<td><code>admin.session_hours</code></td>
+<td><code>12</code></td>
+<td>A session ends this long after sign-in</td>
+</tr>
+<tr>
+<td><code>admin.idle_minutes</code></td>
+<td><code>120</code></td>
+<td>A session ends after this long without a request</td>
+</tr>
+<tr>
+<td><code>admin.min_password_length</code></td>
+<td><code>12</code></td>
+<td>Shortest password accepted</td>
+</tr>
+</tbody>
+</table>
+<p><code>Admin(secret=...)</code> overrides the secret for one site. An admin with neither stops the app at startup.</p>
+<h2 id="who-may-sign-in">Who may sign in<a class="headerlink" href="#who-may-sign-in" title="Permanent link">&para;</a></h2>
+<p><code>Admin()</code> without <code>access=</code> uses its own users:</p>
+<ul>
+<li>A <strong>superuser</strong> holds every permission.</li>
+<li>Other users hold <strong>grants</strong> per model and action: <code>view</code>, <code>add</code>, <code>change</code>, <code>delete</code>. A bulk action needs <code>change</code>.</li>
+<li>A model without a grant is missing from the sidebar, and its pages answer <code>404</code>.</li>
+<li>Grants wrap each model admin's <code>can</code>: an override can narrow what a grant allows, never widen it.</li>
+<li>An inactive user cannot sign in.</li>
+</ul>
+<p>To use your own identity instead (single sign-on, an existing user table), pass an access policy: <code>Admin(access=Access(auth=..., permissions=[...]))</code>. The admin then has no sign-in pages and no tables, and your callers' permissions decide what <code>ModelAdmin.can</code> allows. See <a href="../authentication/">authentication and access</a>.</p>
+<h2 id="the-sign-in-page">The sign-in page<a class="headerlink" href="#the-sign-in-page" title="Permanent link">&para;</a></h2>
+<p><code>login</code> shows a card titled <strong>Sign in</strong> with a username and a password field. Every page of the admin redirects there (<code>303</code>) when the browser has no valid session.</p>
+<table>
+<thead>
+<tr>
+<th>Request</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST login</code>, correct credentials</td>
+<td><code>303</code> to the admin root with a new session cookie; any previous session token is closed, never reused</td>
+</tr>
+<tr>
+<td><code>POST login</code>, wrong username or password</td>
+<td><code>401</code> "Wrong username or password."</td>
+</tr>
+<tr>
+<td><code>POST login</code>, expired or forged form</td>
+<td><code>403</code> "The form expired or is invalid. Reload and try again."</td>
+</tr>
+<tr>
+<td><code>POST login</code>, too many attempts</td>
+<td><code>429</code> (see <a href="#limit-sign-in-attempts">limit sign-in attempts</a>)</td>
+</tr>
+<tr>
+<td><code>GET login</code> while signed in</td>
+<td><code>303</code> to the admin root</td>
+</tr>
+<tr>
+<td><code>POST logout</code></td>
+<td><code>303</code> to <code>login</code>; the session ends and its cookie is cleared</td>
+</tr>
+</tbody>
+</table>
+<p>Usernames are stored in lower case: 1 to 150 letters, digits and <code>. _ @ + -</code>, starting with a letter or digit. An unknown username costs the same hashing work as a wrong password and gets the same answer.</p>
+<p><code>password</code> changes the signed-in user's password. The form asks for the current password, a new one (at least <code>admin.min_password_length</code> characters) and the new one again. A wrong current password, two different new ones or a password that breaks the length rule answer <code>422</code> with the reason on the form; an expired form answers <code>403</code>. Success ends every other session of the user and redirects (<code>303</code>) to the admin root (<code>?done=password</code>) with a new session.</p>
+<h3 id="sessions-and-cookies">Sessions and cookies<a class="headerlink" href="#sessions-and-cookies" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The session is a random token in the <code>hinoki_admin_session</code> cookie: <code>HttpOnly</code>, <code>SameSite=Lax</code>, scoped to the admin's path. The database stores only its SHA-256, so a copy of the table cannot be replayed.</li>
+<li>Forms carry a signed CSRF token. The sign-in form's token must match the <code>SameSite=Strict</code> <code>hinoki_csrf</code> cookie and pass the <code>Origin</code> check; other forms are bound to the signed-in user.</li>
+<li>Cookies are <code>Secure</code> on HTTPS. Behind a TLS-terminating proxy, set <code>server.trusted_proxies</code> so the forwarded scheme is believed, or pass <code>Admin(secure_cookies=True)</code>: cookies are then always <code>Secure</code> and named <code>__Secure-hinoki_admin_session</code> and <code>__Secure-hinoki_csrf</code>, so a sibling site cannot plant them. Changing the option signs everyone out once.</li>
+<li>A session ends after <code>admin.session_hours</code>, after <code>admin.idle_minutes</code> without a request, on sign-out, on a password change and when its user is deactivated. Reactivating a user never revives an old session.</li>
+</ul>
+<h2 id="manage-users">Manage users<a class="headerlink" href="#manage-users" title="Permanent link">&para;</a></h2>
+<p>A superuser sees a <strong>Users</strong> section in the sidebar: create a user, choose the models and actions it may use, rename, deactivate, change a password or delete.</p>
+<ul>
+<li>Only a superuser opens it. No grant does, because a user who could edit users could grant itself everything.</li>
+<li>The permission checkboxes list <code>view</code>, <code>add</code>, <code>change</code> and <code>delete</code> for each registered model.</li>
+<li>An empty password on edit keeps the current one. A new one signs the user out everywhere. Passwords are never written back into the page.</li>
+<li>You cannot deactivate yourself, remove your own superuser status or delete yourself. Every write checks that an active superuser remains; <code>hinoki admin create-superuser</code> recovers if two superusers demote each other at the same instant.</li>
+<li>Deleting a user removes its sessions and grants.</li>
+</ul>
+<p><code>Admin(users=AdminAccounts(), manage_users=False)</code> leaves the section out, for a site whose users are created another way. <code>AdminAccounts.set_active(user, False)</code> deactivates a user from code and ends its sessions.</p>
+<h2 id="limit-sign-in-attempts">Limit sign-in attempts<a class="headerlink" href="#limit-sign-in-attempts" title="Permanent link">&para;</a></h2>
+<p>The sign-in and password forms pass through a rate limit policy before any password is hashed, and hold no database connection while hashing.</p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Counts in</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LoginWindow(limit=10, window=60)</code> (default)</td>
+<td>One worker's memory</td>
+<td>Each worker counts on its own and forgets on restart: a brake, not a shared limit. Holds at most 10,000 clients and drops the oldest.</td>
+</tr>
+<tr>
+<td><code>DatabaseLoginWindow(limit=10, window=60)</code></td>
+<td><code>hinoki_admin_login_windows</code></td>
+<td>One limit for every worker and host. Clients are stored as SHA-256 digests; expired windows are deleted on each attempt.</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin.users</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdminAccounts</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin.users.limits</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseLoginWindow</span>
+
+<span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">users</span><span class="o">=</span><span class="n">AdminAccounts</span><span class="p">(</span><span class="n">login_limit</span><span class="o">=</span><span class="n">DatabaseLoginWindow</span><span class="p">()))</span>
+</code></pre></div>
+<p>Both count one window per client address; an IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set <code>server.trusted_proxies</code> behind a proxy. With <code>DatabaseLoginWindow</code>, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>.</p>
+<h2 id="serve-it-under-another-path">Serve it under another path<a class="headerlink" href="#serve-it-under-another-path" title="Permanent link">&para;</a></h2>
+<p>The <code>Mount</code> prefix decides where the admin lives; links, assets and the cookie path follow it. <code>Mount("/ops", site)</code> serves it at <code>/ops</code>. <code>Admin(prefix="/staff")</code> adds a path of its own after the mount (<code>/ops/staff</code>). An admin included without a <code>Mount</code> is served at <code>/admin</code>.</p>
+<h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>What fails</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Startup, no <code>admin.secret</code> and no <code>secret=</code></td>
+<td><code>RegistrationError</code>: "admin: no secret to sign its forms with; set <code>admin.secret</code> …"</td>
+</tr>
+<tr>
+<td><code>Admin(access=..., users=...)</code></td>
+<td><code>ValueError</code>: pass one or the other</td>
+</tr>
+<tr>
+<td><code>register</code> of <code>AdminUser</code>, <code>AdminSession</code> or <code>AdminGrant</code></td>
+<td><code>RegistrationError</code>: a plain model admin would show password hashes and let a grant holder promote itself</td>
+</tr>
+<tr>
+<td><code>register</code> with a slug that is taken or reserved (<code>static</code>, <code>search</code>, <code>login</code>, <code>logout</code>, <code>password</code>)</td>
+<td><code>RegistrationError</code></td>
+</tr>
+<tr>
+<td><code>DatabaseLoginWindow</code> before <code>0002-login-windows</code> is applied</td>
+<td>The first sign-in attempt fails on the missing table; apply the migration first</td>
+</tr>
+<tr>
+<td>One address racing many sign-ins at the same instant</td>
+<td><code>429</code> rather than an uncounted attempt</td>
+</tr>
+</tbody>
+</table>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../admin-customize/">Customize the admin</a></li>
+<li><a href="../cli/#admin"><code>hinoki admin</code> commands</a></li>
+<li><a href="../authentication/">Authentication and access</a></li>
+<li><a href="../settings/">Settings</a></li>
+</ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../admin-customize/">Customize the admin</a></li><li><a href="../authentication/">Authentication and access</a></li><li><a href="../cli/">Command line</a></li></ul>
+        </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../typing/"><small>Previous</small><span>Typing</span></a>
-        <a class="pager__link pager__link--next" href="../app-mcp/"><small>Next</small><span>Application MCP</span></a>
+        <a class="pager__link pager__link--next" href="../admin-customize/"><small>Next</small><span>Customize the admin</span></a>
       </nav>
     </main>
 
@@ -649,19 +705,17 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#who-may-sign-in">Who may sign in</a>
-            <ul><li><a href="#the-users-section">The Users section</a></li></ul>
-          </li><li><a href="#overriding-behaviour">Overriding behaviour</a>
-            <ul><li><a href="#fields-that-are-not-columns">Fields that are not columns</a></li><li><a href="#replace-the-html-or-the-stylesheet">Replace the HTML or the stylesheet</a></li><li><a href="#a-custom-theme">A custom theme</a></li></ul>
-          </li><li><a href="#what-needs-no-configuration">What needs no configuration</a></li><li><a href="#bulk-actions">Bulk actions</a></li><li><a href="#four-styles-each-with-light-and-dark">Four styles, each with light and dark</a></li><li><a href="#mounting-under-a-prefix">Mounting under a prefix</a></li></ul>
+            <ul><li><a href="#create-the-admins-tables">Create the admin's tables</a></li><li><a href="#set-the-signing-secret">Set the signing secret</a></li><li><a href="#who-may-sign-in">Who may sign in</a></li><li><a href="#the-sign-in-page">The sign-in page</a>
+            <ul><li><a href="#sessions-and-cookies">Sessions and cookies</a></li></ul>
+          </li><li><a href="#manage-users">Manage users</a></li><li><a href="#limit-sign-in-attempts">Limit sign-in attempts</a></li><li><a href="#serve-it-under-another-path">Serve it under another path</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.26</dd></div>
+          <div><dt>Sheet</dt><dd>3.38</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:57:18 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>14 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Application MCP · Hinoki</title>
+  <title>Expose actions over MCP · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Application MCP · Hinoki">
+  <meta property="og:title" content="Expose actions over MCP · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="3.27">
+  <div class="shell" data-sheet="3.40">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -397,33 +441,92 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.27'">
-        <p class="kicker" data-search-exclude>3.27 · Guides</p>
-        <h1 id="expose-an-application-over-mcp">Expose an application over MCP<a class="headerlink" href="#expose-an-application-over-mcp" title="Permanent link">&para;</a></h1>
-<p><code>expose_as_mcp</code> turns selected HTTP actions into tools for an MCP client. It is opt-in and uses an explicit allowlist. A call is dispatched through the app's ASGI adapter, so the action's authentication, access policy, validation and transaction still apply.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
+      <article class="prose" style="--sheet: '3.40'">
+        <p class="kicker" data-search-exclude>3.40 · Guides</p>
+        <h1 id="expose-actions-over-mcp">Expose actions over MCP<a class="headerlink" href="#expose-actions-over-mcp" title="Permanent link">&para;</a></h1>
+<p><code>expose_as_mcp</code> publishes selected HTTP actions as tools for a remote MCP client. Each tool call is dispatched through the app like an HTTP request, so the action's authentication, access policy, validation and transaction still apply.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
 
-<span class="n">mcp_routes</span> <span class="o">=</span> <span class="n">expose_as_mcp</span><span class="p">(</span>
-    <span class="n">app</span><span class="p">,</span>
-    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">"tracker.api.list_tasks"</span><span class="p">],</span>
-    <span class="n">access</span><span class="o">=</span><span class="n">agent_access</span><span class="p">,</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
+    <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
+    <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
+    <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
+    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="o">*</span><span class="n">mcp_routes</span><span class="p">)</span>
+<span class="n">mcp</span> <span class="o">=</span> <span class="n">expose_as_mcp</span><span class="p">(</span>
+    <span class="n">app</span><span class="p">,</span>
+    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.apps.billing.api.list_invoices"</span><span class="p">],</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="o">*</span><span class="n">mcp</span><span class="p">)</span>  <span class="c1"># POST /mcp</span>
 </code></pre></div>
-<p>By default, only <code>GET</code>, <code>HEAD</code> and <code>QUERY</code> actions are exposed; a <code>QUERY</code> action is declared as a read and its tool takes the request body. Set <code>allow_writes=True</code> only when write tools are intended and the configured access policy permits them. The allowlist must match included actions; a bad or empty selection fails during setup.</p>
-<p>The tool name, description, path/query parameters and JSON body shape come from the action's OpenAPI operation. Path values are encoded as path segments, unknown arguments are rejected, and output is bounded. The MCP route cannot expose itself as a tool.</p>
-<p>Use bearer credentials for a remote MCP client when possible. Cookie-based authentication with write tools needs particular care. The endpoint accepts JSON <code>POST</code> requests. Set <code>allowed_origins</code> to the exact browser origins when browser clients are expected; other cross-site browser requests are rejected. <code>access</code> is required. For an intentionally public endpoint, pass <code>access=None, public=True</code> explicitly.</p>
-<p>This application endpoint is distinct from <code>hinoki mcp TARGET</code>, the development MCP over stdio. That CLI is read-only by default; explicitly enabling <code>--scenarios write</code> registers effectful scenario calls that can run mutating handlers. It does not provide MCP resources, prompts, sessions or OAuth discovery.</p>
+<p><code>Hinoki(...)</code> has already included the routes listed in <code>hinoki.toml</code>; <code>expose_as_mcp</code> selects among those, so call it after the app exists.</p>
+<h2 id="choose-the-tools">Choose the tools<a class="headerlink" href="#choose-the-tools" title="Permanent link">&para;</a></h2>
+<p><code>tools</code> are <code>fnmatch</code> patterns over qualified action names, the same names rules match: <code>module.function</code>, or <code>module.Class.method</code> for an action of an <code>API</code> class. <code>"notes.apps.billing.api.*"</code> selects every action of that module.</p>
+<ul>
+<li>Only <code>GET</code>, <code>HEAD</code> and <code>QUERY</code> actions are exposed by default. A <code>QUERY</code> tool takes the request body as its input.</li>
+<li><code>allow_writes=True</code> also exposes <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> actions. Use it only when write tools are intended and <code>access</code> permits them.</li>
+<li>The tool name, description, path and query parameters and JSON body shape come from the action's OpenAPI operation. Unknown arguments are rejected and path values are encoded as path segments.</li>
+<li>The MCP route never exposes itself.</li>
+</ul>
+<h2 id="protect-the-endpoint">Protect the endpoint<a class="headerlink" href="#protect-the-endpoint" title="Permanent link">&para;</a></h2>
+<p><code>access</code> is required. An intentionally public endpoint says so twice: <code>access=None, public=True</code>.</p>
+<ul>
+<li>Prefer bearer credentials for a remote client; cookie authentication with write tools needs particular care.</li>
+<li>The endpoint accepts JSON <code>POST</code> requests. Set <code>allowed_origins</code> to the exact browser origins when browser clients are expected; other cross-site browser requests are refused.</li>
+<li>Tool output is capped at 100,000 bytes (longer text is cut and marked <code>truncated</code>); a request message over 1,000,000 bytes answers <code>413</code>.</li>
+</ul>
+<h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tools=[]</code></td>
+<td><code>ExposureError</code> at the call</td>
+</tr>
+<tr>
+<td><code>access=None</code> without <code>public=True</code></td>
+<td><code>ExposureError</code></td>
+</tr>
+<tr>
+<td>A pattern matches no included action, or the action is not in the OpenAPI document</td>
+<td><code>ExposureError</code> naming it</td>
+</tr>
+<tr>
+<td><code>Transactions.require_atomic()</code> is enabled</td>
+<td>The MCP endpoint is a <code>POST</code> without a transaction of its own; exclude it with <code>except_=["hinoki.ai.mcpapp.*"]</code>. Each tool call still runs the action's own transaction.</td>
+</tr>
+</tbody>
+</table>
+<p>The endpoint does not provide MCP resources, prompts, sessions or OAuth discovery.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../dev-mcp/">Development MCP</a>: a local, read-only server for coding agents</li>
+<li><a href="../authentication/">Authentication and access</a></li>
+<li><a href="../rules/">Rules</a></li>
+</ul>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../ai-workflow/">Development tools</a></li><li><a href="../authentication/">Authentication and access</a></li></ul>
+          <ul><li><a href="../dev-mcp/">Development MCP</a></li><li><a href="../authentication/">Authentication and access</a></li><li><a href="../ai-workflow/">Build with a coding agent</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../admin/"><small>Previous</small><span>Admin</span></a>
+        <a class="pager__link pager__link--prev" href="../admin-customize/"><small>Previous</small><span>Customize the admin</span></a>
         <a class="pager__link pager__link--next" href="../dev-mcp/"><small>Next</small><span>Development MCP</span></a>
       </nav>
     </main>
@@ -436,15 +539,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#expose-an-application-over-mcp">Expose an application over MCP</a></li></ul>
+            <ul><li><a href="#choose-the-tools">Choose the tools</a></li><li><a href="#protect-the-endpoint">Protect the endpoint</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.27</dd></div>
+          <div><dt>Sheet</dt><dd>3.40</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 17:42:10 UTC">November 19, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/app-mcp.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -252,24 +252,29 @@
       <article class="prose" style="--sheet: '2.2'">
         <p class="kicker" data-search-exclude>2.2 · Tutorial</p>
         <h1 id="1-models">1. Models<a class="headerlink" href="#1-models" title="Permanent link">&para;</a></h1>
-<p>A model is a table. Hinoki's models are active records over a Rust query compiler: no lazy loading, no surprises.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<p>A model declares a table. A relation is loaded only when you ask for it, never
+as a side effect of reading an attribute.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/models.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">ordered_by</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">pk</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"tracker_members"</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">"tracker_members"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>
     <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="nd">@indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
-<span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"tracker_tasks"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Task"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Tasks"</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">"tracker_tasks"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Task"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Tasks"</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
         <span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tasks"</span>
     <span class="p">)</span>
@@ -278,41 +283,50 @@
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
     <span class="n">completed_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
-<p>The explicit <code>tracker_members</code> and <code>tracker_tasks</code> names above are pinned to
-the example's checked-in migration history. New models can omit <code>table=</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Invoice</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">reference</span><span class="p">:</span> <span class="nb">str</span>
-</code></pre></div>
-<p>Placed in a <code>billing</code> package's <code>models</code> module, that declaration derives the table
-<code>billing_invoices</code> (<code>&lt;app&gt;_&lt;models&gt;</code>), the singular display name
-<code>Invoice</code> and the plural <code>Invoices</code>. <code>label=</code> and <code>plural=</code> override the
-display names; set <code>table=</code> explicitly for irregular/localized names and to
-keep a physical table stable when a Python class is renamed. The fallback
-pluralizer is deterministic and English-oriented, so use explicit names for
-irregular nouns.</p>
 <ul>
-<li><code>@indexed</code> and <code>@ordered_by</code> are decorators that state facts about the model below them (<a href="../../model-options/">model options</a>). The default order applies to every query that does not call <code>order_by</code>.</li>
-<li><code>foreign_key(Member, ...)</code> is a column holding the owner's id; the relation (<code>task.owner</code>) is never fetched by accident.</li>
+<li><code>pk(...)</code> declares the primary key; <code>field(...)</code> adds column options such as
+  <code>max_length</code> and <code>unique</code>.</li>
+<li><code>@db.indexed("owner_id", "created_at")</code> adds a composite index.
+  <code>@db.ordered_by(...)</code> sets the order of every query that does not call
+  <code>order_by</code>.</li>
+<li><code>foreign_key(Member, ...)</code> stores the owner's id. <code>task.owner</code> is fetched only
+  when a query asks for it.</li>
+<li><code>@db.table(...)</code> pins the table name, because a Tracker rule requires it
+  (<a href="../5-rules/">chapter 5</a>). Without it, Hinoki derives <code>&lt;app&gt;_&lt;models&gt;</code>, as
+  <a href="../8-projects/">chapter 8</a> shows.</li>
 </ul>
-<h2 id="the-migration">The migration<a class="headerlink" href="#the-migration" title="Permanent link">&para;</a></h2>
-<p>The Tracker example already includes the migrations for this model and its index. Inspect the checked-in SQL and apply it to a disposable database:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0001</span>-initial
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>tracker<span class="w"> </span><span class="m">0002</span>-indexes
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>tracker
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">);</span>
+<h2 id="apply-the-migrations">Apply the migrations<a class="headerlink" href="#apply-the-migrations" title="Permanent link">&para;</a></h2>
+<p>A migration is a SQL file generated from the models and checked in beside them.
+Tracker ships two; the second adds the composite index:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">-- tracker/migrations/0002-indexes.sql</span>
+<span class="c1">-- index tracker_tasks (owner_id, created_at)</span>
 <span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">"ix_tracker_tasks_owner_id_created_at"</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="ss">"owner_id"</span><span class="p">,</span><span class="w"> </span><span class="ss">"created_at"</span><span class="p">);</span>
 </code></pre></div>
-<p>The repository's <code>examples/hinoki.toml</code> registers Tracker alongside Notes and Blog, each with a separate model module and migration package. When you change a model, <code>hinoki migrations plan --app tracker</code> compares declarations with the recorded state and writes the next migration; the number and slug are derived automatically, and <code>--name</code> can override the slug. Review the SQL before applying it; migrations never run at app startup. Destructive changes are flagged and need <code>--allow-destructive</code>. <a href="../8-projects/">Chapter 8</a> creates a new manifest-based project with <code>hinoki new</code> and adds apps with <code>hinoki app create</code>.</p>
+<p>From <code>examples/</code>, list and apply them:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status<span class="w"> </span>tracker
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>tracker
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>tracker          pending  0001-initial
+tracker          pending  0002-indexes
+tracker: 0001-initial, 0002-indexes
+</code></pre></div>
+<p>With no database URL, the commands use <code>examples/.hinoki/local.sqlite3</code>.
+Migrations run only when you call <code>apply</code>; an application never migrates at
+startup.</p>
+<p>When a model changes, <code>uv run hinoki migrations plan tracker</code> writes the next
+migration. Review its SQL, then apply it.</p>
+<h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A model is a typed class; decorators state table facts such as indexes and order.</li>
+<li>Migrations are reviewed files, applied by an explicit command.</li>
+<li>Relations are never loaded implicitly.</li>
+</ul>
 <p>Next: <a href="../2-schemas/">2. Schemas</a>.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../../models/">Define models</a></li><li><a href="../../model-options/">Model options</a></li><li><a href="../../migrations/">Migrations</a></li></ul>
+        </aside>
         
       </article>
 
@@ -330,14 +344,14 @@ uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> <
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#the-migration">The migration</a></li></ul>
+            <ul><li><a href="#apply-the-migrations">Apply the migrations</a></li><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>

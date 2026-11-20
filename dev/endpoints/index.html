@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Endpoint declarations · Hinoki</title>
+  <title>Requests and responses · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Endpoint declarations · Hinoki">
+  <meta property="og:title" content="Requests and responses · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="3.10">
+  <div class="shell" data-sheet="3.18">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link is-active" href="./"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -397,429 +441,223 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.10'">
-        <p class="kicker" data-search-exclude>3.10 · Guides</p>
-        <h1 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h1>
-<p>Hinoki endpoints are ordinary Python functions decorated with an HTTP method. The decorator records metadata; <code>Hinoki.include(...)</code> registers the function or an <code>API</code> class. The registered declarations also supply the generated <a href="../openapi/">OpenAPI document</a>.</p>
+      <article class="prose" style="--sheet: '3.18'">
+        <p class="kicker" data-search-exclude>3.18 · Guides</p>
+        <h1 id="requests-and-responses">Requests and responses<a class="headerlink" href="#requests-and-responses" title="Permanent link">&para;</a></h1>
+<p>This page covers what one action receives and what it returns. How to organise actions is in <a href="../function-endpoints/">Function-based APIs</a> and <a href="../class-endpoints/">Class-based APIs</a>; how they reach the application is in <a href="../routes/">Register routes</a>. The fragments below add actions to the <code>invoices</code> group of the Billing app, which supplies their access policy and transactions.</p>
 <h2 id="declare-an-action">Declare an action<a class="headerlink" href="#declare-an-action" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">Greeting</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Health</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/greetings"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">greet</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Greeting</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Greeting</span><span class="p">:</span>
-    <span class="k">return</span> <span class="n">data</span>
-
-
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">greet</span><span class="p">])</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Health</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Health</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"ok"</span><span class="p">)</span>
 </code></pre></div>
-<p>Use <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code>, <code>@http.delete</code> or <code>@http.query</code> (<code>from hinoki import http</code>). Hinoki also answers <code>HEAD</code> through each <code>GET</code> route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A <code>405</code> response's <code>Allow</code> header includes <code>HEAD</code> whenever <code>GET</code> is available. The decorator arguments are <code>status</code>, <code>access</code>, <code>atomic</code>, <code>pagination</code>, <code>parsers</code>, <code>renderers</code>, <code>errors</code>, <code>replaces</code>, <code>validate_response</code> and <code>rate_limit</code>. Each is checked when the route is declared or registered. <code>atomic=True</code> runs the action in a transaction (<a href="../transactions/">transactions</a>); there is no <code>transaction</code> argument.</p>
-<h2 id="read-with-a-body-httpquery">Read with a body: <code>@http.query</code><a class="headerlink" href="#read-with-a-body-httpquery" title="Permanent link">&para;</a></h2>
-<p><code>QUERY</code> is the HTTP method for a read whose input does not fit a query string: it is safe and idempotent like <code>GET</code>, and carries a body like <code>POST</code>. Declare it the same way as the other methods:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskSearch</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">"/tasks/search"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search_tasks</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskSearch</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOutput</span><span class="p">]:</span>
-    <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">title__contains</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">limit</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">TaskOutput</span><span class="o">.</span><span class="n">from_models</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
-</code></pre></div>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>QUERY<span class="w"> </span>http://127.0.0.1:8000/tasks/search<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"text": "docs"}'</span>
-</code></pre></div>
-<ul>
-<li>The body is bound, parsed and validated exactly as for <code>POST</code>: the same parsers, size limit and <code>400</code>/<code>413</code>/<code>415</code>/<code>422</code> answers.</li>
-<li>A <code>QUERY</code> action must not change state. Hinoki does not wrap it in a transaction: <code>RouteGroup(atomic=True)</code> applies to <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> only. Pass <code>atomic=True</code> on the action if the read needs one.</li>
-<li><code>RouteGroup.query(...)</code> and <code>@http.query</code> inside an <code>API</code> class work like the other methods. A <code>405</code> answer lists <code>QUERY</code> in <code>Allow</code> where it is available. <code>HEAD</code> is answered through <code>GET</code> routes only.</li>
-<li>Hinoki sends no <code>Accept-Query</code> or cache headers by itself; add them to the response where they matter.</li>
-<li>The method is recent. Granian passes it through to Hinoki over ASGI and WSGI (both are tested), but a proxy, gateway, firewall or HTTP client in front of your service may reject a method it does not know, and browsers send a CORS preflight for it. Check the path your traffic takes, and keep a <code>GET</code> or <code>POST</code> route beside it when clients cannot send <code>QUERY</code>.</li>
-<li>In the OpenAPI document a <code>QUERY</code> operation appears under the path's <code>x-query</code> field; see <a href="../openapi/#query-operations">OpenAPI</a>.</li>
-</ul>
-<h2 id="bind-request-values">Bind request values<a class="headerlink" href="#bind-request-values" title="Permanent link">&para;</a></h2>
-<p>Typed path parameters are taken from the path, query parameters from the query string, and a body parameter from the request body. A handler may declare <code>request: Request</code> as its first parameter when it needs headers, cookies or raw request data. The request is injected only when that parameter is explicitly annotated.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Request</span><span class="p">,</span> <span class="n">Schema</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskView</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
-    <span class="n">locale</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks/</span><span class="si">{task_id}</span><span class="s2">"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_task</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">task_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskView</span><span class="p">:</span>
-    <span class="n">locale</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"accept-language"</span><span class="p">,</span> <span class="s2">"en"</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">TaskView</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">,</span> <span class="n">locale</span><span class="o">=</span><span class="n">locale</span><span class="p">)</span>
-</code></pre></div>
-<p>Request path, query and body values are validated before the handler runs; a Schema body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (<code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a <code>Form[Schema]</code> body (<a href="#form-bodies">text sources</a>). Return annotations describe OpenAPI and output serialization, and the returned value is checked against them (<a href="#the-response-is-checked-against-the-annotation">the response check</a>). When the annotation is one concrete Schema (also inside <code>Annotated[...]</code>), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a <code>500 internal_error</code>, not a client error. A returned <code>dict</code> where a <code>Schema</code> is declared is also a <code>500 internal_error</code>; it is accepted only where the annotation is a <code>dict</code> (<a href="../model-schemas/#return-a-model-from-a-schema-annotated-handler">details</a>). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
-<h2 id="query-strings-as-a-schema">Query strings as a Schema<a class="headerlink" href="#query-strings-as-a-schema" title="Permanent link">&para;</a></h2>
-<p><code>Query[...]</code> reads a whole query string into a <code>Schema</code>, for any method, so a filter set can be declared and reused once:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Search</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">term</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
-    <span class="n">ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/items"</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span><span class="n">filters</span><span class="p">:</span> <span class="n">Query</span><span class="p">[</span><span class="n">Search</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"limit"</span><span class="p">:</span> <span class="n">filters</span><span class="o">.</span><span class="n">limit</span><span class="p">}</span>  <span class="c1"># /items?term=a&amp;limit=5&amp;ids=1&amp;ids=2</span>
-</code></pre></div>
-<p>Text is converted to the <code>int</code>, <code>float</code> and <code>bool</code> the <code>Schema</code> declares before the strict validation (a repeated key fills a <code>list</code> field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are <code>422</code> errors, reported with the parameter name as prefix. The <code>Schema</code> owns the whole query string, so the action takes no other query or page parameters, at most one <code>Query[...]</code>, and it cannot be a path parameter. OpenAPI lists one query parameter per field.</p>
-<h2 id="form-bodies">Form bodies<a class="headerlink" href="#form-bodies" title="Permanent link">&para;</a></h2>
-<p>A plain <code>Schema</code> parameter is a strict JSON body. Wrap it in <code>Form[...]</code> to read the same <code>Schema</code> from a form, whose values are all text:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Form</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Signup</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">age</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">tags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/signup"</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">signup</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Form</span><span class="p">[</span><span class="n">Signup</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"age"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">age</span><span class="p">}</span>  <span class="c1"># name=Ada&amp;age=36&amp;tags=1&amp;tags=2</span>
-</code></pre></div>
-<p>Before validation, text is converted to the <code>int</code>, <code>float</code> and <code>bool</code> the <code>Schema</code> declares (and a lone value of a <code>list</code> field becomes a one-item list); <code>Schema</code> and JSON stay strict. A value that does not convert, or several values for a scalar, fails with the normal <code>422</code> type error. Empty text is not turned into <code>None</code>, and nested <code>Schema</code> fields are not read from form keys. An action with a <code>Form[...]</code> parameter and no <code>parsers=</code> uses <code>FormParser</code> (add <code>MultiPartParser()</code> explicitly for multipart text fields). <code>Form[...]</code> is valid only for the <code>Schema</code> body of a POST, PUT, PATCH or QUERY action, takes only form parsers (a JSON body needs a plain <code>Schema</code> parameter, so one cannot be coerced by mistake), and appears in OpenAPI as <code>application/x-www-form-urlencoded</code>.</p>
-<h2 id="xml-bodies">XML bodies<a class="headerlink" href="#xml-bodies" title="Permanent link">&para;</a></h2>
-<p><code>XML[...]</code> reads a <code>Schema</code> from an <code>application/xml</code> body the same way <code>Form[...]</code> reads a form: the elements under the root become the fields, text is converted to the declared <code>int</code>, <code>float</code> and <code>bool</code>, and the strict validation follows.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">XML</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Line</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">sku</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">qty</span><span class="p">:</span> <span class="nb">int</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">customer</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Line</span><span class="p">]</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/orders"</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">XML</span><span class="p">[</span><span class="n">Order</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"lines"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">lines</span><span class="p">)}</span>
-    <span class="c1"># &lt;order&gt;&lt;customer&gt;Ada&lt;/customer&gt;</span>
-    <span class="c1">#   &lt;lines&gt;&lt;sku&gt;a&lt;/sku&gt;&lt;qty&gt;2&lt;/qty&gt;&lt;/lines&gt;&lt;/order&gt;</span>
-</code></pre></div>
-<p>A repeated element is a list (a single one still fills a <code>list</code> field), nested elements fill nested <code>Schema</code> fields, and an empty element is <code>None</code>. Attributes are not read and namespace prefixes are dropped (<code>&lt;a:x&gt;</code> and <code>&lt;b:x&gt;</code> are both <code>x</code>). Malformed XML, a DTD, a custom entity, mixed text and child elements, a character XML 1.0 forbids (a control character other than tab, carriage return and line feed, written directly or as <code>&amp;#1;</code>), an <code>encoding</code> declaration other than UTF-8, or exceeding <code>XMLParser(max_depth=..., max_elements=...)</code> is <code>400 invalid_xml</code>. <code>max_depth</code> defaults to 32 and may be raised to at most 1000 (<code>hinoki.parsers.MAX_XML_DEPTH</code>); a larger value raises <code>ValueError</code> when the parser is created. As with <code>Form[...]</code>, the action takes only <code>XMLParser</code> (selected when <code>parsers=</code> is omitted), and the OpenAPI document lists <code>application/xml</code>.</p>
-<h2 id="upload-files">Upload files<a class="headerlink" href="#upload-files" title="Permanent link">&para;</a></h2>
-<p>Bind a file by the multipart field name. An action that declares a file parameter and no <code>parsers=</code> gets <code>MultiPartParser()</code> automatically, with its default limits, unless the application's <code>parsers=</code> include one; pass <code>parsers=[MultiPartParser(...)]</code> to change them. <code>UploadedFile</code> contains the client filename, claimed content type and in-memory <code>bytes</code>; it does not save files or validate their content.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">MultiPartParser</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">UploadedFile</span><span class="p">,</span> <span class="n">http</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
-    <span class="s2">"/documents"</span><span class="p">,</span>
-    <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span>
-    <span class="n">parsers</span><span class="o">=</span><span class="p">[</span><span class="n">MultiPartParser</span><span class="p">(</span><span class="n">max_parts</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">max_part_bytes</span><span class="o">=</span><span class="mi">512_000</span><span class="p">)],</span>
-<span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_document</span><span class="p">(</span>
-    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">document</span><span class="p">:</span> <span class="n">UploadedFile</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
-    <span class="n">title</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">POST</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-    <span class="c1"># Validate content and choose a generated storage name before saving.</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="n">title</span><span class="p">,</span> <span class="s2">"filename"</span><span class="p">:</span> <span class="n">document</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="s2">"size"</span><span class="p">:</span> <span class="n">document</span><span class="o">.</span><span class="n">size</span><span class="p">}</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/batch"</span><span class="p">)</span>  <span class="c1"># MultiPartParser() selected automatically</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">create_batch</span><span class="p">(</span><span class="n">documents</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">UploadedFile</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"count"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">documents</span><span class="p">)}</span>
-
-
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">create_document</span><span class="p">,</span> <span class="n">create_batch</span><span class="p">])</span>
-</code></pre></div>
-<p><code>UploadedFile</code> requires exactly one part with that name. <code>list[UploadedFile]</code> requires at least one and keeps repeated parts in order. To make a single file optional, write <code>file: UploadedFile | None = None</code>. These declarations cannot be combined with a <code>Schema</code> body parameter. Use <code>request.POST</code> for adjacent text fields or <code>request.FILES</code> when names/repetitions are dynamic. Parser precedence for a file action: its own <code>parsers=</code> (which must then include <code>MultiPartParser</code>, or registration fails), then an application-wide <code>Hinoki(parsers=[...])</code> that includes a <code>MultiPartParser</code>, then the automatic <code>MultiPartParser()</code>. An application parser list without multipart does not apply to file actions, and actions without file parameters keep their parsers.</p>
-<p>All declared files require <code>multipart/form-data</code>. A missing file is a <code>422</code> validation error; a wrong media type is <code>415</code>; malformed multipart is <code>400</code>; a part or complete body over its configured limit is <code>413 payload_too_large</code>. A zero-byte body with no <code>Content-Type</code> is treated as absent input for optional files; an explicitly multipart empty body is malformed, while a valid closing-boundary-only body has no parts. The default complete-body limit is 1 MiB, and the parser buffers bytes in memory. This API is for bounded small uploads, not streaming. Concurrent requests can multiply memory use. Keep limits conservative, never use the supplied filename as a filesystem path, and verify content instead of trusting the declared media type. See <a href="../codecs/#upload-files">parsers and renderers</a> and <a href="../testing/#test-file-uploads">testing uploads</a>.</p>
-<h2 id="group-related-paths">Group related paths<a class="headerlink" href="#group-related-paths" title="Permanent link">&para;</a></h2>
-<p>For plain functions that share a prefix or defaults, use <code>RouteGroup</code>. The group
-collects its handlers and can be included once as a unit:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">RouteGroup</span><span class="p">,</span> <span class="n">Schema</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskInput</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskOutput</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-
-<span class="nd">@tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOutput</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">[]</span>
-
-
-<span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskInput</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOutput</span><span class="p">:</span>
-    <span class="k">return</span> <span class="n">TaskOutput</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">uuid4</span><span class="p">(),</span> <span class="n">title</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">title</span><span class="p">)</span>
-
-
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">tasks</span><span class="p">])</span>
-</code></pre></div>
-<p>When composing a group action with another decorator, put the HTTP decorator
-outside it. The group records the callable when <code>@tasks.get</code> runs:</p>
-<div class="highlight"><pre><span></span><code><span class="nd">@tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/audited"</span><span class="p">)</span>
-<span class="nd">@audit</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">audited</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-    <span class="k">return</span> <span class="s2">"ok"</span>
-</code></pre></div>
-<p>For a standalone function passed directly to <code>Hinoki.include</code>, the final
-decorated function is dispatched, so either order works with wrappers that use
-<code>functools.wraps</code>.</p>
-<p>For class-based APIs, put a shared path on the class and keep actions together:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Schema</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskInput</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskOutput</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Tasks</span><span class="p">(</span><span class="n">API</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/tasks"</span><span class="p">):</span>
-    <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOutput</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="p">[]</span>
-
-    <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">TaskInput</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOutput</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">TaskOutput</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">uuid4</span><span class="p">(),</span> <span class="n">title</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">title</span><span class="p">)</span>
-</code></pre></div>
-<p>Then the application can include <code>Tasks</code> as one item. The path prefix is visible
-on the class; the full paths remain beside their actions. Use <code>RouteGroup</code> when
-functions are a better fit, especially when several actions share access,
-transaction defaults, or declared errors. A group must contain at least one
-action and becomes immutable after successful inclusion.</p>
-<h2 id="function-or-class">Function or class<a class="headerlink" href="#function-or-class" title="Permanent link">&para;</a></h2>
-<p>Both forms declare the same actions with the same decorators. They differ in four ways that matter in Hinoki, and each rule below follows from one of them.</p>
+<p>Use <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code>, <code>@http.delete</code> or <code>@http.query</code> (<code>from hinoki import http</code>), or the same methods on a <code>RouteGroup</code>. Hinoki also answers <code>HEAD</code> through each <code>GET</code> route: it runs the GET response path and returns the same status and representation headers without a body, so the GET handler runs for HEAD requests too. A <code>405</code> response's <code>Allow</code> header includes <code>HEAD</code> whenever <code>GET</code> is available.</p>
 <table>
 <thead>
 <tr>
-<th></th>
-<th>Function (with <code>RouteGroup</code>)</th>
-<th>Class (<code>API</code>)</th>
+<th>Option</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Shared <code>access=</code>, <code>atomic=</code>, <code>errors=</code></td>
-<td>stated once on <code>RouteGroup(...)</code></td>
-<td>not available: an <code>API</code> class carries a path prefix only, so each action states them</td>
+<td><code>status</code></td>
+<td>Success status (default <code>200</code>)</td>
 </tr>
 <tr>
-<td>Rust fast path for simple public routes</td>
-<td>eligible (<a href="../serving/">serving</a>)</td>
-<td>never: a method has an owner class, so it always takes the Python lane</td>
+<td><code>access</code></td>
+<td><code>Access</code> policy; <code>None</code> is public</td>
 </tr>
 <tr>
-<td>Inheritance</td>
-<td>none: compose with decorators and groups</td>
-<td>subclasses extend a base, override an action with <code>replaces=</code>, or drop a generated one with <code>omit=</code></td>
+<td><code>atomic</code></td>
+<td><code>True</code> runs the action in a transaction (<a href="../transactions/">transactions</a>); there is no <code>transaction</code> option</td>
 </tr>
 <tr>
-<td>Generated routes and write hooks</td>
-<td>no</td>
-<td><code>@crud(...)</code> (<code>get_queryset</code>, <code>to_schema</code>, <code>written_queryset</code>, <code>store</code>, <code>change</code>, <code>remove</code>)</td>
+<td><code>pagination</code></td>
+<td>Page-number policy (<a href="../pagination/">pagination</a>)</td>
+</tr>
+<tr>
+<td><code>parsers</code>, <code>renderers</code></td>
+<td>Body formats in and out (<a href="../codecs/">codecs</a>)</td>
+</tr>
+<tr>
+<td><code>errors</code></td>
+<td><code>APIError</code> classes the action may raise (<a href="../errors/">errors</a>)</td>
+</tr>
+<tr>
+<td><code>rate_limit</code></td>
+<td>A rate-limit policy (<a href="#rate-limit-an-action">below</a>)</td>
+</tr>
+<tr>
+<td><code>validate_response</code></td>
+<td><code>False</code> skips the <a href="#the-response-is-checked-against-the-annotation">response check</a></td>
+</tr>
+<tr>
+<td><code>replaces</code></td>
+<td>Class form only (<a href="../class-endpoints/#pitfalls">class pitfalls</a>)</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Use functions and a <code>RouteGroup</code> for ordinary endpoints.</strong> The action's shared policy sits in one place, the handlers are plain functions that a test can call, and a simple public one can be served natively. The group below states access, transactions and the errors its actions may raise once:</p>
-<div class="highlight"><pre><span></span><code><span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,))</span>
+<p>Each option is checked when the route is declared or registered.</p>
+<h2 id="read-with-a-body-httpquery">Read with a body: <code>@http.query</code><a class="headerlink" href="#read-with-a-body-httpquery" title="Permanent link">&para;</a></h2>
+<p><code>QUERY</code> is the HTTP method for a read whose input does not fit a query string: it is safe and idempotent like <code>GET</code>, and carries a body like <code>POST</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceSearch</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">text</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">)]</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">100</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">20</span>
 
 
-<span class="nd">@tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span> <span class="o">...</span>
-
-
-<span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskIn</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span> <span class="o">...</span>
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">"/search"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search_invoices</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">InvoiceSearch</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">InvoiceOut</span><span class="p">]:</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">reference__contains</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">limit</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">InvoiceOut</span><span class="o">.</span><span class="n">from_models</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
 </code></pre></div>
-<p><strong>Use a class when the endpoints share behaviour by inheritance</strong>: a <code>@crud(...)</code> class for a model (generated routes plus hooks), a base <code>API</code> whose actions several resources extend or override, or a resource you ship for others to include (the admin is one). A class that only groups three functions under a prefix gains nothing and loses the shared options and the native path.</p>
-<p><strong>Keep state out of the instance.</strong> An <code>API</code> instance holds no per-request state and is shared by every request of the worker. Take what you need as parameters (<code>Request</code>, <code>Caller[...]</code>, path and body values) and reach worker-owned resources through a module, never by assigning to <code>self</code>.</p>
-<p><strong>Make the handler thin.</strong> Parse and validate with a <code>Schema</code>, call a plain async function that owns the rule (the Tracker's <code>operations.py</code>), and return a <code>Schema</code>. Keep the direction of imports api → operations → models, and let <code>Imports.forbid(...)</code> in <code>rules.py</code> fail the build when it is reversed.</p>
-<p><strong>Register through one <code>routes.py</code> per feature.</strong> The module exports <code>routes: list[Includable]</code> with paths relative to the feature, and the root (or the <code>routes =</code> key of <code>hinoki.toml</code>, see below) mounts it. The whole map then reads in one place, <code>hinoki routes</code> and <code>hinoki check</code> can print and verify it, and an explicit <code>include=[...]</code> still overrides the manifest when you need it. Pick one source for each prefix: a <code>Mount</code>, or a <code>RouteGroup</code>/<code>API</code> path, not both.</p>
-<p><strong>Annotate every return type with something checkable</strong> (a <code>Schema</code>, <code>list[...]</code>, <code>Page[...]</code>, a scalar, <code>None</code>, a union, or <code>Response</code>): the annotation is checked at startup and every result is checked against it, so the OpenAPI document and the behaviour cannot drift apart. Return <code>Response</code> only for what a typed result cannot say (a redirect, headers, an unusual status), as <code>NoteOut | Response</code>.</p>
-<h2 id="organising-a-large-application">Organising a large application<a class="headerlink" href="#organising-a-large-application" title="Permanent link">&para;</a></h2>
-<p>A project created by <code>hinoki new</code> does not list its routes in <code>main.py</code>. The manifest (<code>hinoki.toml</code>) names them, and the application the manifest declares binds them when it is built without <code>include=</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="k">[project]</span>
-<span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span><span class="w">          </span><span class="c1"># the project's own routes (a list)</span>
-
-<span class="k">[[apps]]</span>
-<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
-<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.models"</span>
-<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.migrations"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.routes:routes"</span><span class="w">   </span><span class="c1"># mounted under prefix</span>
-<span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/billing"</span><span class="w">                     </span><span class="c1"># optional: "/&lt;name&gt;" when omitted</span>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>QUERY<span class="w"> </span>http://127.0.0.1:8000/billing/invoices/search<span class="w"> </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"text": "2026"}'</span>
 </code></pre></div>
-<p>The project's routes come first, then each app's, in dependency order, each app under its prefix. Three rules keep this free of surprises: only the module named by <code>project.application</code> binds the manifest (a <code>Hinoki()</code> in a test or script next to the project stays empty); a <code>Hinoki(include=[...])</code> you write yourself wins and the manifest is ignored (<code>include=[]</code> is an explicit empty list); and <code>app.include(...)</code> still adds routes by hand, for example a feature that only exists when a setting is on. A route module that cannot be imported, or whose <code>routes</code> is not a list, fails when the application is built. Projects without these keys behave as before.</p>
-<p>When the ordinary list/retrieve/create/update/delete routes fit a model,
-<code>crud(...)</code> can generate them from a model and schemas.
-Include the result once in <code>Hinoki</code>; with the class form (<code>@crud(...)</code>),
-generated and handwritten decorated actions can share it. Start with
-<a href="../crud/">Generate CRUD routes</a>; use handwritten actions for domain workflows
-or to replace an individual generated action.</p>
-<p>Give each feature one module that owns its routes and exports them as a list, with paths relative to the feature. Choose where each feature lives in the root declaration with <code>Mount</code>, so the paths stay visible in one place:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># tasks/routes.py (paths are relative: "/" and "/{task_id}")</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span>
+<ul>
+<li>The body is bound, parsed and validated exactly as for <code>POST</code>: the same parsers, size limit and <code>400</code>/<code>413</code>/<code>415</code>/<code>422</code> answers.</li>
+<li>A <code>QUERY</code> action must not change state. <code>RouteGroup(atomic=True)</code> applies to <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> only; pass <code>atomic=True</code> on the action if the read needs a transaction.</li>
+<li><code>@http.query</code> inside an <code>API</code> class works like the other methods. A <code>405</code> answer lists <code>QUERY</code> in <code>Allow</code> where it is available; <code>HEAD</code> is answered through <code>GET</code> routes only. Hinoki sends no <code>Accept-Query</code> or cache headers by itself.</li>
+<li>The method is recent. Granian passes it through over ASGI and WSGI (both are tested), but a proxy, gateway, firewall or HTTP client may reject it, and browsers send a CORS preflight for it. Keep a <code>GET</code> or <code>POST</code> route beside it when clients cannot send <code>QUERY</code>.</li>
+<li>In the OpenAPI document a <code>QUERY</code> operation appears under the path's <code>x-query</code> field; see <a href="../openapi/#query-operations">OpenAPI</a>.</li>
+</ul>
+<h2 id="bind-request-values">Bind request values<a class="headerlink" href="#bind-request-values" title="Permanent link">&para;</a></h2>
+<p>Typed path parameters come from the path, query parameters from the query string, and a body parameter from the request body. Declare <code>request: Request</code> as the first parameter when you need headers, cookies or raw request data; it is injected only when that parameter is annotated.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceLabel</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span>
+    <span class="n">locale</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">35</span><span class="p">)]</span>
 
-<span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">tasks_group</span><span class="p">,</span> <span class="n">TaskReports</span><span class="p">,</span> <span class="n">export_tasks</span><span class="p">]</span>
 
-<span class="c1"># main.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Mount</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">billing.routes</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">billing</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tasks.routes</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">tasks</span>
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">/label"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">invoice_label</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceLabel</span><span class="p">:</span>
+    <span class="n">locale</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"accept-language"</span><span class="p">,</span> <span class="s2">"en"</span><span class="p">)[:</span><span class="mi">35</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">InvoiceLabel</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">invoice_id</span><span class="p">,</span> <span class="n">locale</span><span class="o">=</span><span class="n">locale</span><span class="p">)</span>
+</code></pre></div>
+<p>Request path, query and body values are validated before the handler runs; a <code>Schema</code> body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper <code>Schema</code> field (<code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>); bare union body parameters are not supported. Hinoki does not coerce input values into different types, except in <code>Query[...]</code>, <a href="#form-bodies"><code>Form[...]</code></a> and <a href="#xml-bodies"><code>XML[...]</code></a>.</p>
+<p>Return a <code>Schema</code> built from the row: <code>InvoiceOut.from_model(row)</code> or <code>InvoiceOut.from_models(rows)</code> (<a href="../model-schemas/">model schemas</a>). A returned <code>dict</code> where a <code>Schema</code> is declared is a <code>500 internal_error</code> (<a href="#the-response-is-checked-against-the-annotation">the response check</a>). Use a wrapper <code>Schema</code> for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
+<h2 id="query-strings-as-a-schema">Query strings as a Schema<a class="headerlink" href="#query-strings-as-a-schema" title="Permanent link">&para;</a></h2>
+<p><code>Query[...]</code> reads a whole query string into a <code>Schema</code>, for any method:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceFilter</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">paid</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">100</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">20</span>
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
-    <span class="n">include</span><span class="o">=</span><span class="p">[</span>
-        <span class="n">health</span><span class="p">,</span>
-        <span class="n">Mount</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">tasks</span><span class="p">),</span>
-        <span class="n">Mount</span><span class="p">(</span><span class="s2">"/billing"</span><span class="p">,</span> <span class="n">billing</span><span class="p">),</span>
-    <span class="p">]</span>
+
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/recent"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">recent_invoices</span><span class="p">(</span><span class="n">filters</span><span class="p">:</span> <span class="n">Query</span><span class="p">[</span><span class="n">InvoiceFilter</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">InvoiceRecent</span><span class="p">:</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="n">filters</span><span class="o">.</span><span class="n">paid</span><span class="p">)</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">filters</span><span class="o">.</span><span class="n">limit</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">InvoiceRecent</span><span class="p">(</span><span class="n">items</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="o">.</span><span class="n">from_models</span><span class="p">(</span><span class="n">rows</span><span class="p">))</span>  <span class="c1"># ?paid=true&amp;limit=5</span>
+</code></pre></div>
+<p>Text is converted to the <code>int</code>, <code>float</code> and <code>bool</code> the <code>Schema</code> declares before the strict validation (a repeated key fills a <code>list</code> field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are <code>422</code> errors, reported with the parameter name as prefix. The <code>Schema</code> owns the whole query string, so the action takes no other query or page parameters, at most one <code>Query[...]</code>, and it cannot be a path parameter. OpenAPI lists one query parameter per field.</p>
+<h2 id="form-bodies">Form bodies<a class="headerlink" href="#form-bodies" title="Permanent link">&para;</a></h2>
+<p>A plain <code>Schema</code> parameter is a strict JSON body. Wrap it in <code>Form[...]</code> to read the same <code>Schema</code> from a form, whose values are all text:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/import"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">import_invoice</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Form</span><span class="p">[</span><span class="n">InvoiceIn</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">InvoiceOut</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">InvoiceOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>  <span class="c1"># reference=INV-1</span>
+</code></pre></div>
+<p>Before validation, text is converted to the <code>int</code>, <code>float</code> and <code>bool</code> the <code>Schema</code> declares (and a lone value of a <code>list</code> field becomes a one-item list); <code>Schema</code> and JSON stay strict. A value that does not convert, or several values for a scalar, fails with the normal <code>422</code> type error. Empty text is not turned into <code>None</code>, and nested <code>Schema</code> fields are not read from form keys. An action with a <code>Form[...]</code> parameter and no <code>parsers=</code> uses <code>FormParser</code> (add <code>MultiPartParser()</code> explicitly for multipart text fields). <code>Form[...]</code> is valid only for the <code>Schema</code> body of a POST, PUT, PATCH or QUERY action, takes only form parsers (a JSON body needs a plain <code>Schema</code> parameter, so one cannot be coerced by mistake), and appears in OpenAPI as <code>application/x-www-form-urlencoded</code>.</p>
+<h2 id="xml-bodies">XML bodies<a class="headerlink" href="#xml-bodies" title="Permanent link">&para;</a></h2>
+<p><code>XML[...]</code> reads a <code>Schema</code> from an <code>application/xml</code> body: the elements under the root become the fields, text is converted to the declared <code>int</code>, <code>float</code> and <code>bool</code>, and the strict validation follows.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Line</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">sku</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">)]</span>
+    <span class="n">qty</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">customer</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)]</span>
+    <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Line</span><span class="p">]</span>
+
+
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/orders"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">receive_order</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">XML</span><span class="p">[</span><span class="n">Order</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">OrderReceipt</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">OrderReceipt</span><span class="p">(</span><span class="n">lines</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">lines</span><span class="p">))</span>
+    <span class="c1"># &lt;order&gt;&lt;customer&gt;Ada&lt;/customer&gt;&lt;lines&gt;&lt;sku&gt;a&lt;/sku&gt;&lt;qty&gt;2&lt;/qty&gt;&lt;/lines&gt;&lt;/order&gt;</span>
+</code></pre></div>
+<p>A repeated element is a list (a single one still fills a <code>list</code> field), nested elements fill nested <code>Schema</code> fields, and an empty element is <code>None</code>. Attributes are not read and namespace prefixes are dropped (<code>&lt;a:x&gt;</code> and <code>&lt;b:x&gt;</code> are both <code>x</code>). Malformed XML, a DTD, a custom entity, mixed text and child elements, a character XML 1.0 forbids (a control character other than tab, carriage return and line feed, written directly or as <code>&amp;#1;</code>), an <code>encoding</code> declaration other than UTF-8, or exceeding <code>XMLParser(max_depth=..., max_elements=...)</code> is <code>400 invalid_xml</code>. <code>max_depth</code> defaults to 32 and may be raised to at most 1000 (<code>hinoki.parsers.MAX_XML_DEPTH</code>); a larger value raises <code>ValueError</code> when the parser is created. As with <code>Form[...]</code>, the action takes only <code>XMLParser</code> (selected when <code>parsers=</code> is omitted), and the OpenAPI document lists <code>application/xml</code>.</p>
+<h2 id="upload-files">Upload files<a class="headerlink" href="#upload-files" title="Permanent link">&para;</a></h2>
+<p>Bind a file by the multipart field name. An action that declares a file parameter and no <code>parsers=</code> gets <code>MultiPartParser()</code> automatically, with its default limits, unless the application's <code>parsers=</code> include one; pass <code>parsers=[MultiPartParser(...)]</code> to change them. <code>UploadedFile</code> contains the client filename, claimed content type and in-memory <code>bytes</code>; it does not save files or validate their content.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+    <span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">/attachments"</span><span class="p">,</span>
+    <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span>
+    <span class="n">parsers</span><span class="o">=</span><span class="p">[</span><span class="n">MultiPartParser</span><span class="p">(</span><span class="n">max_parts</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">max_part_bytes</span><span class="o">=</span><span class="mi">512_000</span><span class="p">)],</span>
 <span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">attach</span><span class="p">(</span>
+    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">document</span><span class="p">:</span> <span class="n">UploadedFile</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Attached</span><span class="p">:</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">POST</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)[:</span><span class="mi">120</span><span class="p">]</span>
+    <span class="c1"># Validate content and choose a generated storage name before saving.</span>
+    <span class="k">return</span> <span class="n">Attached</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="n">document</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">document</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">/scans"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>  <span class="c1"># MultiPartParser() selected</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">attach_scans</span><span class="p">(</span><span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">scans</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">UploadedFile</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Attached</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p>For a versioned API, let each feature module export its routes and compose them
-under one version mount. Each CRUD class keeps its resource path; the version
-prefix is declared once in <code>api/v1.py</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># api/people.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">crud</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">app.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Person</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">app.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">PersonOut</span>
-
-<span class="n">People</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span><span class="n">Person</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/people"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">PersonOut</span><span class="p">)</span>
-
-
-<span class="c1"># Each feature exports a list of routes relative to that feature.</span>
-<span class="n">routes</span> <span class="o">=</span> <span class="p">[</span><span class="n">People</span><span class="p">]</span>
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="c1"># api/teams.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">crud</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">app.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Team</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">app.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TeamOut</span>
-
-<span class="n">Teams</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span><span class="n">Team</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/teams"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">TeamOut</span><span class="p">)</span>
-
-
-<span class="n">routes</span> <span class="o">=</span> <span class="p">[</span><span class="n">Teams</span><span class="p">]</span>
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="c1"># api/v1.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mount</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">app.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">people</span><span class="p">,</span> <span class="n">teams</span>
-
-<span class="n">routes</span> <span class="o">=</span> <span class="n">Mount</span><span class="p">(</span><span class="s2">"/api/v1"</span><span class="p">,</span> <span class="n">people</span><span class="o">.</span><span class="n">routes</span><span class="p">,</span> <span class="n">teams</span><span class="o">.</span><span class="n">routes</span><span class="p">)</span>
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="c1"># app.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">app.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">v1</span>
-
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">v1</span><span class="o">.</span><span class="n">routes</span><span class="p">])</span>
-</code></pre></div>
-<p>The resulting paths include <code>/api/v1/people</code>,
-<code>/api/v1/people/{item_id}</code>, <code>/api/v1/teams</code>, and
-<code>/api/v1/teams/{item_id}</code>. Add <code>api/v2.py</code> with its own <code>Mount("/api/v2", ...)</code>
-when a new version is needed. Feature route lists and mixins can be shared
-where their behavior is genuinely the same. Route collisions are still checked
-after prefixes are composed.</p>
-<p><code>Includable</code> is the type of everything <code>include</code> accepts: an <code>API</code> class, a decorated function, a <code>RouteGroup</code>, a <code>Mount</code>, an object with an <code>api()</code> method (the admin, which is included as it is) or a list or tuple of those. Annotate a feature's list with it (<code>routes: list[Includable]</code>) and the type checker rejects anything else. <code>include</code> spreads nested lists and tuples in place, so order is the order you wrote. <code>Mount(prefix, *items)</code> prepends its prefix to every route it holds; mounts nest and prefixes join from the outside in. The prefix starts with <code>/</code> and does not end with one. Items you do not mount keep their own paths, so small apps can stay a flat list. Mounting changes only the path: access, errors and transactions are unchanged, and a route that ends up at the same method and path as another still fails at declaration time. A <code>RouteGroup</code> reached twice, an item that is not an action, class or group, or a module passed instead of its list is refused and named; a module gets a hint to export a list.</p>
-<p>If a feature declares its own prefix (a <code>RouteGroup("/tasks")</code> or <code>API, path="/tasks"</code>), mounting adds to it. Pick one place for each prefix: feature-relative paths with <code>Mount</code> at the root is the layout that keeps the whole map readable in <code>main.py</code>.</p>
-<p>To see the resulting map without starting the server, run <code>hinoki routes blog.main:create_app --path /posts</code> from <code>examples/</code> (the blog example; its admin needs <code>BLOG_ADMIN__SECRET</code> set, see its README):</p>
-<div class="highlight"><pre><span></span><code>GET     /posts                    public                   blog.api.Posts.listing
-POST    /posts                    TokenAuth[posts:write]   hinoki.resources.create
-DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.resources.delete
-GET     /posts/{item_id}          public                   blog.api.Posts.one
-POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publish
-</code></pre></div>
-<p>Use <code>--path</code> or <code>--method</code> to narrow it, and <code>--format json</code> for scripts. The list is sorted by path.</p>
-<h2 id="responses-errors-and-pagination">Responses, errors and pagination<a class="headerlink" href="#responses-errors-and-pagination" title="Permanent link">&para;</a></h2>
-<p>Return a value matching the declared response type, or return <code>Response</code> when the handler needs to set an explicit status, headers or body. Declare expected <code>APIError</code> subclasses in <code>errors=(...)</code>; their status, stable code and message feed the OpenAPI document and strict test client.</p>
+<p><code>UploadedFile</code> requires exactly one part with that name. <code>list[UploadedFile]</code> requires at least one and keeps repeated parts in order. To make a single file optional, write <code>file: UploadedFile | None = None</code>. These declarations cannot be combined with a <code>Schema</code> body parameter. Use <code>request.POST</code> for adjacent text fields or <code>request.FILES</code> when names or repetitions are dynamic. Parser precedence for a file action: its own <code>parsers=</code> (which must then include <code>MultiPartParser</code>, or registration fails), then an application-wide <code>Hinoki(parsers=[...])</code> that includes a <code>MultiPartParser</code>, then the automatic <code>MultiPartParser()</code>. An application parser list without multipart does not apply to file actions, and actions without file parameters keep their parsers.</p>
+<p>All declared files require <code>multipart/form-data</code>. A missing file is a <code>422</code> validation error; a wrong media type is <code>415</code>; malformed multipart is <code>400</code>; a part or complete body over its configured limit is <code>413 payload_too_large</code>. A zero-byte body with no <code>Content-Type</code> is treated as absent input for optional files; an explicitly multipart empty body is malformed, while a valid closing-boundary-only body has no parts. The default complete-body limit is 1 MiB, and the parser buffers bytes in memory: this API is for bounded small uploads, not streaming.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Concurrent uploads multiply memory use. Keep limits conservative, never use the supplied filename as a filesystem path, and verify content instead of trusting the declared media type. See <a href="../codecs/#upload-files">parsers and renderers</a> and <a href="../testing/#test-file-uploads">testing uploads</a>.</p>
+</div>
+<h2 id="responses">Responses<a class="headerlink" href="#responses" title="Permanent link">&para;</a></h2>
+<p>Return a value matching the declared response type, or return <code>Response</code> (<code>from hinoki import Response</code>) when the handler must set a status, headers or body that a typed result cannot express, annotated as <code>InvoiceOut | Response</code>. Declare expected <code>APIError</code> subclasses in <code>errors=(...)</code>; their status, stable code and message feed the OpenAPI document and the strict test client (<a href="../errors/">errors</a>). Paginated actions are described in <a href="../pagination/">pagination</a>.</p>
 <h3 id="rate-limit-an-action">Rate limit an action<a class="headerlink" href="#rate-limit-an-action" title="Permanent link">&para;</a></h3>
-<p>Hinoki ships no limiter. A route names a policy, and the application owns the rule, the key and the storage, because a counter kept in one worker's memory is wrong across workers and after a restart. The option is <code>rate_limit=</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">LoginLimit</span><span class="p">:</span>
+<p>Hinoki ships no limiter. A route names a policy with <code>rate_limit=</code>, and the application owns the rule, the key and the storage, because a counter kept in one worker's memory is wrong across workers and after a restart:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/accounts/api.py</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">LoginLimit</span><span class="p">:</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">store</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="n">RedisStore</span><span class="p">)</span>  <span class="c1"># provided by a module, per worker</span>
-        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"login:</span><span class="si">{</span><span class="n">context</span><span class="o">.</span><span class="n">client</span><span class="si">}</span><span class="s2">"</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="k">await</span> <span class="n">store</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">60</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="k">await</span> <span class="n">store</span><span class="o">.</span><span class="n">allow</span><span class="p">(</span><span class="sa">f</span><span class="s2">"login:</span><span class="si">{</span><span class="n">context</span><span class="o">.</span><span class="n">client</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">60</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">errors</span><span class="o">.</span><span class="n">TooManyRequests</span><span class="p">(</span><span class="n">retry_after</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/auth/login"</span><span class="p">,</span> <span class="n">rate_limit</span><span class="o">=</span><span class="n">LoginLimit</span><span class="p">())</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/auth/login"</span><span class="p">,</span> <span class="n">rate_limit</span><span class="o">=</span><span class="n">LoginLimit</span><span class="p">(),</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">login</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">LoginIn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SessionOut</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <p><code>check</code> is <code>def</code> or <code>async def</code> and returns to allow the request. It runs after the route is matched and the caller authenticated, and before the body is read, parsed or handled, so a refused request costs neither a body read nor a password hash. A sync <code>check</code> runs on the bounded executor, so it must use a sync client with finite timeouts (cancelling the waiter does not stop its thread); an async one runs on the event loop.</p>
 <p><code>RateLimitContext</code> holds only <code>method</code>, <code>route</code> (the path template), <code>client</code> (the trusted client address, <code>None</code> when unknown; a forwarded address counts only from a configured trusted proxy), <code>caller</code> (the authenticated <code>Caller</code>, <code>None</code> on a public route) and <code>resource(kind)</code>, which returns the worker-owned resource that a <a href="../modules/">module</a> provided, such as a Redis client or the <code>Database</code>. It carries no headers, credentials, body or query values.</p>
 <p>The refusal is <code>errors.TooManyRequests(retry_after)</code>: status 429, code <code>rate_limited</code>, and <code>Retry-After</code> set to <code>retry_after</code>, a whole number of seconds from 1 to 86,400 (anything else is refused when the error is created). The route documents it in OpenAPI by itself, with <code>Retry-After</code> as a required integer header. Only that error answers 429. Any other exception from the policy or its store, including a <code>TooManyRequests</code> that was built without its constructor, is answered <code>503 rate_limit_unavailable</code>: the request is refused rather than allowed unchecked, the answer and the log name the route and never the exception, and the application's error handlers and debug output never see it. Cancellation is not caught.</p>
-<p>A rate-limited route always takes the Python request path, not the native fast path. Limiting failed credentials of a <code>BearerAuth</code> provider belongs in that provider, because authentication runs first. The Blog example limits <code>/auth/login</code> with <code>limits.LoginAttempts</code>, a per-worker fixed window that is labelled as an example, not a production limiter.</p>
+<p>Limiting failed credentials of a <code>BearerAuth</code> provider belongs in that provider, because authentication runs first.</p>
 <h3 id="the-response-is-checked-against-the-annotation">The response is checked against the annotation<a class="headerlink" href="#the-response-is-checked-against-the-annotation" title="Permanent link">&para;</a></h3>
 <p>Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.</p>
-<div class="highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes/</span><span class="si">{note_id}</span><span class="s2">"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">detail</span><span class="p">(</span><span class="n">note_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NoteOut</span><span class="p">:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">note_id</span><span class="p">}</span>  <span class="c1"># a dict is not a NoteOut: 500 internal_error</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">/raw"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">raw_invoice</span><span class="p">(</span><span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceOut</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">invoice_id</span><span class="p">}</span>  <span class="c1"># a dict is not an InvoiceOut: 500 internal_error</span>
 </code></pre></div>
 <ul>
 <li><strong>At startup.</strong> An annotation that cannot be checked stops the app with a <code>RegistrationError</code> that names the action: no annotation, <code>Any</code>, <code>object</code>, <code>set[...]</code>, a plain class, or <code>Response</code> inside a collection. Annotate a concrete type, or declare the action with <code>validate_response=False</code> to skip the check for that action.</li>
-<li><strong>At runtime.</strong> A result that does not match is a <code>500 internal_error</code>, because the fault is the server's, not the client's. With <code>debug=True</code> (development) the answer names the action, the type it returned and the annotation it broke, for example <code>detail returned a dict that does not match its return annotation NoteOut</code>. Without debug the body is generic. The log and the answer never contain the value itself. With <code>atomic=True</code> the check runs inside the transaction, so a mismatch rolls the write back.</li>
-<li><strong>What is accepted.</strong> A <code>Schema</code> class, a <code>Model</code> class (projected through the declared <code>Schema</code> when there is one), <code>list[...]</code>, <code>dict[str, ...]</code> and <code>Page[...]</code> of these, <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> (a <code>bool</code> is not an <code>int</code>), <code>bytes</code>, <code>datetime</code>, <code>date</code>, <code>UUID</code>, <code>Decimal</code>, <code>None</code>, plain <code>dict</code> and <code>list</code>, <code>Any</code> or <code>object</code> as an item type, and unions of these. <code>Annotated[...]</code> is unwrapped. The check never coerces.</li>
-<li><strong><code>Response</code>.</strong> <code>-&gt; Response</code> and <code>NoteOut | Response</code> are accepted: a returned <code>Response</code> carries its own status, headers and body and is not checked. Actions with a bodyless status (<code>204</code>, <code>304</code>) are not checked.</li>
-<li><strong>What it does not check.</strong> A <code>Schema</code> instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a <code>dump()</code> override can still change the bytes afterwards. The check is one type test per request; no performance figure is claimed.</li>
+<li><strong>At runtime.</strong> A result that does not match is a <code>500 internal_error</code>, because the fault is the server's, not the client's. With <code>debug=True</code> (development) the answer names the action, the type it returned and the annotation it broke, for example <code>raw_invoice returned a dict that does not match its return annotation InvoiceOut</code>. Without debug the body is generic. The log and the answer never contain the value itself. With <code>atomic=True</code> the check runs inside the transaction, so a mismatch rolls the write back.</li>
+<li><strong>What is accepted.</strong> A <code>Schema</code> class, <code>list[...]</code>, <code>dict[str, ...]</code> and <code>Page[...]</code> of these, <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> (a <code>bool</code> is not an <code>int</code>), <code>bytes</code>, <code>datetime</code>, <code>date</code>, <code>UUID</code>, <code>Decimal</code>, <code>None</code>, plain <code>dict</code> and <code>list</code>, <code>Any</code> or <code>object</code> as an item type, and unions of these. <code>Annotated[...]</code> is unwrapped. The check never coerces.</li>
+<li><strong><code>Response</code>.</strong> <code>-&gt; Response</code> and <code>InvoiceOut | Response</code> are accepted: a returned <code>Response</code> carries its own status, headers and body and is not checked. Actions with a bodyless status (<code>204</code>, <code>304</code>) are not checked.</li>
+<li><strong>What it does not check.</strong> A <code>Schema</code> instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a <code>dump()</code> override can still change the bytes afterwards.</li>
 </ul>
-<p>Use <code>Response</code> from <code>hinoki</code> or <code>hinoki.http</code> for explicit status, headers or body. It is also available from <code>hinoki.http.response</code>. The former <code>Reply</code> name and <code>hinoki.reply</code> module are deprecated aliases kept for one compatibility cycle: <code>from hinoki import Reply</code> and <code>import hinoki.reply</code> still work, refer to the same <code>Response</code> class and emit <code>DeprecationWarning</code>. Replace their imports, annotations and constructors with <code>Response</code>.</p>
-<p>Paginated actions declare a pagination policy. See <a href="../pagination/">pagination</a> for the query parameters and response envelope.</p>
-<p>See <a href="../authentication/">authentication</a>, <a href="../codecs/">parsers and renderers</a>, and <a href="../errors/">error handling</a>.</p>
-<h2 id="migrating-from-the-top-level-decorators">Migrating from the top-level decorators<a class="headerlink" href="#migrating-from-the-top-level-decorators" title="Permanent link">&para;</a></h2>
-<p>Earlier revisions exported <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code> and <code>delete</code> from <code>hinoki</code>. They now live in the <code>hinoki.http</code> namespace:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># before</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">get</span>
-
-
-<span class="nd">@get</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span> <span class="o">...</span>
-
-
-<span class="c1"># now</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">listing</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span> <span class="o">...</span>
-</code></pre></div>
-<p><code>from hinoki import get</code> raises <code>ImportError</code>. If a module also needs the standard library's <code>http</code> (for <code>HTTPStatus</code>), import it explicitly: <code>from http import HTTPStatus</code>.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../errors/">Errors</a></li>
+<li><a href="../codecs/">Parsers and renderers</a></li>
+<li><a href="../authentication/">Authentication</a></li>
+</ul>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../authentication/">Authentication and access</a></li><li><a href="../errors/">Errors</a></li><li><a href="../transactions/">Transactions</a></li></ul>
+          <ul><li><a href="../function-endpoints/">Function-based APIs</a></li><li><a href="../class-endpoints/">Class-based APIs</a></li><li><a href="../errors/">Errors</a></li><li><a href="../transactions/">Transactions</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../migrations/"><small>Previous</small><span>Migrations</span></a>
+        <a class="pager__link pager__link--prev" href="../routes/"><small>Previous</small><span>Register routes</span></a>
         <a class="pager__link pager__link--next" href="../crud/"><small>Next</small><span>Generate CRUD routes</span></a>
       </nav>
     </main>
@@ -832,17 +670,17 @@ POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publis
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#query-strings-as-a-schema">Query strings as a Schema</a></li><li><a href="#form-bodies">Form bodies</a></li><li><a href="#xml-bodies">XML bodies</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#group-related-paths">Group related paths</a></li><li><a href="#function-or-class">Function or class</a></li><li><a href="#organising-a-large-application">Organising a large application</a></li><li><a href="#responses-errors-and-pagination">Responses, errors and pagination</a>
+            <ul><li><a href="#declare-an-action">Declare an action</a></li><li><a href="#read-with-a-body-httpquery">Read with a body: @http.query</a></li><li><a href="#bind-request-values">Bind request values</a></li><li><a href="#query-strings-as-a-schema">Query strings as a Schema</a></li><li><a href="#form-bodies">Form bodies</a></li><li><a href="#xml-bodies">XML bodies</a></li><li><a href="#upload-files">Upload files</a></li><li><a href="#responses">Responses</a>
             <ul><li><a href="#rate-limit-an-action">Rate limit an action</a></li><li><a href="#the-response-is-checked-against-the-annotation">The response is checked against the annotation</a></li></ul>
-          </li><li><a href="#migrating-from-the-top-level-decorators">Migrating from the top-level decorators</a></li></ul>
+          </li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.10</dd></div>
+          <div><dt>Sheet</dt><dd>3.18</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>19 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:16:24 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>10 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

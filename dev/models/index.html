@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Models and queries · Hinoki</title>
+  <title>Define models · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Models and queries · Hinoki">
+  <meta property="og:title" content="Define models · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link is-active" href="./"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link is-active" href="./"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -399,10 +443,12 @@
     <main class="main" id="main">
       <article class="prose" style="--sheet: '3.3'">
         <p class="kicker" data-search-exclude>3.3 · Guides</p>
-        <h1 id="models-and-queries">Models and queries<a class="headerlink" href="#models-and-queries" title="Permanent link">&para;</a></h1>
-<p><code>Model</code> maps a Python class to one database table. SQLite, PostgreSQL, MySQL and MariaDB are supported. Its annotated fields define the columns; queries are explicit and do not load relations implicitly. See <a href="../databases/">configure a database</a> for setup and backend-specific limits.</p>
-<h2 id="define-a-model">Define a model<a class="headerlink" href="#define-a-model" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+        <h1 id="define-models">Define models<a class="headerlink" href="#define-models" title="Permanent link">&para;</a></h1>
+<p>A <code>Model</code> maps a Python class to one table. Annotated fields are the columns;
+indexes, ordering and other options are <a href="../model-options/">decorators</a>. A model
+never opens a connection on import and never loads a relation implicitly.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
@@ -410,96 +456,142 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">Member</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Customer</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">254</span><span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">254</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"customer_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
 <span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
-<span class="nd">@db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">"tasks"</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Invoice</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">owner_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
-        <span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tasks"</span>
+    <span class="n">customer_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
+        <span class="n">Customer</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"invoices"</span>
     <span class="p">)</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
-    <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">paid</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
 </code></pre></div>
-<p>For a fresh model, Hinoki derives the table name as <code>&lt;app&gt;_&lt;models&gt;</code> and human
-display names from the class. The app is the package that holds the model's
-<code>models</code> module: <code>shop.apps.billing.models</code> is <code>billing</code>, <code>shop.models</code> and
-<code>shop.models.invoice</code> are <code>shop</code>; a module without a <code>models</code> segment uses its own
-last name. The model part is the class name in snake case and plural, so
-<code>Invoice</code> in <code>billing</code> becomes <code>billing_invoices</code> and <code>LineItem</code> becomes
-<code>billing_line_items</code>. Display names are <code>Invoice</code> and <code>Invoices</code>; <code>UserProfile</code>
-becomes <code>User profile</code> and <code>User profiles</code>. The class keyword <code>app="billing"</code> replaces the
-app part (lowercase letters, digits and underscores). <code>@db.table(...)</code> or the
-compatible <code>table=</code> class keyword, along with <code>label=</code> and <code>plural=</code>, provide
-optional overrides, and an explicit table name is never prefixed. Keep an explicit
-table name when it pins an existing migration history or when
-the physical table needs another name. This matters when renaming a Python
-class or moving its module: changing an implicit table name is planned as a table
-drop/create and is protected by the destructive-migration guard, not treated as a
-data-safe rename. A project whose tables were created under the earlier default (the
-plural class name without the app) pins them with <code>@db.table("old_name")</code> before planning again.
-The optional <code>HNK-DB-001</code> rule (<code>Models.require_explicit_table</code>) can require every
-model to pin its table. Irregular or localized plurals such as <code>Person</code>/<code>People</code>
-should set the table name and <code>plural=</code> explicitly. The fallback inflection is deterministic, small and English-oriented, and does not guess
-irregular nouns. It splits underscores and CamelCase into words and applies these
-suffixes to the final word of the table and display names: consonant plus <code>y</code> becomes <code>ies</code>; <code>s</code>, <code>x</code>,
-<code>z</code>, <code>ch</code> and <code>sh</code> take <code>es</code>; other words take <code>s</code>. Display labels retain
-uppercase acronyms (<code>APIKey</code> becomes <code>API key</code> / <code>API keys</code>). Thus <code>Person</code>
-defaults to <code>persons</code> (<code>Persons</code>), and <code>Analysis</code> to <code>analysises</code>; provide explicit values
-when those mechanical defaults are not right. Generated identifiers must be
-portable ASCII SQL names of at most 63 characters. Names beginning with
-SQLite's reserved <code>sqlite_</code> prefix and Hinoki's <code>hinoki_migrations</code> ledger name
-are rejected with a hint to name the table. A class whose derived name is
-rejected is still defined, so <code>@db.table(...)</code> can name its table (<code>@db.table("cafes")</code>
-on <code>class Café(Model)</code> works); without an explicit name the error is raised when
-the model is used: a query or write, a migration plan, a project or Admin
-registration, or a foreign key to it. Physical-table conflicts are reported
-when models are aggregated for migrations, projects or one Admin instance.</p>
-<p>A model has exactly one primary key. <code>pk()</code> is the field-specifier shorthand for
-<code>field(primary_key=True, ...)</code>; pass <code>default</code> or <code>default_factory</code> explicitly
-when the key is optional in the constructor. The key's type cannot be nullable
-(<code>int | None</code> raises <code>RegistrationError</code> when the model is defined). Fields are keyword-only when
-constructing a model. Single-column uniqueness is <code>field(unique=True)</code>; use
-<code>@unique("a", "b")</code> for a composite constraint. There is no nested <code>class Meta</code>.</p>
-<p>Supported field metadata includes primary key, uniqueness, a single-column
-index (<code>field(index=True)</code>), maximum string length, defaults and foreign-key behavior.
-Optional built-in constraints and custom synchronous validators can also check
-values before ORM writes. Database types are inferred from annotations;
-unsupported types fail during model or migration validation.</p>
-<h3 id="model-field-constraints-and-validators">Model field constraints and validators<a class="headerlink" href="#model-field-constraints-and-validators" title="Permanent link">&para;</a></h3>
-<p><code>field()</code> metadata describes the database column and its migration: <code>max_length</code> becomes a bounded string column and a derived <code>Schema</code> constraint, <code>unique</code> becomes a database constraint, and <code>default</code> / <code>default_factory</code> provide values when constructing an instance. A <code>foreign_key(...)</code> declares the referenced table and its <code>OnDelete</code> behavior. The Python annotation supplies the column type and nullability.</p>
-<p>Use <code>constraints=Field(...)</code> for built-in value checks and <code>validators=(...)</code> for synchronous, application-specific checks. Existing <code>max_length=</code> remains a shorthand:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">normalized</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"surrounding whitespace is not allowed"</span><span class="p">)</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">sku</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
-        <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
-        <span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[A-Z0-9-]+"</span><span class="p">),</span>
-    <span class="p">)</span>
-    <span class="n">price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">gt</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">validators</span><span class="o">=</span><span class="p">(</span><span class="n">normalized</span><span class="p">,))</span>
-</code></pre></div>
-<p>Built-in checks support string/list lengths, string patterns and membership, and numeric bounds and membership. A column that holds a dict (<code>dict[...]</code>, or <code>list[dict[...]]</code>) is a JSON column and takes no built-in checks (they are refused at class creation); validators still run on it. Before applying checks, runtime type validation follows annotations for fields that declare constraints or validators, including nested list and dict values. Invalid declarations fail when the model class is created. Validators run immediately before inserts and ORM updates, including filtered bulk updates; they do not run on construction, assignment or reads. A refusal raises <code>ModelValidationError</code> with <code>details</code> containing each field's <code>path</code>, stable <code>code</code> and <code>message</code>, before SQL is sent. In an HTTP request it produces the standard 422 validation response; the admin displays the field messages. Custom validators are synchronous; raise <code>ValueError</code> to refuse a value. Do not perform database I/O or mutate values inside a validator. Rules involving other rows, permissions or current state belong in an operation.</p>
-<p>These checks complement, rather than replace, a <code>Schema</code> at the HTTP boundary. Schema validation can report request errors before calling an operation; Model validation also protects CLI, admin and direct ORM writes. Database constraints remain authoritative, and their enforcement varies by backend; see <a href="../schemas/#built-in-and-custom-validation">Schema validation</a>.</p>
-<p>Hinoki stores PostgreSQL UUID, timestamp, JSON and byte values in their native column types. <code>ipaddress</code> addresses and networks (<code>IPv4Address</code>, <code>IPv6Address</code>, <code>IPv4Network</code>, <code>IPv6Network</code>) are stored as <code>text</code> and read back as the object; writes accept only an object of the annotated class. <code>date</code> and <code>time</code> are stored as ISO text (a <code>time</code> with microseconds always, without a timezone), <code>timedelta</code> as whole microseconds in a <code>bigint</code> and an <code>Enum</code> as its value (<code>bigint</code> when every value is an integer, <code>text</code> otherwise); each is read back as the annotated type, and a stored value that is not one raises <code>FieldError</code>. A <code>date</code> and a <code>timedelta</code> compare and order by value (<code>__gt</code>, <code>order_by</code>). SQLite stores UUIDs and timestamps as text, JSON as JSON text and bytes as blobs. SQLite has one writer at a time; its transactions use a bounded connection pool and a busy timeout. SQLite string <code>contains</code> matching follows SQLite's case-folding behavior (ASCII case-insensitive).</p>
-<h4 id="decimal-columns"><code>Decimal</code> columns<a class="headerlink" href="#decimal-columns" title="Permanent link">&para;</a></h4>
-<p>A <code>Decimal</code> field is stored exactly on every backend, but not in the same column type:</p>
+<p>The tables are <code>billing_customers</code> and <code>billing_invoices</code>. Changing a model
+never changes the database: create the tables with
+<code>hinoki migrations plan billing</code> and <code>hinoki migrations apply</code>
+(<a href="../migrations/">migrations</a>).</p>
+<h2 id="declare-columns">Declare columns<a class="headerlink" href="#declare-columns" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Declaration</th>
+<th>Column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name: str</code></td>
+<td>required, not null</td>
+</tr>
+<tr>
+<td><code>note: str \| None = None</code></td>
+<td>nullable, optional in the constructor</td>
+</tr>
+<tr>
+<td><code>paid: bool = False</code></td>
+<td>default value</td>
+</tr>
+<tr>
+<td><code>id: UUID = pk(default_factory=uuid4)</code></td>
+<td>the primary key</td>
+</tr>
+<tr>
+<td><code>email: str = field(max_length=254, unique=True)</code></td>
+<td>bounded text, unique</td>
+</tr>
+<tr>
+<td><code>created_at: datetime = field(default_factory=utc_now, index=True)</code></td>
+<td>factory default, single-column index</td>
+</tr>
+<tr>
+<td><code>customer_id: UUID = foreign_key(Customer, on_delete=...)</code></td>
+<td>a reference (<a href="../relations/">relations</a>)</td>
+</tr>
+</tbody>
+</table>
+<p><code>field()</code> takes <code>unique</code>, <code>index</code>, <code>max_length</code>, <code>default</code>, <code>default_factory</code>,
+<code>constraints</code> and <code>validators</code>. The annotation gives the type and nullability.</p>
+<ul>
+<li><strong>One primary key.</strong> <code>pk()</code> declares it; pass <code>default</code> or
+  <code>default_factory</code> when the constructor may omit it. A nullable key
+  (<code>int | None</code>) raises <code>RegistrationError</code> when the class is defined.</li>
+<li><strong>Keyword-only constructor.</strong> <code>Invoice(reference="INV-1", customer_id=c.id)</code>.</li>
+<li><strong>Indexes.</strong> <code>field(index=True)</code> indexes one column; it cannot be combined
+  with <code>unique=True</code> or <code>pk()</code>, which are already indexed. A <code>foreign_key</code> has
+  no <code>index=</code> option: index it with <code>@db.indexed(...)</code>, or a composite index
+  that starts with it, as <code>Invoice</code> does (<a href="../model-options/">model options</a>).</li>
+<li><strong>Composite uniqueness</strong> is <code>@unique("a", "b")</code>; there is no nested
+  <code>class Meta</code>.</li>
+</ul>
+<h2 id="column-types">Column types<a class="headerlink" href="#column-types" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Python type</th>
+<th>Stored as</th>
+<th>Read back as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code></td>
+<td>the backend's text, integer, float and boolean types</td>
+<td>the same type</td>
+</tr>
+<tr>
+<td><code>UUID</code>, <code>datetime</code></td>
+<td>native on PostgreSQL; text on SQLite</td>
+<td><code>UUID</code>, <code>datetime</code></td>
+</tr>
+<tr>
+<td><code>dict[...]</code>, <code>list[...]</code></td>
+<td>JSON (JSON text on SQLite, text alias on MariaDB)</td>
+<td>decoded by the annotation</td>
+</tr>
+<tr>
+<td><code>bytes</code></td>
+<td><code>BYTEA</code> on PostgreSQL, blob on SQLite</td>
+<td><code>bytes</code></td>
+</tr>
+<tr>
+<td><code>date</code>, <code>time</code></td>
+<td>ISO text (<code>time</code> with microseconds, no timezone)</td>
+<td><code>date</code>, <code>time</code></td>
+</tr>
+<tr>
+<td><code>timedelta</code></td>
+<td>whole microseconds, <code>bigint</code></td>
+<td><code>timedelta</code></td>
+</tr>
+<tr>
+<td><code>Enum</code> subclass</td>
+<td>its value: <code>bigint</code> when every value is an integer, else text</td>
+<td>the member</td>
+</tr>
+<tr>
+<td><code>IPv4Address</code>, <code>IPv6Address</code>, <code>IPv4Network</code>, <code>IPv6Network</code></td>
+<td>text</td>
+<td>the <code>ipaddress</code> object; writes accept only that class</td>
+</tr>
+<tr>
+<td><code>Decimal</code></td>
+<td>exact, per backend (below)</td>
+<td><code>Decimal</code></td>
+</tr>
+</tbody>
+</table>
+<p>A stored value that does not read back as its annotation raises <code>FieldError</code>.
+<code>date</code> and <code>timedelta</code> compare and order by value. A set, tuple, <code>Literal</code>,
+plain union or <code>Any</code> column has no SQL type: the migration planner reports
+<code>no SQL type</code>. SQLite's <code>contains</code> folds ASCII case only.</p>
+<h3 id="decimal-columns"><code>Decimal</code> columns<a class="headerlink" href="#decimal-columns" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -511,285 +603,219 @@ unsupported types fail during model or migration validation.</p>
 <tbody>
 <tr>
 <td>PostgreSQL</td>
-<td><code>numeric</code> (read and written through a binary codec)</td>
-<td>equality, <code>ne</code>, <code>in</code>, <code>isnull</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>order_by</code></td>
+<td><code>numeric</code></td>
+<td><code>=</code>, <code>ne</code>, <code>in</code>, <code>isnull</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>order_by</code></td>
 </tr>
 <tr>
-<td>MySQL / MariaDB</td>
+<td>MySQL, MariaDB</td>
 <td><code>decimal(65,30)</code></td>
-<td>the same; a value is read back with scale 30 (<code>Decimal("1.5")</code> returns as <code>Decimal("1.500000000000000000000000000000")</code>, equal in value)</td>
+<td>the same; read back with scale 30 (<code>Decimal("1.5")</code> returns as <code>Decimal("1.500…0")</code>, equal in value)</td>
 </tr>
 <tr>
 <td>SQLite</td>
-<td><code>text</code> (its exact text)</td>
-<td><code>isnull</code>, equality, <code>ne</code> and <code>in</code> only, and equality compares the spelling (<code>12.3</code> and <code>12.30</code> differ); <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code> and <code>order_by</code> are refused, because text does not order by value</td>
+<td><code>text</code> (its exact spelling)</td>
+<td><code>=</code>, <code>ne</code>, <code>in</code>, <code>isnull</code> only; <code>12.3</code> and <code>12.30</code> differ; range filters and <code>order_by</code> raise <code>FieldError</code></td>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">price</span><span class="p">:</span> <span class="n">Decimal</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">decimal</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decimal</span>
 
 
-<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price__gte</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span>
-    <span class="s2">"price"</span>
-<span class="p">)</span>  <span class="c1"># PostgreSQL, MySQL, MariaDB</span>
-<span class="k">await</span> <span class="n">Product</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">price</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span>  <span class="c1"># every backend</span>
-</code></pre></div>
-<ul>
-<li><strong>Filter values.</strong> A filter value must be a <code>Decimal</code>, an <code>int</code> or a numeric string; a <code>float</code>, a <code>bool</code>, <code>NaN</code> and an infinity raise <code>FieldError</code>, as does <code>contains</code> on a <code>Decimal</code> column. On SQLite an unsupported comparison or ordering raises <code>FieldError</code> naming the column.</li>
-<li><strong>Range.</strong> <code>decimal(65,30)</code> keeps 30 digits after the point and 35 before it, so a MySQL or MariaDB <code>Decimal</code> field is bounded by that; PostgreSQL <code>numeric</code> is not.</li>
-<li><strong>Migrations.</strong> A new migration declares <code>numeric</code> on PostgreSQL and <code>decimal(65,30)</code> on MySQL and MariaDB; on SQLite the column stays <code>text</code>, so that backend has no column change. A table that already stores a <code>Decimal</code> as text on PostgreSQL or MySQL needs a reviewed migration that changes the column type.</li>
-<li><strong>CRUD.</strong> A generated list action whose default <code>@ordered_by</code> names a <code>Decimal</code> column uses the Python path on SQLite, where that ordering is refused.</li>
-</ul>
-<h2 id="query-rows">Query rows<a class="headerlink" href="#query-rows" title="Permanent link">&para;</a></h2>
-<p>Class methods and querysets offer sync and async variants for common operations. Async variants are preferred in async handlers:</p>
-<div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aget</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
-<span class="n">tasks</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">owner_id</span><span class="o">=</span><span class="n">member_id</span><span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span>
-<span class="n">page</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">PageParams</span><span class="p">(</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">page_size</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
-</code></pre></div>
-<p>Filters accept validated field names and supported comparison/membership operators. Values are bound parameters; SQL identifiers are compiled from model metadata. Query methods do not issue SQL until an evaluation method such as awaiting the query, <code>aget</code>, <code>acount</code>, <code>aupdate</code> or <code>adelete</code> is called.</p>
-<p>Filter semantics follow SQL:</p>
-<ul>
-<li><code>field__ne=value</code> compiles to <code>&lt;&gt;</code>, so rows where the column is <code>NULL</code> are not returned. Filter on <code>isnull</code> separately when those rows matter.</li>
-<li><code>contains</code> matches text case-insensitively and treats <code>%</code>, <code>_</code> and <code>\</code> in the value literally. On SQLite the case folding is ASCII-only. On MySQL and MariaDB the escaping assumes the connection does not use the <code>NO_BACKSLASH_ESCAPES</code> SQL mode, which is off by default.</li>
-<li><code>apaginate</code> runs the count and the page as two statements, so rows written between them can make <code>total</code> and <code>items</code> disagree slightly.</li>
-</ul>
-<p><code>@ordered_by</code> supplies ordering only when a query does not specify <code>order_by</code>. An explicit order replaces it. Counts and bulk updates do not inherit default ordering.</p>
-<h2 id="reusable-queries">Reusable queries<a class="headerlink" href="#reusable-queries" title="Permanent link">&para;</a></h2>
-<p>A reusable query is a typed class method that returns a <code>QuerySet</code>. Hinoki has no hidden default manager: <code>Model.all()</code> always means every row.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Self</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">QuerySet</span><span class="p">,</span> <span class="n">field</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Task</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
-    <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">deleted_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">active</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Self</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">deleted_at</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-
-
-<span class="n">open_tasks</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">done</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span>
-<span class="n">everything</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>  <span class="c1"># the explicit way around the policy</span>
-</code></pre></div>
-<p>Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">crud</span>
-
-
-<span class="nd">@crud</span><span class="p">(</span><span class="n">Task</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">TaskOut</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">Tasks</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">TaskAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Task</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">Task</span><span class="o">.</span><span class="n">active</span><span class="p">()</span>
-</code></pre></div>
-<p>Choose the place by what the rule is:</p>
-<table>
-<thead>
-<tr>
-<th>Rule</th>
-<th>Where</th>
-<th>Why</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Row order</td>
-<td><code>@ordered_by(...)</code> (<a href="../model-options/">model options</a>)</td>
-<td>declared once, replaced by any explicit <code>order_by</code></td>
-</tr>
-<tr>
-<td>A policy the whole app shares, such as hiding soft-deleted rows</td>
-<td>a named class method such as <code>Task.active()</code>, used in the <code>get_queryset()</code> hook of a <code>@crud(...)</code> class or the admin's <code>queryset()</code></td>
-<td>visible at each call site and in review; nothing is hidden implicitly</td>
-</tr>
-<tr>
-<td>Rows that depend on the caller</td>
-<td>the <code>get_queryset(principal)</code> hook of a <code>@crud(...)</code> class or <code>ModelAdmin.queryset(principal)</code></td>
-<td>the caller is available there; model-level code never sees it</td>
-</tr>
-</tbody>
-</table>
-<p>Authorization must not depend on a default that a call to <code>all()</code> or a raw query can skip: keep ownership and permission checks in <code>access=</code>, <code>owner=</code> and <code>ModelAdmin.can()</code>, and treat a reusable query as convenience, not as the security boundary.</p>
-<p>To generate write routes as well, pass <code>create=</code> or <code>update=</code> and/or
-<code>delete=True</code> to <code>crud(...)</code>; protect generated writes with <code>access=...</code>. See
-<a href="../crud/">Generate CRUD routes</a> for the full route and ownership contract.</p>
-<h2 id="create-and-update">Create and update<a class="headerlink" href="#create-and-update" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">TaskInput</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Write docs"</span><span class="p">),</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">member_id</span><span class="p">)</span>
-<span class="n">task</span><span class="o">.</span><span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="k">await</span> <span class="n">task</span><span class="o">.</span><span class="n">asave</span><span class="p">()</span>  <span class="c1"># updates changed columns</span>
-</code></pre></div>
-<p>Server-supplied keywords take precedence over values from a <code>Schema</code>. A loaded model remembers its stored values; <code>asave()</code> updates changed columns and refuses primary-key changes. For a conditional write, use <code>aupdate_where</code> so ownership and state checks are part of the SQL condition. <code>QuerySet.aupdate(...)</code> and <code>adelete()</code> act on every row the filters match; they ignore ordering and refuse a queryset with <code>limit</code> or <code>offset</code>, so select the rows first and then filter on their keys (<code>filter(id__in=[...])</code>).</p>
-<p>The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see <a href="../typing/">typing</a>.</p>
-<h3 id="writing-many-rows-at-once">Writing many rows at once<a class="headerlink" href="#writing-many-rows-at-once" title="Permanent link">&para;</a></h3>
-<p><code>abulk_create</code>, <code>abulk_update</code> and <code>abulk_delete</code> (sync: <code>bulk_create</code>, <code>bulk_update</code>, <code>bulk_delete</code>) each run in one transaction, a savepoint inside an open one, so a failure leaves nothing behind:</p>
-<div class="highlight"><pre><span></span><code><span class="n">tasks</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">abulk_create</span><span class="p">([</span><span class="n">TaskIn</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"a"</span><span class="p">),</span> <span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"b"</span><span class="p">,</span> <span class="s2">"owner_id"</span><span class="p">:</span> <span class="n">me</span><span class="p">}])</span>
-<span class="n">tasks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">abulk_update</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span>  <span class="c1"># saves the changed rows</span>
-<span class="n">deleted</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">abulk_delete</span><span class="p">([</span><span class="n">tasks</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">other_id</span><span class="p">])</span>  <span class="c1"># instances or primary keys</span>
-</code></pre></div>
-<p><code>abulk_create</code> takes <code>Schema</code> objects or dicts of field values and returns the rows in order; defaults, factories, validation and write hooks apply as for <code>acreate</code>, and <code>returning=False</code> works the same way. <code>abulk_update</code> saves each instance's changes as <code>asave</code> does, writes nothing for an unchanged one and refuses an unsaved instance. <code>abulk_delete</code> returns how many rows existed and deletes in chunks of at most 10 000 keys. These methods run one statement per row (or per chunk for delete), not a single multi-row <code>INSERT</code>; they give atomicity, not a batching speed-up. Like <code>adelete</code>, <code>abulk_delete</code> runs no hooks.</p>
-<h3 id="writes-that-do-not-read-the-row-back">Writes that do not read the row back<a class="headerlink" href="#writes-that-do-not-read-the-row-back" title="Permanent link">&para;</a></h3>
-<p>By default every write returns the row as the database stored it: PostgreSQL and SQLite add <code>RETURNING</code> with every column, and MySQL/MariaDB select the row again in the same transaction. When the caller does not need that row, pass <code>returning=False</code>; the statement then has no <code>RETURNING</code> (and no follow-up <code>SELECT</code> on MySQL/MariaDB):</p>
-<div class="highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Draft"</span><span class="p">,</span> <span class="n">owner_id</span><span class="o">=</span><span class="n">me</span><span class="p">,</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># as sent</span>
-<span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aupdate</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># rows written</span>
-<span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">aupdate_where</span><span class="p">({</span><span class="s2">"owner_id"</span><span class="p">:</span> <span class="n">me</span><span class="p">},</span> <span class="p">{</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Task</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">owner_id</span><span class="o">=</span><span class="n">me</span><span class="p">)</span><span class="o">.</span><span class="n">aupdate</span><span class="p">({</span><span class="s2">"done"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-</code></pre></div>
-<table>
-<thead>
-<tr>
-<th>Method</th>
-<th>Default</th>
-<th><code>returning=False</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>acreate</code>, <code>insert</code> (<code>create</code>)</td>
-<td>the stored row</td>
-<td>the same instance, holding the values that were sent</td>
-</tr>
-<tr>
-<td><code>aupdate</code> (<code>update</code>)</td>
-<td>the stored row, <code>Model.NotFound</code> if no row matches</td>
-<td><code>int</code> row count; 0 when no row matches, no <code>NotFound</code></td>
-</tr>
-<tr>
-<td><code>aupdate_where</code>, <code>QuerySet.aupdate</code> (<code>update_where</code>, <code>update</code>)</td>
-<td><code>list</code> of stored rows</td>
-<td><code>int</code> row count</td>
-</tr>
-</tbody>
-</table>
-<p>What <code>returning=False</code> gives back is the client's side of the write. An insert sends every column, after defaults and factories ran in Python, so the returned instance holds exactly those values and remembers them, so a later <code>asave()</code> updates the row instead of inserting it again. An update returns no values at all; the <code>@timestamps</code> column is still set by the clock and validation still runs. Nothing is re-read from the database, so anything the database changes on the way in is not reflected: timestamp precision, numeric scale, JSON normalization, column types that store a different representation and triggers. Read the row with <code>aget</code> when you need the stored values.</p>
-<p>The count is the number the database reports. PostgreSQL and SQLite count the rows the statement matched; MySQL and MariaDB, with the driver's default connection settings, count the rows whose values actually changed, so a row that already held the new values counts 0.</p>
-<p>The cost of the default is the data sent back, which grows with the width of the row and with large columns such as JSON.</p>
-<p><code>returning</code> is a keyword-only option of these methods, so a model cannot declare a field named <code>returning</code>: the class definition raises <code>RegistrationError</code> and asks for another name.</p>
-<h2 id="lifecycle-hooks-and-instance-state">Lifecycle hooks and instance state<a class="headerlink" href="#lifecycle-hooks-and-instance-state" title="Permanent link">&para;</a></h2>
-<p>A model can react to its own writes by defining <code>before_save</code>, <code>before_create</code>, <code>after_create</code> and <code>after_save</code>. Each is an ordinary method, <code>def</code> or <code>async def</code>, taking only <code>self</code>; a model that defines none pays nothing.</p>
-<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Post</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Price</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
-
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">before_save</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">was_changed</span><span class="p">(</span><span class="s2">"title"</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">slug</span> <span class="o">=</span> <span class="n">slugify</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">)</span>
-
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">after_create</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">after_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">notify_followers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+    <span class="n">amount</span><span class="p">:</span> <span class="n">Decimal</span>
 </code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># inside an async operation</span>
+<span class="c1"># every backend</span>
+<span class="n">cheap</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Price</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">amount</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"9.99"</span><span class="p">))</span>
+<span class="c1"># not SQLite</span>
+<span class="n">ordered</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Price</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">amount__gte</span><span class="o">=</span><span class="n">Decimal</span><span class="p">(</span><span class="s2">"5"</span><span class="p">))</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"amount"</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li>A filter value is a <code>Decimal</code>, an <code>int</code> or a numeric string; a <code>float</code>, a
+  <code>bool</code>, <code>NaN</code>, an infinity or <code>contains</code> raises <code>FieldError</code>.</li>
+<li><code>decimal(65,30)</code> bounds MySQL and MariaDB to 35 digits before the point;
+  PostgreSQL <code>numeric</code> is unbounded.</li>
+<li>A table that already stores a <code>Decimal</code> as text on PostgreSQL or MySQL needs a
+  reviewed migration that changes the column type.</li>
+<li>A generated CRUD list whose <code>@db.ordered_by</code> names a <code>Decimal</code> column takes the
+  Python path on SQLite, where that ordering is refused.</li>
+</ul>
+<h2 id="table-and-display-names">Table and display names<a class="headerlink" href="#table-and-display-names" title="Permanent link">&para;</a></h2>
+<p>Hinoki derives the table name <code>&lt;app&gt;_&lt;models&gt;</code> and display names from the class.</p>
 <table>
 <thead>
 <tr>
-<th>Write</th>
-<th>Order</th>
+<th>Model</th>
+<th>Module</th>
+<th>Table</th>
+<th>Labels</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>insert (<code>acreate</code>, <code>insert</code>, <code>asave</code> of a new instance)</td>
-<td><code>before_save</code>, <code>before_create</code>, the write, <code>after_create</code>, <code>after_save</code></td>
+<td><code>Invoice</code></td>
+<td><code>notes.apps.billing.models</code></td>
+<td><code>billing_invoices</code></td>
+<td>Invoice / Invoices</td>
 </tr>
 <tr>
-<td>update (<code>asave</code> of a loaded instance, <code>aupdate_from</code>)</td>
-<td><code>before_save</code>, the write, <code>after_save</code></td>
+<td><code>LineItem</code></td>
+<td><code>notes.apps.billing.models</code></td>
+<td><code>billing_line_items</code></td>
+<td>Line item / Line items</td>
+</tr>
+<tr>
+<td><code>Note</code></td>
+<td><code>notes.models</code> or <code>notes.models.note</code></td>
+<td><code>notes_notes</code></td>
+<td>Note / Notes</td>
+</tr>
+<tr>
+<td><code>APIKey</code></td>
+<td><code>notes.models</code></td>
+<td><code>notes_api_keys</code></td>
+<td>API key / API keys</td>
 </tr>
 </tbody>
 </table>
-<p><code>before_*</code> hooks see the values about to be written and may change them; the write sees the result. <code>after_*</code> hooks run after the statement, with the stored row loaded into the instance (generated keys, database defaults, <code>@timestamps</code>). An update with no changed column after <code>before_save</code> writes nothing and skips <code>after_save</code>. To extend a hook that a base model or mixin already defines, call <code>super()</code>; a subclass method replaces the inherited one like any other override.</p>
-<p>The instance reports its own state, so a hook, or any code holding the instance, needs no event object or global context:</p>
+<p>The app is the package that holds the <code>models</code> module; a module without a
+<code>models</code> segment uses its own last name. The plural is a small English rule:
+consonant + <code>y</code> → <code>ies</code>; <code>s</code>, <code>x</code>, <code>z</code>, <code>ch</code>, <code>sh</code> → <code>es</code>; otherwise <code>s</code>. It
+does not know irregular nouns (<code>Person</code> → <code>persons</code>).</p>
 <table>
 <thead>
 <tr>
-<th>Member</th>
-<th>Meaning</th>
+<th>Override</th>
+<th>Form</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>is_new</code></td>
-<td><code>True</code> until the row has been written or loaded; still <code>True</code> inside <code>before_*</code> and <code>after_*</code> of an insert</td>
+<td>app part of the name</td>
+<td><code>class Invoice(Model, app="accounts")</code></td>
 </tr>
 <tr>
-<td><code>is_dirty</code></td>
-<td><code>True</code> for a new instance, or when a column differs from the stored row</td>
+<td>whole table name (never prefixed)</td>
+<td><code>@db.table("invoices")</code></td>
 </tr>
 <tr>
-<td><code>changes</code></td>
-<td><code>{column: Change(old, new)}</code> for the columns that differ; a new instance lists every column with <code>old=UNSET</code>. Computed when read</td>
-</tr>
-<tr>
-<td><code>was_changed("title")</code></td>
-<td>whether one column differs; a name that is not a column raises <code>FieldError</code></td>
+<td>display names</td>
+<td><code>class Person(Model, label="Person", plural="People")</code></td>
 </tr>
 </tbody>
 </table>
-<p>The stored values are taken again after the <code>after_*</code> hooks, so <code>changes</code> still shows what this write changed while they run.</p>
-<p>When any hook is defined, the write runs in a transaction (a savepoint when one is already open), so an exception in any hook rolls the write back and reaches the caller. <code>after_*</code> hooks run before the commit; the work that must happen only after it goes through <code>self.after_commit(callback)</code> (a sync or async callable without arguments). Callbacks run in registration order after the outermost transaction commits; a rollback of the transaction, or of the savepoint they were registered in, drops them, and an exception in one is logged without undoing the commit. See <a href="../transactions/#after-commit-callbacks">transactions</a>.</p>
-<p>Limits, by design: hooks belong to instances. <code>QuerySet.aupdate</code>, <code>adelete</code>, <code>Model.aupdate</code>, <code>aupdate_where</code> and raw SQL do not run them. Sync hooks run inline on the event loop, so keep them short and use <code>async def</code> for I/O. <code>is_new</code>, <code>is_dirty</code>, <code>changes</code>, <code>was_changed</code>, <code>after_commit</code> and the four hook names are reserved: a field cannot use them. A hooked write opens a savepoint inside an open transaction; from a helper task of a transaction it joins that transaction instead (this is how the sync model methods of a sync handler write), and an error still rolls the whole transaction back. A hook assigned to the class after it was created is picked up on the next write. Generated CRUD and the admin create and edit forms save through the same methods, so the hooks run there too; deleting runs none. See <a href="../crud/#model-hooks-and-kiso">CRUD</a>.</p>
-<h2 id="share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins<a class="headerlink" href="#share-fields-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
-<p>Fields, options and methods that several models need can live in a base class. An <strong>abstract model</strong> has no table of its own: it is not migrated, cannot be queried or saved, and exists to be subclassed.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+<p>Pin the table name with <code>@db.table(...)</code> when a model already has migration
+history and you rename the class or move its module: a changed derived name is
+planned as a drop and a create, which the destructive-migration guard stops; it
+is never a rename. The optional <code>HNK-DB-001</code> rule
+(<code>Models.require_explicit_table</code>) requires every matching model to pin it.</p>
+<p>Names must be portable ASCII of at most 63 characters. A derived name that is
+rejected (<code>sqlite_…</code>, <code>hinoki_migrations</code>, non-ASCII such as <code>class Café</code>) does
+not stop the class from being defined: <code>@db.table("cafes")</code> can still name it.
+Without one, the error is raised when the model is first used (query, write,
+migration plan, project or admin registration, or a foreign key to it).</p>
+<h2 id="model-field-constraints-and-validators">Model field constraints and validators<a class="headerlink" href="#model-field-constraints-and-validators" title="Permanent link">&para;</a></h2>
+<p><code>field()</code> can also check values before every ORM write. Use
+<code>constraints=Field(...)</code> for built-in checks and <code>validators=(...)</code> for
+synchronous application rules:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">indexed</span><span class="p">,</span> <span class="n">ordered_by</span><span class="p">,</span> <span class="n">timestamps</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">no_padding</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"surrounding whitespace is not allowed"</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">sku</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[A-Z0-9-]+"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">gt</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">validators</span><span class="o">=</span><span class="p">(</span><span class="n">no_padding</span><span class="p">,))</span>
+</code></pre></div>
+<ul>
+<li><strong>When.</strong> Immediately before inserts and ORM updates, filtered bulk updates
+  included; never on construction, assignment or reads. Invalid declarations
+  fail when the class is created.</li>
+<li><strong>Checks.</strong> String and list lengths, patterns, membership and numeric bounds.
+  A JSON column (<code>dict[...]</code>, <code>list[dict[...]]</code>) takes no built-in checks;
+  validators still run on it.</li>
+<li><strong>Failure.</strong> <code>ModelValidationError</code>, before any SQL, with <code>details</code> holding
+  each field's <code>path</code>, <code>code</code> and <code>message</code>. In a request it becomes the
+  standard 422 response; the admin shows the messages.</li>
+<li><strong>Validators</strong> are synchronous, raise <code>ValueError</code> to refuse, perform no I/O
+  and do not change the value. Rules about other rows, permissions or current
+  state belong in an operation.</li>
+</ul>
+<p>These checks protect CLI, admin and direct ORM writes; a <code>Schema</code> still
+validates HTTP input first (<a href="../schema-validation/">validate input</a>). Database
+constraints remain authoritative.</p>
+<h2 id="share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins<a class="headerlink" href="#share-fields-abstract-models-and-mixins" title="Permanent link">&para;</a></h2>
+<p>An abstract model has no table: it is not migrated, cannot be queried and only
+exists to be subclassed.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">timestamps</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Keyed</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
 
 
 <span class="nd">@timestamps</span><span class="p">()</span>
-<span class="nd">@indexed</span><span class="p">(</span><span class="s2">"updated_at"</span><span class="p">)</span>
-<span class="nd">@ordered_by</span><span class="p">(</span><span class="s2">"-updated_at"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-updated_at"</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Tracked</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
-    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
+    <span class="n">updated_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">Keyed</span><span class="p">,</span> <span class="n">Tracked</span><span class="p">):</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
 </code></pre></div>
-<p><code>Article</code> has the columns <code>created_at</code>, <code>updated_at</code>, <code>id</code> and <code>title</code>, is ordered by <code>-updated_at</code>, has the index and refreshes <code>updated_at</code> on every update. <code>Tracked.all()</code> raises <code>ModelError</code>: query <code>Article</code>.</p>
+<p><code>Article</code> has <code>created_at</code>, <code>updated_at</code>, <code>id</code> and <code>title</code>, is ordered by
+<code>-updated_at</code>, indexes <code>updated_at</code> and refreshes it on every update.
+<code>Tracked.all()</code> raises <code>ModelError</code>.</p>
 <ul>
-<li><code>abstract=True</code> is not inherited. A subclass is a table model unless it says <code>abstract=True</code> again; its table name is derived unless <code>table=</code> overrides it. An abstract model needs no primary key; a table model needs exactly one, its own or an inherited one.</li>
-<li><strong>Options</strong> declared on abstract bases are inherited: every base's <code>@unique</code> constraints and <code>@indexed</code> indexes, and the order and timestamp column of the first base (in the order the bases resolve) that sets one. Applying a decorator on the subclass <em>replaces</em> what was inherited for that kind of option; it does not add to it. A <code>field(index=True)</code> index belongs to its column instead: it is inherited with the column, and a subclass that redeclares the column without <code>index=True</code> drops it, with or without decorators. To keep an inherited index while adding one, declare both on the subclass. Options you do not touch stay inherited. A replacement made in an abstract base holds for everything below it: a model reads its options from the abstract bases it lists, and each of those already carries what it inherited and replaced.</li>
-<li><strong>Plain mixins</strong> work too: a class that is not a model contributes the fields it annotates, <code>field(...)</code> and <code>foreign_key(...)</code> included, and its methods. An annotation marked <code>ClassVar</code> is not a field. A type checker does not see a plain mixin's fields as constructor arguments, so prefer an abstract model when you construct instances with those fields.</li>
-<li><strong>One name, two types.</strong> If two bases give the same field name different types and the class does not declare that field itself, the class is refused with an error naming both bases. The same type from two bases is accepted, and a class (or an abstract subclass) that redeclares a field decides its type. A type checker still reports a redeclaration with an incompatible type, as it does for any class.</li>
-<li><strong>Subclassing a table model</strong> is allowed: the subclass gets a copy of the parent's columns in a separate table, derived from the subclass name unless <code>table=</code> overrides it. <code>hinoki migrations plan</code> shows the new table. The two tables are unrelated: there is no join between them and a query on the parent does not return the subclass's rows. A table model does not pass its options on; only abstract bases do.</li>
-<li><strong>Column order</strong> follows Python's dataclass rules: the fields of model bases come first, starting from the last base listed, then the fields of plain mixins, then the class's own. Hinoki does not depend on the order; a new table is created with it.</li>
+<li><code>abstract=True</code> is not inherited; an abstract model needs no primary key, a
+  table model needs exactly one, its own or inherited.</li>
+<li><strong>Options</strong> from abstract bases are inherited: all <code>@unique</code> and
+  <code>@db.indexed</code>, and the order and timestamp column of the first base that sets
+  one. A decorator on the subclass <em>replaces</em> that kind of option. A
+  <code>field(index=True)</code> index belongs to its column and is dropped when a subclass
+  redeclares the column without it.</li>
+<li><strong>Plain mixins</strong> (non-model classes) contribute annotated fields and methods;
+  <code>ClassVar</code> annotations are not fields. Type checkers do not see mixin fields
+  as constructor arguments: prefer an abstract model.</li>
+<li><strong>Conflicting types.</strong> Two bases giving one field different types are refused
+  unless the class redeclares the field.</li>
+<li><strong>Subclassing a table model</strong> copies its columns into a separate, unrelated
+  table; no join, no shared rows, no inherited options.</li>
+<li><strong>Column order</strong> follows dataclass rules: model bases (last listed first),
+  then mixins, then the class's own fields.</li>
 </ul>
-<p>A foreign key in an abstract model or a mixin needs a reverse name that differs per subclass; see <a href="../relations/#foreign-keys-in-abstract-models-and-mixins">relations</a>.</p>
-<h2 id="relations">Relations<a class="headerlink" href="#relations" title="Permanent link">&para;</a></h2>
-<p>Declare a foreign-key column with <code>foreign_key(OtherModel, ...)</code>. It creates the <code>other_id</code> column and a named relation (<code>row.other</code>), but reading the relation does not fetch data. Load it explicitly with <code>select_related</code> or <code>prefetch_related</code>. For many-to-many data, declare an association model with two foreign keys and a composite <code>@unique</code> constraint; see <a href="../relations/">relations and loading</a>.</p>
-<h2 id="schema-options">Schema options<a class="headerlink" href="#schema-options" title="Permanent link">&para;</a></h2>
-<p>Use <a href="../model-options/">model option decorators</a> for indexes, ordering and composite uniqueness. Use <a href="../schemas/">schemas</a> to define request and response data; a model does not decide which columns cross the HTTP boundary.</p>
-<h2 id="migrations">Migrations<a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h2>
-<p>Model changes do not alter a database. Generate and review migration files, then apply them deliberately with the <a href="../migrations/">migration commands</a>.</p>
+<p>A foreign key in an abstract model needs a per-subclass reverse name; see
+<a href="../relations/#foreign-keys-in-abstract-models-and-mixins">relations</a>.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../model-options/">Model options</a></li>
+<li><a href="../queries/">Query and write rows</a></li>
+<li><a href="../relations/">Relations</a></li>
+<li><a href="../migrations/">Migrations</a></li>
+</ul>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../relations/">Relations</a></li><li><a href="../migrations/">Migrations</a></li><li><a href="../model-options/">Model options</a></li></ul>
+          <ul><li><a href="../model-options/">Model options</a></li><li><a href="../queries/">Query and write rows</a></li><li><a href="../relations/">Relations</a></li><li><a href="../migrations/">Migrations</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../databases/"><small>Previous</small><span>Configure a database</span></a>
-        <a class="pager__link pager__link--next" href="../schemas/"><small>Next</small><span>Schemas</span></a>
+        <a class="pager__link pager__link--next" href="../model-options/"><small>Next</small><span>Model options</span></a>
       </nav>
     </main>
 
@@ -801,21 +827,17 @@ unsupported types fail during model or migration validation.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#define-a-model">Define a model</a>
-            <ul><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a>
+            <ul><li><a href="#declare-columns">Declare columns</a></li><li><a href="#column-types">Column types</a>
             <ul><li><a href="#decimal-columns">Decimal columns</a></li></ul>
-          </li></ul>
-          </li><li><a href="#query-rows">Query rows</a></li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a>
-            <ul><li><a href="#writing-many-rows-at-once">Writing many rows at once</a></li><li><a href="#writes-that-do-not-read-the-row-back">Writes that do not read the row back</a></li></ul>
-          </li><li><a href="#lifecycle-hooks-and-instance-state">Lifecycle hooks and instance state</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relations">Relations</a></li><li><a href="#schema-options">Schema options</a></li><li><a href="#migrations">Migrations</a></li></ul>
+          </li><li><a href="#table-and-display-names">Table and display names</a></li><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>17 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

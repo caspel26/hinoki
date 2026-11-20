@@ -252,11 +252,14 @@
       <article class="prose" style="--sheet: '2.3'">
         <p class="kicker" data-search-exclude>2.3 · Tutorial</p>
         <h1 id="2-schemas">2. Schemas<a class="headerlink" href="#2-schemas" title="Permanent link">&para;</a></h1>
-<p>A model describes a table; a <code>Schema</code> describes what crosses the API. A column reaches a client only when a schema names it.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+<p>A model describes a table; a <code>Schema</code> describes what crosses the API. A column
+reaches a client only when a schema names it.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/schemas.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Task</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Task</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">TaskIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -270,35 +273,29 @@
 <span class="w">    </span><span class="sd">"""Every column of a task except its owner (derived from the model)."""</span>
 </code></pre></div>
 <ul>
-<li><code>TaskIn</code> is strict: no coercion, no unknown keys, every problem reported with its path. Validation runs in Rust before your code does.</li>
-<li><code>TaskOut</code> takes the columns of <code>Task</code>: types and limits come from the model, and <code>exclude=("owner_id",)</code> keeps <code>owner_id</code> out. Relations are never derived; you name them on purpose.</li>
-<li>Because the owner is not a field of <code>TaskIn</code>, a client cannot choose it. If it were, <code>Task.acreate(data, owner_id=me)</code> would still win (server values beat the client's), and a schema can never carry the primary key.</li>
+<li><code>TaskIn</code> is strict: no coercion, no unknown keys, and every problem is reported
+  with its path. Validation runs in Rust before your code does.</li>
+<li><code>TaskOut</code> takes its fields from <code>Task</code>, with the model's types and limits.
+  <code>exclude=("owner_id",)</code> keeps the owner out. Relations are never derived;
+  you name them on purpose.</li>
+<li>The owner is not a field of <code>TaskIn</code>, so a client cannot choose it. Server
+  values passed to <code>Task.acreate(data, owner_id=...)</code> always win, and a schema
+  never carries the primary key.</li>
 </ul>
-<p>When one property can contain more than one shape, put an explicit tagged union inside a wrapper Schema. Every variant has a required tag with a distinct <code>one_of</code> value and the same wire alias:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Cat</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">kind</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">"type"</span><span class="p">,</span> <span class="n">one_of</span><span class="o">=</span><span class="p">(</span><span class="s2">"cat"</span><span class="p">,))]</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">Dog</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">kind</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">"type"</span><span class="p">,</span> <span class="n">one_of</span><span class="o">=</span><span class="p">(</span><span class="s2">"dog"</span><span class="p">,))]</span>
-    <span class="n">walks</span><span class="p">:</span> <span class="nb">int</span>
-
-
-<span class="n">Pet</span> <span class="o">=</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">Cat</span> <span class="o">|</span> <span class="n">Dog</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">discriminator</span><span class="o">=</span><span class="s2">"kind"</span><span class="p">)]</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">PetRequest</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">pet</span><span class="p">:</span> <span class="n">Pet</span>
-</code></pre></div>
-<p><code>PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})</code> builds a <code>Cat</code>; the same tag also produces an OpenAPI <code>oneOf</code> with a discriminator mapping. See <a href="../../schemas/#discriminated-unions">discriminated unions</a> for request errors, lists, nullable fields and limits.</p>
-<p>More: <a href="../../schemas/">Schemas</a>, <a href="../../model-schemas/">model-derived schemas</a>.</p>
-<p>Next: <a href="../3-operations/">3. Operations</a>. Validation patterns continue in <a href="../7-validation/">7. Validate input</a>.</p>
+<p>Schemas also support aliases, computed fields and tagged unions; see
+<a href="../../schema-collections/#discriminated-unions">discriminated unions</a>.</p>
+<h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Input schemas list what a client may send, nothing more.</li>
+<li>Output schemas can be derived from a model, minus what must stay private.</li>
+<li>Ownership comes from the caller, never from the request body.</li>
+</ul>
+<p>Next: <a href="../3-operations/">3. Operations</a>.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../../schemas/">Schemas</a></li><li><a href="../../model-schemas/">Schemas from models</a></li></ul>
+        </aside>
         
       </article>
 
@@ -316,14 +313,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#2-schemas">2. Schemas</a></li></ul>
+            <ul><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 20:05:13 UTC">November 17, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/2-schemas.md">Edit on GitHub</a></dd></div>
         </dl>

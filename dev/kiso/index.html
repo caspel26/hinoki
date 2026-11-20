@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kiso server · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="Kiso server · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/kiso/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+    })();
+  </script>
+  <link rel="stylesheet" href="../static/css/tokens.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/prose.css">
+  <link rel="stylesheet" href="../static/css/benchmarks.css">
+  
+</head>
+
+<body class="is-doc" data-base="..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href=".." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip" data-project-stage>pre-alpha</span>
+      <div class="docs-version" data-docs-version hidden>
+        <button class="status-chip docs-version__trigger" type="button" data-docs-version-trigger aria-controls="docs-version-menu" aria-expanded="false" aria-label="Choose documentation version">
+          <span data-docs-version-current>dev</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <nav class="docs-version__menu" id="docs-version-menu" data-docs-version-menu aria-label="Documentation versions" hidden></nav>
+      </div>
+      <nav class="top__nav" aria-label="Sections">
+        
+        
+          
+        
+          
+            
+            <a class="top__link" href="../getting-started/"><b>01</b>Get started</a>
+          
+        
+          
+            
+            <a class="top__link" href="../tutorial/"><b>02</b>Tutorial</a>
+          
+        
+          
+            
+            <a class="top__link is-active" href="../guides/"><b>03</b>Guides</a>
+          
+        
+          
+            
+            <a class="top__link" href="../concepts/"><b>04</b>Concepts</a>
+          
+        
+          
+            
+            <a class="top__link" href="../reference/"><b>05</b>Reference</a>
+          
+        
+          
+            
+            <a class="top__link" href="../status/"><b>06</b>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+  
+
+  <div class="shell" data-sheet="3.31">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title">Navigation</span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+            
+              
+            
+              
+                
+                <li><a class="side__link" href="../getting-started/"><i>01</i><span>Get started</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link is-active" href="../guides/"><i>03</i><span>Guides</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../concepts/"><i>04</i><span>Concepts</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../reference/"><i>05</i><span>Reference</span></a></li>
+              
+            
+              
+                
+                <li><a class="side__link" href="../status/"><i>06</i><span>Project</span></a></li>
+              
+            
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><b>03</b>Guides</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../guides/"><i>3.1</i><span>Overview</span></a></li>
+              
+            
+              
+                <li class="side__group"><span>Data</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../databases/"><i>3.2</i><span>Configure a database</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Endpoints</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Security and checks</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Runtime</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>3.31</i><span>Kiso server</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Integrations</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span>Operating</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose" style="--sheet: '3.31'">
+        <p class="kicker" data-search-exclude>3.31 · Guides</p>
+        <h1 id="kiso-hinokis-rust-server">Kiso, Hinoki's Rust server<a class="headerlink" href="#kiso-hinokis-rust-server" title="Permanent link">&para;</a></h1>
+<p>Kiso is the HTTP server inside Hinoki's native extension, written in Rust on
+hyper, tokio and rustls. It is what <code>hinoki dev</code> and <code>hinoki serve</code> run unless
+you choose Granian, and it can answer many requests without entering Python.</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>serve<span class="w"> </span>--workers<span class="w"> </span><span class="m">4</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
+    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="s2">"kiso"</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</code></pre></div>
+<p><code>--server kiso</code> selects it explicitly when a project defaults to Granian. Choose
+Granian instead when you need an ASGI wrapper around the application
+(<a href="../serving/#choose-a-server">Serve an application</a>).</p>
+<h2 id="what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python<a class="headerlink" href="#what-is-native-and-what-still-runs-in-python" title="Permanent link">&para;</a></h2>
+<p>The listener, HTTP/1.1 parsing, connection and header limits, body framing and its limits and timeouts, route matching, the request ID, and the answers that need no application code run on the native runtime without taking the Python interpreter lock. Without host, CORS or HTTPS-redirect policies, a request the native layer can answer by itself is answered there: unknown paths and methods (<code>404</code>, <code>405</code> with <code>Allow</code>), oversized request lines or headers, <code>503</code> while the worker is not ready or the in-flight limit is reached, and malformed requests. When one of those policies is active, the Rust classifier checks it first and then answers unmatched requests itself, with the same CORS headers as the Python pipeline. The response carries the same security headers, request ID, CORS and HSTS policy as one produced by the application.</p>
+<p>The lifespan, handwritten handlers and their database calls still use Python. The OpenAPI document and the documentation pages and assets are built once at startup by the same Python code and answered by the Rust classifier for <code>GET</code> and <code>HEAD</code> (other methods continue to route lookup), with the same status, headers, request ID, CORS and security headers; they cross into Python only when a request target is not plain ASCII. Host allow-list checks, CORS preflight answers and HTTPS redirects run in the Rust classifier before docs and route lookup, with the same response order and headers as the Python pipeline. For matched routes that continue through the Python pipeline, Kiso also percent-decodes the captured path values and passes them to Python; an invalid UTF-8 escape is carried as an error marker and reported at the same point where the pipeline previously decoded it. Python still applies <code>str</code>, <code>int</code>, UUID, bool and custom converters, and owns authentication, hooks, body/query binding, handlers, error translation and response assembly.</p>
+<p>For an eligible public <code>GET</code>, <code>DELETE</code>, <code>POST</code>, <code>PUT</code>, <code>PATCH</code> or <code>QUERY</code> function, Kiso skips Python route matching and request binding. It accepts parameters from the path and query string annotated <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> or <code>UUID</code> with the built-in converter, and query parameters whose default has exactly that type. Rust decodes provided values, converts them with the same rules as the Python converters (an invalid value gives the same <code>422</code>), validates the full query, negotiates <code>Accept</code>, and prepares the handler arguments. An absent optional query uses its declared default, including when a wrapper observes the keyword arguments; an empty value is still an explicitly supplied empty string. Missing required or repeated query parameters use the same validation response as the Python pipeline. Error translation and <code>Response</code> creation remain in Python; JSON encoding uses Hinoki's Rust encoder, and Rust finalizes the response headers and suppresses the body for <code>HEAD</code>. Those final headers include the CORS headers for the request's <code>Origin</code>, on successful and error answers alike, exactly as the Python pipeline adds them; an answer that sets its own <code>Access-Control-Allow-Origin</code> keeps its CORS headers. An async handler runs in its ordinary asyncio task, unless it qualifies for <a href="#the-native-handler-lane">the native handler lane</a>; a sync handler uses the bounded executor. If a sync handler returns an awaitable, Hinoki awaits it on the same request task after the executor call completes. An integer longer than 18 digits is left to the Python pipeline, which applies Python's own integer limits. A body method is eligible with exactly one <code>Schema</code> body parameter and only built-in parsers (<code>JSONParser</code>, <code>FormParser</code>, <code>TextParser</code>, <code>BytesParser</code>, exact types without overrides; a custom parser or a <code>JSONParser.prepare</code> override uses the Python pipeline). The route's parser is chosen from the <code>Content-Type</code> after the body is read, so an unlisted type is the same <code>415</code>. Its body is read from the native connection only when the handler's turn comes, after content negotiation, with the same limits, and is then decoded and validated by the Rust decoder and validator. The failures keep the order and the answers of the Python pipeline: a declared length above the limit or a body read failure first, then a malformed query string, then the content type (<code>415</code>) and malformed JSON (<code>400</code>), then one <code>422</code> listing every path, query and body problem in declaration order. A refusal before the body is read closes the connection, as on the Python pipeline. The automatic path does not accept several body parameters, file or <code>Request</code> parameters, custom parsers, multipart uploads, defaults on path parameters, custom response headers or custom renderers. The built-in <code>JSONRenderer</code>, <code>HTMLRenderer</code>, <code>TextRenderer</code> and <code>XMLRenderer</code>, alone or several on one route, are eligible: Rust negotiates <code>Accept</code> (including <code>406</code>) and Python renders with the chosen one, exactly as on the Python pipeline. A subclass of a built-in renderer or one with extra attributes is custom. A route with an <code>access</code> policy stays eligible, with at most one <code>Caller</code> principal parameter: Python authenticates the request before anything else, so the order of the answers (<code>400</code>, <code>invalid_query</code>, <code>401</code>/<code>403</code>) matches the Python pipeline, and the body is still read only after authentication succeeds. When that access policy uses an unmodified <a href="../authentication/#claims-only-tokens-on-the-native-lane"><code>ClaimsJWTAuth</code></a>, Rust also answers the refusals itself (<code>401</code> with the challenge, or <code>403</code>) without crossing into Python, and hands the admitted caller to the handler. A route with a <code>rate_limit</code> policy is eligible too: Python asks the policy, with the same client address as the Python pipeline (the forwarded client when the TCP peer is a trusted proxy, otherwise the peer) and the authenticated caller, right after authentication and before negotiation, the body and validation, so a refused client gets the same <code>429</code> or <code>503</code> without the server reading its body. A route with <code>atomic=True</code> stays eligible: the handler runs inside the same transaction as on the Python pipeline, the commit follows the encoding of the answer, and any error or timeout rolls back before it is translated. Host restrictions, CORS and HTTPS redirects are checked natively and do not make an otherwise eligible route fall back. Every other route uses the full Python request pipeline for binding, validation, error translation and response assembly. The request body is read natively only when that pipeline asks for it, after authentication, so an unauthenticated client cannot make the server buffer a body. Handlers themselves remain Python code; this is not an application written in Rust, and no performance figure is claimed here. A <code>Query[Schema]</code> parameter of a <code>GET</code> or <code>DELETE</code> is eligible too (Python converts and validates the query string, reporting errors in the pipeline order; it does not combine with a body). A <code>Form[Schema]</code> or <code>XML[Schema]</code> body is eligible too: the text is converted and validated as described in <a href="../endpoints/#form-bodies">Form bodies</a> and <a href="../endpoints/#xml-bodies">XML bodies</a>.</p>
+<h2 id="the-native-handler-lane">The native handler lane<a class="headerlink" href="#the-native-handler-lane" title="Permanent link">&para;</a></h2>
+<p>An <code>async def</code> handler that only talks to the database through the ORM can run without an asyncio task: Kiso drives its coroutine itself, runs each database wait on the native runtime and sends the answer from there. Hinoki decides this once per route at worker startup, by reading the handler's own source: the route must be a <code>GET</code>, <code>DELETE</code>, <code>POST</code>, <code>PUT</code>, <code>PATCH</code> or <code>QUERY</code> that is eligible for the native path above (a body method takes one <code>Schema</code> body and built-in parsers), the function must be a plain <code>async def</code> (not wrapped by a decorator), and every <code>await</code> in it must be an ORM call on a <code>Model</code> class: a read (<code>Model.aget(...)</code>, <code>Model.aget_or_none(...)</code>, or <code>Model.filter(...)</code> / <code>Model.all()</code> with <code>filter</code>, <code>order_by</code>, <code>limit</code> and <code>offset</code>, ending in <code>aget</code>, <code>afirst</code>, <code>acount</code> or <code>aexists</code>, or awaited directly) or a write (<code>acreate</code>, <code>aupdate</code>, <code>aupdate_where</code>, <code>adelete</code>, <code>abulk_create</code>, <code>abulk_update</code>, <code>abulk_delete</code>, or <code>aupdate</code> / <code>adelete</code> ending a <code>filter(...)</code> chain). A write counts only on a model that overrides none of the write hooks (<code>before_save</code>, <code>before_create</code>, <code>after_create</code>, <code>after_save</code>) or the methods the write calls (<code>insert</code>, <code>asave</code>, <code>from_schema</code> and the like); <code>asave</code>, <code>aupdate_from</code> and <code>aupdate_within</code> on an instance stay on asyncio. <code>async with</code>, <code>async for</code>, <code>yield</code>, async comprehensions, local names that shadow a model, and any other <code>await</code> (<code>asyncio.sleep</code>, an HTTP client, another coroutine) keep the route in an asyncio task. A guarded route (<code>access</code>, <code>rate_limit</code>, <code>Query[Schema]</code> or several renderers) is served the same way, and so is a body method: its guards run first inside the driven coroutine, in the order of the asyncio path (credentials, then the rate limit, then the body and the request values), and the body is read on the native runtime. A handler of a class API takes the lane as well when the class keeps the stock constructor (no <code>__init__</code> or <code>__new__</code> of its own in the class or its bases) and adds no <code>response_headers</code>: the instance is built per request, as on the asyncio path, and a class that builds itself with application code stays on asyncio. The constructor is read once at startup. An <code>atomic=True</code> route runs its handler inside a transaction opened, committed or rolled back on the native runtime, and an error is translated only after the rollback, as on the asyncio path. A request Rust already finds invalid (a bad path encoding, an invalid path or query parameter, an unacceptable <code>Accept</code>) stays on the asyncio path. A provider or policy that awaits something only asyncio can run (a custom provider calling an HTTP service, a rate limit store on the thread pool) moves the request to an asyncio task at that point, once, with what is left of the timeout; a transaction already open goes with it, so later savepoints still nest and the rollback is unchanged. The same happens if a write hook is added to a model after startup and awaits asyncio. <code>hinoki routes --lanes</code> shows the choice, and <code>hinoki.runtime</code> logs the reason for every route at debug level.</p>
+<p>The behaviour is the same on both paths: status, headers, body, error translation, the request ID and the <code>request_timeout</code> (a <code>504</code>). An error from a driven handler, and a failure of a generated CRUD action, is translated in place when no error handler you registered can match it; an exception one of your handlers matches is translated in an asyncio task, because the handler may await. Each request has its own context, so <code>request_id</code> and the database are the ones of that request. The handler's steps after its first run on the event-loop thread, so a task it starts still finds the loop. If a driven handler awaits something only asyncio can run (a database backend without native waits), it is moved to an asyncio task at that point and continues with what is left of the request timeout. At shutdown, running handlers are cancelled like request tasks.</p>
+<p>What it assumes: model classes and their ORM methods are not replaced after startup. Set <code>server.native_dispatch = false</code> to keep every handler in an asyncio task. No performance figure is claimed here.</p>
+<p><code>hinoki routes --lanes</code> shows, per route, whether Kiso runs it natively and, if
+not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
+<h2 id="generated-crud">Generated CRUD<a class="headerlink" href="#generated-crud" title="Permanent link">&para;</a></h2>
+<p>Generated CRUD plans can also execute public <code>create</code> (<code>POST</code>), <code>update</code> (<code>PATCH</code>) and <code>delete</code> actions in Rust. These routes use the native path only when their model and schemas are supported and they have no assignment rule or custom CRUD hook (an <code>owner</code> is allowed only with <code>identity_key = caller_id</code>, a text non-key column outside the update schema, on any supported database), and their access policy, if any, uses an unmodified <a href="../authentication/#claims-only-tokens-on-the-native-lane"><code>ClaimsJWTAuth</code></a>. Rust reads and validates the bounded request body, runs the database transaction, fetches the written row where the response requires it, and encodes the response before commit. Writes continue to completion if the client disconnects. A unique-constraint violation returns <code>409 Conflict</code> by default; a registered application error handler takes precedence. Routes that are ineligible or become stale use the ordinary Python CRUD pipeline. Plans are selected automatically at worker startup and checked once per second; a changed plan is disarmed until the worker restarts. This path adds no public setting.</p>
+<p>The measured phase 1 path is documented in the <a href="../rust-crud-orientation/">native CRUD orientation run</a>. It is a single-host, workload-specific measurement and does not establish general or production performance.</p>
+<h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
+<ul>
+<li>HTTP/1.1, plus HTTP/2 over TLS when <code>server.http2</code> is on (see below). No WebSocket or other protocol upgrades: an <code>Upgrade</code> header is ignored and the request is answered as plain HTTP, and the server never answers <code>101</code>. There is no cleartext HTTP/2 (neither prior knowledge nor <code>Upgrade: h2c</code>).</li>
+<li>A request line plus headers larger than <code>execution.max_header_bytes</code>, or a query longer than <code>execution.max_query_bytes</code>, is refused (<code>431</code>, <code>414</code>). A body larger than <code>execution.max_body_bytes</code> is refused with <code>413</code>, by <code>Content-Length</code> before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for <code>body_read_timeout</code> seconds (10 by default, never more than half of <code>execution.request_timeout</code>) gets <code>408</code>, and so does one that trickles data: the whole body must arrive within six times <code>body_read_timeout</code>.</li>
+<li>A client that does not finish its request headers within <code>header_read_timeout</code> seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.</li>
+<li>TLS is optional: set <code>server.tls_cert_file</code> and <code>server.tls_key_file</code> (PEM; the key may be PKCS#8, PKCS#1 or SEC1) and Kiso speaks HTTPS with rustls (TLS 1.2 and 1.3, the library's default cipher suites, no client certificates, ALPN <code>http/1.1</code>, or <code>h2</code> then <code>http/1.1</code> with <code>server.http2</code>). The files are read once at start, so a renewed certificate needs a restart (a rolling restart of the workers is enough). A plaintext client on a TLS port gets a TLS alert, never an answer, and the handshake must finish within <code>header_read_timeout</code>. Requests over TLS have the scheme <code>https</code>, so the HSTS policy applies. Granian takes the same two settings (the framework asks it for TLS 1.2 and up and HTTP/1.1 only, as Kiso does, unless <code>server.http2</code> is on). A trusted proxy's <code>X-Forwarded-Proto</code> overrides the scheme, <code>http</code> included, on both servers. The handshake and the request head each have their own <code>header_read_timeout</code>, so a slow client can hold a connection slot for up to twice that time. Behind a proxy that terminates TLS, leave them unset and list the proxy in <code>trusted_proxies</code> instead.</li>
+<li>HTTP/2 is opt-in: set <code>server.http2 = true</code> together with the TLS files (it is a settings error without them, on both servers). The server then offers ALPN <code>h2</code> and <code>http/1.1</code> and serves each connection with the protocol it negotiated; a client that offers only <code>http/1.1</code>, or no ALPN, still gets HTTP/1.1. Requests reach the application unchanged, with <code>http_version</code> <code>2</code> in the ASGI scope; the <code>:authority</code> pseudo-header becomes the <code>Host</code> and wins over a <code>host</code> header that differs. Limits are fixed, not settings: 32 concurrent streams per connection (the 33rd is refused), a 64 KiB stream window, header lists bounded by <code>execution.max_header_bytes</code> and at most 100 header lines per request (<code>cookie</code> fields count once; more is answered <code>431</code>), and the h2 library's rapid-reset protections. A connection counts as one slot of <code>max_connections</code>, but every stream in flight uses backend capacity (the in-flight limit and the queue) like a request of its own, so size those limits for connections times 32. The server also drops a connection on which more than 100 streams end before their response completed (client resets) within a fixed 10-second window; it is closed without a <code>GOAWAY</code>. The count is per connection, not per client: a client can pass about twice the bound across a window boundary, and a new connection starts from zero. A connection with no open stream for <code>header_read_timeout</code> is closed gracefully (<code>GOAWAY</code>; a stream opened in the race with the <code>GOAWAY</code> is accepted and then cut when the shutdown timeout ends). A response that sends no data for <code>write_timeout</code> seconds (a client that keeps its flow-control window at zero, or stopped reading) also gets the connection a <code>GOAWAY</code>: hyper cannot reset one stream from outside, so the other streams have the shutdown timeout to finish and the stalled one is cut with the connection. Progress is tracked per response, so opening new streams does not hide a stalled one. Keep-alive pings every 30 seconds drop a peer that stopped answering. Set <code>write_timeout</code> above 32 x 16 KiB divided by the slowest client bandwidth you expect to serve: HTTP/2 shares the window between streams unevenly, so on a slow link each of 32 concurrent downloads can wait that long between two chunks and be taken for stalled while bytes still flow. A request with several <code>host</code> headers and no <code>:authority</code> is refused with <code>400</code>. A client that trickles the head of one stream while others are open is not bounded by <code>header_read_timeout</code>. On stop the server sends <code>GOAWAY</code>, lets streams in flight finish, and aborts what is left after the shutdown timeout. Not provided: cleartext HTTP/2 (h2c), server push, and WebSocket or <code>CONNECT</code> over HTTP/2. Granian with <code>server.http2</code> negotiates HTTP/2 itself (<code>http</code> mode <code>auto</code>), under its own limits.</li>
+<li>A client that stops reading a response for <code>write_timeout</code> seconds (30 by default) is disconnected; any progress restarts the timer.</li>
+<li><code>max_connections</code> (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is <code>503</code>.</li>
+<li>Requests with ambiguous framing (for example <code>Content-Length</code> together with <code>Transfer-Encoding</code>, repeated lengths, or a bare line feed in the head) are refused with <code>400</code> and the connection is closed.</li>
+<li>On start, Kiso names itself on stderr before the <code>listening on ...</code> line (which stays on stdout, where tools wait for it): its version, the mode (<code>serve</code> or <code>dev</code>, which reloads on file changes), the worker count, the scheme, whether the access log is on and whether the native handler lane is on. In a terminal (and with <code>NO_COLOR</code> unset) it is two lines with the name in bold; otherwise it is one plain line, for example <code>Kiso 0.0.1 (Hinoki's Rust server): serve, 4 workers, http, access log off, native lane on</code>.</li>
+<li>The access log is one line per answered request, written to stderr by Kiso: <code>127.0.0.1:52341 - "GET /items?limit=5 HTTP/1.1" 200 OK 3.2ms</code>. The time is how long the server took to decide the answer, not including writing it to the client, and the line is printed for every answer, including the ones the server gives itself (<code>404</code>, <code>429</code>, <code>503</code>). When stderr is a terminal (and <code>NO_COLOR</code> is unset) the line is coloured in the style of a development console: <code>INFO:</code> in green, the request in bold, the status by class (2xx green, 3xx cyan, 4xx yellow, 5xx red) and the time dimmed. Control characters in the target are shown as <code>\xNN</code>. <code>server.access_log_format = "json"</code> writes one JSON object per line instead, for a log pipeline: <code>{"time":"2026-11-19T19:56:25.881Z","peer":"127.0.0.1:52341","method":"GET","path":"/items","query":"limit=5","http_version":"1.1","status":200,"duration_ms":3.2,"lane":"python"}</code>; <code>time</code> is RFC 3339 UTC, <code>lane</code> says where the request was first routed (<code>early</code> for an answer from the transport or the classifier, <code>python</code>, or <code>native</code> for the <a href="#the-native-handler-lane">native handler lane</a>) and <code>route</code> is the pattern that matched, e.g. <code>/items/{id}</code>, so requests can be grouped without parsing paths (absent when no route matched) and quotes and control characters are escaped. <code>server.access_log_format = "logger"</code> hands each request to the Python <code>hinoki.access</code> logger instead of writing to stderr, so your own handlers, formatters and filters (see <a href="../settings/#your-own-loggers">your own loggers</a>) decide where it goes; each record carries the JSON fields as <code>record.access</code>. Kiso queues up to 4096 records and a logging thread passes them to Python in batches, taking the GIL once per batch; when the logger falls behind, new records are dropped rather than slowing requests. Setting a format turns the log on, in <code>serve</code> too, unless <code>access_log</code> is <code>false</code>. <code>access_log_skip = ["/health", "/static/*"]</code> leaves noisy paths out and <code>access_log_slow_ms = 100</code> keeps only slow answers; failures (status 400 and up) are always logged.</li>
+<li>A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.</li>
+</ul>
+<h2 id="workers-signals-and-restarts">Workers, signals and restarts<a class="headerlink" href="#workers-signals-and-restarts" title="Permanent link">&para;</a></h2>
+<p>With one worker <code>hinoki serve</code> runs the server in its own process. With several workers (and always under <code>hinoki dev</code>) it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
+<ul>
+<li><code>SIGTERM</code>, <code>SIGINT</code> (Ctrl-C) or <code>SIGHUP</code> stops accepting, lets running requests finish for up to <code>lifecycle.shutdown_timeout</code>, runs the lifespan shutdown and exits. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. <code>--workers</code> must be 1 to 256 (<code>0</code> uses <code>server.workers</code>).</li>
+<li>A worker that exits on its own, whether it failed to start or crashed, is not restarted: the supervisor stops the other workers and exits with a non-zero status. Restart policy belongs to the process manager (systemd, a container runtime) that runs <code>hinoki serve</code>.</li>
+<li>The listening socket is opened before the lifespan startup of a supervised worker finishes, so connections wait in the backlog until a worker accepts them. With one worker the socket is opened after a successful startup.</li>
+<li>If the supervisor is killed without a chance to clean up, its workers notice within a second of finishing their startup and stop. The workers' copy of the listening socket is not inherited by processes a handler starts.</li>
+<li>A socket that cannot be opened (address in use, a bad port or host) is reported as <code>error: cannot listen on HOST:PORT: ...</code> with exit status 2, with one worker or several.</li>
+</ul>
+<h2 id="reload-with-hinoki-dev">Reload with <code>hinoki dev</code><a class="headerlink" href="#reload-with-hinoki-dev" title="Permanent link">&para;</a></h2>
+<p>The supervisor watches the project directory (<code>*.py</code>, <code>*.toml</code> and <code>.env</code> files; <code>.venv</code>, <code>.git</code> and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short <code>error: cannot load ...</code> line for a missing module or name, a traceback for other failures), <code>waiting for changes</code> follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, <code>backlog</code> and the choice of server are read once when <code>hinoki dev</code> starts: change them and restart the command. The other <code>server</code> settings (limits, <code>trusted_proxies</code>, <code>runtime_threads</code>) are read again by every restarted worker. The watcher ignores <code>.venv</code> but not a virtual environment with another name, such as <code>venv/</code>: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. <code>dev</code> needs <code>watchfiles</code> (the <code>hinoki[server]</code> extra) and uses one worker.</p>
+<h2 id="behind-a-reverse-proxy">Behind a reverse proxy<a class="headerlink" href="#behind-a-reverse-proxy" title="Permanent link">&para;</a></h2>
+<p><code>server.trusted_proxies</code> works as described in <a href="../web-security/#reverse-proxies-and-request-ids">Hosts, CORS and HTTPS</a>: the native layer matches the TCP peer against it for the request ID and the HSTS and scheme policy of its own answers, and the request pipeline resolves the forwarded scheme and client address of the requests it handles from the same peer. The rate limit of a natively served route resolves its client the same way, so <code>RateLimitContext.client</code> is the same on both lanes. Two points to know:</p>
+<ul>
+<li>Entries are IP addresses or CIDRs. An IPv6 address with a zone id such as <code>fe80::1%lo0</code> is refused when settings load, for either server (earlier versions loaded it and the ASGI path matched it; Kiso cannot take it).</li>
+<li>On a listener bound to <code>::</code> that also accepts IPv4 (the default on many systems, for example Linux with <code>bindv6only=0</code> and macOS), an IPv4 peer appears as <code>::ffff:a.b.c.d</code>. A plain IPv4 entry such as <code>10.0.0.5</code> or <code>10.0.0.0/8</code> then never matches, and the proxy is treated as untrusted. That fails closed, and the ASGI path behaves the same. Either bind an IPv4 host (<code>--host 0.0.0.0</code>) or list the mapped form, for example <code>::ffff:10.0.0.0/104</code>.</li>
+<li>A request ID that a trusted proxy sent and Hinoki refused is logged as <code>ignored invalid request ID from trusted proxy</code>; for requests answered natively the warning is aggregated once a second with a count.</li>
+</ul>
+<h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A build whose native extension has no Kiso fails <code>--server kiso</code> with an error that says so.</li>
+<li>A socket that cannot be opened is reported as <code>error: cannot listen on HOST:PORT: ...</code> with exit status <code>2</code>.</li>
+<li>A worker that exits on its own is not restarted: restart policy belongs to your process manager.</li>
+</ul>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../serving/">Serve an application</a></li>
+<li><a href="../request-lifecycle/">Request lifecycle</a></li>
+<li><a href="../rust-crud-orientation/">Native CRUD orientation run</a></li>
+</ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../serving/">Serve an application</a></li><li><a href="../request-lifecycle/">Request lifecycle</a></li><li><a href="../rust-crud-orientation/">Generated CRUD on the native path</a></li></ul>
+        </aside>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../serving/"><small>Previous</small><span>Serve an application</span></a>
+        <a class="pager__link pager__link--next" href="../testing/"><small>Next</small><span>Test an application</span></a>
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#limits">Limits</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#reload-with-hinoki-dev">Reload with hinoki dev</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Sheet</dt><dd>3.31</dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>19 min</dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <span>hinoki <span data-docs-version-footer>v0.0.1</span> · pre-alpha · MIT · © 2026 caspel26</span>
+      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://caspel26.github.io/hinoki/dev" };</script>
+  <script src="../static/js/hinoki.js" defer></script>
+  
+</body>
+</html>

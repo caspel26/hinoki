@@ -5,6 +5,10 @@
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
+         <loc>https://caspel26.github.io/hinoki/dev/admin-customize/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
          <loc>https://caspel26.github.io/hinoki/dev/admin/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
@@ -22,6 +26,10 @@
     </url>
     <url>
          <loc>https://caspel26.github.io/hinoki/dev/benchmarks/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/class-endpoints/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
@@ -65,6 +73,10 @@
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
+         <loc>https://caspel26.github.io/hinoki/dev/function-endpoints/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
          <loc>https://caspel26.github.io/hinoki/dev/getting-started/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
@@ -77,7 +89,19 @@
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
+         <loc>https://caspel26.github.io/hinoki/dev/inspect/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/kiso/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
          <loc>https://caspel26.github.io/hinoki/dev/migrations/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/model-hooks/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
@@ -97,6 +121,10 @@
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
+         <loc>https://caspel26.github.io/hinoki/dev/new-project/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
          <loc>https://caspel26.github.io/hinoki/dev/openapi/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
@@ -106,6 +134,10 @@
     </url>
     <url>
          <loc>https://caspel26.github.io/hinoki/dev/patterns/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/queries/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
@@ -121,11 +153,27 @@
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
+         <loc>https://caspel26.github.io/hinoki/dev/routes/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
          <loc>https://caspel26.github.io/hinoki/dev/rules/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
          <loc>https://caspel26.github.io/hinoki/dev/rust-crud-orientation/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/schema-collections/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/schema-types/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/schema-validation/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>
@@ -174,6 +222,10 @@
     </url>
     <url>
          <loc>https://caspel26.github.io/hinoki/dev/utilities/</loc>
+         <lastmod>2026-11-20</lastmod>
+    </url>
+    <url>
+         <loc>https://caspel26.github.io/hinoki/dev/web-security/</loc>
          <lastmod>2026-11-20</lastmod>
     </url>
     <url>

@@ -251,36 +251,117 @@
     <main class="main" id="main">
       <article class="prose" style="--sheet: '2.9'">
         <p class="kicker" data-search-exclude>2.9 · Tutorial</p>
-        <h1 id="8-create-a-project-and-modular-app">8. Create a project and modular app<a class="headerlink" href="#8-create-a-project-and-modular-app" title="Permanent link">&para;</a></h1>
-<p>The Tracker steps above use an existing example with checked-in migrations. For a new project, <code>hinoki new</code> creates the <code>hinoki.toml</code> manifest and registers its first app. Each additional app owns its model and migration modules.</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>hinoki<span class="w"> </span>new<span class="w"> </span>notes
-<span class="nb">cd</span><span class="w"> </span>notes
-uv<span class="w"> </span>sync
+        <h1 id="8-projects-and-apps">8. Projects and apps<a class="headerlink" href="#8-projects-and-apps" title="Permanent link">&para;</a></h1>
+<p>An app is a package with its own models, migrations and routes, registered in
+<code>hinoki.toml</code>. This chapter adds a <code>billing</code> app to the <code>notes</code> project from the
+<a href="../../quick-start/">Quick start</a>.</p>
+<h2 id="create-the-app">Create the app<a class="headerlink" href="#create-the-app" title="Permanent link">&para;</a></h2>
+<p>From the project root:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create
 </code></pre></div>
-<p>The generated manifest registers <code>notes.models</code> and <code>notes.migrations</code>. The scaffold also includes a health endpoint, typed settings, rules, a test, and agent instructions. The manifest also names the project's list of routes (<code>routes = "notes.routes:routes"</code>): <code>main.py</code> has no <code>include=</code>, because the application that <code>hinoki.toml</code> names binds those routes itself. Hinoki does not scan installed packages for apps.</p>
-<p>Add an independently organized app:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
+<table>
+<thead>
+<tr>
+<th>Prompt</th>
+<th>Default</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>App name</td>
+<td></td>
+<td><code>billing</code></td>
+</tr>
+<tr>
+<td>URL prefix</td>
+<td><code>/billing</code></td>
+<td><code>/billing</code></td>
+</tr>
+<tr>
+<td>Depends on</td>
+<td></td>
+<td>(none)</td>
+</tr>
+</tbody>
+</table>
+<p>The command writes the package and registers it:</p>
+<div class="highlight"><pre><span></span><code>notes/apps/billing/
+├── models.py      tables of the app
+├── routes.py      endpoints, mounted at the prefix
+└── migrations/    migration history
 </code></pre></div>
-<p>This creates <code>notes/apps/billing/models.py</code>, <code>notes/apps/billing/routes.py</code> (an empty <code>routes</code> list) and <code>notes/apps/billing/migrations/</code>, then adds the module paths to <code>hinoki.toml</code>, including <code>routes</code> and <code>prefix = "/billing"</code>: whatever you list in <code>billing/routes.py</code> is served under <code>/billing</code>. If billing references a model from another app, add that app to billing's <code>requires</code> list so Hinoki can validate and order migrations.</p>
-<p>Add a model to the generated <code>notes/apps/billing/models.py</code> (or the app's declared models module):</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+<div class="highlight"><pre><span></span><code><span class="k">[[apps]]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.migrations"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.routes:routes"</span>
+<span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/billing"</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+</code></pre></div>
+<p>Hinoki reads apps only from <code>hinoki.toml</code>; it never scans installed packages.
+If billing later references a model of another app, list that app in
+<code>requires</code>: migrations then run in dependency order.</p>
+<h2 id="add-a-model">Add a model<a class="headerlink" href="#add-a-model" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">pk</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 
+<span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Invoice</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">reference</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">paid</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
-<p>Plan its migration from the project root. The app name is required when more than one app is registered:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--dry-run
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span><span class="m">0001</span>-create-table-billing-invoices
+<p>The table name is derived: <code>billing_invoices</code>, the app followed by the plural
+model name. Pin it with <code>@db.table(...)</code> only to keep a physical name stable,
+for example when you rename the class.</p>
+<h2 id="plan-and-apply-the-migration">Plan and apply the migration<a class="headerlink" href="#plan-and-apply-the-migration" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>billing
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
-<p>Hinoki assigns the next migration number and derives a stable slug from the first schema change, such as <code>create-table-billing-invoices</code> (the table is <code>billing_invoices</code>: the app, then the model). You can optionally override just the slug with <code>--name add-invoice-table</code>. Review the generated SQL and state file before applying it. With no database URL configured, <code>status</code> and <code>apply</code> initialize the local SQLite database at <code>.hinoki/local.sqlite3</code>. Set <code>HINOKI_DATABASE_URL</code> to target another supported backend. Migrations are explicit commands and never run automatically when the app starts.</p>
-<p>See <a href="../../migrations/">project migrations</a> for dependency ordering, destructive changes and existing projects that still use explicit <code>--models</code> and <code>--dir</code> targets.</p>
+<div class="highlight"><pre><span></span><code>create table billing_invoices
+wrote …/notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
+notes: nothing to apply
+billing: 0001-create-table-billing-invoices
+</code></pre></div>
+<p><code>plan</code> compares the models with the recorded migration state and writes the
+next migration; the number and the slug come from the change. Review the
+<code>.sql</code> file before you apply it. With more than one app, <code>plan</code> needs the app
+name; <code>apply</code> runs every app in dependency order.</p>
+<div class="admonition note">
+<p class="admonition-title">Where the data goes</p>
+<p>With no database URL, <code>apply</code> creates <code>.hinoki/local.sqlite3</code> beside
+<code>hinoki.toml</code>. Set <code>HINOKI_DATABASE_URL</code> to target another database.
+Migrations never run when the application starts.</p>
+</div>
+<h2 id="check-the-project">Check the project<a class="headerlink" href="#check-the-project" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check
+uv<span class="w"> </span>run<span class="w"> </span>pytest
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>8 rule(s): 0 violated, 0 unverifiable, 0 waived
+</code></pre></div>
+<p>Endpoints for billing go in the app, and <code>notes/apps/billing/routes.py</code> lists
+them: <code>hinoki.toml</code> mounts that list at <code>/billing</code>, so paths inside the app
+never repeat the prefix. The project's rules require every action to name an
+<code>Access</code> policy with permissions; build one as in <a href="../4-endpoints/">chapter 4</a>.</p>
+<h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>hinoki app create</code> writes an app and registers it in <code>hinoki.toml</code>.</li>
+<li>Table names, migration numbers and slugs are derived; you review the SQL.</li>
+<li>The manifest sets each app's prefix; code never repeats it.</li>
+</ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../../migrations/">Migrations</a></li><li><a href="../../cli/">Command line</a></li><li><a href="../../modules/">Application modules</a></li></ul>
+        </aside>
         
       </article>
 
@@ -298,14 +379,14 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#8-create-a-project-and-modular-app">8. Create a project and modular app</a></li></ul>
+            <ul><li><a href="#create-the-app">Create the app</a></li><li><a href="#add-a-model">Add a model</a></li><li><a href="#plan-and-apply-the-migration">Plan and apply the migration</a></li><li><a href="#check-the-project">Check the project</a></li><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:41:13 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>

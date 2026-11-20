@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Model-derived schemas · Hinoki</title>
+  <title>Schemas from models · Hinoki</title>
   <meta name="description" content="A Python API framework that checks its own architecture.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="Model-derived schemas · Hinoki">
+  <meta property="og:title" content="Schemas from models · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -150,7 +150,7 @@
   
   
 
-  <div class="shell" data-sheet="3.5">
+  <div class="shell" data-sheet="3.13">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -219,31 +219,51 @@
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>3.5</i><span>Model-derived schemas</span></a></li>
+                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.6</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.7</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.8</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.9</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./"><i>3.13</i><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -255,27 +275,39 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.10</i><span>Endpoint declarations</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.11</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../class-endpoints/"><i>3.16</i><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.12</i><span>OpenAPI</span></a></li>
+                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.13</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.14</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.15</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -287,11 +319,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.16</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.17</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
               
             
             </ul>
@@ -303,35 +339,47 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.18</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.19</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.20</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.21</i><span>Serving</span></a></li>
+                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.22</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.23</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.24</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.25</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
               
             
             </ul>
@@ -343,19 +391,23 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.26</i><span>Admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.27</i><span>Application MCP</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.28</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.29</i><span>Development tools</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -367,23 +419,15 @@
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.30</i><span>Sync and async</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
               
             
               
-                <li class="side__group"><span>Benchmarks</span>
-            <ul class="side__list">
-            
-              
-                <li><a class="side__link" href="../benchmarks/"><i>3.31</i><span>Comparative results</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.32</i><span>Native CRUD orientation</span></a></li>
-              
-            
-            </ul>
-          </li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -397,31 +441,33 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.5'">
-        <p class="kicker" data-search-exclude>3.5 · Guides</p>
-        <h1 id="schemas-derived-from-models">Schemas derived from models<a class="headerlink" href="#schemas-derived-from-models" title="Permanent link">&para;</a></h1>
-<p>Each example below includes its own imports. <code>Post</code> is the blog example's
-model (<code>examples/blog/models.py</code>).</p>
-<p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code>. Pass the source model to the single <code>@derive(Model, ...)</code> decorator when selecting or making fields optional. A class without a decorator can still use <code>model=Model</code> to derive every column during the compatibility cycle.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+      <article class="prose" style="--sheet: '3.13'">
+        <p class="kicker" data-search-exclude>3.13 · Guides</p>
+        <h1 id="schemas-from-models">Schemas from models<a class="headerlink" href="#schemas-from-models" title="Permanent link">&para;</a></h1>
+<p>A <code>Schema</code> can take its fields and constraints from a <code>Model</code> with
+<code>@derive(Model, ...)</code>. Response handlers convert rows explicitly with
+<code>from_model</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/schemas.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
 
-
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"slug"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">))</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostCreate</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Invoice</span>
 
 
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="s2">"author_id"</span><span class="p">,))</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">author_name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">,))</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 
 
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"body"</span><span class="p">),</span> <span class="n">partial</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostPatch</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="s2">"customer_id"</span><span class="p">,))</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">customer_name</span><span class="p">:</span> <span class="nb">str</span>
 
 
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostAll</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">,</span> <span class="s2">"paid"</span><span class="p">),</span> <span class="n">partial</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoicePatch</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+
+
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceRow</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 </code></pre></div>
 <table>
 <thead>
@@ -432,162 +478,113 @@ model (<code>examples/blog/models.py</code>).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>@derive(Post, ...)</code></td>
-<td>source model and field selection</td>
+<td><code>@derive(Invoice)</code></td>
+<td>every column</td>
 </tr>
 <tr>
 <td><code>only=("a", "b")</code></td>
-<td>take exactly these columns</td>
+<td>exactly these columns</td>
 </tr>
 <tr>
 <td><code>exclude=("a",)</code></td>
-<td>take every column except these</td>
+<td>every column except these</td>
 </tr>
 <tr>
 <td><code>partial=True</code></td>
-<td>make every selected derived field optional (<code>UNSET</code> when absent)</td>
+<td>every selected field optional (<code>UNSET</code> when absent)</td>
 </tr>
 <tr>
 <td><code>partial=("a",)</code></td>
-<td>make only the named selected fields optional</td>
+<td>only the named fields optional</td>
 </tr>
 </tbody>
 </table>
-<p><code>only</code> and <code>exclude</code> cannot be combined. An empty <code>only=()</code> is invalid; <code>exclude=()</code> is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument <code>super()</code> as usual.</p>
-<p>Unknown columns, a non-model, an empty <code>only</code>, optional names outside the selection, a class that is not a <code>Schema</code>, or a second <code>@derive</code> on the same class fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use <code>only</code> or <code>exclude</code> when the API must omit private fields. During the compatibility cycle, a keyword-only <code>@derive(only=...)</code> on a class declared with the <code>model=Model</code> class keyword remains valid and emits <code>DeprecationWarning</code>; use <code>@derive(Model, options...)</code> for new code. Passing the model both ways is a <code>RegistrationError</code>.</p>
-<h3 id="inheriting-from-a-schema">Inheriting from a Schema<a class="headerlink" href="#inheriting-from-a-schema" title="Permanent link">&para;</a></h3>
-<p>A derived class inherits its base's fields as usual, and <code>only</code> or <code>exclude</code>
-cannot remove an inherited field. To fail closed, a derivation whose selection
-leaves out a model column that a base Schema already declares raises
-<code>RegistrationError</code> when the class is declared, naming the field and the base:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
-
-
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostAll</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
-
-
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,))</span>  <span class="c1"># RegistrationError: inherited field 'id' from PostAll</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">TitleOnly</span><span class="p">(</span><span class="n">PostAll</span><span class="p">):</span> <span class="o">...</span>
+<p>Column types, maximum lengths, defaults and nullability carry over. Annotations
+in the class body add or override fields; methods and checks are kept.
+Relations are not derived: declare nested shapes explicitly. Derivation takes
+every column by default, so use <code>only</code> or <code>exclude</code> when a column is private.</p>
+<p>These fail when the class is declared, with <code>RegistrationError</code>: unknown
+columns, a non-model, <code>only</code> together with <code>exclude</code>, an empty <code>only=()</code>,
+<code>partial</code> names outside the selection, a class that is not a <code>Schema</code>, and a
+second <code>@derive</code>. (<code>exclude=()</code> selects every column.) The older <code>model=</code> class
+keyword is deprecated and emits <code>DeprecationWarning</code>.</p>
+<h2 id="inherit-from-a-derived-schema">Inherit from a derived schema<a class="headerlink" href="#inherit-from-a-derived-schema" title="Permanent link">&para;</a></h2>
+<p>A subclass inherits its base's fields; <code>only</code> and <code>exclude</code> cannot remove them.
+A derivation that would leave out a column the base declares fails closed:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">,))</span>  <span class="c1"># RegistrationError: inherited field 'id'</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ReferenceOnly</span><span class="p">(</span><span class="n">InvoiceRow</span><span class="p">):</span> <span class="o">...</span>
 </code></pre></div>
-<p>Derive the narrower Schema from <code>Schema</code> (or from a base that declares only the
-columns it keeps). A selection that keeps or widens the inherited columns is
-allowed, and a field redeclared in the class body is kept on purpose.</p>
-<h2 id="return-a-model-from-a-schema-annotated-handler">Return a Model from a Schema-annotated handler<a class="headerlink" href="#return-a-model-from-a-schema-annotated-handler" title="Permanent link">&para;</a></h2>
-<p>When a handler declares one concrete response <code>Schema</code>, Hinoki converts a
-directly returned <code>Model</code> with that Schema's <code>from_model()</code> projection:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+<p>Derive the narrower schema from <code>Schema</code> instead. A selection that keeps or
+widens the inherited columns is allowed.</p>
+<h2 id="convert-rows">Convert rows<a class="headerlink" href="#convert-rows" title="Permanent link">&para;</a></h2>
+<p>Return a <code>Schema</code>, never a <code>Model</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">RouteGroup</span><span class="p">,</span> <span class="n">errors</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Page</span><span class="p">,</span> <span class="n">PageNumberPagination</span><span class="p">,</span> <span class="n">PageParams</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Invoice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceOut</span>
+
+<span class="n">invoices</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">)</span>
 
 
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"title"</span><span class="p">))</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">PostSummary</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_out</span><span class="p">(</span><span class="n">invoice</span><span class="p">:</span> <span class="n">Invoice</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceOut</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">InvoiceOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">invoice</span><span class="p">,</span> <span class="n">customer_name</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">customer</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/posts/</span><span class="si">{post_id}</span><span class="s2">"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">one</span><span class="p">(</span><span class="n">post_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PostSummary</span><span class="p">:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">aget</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">post_id</span><span class="p">)</span>  <span class="c1"># type: ignore[return-value]</span>
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">pagination</span><span class="o">=</span><span class="n">PageNumberPagination</span><span class="p">())</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_invoices</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">InvoiceOut</span><span class="p">]:</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"customer"</span><span class="p">)</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">rows</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">to_out</span><span class="p">)</span>
+
+
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_invoice</span><span class="p">(</span><span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceOut</span><span class="p">:</span>
+    <span class="n">invoice</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">invoice_id</span><span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"customer"</span><span class="p">)</span><span class="o">.</span><span class="n">aget</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">to_out</span><span class="p">(</span><span class="n">invoice</span><span class="p">)</span>
 </code></pre></div>
-<p>The declared Schema decides what is sent for these results:</p>
-<table>
-<thead>
-<tr>
-<th>Handler result</th>
-<th>Response body</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>an instance of the declared Schema</td>
-<td>sent as is</td>
-</tr>
-<tr>
-<td>an instance of a subclass of the declared Schema</td>
-<td>only the declared Schema's fields; the subclass's extra fields are dropped</td>
-</tr>
-<tr>
-<td>one <code>Model</code> row</td>
-<td><code>from_model()</code> projection of that row</td>
-</tr>
-<tr>
-<td>a <code>Model</code> row that fails the Schema's constraints</td>
-<td><code>500 internal_error</code> with the request id; the <code>ValidationError</code> is logged as the cause and not sent to the client</td>
-</tr>
-<tr>
-<td>a <code>Model</code> of another class than the Schema's source model</td>
-<td><code>500 internal_error</code></td>
-</tr>
-<tr>
-<td>a list or <code>Page</code> of <code>Model</code> rows</td>
-<td><code>500 internal_error</code>; convert explicitly with <code>from_models()</code></td>
-</tr>
-<tr>
-<td>a <code>dict</code> or other plain value</td>
-<td><code>500 internal_error</code>; sent unchanged only with <code>validate_response=False</code></td>
-</tr>
-</tbody>
-</table>
+<ul>
+<li><code>from_model(row, **extra)</code> reads the attributes the schema needs; <code>extra</code>
+  fills fields the model lacks, such as <code>customer_name</code>. A missing attribute
+  raises <code>AttributeError</code>.</li>
+<li><code>from_models(rows, **extra)</code> converts a list; <code>extra</code> is shared by every row.
+  For a page, <code>Page.map(InvoiceOut.from_model)</code>.</li>
+<li>Relations must be loaded first (<code>select_related</code>); nothing is fetched lazily.</li>
+<li>An invalid stored value (longer than the schema allows) is the server's
+  fault: it becomes <code>500 internal_error</code>, logged with the <code>ValidationError</code>,
+  never a client 422.</li>
+</ul>
 <div class="admonition note">
-<p class="admonition-title">Plain values are checked</p>
-<p>A returned <code>dict</code> (or any other non-Schema, non-Model value) where the
-annotation names a <code>Schema</code> is a <code>500 internal_error</code>: the annotation is
-enforced at runtime (see <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>).
-Return a Schema instance or a Model; declare the action with
-<code>validate_response=False</code> only to send a value as it is.</p>
+<p class="admonition-title">Returning a model</p>
+<p>A handler annotated with one concrete <code>Schema</code> still converts a single
+returned <code>Model</code> of the derived class at runtime, but type checkers reject
+it and the <code>HNK-API-001</code> rule (<code>Actions.forbid_model_responses</code>) reports
+it. Lists or pages of models, models of another class, and plain <code>dict</code>
+values are <code>500 internal_error</code> unless the action sets
+<code>validate_response=False</code>. A subclass instance is sent with the declared
+fields only. See <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>.</p>
 </div>
-<p>A row that fails the Schema's constraints is the server's fault (for example a
-stored value longer than the Schema allows), so it is never reported as a
-client <code>422</code>. No relation is loaded implicitly. For a computed field such as
-<code>author_name</code>, keep using <code>PostOut.from_model(post, author_name=...)</code>.</p>
-<p>Static type checkers do not know about this runtime conversion: they see a
-<code>Post</code> returned from a function annotated <code>-&gt; PostSummary</code> as a type error.
-This is a limitation of static typing, not of the handler, so the intentional
-Model return needs <code># type: ignore[return-value]</code> (or an explicit
-<code>PostSummary.from_model(...)</code> call, which type-checks without one). Derived
-fields are also not synthesized for static type checkers, so declare fields in
-the Schema body when they need static checking.</p>
-<h2 id="add-validation-checks">Add validation checks<a class="headerlink" href="#add-validation-checks" title="Permanent link">&para;</a></h2>
-<p>Use <code>@field_check("name")</code> for a rule on one or more structurally valid fields, and <code>@object_check</code> for a rule over the whole object. Raise <code>Invalid(code, message, path=...)</code> to report a problem. Checks are synchronous and must not perform I/O; database-dependent rules belong in an operation.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Invalid</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">field_check</span><span class="p">,</span> <span class="n">object_check</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">SignUp</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">username</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">)]</span>
-    <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">12</span><span class="p">)]</span>
-    <span class="n">confirmation</span><span class="p">:</span> <span class="nb">str</span>
-
-    <span class="nd">@field_check</span><span class="p">(</span><span class="s2">"username"</span><span class="p">)</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">username_characters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"_"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">isalnum</span><span class="p">():</span>
-            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span><span class="s2">"username_characters"</span><span class="p">,</span> <span class="s2">"use letters, numbers and _ only"</span><span class="p">)</span>
-
-    <span class="nd">@field_check</span><span class="p">(</span><span class="s2">"password"</span><span class="p">)</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">reject_common_password</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"password12345"</span><span class="p">,</span> <span class="s2">"qwerty123456"</span><span class="p">}:</span>
-            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span><span class="s2">"common_password"</span><span class="p">,</span> <span class="s2">"choose a less common password"</span><span class="p">)</span>
-
-    <span class="nd">@object_check</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">passwords_match</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">confirmation</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span><span class="s2">"mismatch"</span><span class="p">,</span> <span class="s2">"passwords do not match"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"confirmation"</span><span class="p">)</span>
-</code></pre></div>
-<p>Structural errors are reported before custom checks. All applicable check failures are returned together. See <a href="../schemas/">schemas</a> for the validation contract and conversion methods.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../schemas/">Schemas</a></li>
+<li><a href="../schema-validation/">Validate input</a></li>
+<li><a href="../crud/">Generate CRUD routes</a>: <code>read=</code>, <code>create=</code> and <code>update=</code> take these schemas</li>
+</ul>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../schemas/">Schemas</a></li><li><a href="../models/">Models and queries</a></li></ul>
+          <ul><li><a href="../schemas/">Schemas</a></li><li><a href="../models/">Define models</a></li><li><a href="../endpoints/">Requests and responses</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../schemas/"><small>Previous</small><span>Schemas</span></a>
-        <a class="pager__link pager__link--next" href="../model-options/"><small>Next</small><span>Model options</span></a>
+        <a class="pager__link pager__link--prev" href="../schema-validation/"><small>Previous</small><span>Validate input</span></a>
+        <a class="pager__link pager__link--next" href="../utilities/"><small>Next</small><span>Time and utilities</span></a>
       </nav>
     </main>
 
@@ -599,15 +596,15 @@ the Schema body when they need static checking.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#inheriting-from-a-schema">Inheriting from a Schema</a></li><li><a href="#return-a-model-from-a-schema-annotated-handler">Return a Model from a Schema-annotated handler</a></li><li><a href="#add-validation-checks">Add validation checks</a></li></ul>
+            <ul><li><a href="#inherit-from-a-derived-schema">Inherit from a derived schema</a></li><li><a href="#convert-rows">Convert rows</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.5</dd></div>
+          <div><dt>Sheet</dt><dd>3.13</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>4 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

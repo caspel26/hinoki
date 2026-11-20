@@ -224,21 +224,35 @@
       <article class="prose" style="--sheet: '1.1'">
         <p class="kicker" data-search-exclude>1.1 · Get started</p>
         <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<p>Hinoki is pre-alpha and this repository is not published on PyPI. The <a href="https://pypi.org/project/hinoki/"><code>hinoki</code> project name</a> currently resolves to an unrelated legacy package. Install this repository from source with <a href="https://docs.astral.sh/uv/">uv</a> and a stable Rust toolchain:</p>
+<p>Hinoki is pre-alpha and installs from a source checkout. You need:</p>
+<ul>
+<li>Python 3.12 or newer</li>
+<li><a href="https://docs.astral.sh/uv/">uv</a> 0.9 or newer</li>
+<li>a stable Rust toolchain from <a href="https://rustup.rs/">rustup</a></li>
+</ul>
+<h2 id="install-from-source">Install from source<a class="headerlink" href="#install-from-source" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/caspel26/hinoki
 <span class="nb">cd</span><span class="w"> </span>hinoki
 uv<span class="w"> </span>sync<span class="w"> </span>--locked
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>version
 </code></pre></div>
-<p><code>uv sync</code> builds the native extension and installs the development tools.</p>
-<h2 id="create-a-project">Create a project<a class="headerlink" href="#create-a-project" title="Permanent link">&para;</a></h2>
-<p>The CLI creates a small app with typed settings, default rules, tests and agent instructions:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>new<span class="w"> </span>bookmarks<span class="w"> </span>--dir<span class="w"> </span>..
-<span class="nb">cd</span><span class="w"> </span>../bookmarks
-uv<span class="w"> </span>sync
-uv<span class="w"> </span>run<span class="w"> </span>pytest
+<p><code>uv sync --locked</code> builds the Rust extension and installs the development tools.
+The last command confirms the installation:</p>
+<div class="highlight"><pre><span></span><code>hinoki 0.0.1
 </code></pre></div>
-<p>The generated project includes a health route listed in <code>routes.py</code> (the manifest points to it), a test that needs no database, a <code>README.md</code> with its commands and a development MCP configuration. Review <code>AGENTS.md</code> for its project commands and conventions. <code>pyproject.toml</code> names this repository as the source for <code>uv</code>, so it does not install the unrelated package by name; see <a href="../cli/#new"><code>hinoki new</code></a> to choose a checkout or a git revision with <code>--hinoki</code>.</p>
-<p>Continue with the <a href="../quick-start/">Quick start</a> to run the Notes API, create its table with a reviewed migration and make a request.</p>
+<div class="admonition warning">
+<p class="admonition-title">Not on PyPI</p>
+<p>The <a href="https://pypi.org/project/hinoki/"><code>hinoki</code> name on PyPI</a> belongs to an
+unrelated legacy package: do not install Hinoki by name. A project created
+with <code>hinoki new</code> points <code>uv</code> at this checkout in <code>pyproject.toml</code>
+(<code>[tool.uv.sources]</code>), so <code>uv sync</code> never fetches that package.</p>
+</div>
+<p>Next: the <a href="../quick-start/">Quick start</a> creates and serves a project.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../quick-start/">Quick start</a></li><li><a href="../cli/">Command line</a></li></ul>
+        </aside>
         
       </article>
 
@@ -256,14 +270,14 @@ uv<span class="w"> </span>run<span class="w"> </span>pytest
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#create-a-project">Create a project</a></li></ul>
+            <ul><li><a href="#install-from-source">Install from source</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>1.1</dd></div>
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 02:41:13 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/getting-started.md">Edit on GitHub</a></dd></div>
         </dl>

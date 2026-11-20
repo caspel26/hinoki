@@ -252,56 +252,106 @@
       <article class="prose" style="--sheet: '2.5'">
         <p class="kicker" data-search-exclude>2.5 · Tutorial</p>
         <h1 id="4-endpoints">4. Endpoints<a class="headerlink" href="#4-endpoints" title="Permanent link">&para;</a></h1>
-<p>The HTTP layer maps requests to operations and operations to responses. It contains no business rule and no SQL. The excerpt follows <code>examples/tracker/api.py</code>; the file also declares the public <code>health</code> route and sets the list's page sizes (<code>PageNumberPagination(page_size=10, max_page_size=50)</code>).</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+<p>The HTTP layer maps requests to operations and results to responses. It holds
+no business rule and no SQL.</p>
+<p>First, who may call. A bearer token resolves to a <code>Member</code>, and the policy
+names the permission that every task action requires:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/security.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">BearerAuth</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Permission</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">operations</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">DoneTasksAreKept</span><span class="p">,</span> <span class="n">TaskAlreadyDone</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span><span class="p">,</span> <span class="n">Task</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskIn</span><span class="p">,</span> <span class="n">TaskOut</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">RouteGroup</span><span class="p">,</span> <span class="n">errors</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TrackerPermission</span><span class="p">(</span><span class="n">Permission</span><span class="p">):</span>
+    <span class="n">USE</span> <span class="o">=</span> <span class="s2">"tasks:use"</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MemberTokens</span><span class="p">(</span><span class="n">BearerAuth</span><span class="p">[</span><span class="n">Member</span><span class="p">]):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_token</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">member</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">aget_or_none</span><span class="p">(</span><span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">member</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">Caller</span><span class="p">(</span>
+            <span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">member</span><span class="o">.</span><span class="n">id</span><span class="p">),</span> <span class="n">user</span><span class="o">=</span><span class="n">member</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">{</span><span class="n">TrackerPermission</span><span class="o">.</span><span class="n">USE</span><span class="p">}</span>
+        <span class="p">)</span>
+
+
+<span class="n">member_only</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">MemberTokens</span><span class="p">(),</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">TrackerPermission</span><span class="o">.</span><span class="n">USE</span><span class="p">])</span>
+</code></pre></div>
+<p>Then the actions. A public <code>health</code> check stands alone; a <code>RouteGroup</code> states
+the path prefix, the policy and the transaction once for the tasks:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">RouteGroup</span><span class="p">,</span> <span class="n">errors</span><span class="p">,</span> <span class="n">http</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Page</span><span class="p">,</span> <span class="n">PageNumberPagination</span><span class="p">,</span> <span class="n">PageParams</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">operations</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">DoneTasksAreKept</span><span class="p">,</span> <span class="n">TaskAlreadyDone</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskIn</span><span class="p">,</span> <span class="n">TaskOut</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
 
-<span class="k">def</span><span class="w"> </span><span class="nf">out</span><span class="p">(</span><span class="n">task</span><span class="p">:</span> <span class="n">Task</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span>
-    <span class="k">return</span> <span class="n">TaskOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">}</span>
 
 
-<span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># stated once</span>
+<span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="nd">@tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">pagination</span><span class="o">=</span><span class="n">PageNumberPagination</span><span class="p">())</span>
+<span class="nd">@tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">pagination</span><span class="o">=</span><span class="n">PageNumberPagination</span><span class="p">(</span><span class="n">page_size</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">max_page_size</span><span class="o">=</span><span class="mi">50</span><span class="p">))</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">TaskOut</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Your tasks, newest first."""</span>
-    <span class="k">return</span> <span class="p">(</span><span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">list_tasks</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">page</span><span class="p">))</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">list_tasks</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">page</span><span class="p">))</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">TaskOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">)</span>
 
 
 <span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_task</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">TaskIn</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
-
-
+    <span class="k">return</span> <span class="n">TaskOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">data</span><span class="p">))</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># tracker/api.py (continued)</span>
 <span class="nd">@tasks</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{task_id}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,</span> <span class="n">TaskAlreadyDone</span><span class="p">))</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">complete_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">complete_task</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">TaskOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">complete_task</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">task_id</span><span class="p">))</span>
 
 
 <span class="nd">@tasks</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/</span><span class="si">{task_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">204</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,</span> <span class="n">DoneTasksAreKept</span><span class="p">))</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">delete_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
 </code></pre></div>
-<p>The factory in the next chapter includes <code>tasks</code> in the application.</p>
 <ul>
-<li><strong>Access</strong> is a reusable policy (<code>member_only</code>) naming the provider that authenticates (a bearer token here) and the permissions required. Public is the default, so protect on purpose; a rule below enforces it.</li>
-<li><strong><code>atomic=True</code></strong> wraps writes in a transaction that commits after the response is encoded and rolls back before an error becomes HTTP.</li>
-<li><strong><code>errors=(...)</code></strong> declares what an action may raise. The status and code come from each error class; OpenAPI, the MCP tool description and the strict test client all use it.</li>
-<li><strong><code>caller: Caller[Member]</code></strong> is who is asking, typed: <code>caller.user</code> is your <code>Member</code>.</li>
-<li>A handler annotated with one response <code>Schema</code> may return a <code>Model</code> directly; Hinoki projects it through that Schema. Lists and pages still use explicit mapping.</li>
-<li>The <code>request</code> object is optional: declare <code>request: Request</code> first only when you need headers, cookies or the raw body.</li>
+<li><strong><code>access=</code></strong> names a reusable policy. Actions are public unless they name
+  one, so protect on purpose; a rule in the next chapter enforces it.</li>
+<li><strong><code>atomic=True</code></strong> runs each write in a transaction. It commits after the
+  response is encoded and rolls back before an error becomes HTTP.</li>
+<li><strong><code>errors=(...)</code></strong> declares what an action may raise. The OpenAPI document,
+  the MCP tool description and the strict test client all read it.</li>
+<li><strong><code>caller: Caller[Member]</code></strong> is the authenticated caller, typed:
+  <code>caller.user</code> is your <code>Member</code>.</li>
+<li><strong><code>TaskOut.from_model(...)</code></strong> converts a row into the response. A handler
+  never returns a model; lists and pages use <code>.map(...)</code>.</li>
 </ul>
-<p>For bounded file uploads, declare <code>UploadedFile</code> or <code>list[UploadedFile]</code> parameters and Hinoki selects <code>MultiPartParser</code> for that action. The <a href="../../endpoints/#upload-files">endpoint guide</a> covers optional files, limits and OpenAPI output.</p>
-<p>Next: <a href="../5-rules/">5. Rules</a>.</p>
+<p>Declare <code>request: Request</code> as the first parameter only when you need headers,
+cookies or the raw body. File uploads are covered in
+<a href="../../endpoints/#upload-files">upload files</a>.</p>
+<h2 id="register-the-routes">Register the routes<a class="headerlink" href="#register-the-routes" title="Permanent link">&para;</a></h2>
+<p>In a project, <code>routes.py</code> lists the groups and <code>hinoki.toml</code> mounts them
+(<a href="../8-projects/">chapter 8</a>). Tracker's factory includes <code>tasks</code> directly,
+because <code>examples/</code> hosts three applications (<a href="../6-run/">chapter 6</a>).</p>
+<h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A <code>RouteGroup</code> states access, transactions and the prefix once.</li>
+<li>Handlers call operations and convert rows with <code>from_model</code>.</li>
+<li>Every error an action raises is declared.</li>
+</ul>
+<p>Next: <a href="../5-rules/">5. Rules</a>. In the guides: <a href="../../function-endpoints/">function-based APIs</a> and <a href="../../class-endpoints/">class-based APIs</a>.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../../endpoints/">Requests and responses</a></li><li><a href="../../authentication/">Authentication and access</a></li><li><a href="../../transactions/">Transactions</a></li></ul>
+        </aside>
         
       </article>
 
@@ -319,14 +369,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#4-endpoints">4. Endpoints</a></li></ul>
+            <ul><li><a href="#register-the-routes">Register the routes</a></li><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.5</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/4-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>

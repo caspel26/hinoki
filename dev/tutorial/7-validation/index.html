@@ -252,8 +252,12 @@
       <article class="prose" style="--sheet: '2.8'">
         <p class="kicker" data-search-exclude>2.8 · Tutorial</p>
         <h1 id="7-validate-input">7. Validate input<a class="headerlink" href="#7-validate-input" title="Permanent link">&para;</a></h1>
-<p><code>Schema</code> validation combines built-in type and value constraints with optional synchronous normalization and rejection checks. Constraints reject invalid input first; normalizers canonicalize valid strings; checks can then reject values based on one field or compare several fields. All of this happens before a validated schema reaches an operation.</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+<p>A <code>Schema</code> validates in three steps, all before your code runs: built-in
+constraints reject invalid input, normalizers make valid strings canonical, and
+checks reject values that are valid but not acceptable.</p>
+<h2 id="normalize-and-check-fields">Normalize and check fields<a class="headerlink" href="#normalize-and-check-fields" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># registration.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">Field</span><span class="p">,</span>
@@ -267,10 +271,7 @@
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Registration</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">username</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-        <span class="nb">str</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[a-z0-9_]+"</span><span class="p">),</span>
-    <span class="p">]</span>
+    <span class="n">username</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[a-z0-9_]+"</span><span class="p">)]</span>
     <span class="n">email</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">"email"</span><span class="p">)]</span>
     <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">12</span><span class="p">)]</span>
     <span class="n">confirmation</span><span class="p">:</span> <span class="nb">str</span>
@@ -288,22 +289,20 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">passwords_match</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">confirmation</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">Invalid</span><span class="p">(</span>
-                <span class="s2">"password_mismatch"</span><span class="p">,</span>
-                <span class="s2">"passwords do not match"</span><span class="p">,</span>
-                <span class="n">path</span><span class="o">=</span><span class="s2">"confirmation"</span><span class="p">,</span>
+                <span class="s2">"password_mismatch"</span><span class="p">,</span> <span class="s2">"passwords do not match"</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"confirmation"</span>
             <span class="p">)</span>
-
-
-<span class="n">valid</span> <span class="o">=</span> <span class="n">Registration</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># registration.py (continued)</span>
+<span class="n">user</span> <span class="o">=</span> <span class="n">Registration</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
     <span class="p">{</span>
         <span class="s2">"username"</span><span class="p">:</span> <span class="s2">"mari_23"</span><span class="p">,</span>
-        <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"mari@example.test"</span><span class="p">,</span>
+        <span class="s2">"email"</span><span class="p">:</span> <span class="s2">"Mari@Example.test"</span><span class="p">,</span>
         <span class="s2">"password"</span><span class="p">:</span> <span class="s2">"correct-horse-battery"</span><span class="p">,</span>
         <span class="s2">"confirmation"</span><span class="p">:</span> <span class="s2">"correct-horse-battery"</span><span class="p">,</span>
     <span class="p">}</span>
 <span class="p">)</span>
-<span class="k">assert</span> <span class="n">valid</span><span class="o">.</span><span class="n">username</span> <span class="o">==</span> <span class="s2">"mari_23"</span>
-<span class="k">assert</span> <span class="n">valid</span><span class="o">.</span><span class="n">email</span> <span class="o">==</span> <span class="s2">"mari@example.test"</span>
+<span class="k">assert</span> <span class="n">user</span><span class="o">.</span><span class="n">email</span> <span class="o">==</span> <span class="s2">"mari@example.test"</span>
+
 <span class="k">try</span><span class="p">:</span>
     <span class="n">Registration</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
         <span class="p">{</span>
@@ -317,12 +316,28 @@
     <span class="k">for</span> <span class="n">detail</span> <span class="ow">in</span> <span class="n">error</span><span class="o">.</span><span class="n">details</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">detail</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">detail</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="n">detail</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
 </code></pre></div>
-<p>The invalid call reports a <code>common_password</code> error on <code>password</code> and a <code>password_mismatch</code> error on <code>confirmation</code>. <code>min_length</code>, <code>max_length</code> and <code>pattern</code> are built-in field constraints. <code>format="email"</code> is a ready-made pattern; <code>url</code>, <code>slug</code> and <code>hex_color</code> are also available. Numeric fields can use <code>gt</code>, <code>ge</code>, <code>lt</code> and <code>le</code>, and <code>one_of</code> restricts a value to a fixed set. An invalid built-in constraint prevents normalizers and custom checks from running.</p>
-<p><code>@field_normalize("email")</code> receives a structurally valid string and must return a <code>str</code>. Its result is checked against the same constraints before it is applied. Normalization also runs when you manually construct a <code>Schema(...)</code> or call <code>from_model(...)</code>; it does not run twice when an existing nested Schema is passed to a new parent. Inputs that fail the original constraints cannot be rescued by normalization.</p>
-<p><code>@field_check("password")</code> receives the final value. <code>@object_check</code> receives the complete schema and can compare final fields. Raise <code>Invalid(code, message)</code> to report a failure; checks must return <code>None</code> and do not transform the value. Normalizers and checks are synchronous, have no I/O, and run the same way before both sync and async handlers. A check that needs current database state, such as whether an email is already registered, belongs in an operation where it can be made race-safe.</p>
-<h2 id="ignore-unknown-fields-from-external-payloads">Ignore unknown fields from external payloads<a class="headerlink" href="#ignore-unknown-fields-from-external-payloads" title="Permanent link">&para;</a></h2>
-<p>Unknown fields are rejected by default. For an external payload that adds unrelated metadata, opt in to discarding unknown string keys on that Schema:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">SchemaExtra</span>
+<div class="highlight"><pre><span></span><code>password common_password choose a less common password
+confirmation password_mismatch passwords do not match
+</code></pre></div>
+<ul>
+<li><strong>Constraints</strong> come first: <code>min_length</code>, <code>max_length</code>, <code>pattern</code>, and
+  <code>format=</code> (<code>email</code>, <code>url</code>, <code>slug</code>, <code>hex_color</code>); numbers take <code>gt</code>, <code>ge</code>,
+  <code>lt</code> and <code>le</code>, and <code>one_of</code> fixes the allowed values. A failed constraint
+  stops validation of that field.</li>
+<li><strong><code>@field_normalize</code></strong> receives a valid string and returns a <code>str</code>; the result
+  is checked against the same constraints. It also runs for <code>Schema(...)</code> and
+  <code>from_model(...)</code>.</li>
+<li><strong><code>@field_check</code></strong> sees the final value of one field, <strong><code>@object_check</code></strong> the
+  whole schema. Both raise <code>Invalid(code, message)</code> and return <code>None</code>.</li>
+</ul>
+<p>Normalizers and checks are synchronous and do no I/O. A rule that needs the
+database, such as "this email is not registered yet", belongs in an operation,
+where it can be race-safe.</p>
+<h2 id="ignore-unknown-fields">Ignore unknown fields<a class="headerlink" href="#ignore-unknown-fields" title="Permanent link">&para;</a></h2>
+<p>Unknown fields are rejected by default. For an external payload that adds
+metadata you do not use, discard unknown keys on that <code>Schema</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># webhooks.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">SchemaConfig</span><span class="p">,</span> <span class="n">SchemaExtra</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Webhook</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">SchemaConfig</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="n">SchemaExtra</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">)):</span>
@@ -335,31 +350,48 @@
 <span class="p">)</span>
 <span class="k">assert</span> <span class="n">event</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"event_id"</span><span class="p">:</span> <span class="s2">"evt-1"</span><span class="p">,</span> <span class="s2">"revision"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
 </code></pre></div>
-<p>Known fields still require the declared types and constraints, and required fields remain required. Ignored keys are discarded; they are never attached to the object or returned by <code>dump()</code>. The policy affects <code>Schema.validate(...)</code> and request bodies before sync or async handlers. Constructor keywords and explicit <code>from_model(..., **extra)</code> overrides remain strict. Nested Schemas each use their own policy. Aliases also remain canonical: a Python field name does not substitute for its alias, and supplying both spellings is still an error.</p>
-<h2 id="validate-values-at-model-write-boundaries">Validate values at Model write boundaries<a class="headerlink" href="#validate-values-at-model-write-boundaries" title="Permanent link">&para;</a></h2>
-<p>Use the same built-in constraints on Model fields when data can be written outside an HTTP Schema, such as from a management command or the admin. Custom callbacks are synchronous and raise <code>ValueError</code> to refuse a value:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+<p>Declared fields stay strict, and ignored keys are never stored or dumped.
+Constructor keywords and <code>from_model(..., **extra)</code> stay strict too, and each
+nested <code>Schema</code> applies its own policy.</p>
+<h2 id="validate-model-writes">Validate model writes<a class="headerlink" href="#validate-model-writes" title="Permanent link">&para;</a></h2>
+<p>Data can also reach a table without an HTTP <code>Schema</code>: from a management command
+or the admin. Put the same constraints on the model:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># catalog/models.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">pk</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">normalized</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">trimmed</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"surrounding whitespace is not allowed"</span><span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Product</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
-    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">sku</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
-        <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
-        <span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[A-Z0-9-]+"</span><span class="p">),</span>
+        <span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"[A-Z0-9-]+"</span><span class="p">)</span>
     <span class="p">)</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">validators</span><span class="o">=</span><span class="p">(</span><span class="n">normalized</span><span class="p">,))</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span> <span class="n">validators</span><span class="o">=</span><span class="p">(</span><span class="n">trimmed</span><span class="p">,))</span>
     <span class="n">price</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">constraints</span><span class="o">=</span><span class="n">Field</span><span class="p">(</span><span class="n">gt</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
 </code></pre></div>
-<p>The checks run before <code>await Product.acreate(...)</code>, <code>await product.asave()</code> and <code>await Product.filter(...).aupdate(...)</code>, as well as their synchronous counterparts. Construction and assignment stay ordinary dataclass operations; existing rows are not revalidated when read. Invalid writes raise <code>ModelValidationError</code> with structured <code>details</code>, and no SQL is issued for that write. Validators must not perform I/O or change values. Keep request parsing in a Schema, and put rules that depend on other rows or permissions in an operation. See <a href="../../models/#model-field-constraints-and-validators">Model field constraints and validators</a>.</p>
-<p>More: <a href="../../schemas/#built-in-and-custom-validation">Schema constraints and checks</a>, <a href="../../model-schemas/">schemas derived from models</a>.</p>
+<p>The checks run before <code>acreate</code>, <code>asave</code> and queryset <code>aupdate</code>, and their
+synchronous forms. An invalid write raises <code>ModelValidationError</code> with
+structured <code>details</code> and sends no SQL. Rows that are read are not revalidated.
+See <a href="../../models/#model-field-constraints-and-validators">field constraints and validators</a>.</p>
+<h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Constraints, then normalizers, then checks; all before the handler.</li>
+<li>Unknown keys are an error unless a <code>Schema</code> opts out.</li>
+<li>Model constraints guard writes that bypass HTTP.</li>
+</ul>
+<p>Next: <a href="../8-projects/">8. Projects and apps</a>.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../../schemas/">Schemas</a></li><li><a href="../../models/">Define models</a></li><li><a href="../../model-schemas/">Schemas from models</a></li></ul>
+        </aside>
         
       </article>
 
@@ -377,15 +409,15 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#ignore-unknown-fields-from-external-payloads">Ignore unknown fields from external payloads</a></li><li><a href="#validate-values-at-model-write-boundaries">Validate values at Model write boundaries</a></li></ul>
+            <ul><li><a href="#normalize-and-check-fields">Normalize and check fields</a></li><li><a href="#ignore-unknown-fields">Ignore unknown fields</a></li><li><a href="#validate-model-writes">Validate model writes</a></li><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.8</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 17, 2026 11:30:43 UTC">November 17, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:39:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/7-validation.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

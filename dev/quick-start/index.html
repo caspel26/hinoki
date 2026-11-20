@@ -224,45 +224,125 @@
       <article class="prose" style="--sheet: '1.2'">
         <p class="kicker" data-search-exclude>1.2 · Get started</p>
         <h1 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h1>
-<p>This walkthrough uses the default local SQLite database, so no database server
-or URL setup is needed. It creates the table with an explicit migration;
-Hinoki does not create or migrate tables when the app starts. To use PostgreSQL,
-MySQL or MariaDB instead, see <a href="../databases/">Configure a database</a>.</p>
-<h2 id="plan-and-apply-the-migration">Plan and apply the migration<a class="headerlink" href="#plan-and-apply-the-migration" title="Permanent link">&para;</a></h2>
-<p><code>examples/hinoki.toml</code> registers Notes, Tracker and Blog as independent apps.
-From the repository root, enter <code>examples/</code> and use the locked environment in
-the parent directory. On a fresh checkout, the checked-in Notes migration is
-already up to date, so planning reports <code>no changes</code>. Inspect the registered
-apps and migration SQL:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>notes
-uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>notes<span class="w"> </span><span class="m">0001</span>-create-table-notes
+<p>Create a project, run its tests and serve it. Everything runs locally; the
+database is a SQLite file.</p>
+<h2 id="create-a-project">Create a project<a class="headerlink" href="#create-a-project" title="Permanent link">&para;</a></h2>
+<p>From the Hinoki checkout:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>new
 </code></pre></div>
-<p>Review the SQL, then apply it explicitly. With no URL set, the migration
-command and the Notes app both use <code>sqlite://./.hinoki/local.sqlite3</code>:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>--app<span class="w"> </span>notes
+<p><code>hinoki new</code> asks only what it needs. Give these answers and keep the other
+defaults:</p>
+<table>
+<thead>
+<tr>
+<th>Prompt</th>
+<th>Default</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Project name</td>
+<td></td>
+<td><code>notes</code></td>
+</tr>
+<tr>
+<td>Parent directory</td>
+<td><code>.</code></td>
+<td><code>..</code> (beside the checkout)</td>
+</tr>
+<tr>
+<td>Database</td>
+<td><code>none</code></td>
+<td><code>sqlite</code></td>
+</tr>
+<tr>
+<td>Server</td>
+<td><code>kiso</code></td>
+<td><code>kiso</code></td>
+</tr>
+<tr>
+<td>Agent instructions and MCP config?</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Agent skills?</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Initialize a git repository?</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Install dependencies (uv sync)?</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p>It writes the project, runs <code>git init</code> and <code>uv sync</code>, and prints the next
+commands. The files that matter:</p>
+<div class="highlight"><pre><span></span><code>notes/
+├── hinoki.toml        manifest: application, routes, apps
+├── notes/
+│   ├── main.py        the application
+│   ├── api.py         GET /health
+│   ├── routes.py      routes = [health]
+│   ├── settings.py    typed settings, NOTES_* variables
+│   └── rules.py       architecture rules
+├── tests/             pytest suite
+└── AGENTS.md          agent instructions
 </code></pre></div>
-<p>The local database file and migration ledger are created when <code>apply</code> runs.
-Use a disposable database while evaluating the example.</p>
-<h2 id="start-the-app-and-send-a-request">Start the app and send a request<a class="headerlink" href="#start-the-app-and-send-a-request" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>..<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>notes.main:app
+<div class="admonition tip">
+<p class="admonition-title">Scripts and CI</p>
+<p><code>uv run hinoki new notes --no-input</code> skips the prompts and uses the
+defaults. All options are in <a href="../new-project/"><code>hinoki new</code></a>.</p>
+</div>
+<h2 id="test-and-serve-it">Test and serve it<a class="headerlink" href="#test-and-serve-it" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>../notes
+uv<span class="w"> </span>run<span class="w"> </span>pytest
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev
 </code></pre></div>
-<p>The <code>database</code> field of the Notes settings opens a pool for the worker and closes it at shutdown. It does not create tables. In another terminal, create a note and list the collection:</p>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-i<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/notes<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"title":"First note","body":"Hello"}'</span>
-curl<span class="w"> </span>http://127.0.0.1:8000/notes
+<p>The test calls <code>/health</code> in process and needs no database. <code>hinoki dev</code> serves
+on <code>http://127.0.0.1:8000</code> and reloads when a file changes. In another terminal:</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>http://127.0.0.1:8000/health
 </code></pre></div>
-<p>The POST returns <code>201 Created</code> and a JSON object with the generated <code>id</code>, <code>title</code> and <code>body</code>. The GET returns a JSON array. Invalid input is rejected before the handler runs; see <a href="../errors/">error handling</a> for the response format.</p>
-<h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>{"status":"ok"}
+</code></pre></div>
+<p>Open <code>http://127.0.0.1:8000/docs</code> for the generated OpenAPI UI, or run
+<code>uv run hinoki routes</code> to list every route with its access policy.</p>
+<h2 id="what-the-manifest-does">What the manifest does<a class="headerlink" href="#what-the-manifest-does" title="Permanent link">&para;</a></h2>
+<p><code>hinoki.toml</code> names the application and where its routes, models and migrations
+live:</p>
+<div class="highlight"><pre><span></span><code><span class="k">[project]</span>
+<span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span>
+
+<span class="k">[[apps]]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.migrations"</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+</code></pre></div>
+<p>The application in <code>notes/main.py</code> lists no routes: it binds the ones the
+manifest names. Commands read the same file, so inside the project they need
+no module paths.</p>
+<h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../tutorial/">Tutorial</a>: build the Tracker example in seven steps, then learn the project and app workflow.</li>
-<li><a href="../models/">Models and queries</a>: fields, querysets and relation loading.</li>
-<li><a href="../migrations/">Migrations</a>: migration files, destructive changes and deployment workflow.</li>
-<li><a href="../databases/">Configure a database</a>: choose another backend, set its URL and understand backend-specific behavior.</li>
-<li><a href="../reference/">API reference</a>: public symbols and signatures.</li>
+<li><a href="../tutorial/">Tutorial</a>: build an API layer by layer.</li>
+<li><a href="../tutorial/8-projects/">8. Projects and apps</a>: add an app with its own
+  models and migrations to this project.</li>
+<li><a href="https://github.com/caspel26/hinoki/tree/main/examples/notes">Notes example</a>:
+  a small CRUD API with a migration.</li>
 </ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../tutorial/8-projects/">8. Projects and apps</a></li><li><a href="../cli/">Command line</a></li><li><a href="../serving/">Serve an application</a></li></ul>
+        </aside>
         
       </article>
 
@@ -280,14 +360,14 @@ curl<span class="w"> </span>http://127.0.0.1:8000/notes
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#plan-and-apply-the-migration">Plan and apply the migration</a></li><li><a href="#start-the-app-and-send-a-request">Start the app and send a request</a></li><li><a href="#where-to-go-next">Where to go next</a></li></ul>
+            <ul><li><a href="#create-a-project">Create a project</a></li><li><a href="#test-and-serve-it">Test and serve it</a></li><li><a href="#what-the-manifest-does">What the manifest does</a></li><li><a href="#next">Next</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>1.2</dd></div>
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 00:36:43 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>

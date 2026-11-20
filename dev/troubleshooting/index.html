@@ -240,36 +240,41 @@
       <article class="prose" style="--sheet: '6.5'">
         <p class="kicker" data-search-exclude>6.5 · Project</p>
         <h1 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h1>
-<h2 id="cannot-load-moduleattribute"><code>cannot load module:attribute</code><a class="headerlink" href="#cannot-load-moduleattribute" title="Permanent link">&para;</a></h2>
-<p>Run the command from the application checkout and check both the module path and attribute spelling. <code>hinoki</code> adds the current directory when importing targets, but the package still needs to be importable Python code.</p>
+<p>Each section starts with the message or symptom you see.</p>
+<h2 id="error-cannot-load-notesmainapp"><code>error: cannot load notes.main:app</code><a class="headerlink" href="#error-cannot-load-notesmainapp" title="Permanent link">&para;</a></h2>
+<p>Run the command from the project directory (the one with <code>hinoki.toml</code>) and check the module path and the attribute after the colon. Hinoki adds the current directory to the import path, but the module must still import cleanly: the text after the colon is the original exception.</p>
 <h2 id="settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable<a class="headerlink" href="#settings-report-a-missing-or-unknown-variable" title="Permanent link">&para;</a></h2>
-<p>Check the settings class's <code>prefix=</code> and nested field names. Nested groups use <code>__</code>, for example <code>APP_DATABASE__URL</code>. Run <code>hinoki settings module:SettingsClass --example</code> to inspect expected names. settings.Secret values are redacted by design.</p>
-<h2 id="database-connection-fails-at-startup">Database connection fails at startup<a class="headerlink" href="#database-connection-fails-at-startup" title="Permanent link">&para;</a></h2>
-<p>The database module opens a pool in each worker's startup. Confirm the selected
-backend URL, network reachability and database availability from the same
-environment as the worker. Check the backend-specific URL, TLS and migration
-limits in <a href="../databases/">Configure a database</a>. Use one worker and a small pool
-while debugging; total maximum connections are replicas × workers × pool size.</p>
+<p>Check the settings class's <code>prefix=</code> and the nested names: groups are joined with <code>__</code>, as in <code>NOTES_DATABASE__URL</code>. Print every expected name with:</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>settings<span class="w"> </span>notes.main:app<span class="w"> </span>--example
+</code></pre></div>
+<p><code>settings.Secret</code> values are shown redacted on purpose.</p>
+<h2 id="the-database-connection-fails-at-startup">The database connection fails at startup<a class="headerlink" href="#the-database-connection-fails-at-startup" title="Permanent link">&para;</a></h2>
+<p>Each worker opens its pool during startup. Check the backend URL, network reachability and the server from the same environment as the worker, and the backend notes in <a href="../databases/">configure a database</a>. While debugging, use one worker and a small pool: total connections are replicas × workers × pool size.</p>
 <h2 id="servername-is-not-supported-by-the-granian-server"><code>server.&lt;name&gt; is not supported by the granian server</code><a class="headerlink" href="#servername-is-not-supported-by-the-granian-server" title="Permanent link">&para;</a></h2>
-<p><code>hinoki serve</code> refuses a setting that the chosen server cannot honour instead of ignoring it, and exits with status 2. Unset the setting or run on Kiso (<code>--server kiso</code>, the default). See <a href="../serving/#settings-that-apply-to-one-server-only">settings that apply to one server only</a>.</p>
+<p><code>hinoki serve</code> refuses a setting the chosen server cannot honour, and exits with status 2. Unset it or run on Kiso, the default. See <a href="../serving/#settings-that-apply-to-one-server-only">settings that apply to one server only</a>.</p>
 <h2 id="cannot-listen-on-hostport"><code>cannot listen on HOST:PORT</code><a class="headerlink" href="#cannot-listen-on-hostport" title="Permanent link">&para;</a></h2>
-<p>The address is in use or the host or port is invalid. Stop the other process or pass another <code>--port</code>; the command exits with status 2.</p>
+<p>The address is in use, or the host or port is invalid. Stop the other process or pass another <code>--port</code>; the command exits with status 2.</p>
 <h2 id="every-request-answers-400-disallowed_host-or-503-not_ready">Every request answers <code>400 disallowed_host</code> or <code>503 not_ready</code><a class="headerlink" href="#every-request-answers-400-disallowed_host-or-503-not_ready" title="Permanent link">&para;</a></h2>
-<p><code>400 disallowed_host</code> means the <code>Host</code> header is not in <code>allowed_hosts</code> (<a href="../settings/#allowed_hosts">settings</a>). <code>503 not_ready</code> is answered while a worker's startup has not finished and once shutdown has begun (<a href="../serving/#optional-startup-probe">serving</a>).</p>
-<h2 id="a-related-field-is-not-loaded">A related field is not loaded<a class="headerlink" href="#a-related-field-is-not-loaded" title="Permanent link">&para;</a></h2>
-<p>Foreign-key attributes do not trigger queries. Add <code>select_related("author")</code> or <code>prefetch_related("posts")</code> to the query that needs the relation.</p>
+<p><code>400 disallowed_host</code>: the <code>Host</code> header is not in <a href="../web-security/#allowed_hosts"><code>allowed_hosts</code></a>. <code>503 not_ready</code>: the worker has not finished starting, or has begun shutting down (<a href="../serving/#optional-startup-probe">startup probe</a>).</p>
+<h2 id="relationnotloaded"><code>RelationNotLoaded</code><a class="headerlink" href="#relationnotloaded" title="Permanent link">&para;</a></h2>
+<p>Relations are never loaded lazily. Name the relation in the query that needs it: <code>select_related("author")</code> for a single row, <code>prefetch_related("posts")</code> for a collection. See <a href="../relations/">relations</a>.</p>
 <h2 id="hinoki-check-reports-unverifiable"><code>hinoki check</code> reports <code>unverifiable</code><a class="headerlink" href="#hinoki-check-reports-unverifiable" title="Permanent link">&para;</a></h2>
-<p>The rule could not establish its promise. Read the diagnostic explanation and any <code>fix:</code> line. Some rules inspect only declarations; effectful checks require the explicit <code>--allow-effects</code> flag.</p>
-<h2 id="a-sync-handler-or-auth-provider-stalls">A sync handler or auth provider stalls<a class="headerlink" href="#a-sync-handler-or-auth-provider-stalls" title="Permanent link">&para;</a></h2>
-<p>Sync code runs on a bounded executor and can saturate. Prefer async database and network calls in async handlers. See <a href="../sync-async/">sync and async</a> for limits and <a href="../serving/">server settings</a> for worker configuration.</p>
+<p>The rule could not establish its promise. Read the explanation and any <code>fix:</code> line. Some rules inspect only declarations; checks with side effects run only with <code>hinoki check notes.main:app --allow-effects</code>.</p>
+<h2 id="sync-handlers-answer-503-overloaded">Sync handlers answer <code>503 overloaded</code><a class="headerlink" href="#sync-handlers-answer-503-overloaded" title="Permanent link">&para;</a></h2>
+<p>Sync handlers and sync hooks share a bounded pool and queue. Move database and network calls to async handlers, keep sync hooks short, or size the pool; see <a href="../sync-async/#size-the-pool">sync and async code</a>.</p>
 <h2 id="a-migration-is-marked-destructive">A migration is marked destructive<a class="headerlink" href="#a-migration-is-marked-destructive" title="Permanent link">&para;</a></h2>
-<p>Review the generated SQL and the data it may remove. Test the change against a disposable database backup before using <code>--allow-destructive</code>. See <a href="../migrations/">migrations</a>.</p>
-<p>If the issue persists, include the Hinoki version, the command or route, the complete diagnostic, and a minimal example. Remove credentials and user data first.</p>
-<p>For a version report, run <code>hinoki version --verbose --format json</code>. The output includes installed runtime details without reading application settings or opening a database.</p>
-<p>For a consolidated local report, run <a href="../cli/#doctor"><code>hinoki doctor</code></a>. It imports
-the selected app target, but does not start its lifecycle, run rules, connect to
-a database or write files. Use the focused commands above for database and
-migration state.</p>
+<p>Read the generated SQL and the data it removes, and test it against a disposable copy before passing <code>--allow-destructive</code>. See <a href="../migrations/">migrations</a>.</p>
+<h2 id="report-a-problem">Report a problem<a class="headerlink" href="#report-a-problem" title="Permanent link">&para;</a></h2>
+<p>Collect the environment without reading settings or opening a database:</p>
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>version<span class="w"> </span>--verbose<span class="w"> </span>--format<span class="w"> </span>json
+hinoki<span class="w"> </span>doctor
+</code></pre></div>
+<p><code>hinoki doctor</code> imports the project application but does not start it, run rules, connect to a database or write files. Include the Hinoki version, the command or route, the complete diagnostic and a minimal example; remove credentials and personal data first.</p>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../cli/">Command line</a></li><li><a href="../serving/">Serve an application</a></li><li><a href="../settings/">Settings</a></li></ul>
+        </aside>
         
       </article>
 
@@ -287,14 +292,14 @@ migration state.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#cannot-load-moduleattribute">cannot load module:attribute</a></li><li><a href="#settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable</a></li><li><a href="#database-connection-fails-at-startup">Database connection fails at startup</a></li><li><a href="#servername-is-not-supported-by-the-granian-server">server.&lt;name&gt; is not supported by the granian server</a></li><li><a href="#cannot-listen-on-hostport">cannot listen on HOST:PORT</a></li><li><a href="#every-request-answers-400-disallowed_host-or-503-not_ready">Every request answers 400 disallowed_host or 503 not_ready</a></li><li><a href="#a-related-field-is-not-loaded">A related field is not loaded</a></li><li><a href="#hinoki-check-reports-unverifiable">hinoki check reports unverifiable</a></li><li><a href="#a-sync-handler-or-auth-provider-stalls">A sync handler or auth provider stalls</a></li><li><a href="#a-migration-is-marked-destructive">A migration is marked destructive</a></li></ul>
+            <ul><li><a href="#error-cannot-load-notesmainapp">error: cannot load notes.main:app</a></li><li><a href="#settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable</a></li><li><a href="#the-database-connection-fails-at-startup">The database connection fails at startup</a></li><li><a href="#servername-is-not-supported-by-the-granian-server">server.&lt;name&gt; is not supported by the granian server</a></li><li><a href="#cannot-listen-on-hostport">cannot listen on HOST:PORT</a></li><li><a href="#every-request-answers-400-disallowed_host-or-503-not_ready">Every request answers 400 disallowed_host or 503 not_ready</a></li><li><a href="#relationnotloaded">RelationNotLoaded</a></li><li><a href="#hinoki-check-reports-unverifiable">hinoki check reports unverifiable</a></li><li><a href="#sync-handlers-answer-503-overloaded">Sync handlers answer 503 overloaded</a></li><li><a href="#a-migration-is-marked-destructive">A migration is marked destructive</a></li><li><a href="#report-a-problem">Report a problem</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>6.5</dd></div>
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/troubleshooting.md">Edit on GitHub</a></dd></div>
         </dl>
