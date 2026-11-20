@@ -206,6 +206,7 @@ sockets, TLS, the access log, the limits and the end of the response.
 * **Timeout.** `execution.request_timeout` bounds the time until the response starts (`504`). A running sync call cannot be stopped; it keeps its thread until it returns.
 * **Applies:** TLS and HTTP/2, `access_log` and `access_log_format`, `server_timing`, `max_connections`, header and body timeouts, `--workers` and graceful shutdown (`lifecycle.shutdown_timeout`).
 * **Does not apply:** the native lane (`native_dispatch` is refused), host, CORS and redirect policies of the server (a wrapped Hinoki application still applies its own), and `trusted_proxies` (refused: the client address is the TCP peer).
+* **Settings.** A plain callable has no settings of its own, so `server`, `execution` and `lifecycle` come from the environment (`EXECUTION__SYNC_WORKERS`, `SERVER__WORKERS`, ...); a bad value stops the command with status `2`. A `WSGIAdapter` uses its application's settings.
 * **Lifespan.** A plain callable has none. A `WSGIAdapter` starts its application's modules when the worker starts, not on the first request, and stops them on a graceful stop.
 
 The adapter itself buffers its responses, so streaming reaches the client only from a plain callable. Its other specifics below apply on both servers.

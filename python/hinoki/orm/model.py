@@ -347,6 +347,14 @@ def _matches_model_scalar(value: Any, base: Any) -> bool:
     return not isinstance(base, type) or isinstance(value, base)
 
 
+def _length_message(
+    value: str | list[Any] | tuple[Any, ...], comparison: str, bound: int
+) -> str:
+    unit = "character" if isinstance(value, str) else "item"
+    plural = "" if bound == 1 else "s"
+    return f"Must contain {comparison} {bound} {unit}{plural}."
+
+
 def _validate_lengths(
     name: str, value: Any, info: FieldInfo, problems: list[ErrorDetail]
 ) -> None:
@@ -360,7 +368,7 @@ def _validate_lengths(
         if failed:
             comparison = "at least" if rule == "min_length" else "at most"
             problems.append(
-                ErrorDetail(name, rule, f"Must contain {comparison} {bound} items.")
+                ErrorDetail(name, rule, _length_message(value, comparison, bound))
             )
 
 
