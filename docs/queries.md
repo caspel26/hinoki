@@ -163,7 +163,8 @@ deleted = await Invoice.abulk_delete([rows[0], rows[1].id])  # instances or keys
   value, and returns the rows in order; defaults, factories, validation and
   hooks apply as for `acreate`. It takes no server keywords: put them in each
   item.
-* `abulk_update` refuses an unsaved instance; `abulk_delete` returns how many
+* `abulk_update` refuses an unsaved instance and returns every instance it
+  was given, unchanged ones included; `abulk_delete` returns how many
   rows existed, deletes in chunks of at most 10 000 keys and runs no hooks.
 * One statement per row (per chunk for deletes): these give atomicity, not a
   batching speed-up.

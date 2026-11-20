@@ -53,7 +53,9 @@ These fail when the class is declared, with `RegistrationError`: unknown
 columns, a non-model, `only` together with `exclude`, an empty `only=()`,
 `partial` names outside the selection, a class that is not a `Schema`, and a
 second `@derive`. (`exclude=()` selects every column.) The older `model=` class
-keyword is deprecated and emits `DeprecationWarning`.
+keyword (`class InvoiceOut(Schema, model=Invoice)`) still derives every
+column; prefer `@derive(Invoice)`. Combining it with `@derive(...)` without a
+model emits `DeprecationWarning`.
 
 ## Inherit from a derived schema
 
