@@ -240,13 +240,28 @@ def test_toml_rejects_secrets_case_insensitively_and_tables_for_scalars(
         SampleSettings.load(prefix="APP_", env=BASE, toml=table)
 
 
+def test_unrelated_variables_sharing_the_prefix_are_ignored() -> None:
+    # systemd sets JOURNAL_STREAM for a project whose prefix is JOURNAL_
+    env = {"JOURNAL_STREAM": "8:12345"}
+    assert AppSettings.load(prefix="JOURNAL_", env=env).debug is False
+    for typo in (
+        "JOURNAL_DEBUGG",
+        "JOURNAL_SERVER__PROT",
+        "JOURNAL_SERVR__PORT",
+        "JOURNAL_SERVER_PORT",
+        "JOURNAL_ALLOWED_HOST",
+    ):
+        with pytest.raises(SettingsError, match=f"{typo}: unknown setting"):
+            AppSettings.load(prefix="JOURNAL_", env={**env, typo: "1"})
+
+
 def test_every_problem_is_reported_at_once_without_values() -> None:
     env = {
         "APP_MAIL__PORT": "not-a-number-SENTINEL",
         "APP_MAIL__MODE": "zzz",
         "APP_MAIL__TLS": "maybe",
         "APP_EXECUTION__SYNC_WORKERS": "0",
-        "APP_TYPO": "1",
+        "APP_MAIL_PORT": "1",
         "APP_JWT_SECRET": "topsecret-SENTINEL",
     }
     with pytest.raises(SettingsError) as raised:
@@ -257,7 +272,7 @@ def test_every_problem_is_reported_at_once_without_values() -> None:
         "APP_MAIL__MODE: must be one of",
         "APP_MAIL__TLS: must be true or false",
         "APP_EXECUTION: sync_workers must be >= 1",
-        "APP_TYPO: unknown setting",
+        "APP_MAIL_PORT: unknown setting",
         "APP_MAIL__TAGS: required, not set",
     ):
         assert expected in text, expected
@@ -447,11 +462,11 @@ def test_review_findings_are_closed() -> None:
     )
     assert Hinoki(settings=enabled, docs_url=None).docs_url is None
     assert Hinoki(settings=enabled).docs_url == "/docs"
-    # a foreign key with the prefix is only fatal in strict mode
-    foreign = {"B_OTHER": "1"}
-    with pytest.raises(SettingsError, match="B_OTHER: unknown setting"):
-        AppSettings.load(prefix="B_", env=foreign)
-    assert AppSettings.load(prefix="B_", env=foreign, strict=False)
+    # a misspelt setting with the prefix is only fatal in strict mode
+    typo = {"B_DEBUGG": "1"}
+    with pytest.raises(SettingsError, match="B_DEBUGG: unknown setting"):
+        AppSettings.load(prefix="B_", env=typo)
+    assert AppSettings.load(prefix="B_", env=typo, strict=False)
     # strict numbers: no underscores, other scripts, hex, exponents on ints
     for bad in ("1_000", chr(0x665), "0x10", "1e3", "99999999999999999999"):
         with pytest.raises(SettingsError):
@@ -532,7 +547,9 @@ def test_secret_files_fill_a_variable_and_never_echo_content(tmp_path: Path) -> 
     with pytest.raises(SettingsError, match="64 KiB"):
         SampleSettings.load(prefix="APP_", env={**env, "APP_JWT_SECRET_FILE": str(big)})
     with pytest.raises(SettingsError, match="unknown setting"):
-        SampleSettings.load(prefix="APP_", env={**BASE, "APP_NOPE_FILE": str(secret)})
+        SampleSettings.load(
+            prefix="APP_", env={**BASE, "APP_JWT_SECRT_FILE": str(secret)}
+        )
 
 
 def test_the_env_example_lists_every_variable_with_its_type() -> None:
