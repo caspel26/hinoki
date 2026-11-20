@@ -23,7 +23,7 @@ CREATE TABLE "hinoki_admin_sessions" (
     "user_agent" varchar(200) NOT NULL,
     "fingerprint" varchar(64) NOT NULL
 );
-CREATE INDEX "ix_hinoki_admin_sessions_user_id" ON "hinoki_admin_sessions" ("user_id");
+CREATE INDEX "ix_hinoki_admin_sessions_user_id_3b44f0d0" ON "hinoki_admin_sessions" ("user_id");
 
 -- create table hinoki_admin_grants
 CREATE TABLE "hinoki_admin_grants" (
@@ -33,4 +33,4 @@ CREATE TABLE "hinoki_admin_grants" (
     "action" varchar(20) NOT NULL,
     UNIQUE ("user_id", "model", "action")
 );
-CREATE INDEX "ix_hinoki_admin_grants_user_id" ON "hinoki_admin_grants" ("user_id");
+CREATE INDEX "ix_hinoki_admin_grants_user_id_f780e2f4" ON "hinoki_admin_grants" ("user_id");

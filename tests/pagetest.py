@@ -6,7 +6,8 @@ from openapi_spec_validator import validate
 from hinoki import Hinoki, Schema, http
 from hinoki.errors import RegistrationError
 from hinoki.http.request import Request
-from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.openapi import page_parameters
+from hinoki.pagination import MAX_NUMBER, Page, PageNumberPagination, PageParams
 from tests.harness import Pool
 
 strategy = PageNumberPagination(page_size=2, max_page_size=5)
@@ -95,3 +96,8 @@ def test_openapi_documents_the_query_parameters_and_the_page_schema() -> None:
         "$ref": "#/components/schemas/ItemOut"
     }
     validate(document)
+
+
+def test_the_documented_page_parameter_has_the_enforced_maximum() -> None:
+    page = page_parameters(PageNumberPagination())[0]["schema"]
+    assert page["maximum"] == MAX_NUMBER

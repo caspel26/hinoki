@@ -15,4 +15,5 @@ cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
 * Split commits by cohesive scope (`feat(core):`, `test(core):`, `docs(runtime):`, `build:`, `ci:`); do not combine implementation, tests, docs, dependencies/tooling or repository policy in one catch-all commit.
 * For user-facing code changes, include a minimal usage example in the pull request description and update the relevant guide/reference and checked-in example in the same work item. If no user-facing code is changed, mark the template section as not applicable and explain why.
 * The docsite publishes merges to `main` as `/dev/`; only `vX.Y.Z` release tags update versioned release docs and the `stable`/`latest` aliases. See [documentation versions](docs/documentation-versions.md).
+* Add tests for every new feature or behavior change to the automated test suite (`tests/` for Python, `cargo test` for Rust) in the same pull request; bug fixes include a test that fails without the fix.
 * Don't claim a test, benchmark or feature that does not exist. Don't add Pydantic, Django, FastAPI or Starlette.

@@ -76,7 +76,8 @@ when models are aggregated for migrations, projects or one Admin instance.
 
 A model has exactly one primary key. `pk()` is the field-specifier shorthand for
 `field(primary_key=True, ...)`; pass `default` or `default_factory` explicitly
-when the key is optional in the constructor. Fields are keyword-only when
+when the key is optional in the constructor. The key's type cannot be nullable
+(`int | None` raises `RegistrationError` when the model is defined). Fields are keyword-only when
 constructing a model. Single-column uniqueness is `field(unique=True)`; use
 `@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.
 
@@ -158,6 +159,12 @@ page = await Task.all().filter(done=False).apaginate(PageParams(page=1, page_siz
 ```
 
 Filters accept validated field names and supported comparison/membership operators. Values are bound parameters; SQL identifiers are compiled from model metadata. Query methods do not issue SQL until an evaluation method such as awaiting the query, `aget`, `acount`, `aupdate` or `adelete` is called.
+
+Filter semantics follow SQL:
+
+* `field__ne=value` compiles to `<>`, so rows where the column is `NULL` are not returned. Filter on `isnull` separately when those rows matter.
+* `contains` matches text case-insensitively and treats `%`, `_` and `\` in the value literally. On SQLite the case folding is ASCII-only. On MySQL and MariaDB the escaping assumes the connection does not use the `NO_BACKSLASH_ESCAPES` SQL mode, which is off by default.
+* `apaginate` runs the count and the page as two statements, so rows written between them can make `total` and `items` disagree slightly.
 
 `@ordered_by` supplies ordering only when a query does not specify `order_by`. An explicit order replaces it. Counts and bulk updates do not inherit default ordering.
 

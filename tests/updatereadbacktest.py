@@ -1,6 +1,7 @@
 """``QuerySet.aupdate`` returns the rows it changed on every backend, including
 rows that stop matching the filter because of the update."""
 
+import asyncio
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -95,3 +96,17 @@ async def test_update_reads_many_rows_back_in_bounded_chunks(
         assert len(locks) == 1
         assert "ORDER BY" in locks[0]
         assert len([sql for sql in statements if "IN (" in sql]) == 3
+
+
+async def test_a_write_from_another_task_joins_the_open_transaction(
+    database: Database,
+) -> None:
+    await Draft(id=1, status="draft").asave()
+
+    async with database.atomic():
+        rows = await asyncio.create_task(
+            Draft.filter(status="draft").aupdate({"status": "live"})
+        )
+
+    assert [row.id for row in rows] == [1]
+    assert (await Draft.filter(id=1).aget()).status == "live"

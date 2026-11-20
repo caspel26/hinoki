@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, get_args, get_origin
 from hinoki.errors import MAX_RETRY_AFTER, APIError, RegistrationError, TooManyRequests
 from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
-from hinoki.pagination import Page, PageNumberPagination
+from hinoki.pagination import MAX_NUMBER, Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
 from hinoki.schema import Schema, SchemaExtra
 
@@ -481,7 +481,12 @@ def page_parameters(strategy: PageNumberPagination) -> list[dict[str, Any]]:
             "name": "page",
             "in": "query",
             "required": False,
-            "schema": {"type": "integer", "minimum": 1, "default": 1},
+            "schema": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": MAX_NUMBER,
+                "default": 1,
+            },
         },
         {
             "name": "page_size",

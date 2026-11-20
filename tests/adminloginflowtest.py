@@ -320,10 +320,28 @@ async def test_cookies_are_secure_behind_an_https_setting(tmp_path: Path) -> Non
     with use_database(database):
         await service.create_user("ada", PASSWORD)
         async with ASGIClient(app) as client:
-            reply = await sign_in(client, "ada")
+            page = await client.get("/admin/login")
+            csrf = token_of(page)
+            reply = await client.post(
+                "/admin/login",
+                body=form(username="ada", password=PASSWORD, csrf=csrf),
+                headers={**FORM, "cookie": f"__Secure-hinoki_csrf={csrf}"},
+            )
+            session = cookie_of(reply, "__Secure-hinoki_admin_session")
+            plain = await client.get(
+                "/admin", headers={"cookie": f"hinoki_admin_session={session}"}
+            )
+            prefixed = await client.get(
+                "/admin", headers={"cookie": f"__Secure-hinoki_admin_session={session}"}
+            )
     database.close()
 
+    assert page.headers["set-cookie"].startswith("__Secure-hinoki_csrf=")
+    assert "Secure" in page.headers["set-cookie"]
+    assert reply.status == 303 and session
     assert "Secure" in reply.headers["set-cookie"]
+    # only the prefixed names are read when the admin serves HTTPS cookies
+    assert (plain.status, prefixed.status) == (303, 200)
 
 
 def test_an_admin_takes_access_or_users_not_both() -> None:
@@ -451,3 +469,14 @@ def test_password_checks_hold_no_connection_and_are_rate_limited() -> None:
         assert routes[path].atomic is False  # hashing waits with no connection
         assert routes[path].rate_limit is not None
     assert routes["/admin/logout"].atomic is True
+
+
+def test_search_cannot_name_an_excluded_column() -> None:
+    from hinoki.admin import ModelAdmin  # noqa: PLC0415 - only this test
+
+    class Notes(ModelAdmin, model=LoginNote):  # type: ignore[type-arg]
+        exclude = ("title",)
+        search = ("title",)
+
+    with pytest.raises(RegistrationError, match="search names excluded columns"):
+        Admin(secret="s" * 40).register(Notes)

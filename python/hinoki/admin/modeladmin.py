@@ -274,6 +274,11 @@ class ModelAdmin[M: Model]:
                 raise RegistrationError(
                     f"admin {slug!r}: {label} names unknown columns {unknown}"
                 )
+        hidden = sorted(set(self.search) & set(self.exclude))
+        if hidden:
+            raise RegistrationError(
+                f"admin {slug!r}: search names excluded columns {hidden}"
+            )
         self._validate_bulk_actions(slug)
         for tab in self.tab_list:
             for column in tab.filters:

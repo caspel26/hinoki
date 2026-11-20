@@ -379,7 +379,19 @@ def reachable(start: Iterable[type[Schema]]) -> Iterator[type[Schema]]:
             level = pending_types.pop()
             if level.schema is not None:
                 pending.append(level.schema)
+            pending.extend(variant for _, variant in level.variants)
             pending_types.extend(level.children())
+
+
+def served_names(schema: type[Schema]) -> set[str]:
+    """Every name a client can read from ``schema``: its fields, their wire names
+    (aliases) and its computed fields."""
+    specs = schema.specs().values()
+    return {
+        *(spec.name for spec in specs),
+        *(spec.wire_name for spec in specs),
+        *schema.computed_fields(),
+    }
 
 
 class ForbidExposure(Rule):
@@ -415,7 +427,7 @@ class ForbidExposure(Rule):
                 )
             returned = list(schemas_in(annotation))
             for schema in reachable(returned):
-                for name in sorted(self.fields & set(schema.specs())):
+                for name in sorted(self.fields & served_names(schema)):
                     yield self.diagnostic(
                         f"{schema.__name__}.{name} is exposed by "
                         f"{route.method} {route.path}",
