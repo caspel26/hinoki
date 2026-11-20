@@ -16,6 +16,12 @@ with IBM Plex Mono from ``theme/static/fonts`` inside a drawn window, between
 title cards made from ``lockup-dark.svg``. Glyphs Plex Mono lacks (the ``◢◤``
 mark, box lines and corners, spinners) are drawn as shapes.
 
+The children run as in a terminal that speaks the kitty graphics protocol
+(``TERM_PROGRAM=ghostty``), so ``hinoki`` sends its logo as an inline image
+instead of the text banner. pyte has no images: the script swaps that escape
+sequence for private-use cells that keep the cursor where a real terminal
+leaves it, and the painter draws the real ``logo.png`` over them.
+
 Only the timing and the motion are edited, never the text: long waits are
 shortened, repeated spinner frames are dropped, lines a program prints at once
 appear over a few frames, the screen scrolls smoothly instead of jumping and the
@@ -60,6 +66,7 @@ import signal
 import socket
 import struct
 import subprocess
+import sys
 import tempfile
 import termios
 import time
@@ -95,6 +102,15 @@ SITE = "caspel26.github.io/hinoki"
 ENTER, DOWN = "\r", "\x1b[B"
 SGR_256 = 5  # 38;5;n selects an indexed colour, 38;2;r;g;b a true colour
 BRAILLE = range(0x2800, 0x2900)
+LOGO = ROOT / "python" / "hinoki" / "logo.png"
+LOGO_ROWS = 3  # rows hinoki reserves for the inline logo
+LOGO_CELL = 0xE000  # private-use cells that stand for the logo: + row * 256 + column
+LOGO_START = b"\x1b_Ga=T"  # the kitty sequence that places the logo
+LOGO_SEQUENCE = re.compile(
+    rb"\x1b_Ga=T[^;\x1b]*m=0;[^\x1b]*\x1b\\"
+    rb"|\x1b_Ga=T[^;\x1b]*m=1;[^\x1b]*\x1b\\(?:\x1b_Gm=1;[^\x1b]*\x1b\\)*"
+    rb"\x1b_Gm=0;[^\x1b]*\x1b\\"
+)
 TICK = 20  # ms: one frame at 50 fps, the shortest GIF delay browsers honour
 INTRO_MS, OUTRO_MS = 1800, 700  # the title card that opens and closes the loop
 FADE_MS = 200  # cross-fade between the title card and the terminal
@@ -233,10 +249,11 @@ class Scene:
     timeout_s: float = 120.0
     until: str = ""  # leave it running once the screen shows this (``&``)
     settle_s: float = SETTLE_S  # quiet time after the output before moving on
+    shown: str = ""  # the command line to draw, when it differs from ``argv``
 
     @property
     def command(self) -> str:
-        return shlex.join(self.argv) + (" &" if self.until else "")
+        return (self.shown or shlex.join(self.argv)) + (" &" if self.until else "")
 
 
 @dataclass
@@ -321,6 +338,31 @@ def lines(data: bytes) -> list[bytes]:
     return [piece for piece in re.split(b"(?<=\n)", data) if piece]
 
 
+def logo_columns() -> int:
+    """Columns the logo covers: ``LOGO_ROWS`` rows tall, its aspect kept."""
+    with Image.open(LOGO) as logo:
+        width, height = logo.size
+    return round(LOGO_ROWS * CELL_H * width / height / CELL_W)
+
+
+def logo_cells() -> bytes:
+    """What stands for the logo on the screen: marker cells over ``LOGO_ROWS``
+    rows, leaving the cursor after the last one as a kitty terminal does."""
+    columns = logo_columns()
+    out = "\x1b7"  # save the cursor: the rows below start at its column
+    for row in range(LOGO_ROWS):
+        # pyte forgets a saved cursor once it is restored: save it again
+        out += f"\x1b8\x1b7\x1b[{row}B" if row else ""
+        out += "".join(chr(LOGO_CELL + row * 256 + col) for col in range(columns))
+    return out.encode()
+
+
+def logo_slot(char: str) -> tuple[int, int] | None:
+    """The row and column in the logo a marker cell stands for."""
+    code = ord(char[:1] or " ") - LOGO_CELL
+    return divmod(code, 256) if 0 <= code < LOGO_ROWS * 256 else None
+
+
 def keystroke(rng: random.Random, text: str, index: int) -> int:
     """How long a typed character stays before the next one: an irregular
     rhythm, a little slower after a space and with an occasional hesitation."""
@@ -346,6 +388,17 @@ class Session:
         self.clock = time.monotonic()  # when the program last wrote
         self.rng = random.Random(TYPING_SEED)  # noqa: S311 - a typing rhythm, not a secret
         self.jobs: list[Job] = []
+        self.pending = b""  # the start of a logo sequence still being written
+
+    def place_logo(self, data: bytes) -> bytes:
+        """``data`` with the logo's image sequence replaced by marker cells; a
+        sequence cut short by a read waits for the rest."""
+        data = self.pending + data
+        self.pending = b""
+        start = data.find(LOGO_START)
+        if start != -1 and not LOGO_SEQUENCE.match(data, start):
+            self.pending, data = data[start:], data[:start]
+        return LOGO_SEQUENCE.sub(lambda _: logo_cells(), data)
 
     def text(self) -> str:
         return "\n".join(self.screen.display)
@@ -369,7 +422,7 @@ class Session:
             waited = (now - self.clock) * 1000
             last.duration = min(max(waited, TICK), OUTPUT_CAP_MS)
         self.clock = now
-        self.emit(data, TICK)
+        self.emit(self.place_logo(data), TICK)
 
     def snapshot(self) -> tuple[tuple[Row, ...], tuple[int, int] | None]:
         rows = []
@@ -558,7 +611,7 @@ def child_env(hinoki: Path) -> dict[str, str]:
         "TERM": "xterm-256color",
         "COLORTERM": "truecolor",
         "LANG": "C.UTF-8",
-        "HINOKI_IMAGES": "0",
+        "TERM_PROGRAM": "ghostty",
         f"{PROJECT.upper()}_ALLOWED_HOSTS": "127.0.0.1,localhost",
         "PATH": path,
     }
@@ -566,8 +619,11 @@ def child_env(hinoki: Path) -> dict[str, str]:
 
 def new_keys(session: Session) -> list[Key]:
     """Answers to ``hinoki new``: name ``notebook``, SQLite, no ``uv sync``."""
+    typed = session.keys(PROJECT, 900)
+    # The banner image arrives before the prompt reads keys: wait for the prompt.
+    typed[0] = replace(typed[0], wait_for="Project name")
     return [
-        *session.keys(PROJECT, 900),
+        *typed,
         Key(ENTER, 400),  # name
         Key(ENTER, 600),  # parent directory: .
         Key(DOWN, 800),  # database: none -> sqlite
@@ -650,7 +706,14 @@ def check_rules(session: Session, project: Path) -> None:
     session.run(Scene(["clear"], hold_ms=200), project)
     session.run(Scene(["hinoki", "check"], hold_ms=3800, status=1), project)
     expect(session, "atomic=True", "1 violated")
-    session.run(Scene(["sed", "-i", ATOMIC, f"{APP_DIR}/api.py"], hold_ms=500), project)
+    # BSD sed (macOS) wants a backup suffix after -i; the screen shows the GNU form.
+    in_place = ["-i", ""] if sys.platform == "darwin" else ["-i"]
+    sed = Scene(
+        ["sed", *in_place, ATOMIC, f"{APP_DIR}/api.py"],
+        shown=shlex.join(["sed", "-i", ATOMIC, f"{APP_DIR}/api.py"]),
+        hold_ms=500,
+    )
+    session.run(sed, project)
     if "atomic=True" not in (project / APP_DIR / "api.py").read_text():
         raise DemoError("sed did not add atomic=True")
     session.run(Scene(["hinoki", "check"], hold_ms=2200), project)
@@ -1023,6 +1086,9 @@ class Painter:
         self.offset = (CELL_H - ascent - descent) // 2
         self.fallbacks: dict[str, ImageFont.FreeTypeFont] = {}
         self.lockup = lockup(scratch, width=360)
+        with Image.open(LOGO) as logo:
+            size = (logo_columns() * CELL_W, LOGO_ROWS * CELL_H)
+            self.logo = logo.convert("RGBA").resize(size, Image.Resampling.LANCZOS)
         self.base = self.window(lockup(scratch, height=14))
         self.strips: dict[tuple[Row, ...], Image.Image] = {}
 
@@ -1043,7 +1109,7 @@ class Painter:
             )
             return image
         for y, row in enumerate(frame.rows):
-            self.row(draw, (PAD_X, PAD_Y + y * CELL_H), row)
+            self.row(image, draw, (PAD_X, PAD_Y + y * CELL_H), row)
         if frame.cursor is not None:
             self.cursor(draw, frame, *frame.cursor)
         return image
@@ -1055,7 +1121,7 @@ class Painter:
             image = Image.new("RGB", size, COLORS["bg"])
             draw = ImageDraw.Draw(image)
             for y, row in enumerate(rows):
-                self.row(draw, (0, y * CELL_H), row)
+                self.row(image, draw, (0, y * CELL_H), row)
             self.strips = {rows: image}
         return self.strips[rows]
 
@@ -1125,9 +1191,20 @@ class Painter:
             anchor="mm",
         )
 
-    def row(self, draw: ImageDraw.ImageDraw, origin: tuple[int, int], row: Row) -> None:
+    def row(
+        self,
+        image: Image.Image,
+        draw: ImageDraw.ImageDraw,
+        origin: tuple[int, int],
+        row: Row,
+    ) -> None:
         left, top = origin
         for x, item in enumerate(row):
+            slot = logo_slot(item[0])
+            if slot is not None:
+                if slot == (0, 0):
+                    image.paste(self.logo, (left + x * CELL_W, top), self.logo)
+                continue
             front, back = cell_colors(item)
             cell_left = left + x * CELL_W
             if back != COLORS["bg"]:
