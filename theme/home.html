@@ -90,7 +90,7 @@
       <h2 id="hn-index-title">Everything, in six sections.</h2>
       <p class="hn-sub">Open a section to browse its pages.</p>
       {% macro pages(items, pn, secn) %}{% for i in items %}{% if i.children %}{{ pages(i.children, pn, secn) }}{% elif i.url %}{% set pn.i = pn.i + 1 %}<li><a href="{{ i.url | url }}"><i>{{ secn }}.{{ pn.i }}</i><span>{{ i.title }}</span></a></li>{% endif %}{% endfor %}{% endmacro %}
-      {% set summaries = {"Get started": "Install from a checkout and run the Notes API.", "Tutorial": "Build a task tracker from models to access checks and tests.", "Guides": "One page for each part of an application.", "Concepts": "Request lifecycle, patterns and the vocabulary.", "Reference": "Public symbols, signatures and docstrings.", "Project": "Status, roadmap, troubleshooting and toolchain."} %}
+      {% set summaries = {"Get started": "Install from a checkout and create your first project.", "Tutorial": "Follow a task tracker from models to access checks and tests.", "Guides": "One page for each part of an application.", "Concepts": "Request lifecycle, patterns and the vocabulary.", "Reference": "Public symbols, signatures and docstrings.", "Project": "Status, roadmap, troubleshooting and toolchain."} %}
       {% set idx = namespace(i=0) %}
       <div class="hn-index" data-stagger data-hn-index>
       {% for item in nav %}{% if not item.is_homepage and (item.children or item.url) %}{% set idx.i = idx.i + 1 %}{% set pn = namespace(i=0) %}

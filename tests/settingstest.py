@@ -16,6 +16,7 @@ import pytest
 from hinoki import Hinoki, Request, context, http
 from hinoki.__main__ import main
 from hinoki.settings import (
+    LOCAL_DATABASE_URL,
     AppSettings,
     CorsSettings,
     DatabaseSettings,
@@ -540,6 +541,26 @@ def test_the_env_example_lists_every_variable_with_its_type() -> None:
     assert "APP_EXECUTION__SYNC_WORKERS=8" in text and "# integer" in text
     assert "APP_LOGGING__FORMAT=text" in text and "one of text|json" in text
     assert "APP_MAIL__TAGS=" in text and "# comma-separated text, required" in text
+
+
+def test_a_copied_env_example_keeps_the_defaults_it_leaves_blank(
+    tmp_path: Path,
+) -> None:
+    text = SampleSettings.example("APP_")
+    assert "\n# APP_DATABASE__URL=\n" in text
+    assert "\n# APP_MAIL__REPLY_TO=\n" in text
+    dotenv = tmp_path / ".env"
+    dotenv.write_text(
+        text.replace("APP_JWT_SECRET=\n", "APP_JWT_SECRET=s\n").replace(
+            "APP_MAIL__TAGS=\n", "APP_MAIL__TAGS=x\n"
+        )
+    )
+
+    settings = SampleSettings.load(prefix="APP_", env={}, dotenv=dotenv)
+
+    assert settings.database.url.reveal() == LOCAL_DATABASE_URL
+    assert settings.database.engine is None
+    assert settings.mail.reply_to is None
 
 
 def test_the_settings_command_prints_origins_and_failures(

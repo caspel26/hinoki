@@ -10,8 +10,11 @@ related:
 
 ## Settings
 
-Settings are a typed class. Tracker declares a database; local SQLite is the
-default, and `TRACKER_DATABASE__URL` selects another database:
+Settings are a typed class. Tracker declares a database; with no value set it
+is local SQLite. Each field of `DatabaseSettings` is a `TRACKER_DATABASE__<FIELD>`
+variable, two underscores between the group and the field, so
+`TRACKER_DATABASE__URL` selects another database ([Configure a
+database](../databases.md)):
 
 ```python
 # tracker/settings.py
@@ -83,6 +86,33 @@ application is the tracker, `TRACKER_DATABASE__URL` alone configures both
 `http://127.0.0.1:8000` and reloads on change; open `/docs` or `/redoc`.
 `hinoki serve` runs without reload and takes host, port and workers from the
 `server` settings ([serving](../serving.md)).
+
+## Try it
+
+Every task route needs a member's token, and the Tracker has no sign-up route.
+Create a member in the [shell](../shell.md), which opens the same database as
+the migration commands. From `examples/`, in a second terminal:
+
+```sh
+uv run hinoki shell
+```
+
+```pycon
+>>> await Member.acreate(name="Ann", token="ann-dev-token")
+```
+
+Leave the shell with Ctrl-D, then call the API with the token:
+
+```sh
+curl -X POST http://127.0.0.1:8000/tasks \
+  -H 'Authorization: Bearer ann-dev-token' \
+  -H 'content-type: application/json' \
+  -d '{"title":"Write the report"}'
+curl http://127.0.0.1:8000/tasks -H 'Authorization: Bearer ann-dev-token'
+```
+
+The first call answers `201` with the new task, the second a page with it.
+Without the header both answer `401`.
 
 ## Test it
 
