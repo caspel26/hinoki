@@ -55,3 +55,13 @@ class AdminGrant(
     )
     model: str = field(max_length=80)  # the admin slug of the model
     action: str = field(max_length=20)  # view, add, change or delete
+
+
+@db.indexed("started_at")
+class LoginWindowRow(Model, table="hinoki_admin_login_windows"):
+    """One sign-in window of the shared limiter: a digest of the client, when the
+    window started and how many attempts it counted."""
+
+    key: str = field(primary_key=True, max_length=64)
+    started_at: datetime = field(default_factory=utc_now)
+    count: int = 0

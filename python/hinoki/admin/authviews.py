@@ -8,7 +8,7 @@ from hinoki import core
 from hinoki.admin.csrf import FIELD, cookie_header
 from hinoki.admin.site import SECURITY_HEADERS
 from hinoki.admin.templates import Raw, escape
-from hinoki.admin.users.auth import COOKIE, end_cookie, session_cookie
+from hinoki.admin.users.auth import end_cookie, session_cookie
 from hinoki.admin.users.service import AdminUserError
 from hinoki.api import API
 from hinoki.auth import Caller
@@ -68,7 +68,13 @@ def page(  # noqa: PLR0913 - one value per part of the page
     headers = list(SECURITY_HEADERS)
     if fresh:
         headers.append(
-            cookie_header(request, token, admin.base, secure=admin.secure_cookies)
+            cookie_header(
+                request,
+                token,
+                admin.base,
+                secure=admin.secure_cookies,
+                name=admin.csrf.cookie,
+            )
         )
     return Response(status, html, headers, "text/html; charset=utf-8")
 
@@ -85,8 +91,8 @@ def secure(admin: Admin, request: Request) -> bool:
     )
 
 
-def session_of(request: Request) -> str:
-    return request.COOKIES.get(COOKIE, "")
+def session_of(admin: Admin, request: Request) -> str:
+    return request.COOKIES.get(admin.session_cookie, "")
 
 
 def signin_page(
@@ -110,7 +116,7 @@ def signin_page(
 
 async def login_form(self: API, request: Request) -> Response:
     admin: Admin = self.admin  # type: ignore[attr-defined]
-    if await admin.accounts.user_for(session_of(request)) is not None:
+    if await admin.accounts.user_for(session_of(admin, request)) is not None:
         return redirect(admin.base or "/")
     return signin_page(admin, request)
 
@@ -125,7 +131,7 @@ async def login_submit(self: API, request: Request) -> Response:
     user = await accounts.verify(username, password)
     if user is None:
         return signin_page(admin, request, WRONG, 401)
-    previous = session_of(request)
+    previous = session_of(admin, request)
     if previous:
         await accounts.close_session(previous)  # a new sign-in never reuses a token
     token = await accounts.open_session(user, request.headers.get("user-agent", ""))
@@ -134,6 +140,7 @@ async def login_submit(self: API, request: Request) -> Response:
         admin.base,
         hours=accounts.settings.session_hours,
         secure=secure(admin, request),
+        name=admin.session_cookie,
     )
     return redirect(admin.base or "/", cookie)
 
@@ -152,9 +159,12 @@ async def logout(self: API, request: Request, principal: Caller[Any]) -> Respons
             problem=EXPIRED,
             status=403,
         )
-    await admin.accounts.close_session(session_of(request))
+    await admin.accounts.close_session(session_of(admin, request))
     return redirect(
-        f"{admin.base}/login", end_cookie(admin.base, secure=secure(admin, request))
+        f"{admin.base}/login",
+        end_cookie(
+            admin.base, secure=secure(admin, request), name=admin.session_cookie
+        ),
     )
 
 
@@ -213,6 +223,7 @@ async def password_submit(
         admin.base,
         hours=admin.accounts.settings.session_hours,
         secure=secure(admin, request),
+        name=admin.session_cookie,
     )
     return redirect(f"{admin.base}?done=password", cookie)
 

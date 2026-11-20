@@ -40,12 +40,12 @@ class AdminSessionAuth(BaseAuth["AdminUser"]):
         self.admin = admin
 
     def openapi_scheme(self) -> dict[str, object] | None:
-        return {"type": "apiKey", "in": "cookie", "name": COOKIE}
+        return {"type": "apiKey", "in": "cookie", "name": self.admin.session_cookie}
 
     async def authenticate(self, credentials: Credentials) -> Caller[AdminUser] | None:
         accounts = self.admin.accounts
         cookies = core.parse_cookie_header(credentials.headers.get("cookie", ""))
-        user = await accounts.user_for(cookies.get(COOKIE, ""))
+        user = await accounts.user_for(cookies.get(self.admin.session_cookie, ""))
         if user is None:
             raise APIError(
                 "Sign in to continue.",
@@ -60,12 +60,12 @@ class AdminSessionAuth(BaseAuth["AdminUser"]):
 
 
 def session_cookie(
-    token: str, base: str, *, hours: int, secure: bool
+    token: str, base: str, *, hours: int, secure: bool, name: str = COOKIE
 ) -> tuple[str, str]:
     """The ``set-cookie`` header that holds a session: HttpOnly, scoped to the
     admin's path and lasting no longer than the session."""
     return set_cookie(
-        COOKIE,
+        name,
         token,
         path=base or "/",
         max_age=hours * 3600,
@@ -75,10 +75,10 @@ def session_cookie(
     )
 
 
-def end_cookie(base: str, *, secure: bool) -> tuple[str, str]:
+def end_cookie(base: str, *, secure: bool, name: str = COOKIE) -> tuple[str, str]:
     """The ``set-cookie`` header that removes the session cookie."""
     return set_cookie(
-        COOKIE,
+        name,
         "x",
         path=base or "/",
         max_age=0,

@@ -10,13 +10,21 @@ from typing import Any, overload
 
 from hinoki.access import Access
 from hinoki.admin.components import Components
+from hinoki.admin.csrf import COOKIE as CSRF_COOKIE
 from hinoki.admin.csrf import Csrf
 from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.parts import Event, Link
 from hinoki.admin.site import SECURITY_HEADERS
 from hinoki.admin.templates import Templates
 from hinoki.admin.themes import Theme
-from hinoki.admin.users.auth import BASE_PERMISSION, EVERYTHING, AdminSessionAuth
+from hinoki.admin.users.auth import (
+    BASE_PERMISSION,
+    EVERYTHING,
+    AdminSessionAuth,
+)
+from hinoki.admin.users.auth import (
+    COOKIE as SESSION_COOKIE,
+)
 from hinoki.admin.users.service import ACTIONS, AdminAccounts
 from hinoki.admin.users.useradmin import ADMIN_TABLES, UserAdmin
 from hinoki.admin.views import (
@@ -98,7 +106,10 @@ class Admin:
         self.access: Access = access or Access(
             auth=AdminSessionAuth(self), permissions=[BASE_PERMISSION]
         )
-        self._csrf = Csrf(secret) if secret is not None else None
+        self.secure_cookies = secure_cookies
+        self._csrf = (
+            Csrf(secret, self.cookie_name(CSRF_COOKIE)) if secret is not None else None
+        )
         self._prefix = prefix
         self.per_page = per_page
         self.show_count = show_count
@@ -112,7 +123,6 @@ class Admin:
         self.role = role or default_role
         self.activity = activity
         self.dashboard = dashboard
-        self.secure_cookies = secure_cookies
         self.timezone: tzinfo = UTC
         self._bound_timezone: tzinfo | None = None
         self.templates = Templates(templates, theme)
@@ -124,6 +134,16 @@ class Admin:
             "admin.css": digest(self.templates.stylesheet()),
             "admin.js": digest(self.templates.script()),
         }
+
+    def cookie_name(self, name: str) -> str:
+        """``__Secure-`` before the name when the admin is told its cookies are
+        always secure (``secure_cookies=True``): a browser then refuses to set it
+        over plain HTTP, so a sibling site cannot plant it."""
+        return f"__Secure-{name}" if self.secure_cookies else name
+
+    @property
+    def session_cookie(self) -> str:
+        return self.cookie_name(SESSION_COOKIE)
 
     @property
     def csrf(self) -> Csrf:
@@ -146,7 +166,7 @@ class Admin:
             return
         if settings is None or settings.secret is None:
             raise RegistrationError(NO_SECRET_MESSAGE)
-        self._csrf = Csrf(settings.secret.reveal())
+        self._csrf = Csrf(settings.secret.reveal(), self.cookie_name(CSRF_COOKIE))
 
     @property
     def prefix(self) -> str:
