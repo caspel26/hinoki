@@ -34,7 +34,42 @@ def per_day(rows: list[Post]) -> tuple[float, ...]:
     return tuple(float(sum(1 for r in rows if r.created_at.date() == d)) for d in days)
 
 
-class PostAdmin(ModelAdmin, model=Post):  # type: ignore[type-arg]
+def verb(row: Post) -> str:
+    return "published" if row.published else "drafted"
+
+
+async def recent_activity(principal: Caller[Any]) -> list[Event]:
+    """The latest posts, as activity (derived from real rows, not invented)."""
+    rows = await Post.all().select_related("author").order_by("-created_at").limit(3)
+    return [
+        Event(
+            f"{row.author.name} {verb(row)} “{row.title}”",
+            row.created_at.strftime("%Y-%m-%d %H:%M"),
+            "circle-check" if row.published else "pencil",
+            Tone.OK if row.published else Tone.WARN,
+        )
+        for row in rows
+    ]
+
+
+# Signed with the app's ``admin.secret`` (BLOG_ADMIN__SECRET) when it is included.
+site = Admin(
+    theme="studio",
+    site="Blog Studio",
+    tagline="My blog",
+    links=(
+        Link("API docs", "/docs", "file-text"),
+        Link("API reference", "/redoc", "layers"),
+    ),
+    activity=recent_activity,
+    dashboard=("posts",),
+    per_page=8,
+    show_count=True,
+)
+
+
+@site.admin(Post)
+class PostAdmin(ModelAdmin[Post]):
     slug = "posts"
     icon = "file-text"
     columns = ("title", "published", "author_id", "created_at")
@@ -89,7 +124,8 @@ class PostAdmin(ModelAdmin, model=Post):  # type: ignore[type-arg]
         ]
 
 
-class UserAdmin(ModelAdmin, model=User):  # type: ignore[type-arg]
+@site.admin(User)
+class UserAdmin(ModelAdmin[User]):
     """Authors can be listed and renamed, never created or deleted here; their
     tokens are neither shown nor editable, and editor rights are read-only."""
 
@@ -111,41 +147,3 @@ class UserAdmin(ModelAdmin, model=User):  # type: ignore[type-arg]
 
     async def stats(self, principal: Caller[Any]) -> list[Stat]:
         return []
-
-
-def verb(row: Post) -> str:
-    return "published" if row.published else "drafted"
-
-
-async def recent_activity(principal: Caller[Any]) -> list[Event]:
-    """The latest posts, as activity (derived from real rows, not invented)."""
-    rows = await Post.all().select_related("author").order_by("-created_at").limit(3)
-    return [
-        Event(
-            f"{row.author.name} {verb(row)} “{row.title}”",
-            row.created_at.strftime("%Y-%m-%d %H:%M"),
-            "circle-check" if row.published else "pencil",
-            Tone.OK if row.published else Tone.WARN,
-        )
-        for row in rows
-    ]
-
-
-def build_admin(theme: str = "studio") -> Admin:
-    """The site, signed with the app's ``admin.secret``; one line per model."""
-    site = Admin(
-        theme=theme,
-        site="Blog Studio",
-        tagline="My blog",
-        links=(
-            Link("API docs", "/docs", "file-text"),
-            Link("API reference", "/redoc", "layers"),
-        ),
-        activity=recent_activity,
-        dashboard=("posts",),
-        per_page=8,
-        show_count=True,
-    )
-    site.register(PostAdmin)
-    site.register(UserAdmin)
-    return site

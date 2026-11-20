@@ -1,13 +1,13 @@
-"""Declared entry point for the notes example.
+"""The Notes application.
 
-Run with ``hinoki dev notes.main:app`` for local SQLite, or set
-``NOTES_DATABASE__URL`` to use another backend.
-The settings class reads the environment when the command loads this module.
+From ``examples/``: ``uv run hinoki dev notes.main:app``. Local development uses
+SQLite; set ``NOTES_DATABASE__URL`` for another database. Importing this module
+reads the settings and opens nothing.
 """
 
 from hinoki import Hinoki
 
-from .app import create, listing, one, remove
+from .api import notes
 from .settings import NotesSettings
 
 app = Hinoki(
@@ -15,5 +15,5 @@ app = Hinoki(
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    include=[listing, one, create, remove],
+    include=[notes],
 )

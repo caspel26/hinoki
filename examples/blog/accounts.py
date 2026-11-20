@@ -4,7 +4,8 @@
 lived JWT; ``GET /auth/me`` shows who a token belongs to. The opaque
 ``blog_token`` of the demo data keeps working for the posts API and the admin.
 
-Built by a factory so that nothing (hash pool, keys) exists at import time.
+``build_accounts`` runs only when a JWT secret is configured, so nothing (hash
+pool, keys) exists otherwise.
 Login is rate limited per client address by ``limits.LoginAttempts``, a policy of
 this example (one worker's memory: see its docstring). Not included, on purpose:
 refresh tokens.
