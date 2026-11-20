@@ -650,6 +650,24 @@ def test_supervisor_builds_and_spawns_worker_command(
     listener.close()
 
 
+def test_a_worker_starts_with_sigint_blocked_and_the_supervisor_mask_is_restored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    masks: list[set[int | signal.Signals]] = []
+
+    def popen(*_: object, **__: object) -> FakeWorkerProcess:
+        masks.append(signal.pthread_sigmask(signal.SIG_BLOCK, []))
+        return FakeWorkerProcess()
+
+    monkeypatch.setattr("hinoki.runtime.supervisor.subprocess.Popen", popen)
+    before = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+    Supervisor("app:make", listener, 1, 2.0).spawn()
+    assert signal.SIGINT in masks[0]  # inherited across exec by the worker
+    assert signal.pthread_sigmask(signal.SIG_BLOCK, []) == before
+    listener.close()
+
+
 def test_supervisor_second_signal_kills_and_terminate_skips_exited_workers() -> None:
     listener = open_listener("127.0.0.1", 0, 8)
     supervisor = Supervisor("app:make", listener, 1, 2.0)
