@@ -33,7 +33,7 @@ class Quote(Schema):
 
 @http.get("/quotes/{symbol}")
 async def quote(symbol: str) -> Quote:
-    raw = await pricing_client.fetch(symbol)    # any library, returning plain data
+    raw = await pricing_client.fetch(symbol)  # any library, returning plain data
     return Quote(symbol=raw["symbol"], price=raw["price"])
 ```
 

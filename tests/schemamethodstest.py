@@ -29,7 +29,7 @@ class Person(Schema):
 
 class Patch(Schema):
     name: str | Unset = UNSET
-    nick: str | None | Unset = UNSET
+    nick: str | Unset | None = UNSET
 
 
 def test_to_dict_keeps_python_values_and_omits_unset() -> None:

@@ -167,9 +167,9 @@ class Hinoki:
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
         version: str | None = None,
-        openapi_url: str | None | Unset = UNSET,
-        docs_url: str | None | Unset = UNSET,
-        redoc_url: str | None | Unset = UNSET,
+        openapi_url: str | Unset | None = UNSET,
+        docs_url: str | Unset | None = UNSET,
+        redoc_url: str | Unset | None = UNSET,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
         parsers: Sequence[Parser] | None = None,
@@ -223,9 +223,9 @@ class Hinoki:
         docs: DocsSettings,
         title: str | None,
         version: str | None,
-        openapi_url: str | None | Unset,
-        docs_url: str | None | Unset,
-        redoc_url: str | None | Unset,
+        openapi_url: str | Unset | None,
+        docs_url: str | Unset | None,
+        redoc_url: str | Unset | None,
     ) -> None:
         self.title = title if title is not None else docs.title
         self.version = version if version is not None else docs.version
