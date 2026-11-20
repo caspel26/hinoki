@@ -453,15 +453,24 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
             .collect::<Result<Vec<_>, _>>()?;
         b.sql.push_str(&format!(" ORDER BY {}", parts.join(", ")));
     }
-    if let Some(limit) = q.limit {
-        b.sql.push_str(&format!(" LIMIT {limit}"));
-    } else if dialect == Dialect::Mysql && q.offset.is_some() {
-        b.sql.push_str(" LIMIT 18446744073709551615");
-    }
-    if let Some(offset) = q.offset {
-        b.sql.push_str(&format!(" OFFSET {offset}"));
-    }
+    b.sql.push_str(&limit_clause(dialect, q.limit, q.offset));
     Ok((b.sql, b.params))
+}
+
+/// `LIMIT` and `OFFSET`; SQLite and MySQL reject an `OFFSET` with no `LIMIT`, so
+/// each gets its own "no limit" value.
+fn limit_clause(dialect: Dialect, limit: Option<u64>, offset: Option<u64>) -> String {
+    let mut clause = String::new();
+    match (limit, offset, dialect) {
+        (Some(limit), _, _) => clause.push_str(&format!(" LIMIT {limit}")),
+        (None, Some(_), Dialect::Mysql) => clause.push_str(" LIMIT 18446744073709551615"),
+        (None, Some(_), Dialect::Sqlite) => clause.push_str(" LIMIT -1"),
+        _ => {}
+    }
+    if let Some(offset) = offset {
+        clause.push_str(&format!(" OFFSET {offset}"));
+    }
+    clause
 }
 
 pub fn compile_insert<V: Clone>(q: &Insert<V>) -> Compiled<V> {
