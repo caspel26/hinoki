@@ -28,7 +28,7 @@ from hinoki.schema import Schema
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: status "warning" and summary.warning
 
 
 class Severity(StrEnum):
@@ -46,6 +46,7 @@ class Status(StrEnum):
     VIOLATED = "violated"
     UNVERIFIABLE = "unverifiable"
     WAIVED = "waived"
+    WARNING = "warning"  # reported, never failing (the waiver notices)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -75,15 +76,8 @@ class Diagnostic:
             "fix": self.fix,
         }
 
-    @property
-    def label(self) -> str:
-        """``warning`` for a warning that applies, else the status: what the
-        report shows and counts."""
-        warns = self.severity is Severity.WARNING and self.status is Status.VIOLATED
-        return "warning" if warns else self.status.value
-
     def text(self) -> str:
-        line = f"{self.location}: {self.rule_id} [{self.label}] {self.message}"
+        line = f"{self.location}: {self.rule_id} [{self.status}] {self.message}"
         return f"{line}\n  fix: {self.fix}" if self.fix else line
 
 

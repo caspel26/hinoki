@@ -65,10 +65,9 @@ def build_rules(spec: str | None, app: Hinoki) -> RuleSet:
 
 
 def summary(diagnostics: list[Diagnostic]) -> dict[str, int]:
-    """Counts per label: a warning is counted as ``warning``, not ``violated``."""
-    counts = {status.value: 0 for status in Status} | {"warning": 0}
+    counts = {status.value: 0 for status in Status}
     for found in diagnostics:
-        counts[found.label] += 1
+        counts[found.status.value] += 1
     return {**counts, "failing": len(failing(diagnostics))}
 
 

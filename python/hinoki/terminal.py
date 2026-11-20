@@ -55,6 +55,7 @@ GLYPHS: dict[str, tuple[str, str, str]] = {
     "ok": ("\u2714", "+", "good"),
     "skip": ("\u2013", "-", "warn"),
     "warn": ("\u25b2", "!", "warn"),
+    "unsure": ("?", "?", "bad"),
     "bad": ("\u2718", "x", "bad"),
     "cancel": ("\u25a0", "x", "bad"),
 }

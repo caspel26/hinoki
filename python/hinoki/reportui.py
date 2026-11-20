@@ -18,7 +18,7 @@ from hinoki.terminal import Style
 DOCTOR_GLYPHS = {"ok": "ok", "warning": "warn", "failed": "bad", "skipped": "skip"}
 CHECK_GLYPHS = {
     "violated": "bad",
-    "unverifiable": "warn",
+    "unverifiable": "unsure",
     "waived": "skip",
     "warning": "warn",
 }
@@ -50,8 +50,6 @@ class FoundDiagnostic(Protocol):
     def rule_id(self) -> str: ...
     @property
     def status(self) -> object: ...
-    @property
-    def label(self) -> str: ...
     @property
     def message(self) -> str: ...
     @property
@@ -87,7 +85,7 @@ def check_text(
 ) -> str:
     lines = []
     for item in found:
-        glyph = CHECK_GLYPHS[item.label]
+        glyph = CHECK_GLYPHS[str(item.status)]
         head = f"{style.bold(item.rule_id)} {style.dim(item.location)}"
         lines.append(style.line(glyph, head))
         lines.append(f"       {item.message}")
@@ -96,7 +94,7 @@ def check_text(
         if item.waiver:
             lines.append(f"       {style.dim('waived: ' + item.waiver)}")
     summary = check_summary(rules, totals)
-    clean = totals["violated"] == 0
+    clean = totals["failing"] == 0  # green exactly when the exit code is 0
     lines.append("")
     lines.append(style.ok(summary) if clean else style.error(summary))
     return "\n".join(lines)
