@@ -30,8 +30,9 @@ The command writes the package and registers it:
 
 ```text
 notes/apps/billing/
+├── api.py         endpoints of the app
+├── routes.py      the list of routes served, mounted at the prefix
 ├── models.py      tables of the app
-├── routes.py      endpoints, mounted at the prefix
 └── migrations/    migration history
 ```
 
@@ -70,8 +71,8 @@ class Invoice(Model):
 ```
 
 The table name is derived: `billing_invoices`, the app followed by the plural
-model name. Pin it with `@db.table(...)` only to keep a physical name stable,
-for example when you rename the class.
+model name. `@db.table("billing_invoices")` pins it, so renaming the class
+keeps the physical name; the model rules below ask for it.
 
 ## Plan and apply the migration
 
@@ -114,7 +115,22 @@ uv run pytest
 8 rule(s): 0 violated, 0 unverifiable, 0 waived
 ```
 
-Endpoints for billing go in the app, and `notes/apps/billing/routes.py` lists
+`notes/rules.py` keeps two model rules commented out:
+`Models.require_explicit_table` and `Models.require_foreign_key_index`.
+`hinoki check` sees only the models the application imports, and a model rule
+that matches no model is `unverifiable`, which fails the check. Turn them on
+(and import `Models`) once a billing route imports `Invoice`; then add
+`@db.table("billing_invoices")` above the class, or the check reports:
+
+```text
+notes/apps/billing/models.py:10: HNK-DB-001 [violated] Invoice uses the derived table name 'billing_invoices'
+  fix: name the table with @db.table(...) or table=... on the model
+```
+
+Pinning the derived name changes no table: `migrations plan billing` then
+reports `no changes`.
+
+Endpoints for billing go in `notes/apps/billing/api.py`, and `routes.py` lists
 them. The application in `notes/main.py` includes every app's list with
 `manifest_routes()`, which mounts this one at `/billing`, so paths inside the
 app never repeat the prefix:
