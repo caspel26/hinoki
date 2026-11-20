@@ -191,7 +191,21 @@
     });
   };
 
+  /* ---------- Decorative loops run only while visible ---------- */
+  const setupIdle = (targets) => {
+    if (!targets.length || !("IntersectionObserver" in window)) return;
+    const visible = new Map(targets.map((t) => [t, true]));
+    const apply = () => targets.forEach((t) => t.classList.toggle("is-idle", document.hidden || !visible.get(t)));
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => visible.set(e.target, e.isIntersecting));
+      apply();
+    });
+    targets.forEach((t) => io.observe(t));
+    document.addEventListener("visibilitychange", apply);
+  };
+
   const init = () => {
+    setupIdle($$(".hn-hero, .hn-ticker"));
     $$("[data-hn-index]").forEach(setupIndex);
     $$("[data-hn-panel]").forEach(setupPanel);
     $$("[data-hn-tabs]").forEach(setupTabs);
