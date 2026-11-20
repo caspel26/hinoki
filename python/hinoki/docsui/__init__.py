@@ -83,10 +83,12 @@ def pages(
 ) -> dict[str, Page]:
     """Every path the documentation viewers answer, by exact path."""
     found: dict[str, Page] = {}
-    if (docs_url or redoc_url) and not openapi_url:
-        raise ValueError("docs_url / redoc_url need openapi_url")
+    if not openapi_url:
+        if docs_url or redoc_url:
+            raise ValueError("docs_url / redoc_url need openapi_url")
+        return found
     if docs_url:
-        found.update(swagger_pages(docs_url, openapi_url or ""))
+        found.update(swagger_pages(docs_url, openapi_url))
     if redoc_url:
-        found.update(redoc_pages(redoc_url, openapi_url or ""))
+        found.update(redoc_pages(redoc_url, openapi_url))
     return found
