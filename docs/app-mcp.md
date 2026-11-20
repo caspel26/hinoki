@@ -38,7 +38,7 @@ app.include(*mcp)  # POST /mcp
 
 ## Choose the tools
 
-`tools` are `fnmatch` patterns over qualified action names, the same names rules match: `module.function`, or `module.Class.method` for an action of an `API` class. `"notes.apps.billing.api.*"` selects every action of that module.
+`tools` are `fnmatch` patterns over qualified action names, the same names rules match: `module.function`, or `module.Class.method` for an action of an `API` class. `"notes.apps.billing.api.*"` selects every action of that module. Generated CRUD actions are named after the module that declares the `crud(...)` value (`notes.apps.billing.routes.InvoiceCrud.list`, see [Generated CRUD](crud.md)), so a module pattern selects them too.
 
 * Only `GET`, `HEAD` and `QUERY` actions are exposed by default. A `QUERY` tool takes the request body as its input.
 * `allow_writes=True` also exposes `POST`, `PUT`, `PATCH` and `DELETE` actions. Use it only when write tools are intended and `access` permits them.

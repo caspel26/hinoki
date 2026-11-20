@@ -73,7 +73,8 @@ routes, which open their own short transactions.
 
 Action rules match `fnmatch` patterns against an action's qualified name:
 `module.function` for a function, `module.Class.method` for an API class (named
-after the class it is mounted on). A bare `health` matches nothing; write
+after the class it is mounted on), and `module.<Model>Crud.<action>` for a
+`crud(...)` value, where `module` is the one that calls `crud(...)`. A bare `health` matches nothing; write
 `notes.api.health` or `*.health`. `except_` takes the same patterns and is how
 you say "public on purpose". The Blog example names its exceptions once:
 

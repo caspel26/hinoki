@@ -734,9 +734,15 @@ class CrudDeclaration:
     """What ``crud(...)`` returns: include it for plain CRUD, or apply it to a
     class that adds hooks and handwritten actions."""
 
-    def __init__(self, config: _CrudConfig, path: str) -> None:
+    def __init__(
+        self, config: _CrudConfig, path: str, module: str = __name__, name: str = ""
+    ) -> None:
         self.config = config
         self.path = path
+        prefix, _, short = name.rpartition(".")
+        self.module = prefix or module
+        self.name = short or f"{config.model.__name__}Crud"
+        self.named = bool(name)
         self.generated = [
             name
             for name in ACTIONS
@@ -745,13 +751,18 @@ class CrudDeclaration:
         self.built: type[CrudBase] | None = None
 
     def api(self) -> type[CrudBase]:
-        """The generated API class (built once)."""
+        """The generated API class (built once), named after the module that
+        declared it (or ``name=``) so rules scoped to that module see its actions."""
         if self.built is None:
-            name = f"{self.config.model.__name__}Crud"
-            self.built = self.build(name, {"__module__": __name__})
+            self.built = self.build(self.name, {"__module__": self.module})
         return self.built
 
     def __call__[T: API](self, cls: type[T]) -> type[T]:
+        if self.named:
+            raise RegistrationError(
+                f"{cls.__name__}: name= is for the function form; "
+                "the decorated class keeps its own name"
+            )
         if cls.__bases__ != (API,):
             raise RegistrationError(
                 f"{cls.__name__}: a crud(...) class has exactly one base, API"
@@ -803,6 +814,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     assign: Mapping[str, Callable[[Any], Any]] | None = None,
     pagination: PageNumberPagination = PageNumberPagination(),  # noqa: B008
     omit: tuple[str, ...] = (),
+    name: str | None = None,
 ) -> CrudDeclaration:
     """Declare generated CRUD for ``model``.
 
@@ -810,12 +822,16 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     class adds the hooks (``get_queryset``, ``to_schema``, ``written_queryset``,
     ``store``, ``change``, ``remove``) and handwritten actions.
     A single ``Access`` protects every action; ``CrudAccess`` sets them apart.
+    ``name=`` names the generated class (``"ArchiveCrud"``) or its module and
+    class (``"notes.apps.archive.ArchiveCrud"``) that rules and MCP patterns match.
     """
     unknown = sorted(set(omit) - {"list", "retrieve"})
     if unknown:
         raise RegistrationError(
             f"crud(...) omit= takes 'list' or 'retrieve', not {unknown}"
         )
+    if name is not None:
+        check_name(name)
     actions = (
         access.resolve()
         if isinstance(access, CrudAccess)
@@ -837,4 +853,29 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         actions=actions,
         omit=frozenset(omit),
     )
-    return CrudDeclaration(config, path)
+    return CrudDeclaration(config, path, declaring_module(), name or "")
+
+
+def check_name(name: str) -> None:
+    if not all(part.isidentifier() for part in name.split(".")):
+        raise RegistrationError(
+            f"crud(...) name={name!r} must be a class name or module.Class"
+        )
+
+
+def declaring_module() -> str:
+    """The module that declared the ``crud(...)`` value: the caller's module, or,
+    when the caller is a helper function run from a module's top level, that
+    module (one hop, so a shared factory names actions after the feature)."""
+    frame = inspect.currentframe()
+    caller = frame.f_back.f_back if frame and frame.f_back else None
+    if caller is None:
+        return __name__
+    outer = caller.f_back
+    if (
+        caller.f_code.co_name != "<module>"
+        and outer is not None
+        and outer.f_code.co_name == "<module>"
+    ):
+        caller = outer
+    return str(caller.f_globals.get("__name__", __name__))
