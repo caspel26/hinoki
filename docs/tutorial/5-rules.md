@@ -16,10 +16,11 @@ from hinoki import Actions, Imports, Models, Schemas, Transactions
 from hinoki.rules import RuleSet
 
 PKG = "tracker"
+APP = f"{PKG}.apps.tracker"  # the app that owns the models, operations and api
 
 tracker_rules = RuleSet(
-    Actions.require_access(match=f"{PKG}.*", except_=[f"{PKG}.api.health"]),
-    Actions.require_permissions(match=f"{PKG}.*", except_=[f"{PKG}.api.health"]),
+    Actions.require_access(match=f"{PKG}.*", except_=[f"{APP}.api.health"]),
+    Actions.require_permissions(match=f"{PKG}.*", except_=[f"{APP}.api.health"]),
     Actions.forbid_model_responses(match=f"{PKG}.*"),
     Actions.require_return_type(match=f"{PKG}.*"),
     Actions.require_pagination(match=f"{PKG}.*"),
@@ -31,9 +32,9 @@ tracker_rules = RuleSet(
     Models.require_explicit_table(match=f"{PKG}.*"),
     Models.require_foreign_key_index(match=f"{PKG}.*"),
     # The direction of dependencies: api -> operations -> models.
-    Imports.forbid(source=f"{PKG}.models", target=f"{PKG}.operations"),
-    Imports.forbid(source=f"{PKG}.models", target=f"{PKG}.api"),
-    Imports.forbid(source=f"{PKG}.operations", target=f"{PKG}.api"),
+    Imports.forbid(source=f"{APP}.models", target=f"{APP}.operations"),
+    Imports.forbid(source=f"{APP}.models", target=f"{APP}.api"),
+    Imports.forbid(source=f"{APP}.operations", target=f"{APP}.api"),
 )
 ```
 
@@ -61,7 +62,7 @@ Take `create_task` out of the group's transaction by adding `atomic=False` to it
 decorator, then run the check again:
 
 ```text
-tracker/api.py:29: HNK-TXN-001 [violated] POST /tasks (create_task) does not declare atomic=True
+tracker/apps/tracker/api.py:29: HNK-TXN-001 [violated] POST /tasks (create_task) does not declare atomic=True
   fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
 13 rule(s): 1 violated, 0 unverifiable, 0 waived
 ```

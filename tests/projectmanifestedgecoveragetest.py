@@ -24,7 +24,7 @@ def test_project_manifest_app_resolution_requires_unambiguous_selection(
     tmp_path: Path,
 ) -> None:
     empty = _manifest(tmp_path)
-    with pytest.raises(ProjectError, match="pass --app"):
+    with pytest.raises(ProjectError, match=r"no apps are registered.*app create"):
         empty.app()
     with pytest.raises(ProjectError, match="unknown app"):
         empty.app("missing")

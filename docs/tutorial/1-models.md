@@ -12,7 +12,7 @@ A model declares a table. A relation is loaded only when you ask for it, never
 as a side effect of reading an attribute.
 
 ```python
-# tracker/models.py
+# tracker/apps/tracker/models.py
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -59,7 +59,7 @@ A migration is a SQL file generated from the models and checked in beside them.
 Tracker ships two; the second adds the composite index:
 
 ```sql
--- tracker/migrations/0002-indexes.sql
+-- tracker/apps/tracker/migrations/0002-indexes.sql
 -- index tracker_tasks (owner_id, created_at)
 CREATE INDEX "ix_tracker_tasks_owner_id_created_at" ON "tracker_tasks" ("owner_id", "created_at");
 ```

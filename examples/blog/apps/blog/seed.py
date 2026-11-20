@@ -1,6 +1,6 @@
 """Synthetic demo data for a disposable database (never use real people).
 
-BLOG_DATABASE__URL=postgres://... uv run python -m blog.seed
+BLOG_DATABASE__URL=postgres://... uv run python -m blog.apps.blog.seed
 
 Applies the migrations and inserts three users and twelve posts. The editor's
 token is ``demo-editor-token`` (users ``ada`` and ``rae`` can also log in with

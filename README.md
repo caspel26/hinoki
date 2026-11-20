@@ -81,7 +81,7 @@ app = Hinoki(
 )
 ```
 
-`hinoki.toml` names that application, its routes, models and migrations, so commands inside the project take no target:
+`hinoki.toml` names that application and its routes, so commands inside the project take no target:
 
 ```toml
 [project]
@@ -97,26 +97,23 @@ hinoki routes   # list every route with its access policy
 
 ## Write an API
 
+The project package holds no models. Create an app for them, which registers its models, migrations and routes in `hinoki.toml`:
+
+```sh
+hinoki app create notes
+```
+
 Endpoints are plain functions. A `RouteGroup` shares a path, an access policy and a transaction across its actions:
 
 ```python
-# notes/api.py
+# notes/apps/notes/api.py
 from typing import Annotated
 
-from hinoki import Field, RouteGroup, Schema, derive, http
+from hinoki import Field, RouteGroup, Schema, derive
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
-from notes.models import Note
-from notes.security import editors
-
-
-class Health(Schema):
-    status: str
-
-
-@http.get("/health")
-def health() -> Health:
-    return Health(status="ok")
+from notes.apps.notes.models import Note
+from notes.apps.notes.security import editors
 
 
 class NoteIn(Schema):
@@ -142,7 +139,7 @@ async def create_note(data: NoteIn) -> NoteOut:
 ```
 
 ```python
-# notes/models.py
+# notes/apps/notes/models.py
 from uuid import UUID, uuid4
 
 from hinoki.orm import Model, field, pk
@@ -154,16 +151,16 @@ class Note(Model):
     body: str = ""
 ```
 
-`editors` is an `Access` policy: a token check and the permissions it requires ([Authentication](docs/authentication.md)). List the endpoints in `notes/routes.py` (`routes = [health, notes]`); `main.py` does not change.
+`editors` is an `Access` policy: a token check and the permissions it requires ([Authentication](docs/authentication.md)). List the endpoints in `notes/apps/notes/routes.py` (`routes = [notes]`); `main.py` does not change.
 
 ```console
 $ hinoki routes
 GET     /health  public                   notes.api.health
-GET     /notes   Tokens[notes:write]      notes.api.list_notes
-POST    /notes   Tokens[notes:write]      notes.api.create_note
+GET     /notes   Tokens[notes:write]      notes.apps.notes.api.list_notes
+POST    /notes   Tokens[notes:write]      notes.apps.notes.api.create_note
 ```
 
-Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `hinoki migrations plan` writes the migration, `hinoki migrations apply` runs it. For CRUD, `crud(Note, path=..., read=..., create=...)` generates the routes, and a class-based `API` adds hooks and handwritten actions ([CRUD](docs/crud.md), [class-based APIs](docs/class-endpoints.md)).
+Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `hinoki migrations plan notes` writes the migration, `hinoki migrations apply` runs it. For CRUD, `crud(Note, path=..., read=..., create=...)` generates the routes, and a class-based `API` adds hooks and handwritten actions ([CRUD](docs/crud.md), [class-based APIs](docs/class-endpoints.md)).
 
 ## What you get
 

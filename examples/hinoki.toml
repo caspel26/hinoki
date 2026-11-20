@@ -3,20 +3,20 @@ application = "project.app:app"
 
 [[apps]]
 name = "notes"
-models = "notes.models"
-migrations = "notes.migrations"
+models = "notes.apps.notes.models"
+migrations = "notes.apps.notes.migrations"
 requires = []
 
 [[apps]]
 name = "tracker"
-models = "tracker.models"
-migrations = "tracker.migrations"
+models = "tracker.apps.tracker.models"
+migrations = "tracker.apps.tracker.migrations"
 requires = []
 
 [[apps]]
 name = "blog"
-models = "blog.models"
-migrations = "blog.migrations"
+models = "blog.apps.blog.models"
+migrations = "blog.apps.blog.migrations"
 requires = []
 
 [[apps]]

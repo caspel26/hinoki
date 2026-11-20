@@ -747,7 +747,7 @@ def test_statements_split_on_line_terminators() -> None:
 
 
 def test_models_of_finds_the_models_of_a_module() -> None:
-    names = [m.__name__ for m in models_of("blog.models")]
+    names = [m.__name__ for m in models_of("blog.apps.blog.models")]
     assert names == ["User", "Post"]
 
 
@@ -758,7 +758,14 @@ def test_command_line_plans_and_prints(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     args = ["migrations", "--dir", str(tmp_path)]
-    plan_args = [*args, "plan", "--models", "blog.models", "--name", "initial"]
+    plan_args = [
+        *args,
+        "plan",
+        "--models",
+        "blog.apps.blog.models",
+        "--name",
+        "initial",
+    ]
     assert main([*plan_args, "--dry-run"]) == 0
     assert list(tmp_path.iterdir()) == []
     assert main(plan_args) == 0
@@ -791,7 +798,7 @@ def test_plan_check_is_read_only_and_keeps_dry_run_preview_semantics(
         str(directory),
         "plan",
         "--models",
-        "blog.models",
+        "blog.apps.blog.models",
     ]
 
     assert main([*args, "--check"]) == 1

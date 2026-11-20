@@ -7,14 +7,14 @@ from hinoki import Actions, Imports, Models, Schemas, Transactions
 from hinoki.rules import RuleSet
 
 PUBLIC = [
-    "blog.api.health",
-    "blog.api.Posts.listing",
-    "blog.api.Posts.one",
-    "blog.accounts.*.login",  # public on purpose: it is how you sign in
+    "blog.apps.blog.api.health",
+    "blog.apps.blog.api.Posts.listing",
+    "blog.apps.blog.api.Posts.one",
+    "blog.apps.blog.accounts.*.login",  # public on purpose: it is how you sign in
 ]
 
 # Any signed-in user may read their own profile: no permission, on purpose.
-SIGNED_IN = ["blog.accounts.*.me"]
+SIGNED_IN = ["blog.apps.blog.accounts.*.me"]
 
 blog_rules = RuleSet(
     # Anything not public on purpose names an access policy.
@@ -28,7 +28,7 @@ blog_rules = RuleSet(
     # Writes run in a transaction that rolls back before errors become HTTP.
     # Login only reads; holding a transaction open during a password hash would
     # tie up a connection for nothing.
-    Transactions.require_atomic(except_=["blog.accounts.*.login"]),
+    Transactions.require_atomic(except_=["blog.apps.blog.accounts.*.login"]),
     # These columns never reach a client, even through nested schemas.
     Schemas.forbid_exposure("token", "password_hash"),
     # Request text is bounded, so no client can send an unbounded string.
@@ -37,5 +37,5 @@ blog_rules = RuleSet(
     Models.require_explicit_table(match="blog.*"),
     Models.require_foreign_key_index(match="blog.*"),
     # The persistence layer does not know about the HTTP layer.
-    Imports.forbid(source="blog.models", target="blog.api"),
+    Imports.forbid(source="blog.apps.blog.models", target="blog.apps.blog.api"),
 )

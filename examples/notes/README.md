@@ -1,8 +1,10 @@
 # Notes
 
-The smallest complete Hinoki app: a model, input and output schemas, one route
-group and a database setting. `api.py` holds the schemas and the `notes` group;
-`main.py` declares the application.
+The smallest complete Hinoki app, laid out the way `hinoki new notes` followed by
+`hinoki app create notes` lays out a project: the `notes/` package holds only
+`main.py` and the settings, and the `apps/notes/` app owns a model, input and
+output schemas and one route group. `apps/notes/api.py` holds the schemas and the
+`notes` group; `main.py` declares the application.
 
 ## Run
 
@@ -14,7 +16,7 @@ uv run hinoki dev notes.main:app
 ```
 
 The migration is checked in at
-[`migrations/0001-create-table-notes.sql`](migrations/0001-create-table-notes.sql);
+[`apps/notes/migrations/0001-create-table-notes.sql`](apps/notes/migrations/0001-create-table-notes.sql);
 review it before applying. The database is `.hinoki/local.sqlite3`, and the
 application never migrates at startup.
 

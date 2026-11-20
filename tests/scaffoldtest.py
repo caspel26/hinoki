@@ -18,6 +18,7 @@ from hinoki.__main__ import main
 from hinoki.ai.errorcatalog import CATALOG, explain
 from hinoki.ai.mcp import DevProject, Server
 from hinoki.newcli import fill_from_prompts
+from hinoki.projectcli import create_app as create_project_app
 from hinoki.prompts import Prompter, tokens
 from hinoki.rules import RuleSet
 from hinoki.scaffold import ScaffoldError, create, files
@@ -52,6 +53,23 @@ def test_the_project_has_what_an_agent_needs(tmp_path: Path) -> None:
     mcp = json.loads((target / ".mcp.json").read_text())
     assert mcp["mcpServers"]["hinoki"]["args"] == ["run", "hinoki", "mcp"]
     assert "read and follow" in (target / "CLAUDE.md").read_text().lower()
+
+
+def test_the_project_root_owns_no_models_and_registers_no_app(tmp_path: Path) -> None:
+    target = create("shop", tmp_path)
+    manifest = tomllib.loads((target / "hinoki.toml").read_text())
+    assert "apps" not in manifest
+    assert not (target / "shop/models.py").exists()
+    assert not (target / "shop/migrations").exists()
+
+
+def test_models_live_in_apps_created_after_the_project(tmp_path: Path) -> None:
+    target = create("shop", tmp_path)
+    created = create_project_app("catalog", target)
+    assert created == target / "shop/apps/catalog"
+    assert (created / "models.py").is_file()
+    manifest = tomllib.loads((target / "hinoki.toml").read_text())
+    assert [app["models"] for app in manifest["apps"]] == ["shop.apps.catalog.models"]
 
 
 @pytest.mark.parametrize(

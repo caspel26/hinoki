@@ -124,7 +124,10 @@ def load_target(target: str) -> tuple[Any, bool]:
 
 def settings_of(app: object) -> ServerSettings:
     """The ``server`` group of an application, or of the application a
-    ``WSGIAdapter`` wraps (defaults when there is none)."""
+    ``WSGIAdapter`` wraps (defaults when there is none). A plain WSGI callable
+    has no settings of its own, so they come from the environment."""
+    if not isinstance(app, WSGIAdapter | Hinoki):
+        return AppSettings.load().server
     if isinstance(app, WSGIAdapter):
         app = app.app
     settings = getattr(app, "settings", None)
@@ -369,13 +372,17 @@ def stop_grace_of(target: Any) -> float:
     wrapped = target.app if isinstance(target, WSGIAdapter) else None
     if isinstance(wrapped, Hinoki):
         return stop_grace(wrapped)
-    return 3 * AppSettings().lifecycle.shutdown_timeout
+    settings = AppSettings() if isinstance(target, WSGIAdapter) else AppSettings.load()
+    return 3 * settings.lifecycle.shutdown_timeout
 
 
 def run_wsgi(args: argparse.Namespace, reload: bool) -> int:
     """``--interface wsgi``: a WSGI callable on Kiso or on Granian."""
     target = load_wsgi_target(args.target)
-    settings = settings_of(target)
+    try:
+        settings = settings_of(target)
+    except SettingsError as error:
+        return refuse(str(error))
     chosen = choose_server(args, settings)
     if isinstance(chosen, int):
         return chosen
