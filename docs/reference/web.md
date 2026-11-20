@@ -1,6 +1,6 @@
 # Core API: application, routing and HTTP
 
-`from hinoki import Hinoki, RouteGroup, Mount, http, errors`. Guides: [function-based APIs](../function-endpoints.md), [class-based APIs](../class-endpoints.md), [register routes](../routes.md), [errors](../errors.md).
+`from hinoki import Hinoki, RouteGroup, Mount, http, errors` and `from hinoki.project import manifest_routes`. Guides: [function-based APIs](../function-endpoints.md), [class-based APIs](../class-endpoints.md), [register routes](../routes.md), [errors](../errors.md).
 
 ::: hinoki.app.Hinoki
     options:
@@ -24,6 +24,8 @@
 ::: hinoki.routing.Route
     options:
       show_if_no_docstring: true
+
+::: hinoki.project.manifest_routes
 
 For model-backed route generation, see [Generate CRUD routes](../crud.md) and
 the [CRUD API reference](crud.md).
