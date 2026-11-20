@@ -25,7 +25,7 @@ them with `uv run --project ..` to use the locked environment at the parent.
 | `hinoki dev TARGET` | Run an app with reload during development. |
 | `hinoki serve TARGET` | Run without reload, using the `server` settings group. |
 | `hinoki check TARGET` | Run the application's configured rules; `--rules` and `--package` select rule and source targets. |
-| `hinoki routes TARGET` | List every method, path, handler and access policy in path order. `--path` and `--method` filter; `--format json` is machine readable. `--lanes` adds, per route, whether the [Rust server](serving.md#generated-crud) runs it natively (`native`) or through the Python pipeline (`python`) with the reason; JSON always includes `lane` and `lane_reason`. Nothing is served and no database is opened. |
+| `hinoki routes TARGET` | List every method, path, handler and access policy in path order. `--path` and `--method` filter; `--format json` is machine readable. `--lanes` adds, per route, whether the [Kiso](serving.md#generated-crud) runs it natively (`native`) or through the Python pipeline (`python`) with the reason; JSON always includes `lane` and `lane_reason`. Nothing is served and no database is opened. |
 | `hinoki openapi TARGET` | Print or write the generated OpenAPI document, or check a JSON file for drift. Nothing is served and no database is opened. |
 | `hinoki version` | Show the Hinoki version; `--verbose` includes Python, platform, native core and optional Granian details. `--format json` is machine readable. |
 | `hinoki settings TARGET` | Show effective settings and their source, with secrets redacted. `--dotenv` and `--toml` select optional files. |
@@ -97,7 +97,7 @@ In a terminal, `hinoki new` with no `NAME` (or with some options missing) asks f
 | Option | Effect | Default |
 | --- | --- | --- |
 | `--database none\|sqlite\|postgresql` | `sqlite` declares `database: settings.DatabaseSettings` in the project settings (local file under `.hinoki/`); `postgresql` also writes `.env.example` with a placeholder `<NAME>_DATABASE__URL` to copy to `.env` | `none` |
-| `--server kiso\|granian` | the server `hinoki dev` and `hinoki serve` run. `kiso` is Hinoki's own Rust server (native handler lane, access log) and needs no configuration; `granian` is a general-purpose ASGI server and writes a `settings.toml` with `[server] server = "granian"`, which the project settings read. `<NAME>_SERVER__SERVER` and `--server` on `dev`/`serve` still override it; see [serving](serving.md) | `kiso` |
+| `--server kiso\|granian` | the server `hinoki dev` and `hinoki serve` run. `kiso` is Hinoki's own server, written in Rust (native handler lane, access log) and needs no configuration; `granian` is a general-purpose ASGI server and writes a `settings.toml` with `[server] server = "granian"`, which the project settings read. `<NAME>_SERVER__SERVER` and `--server` on `dev`/`serve` still override it; see [serving](serving.md) | `kiso` |
 | `--agent-files` / `--no-agent-files` | write or omit `AGENTS.md`, `CLAUDE.md` and `.mcp.json` | written |
 | `--skills` / `--no-skills` | also write the optional agent skills under `.claude/skills` (see [`skills`](#skills)); the terminal prompt asks for it | off |
 | `--git` | run `git init` in the project (no commit is made) | off (prompt default: yes) |
@@ -180,7 +180,7 @@ hinoki serve notes.main:app --server granian --workers 2
 
 Both commands accept `--host` and `--port`; they override `settings.server.host` and `.port`. `serve` also accepts `--workers`, overriding `.workers`. Both accept `--server granian|kiso`, overriding `.server` (default `kiso`). Otherwise values come from the app's `settings.AppSettings.server` group. `dev` enables reload and runs one worker. Granian (`--server granian`) and the `watchfiles` that `dev` reloads with come from the optional server extra.
 
-`--server kiso` runs the application on Kiso, Hinoki's Rust HTTP server (see [Running an application](serving.md#the-rust-server) for what it does and does not do). A setting that the chosen server cannot honour (`max_connections`, `header_read_timeout` or `body_read_timeout` with `granian`) makes the command print `error: server.<name> is not supported by the <server> server` and exit with status 2. A build whose native extension has no Rust server exits 2 with a message instead of falling back to Granian. With several workers the command runs a supervisor that starts one process per worker; `SIGTERM` or Ctrl-C stops them gracefully, and a worker that dies stops the rest and makes the command exit non-zero.
+`--server kiso` runs the application on Kiso, Hinoki's Rust HTTP server (see [Running an application](serving.md#kiso) for what it does and does not do). A setting that the chosen server cannot honour (`max_connections`, `header_read_timeout` or `body_read_timeout` with `granian`) makes the command print `error: server.<name> is not supported by the <server> server` and exit with status 2. A build whose native extension has no Kiso exits 2 with a message instead of falling back to Granian. With several workers the command runs a supervisor that starts one process per worker; `SIGTERM` or Ctrl-C stops them gracefully, and a worker that dies stops the rest and makes the command exit non-zero.
 
 ### `check`
 

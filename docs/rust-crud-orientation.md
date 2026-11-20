@@ -9,7 +9,7 @@ The primary table reports five alternating pairs of Hinoki's automatically selec
 Both apps use the same PostgreSQL table and deterministic 10,000-row seed. Their list, detail, create and update responses were verified against the database before timing.
 
 Run started: 2026-11-18T03:09:11.864738+00:00. Host: Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz (8 logical CPUs), Linux-7.2.11-arch1-1-x86_64-with-glibc2.44; Python 3.13.18; PostgreSQL postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1); Rust rustc 1.100.0 (0ef1bc386 2026-11-09); Oha oha 1.17.0.
-Hinoki 0.0.1 uses the Rust server and tokio-postgres; Django Bolt 0.13.0 uses Django 6.1.3 with psycopg 3.3.9 and its Actix server. Each starts 4 processes with a pool of 10 database connections per process.
+Hinoki 0.0.1 uses Kiso and tokio-postgres; Django Bolt 0.13.0 uses Django 6.1.3 with psycopg 3.3.9 and its Actix server. Each starts 4 processes with a pool of 10 database connections per process.
 Scenarios: list page sizes 20 and 100, detail, create and PATCH update. Each sample has 10 s warm-up, then 20 s measured with 64 concurrent connections. Server CPUs: 0-3; load generator CPUs: 6-7; response compression disabled.
 Each sample's one-minute host load is checked before its server starts and must be at most 1.0. Across the samples, scenario start loads ranged from 0.81 to 1.00. SQL calls are read from `pg_stat_statements` after each timed request window; the table reports the median calls per successful HTTP request.
 

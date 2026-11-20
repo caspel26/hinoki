@@ -36,7 +36,7 @@ One page for each part of an application. Start with the data and endpoint guide
 - [Application modules](modules.md): Modules own resources whose lifetime belongs to a worker, such as a database pool.
 - [Transactions](transactions.md): An action opts into a database transaction with `atomic=True`; application code uses `db.atomic` as a block or a decorator.
 - [Settings](settings.md): Typed, immutable settings classes with environment, dotenv and TOML sources, and redacted secrets.
-- [Serving](serving.md): Run an application with `hinoki dev` while you work and `hinoki serve` in production-style runs, on Granian or the opt-in Rust server.
+- [Serving](serving.md): Run an application with `hinoki dev` while you work and `hinoki serve` in production-style runs, on Kiso (the default) or Granian.
 - [Testing](testing.md): Hinoki has two useful levels of application tests: call the operation functions directly, then exercise the app through its ASGI interface.
 - [Command line](cli.md): Run framework tools and app-defined management commands from the project directory.
 - [Interactive shell](shell.md): Explore app settings and models with a persistent, async-capable Python prompt.
