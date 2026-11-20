@@ -20,6 +20,7 @@ from hinoki.app import Hinoki
 from hinoki.checkcli import USAGE_ERRORS, build_app
 from hinoki.reportui import lane_suffix, route_row
 from hinoki.routing import Route
+from hinoki.rules import qualified
 from hinoki.runtime.crudplan import select_crud_plan
 from hinoki.runtime.nativelane import lane_refusal
 from hinoki.runtime.pipeline import Pipeline
@@ -58,7 +59,8 @@ def access_of(route: Route) -> str:
 
 
 def handler_of(route: Route) -> str:
-    return f"{route.handler.__module__}.{route.name}"
+    """The action's rule subject, the name ``except_`` and waivers match."""
+    return qualified(route)
 
 
 def lanes_of(app: Hinoki) -> dict[int, tuple[str, str]]:
