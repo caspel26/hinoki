@@ -68,6 +68,7 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
 | `server` | `server` | `kiso` | `granian` or `kiso`; `--server` overrides it. See [Kiso server](kiso.md) |
+| `server` | `interface` | `asgi` | `asgi` or `wsgi`: what `hinoki serve` calls (a Hinoki application or a WSGI callable); `--interface` overrides it. See [WSGI](serving.md#wsgi) |
 | `pagination` | `page_size` | `20` | Page size an action's `PageNumberPagination()` leaves out; `1` to `max_page_size`. See [Pagination](pagination.md) |
 | `pagination` | `max_page_size` | `100` | Largest `page_size` a client may ask for |
 | `server` | `host` | `127.0.0.1` | Bind address used by `hinoki dev/serve` |

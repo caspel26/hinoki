@@ -36,6 +36,7 @@ from hinoki.errors import (
     TooManyRequests,
     ValidationError,
 )
+from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
 from hinoki.modules import ModuleContext
@@ -629,8 +630,79 @@ class Pipeline:
         if early is not None:
             return early
         binding, path_params = self._resolve_request(scope, route)
+        if binding.route.middleware:
+            return await self._through_middleware(
+                scope, source, binding, path_params, headers
+            )
         return await self._dispatch_request(
             scope, source, binding, path_params, headers
+        )
+
+    async def _through_middleware(
+        self,
+        scope: Scope,
+        source: BodySource,
+        binding: Binding,
+        path_params: dict[str, str],
+        headers: dict[str, str],
+    ) -> Response:
+        """Run the action's middleware around the rest of the request. The
+        innermost step translates an error into its answer, so a middleware
+        always receives a ``Response`` and the action's transaction is already
+        rolled back; one that raises is translated by the caller."""
+        rid = request_id.get() or ""
+        head = MiddlewareRequest(
+            method=scope["method"],
+            path=scope["path"],
+            route=binding.route.path,
+            headers=headers,
+            query=scope.get("query_string", b"").decode("latin-1"),
+            client=scope.get("client"),
+            scheme=scope.get("scheme", ""),
+            request_id=rid,
+        )
+        chain = binding.route.middleware
+
+        async def action() -> HandlerResponse:
+            try:
+                response = await self._dispatch_request(
+                    scope, source, binding, path_params, headers
+                )
+            except Exception as exc:
+                response = await self._translated(exc, rid)
+            return HandlerResponse.raw(response.status, response.body, response.headers)
+
+        async def call(index: int) -> HandlerResponse:
+            if index == len(chain):
+                return await action()
+            called = False
+
+            async def call_next() -> HandlerResponse:
+                nonlocal called
+                if called:
+                    raise RuntimeError("call_next() was already called")
+                called = True
+                return await call(index + 1)
+
+            answer = await chain[index](head, call_next)
+            if not isinstance(answer, HandlerResponse):
+                raise TypeError(
+                    f"middleware {type(chain[index]).__name__} must return a "
+                    f"Response, got {type(answer).__name__}"
+                )
+            return answer
+
+        final = await call(0)
+        return Response(final.status, final.body, list(final.headers))
+
+    async def _translated(self, exc: Exception, rid: str) -> Response:
+        """The answer for an error raised while serving a request."""
+        if isinstance(exc, ExecutorSaturated):
+            return HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ).response
+        return await error_response(
+            self._default_error(exc), rid, self.app.errors, self.debug
         )
 
     async def _early_response(  # noqa: PLR0911 - direct response per early policy

@@ -49,8 +49,10 @@ class Supervisor:
         *,
         reload: bool = False,
         scheme: str = "http",
+        interface: str = "asgi",
     ) -> None:
         self.target = target
+        self.interface = interface
         self.listener = listener
         self.count = workers
         self.grace = grace + KILL_MARGIN
@@ -70,6 +72,7 @@ class Supervisor:
             str(self.listener.fileno()),
             "--parent",
             str(os.getpid()),
+            *(["--interface", self.interface] if self.interface != "asgi" else []),
             *(["--dev"] if self.reload else []),
         ]
 

@@ -10,8 +10,21 @@ package is the public surface for the verbs and HTTP request/response types.
 ``query`` is the HTTP QUERY method: a safe request that carries a body.
 """
 
+from hinoki.http.middleware import Middleware, MiddlewareRequest, Next
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.routing import delete, get, patch, post, put, query
 
-__all__ = ["Request", "Response", "delete", "get", "patch", "post", "put", "query"]
+__all__ = [
+    "Middleware",
+    "MiddlewareRequest",
+    "Next",
+    "Request",
+    "Response",
+    "delete",
+    "get",
+    "patch",
+    "post",
+    "put",
+    "query",
+]

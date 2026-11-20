@@ -32,15 +32,25 @@ def brand_style() -> Style:
 
 
 def details(
-    settings: ServerSettings, *, dev: bool, workers: int, scheme: str
+    settings: ServerSettings,
+    *,
+    dev: bool,
+    workers: int,
+    scheme: str,
+    interface: str = "asgi",
 ) -> list[str]:
     """The facts worth knowing at a glance, in the order they are shown."""
+    lane = (
+        "WSGI, Python threads"
+        if interface == "wsgi"
+        else f"native lane {'off' if settings.native_dispatch is False else 'on'}"
+    )
     return [
         "dev, reloads on file changes" if dev else "serve",
         f"{workers} worker{'s' if workers != 1 else ''}",
         scheme,
         f"access log {'on' if settings.logs_access(dev) else 'off'}",
-        f"native lane {'off' if settings.native_dispatch is False else 'on'}",
+        lane,
     ]
 
 
@@ -52,8 +62,11 @@ def banner(
     workers: int,
     scheme: str,
     colour: bool,
+    interface: str = "asgi",
 ) -> str:
-    facts = details(settings, dev=dev, workers=workers, scheme=scheme)
+    facts = details(
+        settings, dev=dev, workers=workers, scheme=scheme, interface=interface
+    )
     if not colour:
         return f"Kiso {version} ({TAGLINE}): {', '.join(facts)}"
     style = brand_style()
@@ -65,7 +78,13 @@ def banner(
 
 
 def show(
-    settings: ServerSettings, *, version: str, dev: bool, workers: int, scheme: str
+    settings: ServerSettings,
+    *,
+    version: str,
+    dev: bool,
+    workers: int,
+    scheme: str,
+    interface: str = "asgi",
 ) -> None:
     text = banner(
         settings,
@@ -74,5 +93,6 @@ def show(
         workers=workers,
         scheme=scheme,
         colour=wants_colour(),
+        interface=interface,
     )
     print(text, file=sys.stderr, flush=True)

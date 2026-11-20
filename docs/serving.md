@@ -35,8 +35,9 @@ Both commands run on **Kiso**, Hinoki's own Rust server, unless you choose
 | What it is | Hinoki's HTTP server in the native extension (Rust: hyper, tokio, rustls) | A general-purpose ASGI server, installed with the `server` extra |
 | Runs on the native lane | Eligible routes skip Python routing and binding ([details](kiso.md#what-is-native-and-what-still-runs-in-python)) | Every request goes through the ASGI pipeline |
 | Access log | Kiso's own, with `access_log_format`, `access_log_skip`, `server_timing` | Granian's |
-| ASGI middleware around the app | Not possible: there is no ASGI boundary | Yes, run the wrapper with `granian` ([metrics](#metrics-and-tracing)) |
-| WSGI | – | `granian --interface wsgi` ([WSGI](#wsgi)) |
+| Hinoki [middleware](middleware.md) | Yes; the route runs in Python instead of the native lane | Yes, identical |
+| ASGI wrapper around the app | Not possible: there is no ASGI boundary | Yes, run the wrapper with `granian` ([metrics](#metrics-and-tracing)) |
+| WSGI | `--interface wsgi`: Python threads behind Kiso's listener, not native ([WSGI](#wsgi)) | `--interface wsgi` |
 
 Choose per run with a flag, or per project in settings:
 
@@ -176,19 +177,47 @@ wsgi_app = WSGIAdapter(app)
 ```
 
 ```sh
-granian --interface wsgi wsgi:wsgi_app
+hinoki serve wsgi:wsgi_app --interface wsgi                    # Kiso
+hinoki serve wsgi:wsgi_app --interface wsgi --server granian   # Granian
 ```
+
+`--interface wsgi` (or `server.interface = "wsgi"` on the application the
+`WSGIAdapter` wraps) tells `hinoki serve` that the target is a WSGI callable
+rather than a Hinoki application; the default is `asgi`. The target may be a
+`WSGIAdapter` or any `(environ, start_response)` callable, but not a factory
+and not a `Hinoki` application (the error names `WSGIAdapter`). A project
+whose `server.interface` is `wsgi` refuses an ASGI target unless you pass
+`--interface asgi`. `granian --interface wsgi wsgi:wsgi_app` still works for a
+deployment that runs Granian directly.
+
+### WSGI on Kiso
+
+Kiso owns the listener and calls the callable from a fixed pool of Python
+threads (`execution.sync_workers`) with a queue of `execution.sync_queue`
+waiting requests; beyond both the answer is `503` with `Retry-After: 1`. **This
+path is not native**: the application, the environment and every response chunk
+are Python objects, and the request crosses the interpreter lock. Rust owns the
+sockets, TLS, the access log, the limits and the end of the response.
+
+* **Request body.** Read in full before the call, up to `execution.max_body_bytes`: `413` above it, `408` if it stalls, `400` if malformed. Kiso therefore answers `413` for a body Granian's WSGI interface would pass on (Granian has no limit).
+* **Response.** Streamed: the head goes out with the first piece, a slow client slows the application down (a bounded buffer), and a client that leaves makes the next write fail and closes the iterable. An exception before the head answers `500` with an empty body and the traceback in the log; after it, the stream is reset instead of ending as complete.
+* **Timeout.** `execution.request_timeout` bounds the time until the response starts (`504`). A running sync call cannot be stopped; it keeps its thread until it returns.
+* **Applies:** TLS and HTTP/2, `access_log` and `access_log_format`, `server_timing`, `max_connections`, header and body timeouts, `--workers` and graceful shutdown (`lifecycle.shutdown_timeout`).
+* **Does not apply:** the native lane (`native_dispatch` is refused), host, CORS and redirect policies of the server (a wrapped Hinoki application still applies its own), and `trusted_proxies` (refused: the client address is the TCP peer).
+* **Lifespan.** A plain callable has none. A `WSGIAdapter` starts its application's modules when the worker starts, not on the first request, and stops them on a graceful stop.
+
+The adapter itself buffers its responses, so streaming reaches the client only from a plain callable. Its other specifics below apply on both servers.
 
 The adapter drives the same ASGI callable on a background event loop that it owns, so routing, binding, access, errors, limits and the OpenAPI document behave as under ASGI. Specifics:
 
-* **Startup is lazy.** Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers `503` with `not_ready` and the error is logged.
+* **Startup is lazy** under Granian (Kiso starts them with the worker). Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers `503` with `not_ready` and the error is logged.
 * **Shutdown** runs on `WSGIAdapter.close()` or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any `atexit` hook.
 * **Async handlers** run on the adapter's loop and **sync handlers** on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.
 * **Bodies are buffered.** Request bodies are read up to `max_body_bytes` plus one byte, so an oversized upload still answers `413`. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.
 * **Paths.** The server decodes the path once and the adapter passes it on without decoding again, so a client's `%2520` reaches the handler as `%20`, as under ASGI. A percent-encoded slash (`%2F`) cannot be told apart from a real one in WSGI and is not available inside a path parameter. A bad `Content-Length` answers `400`.
 * **One protocol per process.** Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.
 
-The path is checked against Granian's WSGI interface (`--interface wsgi`, with one and two workers), not against every WSGI server.
+The path is checked against Kiso and Granian (`--interface wsgi`, with one and two workers) by a parity test, not against every WSGI server.
 
 ## Errors and edge cases
 
@@ -196,6 +225,8 @@ The path is checked against Granian's WSGI interface (`--interface wsgi`, with o
 - `error: Granian is not installed; install the server extra`: run `uv sync` in a generated project (it depends on `hinoki[server]`), or use Kiso.
 - `hinoki dev` reloads with `watchfiles`, also part of the `server` extra, on either server; without it `dev` exits with that message and `serve` still works.
 - `--workers` outside the supported range is refused on Kiso; `0` means "use `server.workers`".
+- `--interface wsgi` with `server.native_dispatch` or `server.trusted_proxies` set on Kiso exits with status `2` and names the setting.
+- `--interface wsgi` with a `Hinoki` application, a factory or a non-callable exits with an error that points to `WSGIAdapter`.
 - A Kiso-only setting under `--server granian` exits with status `2` and names the setting.
 
 ## See also

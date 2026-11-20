@@ -61,7 +61,7 @@ Keep the translation at the edge of the handler, and keep a second store's conne
 | Add metrics, tracing or other cross-cutting behaviour | Wrap the ASGI application | [Serving](serving.md#metrics-and-tracing) |
 | Run where only WSGI is available | `WSGIAdapter` | [Serving](serving.md#wsgi) |
 
-Hinoki has no middleware API of its own: behaviour outside an action's declared access, errors and transaction belongs in an ASGI wrapper, which sees the request before and after Hinoki. To run another web application next to Hinoki, put it behind the same reverse proxy or dispatch by path in your own ASGI code.
+Cross-cutting behaviour around an action belongs in a [middleware](middleware.md), which behaves the same on Kiso and Granian. An ASGI wrapper still works on Granian and sees the request before and after Hinoki. To run another web application next to Hinoki, put it behind the same reverse proxy or dispatch by path in your own ASGI code.
 
 ## See also
 
