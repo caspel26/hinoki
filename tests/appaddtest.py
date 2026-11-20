@@ -32,9 +32,9 @@ def test_add_registers_an_existing_package_and_derives_migrations(
     assert app.models == "legacy.billing.models"
     assert app.migrations == "legacy.billing.migrations"
     assert (app.routes, app.prefix, app.requires) == ("", "", ())
-    # only the manifest changed: no package, no lock leftovers beyond the lock file
+    # only the manifest changed: no package and no lock file left behind
     created = files_under(project) - before
-    assert {path.name for path in created} <= {".hinoki-app-create.lock"}
+    assert {path.name for path in created} == set()
 
 
 def test_add_takes_routes_prefix_and_dependencies(project: Path) -> None:

@@ -97,7 +97,8 @@ PAD_X = MARGIN_X + INSET_X
 PAD_Y = MARGIN_Y + BAR + INSET_Y
 TITLE = "hinoki \u2014 notebook"
 TAGLINE = "Typed Python APIs. Architecture rules you can run."
-SITE = "caspel26.github.io/hinoki"
+SITE = "hinoki.caspel.dev"
+CARD_MS = 1600  # the title card before and after the session
 
 ENTER, DOWN = "\r", "\x1b[B"
 SGR_256 = 5  # 38;5;n selects an indexed colour, 38;2;r;g;b a true colour

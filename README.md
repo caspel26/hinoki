@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://caspel26.github.io/hinoki/">
+  <a href="https://hinoki.caspel.dev/">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="assets/readme/lockup-dark.svg">
       <img src="assets/readme/lockup-light.svg" alt="Hinoki" width="360">
@@ -20,16 +20,16 @@
   <a href="https://scorecard.dev/viewer/?uri=github.com/caspel26/hinoki"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/caspel26/hinoki/badge"></a>
   <a href="https://www.bestpractices.dev/projects/16941"><img alt="OpenSSF Best Practices" src="https://www.bestpractices.dev/projects/16941/badge"></a>
   <img alt="Python 3.12, 3.13 and 3.14" src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-7a55c4?labelColor=1d1a24">
-  <a href="https://caspel26.github.io/hinoki/dev/status/"><img alt="Status: pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-e3c29b?labelColor=1d1a24"></a>
+  <a href="https://hinoki.caspel.dev/dev/status/"><img alt="Status: pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-e3c29b?labelColor=1d1a24"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7a55c4?labelColor=1d1a24"></a>
 </p>
 
 <p align="center">
-  <a href="https://caspel26.github.io/hinoki/dev/">Documentation</a> ·
-  <a href="https://caspel26.github.io/hinoki/dev/quick-start/">Quick start</a> ·
-  <a href="https://caspel26.github.io/hinoki/dev/tutorial/">Tutorial</a> ·
+  <a href="https://hinoki.caspel.dev/dev/">Documentation</a> ·
+  <a href="https://hinoki.caspel.dev/dev/quick-start/">Quick start</a> ·
+  <a href="https://hinoki.caspel.dev/dev/tutorial/">Tutorial</a> ·
   <a href="examples">Examples</a> ·
-  <a href="https://caspel26.github.io/hinoki/dev/status/">Status</a>
+  <a href="https://hinoki.caspel.dev/dev/status/">Status</a>
 </p>
 
 <p align="center">
@@ -193,11 +193,11 @@ Kiso is part of the native extension and has no ASGI boundary: eligible routes s
 
 ## Status
 
-Pre-alpha, tested in CI on Linux with Python 3.12–3.14. The [status page](https://caspel26.github.io/hinoki/dev/status/) lists what is not available yet. The [benchmark report](docs/benchmarks.md) describes retained runs and their limits; it is not a general ranking.
+Pre-alpha, tested in CI on Linux with Python 3.12–3.14. The [status page](https://hinoki.caspel.dev/dev/status/) lists what is not available yet. The [benchmark report](docs/benchmarks.md) describes retained runs and their limits; it is not a general ranking.
 
 <p align="center">
-  <a href="https://caspel26.github.io/hinoki/dev/guides/">Guides</a> ·
-  <a href="https://caspel26.github.io/hinoki/dev/reference/">Reference</a> ·
+  <a href="https://hinoki.caspel.dev/dev/guides/">Guides</a> ·
+  <a href="https://hinoki.caspel.dev/dev/reference/">Reference</a> ·
   <a href="examples">Examples</a> ·
   <a href="ROADMAP.md">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·

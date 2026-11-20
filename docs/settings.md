@@ -169,7 +169,7 @@ Values are converted strictly: integers are ASCII digits (no `1_000`, no `0x10`)
 
 ## Mistakes fail at startup, all at once
 
-A variable that starts with your prefix but names no field is an error (a typo guard; `strict=False` turns it off when another program shares the prefix). A missing required value, a bad number or a value that is not one of the choices is an error too, and **every problem is listed together**, with variable names and reasons but never values:
+A variable that starts with your prefix and looks like one of your settings but names no field is an error (a typo guard; `strict=False` turns it off). It looks like a setting when its first word starts a field's variable (`NOTES_DATABASE_URL`, `NOTES_SERVER__PROT`) or when it is spelt close to one (`NOTES_THEMES`). Other variables that only share the prefix belong to another program and are ignored: systemd's `JOURNAL_STREAM` does not break a project whose prefix is `JOURNAL_`. A missing required value, a bad number or a value that is not one of the choices is an error too, and **every problem is listed together**, with variable names and reasons but never values:
 
 ```text
 invalid settings:
@@ -263,7 +263,7 @@ Use a disposable database for the example. The seed command is not a production 
 ## Errors and edge cases
 
 - Setting both `NOTES_STRIPE_KEY` and `NOTES_STRIPE_KEY_FILE` is an error; only a regular file up to 64 KiB is read.
-- A variable with your prefix that names no field is an error; pass `strict=False` to `load` when another program shares the prefix.
+- A variable with your prefix that looks like a setting (same first word, or a close spelling) but names no field is an error; other variables that only share the prefix, such as `JOURNAL_STREAM`, are ignored. Pass `strict=False` to `load` to turn the check off.
 - The `server` group is applied by `hinoki dev` and `hinoki serve`, not by other ASGI servers ([Serving](serving.md#settings-that-apply-to-one-server-only)).
 
 ## See also

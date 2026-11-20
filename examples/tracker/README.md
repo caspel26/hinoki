@@ -3,7 +3,7 @@
 A layered app: HTTP routes in `api.py`, business operations in `operations.py`,
 tables in `models.py` and architecture rules in `rules.py`. Every task read and
 write is scoped to the authenticated member, and the task list is also an
-authenticated MCP tool. The [tutorial](https://caspel26.github.io/hinoki/dev/tutorial/)
+authenticated MCP tool. The [tutorial](https://hinoki.caspel.dev/dev/tutorial/)
 walks through it chapter by chapter.
 
 ## Run
@@ -29,7 +29,7 @@ token, sent as a bearer token. Create one in `uv run hinoki shell`:
 ```
 
 Then send `Authorization: Bearer ann-dev-token`, as in
-[6. Run and test it](https://caspel26.github.io/hinoki/dev/tutorial/6-run/#try-it).
+[6. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run/#try-it).
 
 ## Check
 

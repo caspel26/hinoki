@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sys
+import threading
 from argparse import Namespace
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -116,6 +118,33 @@ def test_windows_manifest_lock_initializes_byte_and_unlocks(
     with projectcli._manifest_lock(manifest):
         assert (tmp_path / ".hinoki-app-create.lock").read_bytes() == b"0"
     assert [mode for _, mode, _ in calls] == [fake_msvcrt.LK_LOCK, fake_msvcrt.LK_UNLCK]
+
+
+def test_posix_lock_waiter_retries_when_the_holder_removes_the_file(
+    tmp_path: Path,
+) -> None:
+    fcntl = pytest.importorskip("fcntl")
+    manifest = tmp_path / "hinoki.toml"
+    manifest.touch()
+    lock_path = tmp_path / projectcli.LOCK_NAME
+    holder = lock_path.open("a+b")
+    fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
+    acquired = threading.Event()
+
+    def wait_for_lock() -> bool:
+        with projectcli._manifest_lock(manifest):
+            acquired.set()
+            # holding the lock on the file at the path, not on the removed one
+            return lock_path.exists()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        waiter = executor.submit(wait_for_lock)
+        assert not acquired.wait(0.2)
+        lock_path.unlink()
+        fcntl.flock(holder.fileno(), fcntl.LOCK_UN)
+        holder.close()
+        assert waiter.result(timeout=5)
+    assert not lock_path.exists()
 
 
 def test_app_management_run_reports_project_errors(
