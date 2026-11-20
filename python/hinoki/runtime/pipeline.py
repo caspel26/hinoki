@@ -249,12 +249,34 @@ class Pipeline:
         that already chose the request id passes it as ``rid``, and one that
         already matched the route passes ``route`` (the action number and the
         raw, still percent-encoded path parameters), so it is not looked up again."""
+        scope, rid, response = await self._answer(scope, source, rid, route)
+        return self.with_headers(response, scope, rid)
+
+    async def handle_unfinished(
+        self,
+        scope: Scope,
+        source: BodySource,
+        rid: str,
+        route: MatchedRoute | None = None,
+    ) -> Response:
+        """``handle`` without the final headers, for a transport that adds them
+        itself with the route headers this leaves in ``context.route_headers``
+        (Kiso: ``PreparedRequest.respond_routed``)."""
+        return (await self._answer(scope, source, rid, route))[2]
+
+    async def _answer(
+        self,
+        scope: Scope,
+        source: BodySource,
+        rid: str | None,
+        route: MatchedRoute | None,
+    ) -> tuple[Scope, str, Response]:
         scope, trusted = effective_scope(scope, self.trusted_proxies)
         rid = rid or self._request_id(scope, trusted)
         response = await self._in_request_context(
             rid, self._respond(scope, source, rid, route)
         )
-        return self.with_headers(response, scope, rid)
+        return scope, rid, response
 
     async def handle_native(
         self,

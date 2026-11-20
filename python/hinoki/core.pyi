@@ -342,6 +342,13 @@ class PreparedRequest:
     def respond_final(
         self, status: int, headers: list[tuple[bytes, bytes]], body: bytes
     ) -> bool: ...
+    def respond_routed(
+        self,
+        status: int,
+        headers: list[tuple[bytes, bytes]],
+        body: bytes,
+        route_headers: Sequence[tuple[str, str]],
+    ) -> bool: ...
 
 class BodyReadError(Exception): ...
 

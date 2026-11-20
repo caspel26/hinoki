@@ -584,21 +584,43 @@ impl PreparedRequest {
         if !self.native_handler && !self.native_crud {
             return false;
         }
-        let own = headers;
+        self.finish(status, headers, body, &self.route_headers)
+    }
+
+    /// The same finalization for an answer the Python pipeline built: the
+    /// route's own headers are the ones that pipeline resolved for the request.
+    pub(crate) fn respond_routed(
+        &self,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        body: &[u8],
+        route_headers: Vec<(String, String)>,
+    ) -> bool {
+        self.finish(status, headers, body, &route_headers)
+    }
+}
+
+impl PreparedRequest {
+    fn finish(
+        &self,
+        status: u16,
+        own: Vec<(Vec<u8>, Vec<u8>)>,
+        body: &[u8],
+        route_headers: &[(String, String)],
+    ) -> bool {
         // An answer that sets its own CORS headers keeps them.
         let sets_origin = own
             .iter()
             .chain(&self.native_policy)
             .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN))
-            || self
-                .route_headers
+            || route_headers
                 .iter()
                 .any(|(name, _)| name.eq_ignore_ascii_case("access-control-allow-origin"));
         let cors: &[Header] = if sets_origin { &[] } else { &self.native_cors };
         let mut final_headers = final_headers(
             &own,
             &self.native_policy,
-            &self.route_headers,
+            route_headers,
             (&self.request_id_name, self.request_id.as_bytes()),
             cors,
             status,
@@ -1665,19 +1687,11 @@ impl Core {
         let native_crud = route_plan
             .and_then(|route| route.crud_plan.as_ref())
             .is_some_and(|slot| slot.is_armed());
-        let native_response = native_input.enabled || native_crud;
-        let native_policy = if native_response {
-            self.policies[usize::from(asked.https)].clone()
-        } else {
-            Vec::new()
-        };
-        let native_cors = if native_response {
-            self.cors
-                .as_ref()
-                .map_or_else(Vec::new, |cors| cors.headers(&asked.origin))
-        } else {
-            Vec::new()
-        };
+        let native_policy = self.policies[usize::from(asked.https)].clone();
+        let native_cors = self
+            .cors
+            .as_ref()
+            .map_or_else(Vec::new, |cors| cors.headers(&asked.origin));
         let route_headers = if native_crud {
             route_plan.map_or_else(Vec::new, |route| route.headers.clone())
         } else {

@@ -35,7 +35,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
-from hinoki import core
+from hinoki import context, core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.runtime import banner
@@ -531,7 +531,7 @@ class KisoWorker:
             if request.action is None
             else (request.action, request.prepared_path_params)
         )
-        return await self.pipeline.handle(
+        return await self.pipeline.handle_unfinished(
             scope_of(request, self.address, self.scheme),
             RustBody(request),
             request.request_id,
@@ -551,11 +551,16 @@ class KisoWorker:
             log.exception("request %s failed", request.request_id)
             self._fail(request)
             return
-        body = b"" if request.method == "HEAD" else response.body
         if native_final:
             request.respond_final(response.status, response.headers, response.body)
         else:
-            request.respond(response.status, response.headers, body)
+            # Set by the pipeline in this task's context while it answered.
+            request.respond_routed(
+                response.status,
+                response.headers,
+                response.body,
+                context.route_headers.get(),
+            )
 
     async def stop(self) -> int:
         """Stop accepting, let running requests finish (up to the shutdown
