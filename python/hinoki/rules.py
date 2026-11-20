@@ -703,7 +703,10 @@ def is_indexed(model: Any, column: str) -> bool:
 
 class RequireForeignKeyIndex(Rule):
     id = "HNK-DB-002"
-    fix = "index the column: field(index=True) or @db.indexed(...)"
+    fix = (
+        'index the column: @db.indexed("<column>") on the model, or an index or '
+        "unique group that starts with it"
+    )
     explanation = (
         "A foreign key column without an index makes joins and parent deletes "
         "scan the child table."
@@ -723,13 +726,15 @@ class RequireForeignKeyIndex(Rule):
             relations = model.__relations__
             for relation in relations.values():
                 if relation.forward and not is_indexed(model, relation.column):
-                    yield self.diagnostic(
+                    found = self.diagnostic(
                         f"{model.__qualname__}.{relation.column} references "
                         f"{relation.model.__name__} and has no index",
                         where(model),
                         subject=f"{model.__module__}.{model.__qualname__}."
                         f"{relation.column}",
                     )
+                    column_fix = self.fix.replace("<column>", relation.column)
+                    yield dataclasses.replace(found, fix=column_fix)
 
 
 class ForbidImports(Rule):
