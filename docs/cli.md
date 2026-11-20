@@ -24,7 +24,7 @@ uv run hinoki migrations apply
 | --- | --- | --- | --- |
 | Start | `hinoki new [NAME]` | Create a project; asks for what the flags leave out. | [Create a project](new-project.md) |
 | | `hinoki app create\|add\|list` | Add an app, register an existing package, list the apps. | [below](#app) |
-| | `hinoki dev` / `serve` | Run with reload / run for production, on Kiso or Granian. | [Serve](serving.md) |
+| | `hinoki dev` / `serve` | Run with reload / run for production, on Kiso or Granian; `--interface wsgi` serves a WSGI callable. | [Serve](serving.md) |
 | | `hinoki shell` | Python shell with the app, its settings and models, top-level `await`. | [Shell](shell.md) |
 | Inspect | `hinoki check` | Run the architecture rules. | [Inspect](inspect.md#check) |
 | | `hinoki doctor` | Environment, manifest and app diagnostics. | [Inspect](inspect.md#doctor) |

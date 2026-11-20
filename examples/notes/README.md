@@ -40,6 +40,13 @@ runs. Open `/docs` for the OpenAPI UI.
 
 ## Configure
 
+To serve Notes as a WSGI callable instead (for a deployment that only runs
+WSGI), use [`wsgi.py`](wsgi.py):
+
+```sh
+uv run hinoki serve notes.wsgi:wsgi_app --interface wsgi
+```
+
 Set `NOTES_DATABASE__URL` to use another database, and `HINOKI_DATABASE_URL` to
 the same URL for the migration commands.
 
