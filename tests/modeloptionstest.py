@@ -1,16 +1,16 @@
-"""Model options as decorators: unique, indexed, ordered_by, labels."""
+"""Model options as decorators: unique, indexed, ordered_by, timestamps, labels."""
 
 import os
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
 
 from hinoki import db
-from hinoki.db import Database
-from hinoki.errors import RegistrationError
+from hinoki.db import Database, UniqueViolation
+from hinoki.errors import MigrationError, RegistrationError
 from hinoki.orm import (
     Model,
     OnDelete,
@@ -24,7 +24,8 @@ from hinoki.orm import (
     unique,
     use_database,
 )
-from hinoki.orm.migrations import index_name, plan, state_of
+from hinoki.orm.migrations import create_table_sql, index_name, plan, state_of
+from hinoki.utils import utc_now
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(URL is None, reason="no database")
@@ -207,6 +208,8 @@ def test_model_decorators_are_reexported_from_db() -> None:
     assert db.table is table
     assert db.indexed is indexed
     assert db.ordered_by is ordered_by
+    assert db.unique is unique
+    assert db.timestamps is timestamps
     with pytest.raises(AttributeError, match="no attribute 'tabel'"):
         _ = db.tabel  # type: ignore[attr-defined]
 
@@ -334,6 +337,155 @@ def test_long_index_names_are_shortened_deterministically() -> None:
     assert len(name) <= 63 and name == index_name(
         "a_table_with_a_rather_long_name", columns
     )
+
+
+@db.unique("owner", "url", name="uq_mo_named_owner_url")
+@db.unique("owner", "created")
+class Named(Model, table="mo_named"):
+    id: int = pk()
+    owner: str = field(max_length=20)
+    url: str = field(max_length=100)
+    created: datetime = field(default_factory=datetime.now)
+
+
+def test_named_unique_constraint_is_recorded_and_rendered() -> None:
+    assert Named.__unique__ == (("owner", "url"), ("owner", "created"))
+    assert Named.__unique_names__ == {("owner", "url"): "uq_mo_named_owner_url"}
+    spec = state_of([Named])["tables"]["mo_named"]
+    assert spec["unique"] == [["owner", "url"], ["owner", "created"]]
+    assert spec["unique_names"] == {"uq_mo_named_owner_url": ["owner", "url"]}
+    rendered = {
+        "postgres": 'CONSTRAINT "uq_mo_named_owner_url" UNIQUE ("owner", "url")',
+        "sqlite": 'CONSTRAINT "uq_mo_named_owner_url" UNIQUE ("owner", "url")',
+        "mysql": "CONSTRAINT `uq_mo_named_owner_url` UNIQUE (`owner`, `url`)",
+    }
+    for dialect, expected in rendered.items():
+        sql = create_table_sql("mo_named", spec, dialect)
+        assert expected in sql
+        assert sql.count("CONSTRAINT") == 1  # the second group stays unnamed
+        assert "UNIQUE (" in sql.replace(expected, "")
+
+
+def test_unnamed_unique_keeps_the_existing_state_shape() -> None:
+    assert "unique_names" not in state_of([Mark])["tables"]["mo_marks"]
+
+
+def test_unique_names_are_validated() -> None:
+    for bad in ("", "1st", "has space", "x" * 64):
+        with pytest.raises(RegistrationError, match="constraint name"):
+            db.unique("a", "b", name=bad)
+    with pytest.raises(RegistrationError, match="constraint name"):
+        db.unique("a", "b", name=3)  # type: ignore[arg-type]
+    with pytest.raises(RegistrationError, match="'uq_same' twice"):
+
+        @db.unique("a", "c", name="uq_same")
+        @db.unique("a", "b", name="uq_same")
+        class Twice(Model, table="mo_twice"):
+            id: int = pk()
+            a: str = ""
+            b: str = ""
+            c: str = ""
+
+
+def test_named_unique_is_inherited_and_names_must_differ_between_tables() -> None:
+    @db.unique("owner", "slug", name="uq_mo_owned_slug")
+    class Owned(Model, abstract=True):
+        id: int = pk()
+        owner: str = field(max_length=20, default="")
+        slug: str = field(max_length=20, default="")
+
+    class First(Owned, table="mo_first_owned"):
+        pass
+
+    class Second(Owned, table="mo_second_owned"):
+        pass
+
+    @db.unique("owner", "id")
+    class Replaced(Owned, table="mo_replaced_owned"):
+        pass
+
+    assert First.__unique_names__ == {("owner", "slug"): "uq_mo_owned_slug"}
+    assert Replaced.__unique_names__ == {}
+    with pytest.raises(MigrationError, match="uq_mo_owned_slug"):
+        state_of([First, Second])
+
+
+def test_renaming_a_unique_constraint_is_a_planned_change(tmp_path: Path) -> None:
+    plan([Named], tmp_path, "initial")
+
+    @db.unique("owner", "url", name="uq_mo_named_renamed")
+    @db.unique("owner", "created")
+    class Renamed(Model, table="mo_named"):
+        id: int = pk()
+        owner: str = field(max_length=20)
+        url: str = field(max_length=100)
+        created: datetime = field(default_factory=datetime.now)
+
+    with pytest.raises(MigrationError, match="composite unique constraints"):
+        plan([Renamed], tmp_path, "renamed", write=False)
+    rebuilt = plan(
+        [Renamed],
+        tmp_path,
+        "renamed",
+        write=False,
+        dialect="sqlite",
+        allow_destructive=True,
+    )
+    assert 'CONSTRAINT "uq_mo_named_renamed"' in rebuilt.operations[0].sql
+    assert "unique constraints" in rebuilt.operations[0].destructive
+
+
+def test_timestamps_needs_parentheses() -> None:
+    with pytest.raises(RegistrationError, match=r"@db\.timestamps\(\)"):
+
+        @db.timestamps  # type: ignore[arg-type]
+        class Bare(Model, table="mo_bare_stamps"):
+            id: int = pk()
+            updated_at: datetime = field(default_factory=utc_now)
+
+
+STAMPS = [datetime(2026, 1, 1, tzinfo=UTC)]
+
+
+@db.unique("owner", "title", name="uq_mo_stamped_owner_title")
+@db.timestamps(clock=lambda: STAMPS[0])
+class Stamped(Model, table="mo_stamped"):
+    id: int = pk()
+    owner: str = field(max_length=20)
+    title: str = field(max_length=40)
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+
+@pytest.fixture
+async def stamped(tmp_path: Path) -> AsyncIterator[Database]:
+    database = await Database.connect(f"sqlite://{tmp_path / 'stamped.sqlite3'}")
+    spec = state_of([Stamped])["tables"]["mo_stamped"]
+    await database.execute(create_table_sql("mo_stamped", spec, "sqlite"))
+    with use_database(database):
+        yield database
+    database.close()
+
+
+async def test_db_timestamps_and_named_unique_on_sqlite(stamped: Database) -> None:
+    first = await Stamped.acreate(id=1, owner="a", title="one")
+    first_created = first.created_at
+    second = await Stamped.acreate(id=2, owner="a", title="two")
+    with pytest.raises(UniqueViolation):
+        await Stamped.acreate(id=3, owner="a", title="one")
+
+    STAMPS[0] = datetime(2026, 2, 1, tzinfo=UTC)
+    first.title = "first"
+    await first.asave()
+    assert first.updated_at == STAMPS[0]
+
+    STAMPS[0] = datetime(2026, 3, 1, tzinfo=UTC)
+    first.title, second.title = "uno", "dos"
+    saved = await Stamped.abulk_update([first, second])
+    assert [row.updated_at for row in saved] == [STAMPS[0], STAMPS[0]]
+    stored = await Stamped.all().order_by("id")
+    assert [row.updated_at for row in stored] == [STAMPS[0], STAMPS[0]]
+    assert stored[0].created_at == first_created
 
 
 @pytest.fixture
