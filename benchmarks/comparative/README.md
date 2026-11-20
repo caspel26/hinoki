@@ -77,6 +77,12 @@ without measuring. Use `--runs`, `--duration` and `--warmup` only when recording
 the chosen values in the report metadata and rationale. Remove the disposable
 container when finished: `docker rm -f hinoki-bench-pg`.
 
+`--max-load N` holds every measured sample until the one-minute load average is
+at most `N` (it polls every 10 s and stops the run after 30 minutes without
+getting there). The load at the start of each sample is appended to
+`loadavg.txt` in the results directory, and the limit is recorded as `max_load`
+in `environment.json`. Without the option the load is only recorded.
+
 If a workload's sample CV exceeds 15%, inspect host variance and repeat that
 scenario with `--scenario create --run-offset 5` (or the affected scenario),
 keeping both the original and additional raw samples. The report includes every
