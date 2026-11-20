@@ -23,9 +23,9 @@ def test_manifest_lists_each_example_app_without_importing_it(
     apps = json.loads(capsys.readouterr().out)["apps"]
     assert [app["name"] for app in apps] == ["notes", "tracker", "blog", "admin"]
     assert [app["models"] for app in apps] == [
-        "notes.models",
-        "tracker.models",
-        "blog.models",
+        "notes.apps.notes.models",
+        "tracker.apps.tracker.models",
+        "blog.apps.blog.models",
         "hinoki.admin.users.models",
     ]
 

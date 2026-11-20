@@ -38,7 +38,7 @@ from blog.adminsite import site
 routes: list[Includable] = [Mount("/admin", site)]
 ```
 
-The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py) builds a fuller site the same way, with a theme, links, a dashboard and activity.
+The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/apps/blog/adminsite.py) builds a fuller site the same way, with a theme, links, a dashboard and activity.
 
 ## Create the admin's tables
 

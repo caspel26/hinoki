@@ -15,7 +15,7 @@ First, who may call. A bearer token resolves to a `Member`, and the policy
 names the permission that every task action requires:
 
 ```python
-# tracker/security.py
+# tracker/apps/tracker/security.py
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import Member
@@ -42,7 +42,7 @@ Then the actions. A public `health` check stands alone; a `RouteGroup` states
 the path prefix, the policy and the transaction once for the tasks:
 
 ```python
-# tracker/api.py
+# tracker/apps/tracker/api.py
 from uuid import UUID
 
 from hinoki import Caller, RouteGroup, Schema, errors, http
@@ -79,7 +79,7 @@ async def create_task(data: TaskIn, caller: Caller[Member]) -> TaskOut:
 ```
 
 ```python
-# tracker/api.py (continued)
+# tracker/apps/tracker/api.py (continued)
 @tasks.post("/{task_id}/complete", errors=(errors.NotFound, TaskAlreadyDone))
 async def complete_task(task_id: UUID, caller: Caller[Member]) -> TaskOut:
     return TaskOut.from_model(await operations.complete_task(caller.user.id, task_id))

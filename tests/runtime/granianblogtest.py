@@ -9,7 +9,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-from blog.models import User
+from blog.apps.blog.models import User
 
 from hinoki.db import Database
 from hinoki.orm import use_database

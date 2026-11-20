@@ -250,7 +250,7 @@ connection limit.
 
 One-off scripts have a different lifecycle: they open a short-lived `Database`
 themselves ([use the database from a script](databases.md#use-the-database-from-a-script)).
-`examples/blog/seed.py` does so, applies migrations, inserts synthetic rows and
+`examples/blog/apps/blog/seed.py` does so, applies migrations, inserts synthetic rows and
 closes the pool in `finally`. It is a one-time seed for a fresh disposable
 database, not a repeatable reset:
 

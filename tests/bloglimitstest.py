@@ -1,8 +1,8 @@
 """The blog's example login limiter: a bounded fixed window per client."""
 
 import pytest
-from blog import limits
-from blog.limits import LoginAttempts
+from blog.apps.blog import limits
+from blog.apps.blog.limits import LoginAttempts
 
 from hinoki import RateLimitContext, errors
 

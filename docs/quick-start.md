@@ -38,7 +38,7 @@ commands. The files that matter:
 
 ```text
 notes/
-├── hinoki.toml        manifest: application, routes, apps
+├── hinoki.toml        manifest: application and routes (no app yet)
 ├── notes/
 │   ├── main.py        the application
 │   ├── api.py         GET /health
@@ -48,6 +48,8 @@ notes/
 ├── tests/             pytest suite
 └── AGENTS.md          agent instructions
 ```
+
+The project package holds no models. They live in apps, which you add next.
 
 !!! tip "Scripts and CI"
     `uv run hinoki new notes --dir .. --no-input --database sqlite --git --install`
@@ -85,19 +87,13 @@ Open `http://127.0.0.1:8000/docs` for the generated OpenAPI UI, or run
 
 ## What the manifest does
 
-`hinoki.toml` names the application and where its routes, models and migrations
-live:
+`hinoki.toml` names the application and where its routes live; each app you
+create adds its own models, migrations and routes:
 
 ```toml
 [project]
 application = "notes.main:app"
 routes = "notes.routes:routes"
-
-[[apps]]
-name = "notes"
-models = "notes.models"
-migrations = "notes.migrations"
-requires = []
 ```
 
 `notes/main.py` declares the application:
@@ -149,9 +145,42 @@ NOTES_DATABASE__URL=sqlite://./.hinoki/notes.sqlite3
 ```
 
 [Configure a database](databases.md) covers PostgreSQL, MySQL and MariaDB, and
-connection fields instead of a URL. The project has no models yet; the
-[tutorial](tutorial/index.md) and [8. Projects and apps](tutorial/8-projects.md)
-add them.
+connection fields instead of a URL. The project has no models yet; add them in an
+app, as [the next section](#add-your-first-app) and the
+[tutorial](tutorial/index.md) show.
+
+## Add your first app
+
+Models live in apps, not in the project package. Create one:
+
+```sh
+uv run hinoki app create entries
+```
+
+```text
+notes/apps/entries/
+├── api.py         endpoints of the app
+├── routes.py      the routes served, mounted at /entries
+├── models.py      tables of the app
+└── migrations/    migration history
+```
+
+The command registers it in `hinoki.toml`:
+
+```toml
+[[apps]]
+name = "entries"
+models = "notes.apps.entries.models"
+migrations = "notes.apps.entries.migrations"
+routes = "notes.apps.entries.routes:routes"
+prefix = "/entries"
+requires = []
+```
+
+App names are lower-case letters and digits, with no underscores. Define the
+app's models in `notes/apps/entries/models.py`, then
+`uv run hinoki migrations plan entries`; [8. Projects and apps](tutorial/8-projects.md)
+walks through it.
 
 ## Next
 
@@ -159,4 +188,4 @@ add them.
 - [8. Projects and apps](tutorial/8-projects.md): add an app with its own
   models and migrations to this project.
 - [Notes example](https://github.com/caspel26/hinoki/tree/main/examples/notes):
-  a small CRUD API with a migration.
+  a small CRUD API whose model lives in `notes/apps/notes`.
