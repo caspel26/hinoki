@@ -199,11 +199,23 @@ def route_guarded(binding: Binding) -> bool:
     )
 
 
+def stock_owner(owner: type) -> bool:
+    """Creating the class-API instance runs no application code: it keeps
+    ``object``'s constructor, so a request may build it wherever its handler is
+    driven."""
+    return type(owner) is type and all(
+        "__init__" not in vars(base) and "__new__" not in vars(base)
+        for base in owner.__mro__[:-1]
+    )
+
+
 def native_handler_eligible(binding: Binding) -> bool:
     """Select the automatic native response path for a simple GET or DELETE, or
     for a body method with one ``Schema`` body and only built-in parsers."""
     route = binding.route
-    if route.owner is not None:
+    if route.owner is not None and not (
+        stock_owner(route.owner) and not getattr(route.owner, "response_headers", ())
+    ):
         return False
     if route.method in BODY_METHODS:
         if (
