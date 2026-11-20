@@ -209,6 +209,12 @@ class KisoWorker:
         self.timer: asyncio.TimerHandle | None = None
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
+        # Taken with the core, before the startup hooks run: what Rust copied.
+        self._route_auth = {
+            action: (access, route_auth_state(access))
+            for action, binding in enumerate(self.pipeline.bindings)
+            if (access := claims_route_access(binding)) is not None
+        }
         self.server: core.KisoServer | None = None
         self.address = (host, port)
         self.scheme = "https" if tls_cert_file else "http"
@@ -285,11 +291,7 @@ class KisoWorker:
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
         self.timer = loop.call_later(HOUSEKEEPING, self._tick)
-        self._route_auth = {
-            action: (access, route_auth_state(access))
-            for action, binding in enumerate(self.pipeline.bindings)
-            if (access := claims_route_access(binding)) is not None
-        }
+        self._check_route_auth()
         self.core.set_ready(True)
         return server.port
 
@@ -587,20 +589,21 @@ class KisoWorker:
             log.warning("ignored invalid request ID from trusted proxy")
         try:
             response, native_final = await self._pipeline_response(request)
+            if native_final:
+                request.respond_final(response.status, response.headers, response.body)
+            else:
+                # Set by the pipeline in this task's context while it answered.
+                request.respond_routed(
+                    response.status,
+                    response.headers,
+                    response.body,
+                    context.route_headers.get(),
+                )
         except Exception:
             log.exception("request %s failed", request.request_id)
+            # The route's own headers may be what failed; the 500 must not reuse them.
+            context.route_headers.set(())
             self._fail(request)
-            return
-        if native_final:
-            request.respond_final(response.status, response.headers, response.body)
-        else:
-            # Set by the pipeline in this task's context while it answered.
-            request.respond_routed(
-                response.status,
-                response.headers,
-                response.body,
-                context.route_headers.get(),
-            )
 
     async def stop(self) -> int:
         """Stop accepting, let running requests finish (up to the shutdown
