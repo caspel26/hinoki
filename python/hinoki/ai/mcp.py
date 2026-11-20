@@ -46,7 +46,13 @@ from hinoki.rules import (
 from hinoki.runtime.recent import DEFAULT_PATH, read_recent
 from hinoki.scenario import ScenarioError, run_scenario
 from hinoki.utils import utc_today
-from hinoki.waivers import apply_waivers, load_waivers, waiver_path
+from hinoki.waivers import (
+    Waiver,
+    WaiverError,
+    apply_waivers,
+    read_waivers,
+    waiver_path,
+)
 
 TOOL_VERSION = 1
 PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -136,7 +142,11 @@ class DevProject:
         self.rules = rules
         self.packages = packages
         self.model_modules = models
-        self.waivers = waiver_path(waivers)
+        if waivers is not None:
+            # Scenarios start this app: they must apply the file the tools read.
+            app.waiver_file = Path(waivers)
+        self.waiver_file = app.waiver_file
+        self.waivers = waiver_path(self.waiver_file)
         self.today = today
         self.scenarios = scenarios
         self.requests = requests or Path(DEFAULT_PATH)
@@ -156,8 +166,14 @@ class DevProject:
         """All diagnostics as data, and the ones that fail a build."""
         found = self.rules.run(Project(self.app, self.packages), phase)
         today = self.today or utc_today()
-        found = apply_waivers(found, load_waivers(self.waivers), today)
+        found = apply_waivers(found, self.read_waivers(), today)
         return [d.as_dict() for d in found], failing(found)
+
+    def read_waivers(self) -> list[Waiver]:
+        try:
+            return read_waivers(self.waiver_file)
+        except WaiverError as exc:
+            raise ToolFailure(str(exc)) from None
 
 
 def tool_inspect_project(project: DevProject, _args: dict[str, Any]) -> dict[str, Any]:
@@ -174,7 +190,7 @@ def tool_inspect_project(project: DevProject, _args: dict[str, Any]) -> dict[str
 
 
 def tool_list_rules(project: DevProject, _args: dict[str, Any]) -> dict[str, Any]:
-    waivers = load_waivers(project.waivers)
+    waivers = project.read_waivers()
     return {
         "waiver_file": {
             "path": str(project.waivers.resolve()),
@@ -602,6 +618,7 @@ def run_mcp(args: argparse.Namespace) -> int:
             scenarios=args.scenarios,
             requests=Path(args.requests) if args.requests else None,
         )
+        read_waivers(project.waiver_file)  # a bad or missing file is a usage error
     except (*USAGE_ERRORS, SystemExit) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

@@ -105,7 +105,7 @@ def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> i
         rules = build_rules(args.rules, app)
         project = Project(app, tuple(args.package or default_packages(args.target)))
         phase = Phase(args.phase) if args.phase else None
-        waivers = read_waivers(args.waivers)
+        waivers = read_waivers(args.waivers or app.waiver_file)
         found = rules.run(project, phase, allow_effects=args.allow_effects)
         found = apply_waivers(found, waivers, today or utc_today())
     except (*USAGE_ERRORS, WaiverError, SystemExit) as exc:  # factories may exit
