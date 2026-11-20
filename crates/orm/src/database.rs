@@ -935,6 +935,21 @@ mod tests {
     }
 
     #[test]
+    fn a_known_scheme_without_the_double_slash_is_named_without_the_url() {
+        for url in [
+            "sqlite:./a.db",
+            "sqlite:/tmp/a.db",
+            "postgres:user:secret@db/app",
+            "mysql:user:secret@db/app",
+        ] {
+            let message = check_postgres_scheme(url).unwrap_err().to_string();
+            assert!(message.contains("needs `://`"), "{message}");
+            assert!(!message.contains("TLS"), "{message}");
+            assert!(!message.contains("secret"), "{message}");
+        }
+    }
+
+    #[test]
     fn postgres_urls_and_key_value_strings_pass_the_scheme_check() {
         for url in [
             "postgres://user@db/app",
