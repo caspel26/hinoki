@@ -134,7 +134,7 @@ nav:
       - Operating:
           - Sync and async code: sync-async.md
           - Benchmarks: benchmarks.md
-          - Generated CRUD on the native path: rust-crud-orientation.md
+          - Native CRUD orientation run: rust-crud-orientation.md
   - Concepts:
       - Concepts: concepts.md
       - Request lifecycle: request-lifecycle.md
@@ -153,7 +153,7 @@ nav:
       - Settings: reference/settings.md
       - Rules: reference/rules.md
       - Modules and runtime: reference/runtime.md
-      - AI tools: reference/tools.md
+      - MCP and scaffold: reference/tools.md
       - Admin: reference/admin.md
       - Testing: reference/testing.md
       - Utilities: reference/utilities.md
