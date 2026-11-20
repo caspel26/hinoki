@@ -31,10 +31,18 @@ from pathlib import Path
 from types import FrameType
 from typing import Any
 
+from hinoki.terminal import Style
+
 POLL = 0.25
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 # Seconds past ``shutdown_timeout`` before a worker is killed.
 KILL_MARGIN = 5.0
+
+
+def docs_line(url: str, style: Style) -> str:
+    """The ``docs:`` line: the address in the brand colour on a colour terminal,
+    plain text otherwise."""
+    return f"{style.paint('docs:', 'brand', bold=True)} {style.paint(url, 'brand')}"
 
 
 class Supervisor:
@@ -151,7 +159,8 @@ class Supervisor:
         mode = "reloading" if self.reload else f"{self.count} workers"
         print(f"listening on {self.scheme}://{shown}:{port} ({mode})", flush=True)
         if self.docs:
-            print(f"docs: {self.scheme}://{shown}:{port}{self.docs}", flush=True)
+            url = f"{self.scheme}://{shown}:{port}{self.docs}"
+            print(docs_line(url, Style.detect(sys.stdout)), flush=True)
         events = self.changes() if self.reload else self.ticks()
         # Under ``dev`` the watcher exists before the worker does, so an edit
         # made while the worker starts is not missed.
