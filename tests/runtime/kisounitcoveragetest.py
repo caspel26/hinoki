@@ -107,7 +107,7 @@ def _worker() -> Any:
 def test_worker_constructor_owns_adapter_limits_queues_and_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pipeline = SimpleNamespace()
+    pipeline = SimpleNamespace(bindings=())
     adapter = SimpleNamespace(pipeline=pipeline)
     app = SimpleNamespace(asgi=lambda: adapter)
     monkeypatch.setattr(
@@ -750,7 +750,7 @@ def test_module_entrypoint_exits_with_main_result(
         "hinoki.runtime.servercore.build_server_core", lambda _pipeline: object()
     )
     app = SimpleNamespace(
-        asgi=lambda: SimpleNamespace(pipeline=SimpleNamespace()),
+        asgi=lambda: SimpleNamespace(pipeline=SimpleNamespace(bindings=())),
         settings=ServerSettings(),
     )
     monkeypatch.setattr("hinoki.serve.load_target", lambda _target: (app, False))

@@ -300,3 +300,24 @@ async def test_a_changed_provider_sends_requests_back_to_python(
         assert lanes  # Python decided it, not Rust
     finally:
         await worker.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_provider_changed_by_a_startup_hook_is_decided_by_python(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    placeholder = b"p" * 32
+
+    def load_real_key(_: Any) -> None:
+        monkeypatch.setattr(Tokens, "keys", (JWTKey(None, "HS256", SECRET),))
+
+    monkeypatch.setattr(Tokens, "keys", (JWTKey(None, "HS256", placeholder),))
+    app = Hinoki(include=[guarded], on_startup=[load_real_key])
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        old = await fetch(port, "GET", "/guarded", bearer(token(good(), placeholder)))
+        new = await fetch(port, "GET", "/guarded", bearer(token(good())))
+        assert (old.status, new.status) == (401, 200)
+    finally:
+        await worker.stop()
