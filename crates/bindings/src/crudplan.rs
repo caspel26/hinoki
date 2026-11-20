@@ -33,6 +33,7 @@ struct DialectTemplates {
     delete: String,
     read_back: String,
     write_read_back: String,
+    update_read_back: String,
     savepoint: Option<String>,
     rollback_savepoint: Option<String>,
     release_savepoint: Option<String>,
@@ -229,6 +230,11 @@ impl PyCrudPlan {
                     "write_read_back".to_owned(),
                     template.write_read_back.clone(),
                 ),
+                (
+                    template.dialect.clone(),
+                    "update_read_back".to_owned(),
+                    template.update_read_back.clone(),
+                ),
             ]);
             for (kind, sql) in [
                 ("savepoint", &template.savepoint),
@@ -318,6 +324,11 @@ impl CrudPlan {
     pub(crate) fn write_read_back_sql(&self, dialect: &str) -> Option<&str> {
         self.template(dialect)
             .map(|template| template.write_read_back.as_str())
+    }
+
+    pub(crate) fn update_read_back_sql(&self, dialect: &str) -> Option<&str> {
+        self.template(dialect)
+            .map(|template| template.update_read_back.as_str())
     }
 
     pub(crate) fn savepoint_sql(&self, dialect: &str) -> Option<&str> {
@@ -768,7 +779,13 @@ fn compile_templates(
     .map_err(query_error)?
     .0;
     let read_back = select_filtered_sql(table, columns, primary_key, ordering, Some(2), dialect)?;
-    let write_read_back = select_write_sql(table, columns, primary_key, dialect)?;
+    let write_read_back = select_write_sql(table, columns, (primary_key, None), dialect)?;
+    let mut update_read_back = select_write_sql(table, columns, (primary_key, owner), dialect)?;
+    if dialect == Dialect::Mysql {
+        // A current read: a plain read would keep the handler's snapshot and
+        // return the row even when a concurrent owner change matched nothing.
+        update_read_back.push_str(" FOR UPDATE");
+    }
     Ok(DialectTemplates {
         dialect: name.to_owned(),
         count,
@@ -779,6 +796,7 @@ fn compile_templates(
         delete,
         read_back,
         write_read_back,
+        update_read_back,
         savepoint: (dialect == Dialect::Mysql).then(|| "SAVEPOINT hinoki_sp_1".to_owned()),
         rollback_savepoint: (dialect == Dialect::Mysql)
             .then(|| "ROLLBACK TO SAVEPOINT hinoki_sp_1".to_owned()),
@@ -790,7 +808,7 @@ fn compile_templates(
 fn select_write_sql(
     table: &str,
     columns: &[String],
-    primary_key: &str,
+    (primary_key, owner): (&str, Option<&str>),
     dialect: Dialect,
 ) -> PyResult<String> {
     compile_select_with(
@@ -798,7 +816,7 @@ fn select_write_sql(
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
-            filters: vec![equality_filter(primary_key, 0)],
+            filters: scoped_filters(primary_key, owner, 0),
             order: Vec::new(),
             limit: None,
             offset: None,

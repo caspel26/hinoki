@@ -767,7 +767,8 @@ async fn update_in_transaction(
             .map_err(|_| DbError::new(ErrorKind::Other, "CRUD update SQL is unavailable"))?;
         let parameters = update_parameters(values, &id, owner);
         let written = if is_mysql(dialect) {
-            mysql_update(transaction, plan, &sql, &parameters, &id).await?
+            let scope = scope_parameters(&id, owner);
+            mysql_update(transaction, plan, &sql, (&parameters, &scope)).await?
         } else {
             transaction.fetch(&sql, &parameters).await?
         };
@@ -811,12 +812,21 @@ fn update_parameters(
     parameters
 }
 
+fn scope_parameters(id: &Value, owner: Option<&OwnerScope>) -> Vec<Value> {
+    let mut parameters = vec![id.clone()];
+    if let Some(scope) = owner {
+        parameters.push(Value::Text(scope.value.clone()));
+    }
+    parameters
+}
+
+/// MySQL has no RETURNING: the row is read back with the update's own key and
+/// owner filter, so a write that matched no row reads back as empty.
 async fn mysql_update(
     transaction: &Transaction,
     plan: &CrudPlan,
     update_sql: &str,
-    parameters: &[Value],
-    primary_key: &Value,
+    (parameters, scope): (&[Value], &[Value]),
 ) -> Result<Vec<Vec<(String, Value)>>, DbError> {
     let savepoint = required_sql(plan.savepoint_sql("mysql"))?;
     transaction.execute(savepoint, &[]).await?;
@@ -824,11 +834,8 @@ async fn mysql_update(
         rollback_savepoint(transaction, plan).await;
         return Err(error);
     }
-    let select = required_sql(plan.write_read_back_sql("mysql"))?;
-    let rows = match transaction
-        .fetch(select, std::slice::from_ref(primary_key))
-        .await
-    {
+    let select = required_sql(plan.update_read_back_sql("mysql"))?;
+    let rows = match transaction.fetch(select, scope).await {
         Ok(rows) => rows,
         Err(error) => {
             rollback_savepoint(transaction, plan).await;
