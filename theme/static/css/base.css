@@ -613,8 +613,8 @@ body.menu-open .menu-icon-close {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 2px var(--sp-2);
-  padding: 8px 12px;
+  gap: 2px 6px;
+  padding: 8px 10px;
 }
 
 .titleblock div + div {

@@ -645,6 +645,17 @@ html:not(.js) .prose table {
   }
 }
 
+/* At 320 px a long word such as "Authentication" fills a column on its own. */
+@media (max-width: 360px) {
+  .prose table:not(:has(th:nth-child(4))) {
+    font-size: var(--fs-s);
+  }
+
+  .prose table:not(:has(th:nth-child(4))) :is(th, td) {
+    hyphens: auto;
+  }
+}
+
 .prose tr:first-child td {
   border-top: 0;
 }
