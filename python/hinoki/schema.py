@@ -781,6 +781,7 @@ def validate_constructed(
         allow_naive_datetime=from_model,
         use_aliases=use_aliases,
     )
+    normalize_floats(instance)
     queue = _NORMALIZATION_QUEUE.get()
     if queue is not None:
         queue_normalization(queue, instance, use_aliases, "")
@@ -798,6 +799,62 @@ def normalize_constructed(
     """Stage and validate canonical strings before committing any field."""
     proposed = prepare_normalized_values(instance, use_aliases, path_prefix)
     commit_normalized_values(instance, proposed)
+
+
+def contains_float(ftype: FieldType) -> bool:
+    """Whether a field holds ``float`` values directly or inside a container."""
+    if ftype.kind == "float":
+        return True
+    if ftype.kind == "tuple":
+        return any(contains_float(item) for item in ftype.items)
+    return ftype.item is not None and contains_float(ftype.item)
+
+
+def floated(ftype: FieldType, value: Any) -> Any:
+    """``value`` with every ``int`` where the type says ``float`` made a ``float``."""
+    if ftype.kind == "float":
+        return float(value) if type(value) is int else value
+    if ftype.kind == "dict" and isinstance(value, dict) and ftype.item is not None:
+        return {key: floated(ftype.item, item) for key, item in value.items()}
+    return floated_sequence(ftype, value)
+
+
+def floated_sequence(ftype: FieldType, value: Any) -> Any:
+    if ftype.kind == "tuple" and isinstance(value, tuple):
+        return tuple(
+            floated(kind, item) for kind, item in zip(ftype.items, value, strict=False)
+        )
+    if (
+        ftype.kind == "list"
+        and ftype.item is not None
+        and isinstance(value, tuple | list | set | frozenset)
+    ):
+        container = COLLECTION_TYPES.get(ftype.collection or "", list)
+        return container(floated(ftype.item, item) for item in value)
+    return value
+
+
+def float_fields(cls: type[Schema]) -> tuple[tuple[str, FieldType], ...]:
+    """The fields that hold floats, cached per class."""
+    cached = cls.__dict__.get("__float_fields__")
+    if cached is None:
+        cached = tuple(
+            (name, spec.ftype)
+            for name, spec in cls.specs().items()
+            if contains_float(spec.ftype)
+        )
+        cls.__float_fields__ = cached
+    return cached
+
+
+def normalize_floats(instance: Schema) -> None:
+    """Store an ``int`` given for a ``float`` field as a ``float``, as Pydantic's
+    Python mode does; the wire path already returns floats."""
+    for name, ftype in float_fields(type(instance)):
+        current = getattr(instance, name)
+        converted = floated(ftype, current)
+        if converted is not current:
+            object.__setattr__(instance, name, converted)
 
 
 def declared_forms(cls: type[Schema]) -> tuple[tuple[str, FieldInfo], ...]:
@@ -1061,6 +1118,7 @@ class Schema:
     __normalizers__: ClassVar[tuple[tuple[str, str], ...]] = ()
     __before__: ClassVar[tuple[str, ...]] = ()
     __declared_forms__: ClassVar[tuple[tuple[str, FieldInfo], ...] | None] = None
+    __float_fields__: ClassVar[tuple[tuple[str, FieldType], ...] | None] = None
     __graph_normalizers__: ClassVar[bool | None] = None
     __graph_before__: ClassVar[bool | None] = None
     __source__: ClassVar[dict[str, Any]] = {}
