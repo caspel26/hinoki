@@ -441,8 +441,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></span>
-            <span>11 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:52:57 UTC">November 20, 2026</span></span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -718,6 +718,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
 <li><strong>Timeout.</strong> <code>execution.request_timeout</code> bounds the time until the response starts (<code>504</code>). A running sync call cannot be stopped; it keeps its thread until it returns.</li>
 <li><strong>Applies:</strong> TLS and HTTP/2, <code>access_log</code> and <code>access_log_format</code>, <code>server_timing</code>, <code>max_connections</code>, header and body timeouts, <code>--workers</code> and graceful shutdown (<code>lifecycle.shutdown_timeout</code>).</li>
 <li><strong>Does not apply:</strong> the native lane (<code>native_dispatch</code> is refused), host, CORS and redirect policies of the server (a wrapped Hinoki application still applies its own), and <code>trusted_proxies</code> (refused: the client address is the TCP peer).</li>
+<li><strong>Settings.</strong> A plain callable has no settings of its own, so <code>server</code>, <code>execution</code> and <code>lifecycle</code> come from the environment (<code>EXECUTION__SYNC_WORKERS</code>, <code>SERVER__WORKERS</code>, ...); a bad value stops the command with status <code>2</code>. A <code>WSGIAdapter</code> uses its application's settings.</li>
 <li><strong>Lifespan.</strong> A plain callable has none. A <code>WSGIAdapter</code> starts its application's modules when the worker starts, not on the first request, and stops them on a graceful stop.</li>
 </ul>
 <p>The adapter itself buffers its responses, so streaming reaches the client only from a plain callable. Its other specifics below apply on both servers.</p>
@@ -776,7 +777,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:52:57 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
