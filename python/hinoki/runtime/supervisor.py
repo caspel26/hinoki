@@ -53,6 +53,7 @@ class Supervisor:
     ) -> None:
         self.target = target
         self.interface = interface
+        self.docs: str | None = None  # path of the docs page, announced on start
         self.listener = listener
         self.count = workers
         self.grace = grace + KILL_MARGIN
@@ -149,6 +150,8 @@ class Supervisor:
         shown = f"[{host}]" if ":" in str(host) else host
         mode = "reloading" if self.reload else f"{self.count} workers"
         print(f"listening on {self.scheme}://{shown}:{port} ({mode})", flush=True)
+        if self.docs:
+            print(f"docs: {self.scheme}://{shown}:{port}{self.docs}", flush=True)
         events = self.changes() if self.reload else self.ticks()
         # Under ``dev`` the watcher exists before the worker does, so an edit
         # made while the worker starts is not missed.
