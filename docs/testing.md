@@ -3,35 +3,100 @@ status: implemented
 related:
   - sync-async.md
   - endpoints.md
+  - function-endpoints.md
+  - new-project.md
 ---
 
-# Testing
+# Test an application
 
-Hinoki has two useful levels of application tests: call the operation functions directly, then exercise the app through its ASGI interface.
-
-## Test the application over ASGI
-
-`ASGIClient` drives startup, HTTP requests and shutdown without opening a network socket:
+A project created with `hinoki new` already has a test that runs a request
+through the whole stack, without a network socket:
 
 ```python
+# tests/healthtest.py
 from hinoki.testing import ASGIClient
 
-# create_app and TEST_DATABASE_URL come from the application under test.
-async with ASGIClient(create_app(TEST_DATABASE_URL), strict_errors=True) as client:
-    response = await client.post("/tasks", json={"title": "Write docs"}, token="member")
-    assert response.status == 201
+from notes.main import app
+
+
+async def test_health_answers_through_the_whole_stack() -> None:
+    async with ASGIClient(app) as client:
+        reply = await client.get("/health")
+    assert (reply.status, reply.body) == (200, {"status": "ok"})
 ```
 
-Its context manager runs module lifespans and the application's startup and shutdown hooks. If the application declares a database, point it to a disposable database (a SQLite file or a PostgreSQL database). `strict_errors=True` catches an HTTP error returned by an action but missing from its `errors=` declaration.
+Run it with `uv run pytest`. The generated `pyproject.toml` sets
+`asyncio_mode = "auto"` and collects files named `*test.py`.
 
-Both clients have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and `query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the `query=` option of every call is the query string), plus `request(method, path, ...)` for any other method.
+`ASGIClient` runs the application's startup (modules, database pool, startup
+hooks and [rules](rules.md)) when the block opens and its shutdown when it
+closes. A reply has `status`, `headers`, `body` (decoded JSON, or text) and `raw`
+bytes.
+
+## Test protected actions
+
+`token=` sends `Authorization: Bearer <token>`, so a test exercises the real
+provider and policy:
+
+```python
+# tests/billingtest.py
+from hinoki.testing import ASGIClient
+
+from notes.main import app
+
+
+async def test_invoices_need_a_staff_token() -> None:
+    async with ASGIClient(app) as client:
+        anonymous = await client.get("/billing/invoices")
+        unknown = await client.get("/billing/invoices", token="not-a-token")
+    assert anonymous.status == 401
+    assert unknown.status == 401
+```
+
+## Use a disposable database
+
+The application reads its database from settings, so point the prefix variable
+at a throwaway database before the application module is imported. A
+`conftest.py` at the project root is imported first:
+
+```python
+# conftest.py
+import os
+
+os.environ.setdefault("NOTES_DATABASE__URL", "sqlite://./.hinoki/test.sqlite3")
+```
+
+This applies when the settings declare `database: settings.DatabaseSettings`.
+Create the tables once; the migration commands read their own variable:
+
+```sh
+export HINOKI_DATABASE_URL=sqlite://./.hinoki/test.sqlite3
+uv run hinoki migrations apply
+```
+
+Use synthetic rows and credentials, and never point test settings at production
+data. A [factory](settings.md#where-values-come-from)
+that takes the URL as an argument makes this explicit:
+`ASGIClient(create_app(TEST_DATABASE_URL))`.
+
+## Catch undeclared errors
+
+`ASGIClient(app, strict_errors=True)` fails the test when an action answers an
+HTTP error that is missing from its `errors=` declaration, so the OpenAPI
+document cannot drift from what the action really does.
+
+Both clients have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and
+`query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the
+`query=` option of every call is the query string), plus
+`request(method, path, ...)` for any other method.
 
 ## Test file uploads
 
 `ASGIClient` and `SyncClient` accept `data=` and `files=` and build the multipart boundary and `Content-Type` header for you. Use a sequence of file tuples to send repeated field names in order:
 
 ```python
-async with ASGIClient(create_app()) as client:
+# tests/uploadtest.py
+async with ASGIClient(app) as client:
     response = await client.post(
         "/documents",
         data={"title": "Report"},
@@ -42,16 +107,21 @@ async with ASGIClient(create_app()) as client:
 
 Each file tuple is `(field_name, filename, content_bytes, content_type)`. Form data may be a mapping or an ordered sequence of `(name, text)` pairs; sequences retain repeated names. Do not pass `json=` or raw `body=` together with `data=`/`files=`; the helper owns the multipart content type and boundary. The application enforces its configured complete-body and per-part limits. This helper sends complete in-memory bodies and does not model streaming uploads.
 
+## Headers and hosts
+
 `headers=` accepts a mapping or a sequence of `(name, value)` pairs. Use pairs to send a repeated header; Hinoki's request header mapping joins repeated values with `", "`. A client can add a default `Host` header to each request:
 
 ```python
-async with ASGIClient(create_app(), host="api.example.com") as client:
+# tests/headerstest.py
+async with ASGIClient(app, host="api.example.com") as client:
     response = await client.get(
         "/health", headers=[("X-Trace", "first"), ("X-Trace", "second")]
     )
 ```
 
-The default remains no `Host` header. Set `headers={"host": "other.example.com"}` on a call to override the client's host. Because the clients run in-process, they do not log the startup warning about the default `allowed_hosts = *` that a served worker logs ([settings](settings.md#allowed_hosts)).
+The default remains no `Host` header. Set `headers={"host": "other.example.com"}` on a call to override the client's host. Because the clients run in-process, they do not log the startup warning about the default `allowed_hosts = *` that a served worker logs ([Hosts, CORS and HTTPS](web-security.md#allowed_hosts)).
+
+## Synchronous tests and time
 
 `SyncClient` is available for synchronous test functions. It runs the app's lifespan and refuses unsafe nested use from a running event loop.
 
@@ -60,8 +130,6 @@ For deterministic time, `ManualClock` is a thread-safe callable clock. It accept
 ## Test the layers separately
 
 Keep business operations independent of `Request` and HTTP response types when practical. Test ownership and state transitions against a disposable database, then test route binding, access, status codes and error declarations through `ASGIClient`.
-
-Use synthetic rows and credentials. Never point test settings at production data.
 
 ## Repository checks
 
@@ -78,3 +146,9 @@ cargo test --workspace
 ```
 
 PostgreSQL-dependent Python and Rust tests require `HINOKI_TEST_DATABASE_URL`; without it those tests are skipped. Migration conformance tests for MySQL and MariaDB also require `HINOKI_TEST_MYSQL_URL` and `HINOKI_TEST_MARIADB_URL`, respectively. CI provides disposable real-server services. See [toolchain and CI](toolchain.md) for packaging and docs checks too.
+
+## See also
+
+- [Create a project](new-project.md): what the generated tests and settings contain.
+- [Sync and async](sync-async.md)
+- [Testing API reference](reference/testing.md)
