@@ -31,7 +31,7 @@ use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
 use crate::headers::Header;
-use crate::stream::{Delivery, Live, Reply, Streamed};
+use crate::stream::{self, Delivery, Live, Reply, Streamed};
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
@@ -143,12 +143,13 @@ fn incoming_of(
     }
 }
 
-/// Build the hyper response. An answer the transport cannot represent (a status
-/// or header hyper rejects) becomes a bare 500 rather than a broken stream. So
-/// does an informational status: `101` would hand the connection to hyper's
-/// upgrade path (and h2 has no 101), and the server serves no protocol that
-/// switches.
-fn response_of(delivery: Delivery, head_only: bool) -> Response<Reply> {
+/// Build the hyper response, or say why the answer cannot be sent as given (a
+/// status or header hyper rejects, an unreadable `content-length`); the caller
+/// then answers a bare 500. So does an informational status: `101` would hand
+/// the connection to hyper's upgrade path (and h2 has no 101), and the server
+/// serves no protocol that switches. A streamed body is held to the
+/// `content-length` its head declares.
+fn response_of(delivery: Delivery, head_only: bool) -> Result<Response<Reply>, String> {
     let (status, headers, body) = match delivery {
         Delivery::Whole(answer) => (
             answer.status,
@@ -164,34 +165,49 @@ fn response_of(delivery: Delivery, head_only: bool) -> Response<Reply> {
             status,
             headers,
             chunks,
-        }) => (
-            status,
-            headers,
-            if head_only {
+        }) => {
+            let body = if head_only {
                 Reply::Whole(Full::new(Bytes::new()))
             } else {
-                Reply::Live(Live::new(chunks))
-            },
-        ),
+                Reply::Live(Live::with_length(chunks, declared_length(&headers)?))
+            };
+            (status, headers, body)
+        }
     };
-    let Ok(status) = StatusCode::from_u16(status) else {
-        return plain(StatusCode::INTERNAL_SERVER_ERROR);
-    };
-    if status.is_informational() {
-        return plain(StatusCode::INTERNAL_SERVER_ERROR);
-    }
+    let status = StatusCode::from_u16(status)
+        .ok()
+        .filter(|status| !status.is_informational())
+        .ok_or_else(|| format!("status {status} cannot be sent"))?;
     let mut response = Response::new(body);
     *response.status_mut() = status;
     for (name, value) in &headers {
-        let Ok(name) = HeaderName::from_bytes(name) else {
-            return plain(StatusCode::INTERNAL_SERVER_ERROR);
-        };
-        let Ok(value) = HeaderValue::from_bytes(value) else {
-            return plain(StatusCode::INTERNAL_SERVER_ERROR);
-        };
+        let invalid = || format!("invalid header {:?}", String::from_utf8_lossy(name));
+        let name = HeaderName::from_bytes(name).map_err(|_| invalid())?;
+        let value = HeaderValue::from_bytes(value).map_err(|_| invalid())?;
         response.headers_mut().append(name, value);
     }
-    response
+    Ok(response)
+}
+
+/// The `content-length` a head declares: `None` without one, an error when
+/// it is not a number or repeated with different values.
+fn declared_length(headers: &[Header]) -> Result<Option<u64>, String> {
+    let mut declared = None;
+    for (_, value) in headers
+        .iter()
+        .filter(|(name, _)| name.eq_ignore_ascii_case(b"content-length"))
+    {
+        let length = std::str::from_utf8(value)
+            .ok()
+            .filter(|text| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|text| text.parse::<u64>().ok())
+            .ok_or_else(|| "invalid content-length".to_owned())?;
+        if declared.is_some_and(|seen| seen != length) {
+            return Err("conflicting content-length headers".to_owned());
+        }
+        declared = Some(length);
+    }
+    Ok(declared)
 }
 
 /// What the connection layer shares with every request it serves.
@@ -288,7 +304,13 @@ pub async fn respond<B: Backend>(
         .map(|style| (style, incoming.clone_head()));
     let timed = transport.server_timing.then(|| Arc::clone(&incoming.trace));
     let delivery = backend.deliver(incoming).await;
-    let status = delivery.status();
+    let mut response = response_of(delivery, head_only).unwrap_or_else(|reason| {
+        stream::report(&format!(
+            "the response cannot be sent ({reason}); answering 500 instead"
+        ));
+        plain(StatusCode::INTERNAL_SERVER_ERROR)
+    });
+    let status = response.status().as_u16();
     let timing = timed.map(|trace| server_timing(started.elapsed(), trace.lane()));
     if let Some((style, head)) = logged {
         let elapsed = started.elapsed();
@@ -296,7 +318,6 @@ pub async fn respond<B: Backend>(
             head.log(style, status, elapsed, transport.log_filter.sink.as_ref());
         }
     }
-    let mut response = response_of(delivery, head_only);
     if let Some(value) = timing {
         response.headers_mut().insert("server-timing", value);
     }
@@ -337,7 +358,7 @@ mod tests {
     #[test]
     fn head_keeps_the_declared_length_and_drops_the_body() {
         let headers = vec![(b"content-length".to_vec(), b"5".to_vec())];
-        let response = response_of(whole(200, headers, b"hello"), true);
+        let response = response_of(whole(200, headers, b"hello"), true).unwrap();
         assert_eq!(response.headers()["content-length"], "5");
         assert!(response.body().is_end_stream());
     }
@@ -348,18 +369,38 @@ mod tests {
             (b"set-cookie".to_vec(), b"a=1".to_vec()),
             (b"set-cookie".to_vec(), b"b=2".to_vec()),
         ];
-        let response = response_of(whole(200, headers, b""), false);
+        let response = response_of(whole(200, headers, b""), false).unwrap();
         assert_eq!(response.headers().get_all("set-cookie").iter().count(), 2);
     }
 
     #[test]
-    fn unrepresentable_answers_become_a_bare_500() {
-        let bad_status = response_of(whole(99, vec![], b""), false);
-        assert_eq!(bad_status.status(), 500);
-        assert_eq!(response_of(whole(101, vec![], b""), false).status(), 500);
+    fn unrepresentable_answers_are_refused_with_a_reason() {
+        let reason = |delivery| match response_of(delivery, false) {
+            Err(reason) => reason,
+            Ok(_) => panic!("the answer was accepted"),
+        };
+        assert_eq!(reason(whole(99, vec![], b"")), "status 99 cannot be sent");
+        assert_eq!(reason(whole(101, vec![], b"")), "status 101 cannot be sent");
         let bad_name = vec![(b"bad name".to_vec(), b"x".to_vec())];
-        assert_eq!(response_of(whole(200, bad_name, b""), false).status(), 500);
+        assert!(reason(whole(200, bad_name, b"")).contains("bad name"));
         let bad_value = vec![(b"x".to_vec(), b"a\nb".to_vec())];
-        assert_eq!(response_of(whole(200, bad_value, b""), false).status(), 500);
+        assert_eq!(reason(whole(200, bad_value, b"")), "invalid header \"x\"");
+    }
+
+    #[test]
+    fn a_streamed_content_length_must_be_one_number() {
+        let length = |values: &[&[u8]]| {
+            let headers: Vec<Header> = values
+                .iter()
+                .map(|value| (b"Content-Length".to_vec(), value.to_vec()))
+                .collect();
+            declared_length(&headers)
+        };
+        assert_eq!(length(&[]), Ok(None));
+        assert_eq!(length(&[b"5", b"5"]), Ok(Some(5)));
+        assert!(length(&[b"5", b"6"]).is_err());
+        for bad in [&b""[..], b"-1", b"+5", b"5 ", b"x"] {
+            assert!(length(&[bad]).is_err(), "{bad:?}");
+        }
     }
 }

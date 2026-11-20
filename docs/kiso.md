@@ -88,6 +88,7 @@ The measured phase 1 path is documented in the [native CRUD orientation run](rus
     * `access_log_skip = ["/health", "/static/*"]` leaves noisy paths out and `access_log_slow_ms = 100` keeps only slow answers; failures (status 400 and up) are always logged.
 * A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.
 * A WSGI callable (`--interface wsgi`) runs in Python threads behind this listener, not on the native lane: see [WSGI on Kiso](serving.md#wsgi-on-kiso) for what applies to it.
+* An answer Kiso cannot send as given (an informational status, a header name or value HTTP does not allow, an unreadable `content-length`) becomes a bare `500`, and the reason is written to stderr, for example `kiso: error: the response cannot be sent (invalid header "x-evil"); answering 500 instead`. The access log records the `500`. A streamed body that is shorter or longer than its `content-length` is cut off with an error line on stderr and the connection is closed (HTTP/1.1) or the stream reset (HTTP/2), so the client never mistakes it for a complete answer. The access log keeps the status of the head here, because it is written when the head is decided.
 
 ## Workers, signals and restarts
 

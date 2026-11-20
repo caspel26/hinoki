@@ -40,6 +40,17 @@ def test_a_hinoki_application_points_to_the_adapter() -> None:
         load_wsgi_target(HINOKI)
 
 
+def test_a_factory_is_refused_with_status_2_and_points_to_the_adapter(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exited:
+        load_wsgi_target("tests.runtime.serveapp:create_app")
+    assert exited.value.code == 2
+    error = capsys.readouterr().err
+    assert "factory" in error
+    assert "WSGIAdapter" in error
+
+
 def test_a_missing_or_non_callable_target_is_refused() -> None:
     with pytest.raises(SystemExit, match="cannot load"):
         load_wsgi_target("tests.nope:app")

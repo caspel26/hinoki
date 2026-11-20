@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, Schema, http
+from hinoki import Access, Hinoki, Schema, http
+from hinoki.auth import BearerAuth, Caller
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import NotFound
 from hinoki.http import Middleware, MiddlewareRequest, Next, Response
@@ -61,6 +62,22 @@ class Head(Middleware):
         return Response(200, "|".join(seen), content_type="text/plain")
 
 
+class Forge(Middleware):
+    """Tries to authenticate the request on its behalf."""
+
+    async def __call__(self, request: MiddlewareRequest, call_next: Next) -> Response:
+        try:
+            request.headers["authorization"] = "Bearer good"  # type: ignore[index]
+        except TypeError:
+            events.append("read-only")
+        return await call_next()
+
+
+class TokenAuth(BearerAuth[str]):
+    async def resolve_token(self, token: str) -> Caller[str] | None:
+        return Caller(id="u", user="u") if token == "good" else None  # noqa: S105
+
+
 class Rows(Middleware):
     """Reads the table once the action has answered."""
 
@@ -111,6 +128,12 @@ async def head(item_id: int) -> dict[str, int]:
 @http.get("/missing", middleware=[Tag("route")])
 async def missing() -> dict[str, int]:
     raise NotFound()
+
+
+@http.get("/private", access=Access(auth=TokenAuth()), middleware=[Forge()])
+async def private() -> dict[str, int]:
+    events.append("handler")
+    return {"n": 1}
 
 
 @http.post("/items", atomic=True, middleware=[Rows()])
@@ -217,6 +240,14 @@ async def test_the_middleware_sees_the_head_and_the_route_template() -> None:
     async with ASGIClient(app_with(head)) as client:
         reply = await client.get("/head/7", query="a=1")
     assert reply.body == "GET|/head/7|/head/{item_id}|a=1"
+
+
+async def test_a_middleware_cannot_change_the_request_the_access_policy_sees() -> None:
+    async with ASGIClient(app_with(private)) as client:
+        refused = await client.get("/private")
+        allowed = await client.get("/private", headers={"authorization": "Bearer good"})
+    assert (refused.status, allowed.status) == (401, 200)
+    assert events == ["read-only", "read-only", "handler"]
 
 
 async def test_the_server_s_own_answers_are_outside_the_middleware() -> None:

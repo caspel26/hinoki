@@ -15,6 +15,8 @@ pool for as long as it runs.
 from __future__ import annotations
 
 import io
+import logging
+import re
 import sys
 from collections.abc import Callable, Iterable
 from typing import Any, Protocol
@@ -41,6 +43,8 @@ DEFAULT_PORTS = {"http": 80, "https": 443}
 CODE = 3  # digits of a status code
 MIN_STATUS, MAX_STATUS = 100, 999
 PAIR = 2
+CONTROL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
+logger = logging.getLogger("hinoki.runtime")
 
 
 class Call(Protocol):
@@ -121,15 +125,19 @@ def build_environ(
 
 
 def add_headers(environ: dict[str, Any], call: Call) -> None:
-    """Request headers as ``HTTP_*`` (repeats joined by a comma), with the
-    body's length known: the body is decoded and complete before the call."""
+    """Request headers as ``HTTP_*``, with the body's length known: the body
+    is decoded and complete before the call. Repeats are joined by a comma
+    (cookies by ``"; "``). A name with an underscore is dropped: as ``HTTP_*``
+    it would be indistinguishable from the dashed one a proxy sets."""
     for raw_name, raw_value in call.headers:
         name, value = raw_name.decode("latin-1").lower(), raw_value.decode("latin-1")
-        if name in {"transfer-encoding", "content-length"}:
+        if "_" in name or name in {"transfer-encoding", "content-length"}:
             continue
         key = name.upper().replace("-", "_")
         key = key if name == "content-type" else f"HTTP_{key}"
-        environ[key] = f"{environ[key]},{value}" if key in environ else value
+        if key in environ:
+            value = f"{environ[key]}{'; ' if name == 'cookie' else ','}{value}"
+        environ[key] = value
     if call.body or "CONTENT_TYPE" in environ:
         environ["CONTENT_LENGTH"] = str(len(call.body))
     host = environ.get("HTTP_HOST")
@@ -161,6 +169,8 @@ def checked_headers(headers: object) -> list[tuple[bytes, bytes]]:
             raise AssertionError(f"header names and values are str: {item!r}")
         if name.lower() in HOP_BY_HOP:
             raise AssertionError(f"hop-by-hop header: {name}")
+        if CONTROL.search(name) or CONTROL.search(value):
+            raise AssertionError(f"control characters in header: {item!r}")
         checked.append((name.lower().encode("latin-1"), value.encode("latin-1")))
     return checked
 
@@ -238,15 +248,34 @@ class Bridge:
     def __call__(self, call: Call) -> None:
         responder = Responder(call)
         result: Iterable[bytes] | None = None
+        complete = False
         try:
             result = self.app(
                 build_environ(call, self.server), responder.start_response
             )
             stream(responder, result)
+            complete = True
         finally:
-            close = getattr(result, "close", None)
-            if close is not None:
-                close()
+            if complete:
+                close_quietly(result)
+            else:
+                close(result)
         # Not reached when the application failed: the host then answers 500,
         # or resets the stream if the head is already out.
         call.finish()
+
+
+def close(result: Iterable[bytes] | None) -> None:
+    """Call the iterable's ``close()``, if it has one."""
+    method = getattr(result, "close", None)
+    if method is not None:
+        method()
+
+
+def close_quietly(result: Iterable[bytes] | None) -> None:
+    """Close the iterable of a response already written in full: a failing
+    ``close()`` is logged, and the response still ends normally."""
+    try:
+        close(result)
+    except Exception:
+        logger.exception("the WSGI response's close() failed after a complete body")

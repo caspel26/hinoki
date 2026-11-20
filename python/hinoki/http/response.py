@@ -67,21 +67,31 @@ class Response:
 
     @classmethod
     def raw(
-        cls, status: int, body: bytes, headers: list[tuple[bytes, bytes]]
+        cls, status: int, body: bytes, headers: Sequence[tuple[bytes, bytes]]
     ) -> Response:
-        """A response from parts the runtime already holds, without checking them
-        again."""
+        """A response from encoded parts, checked like one built from text: a
+        framing or server header, a bad name or a CR/LF in a value raise
+        ``ValueError``. Header names are lowercased."""
+        if not MIN_STATUS <= status <= MAX_STATUS:
+            raise ValueError(f"invalid HTTP status {status}")
+        if body and status in BODYLESS:
+            raise ValueError(f"status {status} cannot have a body")
         response = cls.__new__(cls)
         response.status = status
-        response.body = body
-        response.headers = headers
+        response.body = bytes(body)
+        response.headers = [
+            encode_header(name.decode("latin-1"), value.decode("latin-1"))
+            for name, value in headers
+        ]
         return response
 
     def with_header(self, name: str, value: str) -> Response:
         """A copy with one more header."""
-        return Response.raw(
-            self.status, self.body, [*self.headers, encode_header(name, value)]
-        )
+        copy = Response.__new__(Response)
+        copy.status = self.status
+        copy.body = self.body
+        copy.headers = [*self.headers, encode_header(name, value)]
+        return copy
 
 
 def set_cookie(
