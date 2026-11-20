@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:02 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -593,6 +593,18 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>server</code></td>
 <td><code>kiso</code></td>
 <td><code>granian</code> or <code>kiso</code>; <code>--server</code> overrides it. See <a href="../kiso/">Kiso server</a></td>
+</tr>
+<tr>
+<td><code>pagination</code></td>
+<td><code>page_size</code></td>
+<td><code>20</code></td>
+<td>Page size an action's <code>PageNumberPagination()</code> leaves out; <code>1</code> to <code>max_page_size</code>. See <a href="../pagination/">Pagination</a></td>
+</tr>
+<tr>
+<td><code>pagination</code></td>
+<td><code>max_page_size</code></td>
+<td><code>100</code></td>
+<td>Largest <code>page_size</code> a client may ask for</td>
 </tr>
 <tr>
 <td><code>server</code></td>
@@ -878,8 +890,10 @@ calls it for you. Highest first:</p>
 <code>--server granian</code> already does). Tables map to groups: <code>[database]</code> with
 <code>max_size = 12</code> sets <code>database.max_size</code>. TOML cannot hold <code>settings.Secret</code>
 values or the database URL; keep those in the environment or <code>*_FILE</code> files.
-<code>load(prefix=..., dotenv=..., toml=...)</code> overrides what the class declared, and an
-explicitly selected TOML file must exist and parse.</p>
+<code>load(prefix=..., dotenv=..., toml=...)</code> overrides what the class declared. A
+TOML file named on the class or passed to <code>load</code> must exist and parse (an empty
+file is fine); a missing <code>.env</code> is skipped. Relative <code>.env</code> and TOML paths
+resolve from the current directory, so start the server from the project root.</p>
 <p>Load the class yourself when module code needs a typed value before the
 application exists:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
@@ -930,8 +944,8 @@ double underscore.</p>
 <h2 id="mistakes-fail-at-startup-all-at-once">Mistakes fail at startup, all at once<a class="headerlink" href="#mistakes-fail-at-startup-all-at-once" title="Permanent link">&para;</a></h2>
 <p>A variable that starts with your prefix but names no field is an error (a typo guard; <code>strict=False</code> turns it off when another program shares the prefix). A missing required value, a bad number or a value that is not one of the choices is an error too, and <strong>every problem is listed together</strong>, with variable names and reasons but never values:</p>
 <div class="language-text highlight"><pre><span></span><code>invalid settings:
-  NOTES_DATABASE__MAX_SIZE: must be an integer
   NOTES_EXECUTION__SYNC_WORKERS: must be an integer
+  NOTES_DATABASE__MAX_SIZE: must be an integer
   NOTES_THEMES: unknown setting
 </code></pre></div>
 <h2 id="keep-secrets-secret">Keep secrets secret<a class="headerlink" href="#keep-secrets-secret" title="Permanent link">&para;</a></h2>
@@ -973,16 +987,22 @@ keeps their defaults:</p>
 </code></pre></div>
 <p>The value may also name a function that returns the mapping. It is applied when each worker starts, right after Hinoki's own <code>hinoki</code> logger setup, with <code>disable_existing_loggers</code> off unless your mapping sets it. A mapping that configures the <code>hinoki</code> logger replaces Hinoki's handler on it. A target that cannot be imported or is not a mapping raises during startup. Kiso's access log is written by Kiso; set <code>server.access_log_format = "logger"</code> to route it through the <code>hinoki.access</code> logger.</p>
 <h2 id="8-database-connection-ownership">Database connection ownership<a class="headerlink" href="#8-database-connection-ownership" title="Permanent link">&para;</a></h2>
-<p>For local development, <code>DatabaseSettings.url</code> defaults to <code>sqlite://./.hinoki/local.sqlite3</code>. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Configure a server database with one URL or with <code>engine</code> and its connection fields (see <a href="../databases/#configure-the-application">configure a database</a>). Environment, dotenv and constructor values can override the local default. The URL and the password are secrets and cannot be loaded from TOML; TOML can hold the other connection fields and the pool size.</p>
-<p>A <code>database: DatabaseSettings</code> field is enough: Hinoki installs <code>DatabaseModule</code> for it (a module declared in <code>modules=</code> replaces it). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget <code>replicas × workers × max_size</code> against the server database's connection limit.</p>
-<p>PostgreSQL URLs accept <code>sslmode=disable</code>, <code>prefer</code>, <code>require</code>, <code>verify-ca</code> or <code>verify-full</code>, and <code>sslrootcert=/path/to/ca.pem</code>. <code>prefer</code> tries TLS first and falls back to plaintext only if the server declines TLS; a certificate or handshake error fails closed. All TLS connections verify the server certificate chain and hostname. <code>require</code>, <code>verify-ca</code> and <code>verify-full</code> require TLS; Hinoki's <code>verify-ca</code> also verifies the hostname. Trust uses Mozilla WebPKI roots plus any PEM certificates in <code>sslrootcert</code> (maximum file size 1 MiB). <code>sslmode=require</code> therefore requires a trusted certificate too. <code>sslmode=allow</code> is unsupported. Keep the URL in a secret setting, and mount the CA file where each worker can read it.</p>
-<p>SQLite accepts a file URL such as <code>sqlite:///srv/app/data.sqlite3</code>; relative paths are relative to the process working directory. In-memory databases are not supported because each pooled connection has an independent database. SQLite uses bundled SQLite 3.35 or newer, a bounded connection pool and a single-writer model. UUID and timestamp columns use text storage; JSON uses JSON text. SQLite <code>contains</code> matching is ASCII case-insensitive.</p>
-<div class="language-text highlight"><pre><span></span><code>postgresql://app:password@db.example/app?sslmode=require&amp;sslrootcert=/run/secrets/db-ca.pem
-</code></pre></div>
-<p>The <code>database</code> field of <code>ProjectSettings</code> is all it takes: <code>NOTES_DATABASE__URL</code>
-(or the connection fields) is loaded with the other settings and each worker
-opens its pool as it starts. Nothing connects at import time.</p>
-<p>One-off scripts have a different lifecycle. <code>examples/blog/seed.py</code> opens a short-lived <code>Database</code> explicitly, applies migrations, inserts synthetic rows and closes the pool in <code>finally</code>. It runs outside the HTTP server, so there is no worker lifespan to own that resource. It is a one-time seed for a fresh disposable database, not a repeatable reset:</p>
+<p>A <code>database: settings.DatabaseSettings</code> field is all it takes: Hinoki installs
+<code>DatabaseModule</code> for it (a module declared in <code>modules=</code> replaces it). With
+nothing configured, the URL is the local SQLite file
+<code>sqlite://./.hinoki/local.sqlite3</code>, and the module creates its hidden directory
+and file when it starts. <a href="../databases/">Configure a database</a> covers the URL,
+the connection fields, TLS and each backend.</p>
+<p>The module opens a pool in each worker's startup lifespan, fails startup if the
+database is unreachable, and closes that worker's pool on shutdown. Nothing
+connects when modules or models are imported. Each worker owns its own pool,
+so budget <code>replicas × workers × max_size</code> against the server database's
+connection limit.</p>
+<p>One-off scripts have a different lifecycle: they open a short-lived <code>Database</code>
+themselves (<a href="../databases/#use-the-database-from-a-script">use the database from a script</a>).
+<code>examples/blog/seed.py</code> does so, applies migrations, inserts synthetic rows and
+closes the pool in <code>finally</code>. It is a one-time seed for a fresh disposable
+database, not a repeatable reset:</p>
 <div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
 <span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span>postgresql://app:password@localhost/blog
 uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>blog.seed
@@ -1027,7 +1047,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:02 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -599,7 +599,8 @@ one transaction, or a savepoint inside an open one:</p>
   value, and returns the rows in order; defaults, factories, validation and
   hooks apply as for <code>acreate</code>. It takes no server keywords: put them in each
   item.</li>
-<li><code>abulk_update</code> refuses an unsaved instance; <code>abulk_delete</code> returns how many
+<li><code>abulk_update</code> refuses an unsaved instance and returns every instance it
+  was given, unchanged ones included; <code>abulk_delete</code> returns how many
   rows existed, deletes in chunks of at most 10 000 keys and runs no hooks.</li>
 <li>One statement per row (per chunk for deletes): these give atomicity, not a
   batching speed-up.</li>
@@ -682,7 +683,7 @@ declare a field named <code>returning</code>.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

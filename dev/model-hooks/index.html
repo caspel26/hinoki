@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:15:13 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -518,6 +518,10 @@ this write's changes while they run.</p>
 <h2 id="transactions-and-after_commit">Transactions and <code>after_commit</code><a class="headerlink" href="#transactions-and-after_commit" title="Permanent link">&para;</a></h2>
 <p>With any hook defined, the write runs in a transaction (a savepoint inside an
 open one): an exception in a hook rolls the write back and reaches the caller.
+A hook that opens its own <code>db.atomic()</code> fails with <code>DatabaseError</code> (<code>nested
+atomic scopes (savepoints) must be opened by the task that owns the
+transaction</code>) when a sync write runs inside a sync handler's
+<code>with db.atomic():</code>; from async code it nests as a savepoint.
 <code>after_*</code> hooks run before the commit. Work that must happen only after it goes
 through <code>self.after_commit(callback)</code>, a sync or async callable without
 arguments. Callbacks run in order after the outermost commit; a rollback drops
@@ -571,7 +575,7 @@ them; an exception in one is logged and does not undo the commit. See
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:15:13 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-hooks.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -438,8 +438,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></span>
-            <span>4 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -448,6 +448,78 @@
 selects the backend; models and queries stay the same wherever the backends'
 SQL features overlap. With nothing configured, the database is local SQLite at
 <code>.hinoki/local.sqlite3</code>.</p>
+<h2 id="set-up-a-database-in-four-steps">Set up a database in four steps<a class="headerlink" href="#set-up-a-database-in-four-steps" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>Declare it.</strong> <code>hinoki new notes --database postgresql</code> does this for you;
+   otherwise add the field to your settings class. Name a TOML file only if
+   you will use one (step 2): the file named by <code>toml=</code> must exist.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
+    <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
+</code></pre></div>
+</li>
+<li>
+<p><strong>Populate it.</strong> With nothing set, <code>DatabaseSettings</code> points at a local
+   SQLite file, <code>.hinoki/local.sqlite3</code>. To use another database, pick one
+   source:</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Use it for</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nothing</td>
+<td>local development on SQLite</td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>.env</code></td>
+<td>one URL on your machine (<code>hinoki new --database postgresql</code> writes a <code>.env.example</code> to copy; keep <code>.env</code> out of git)</td>
+<td><code>NOTES_DATABASE__URL=postgresql://notes:secret@localhost:5432/notes</code></td>
+</tr>
+<tr>
+<td>Environment</td>
+<td>containers and CI</td>
+<td><code>export NOTES_DATABASE__URL_FILE=/run/secrets/database-url</code></td>
+</tr>
+<tr>
+<td><code>settings.toml</code></td>
+<td>non-secret fields (<code>engine</code>, <code>host</code>, <code>name</code>, <code>user</code>), with the password from the environment; add <code>toml="settings.toml"</code> to the class</td>
+<td><a href="#connection-fields">connection fields</a></td>
+</tr>
+</tbody>
+</table>
+<p>The prefix (<code>NOTES_</code>) comes from the settings class, and <code>__</code> separates the
+group from the field. Until you set one of them, a project created with
+<code>--database postgresql</code> still uses the local SQLite file, and so do its
+migrations.</p>
+</li>
+<li>
+<p><strong>Check it.</strong> <code>hinoki settings</code>, run from the project root, shows each
+   value with its source; the URL and the password are redacted:</p>
+<div class="language-console highlight"><pre><span></span><code><span class="gp">$ </span>hinoki<span class="w"> </span>settings<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>DATABASE__URL
+<span class="go">NOTES_DATABASE__URL                      .env         ***</span>
+</code></pre></div>
+<p><code>hinoki migrations status</code> names the database it will use, and fails with
+a clear error if the server does not answer:</p>
+<div class="language-console highlight"><pre><span></span><code><span class="gp">$ </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
+<span class="go">database: postgresql://***@127.0.0.1:5432/notes (from settings: ProjectSettings.database)</span>
+</code></pre></div>
+<p><code>status</code> connects and records its migration ledger, so on SQLite it
+creates the database file.</p>
+</li>
+<li>
+<p><strong>Create the tables.</strong> Hinoki never creates tables or runs migrations at
+   startup (it only creates the local SQLite file): run
+   <code>hinoki migrations apply</code> once you have models (<a href="../migrations/">migrations</a>).</p>
+</li>
+</ol>
+<p>The rest of this page lists every field, the URL forms and each backend.</p>
 <h2 id="configure-the-application">Configure the application<a class="headerlink" href="#configure-the-application" title="Permanent link">&para;</a></h2>
 <p>Declare a <code>database</code> field on the project settings. <code>hinoki new</code> adds it when
 you choose a database.</p>
@@ -462,7 +534,9 @@ you choose a database.</p>
 </code></pre></div>
 <p>Each worker opens one bounded pool during startup and closes it during
 shutdown. Importing models or routes never opens a connection, and no
-<code>modules=</code> entry is needed.</p>
+<code>modules=</code> entry is needed. The file named by <code>toml=</code> must exist, even if it
+is empty: otherwise the settings fail to load with
+<code>settings.toml: TOML file cannot be read or parsed</code>.</p>
 <p>Configure a server database with <strong>connection fields</strong> or with <strong>one URL</strong>.
 Setting both is an error when settings load.</p>
 <h2 id="connection-fields">Connection fields<a class="headerlink" href="#connection-fields" title="Permanent link">&para;</a></h2>
@@ -611,7 +685,7 @@ with operating-system permissions.</p>
 <tr>
 <td>SQLite</td>
 <td>no network, no TLS</td>
-<td>one writer at a time; bounded connections and a five-second busy timeout; a relative path resolves from the application's working directory</td>
+<td>one writer at a time; bounded connections and a five-second busy timeout; a relative path resolves from the server's working directory (start it from the project root; migrations anchor it beside <code>hinoki.toml</code>)</td>
 </tr>
 <tr>
 <td>PostgreSQL</td>
@@ -634,6 +708,54 @@ with operating-system permissions.</p>
 or <code>mssql://</code>, fails when the pool is created with
 <code>DatabaseError: unsupported database URL scheme</code>; the message does not repeat
 the URL.</p>
+<h3 id="postgresql-tls">PostgreSQL TLS<a class="headerlink" href="#postgresql-tls" title="Permanent link">&para;</a></h3>
+<p>PostgreSQL URLs accept <code>sslmode=disable</code>, <code>prefer</code>, <code>require</code>, <code>verify-ca</code> or
+<code>verify-full</code>, and <code>sslrootcert=/path/to/ca.pem</code>. <code>prefer</code> tries TLS first and
+falls back to plaintext only if the server declines TLS; a certificate or
+handshake error fails closed. All TLS connections verify the server
+certificate chain and hostname: <code>require</code>, <code>verify-ca</code> and <code>verify-full</code> all
+require TLS, and Hinoki's <code>verify-ca</code> also verifies the hostname. Trust uses
+Mozilla WebPKI roots plus any PEM certificates in <code>sslrootcert</code> (at most
+1 MiB), so <code>sslmode=require</code> needs a trusted certificate too. <code>sslmode=allow</code>
+is unsupported. Mount the CA file where each worker can read it.</p>
+<p>Hinoki does not create the PostgreSQL role or database: create them once with
+your usual tools before the first <code>hinoki migrations apply</code>.</p>
+<h3 id="sqlite-storage">SQLite storage<a class="headerlink" href="#sqlite-storage" title="Permanent link">&para;</a></h3>
+<p>SQLite uses bundled SQLite 3.35 or newer. UUID and timestamp columns use text
+storage; JSON uses JSON text. <code>contains</code> matching is ASCII case-insensitive.
+In-memory databases are not supported, because each pooled connection would
+have an independent database.</p>
+<h2 id="use-the-database-from-a-script">Use the database from a script<a class="headerlink" href="#use-the-database-from-a-script" title="Permanent link">&para;</a></h2>
+<p>A script, a one-off task or a test fixture opens its own pool with
+<code>Database.connect</code> and makes it current with <code>use_database</code>, so model queries
+find it. Run it from the project root so a relative SQLite path and <code>.env</code>
+match the server's:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># scripts/unpaid.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">Database</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">use_database</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.apps.billing.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Invoice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">ProjectSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+    <span class="n">database</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Database</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
+        <span class="n">settings</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">reveal</span><span class="p">(),</span> <span class="n">max_size</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">max_size</span>
+    <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">use_database</span><span class="p">(</span><span class="n">database</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">acount</span><span class="p">())</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">database</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</code></pre></div>
+<p><code>Database.close()</code> is a plain call, not awaited. The script does not create
+tables: run <code>hinoki migrations apply</code> against the same database first.</p>
 <h2 id="replace-the-database-module">Replace the database module<a class="headerlink" href="#replace-the-database-module" title="Permanent link">&para;</a></h2>
 <p>A <code>DatabaseModule</code> in <code>modules=</code>, or installed with <code>app.install(...)</code>, replaces
 the one Hinoki builds from the settings, for example to use a URL chosen at
@@ -656,7 +778,10 @@ them set, the local SQLite default is anchored beside <code>hinoki.toml</code>:<
 hinoki<span class="w"> </span>migrations<span class="w"> </span>status<span class="w">   </span><span class="c1"># database: postgresql://***@db.internal/notes (from settings: ...)</span>
 hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
-<p>Hinoki never runs migrations at startup. See <a href="../migrations/#which-database">which database</a>
+<p>Hinoki never runs migrations at startup. An application that declares no
+<code>database</code> setting and installs no <code>DatabaseModule</code> has no database at run
+time, although its migrations still fall back to the local SQLite file:
+declare the field before you add models. See <a href="../migrations/#which-database">which database</a>
 for the full order, and <a href="../migrations/">migrations</a> for planning, review and
 per-backend behaviour.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
@@ -687,12 +812,14 @@ per-backend behaviour.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#configure-the-application">Configure the application</a></li><li><a href="#connection-fields">Connection fields</a></li><li><a href="#one-url">One URL</a></li><li><a href="#backends">Backends</a></li><li><a href="#replace-the-database-module">Replace the database module</a></li><li><a href="#migrations-use-the-applications-database">Migrations use the application's database</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#set-up-a-database-in-four-steps">Set up a database in four steps</a></li><li><a href="#configure-the-application">Configure the application</a></li><li><a href="#connection-fields">Connection fields</a></li><li><a href="#one-url">One URL</a></li><li><a href="#backends">Backends</a>
+            <ul><li><a href="#postgresql-tls">PostgreSQL TLS</a></li><li><a href="#sqlite-storage">SQLite storage</a></li></ul>
+          </li><li><a href="#use-the-database-from-a-script">Use the database from a script</a></li><li><a href="#replace-the-database-module">Replace the database module</a></li><li><a href="#migrations-use-the-applications-database">Migrations use the application's database</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

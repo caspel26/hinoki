@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:50 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -492,6 +492,21 @@ root is imported before any test module:</p>
 Create the tables once, with the same variable:</p>
 <div class="language-sh highlight"><pre><span></span><code><span class="nv">NOTES_DATABASE__URL</span><span class="o">=</span>sqlite://./.hinoki/test.sqlite3<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
+<p>When <code>settings.toml</code> sets <code>engine</code> and its connection fields, a URL conflicts
+with them (<code>set either url or engine with its fields, not both</code>). Override the
+fields instead, and clear the server-only ones SQLite refuses:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># conftest.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+    <span class="n">NOTES_DATABASE__ENGINE</span><span class="o">=</span><span class="s2">"sqlite"</span><span class="p">,</span>
+    <span class="n">NOTES_DATABASE__NAME</span><span class="o">=</span><span class="s2">".hinoki/test.sqlite3"</span><span class="p">,</span>
+    <span class="n">NOTES_DATABASE__HOST</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+    <span class="n">NOTES_DATABASE__USER</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>Apply the migrations with the same variables, and pass the same keys under
+<code>"database"</code> to <code>overrides=</code> in the example below.</p>
 <p>When one test needs other settings, build a second application from the same
 routes instead of changing the shared one. This example only calls <code>/health</code>, so
 its new database needs no tables; to give a test migrated tables, copy them as
@@ -627,7 +642,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:50 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

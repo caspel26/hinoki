@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -507,7 +507,9 @@ every column by default, so use <code>only</code> or <code>exclude</code> when a
 columns, a non-model, <code>only</code> together with <code>exclude</code>, an empty <code>only=()</code>,
 <code>partial</code> names outside the selection, a class that is not a <code>Schema</code>, and a
 second <code>@derive</code>. (<code>exclude=()</code> selects every column.) The older <code>model=</code> class
-keyword is deprecated and emits <code>DeprecationWarning</code>.</p>
+keyword (<code>class InvoiceOut(Schema, model=Invoice)</code>) still derives every
+column; prefer <code>@derive(Invoice)</code>. Combining it with <code>@derive(...)</code> without a
+model emits <code>DeprecationWarning</code>.</p>
 <h2 id="inherit-from-a-derived-schema">Inherit from a derived schema<a class="headerlink" href="#inherit-from-a-derived-schema" title="Permanent link">&para;</a></h2>
 <p>A subclass inherits its base's fields; <code>only</code> and <code>exclude</code> cannot remove them.
 A derivation that would leave out a column the base declares fails closed:</p>
@@ -601,7 +603,7 @@ fields only. See <a href="../endpoints/#the-response-is-checked-against-the-anno
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
