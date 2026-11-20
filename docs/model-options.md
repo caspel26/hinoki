@@ -26,7 +26,9 @@ class Member(Model):
 @db.table("saved_links")
 class Bookmark(Model, label="Saved link", plural="Saved links"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="bookmarks")
+    owner_id: UUID = foreign_key(
+        Member, on_delete=OnDelete.RESTRICT, related_name="bookmarks"
+    )
     url: str = field(max_length=500)
     created_at: datetime = field(default_factory=utc_now)
     updated_at: datetime = field(default_factory=utc_now)

@@ -48,7 +48,7 @@ class QuerySet[M: Model]:
         order: tuple[tuple[str, bool], ...] | None = None,
         limit_to: int | None = None,
         offset_by: int | None = None,
-        loading: Loading = Loading(),  # noqa: B008 - frozen, safe to share
+        loading: Loading = Loading(),
     ) -> None:
         self.model = model
         self.filters = filters
