@@ -438,16 +438,16 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:13 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>3 min read</span>
           </p>
           
         </header>
         
 <p><code>hinoki mcp</code> starts an MCP server on stdio that describes your app, its rules and its models to a coding agent. It is read-only: it never writes source code, rules or waivers.</p>
-<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>mcp<span class="w"> </span>notes.main:app<span class="w"> </span>--models<span class="w"> </span>notes.models
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>mcp
 </code></pre></div>
-<p>The rules default to the app's own <code>Hinoki(rules=...)</code> and the package to the target's package. Projects made by <code>hinoki new</code> contain a <code>.mcp.json</code> that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.</p>
+<p>The application defaults to <code>project.application</code> in <code>hinoki.toml</code>, the rules to the app's own <code>Hinoki(rules=...)</code> and the package to the application's package; pass <code>--models</code> to describe models. Projects made by <code>hinoki new</code> contain a <code>.mcp.json</code> that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.</p>
 <h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -460,8 +460,8 @@
 <tbody>
 <tr>
 <td><code>TARGET</code></td>
-<td>required</td>
-<td>The app, or a no-argument factory (<code>module:create_app</code>)</td>
+<td>the project application</td>
+<td>Another app, as <code>module:app</code></td>
 </tr>
 <tr>
 <td><code>--models MODULE</code></td>
@@ -607,7 +607,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:13 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/dev-mcp.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

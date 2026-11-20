@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -880,16 +880,18 @@ calls it for you. Highest first:</p>
 values or the database URL; keep those in the environment or <code>*_FILE</code> files.
 <code>load(prefix=..., dotenv=..., toml=...)</code> overrides what the class declared, and an
 explicitly selected TOML file must exist and parse.</p>
-<p>A factory loads the class itself when it needs the values first:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/app.py</span>
+<p>Load the class yourself when module code needs a typed value before the
+application exists:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
-
-<span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Hinoki</span><span class="p">:</span>
-    <span class="n">app_settings</span> <span class="o">=</span> <span class="n">ProjectSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">app_settings</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Notes (</span><span class="si">{</span><span class="n">app_settings</span><span class="o">.</span><span class="n">theme</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+<span class="n">settings</span> <span class="o">=</span> <span class="n">ProjectSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Notes (</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">theme</span><span class="si">}</span><span class="s2">)"</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">()</span>
+<span class="p">)</span>
 </code></pre></div>
 <h2 id="variable-names">Variable names<a class="headerlink" href="#variable-names" title="Permanent link">&para;</a></h2>
 <p>The variable is the prefix plus the field name in capitals; a group nests with a
@@ -970,7 +972,7 @@ values blank):</p>
 <p>The value may also name a function that returns the mapping. It is applied when each worker starts, right after Hinoki's own <code>hinoki</code> logger setup, with <code>disable_existing_loggers</code> off unless your mapping sets it. A mapping that configures the <code>hinoki</code> logger replaces Hinoki's handler on it. A target that cannot be imported or is not a mapping raises during startup. Kiso's access log is written by Kiso; set <code>server.access_log_format = "logger"</code> to route it through the <code>hinoki.access</code> logger.</p>
 <h2 id="8-database-connection-ownership">Database connection ownership<a class="headerlink" href="#8-database-connection-ownership" title="Permanent link">&para;</a></h2>
 <p>For local development, <code>DatabaseSettings.url</code> defaults to <code>sqlite://./.hinoki/local.sqlite3</code>. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Configure a server database with one URL or with <code>engine</code> and its connection fields (see <a href="../databases/#configure-the-application">configure a database</a>). Environment, dotenv and constructor values can override the local default. The URL and the password are secrets and cannot be loaded from TOML; TOML can hold the other connection fields and the pool size.</p>
-<p>A <code>database: DatabaseSettings</code> field is enough: Hinoki installs <code>DatabaseModule</code> for it (a module declared in <code>modules=</code> or installed in a factory replaces it). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget <code>replicas × workers × max_size</code> against the server database's connection limit.</p>
+<p>A <code>database: DatabaseSettings</code> field is enough: Hinoki installs <code>DatabaseModule</code> for it (a module declared in <code>modules=</code> replaces it). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget <code>replicas × workers × max_size</code> against the server database's connection limit.</p>
 <p>PostgreSQL URLs accept <code>sslmode=disable</code>, <code>prefer</code>, <code>require</code>, <code>verify-ca</code> or <code>verify-full</code>, and <code>sslrootcert=/path/to/ca.pem</code>. <code>prefer</code> tries TLS first and falls back to plaintext only if the server declines TLS; a certificate or handshake error fails closed. All TLS connections verify the server certificate chain and hostname. <code>require</code>, <code>verify-ca</code> and <code>verify-full</code> require TLS; Hinoki's <code>verify-ca</code> also verifies the hostname. Trust uses Mozilla WebPKI roots plus any PEM certificates in <code>sslrootcert</code> (maximum file size 1 MiB). <code>sslmode=require</code> therefore requires a trusted certificate too. <code>sslmode=allow</code> is unsupported. Keep the URL in a secret setting, and mount the CA file where each worker can read it.</p>
 <p>SQLite accepts a file URL such as <code>sqlite:///srv/app/data.sqlite3</code>; relative paths are relative to the process working directory. In-memory databases are not supported because each pooled connection has an independent database. SQLite uses bundled SQLite 3.35 or newer, a bounded connection pool and a single-writer model. UUID and timestamp columns use text storage; JSON uses JSON text. SQLite <code>contains</code> matching is ASCII case-insensitive.</p>
 <div class="language-text highlight"><pre><span></span><code>postgresql://app:password@db.example/app?sslmode=require&amp;sslrootcert=/run/secrets/db-ca.pem
@@ -1023,7 +1025,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

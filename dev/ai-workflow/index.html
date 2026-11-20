@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -448,7 +448,7 @@
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>new<span class="w"> </span>shop<span class="w">    </span><span class="c1"># asks for the directory, database, server, agent files, skills, git and uv sync</span>
 <span class="nb">cd</span><span class="w"> </span>shop
 pytest
-hinoki<span class="w"> </span>check<span class="w"> </span>shop.main:app
+hinoki<span class="w"> </span>check
 </code></pre></div>
 <p>The generated tests pass and <code>hinoki check</code> exits 0; this repository's own test suite generates a project and runs both on every change.</p>
 <h2 id="what-the-project-contains">What the project contains<a class="headerlink" href="#what-the-project-contains" title="Permanent link">&para;</a></h2>
@@ -528,8 +528,8 @@ hinoki<span class="w"> </span>check<span class="w"> </span>shop.main:app
 </ol>
 <p><strong>Waivers are the owner's decision.</strong> <code>hinoki-rules.toml</code> is read by the tools, never written, and a waiver needs a reason, an owner and a bounded target. An agent that edits it to pass a check breaks <code>AGENTS.md</code>; the framework cannot stop someone with write access, but the change is visible in review. Put the file under <code>CODEOWNERS</code>.</p>
 <h2 id="check-a-change-against-clients">Check a change against clients<a class="headerlink" href="#check-a-change-against-clients" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--output<span class="w"> </span>openapi-baseline.json
-hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>--output<span class="w"> </span>openapi-baseline.json
+hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
 </code></pre></div>
 <p>Take the baseline from the released version. The second command exits <code>1</code> and lists each change that breaks an existing client: removed operations or response fields, new required input, narrowed enums, changed types. See <a href="../inspect/#openapi"><code>hinoki openapi</code></a>.</p>
 <h2 id="generate-request-bodies">Generate request bodies<a class="headerlink" href="#generate-request-bodies" title="Permanent link">&para;</a></h2>
@@ -583,7 +583,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>shop.main:app<span 
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ai-workflow.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

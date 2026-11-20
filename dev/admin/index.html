@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -450,16 +450,17 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span><span class="p">,</span> <span class="n">User</span>
 
+<span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>
 
-<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
+
+<span class="nd">@site</span><span class="o">.</span><span class="n">admin</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Post</span><span class="p">]):</span>
     <span class="n">columns</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
     <span class="n">readonly</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"created_at"</span><span class="p">,)</span>
     <span class="n">badges</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"published"</span><span class="p">:</span> <span class="p">{</span><span class="kc">True</span><span class="p">:</span> <span class="p">(</span><span class="s2">"Published"</span><span class="p">,</span> <span class="n">Tone</span><span class="o">.</span><span class="n">OK</span><span class="p">),</span> <span class="kc">False</span><span class="p">:</span> <span class="p">(</span><span class="s2">"Draft"</span><span class="p">,</span> <span class="n">Tone</span><span class="o">.</span><span class="n">WARN</span><span class="p">)}}</span>
 
 
-<span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>
-<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>  <span class="c1"># a configured model admin</span>
-<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>  <span class="c1"># or a model, with the default admin</span>
+<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>  <span class="c1"># a model with the default admin</span>
 </code></pre></div>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/routes.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">Mount</span>
@@ -468,7 +469,7 @@
 
 <span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Mount</span><span class="p">(</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">site</span><span class="p">)]</span>
 </code></pre></div>
-<p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py">Blog example</a> builds the same site inside a function, because its theme comes from a setting.</p>
+<p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py">Blog example</a> builds a fuller site the same way, with a theme, links, a dashboard and activity.</p>
 <h2 id="create-the-admins-tables">Create the admin's tables<a class="headerlink" href="#create-the-admins-tables" title="Permanent link">&para;</a></h2>
 <p>The admin keeps its users in four tables of your database. Register them as an app, apply the migrations, then create the first user:</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>admin<span class="w"> </span>--models<span class="w"> </span>hinoki.admin.users.models<span class="w"> </span>--migrations<span class="w"> </span>hinoki.admin.users.migrations
@@ -712,7 +713,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

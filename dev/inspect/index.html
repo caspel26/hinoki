@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:13 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -454,12 +454,12 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <code>TERM=dumb</code> give plain text.</p>
 <h2 id="doctor">Diagnose a project with <code>doctor</code><a class="headerlink" href="#doctor" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>doctor
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>doctor<span class="w"> </span>notes.main:app<span class="w"> </span>--format<span class="w"> </span>json
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>doctor<span class="w"> </span>--format<span class="w"> </span>json
 </code></pre></div>
 <p>With no target, <code>doctor</code> uses <code>project.application</code> from <code>hinoki.toml</code>. If there
 is no manifest or default target, it reports environment checks and marks app
-checks as skipped. An explicit <code>TARGET</code> can be an app or factory. Loading it
-imports your Python code, so module-level code and the factory may have their
+checks as skipped. An explicit <code>TARGET</code> names another app (<code>module:app</code>).
+Loading it imports your Python code, so module-level code may have its
 own side effects. Hinoki does not start app or module lifespans, run hooks,
 start a server, run architecture rules, connect to a database, or write files.</p>
 <p>The report covers manifest validity, Python/native extension and optional
@@ -573,8 +573,8 @@ defaults and types, leaving secrets and required fields blank. See
 <li>A target that does not import prints an <code>error:</code> line with the import failure
   (<code>error: cannot load TARGET: …</code> for <code>routes</code> and <code>openapi</code>) and exits
   non-zero (2 for <code>check</code>, <code>routes</code> and <code>openapi</code>).</li>
-<li>Importing the target runs your module-level code and factory; keep import-time
-  side effects out of them.</li>
+<li>Importing the target runs your module-level code; keep import-time
+  side effects out of it.</li>
 <li><code>openapi</code> options <code>--output</code>, <code>--check</code> and <code>--breaking-against</code> exclude each
   other.</li>
 <li><code>doctor</code> without <code>hinoki.toml</code> still checks the environment and marks the
@@ -614,7 +614,7 @@ defaults and types, leaving secrets and required fields blank. See
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:13 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/inspect.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

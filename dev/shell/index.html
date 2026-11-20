@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -488,11 +488,11 @@ awaiting a query): the synchronous ones are meant for <code>def</code> handlers 
 block the shell's loop.</p>
 <h2 id="choose-the-application-and-models">Choose the application and models<a class="headerlink" href="#choose-the-application-and-models" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>--models<span class="w"> </span>notes.apps.billing.models
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>notes.app:create_app<span class="w"> </span>--models<span class="w"> </span>notes.models
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>notes.main:app
 </code></pre></div>
 <p>In a project the target defaults to <code>project.application</code>, and every registered
 app's models are loaded; repeat <code>--models</code> to load only some. Outside a project,
-pass a target (an application or a factory); <code>--models</code> is then optional.</p>
+pass a target (<code>module:app</code>); <code>--models</code> is then optional.</p>
 <h2 id="what-starts-and-what-does-not">What starts and what does not<a class="headerlink" href="#what-starts-and-what-does-not" title="Permanent link">&para;</a></h2>
 <p>Each module the application installs, the database first, starts in dependency
 order and closes when the session ends. The application's <code>on_startup</code> and
@@ -561,7 +561,7 @@ and Python's <code>&gt;&gt;&gt;</code> / <code>...</code> prompts.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/shell.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

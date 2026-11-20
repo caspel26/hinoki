@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -450,9 +450,9 @@ hinoki<span class="w"> </span>serve
 </code></pre></div>
 <p><code>hinoki dev</code> reloads on every change while you work; <code>hinoki serve</code> runs without
 reload, with the workers your settings ask for. Both read the application from
-<code>project.application</code> in <code>hinoki.toml</code>. To run something else, pass a target:
-<code>module:name</code>, where <code>name</code> is a <code>Hinoki</code> application or a function callable
-without arguments that returns one (a factory).</p>
+<code>project.application</code> in <code>hinoki.toml</code>. To run another application, pass its
+target: <code>module:app</code>, such as <code>hinoki dev notes.main:app</code>. A function callable
+without arguments that returns an application (a factory) is also accepted.</p>
 <p>Each worker imports the target, then opens what the application owns (database
 pool, modules) in its lifespan and closes it on shutdown. Importing your code
 never opens a connection. See <a href="../settings/#8-database-connection-ownership">database connection ownership</a>.</p>
@@ -634,7 +634,7 @@ debug is off: ...</code> at startup, on every server.</p>
 <p><code>dev</code> and <code>serve</code> are conveniences. The application is a plain ASGI app, so any
 ASGI server can run it directly; the <code>server</code> settings group is then ignored,
 because only <code>hinoki serve</code> applies it:</p>
-<div class="language-sh highlight"><pre><span></span><code>granian<span class="w"> </span>--interface<span class="w"> </span>asgi<span class="w"> </span>--factory<span class="w"> </span>notes.app:create_app
+<div class="language-sh highlight"><pre><span></span><code>granian<span class="w"> </span>--interface<span class="w"> </span>asgi<span class="w"> </span>notes.main:app
 </code></pre></div>
 <h2 id="metrics-and-tracing">Metrics and tracing<a class="headerlink" href="#metrics-and-tracing" title="Permanent link">&para;</a></h2>
 <p>Hinoki ships no metrics registry, exporter or tracing integration, and no health route besides the optional <a href="#optional-startup-probe">startup probe</a>. On an ASGI server the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:</p>
@@ -666,9 +666,9 @@ because only <code>hinoki serve</code> applies it:</p>
             <span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="n">scope</span><span class="p">[</span><span class="s2">"method"</span><span class="p">],</span> <span class="n">status</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span><span class="p">)</span>
 
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Timing</span><span class="p">(</span>
-    <span class="n">create_app</span><span class="p">(),</span> <span class="n">record</span><span class="o">=</span><span class="n">my_metrics</span><span class="o">.</span><span class="n">observe</span>
-<span class="p">)</span>  <span class="c1"># run this with Granian or any ASGI server</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.main</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span> <span class="k">as</span> <span class="n">notes_app</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Timing</span><span class="p">(</span><span class="n">notes_app</span><span class="p">,</span> <span class="n">record</span><span class="o">=</span><span class="n">my_metrics</span><span class="o">.</span><span class="n">observe</span><span class="p">)</span>  <span class="c1"># serve with any ASGI server</span>
 </code></pre></div>
 <p>What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do <strong>not</strong> label by <code>scope["path"]</code> (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: <code>logging.include_request_id</code> adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.</p>
 <p>Kiso has no ASGI boundary, so this wrapper does not apply to it and it has no
@@ -681,9 +681,9 @@ wrap the application:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># wsgi.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.wsgi</span><span class="w"> </span><span class="kn">import</span> <span class="n">WSGIAdapter</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">notes.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_app</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.main</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span>
 
-<span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">WSGIAdapter</span><span class="p">(</span><span class="n">create_app</span><span class="p">())</span>
+<span class="n">wsgi_app</span> <span class="o">=</span> <span class="n">WSGIAdapter</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
 </code></pre></div>
 <div class="language-sh highlight"><pre><span></span><code>granian<span class="w"> </span>--interface<span class="w"> </span>wsgi<span class="w"> </span>wsgi:wsgi_app
 </code></pre></div>
@@ -738,7 +738,7 @@ wrap the application:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -576,7 +576,10 @@ asked either):</p>
 └── tests/
     └── healthtest.py    one test, no database needed
 </code></pre></div>
-<p><code>hinoki.toml</code> names the application, so project commands find it on their own:</p>
+<p><code>hinoki.toml</code> names the application, so project commands find it on their own.
+<code>notes/main.py</code> binds the routes the manifest lists with
+<code>include=manifest_routes()</code>: <code>project.routes</code> first, then each app's <code>routes</code>
+under its <code>prefix</code>.</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="c1"># hinoki.toml</span>
 <span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
@@ -687,7 +690,7 @@ a placeholder URL; copy it to <code>.env</code> and fill it in:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/new-project.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

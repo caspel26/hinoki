@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -480,23 +480,38 @@ provider and policy:</p>
     <span class="k">assert</span> <span class="n">unknown</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">401</span>
 </code></pre></div>
 <h2 id="use-a-disposable-database">Use a disposable database<a class="headerlink" href="#use-a-disposable-database" title="Permanent link">&para;</a></h2>
-<p>The application reads its database from settings, so point the prefix variable
-at a throwaway database before the application module is imported. A
-<code>conftest.py</code> at the project root is imported first:</p>
+<p>The application reads its settings when its module is imported, so point the
+prefix variable at a throwaway database first. A <code>conftest.py</code> at the project
+root is imported before any test module:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># conftest.py</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 
-<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"NOTES_DATABASE__URL"</span><span class="p">,</span> <span class="s2">"sqlite://./.hinoki/test.sqlite3"</span><span class="p">)</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"NOTES_DATABASE__URL"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"sqlite://./.hinoki/test.sqlite3"</span>
 </code></pre></div>
 <p>This applies when the settings declare <code>database: settings.DatabaseSettings</code>.
-Create the tables once; the migration commands read their own variable:</p>
-<div class="language-sh highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span>sqlite://./.hinoki/test.sqlite3
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
+Create the tables once, with the same variable:</p>
+<div class="language-sh highlight"><pre><span></span><code><span class="nv">NOTES_DATABASE__URL</span><span class="o">=</span>sqlite://./.hinoki/test.sqlite3<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
+</code></pre></div>
+<p>When one test needs other settings, build a second application from the same
+routes instead of changing the shared one:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/exportstest.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ASGIClient</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_health_with_its_own_database</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">ProjectSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+        <span class="n">overrides</span><span class="o">=</span><span class="p">{</span><span class="s2">"database"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"url"</span><span class="p">:</span> <span class="s2">"sqlite://./.hinoki/other.sqlite3"</span><span class="p">}}</span>
+    <span class="p">)</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">())</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">app</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">))</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">200</span>
 </code></pre></div>
 <p>Use synthetic rows and credentials, and never point test settings at production
-data. A <a href="../settings/#where-values-come-from">factory</a>
-that takes the URL as an argument makes this explicit:
-<code>ASGIClient(create_app(TEST_DATABASE_URL))</code>.</p>
+data.</p>
 <h2 id="catch-undeclared-errors">Catch undeclared errors<a class="headerlink" href="#catch-undeclared-errors" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient(app, strict_errors=True)</code> fails the test when an action answers an
 HTTP error that is missing from its <code>errors=</code> declaration, so the OpenAPI
@@ -575,7 +590,7 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

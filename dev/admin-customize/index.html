@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -450,8 +450,11 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 
+<span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span> <span class="n">per_page</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
 
-<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
+
+<span class="nd">@site</span><span class="o">.</span><span class="n">admin</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Post</span><span class="p">]):</span>
     <span class="n">columns</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">,</span> <span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
     <span class="n">search</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"slug"</span><span class="p">)</span>
     <span class="n">readonly</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"created_at"</span><span class="p">,)</span>
@@ -462,13 +465,9 @@
     <span class="nd">@action</span><span class="p">(</span><span class="n">confirm</span><span class="o">=</span><span class="s2">"Publish the selected posts?"</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">posts</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
         <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">])</span><span class="o">.</span><span class="n">aupdate</span><span class="p">({</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
-
-
-<span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span> <span class="n">per_page</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
-<span class="n">site</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">PostAdmin</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="register-a-model">Register a model<a class="headerlink" href="#register-a-model" title="Permanent link">&para;</a></h2>
-<p><code>site.register(...)</code> takes a <code>ModelAdmin</code> class, which names its model with <code>model=</code>, or a model class, which gets the default admin. It returns what it was given, so <code>@site.register</code> works as a class decorator; <code>@site.admin(Post)</code> registers a class that need not repeat <code>model=Post</code>. The slug in the URL is the table name with dashes (<code>blog-posts</code>), or the class attribute <code>slug = "posts"</code>.</p>
+<p><code>@site.admin(Post)</code> registers a <code>ModelAdmin</code> class for a model. <code>site.register(...)</code> takes a model class, which gets the default admin, or a <code>ModelAdmin</code> class that names its model with <code>model=</code>. The slug in the URL is the table name with dashes (<code>blog-posts</code>), or the class attribute <code>slug = "posts"</code>.</p>
 <h2 id="shape-the-list-and-the-form">Shape the list and the form<a class="headerlink" href="#shape-the-list-and-the-form" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -532,7 +531,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
+<span class="nd">@site</span><span class="o">.</span><span class="n">admin</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>  <span class="c1"># the site created above</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Post</span><span class="p">]):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>  <span class="c1"># rows this caller sees, in every statement</span>
         <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">author_id</span><span class="o">=</span><span class="n">principal</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"author"</span><span class="p">)</span>
 
@@ -580,7 +580,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">Post</span><span class="p">):</span>
+<span class="nd">@site</span><span class="o">.</span><span class="n">admin</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Post</span><span class="p">]):</span>
     <span class="nd">@action</span><span class="p">(</span><span class="n">confirm</span><span class="o">=</span><span class="s2">"Publish the selected posts?"</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">posts</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Post</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">post</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">post</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">]</span>
@@ -747,7 +748,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin-customize.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

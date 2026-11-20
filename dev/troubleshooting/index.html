@@ -234,7 +234,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -245,7 +245,7 @@
 <p>Run the command from the project directory (the one with <code>hinoki.toml</code>) and check the module path and the attribute after the colon. Hinoki adds the current directory to the import path, but the module must still import cleanly: the text after the colon is the original exception.</p>
 <h2 id="settings-report-a-missing-or-unknown-variable">Settings report a missing or unknown variable<a class="headerlink" href="#settings-report-a-missing-or-unknown-variable" title="Permanent link">&para;</a></h2>
 <p>Check the settings class's <code>prefix=</code> and the nested names: groups are joined with <code>__</code>, as in <code>NOTES_DATABASE__URL</code>. Print every expected name with:</p>
-<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>settings<span class="w"> </span>notes.main:app<span class="w"> </span>--example
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>settings<span class="w"> </span>--example
 </code></pre></div>
 <p><code>settings.Secret</code> values are shown redacted on purpose.</p>
 <h2 id="the-database-connection-fails-at-startup">The database connection fails at startup<a class="headerlink" href="#the-database-connection-fails-at-startup" title="Permanent link">&para;</a></h2>
@@ -259,7 +259,7 @@
 <h2 id="relationnotloaded"><code>RelationNotLoaded</code><a class="headerlink" href="#relationnotloaded" title="Permanent link">&para;</a></h2>
 <p>Relations are never loaded lazily. Name the relation in the query that needs it: <code>select_related("author")</code> for a single row, <code>prefetch_related("posts")</code> for a collection. See <a href="../relations/">relations</a>.</p>
 <h2 id="hinoki-check-reports-unverifiable"><code>hinoki check</code> reports <code>unverifiable</code><a class="headerlink" href="#hinoki-check-reports-unverifiable" title="Permanent link">&para;</a></h2>
-<p>The rule could not establish its promise. Read the explanation and any <code>fix:</code> line. Some rules inspect only declarations; checks with side effects run only with <code>hinoki check notes.main:app --allow-effects</code>.</p>
+<p>The rule could not establish its promise. Read the explanation and any <code>fix:</code> line. Some rules inspect only declarations; checks with side effects run only with <code>hinoki check --allow-effects</code>.</p>
 <h2 id="sync-handlers-answer-503-overloaded">Sync handlers answer <code>503 overloaded</code><a class="headerlink" href="#sync-handlers-answer-503-overloaded" title="Permanent link">&para;</a></h2>
 <p>Sync handlers and sync hooks share a bounded pool and queue. Move database and network calls to async handlers, keep sync hooks short, or size the pool; see <a href="../sync-async/#size-the-pool">sync and async code</a>.</p>
 <h2 id="a-migration-is-marked-destructive">A migration is marked destructive<a class="headerlink" href="#a-migration-is-marked-destructive" title="Permanent link">&para;</a></h2>
@@ -297,7 +297,7 @@ hinoki<span class="w"> </span>doctor
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/troubleshooting.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

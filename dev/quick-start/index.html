@@ -218,7 +218,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -327,9 +327,26 @@ live:</p>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.migrations"</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
 </code></pre></div>
-<p>The application in <code>notes/main.py</code> lists no routes: it binds the ones the
-manifest names. Commands read the same file, so inside the project they need
-no module paths.</p>
+<p><code>notes/main.py</code> declares the application:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>  <span class="c1"># NOTES_* variables and .env</span>
+    <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span>  <span class="c1"># notes/routes.py, then each app's routes at its prefix</span>
+    <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
+    <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
+    <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
+    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><code>manifest_routes()</code> reads <code>hinoki.toml</code>, so the application lists no routes of
+its own. Commands read the same file, so inside the project they need no module
+paths.</p>
 <h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../tutorial/">Tutorial</a>: build an API layer by layer.</li>
@@ -365,7 +382,7 @@ no module paths.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
             <span>11 min read</span>
           </p>
           
@@ -561,13 +561,12 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 </tbody>
 </table>
 <h2 id="targets-and-short-commands">Targets and short commands<a class="headerlink" href="#targets-and-short-commands" title="Permanent link">&para;</a></h2>
-<p>A command that needs the application takes a target, <code>module:attribute</code>: an
-application (<code>notes.main:app</code>) or a function that returns one
-(<code>notes.app:create_app</code>). <code>hinoki settings</code> also accepts a settings class.
-Targets are imported from the current directory.</p>
-<p>In a project, <code>hinoki.toml</code> names the application (<code>[project] application</code>),
-so the target can be left out. Pass a target to use another application or a
-factory with different arguments.</p>
+<p>In a project, <code>hinoki.toml</code> names the application (<code>[project] application</code>), so
+commands take no target: <code>hinoki dev</code>, <code>hinoki check</code>, <code>hinoki routes</code>.</p>
+<p>To use another application, pass a target, <code>module:attribute</code>, imported from
+the current directory: <code>hinoki dev notes.main:app</code>. A function that returns an
+application (<code>module:create_app</code>) is also accepted, and <code>hinoki settings</code> also
+accepts a settings class.</p>
 <p>When a target does not import, run the command from the project root (where
 <code>hinoki.toml</code> is), check that the packages have <code>__init__.py</code> files and that the
 attribute name is right. The commands report
@@ -612,15 +611,16 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <p>In a project, migration modules come from <code>hinoki.toml</code>; you never pass model or
 migration paths:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>billing<span class="w"> </span>--name<span class="w"> </span>add-invoice-index
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span>--app<span class="w"> </span>billing<span class="w"> </span><span class="m">0001</span>-initial
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
 </code></pre></div>
 <p><code>status</code> and <code>apply</code> cover all registered apps in dependency order. Writing a
-<code>plan</code> in a multi-app project requires <code>--app</code>; read-only <code>plan --check</code> and
-<code>plan --dry-run</code> without <code>--app</code> cover every app in dependency order. <code>sql</code>
-likewise requires an app in a multi-app project. <code>--name</code> is optional for a
+<code>plan</code> in a multi-app project needs the app name (<code>plan billing</code>, or
+<code>--app billing</code>); read-only <code>plan --check</code> and <code>plan --dry-run</code> without an app
+cover every app in dependency order. <code>sql</code> searches every app; <code>--app</code> narrows
+it when two apps share a migration name. <code>--name</code> is optional for a
 focused plan: Hinoki derives a stable slug from the first planned schema change
 (for example, <code>create-table-notes</code>); pass <code>--name initial-notes</code> to override
 it. All-app previews cannot use <code>--name</code>. Numbering is automatic. <code>apply</code>
@@ -632,7 +632,7 @@ with <code>--database</code> or <code>HINOKI_DATABASE_URL</code> remain relative
 working directory. Added
 apps have separate migration ledger namespaces, so identical numbered
 filenames do not collide; the scaffolded root app retains its existing
-unprefixed migration keys. <code>--app billing</code> includes its declared prerequisite
+unprefixed migration keys. <code>apply billing</code> includes its declared prerequisite
 apps for migration application.</p>
 <p><code>plan --check</code> fails CI (exit 1) when the models have changes that no migration
 file records, and exits 2 when the database it plans for cannot be resolved; it
@@ -758,7 +758,7 @@ its target when you run the command from the <code>examples/</code> project dire
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
