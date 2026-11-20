@@ -62,7 +62,7 @@ uv run hinoki new notes --no-input --database sqlite --git --install
 
 ```text
 notes/
-├── hinoki.toml          project registry: application, apps, models, migrations
+├── hinoki.toml          project registry: application, routes, apps
 ├── hinoki-rules.toml    rule waivers (an example, commented out)
 ├── pyproject.toml       dependencies, pytest, Ruff
 ├── README.md
@@ -72,9 +72,7 @@ notes/
 │   ├── api.py           the health endpoint
 │   ├── routes.py        the routes hinoki.toml points to
 │   ├── settings.py      typed settings (NOTES_ variables and .env)
-│   ├── rules.py         architecture rules
-│   ├── models.py
-│   └── migrations/
+│   └── rules.py         architecture rules
 └── tests/
     └── healthtest.py    one test, no database needed
 ```
@@ -89,15 +87,11 @@ under its `prefix`.
 [project]
 application = "notes.main:app"
 routes = "notes.routes:routes"
-
-[[apps]]
-name = "notes"
-models = "notes.models"
-migrations = "notes.migrations"
-requires = []
 ```
 
-Add apps with [`hinoki app create`](cli.md#app).
+The project package holds no models and registers no app. Models live in apps:
+`uv run hinoki app create billing` writes `notes/apps/billing/` and adds the
+`[[apps]]` entry for it ([`hinoki app create`](cli.md#app)).
 
 ## Run it
 

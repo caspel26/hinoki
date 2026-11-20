@@ -27,7 +27,9 @@ to your own project.
 Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
 chapter 8 continues the project from the [Quick start](../quick-start.md).
 
-The shape you end with:
+The Tracker is one project (`tracker/`: `main.py`, settings, rules) with one app
+(`tracker/apps/tracker/`) that owns the models, schemas, operations, security and
+endpoints, created the way chapter 8 creates yours. Its layers:
 
 ```text
 api.py          HTTP: shapes, status codes, access, transactions

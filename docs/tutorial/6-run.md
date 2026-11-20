@@ -33,9 +33,9 @@ an MCP tool:
 from hinoki import Hinoki
 from hinoki.ai.mcpapp import expose_as_mcp
 
-from . import api
+from .apps.tracker import api
+from .apps.tracker.security import member_only
 from .rules import tracker_rules
-from .security import member_only
 from .settings import TrackerSettings
 
 app = Hinoki(

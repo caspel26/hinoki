@@ -3,7 +3,9 @@
 The reference app: typed settings, bearer authentication, generated CRUD
 routes, handwritten publication actions, explicit relation loading,
 transactions, startup rules and the optional admin. `main.py` declares the
-application from the shared list in `routes.py`; `accounts.py` adds password
+application from the shared list in `routes.py`; the project package holds only
+that wiring, the settings and the rules, and the `apps/blog/` app owns the models,
+schemas, endpoints and migrations. `apps/blog/accounts.py` adds password
 login only when a JWT secret is set.
 
 ## Run
@@ -18,7 +20,7 @@ uv run hinoki dev blog.main:app
 ```
 
 `migrations apply` creates the Blog tables and the admin's user tables, in
-dependency order. The checked-in SQL is in [`migrations/`](migrations/).
+dependency order. The checked-in SQL is in [`apps/blog/migrations/`](apps/blog/migrations/).
 The database is `.hinoki/local.sqlite3`; for another one, set
 `BLOG_DATABASE__URL` and `EXAMPLES_DATABASE__URL` (read by the migration
 commands) to the same URL before applying.
@@ -27,7 +29,7 @@ commands) to the same URL before applying.
 
 Open `/admin` and sign in as the superuser; add editors in its Users section and
 tick what each may do. The admin's theme (`studio`, `console`, `paper` or `bento`)
-is set where the site is built, in `adminsite.py`. Open `/docs` for the OpenAPI
+is set where the site is built, in `apps/blog/adminsite.py`. Open `/docs` for the OpenAPI
 UI. `BLOG_JWT_SECRET`
 enables `POST /auth/login`, which is rate limited by `limits.LoginAttempts`
 (a fixed window per client address, in one worker's memory; see
@@ -36,7 +38,7 @@ enables `POST /auth/login`, which is rate limited by `limits.LoginAttempts`
 ## Demo data
 
 ```sh
-uv run python -m blog.seed
+uv run python -m blog.apps.blog.seed
 ```
 
 The seed applies the Blog migrations itself and inserts fixed synthetic users

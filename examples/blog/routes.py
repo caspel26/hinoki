@@ -2,7 +2,7 @@
 
 from hinoki import Includable, Mount
 
-from .adminsite import site
-from .api import Posts, health
+from .apps.blog.adminsite import site
+from .apps.blog.api import Posts, health
 
 routes: list[Includable] = [health, Posts, Mount("/admin", site)]

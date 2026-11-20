@@ -14,7 +14,7 @@ from typing import Any
 
 from hinoki import Hinoki, ModuleContext
 
-from .accounts import build_accounts
+from .apps.blog.accounts import build_accounts
 from .routes import routes
 from .rules import blog_rules
 from .settings import BlogSettings

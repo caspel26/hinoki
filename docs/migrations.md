@@ -130,7 +130,7 @@ in, so start them from the project root. A connection failure prints
 `--database` URL is visible in the process list and shell history: do not put
 a password in it.
 
-The root app keeps unprefixed ledger keys; added apps use namespaced keys, so
+An older scaffold's root app keeps unprefixed ledger keys; apps from `hinoki app create` use namespaced keys, so
 `accounts/0001-initial.sql` and `billing/0001-initial.sql` are distinct records.
 
 Run `apply` once per deployment, from one process, never from every worker's

@@ -2,7 +2,10 @@
 
 Three applications that share one project. [`hinoki.toml`](hinoki.toml)
 registers each one as an app with its own models and migrations, plus the
-admin's user tables.
+admin's user tables. Each example is a project package (`main.py`, settings,
+rules) with its app under `apps/<name>/`: the `hinoki new` then
+`hinoki app create` layout, with the models inside the app and not in the
+project package.
 
 | Example | Shows | Application |
 | --- | --- | --- |

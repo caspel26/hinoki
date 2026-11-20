@@ -23,7 +23,7 @@ def test_legacy_migration_plan_wrapper_and_missing_models(tmp_path: Path) -> Non
             str(tmp_path),
             "plan",
             "--models",
-            "blog.models",
+            "blog.apps.blog.models",
             "--dry-run",
         ]
     )

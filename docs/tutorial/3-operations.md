@@ -12,7 +12,7 @@ acting member's id and plain values, never a `Request`, so an endpoint, a
 command, a test or an admin hook can call them.
 
 ```python
-# tracker/operations.py
+# tracker/apps/tracker/operations.py
 from uuid import UUID
 
 from hinoki.orm import QuerySet
@@ -39,7 +39,7 @@ async def create_task(owner_id: UUID, data: TaskIn) -> Task:
 Writes put the owner in the statement itself:
 
 ```python
-# tracker/operations.py (continued)
+# tracker/apps/tracker/operations.py (continued)
 async def complete_task(owner_id: UUID, task_id: UUID) -> Task:
     """Mark an own open task done in one statement."""
     changed = await Task.aupdate_where(
@@ -68,7 +68,7 @@ Business failures are named after the rule they report. Each carries its HTTP
 status (409 for `Conflict`) and a stable code:
 
 ```python
-# tracker/errors.py
+# tracker/apps/tracker/errors.py
 from hinoki import errors
 
 

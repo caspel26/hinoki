@@ -4,7 +4,7 @@ A development tool, not part of pytest: it needs a running blog with demo data
 and Playwright, which is deliberately not a project dependency.
 
     cd examples
-    BLOG_DATABASE__URL=postgres://.../demo uv run python -m blog.seed
+    BLOG_DATABASE__URL=postgres://.../demo uv run python -m blog.apps.blog.seed
     BLOG_DATABASE__URL=... uv run hinoki admin create-superuser demo
     BLOG_DATABASE__URL=... BLOG_ADMIN__SECRET=... uv run granian --interface asgi \
         blog.main:app --port 8765 &
@@ -13,7 +13,7 @@ and Playwright, which is deliberately not a project dependency.
     uvx --from playwright python tests/browser/verify.py \
         --base http://127.0.0.1:8765 --out docs/screenshots
 
-Run once more with ``theme="bento"`` in ``examples/blog/adminsite.py`` to include
+Run once more with ``theme="bento"`` in ``examples/blog/apps/blog/adminsite.py`` to include
 the Bento card-title check.
 
 Checks run in every engine (Chromium, Firefox, WebKit): the Swagger UI and ReDoc
