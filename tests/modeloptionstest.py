@@ -10,7 +10,7 @@ import pytest
 
 from hinoki import db
 from hinoki.db import Database, UniqueViolation
-from hinoki.errors import MigrationError, RegistrationError
+from hinoki.errors import DestructiveMigration, MigrationError, RegistrationError
 from hinoki.orm import (
     Model,
     OnDelete,
@@ -24,7 +24,13 @@ from hinoki.orm import (
     unique,
     use_database,
 )
-from hinoki.orm.migrations import create_table_sql, index_name, plan, state_of
+from hinoki.orm.migrations import (
+    create_table_sql,
+    foreign_key_name,
+    index_name,
+    plan,
+    state_of,
+)
 from hinoki.utils import utc_now
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -387,27 +393,79 @@ def test_unique_names_are_validated() -> None:
             c: str = ""
 
 
-def test_named_unique_is_inherited_and_names_must_differ_between_tables() -> None:
-    @db.unique("owner", "slug", name="uq_mo_owned_slug")
+def test_abstract_models_cannot_name_a_unique_constraint() -> None:
+    with pytest.raises(RegistrationError, match="abstract model .* name"):
+
+        @db.unique("owner", "slug", name="uq_mo_owned_slug")
+        class NamedBase(Model, abstract=True):
+            id: int = pk()
+            owner: str = ""
+            slug: str = ""
+
+    @db.unique("owner", "slug")
     class Owned(Model, abstract=True):
         id: int = pk()
         owner: str = field(max_length=20, default="")
         slug: str = field(max_length=20, default="")
 
+    @db.unique("owner", "slug", name="uq_mo_first_owned_slug")
     class First(Owned, table="mo_first_owned"):
         pass
 
     class Second(Owned, table="mo_second_owned"):
         pass
 
-    @db.unique("owner", "id")
-    class Replaced(Owned, table="mo_replaced_owned"):
-        pass
+    assert First.__unique_names__ == {("owner", "slug"): "uq_mo_first_owned_slug"}
+    assert Second.__unique__ == (("owner", "slug"),)
+    assert Second.__unique_names__ == {}
 
-    assert First.__unique_names__ == {("owner", "slug"): "uq_mo_owned_slug"}
-    assert Replaced.__unique_names__ == {}
-    with pytest.raises(MigrationError, match="uq_mo_owned_slug"):
-        state_of([First, Second])
+
+def test_unique_names_compare_case_insensitively() -> None:
+    with pytest.raises(RegistrationError, match="'uq_case' twice"):
+
+        @db.unique("a", "c", name="UQ_CASE")
+        @db.unique("a", "b", name="uq_case")
+        class Cased(Model, table="mo_cased"):
+            id: int = pk()
+            a: str = ""
+            b: str = ""
+            c: str = ""
+
+
+def two_columns(table: str, name: str) -> type[Model]:
+    @db.indexed("a")
+    @db.unique("a", "b", name=name)
+    class Pair(Model, table=table):
+        id: int = pk()
+        a: str = field(max_length=20, default="")
+        b: str = field(max_length=20, default="")
+
+    return Pair
+
+
+def test_unique_names_must_not_collide_with_other_database_names() -> None:
+    first = two_columns("mo_pair_one", "uq_mo_pair")
+    with pytest.raises(MigrationError, match="'UQ_MO_PAIR'.*mo_pair_one"):
+        state_of([first, two_columns("mo_pair_two", "UQ_MO_PAIR")])
+    with pytest.raises(MigrationError, match="table mo_pair_one"):
+        state_of([first, two_columns("mo_pair_three", "mo_pair_one")])
+    for dialect in ("postgres", "mysql"):
+        own_index = index_name("mo_pair_four", ["a"], dialect)
+        with pytest.raises(MigrationError, match="index of mo_pair_four"):
+            state_of([two_columns("mo_pair_four", own_index)])
+
+    class Holder(Model, table="mo_holders"):
+        id: int = pk()
+
+    fk = foreign_key_name("mo_held", "holder_id", "postgres")
+
+    @db.unique("holder_id", "id", name=fk)
+    class Held(Model, table="mo_held"):
+        id: int = pk()
+        holder_id: int = foreign_key(Holder, on_delete=OnDelete.CASCADE)
+
+    with pytest.raises(MigrationError, match="foreign key of mo_held"):
+        state_of([Holder, Held])
 
 
 def test_renaming_a_unique_constraint_is_a_planned_change(tmp_path: Path) -> None:
@@ -423,16 +481,21 @@ def test_renaming_a_unique_constraint_is_a_planned_change(tmp_path: Path) -> Non
 
     with pytest.raises(MigrationError, match="composite unique constraints"):
         plan([Renamed], tmp_path, "renamed", write=False)
-    rebuilt = plan(
-        [Renamed],
-        tmp_path,
-        "renamed",
-        write=False,
-        dialect="sqlite",
-        allow_destructive=True,
-    )
+    rebuilt = plan([Renamed], tmp_path, "renamed", write=False, dialect="sqlite")
     assert 'CONSTRAINT "uq_mo_named_renamed"' in rebuilt.operations[0].sql
-    assert "unique constraints" in rebuilt.operations[0].destructive
+    assert rebuilt.operations[0].destructive == ""  # same columns, same rows
+
+    @db.unique("url", "created")
+    @db.unique("owner", "url", name="uq_mo_named_renamed")
+    @db.unique("owner", "created")
+    class Widened(Model, table="mo_named"):
+        id: int = pk()
+        owner: str = field(max_length=20)
+        url: str = field(max_length=100)
+        created: datetime = field(default_factory=datetime.now)
+
+    with pytest.raises(DestructiveMigration, match="unique constraints"):
+        plan([Widened], tmp_path, "widened", write=False, dialect="sqlite")
 
 
 def test_timestamps_needs_parentheses() -> None:
