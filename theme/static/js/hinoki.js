@@ -670,15 +670,8 @@
     setActive();
   }
 
-  /* ---------- Sliding thumbs for segmented controls and tabs ---------- */
-  const currentOf = (root) => {
-    if (root.classList.contains("tabbed-labels")) {
-      const inputs = $$(":scope > input", root.parentElement);
-      const idx = inputs.findIndex((i) => i.checked);
-      return idx >= 0 ? $$(":scope > label", root)[idx] : null;
-    }
-    return $('[aria-pressed="true"], [aria-selected="true"]', root);
-  };
+  /* ---------- Sliding thumbs for segmented controls ---------- */
+  const currentOf = (root) => $('[aria-pressed="true"], [aria-selected="true"]', root);
 
   const setupSlider = (root) => {
     if (root.dataset.sliderReady) return;
@@ -699,15 +692,12 @@
     place();
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add("is-ready")));
     new MutationObserver(place).observe(root, { subtree: true, attributes: true, attributeFilter: ["aria-pressed", "aria-selected", "hidden"] });
-    if (root.classList.contains("tabbed-labels")) {
-      root.parentElement.addEventListener("change", place);
-    }
     if ("ResizeObserver" in window) new ResizeObserver(place).observe(root);
     addEventListener("resize", place, { passive: true });
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
   };
   const sliders = () => {
-    $$("[data-slider], .tabbed-labels").forEach(setupSlider);
+    $$("[data-slider]").forEach(setupSlider);
   };
   sliders();
   addEventListener("load", sliders);
