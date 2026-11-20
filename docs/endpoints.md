@@ -43,6 +43,14 @@ Use `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@h
 
 Each option is checked when the route is declared or registered.
 
+The fragments below continue `notes/apps/billing/api.py` from [function APIs](function-endpoints.md). Besides its imports they use these:
+
+```python
+from typing import Annotated
+
+from hinoki import XML, Field, Form, MultiPartParser, Query, Request, UploadedFile
+```
+
 ## Read with a body: `@http.query`
 
 `QUERY` is the HTTP method for a read whose input does not fit a query string: it is safe and idempotent like `GET`, and carries a body like `POST`.
@@ -187,6 +195,12 @@ Hinoki ships no limiter. A route names a policy with `rate_limit=`, and the appl
 
 ```python
 # notes/apps/accounts/api.py
+from hinoki import RateLimitContext, errors, http
+
+from .schemas import LoginIn, SessionOut
+from .stores import RedisStore  # your module's resource
+
+
 class LoginLimit:
     async def check(self, context: RateLimitContext) -> None:
         store = context.resource(RedisStore)  # provided by a module, per worker
@@ -218,7 +232,7 @@ async def raw_invoice(invoice_id: UUID) -> InvoiceOut:
 ```
 
 - **At startup.** An annotation that cannot be checked stops the app with a `RegistrationError` that names the action: no annotation, `Any`, `object`, `set[...]`, a plain class, or `Response` inside a collection. Annotate a concrete type, or declare the action with `validate_response=False` to skip the check for that action.
-- **At runtime.** A result that does not match is a `500 internal_error`, because the fault is the server's, not the client's. With `debug=True` (development) the answer names the action, the type it returned and the annotation it broke, for example `raw_invoice returned a dict that does not match its return annotation InvoiceOut`. Without debug the body is generic. The log and the answer never contain the value itself. With `atomic=True` the check runs inside the transaction, so a mismatch rolls the write back.
+- **At runtime.** A result that does not match is a `500 internal_error`, because the fault is the server's, not the client's. With the [`debug` setting](web-security.md#debug) on (development only; `hinoki dev` does not turn it on) the answer names the action, the type it returned and the annotation it broke, for example `raw_invoice returned a dict that does not match its return annotation InvoiceOut`. Without debug the body is generic. The log and the answer never contain the value itself. With `atomic=True` the check runs inside the transaction, so a mismatch rolls the write back.
 - **What is accepted.** A `Schema` class, `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` is unwrapped. The check never coerces.
 - **`Response`.** `-> Response` and `InvoiceOut | Response` are accepted: a returned `Response` carries its own status, headers and body and is not checked. Actions with a bodyless status (`204`, `304`) are not checked.
 - **What it does not check.** A `Schema` instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a `dump()` override can still change the bytes afterwards.
