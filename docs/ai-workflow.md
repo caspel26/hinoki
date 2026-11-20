@@ -14,7 +14,7 @@ A project made by `hinoki new` is ready for a coding agent: rules already on, an
 hinoki new shop    # asks for the directory, database, server, agent files, skills, git and uv sync
 cd shop
 pytest
-hinoki check shop.main:app
+hinoki check
 ```
 
 The generated tests pass and `hinoki check` exits 0; this repository's own test suite generates a project and runs both on every change.
@@ -57,8 +57,8 @@ The generated tests pass and `hinoki check` exits 0; this repository's own test 
 ## Check a change against clients
 
 ```sh
-hinoki openapi shop.main:app --output openapi-baseline.json
-hinoki openapi shop.main:app --breaking-against openapi-baseline.json
+hinoki openapi --output openapi-baseline.json
+hinoki openapi --breaking-against openapi-baseline.json
 ```
 
 Take the baseline from the released version. The second command exits `1` and lists each change that breaks an existing client: removed operations or response fields, new required input, narrowed enums, changed types. See [`hinoki openapi`](inspect.md#openapi).

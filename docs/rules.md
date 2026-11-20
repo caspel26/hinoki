@@ -116,11 +116,9 @@ then logged as a warning instead.
 
 ## Read the results
 
-This output comes from a deliberately broken project in Hinoki's own tests:
-
-```sh
-hinoki check tests.projects.rulesapp:create_app --rules tests.projects.rulesapp:rules
-```
+`hinoki check` prints one line per finding, with its location and a `fix:` hint.
+This output comes from a deliberately broken project in Hinoki's own tests
+(`tests/projects/rulesapp.py`):
 
 ```text
 tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
@@ -239,7 +237,7 @@ reason = "liveness probe is public by design"
 owner = "platform-team"
 ```
 
-Without the waiver, `hinoki serve shop.main:app` fails at startup with
+Without the waiver, `hinoki serve` fails at startup with
 `RegistrationError: 1 rule violation(s)`.
 
 At startup:

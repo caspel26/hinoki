@@ -19,7 +19,7 @@ Run the command from the project directory (the one with `hinoki.toml`) and chec
 Check the settings class's `prefix=` and the nested names: groups are joined with `__`, as in `NOTES_DATABASE__URL`. Print every expected name with:
 
 ```sh
-hinoki settings notes.main:app --example
+hinoki settings --example
 ```
 
 `settings.Secret` values are shown redacted on purpose.
@@ -46,7 +46,7 @@ Relations are never loaded lazily. Name the relation in the query that needs it:
 
 ## `hinoki check` reports `unverifiable`
 
-The rule could not establish its promise. Read the explanation and any `fix:` line. Some rules inspect only declarations; checks with side effects run only with `hinoki check notes.main:app --allow-effects`.
+The rule could not establish its promise. Read the explanation and any `fix:` line. Some rules inspect only declarations; checks with side effects run only with `hinoki check --allow-effects`.
 
 ## Sync handlers answer `503 overloaded`
 

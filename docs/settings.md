@@ -132,18 +132,20 @@ values or the database URL; keep those in the environment or `*_FILE` files.
 `load(prefix=..., dotenv=..., toml=...)` overrides what the class declared, and an
 explicitly selected TOML file must exist and parse.
 
-A factory loads the class itself when it needs the values first:
+Load the class yourself when module code needs a typed value before the
+application exists:
 
 ```python
-# notes/app.py
+# notes/main.py
 from hinoki import Hinoki
+from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
-
-def create_app() -> Hinoki:
-    app_settings = ProjectSettings.load()
-    return Hinoki(settings=app_settings, title=f"Notes ({app_settings.theme})")
+settings = ProjectSettings.load()
+app = Hinoki(
+    settings=settings, title=f"Notes ({settings.theme})", include=manifest_routes()
+)
 ```
 
 ## Variable names
@@ -227,7 +229,7 @@ The value may also name a function that returns the mapping. It is applied when 
 
 For local development, `DatabaseSettings.url` defaults to `sqlite://./.hinoki/local.sqlite3`. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Configure a server database with one URL or with `engine` and its connection fields (see [configure a database](databases.md#configure-the-application)). Environment, dotenv and constructor values can override the local default. The URL and the password are secrets and cannot be loaded from TOML; TOML can hold the other connection fields and the pool size.
 
-A `database: DatabaseSettings` field is enough: Hinoki installs `DatabaseModule` for it (a module declared in `modules=` or installed in a factory replaces it). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget `replicas × workers × max_size` against the server database's connection limit.
+A `database: DatabaseSettings` field is enough: Hinoki installs `DatabaseModule` for it (a module declared in `modules=` replaces it). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget `replicas × workers × max_size` against the server database's connection limit.
 
 PostgreSQL URLs accept `sslmode=disable`, `prefer`, `require`, `verify-ca` or `verify-full`, and `sslrootcert=/path/to/ca.pem`. `prefer` tries TLS first and falls back to plaintext only if the server declines TLS; a certificate or handshake error fails closed. All TLS connections verify the server certificate chain and hostname. `require`, `verify-ca` and `verify-full` require TLS; Hinoki's `verify-ca` also verifies the hostname. Trust uses Mozilla WebPKI roots plus any PEM certificates in `sslrootcert` (maximum file size 1 MiB). `sslmode=require` therefore requires a trusted certificate too. `sslmode=allow` is unsupported. Keep the URL in a secret setting, and mount the CA file where each worker can read it.
 

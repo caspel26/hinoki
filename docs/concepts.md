@@ -38,7 +38,7 @@ def card_error(error: stripe.CardError) -> errors.APIError:
     return errors.APIError(error.user_message, status=402, code="card_declined")
 ```
 
-`Hinoki(...)` includes the routes listed in `hinoki.toml` and opens nothing, so importing the module is safe. Use a factory (`def create_app(...) -> Hinoki`, named `module:create_app`) only when construction needs runtime values, such as the Tracker's per-test database; inside it, register a handler with `app.error_handler(Kind)(handler)`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
+`Hinoki(...)` includes the routes listed in `hinoki.toml` (`include=manifest_routes()`) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
 
 ## One request
 
