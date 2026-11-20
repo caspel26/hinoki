@@ -1,4 +1,4 @@
-"""Record ``assets/readme/demo.gif`` and ``demo.png`` from a real terminal session.
+"""Record ``assets/readme/demo.apng`` and ``demo.png`` from a real terminal session.
 
 Run from the repository root after ``uv sync --locked``, with port 8000 free::
 
@@ -10,7 +10,7 @@ directory and records one story: the interactive ``hinoki new blog`` (answered
 with key presses, down to its last question, "Create an app now?", and the name
 ``posts``), ``hinoki check`` passing, ``hinoki dev`` serving the project on Kiso
 with its docs URL and ``curl`` creating a post through it. A terminal
-emulator (pyte) keeps the screen; every frame of the GIF is that screen drawn
+emulator (pyte) keeps the screen; every frame of the animation is that screen drawn
 with IBM Plex Mono from ``theme/static/fonts`` inside a drawn window, between
 title cards made from ``lockup-dark.svg``. Glyphs Plex Mono lacks (the ``◢◤``
 mark, box lines and corners, spinners) are drawn as shapes.
@@ -35,10 +35,11 @@ table off screen,
 because ``hinoki migrations`` prints the absolute path of the throw-away
 database.
 
-Frames are timed on a 20 ms grid. GIF delays are whole hundredths of a second
-and browsers play delays under two hundredths at a tenth of a second, so 50
-frames per second is the smoothest rate a GIF plays reliably (60 is not
-representable). A frame that does not change the picture is merged into the
+Frames are timed on a 1/60 s grid and written as an APNG, which keeps exact
+frame delays: a GIF's delays are whole hundredths of a second and browsers play
+those under two hundredths at a tenth of a second, so a GIF cannot reach 60 fps.
+The picture is 1992x1280 (the layout is drawn at twice its design size, ``S``).
+A frame that does not change the picture is merged into the
 previous one, so the file holds only distinct frames.
 
 The children get ``BLOG_ALLOWED_HOSTS`` (a documented setting) so ``hinoki
@@ -82,15 +83,17 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets" / "readme"
 FONTS = ROOT / "theme" / "static" / "fonts"
-MAX_BYTES = 1_500_000
+MAX_BYTES = 12_000_000
 PORT = 8000
+DOCS = f"http://localhost:{PORT}/docs"
 
 COLS, ROWS = 100, 24
-CELL_W, CELL_H, FONT_SIZE = 9, 22, 15
-BAR, INSET_X, INSET_Y = 36, 18, 14  # title bar; terminal padding inside the window
+S = 2  # pixels per design unit: the 996x640 layout drawn at 1992x1280 (HD)
+CELL_W, CELL_H, FONT_SIZE = 9 * S, 22 * S, 15 * S
+BAR, INSET_X, INSET_Y = 36 * S, 18 * S, 14 * S  # title bar; padding in the window
 WIN_W = COLS * CELL_W + 2 * INSET_X
 WIN_H = BAR + ROWS * CELL_H + 2 * INSET_Y
-MARGIN_X, MARGIN_Y, RADIUS = 30, 24, 12  # backdrop around the rounded window
+MARGIN_X, MARGIN_Y, RADIUS = 30 * S, 24 * S, 12 * S  # backdrop around the window
 WIDTH, HEIGHT = WIN_W + 2 * MARGIN_X, WIN_H + 2 * MARGIN_Y
 PAD_X = MARGIN_X + INSET_X
 PAD_Y = MARGIN_Y + BAR + INSET_Y
@@ -109,7 +112,9 @@ LOGO_START = b"\x1b_Ga=T"  # the kitty sequence that places the logo
 LOGO_CHUNK = re.compile(
     rb"\x1b_G([^;\x1b]*);[^\x1b]*\x1b\\"
 )  # one kitty graphics chunk
-TICK = 20  # ms: one frame at 50 fps, the shortest GIF delay browsers honour
+FPS = 60
+TICK = 1000 / FPS  # ms: one frame at 60 fps
+PACE = 1.3  # keystroke and pause scale: a little slower than the first recording
 INTRO_MS, OUTRO_MS = 1400, 700  # the title card that opens and closes the loop
 FADE_MS = 200  # cross-fade between the title card and the terminal
 BLINK_MS = 500  # the cursor's on and off phases while the terminal waits
@@ -222,7 +227,7 @@ Row = tuple[Cell, ...]
 
 
 class DemoError(RuntimeError):
-    """The session did not go as recorded; the GIF would be misleading."""
+    """The session did not go as recorded; the animation would be misleading."""
 
 
 @dataclass(frozen=True)
@@ -230,7 +235,7 @@ class Key:
     """A key press, sent once the screen is quiet (and shows ``wait_for``)."""
 
     data: str
-    pause_ms: int = 600  # how long the GIF shows the screen before the key
+    pause_ms: int = 600  # how long the animation shows the screen before the key
     wait_for: str = ""
     settle_s: float = SETTLE_S  # real quiet time before the key is sent
 
@@ -379,7 +384,7 @@ def keystroke(rng: random.Random, text: str, index: int) -> int:
         delay += 30
     if rng.random() < HESITATE:
         delay += rng.choice((140, 200, 260))
-    return delay
+    return round(delay * PACE)
 
 
 class Session:
@@ -478,8 +483,8 @@ class Session:
         """Type ``text`` at the prompt (there is no shell: the line is drawn)."""
         self.prompt()
         self.hold(think_ms)
-        # A long command is typed faster, as a practised hand would.
-        speed = 0.6 if len(text) > LONG_LINE else 1.0
+        # A long command is typed a little faster, as a practised hand would.
+        speed = 0.75 if len(text) > LONG_LINE else 1.0
         for index, char in enumerate(text):
             delay = round(keystroke(self.rng, text, index) * speed)
             self.emit(char, max(delay, TICK), pinned=True)
@@ -565,7 +570,7 @@ class Pump:
         return not key.wait_for or key.wait_for in self.session.text()
 
     def press(self, key: Key) -> None:
-        self.session.hold(key.pause_ms)
+        self.session.hold(round(key.pause_ms * PACE))
         os.write(self.job.master, key.data.encode())
         self.last_data = self.session.clock = time.monotonic()
 
@@ -668,7 +673,7 @@ def write_app(project: Path) -> None:
 
 
 def offscreen(argv: list[str], cwd: Path, env: dict[str, str]) -> None:
-    """Run a step the GIF does not show; fail the recording if it fails."""
+    """Run a step the animation does not show; fail the recording if it fails."""
     done = subprocess.run(
         argv,
         cwd=cwd,
@@ -743,6 +748,13 @@ def serve(session: Session, project: Path) -> None:
     session.run(curl, project)
     expect(session, '"title":"Ship it"', " 201 ")
     refuse(session, "Traceback")
+    docs = Scene(
+        ["curl", "-so", "/dev/null", "-w", "%{http_code} %{url}\\n", DOCS],
+        hold_ms=2400,
+        settle_s=0.8,
+    )
+    session.run(docs, project)
+    expect(session, f"200 {DOCS}")
 
 
 def record(workdir: Path, env: dict[str, str]) -> list[Frame]:
@@ -941,7 +953,7 @@ def blink(frames: list[Frame]) -> list[Frame]:
 def fades(frames: list[Frame]) -> list[Frame]:
     """Cross-fade between the title card and the terminal."""
     out: list[Frame] = [frames[0]]
-    steps = FADE_MS // TICK
+    steps = round(FADE_MS / TICK)
     for before, after in pairwise(frames):
         if before.card != after.card:
             out.extend(
@@ -978,7 +990,7 @@ def quantise(frames: list[Frame]) -> list[Frame]:
 
 
 def timeline(frames: list[Frame]) -> list[Frame]:
-    """The recorded frames with their motion, on the 50 fps grid."""
+    """The recorded frames with their motion, on the 60 fps grid."""
     return quantise(fades(blink(animate(compress(frames)))))
 
 
@@ -1042,12 +1054,14 @@ def backdrop() -> Image.Image:
         glow,
     )
     orb = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    ImageDraw.Draw(orb).ellipse((-120, -160, 300, 220), fill=(122, 85, 196, 60))
-    image.alpha_composite(orb.filter(ImageFilter.GaussianBlur(80)))
+    ImageDraw.Draw(orb).ellipse(
+        (-120 * S, -160 * S, 300 * S, 220 * S), fill=(122, 85, 196, 60)
+    )
+    image.alpha_composite(orb.filter(ImageFilter.GaussianBlur(80 * S)))
     return image
 
 
-def light(color: str, size: int = 12, scale: int = 8) -> Image.Image:
+def light(color: str, size: int = 12 * S, scale: int = 8) -> Image.Image:
     """One traffic light: a smooth circle with a slightly darker ring."""
     big = Image.new("RGBA", (size * scale, size * scale), (0, 0, 0, 0))
     ring = blend(color, "#000000", 0.25)
@@ -1078,17 +1092,17 @@ class Painter:
         self.regular = ImageFont.truetype(regular, FONT_SIZE)
         self.bold = ImageFont.truetype(bold, FONT_SIZE)
         sans = plex("plex-sans-latin-wght.woff2", scratch)
-        self.sans = ImageFont.truetype(sans, 13)
-        self.tagline = ImageFont.truetype(sans, 17)
+        self.sans = ImageFont.truetype(sans, 13 * S)
+        self.tagline = ImageFont.truetype(sans, 17 * S)
         self.cmap = set(TTFont(FONTS / "ibm-plex-mono-latin-400.woff2").getBestCmap())
         ascent, descent = self.regular.getmetrics()
         self.offset = (CELL_H - ascent - descent) // 2
         self.fallbacks: dict[str, ImageFont.FreeTypeFont] = {}
-        self.lockup = lockup(scratch, width=360)
+        self.lockup = lockup(scratch, width=360 * S)
         with Image.open(LOGO) as logo:
             size = (logo_columns() * CELL_W, LOGO_ROWS * CELL_H)
             self.logo = logo.convert("RGBA").resize(size, Image.Resampling.LANCZOS)
-        self.base = self.window(lockup(scratch, height=14))
+        self.base = self.window(lockup(scratch, height=14 * S))
         self.strips: dict[tuple[Row, ...], Image.Image] = {}
 
     def render(self, frame: Frame) -> Image.Image:
@@ -1129,20 +1143,23 @@ class Painter:
         image = backdrop()
         box = (MARGIN_X, MARGIN_Y, MARGIN_X + WIN_W - 1, MARGIN_Y + WIN_H - 1)
         shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        drop = (box[0], box[1] + 8, box[2], box[3] + 8)
+        drop = (box[0], box[1] + 8 * S, box[2], box[3] + 8 * S)
         ImageDraw.Draw(shadow).rounded_rectangle(drop, RADIUS, fill=(0, 0, 0, 150))
-        image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(10)))
+        image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(10 * S)))
         draw = ImageDraw.Draw(image)
-        draw.rounded_rectangle(box, RADIUS, fill=COLORS["bg"], outline=COLORS["border"])
+        draw.rounded_rectangle(
+            box, RADIUS, fill=COLORS["bg"], outline=COLORS["border"], width=S
+        )
         bar = (box[0], box[1], box[2], box[1] + BAR)
         draw.rounded_rectangle(
             bar,
             RADIUS,
             fill=COLORS["bar"],
             outline=COLORS["border"],
+            width=S,
             corners=(True, True, False, False),
         )
-        draw.line((box[0], bar[3], box[2], bar[3]), fill=COLORS["border"])
+        draw.line((box[0], bar[3], box[2], bar[3]), fill=COLORS["border"], width=S)
         self.title_bar(image, draw, mark)
         return image.convert("RGB")
 
@@ -1151,8 +1168,8 @@ class Painter:
     ) -> None:
         middle = MARGIN_Y + BAR // 2
         for index, color in enumerate(LIGHTS):
-            x = MARGIN_X + 20 + 20 * index
-            image.alpha_composite(light(color), (x - 6, middle - 6))
+            x = MARGIN_X + (20 + 20 * index) * S
+            image.alpha_composite(light(color), (x - 6 * S, middle - 6 * S))
         draw.text(
             (WIDTH / 2, middle),
             TITLE,
@@ -1162,19 +1179,19 @@ class Painter:
         )
         faint = mark.copy()
         faint.putalpha(faint.getchannel("A").point(lambda alpha: alpha * 35 // 100))
-        left = MARGIN_X + WIN_W - 16 - faint.width
+        left = MARGIN_X + WIN_W - 16 * S - faint.width
         image.alpha_composite(faint, (left, middle - faint.height // 2))
 
     def title_card(self, image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
         """The lockup, the tagline and the site, centred where the terminal is;
         the same card opens and closes the loop."""
         centre_x = MARGIN_X + WIN_W // 2
-        centre_y = PAD_Y + ROWS * CELL_H // 2 - 30
+        centre_y = PAD_Y + ROWS * CELL_H // 2 - 30 * S
         logo = self.lockup
         image.paste(
             logo, (centre_x - logo.width // 2, centre_y - logo.height // 2), logo
         )
-        below = centre_y + logo.height // 2 + 34
+        below = centre_y + logo.height // 2 + 34 * S
         draw.text(
             (centre_x, below),
             TAGLINE,
@@ -1183,7 +1200,7 @@ class Painter:
             anchor="mm",
         )
         draw.text(
-            (centre_x, below + 34),
+            (centre_x, below + 34 * S),
             SITE,
             font=self.sans,
             fill=COLORS["prompt"],
@@ -1242,7 +1259,8 @@ class Painter:
             return
         left, top = PAD_X + x * CELL_W, PAD_Y + y * CELL_H
         draw.rectangle(
-            (left, top + 2, left + CELL_W - 1, top + CELL_H - 3), fill=COLORS["cursor"]
+            (left, top + 2 * S, left + CELL_W - 1, top + CELL_H - 3 * S),
+            fill=COLORS["cursor"],
         )
         self.glyph(draw, (left, top), frame.rows[y][x], COLORS["bg"])
 
@@ -1268,7 +1286,7 @@ ROUND = {
     "\u2570": (1, -1, 90),
     "\u256f": (-1, -1, 0),
 }
-CORNER = 4  # px radius of a rounded corner
+CORNER = 4 * S  # px radius of a rounded corner
 SHAPES = (
     "\u25c6\u25c7\u25cf\u25cb\u25a0\u25b2\u25e2\u25e4\u2714\u2718\u2190\u2192\u276f"
 )
@@ -1299,9 +1317,15 @@ def box_line(
     """A straight box-drawing line or junction, from the cell's centre."""
     cx, cy = left + CELL_W // 2, top + CELL_H // 2
     up, down, west, east = BOX[char]
-    draw.line((cx, top if up else cy, cx, top + CELL_H - 1 if down else cy), fill=color)
     draw.line(
-        (left if west else cx, cy, left + CELL_W - 1 if east else cx, cy), fill=color
+        (cx, top if up else cy, cx, top + CELL_H - 1 if down else cy),
+        fill=color,
+        width=S,
+    )
+    draw.line(
+        (left if west else cx, cy, left + CELL_W - 1 if east else cx, cy),
+        fill=color,
+        width=S,
     )
 
 
@@ -1315,60 +1339,64 @@ def corner(
     r = CORNER
     side = left + CELL_W - 1 if across > 0 else left
     edge = top + CELL_H - 1 if down > 0 else top
-    draw.line((cx + across * r, cy, side, cy), fill=color)
-    draw.line((cx, cy + down * r, cx, edge), fill=color)
+    draw.line((cx + across * r, cy, side, cy), fill=color, width=S)
+    draw.line((cx, cy + down * r, cx, edge), fill=color, width=S)
     ox, oy = cx + across * r, cy + down * r
-    draw.arc((ox - r, oy - r, ox + r, oy + r), start, start + 90, fill=color)
+    draw.arc((ox - r, oy - r, ox + r, oy + r), start, start + 90, fill=color, width=S)
 
 
 def braille(draw: ImageDraw.ImageDraw, bits: int, cx: int, cy: int, color: str) -> None:
     dots = ((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (0, 3), (1, 3))
     for bit, (column, line) in enumerate(dots):
         if bits & (1 << bit):
-            x, y = cx - 2 + 4 * column, cy - 6 + 4 * line
-            draw.ellipse((x - 1, y - 1, x + 1, y + 1), fill=color)
+            x, y = cx + (4 * column - 2) * S, cy + (4 * line - 6) * S
+            draw.ellipse((x - S, y - S, x + S, y + S), fill=color)
+
+
+# Pen strokes of the geometric glyphs, in design units from the cell's centre.
+GLYPHS: dict[str, list[tuple[str, list[tuple[int, int]]]]] = {
+    "\u25c6": [("fill", [(0, -5), (5, 0), (0, 5), (-5, 0)])],
+    "\u25c7": [("outline", [(0, -5), (5, 0), (0, 5), (-5, 0)])],
+    "\u25cf": [("dot", [(-4, -4), (4, 4)])],
+    "\u25cb": [("ring", [(-4, -4), (4, 4)])],
+    "\u25a0": [("fill", [(-4, -4), (4, -4), (4, 4), (-4, 4)])],
+    "\u25b2": [("fill", [(0, -5), (5, 4), (-5, 4)])],
+    "\u25e2": [("fill", [(4, -7), (4, 6), (-5, 6)])],
+    "\u25e4": [("fill", [(-5, -7), (4, -7), (-5, 6)])],
+    "\u2714": [("line", [(-4, 0), (-1, 4), (5, -5)])],
+    "\u2718": [
+        ("line", [(-4, -4), (4, 4)]),
+        ("line", [(-4, 4), (4, -4)]),
+    ],
+    "\u2190": [
+        ("thin", [(-4, 0), (4, 0)]),
+        ("fill", [(-4, 0), (-1, -3), (-1, 3)]),
+    ],
+    "\u2192": [
+        ("thin", [(-4, 0), (4, 0)]),
+        ("fill", [(4, 0), (1, -3), (1, 3)]),
+    ],
+    "\u276f": [("line", [(-2, -5), (3, 0), (-2, 5)])],
+}
 
 
 def strokes(char: str, cx: int, cy: int) -> list[tuple[str, Any]]:
     """The pen strokes of a geometric glyph centred on ``(cx, cy)``."""
-    diamond = [(cx, cy - 5), (cx + 5, cy), (cx, cy + 5), (cx - 5, cy)]
-    circle = (cx - 4, cy - 4, cx + 4, cy + 4)
-    square = [(cx - 4, cy - 4), (cx + 4, cy - 4), (cx + 4, cy + 4), (cx - 4, cy + 4)]
-    return {
-        "\u25c6": [("fill", diamond)],
-        "\u25c7": [("outline", diamond)],
-        "\u25cf": [("dot", circle)],
-        "\u25cb": [("ring", circle)],
-        "\u25a0": [("fill", square)],
-        "\u25b2": [("fill", [(cx, cy - 5), (cx + 5, cy + 4), (cx - 5, cy + 4)])],
-        "\u25e2": [("fill", [(cx + 4, cy - 7), (cx + 4, cy + 6), (cx - 5, cy + 6)])],
-        "\u25e4": [("fill", [(cx - 5, cy - 7), (cx + 4, cy - 7), (cx - 5, cy + 6)])],
-        "\u2714": [("line", [(cx - 4, cy), (cx - 1, cy + 4), (cx + 5, cy - 5)])],
-        "\u2718": [
-            ("line", [(cx - 4, cy - 4), (cx + 4, cy + 4)]),
-            ("line", [(cx - 4, cy + 4), (cx + 4, cy - 4)]),
-        ],
-        "\u2190": [
-            ("thin", [(cx - 4, cy), (cx + 4, cy)]),
-            ("fill", [(cx - 4, cy), (cx - 1, cy - 3), (cx - 1, cy + 3)]),
-        ],
-        "\u2192": [
-            ("thin", [(cx - 4, cy), (cx + 4, cy)]),
-            ("fill", [(cx + 4, cy), (cx + 1, cy - 3), (cx + 1, cy + 3)]),
-        ],
-        "\u276f": [("line", [(cx - 2, cy - 5), (cx + 3, cy), (cx - 2, cy + 5)])],
-    }[char]
+    return [
+        (pen, [(cx + x * S, cy + y * S) for x, y in points])
+        for pen, points in GLYPHS[char]
+    ]
 
 
 PENS = {
     "fill": lambda draw, points, color: draw.polygon(points, fill=color),
     "outline": lambda draw, points, color: draw.polygon(points, outline=color),
     "dot": lambda draw, points, color: draw.ellipse(points, fill=color),
-    "ring": lambda draw, points, color: draw.ellipse(points, outline=color),
+    "ring": lambda draw, points, color: draw.ellipse(points, outline=color, width=S),
     "line": lambda draw, points, color: draw.line(
-        points, fill=color, width=2, joint="curve"
+        points, fill=color, width=2 * S, joint="curve"
     ),
-    "thin": lambda draw, points, color: draw.line(points, fill=color),
+    "thin": lambda draw, points, color: draw.line(points, fill=color, width=S),
 }
 
 
@@ -1378,14 +1406,15 @@ def shape(draw: ImageDraw.ImageDraw, char: str, cx: int, cy: int, color: str) ->
 
 
 def encode(frames: list[Frame], painter: Painter, scratch: Path, colors: int) -> Path:
-    """Draw every frame and join them with ffmpeg's two-pass palette."""
+    """Draw every frame and join them, at 60 fps, into an APNG with ffmpeg."""
     listing = []
     for number, frame in enumerate(frames):
         path = scratch / f"f{number:04d}.png"
         painter.render(frame).save(path, compress_level=1)
+        ticks = round(frame.duration / TICK)
         # Without the option an image gets a 25 fps time base: 40 ms steps.
         listing.append(
-            f"file '{path}'\noption framerate 100\nduration {frame.duration / 1000:.3f}"
+            f"file '{path}'\noption framerate 6000\nduration {ticks / FPS:.6f}"
         )
     concat = scratch / "frames.txt"
     concat.write_text("\n".join(listing) + "\n")
@@ -1403,7 +1432,7 @@ def encode(frames: list[Frame], painter: Painter, scratch: Path, colors: int) ->
         ],
         check=True,
     )
-    gif = ASSETS / "demo.gif"
+    movie = ASSETS / "demo.apng"
     subprocess.run(
         [
             *source,
@@ -1411,56 +1440,20 @@ def encode(frames: list[Frame], painter: Painter, scratch: Path, colors: int) ->
             "-i",
             str(palette),
             "-lavfi",
-            "[0:v][1:v]paletteuse=dither=none:diff_mode=rectangle",
+            "[0:v][1:v]paletteuse=dither=none",
+            "-r",
+            str(FPS),
             "-fps_mode",
-            "vfr",
-            "-loop",
+            "cfr",
+            "-plays",
             "0",
-            str(gif),
+            "-f",
+            "apng",
+            str(movie),
         ],
         check=True,
     )
-    last_delay(gif, frames[-1].duration)
-    return gif
-
-
-def last_delay(gif: Path, duration: float) -> None:
-    """Set the last frame's delay: ffmpeg gives it one frame of the time base,
-    as nothing follows it."""
-    data = bytearray(gif.read_bytes())
-    controls = list(graphic_controls(data))
-    if not controls:
-        raise DemoError(f"{gif.name} has no frame delays")
-    delay = controls[-1] + 4  # after 21 F9 04 and the packed flags byte
-    data[delay : delay + 2] = round(duration / 10).to_bytes(2, "little")
-    gif.write_bytes(bytes(data))
-
-
-def sub_blocks(data: bytes, at: int) -> int:
-    """The offset after a chain of data sub-blocks starting at ``at``."""
-    while data[at]:
-        at += data[at] + 1
-    return at + 1
-
-
-def color_table(flags: int) -> int:
-    return 3 * 2 ** ((flags & 7) + 1) if flags & 0x80 else 0
-
-
-GIF_TRAILER, GIF_EXTENSION, GIF_CONTROL = 0x3B, 0x21, 0xF9  # block markers
-
-
-def graphic_controls(data: bytes) -> Iterator[int]:
-    """Offsets of the graphic control extensions, which hold the frame delays."""
-    at = 13 + color_table(data[10])
-    while data[at] != GIF_TRAILER:
-        if data[at] == GIF_EXTENSION:  # introducer, label, sub-blocks
-            if data[at + 1] == GIF_CONTROL:
-                yield at
-            at = sub_blocks(data, at + 2)
-        else:  # image: descriptor, local colour table, LZW code size, data
-            at += 10 + color_table(data[at + 9])
-            at = sub_blocks(data, at + 1)
+    return movie
 
 
 def still_frame(frame: Frame) -> bool:
@@ -1468,26 +1461,26 @@ def still_frame(frame: Frame) -> bool:
     return not (frame.card or frame.strip or frame.fade)
 
 
-def gif_delays(gif: Path) -> list[int]:
-    """The delay of every frame of the written GIF, in ms."""
-    with Image.open(gif) as image:
+def apng_delays(movie: Path) -> list[float]:
+    """The delay of every frame of the written APNG, in ms."""
+    with Image.open(movie) as image:
         delays = []
         for index in range(image.n_frames):
             image.seek(index)
-            delays.append(int(image.info["duration"]))
+            delays.append(float(image.info["duration"]))
     return delays
 
 
-def report(gif: Path) -> None:
-    """Print the GIF's frame rate and size; fail when a delay is off the grid."""
-    delays = gif_delays(gif)
-    off = sorted({delay for delay in delays if delay % TICK or delay < TICK})
+def report(movie: Path) -> None:
+    """Print the APNG's frame rate and size; fail when it is not 60 fps."""
+    delays = apng_delays(movie)
+    off = sorted({delay for delay in delays if delay < TICK - 1})
     if off:
-        raise DemoError(f"{gif.name} has delays off the {TICK} ms grid: {off}")
-    size, seconds = gif.stat().st_size, sum(delays) / 1000
+        raise DemoError(f"{movie.name} has delays under one {FPS} fps tick: {off}")
+    size, seconds = movie.stat().st_size, sum(delays) / 1000
     print(
-        f"wrote {gif} ({size:,} bytes, {len(delays)} frames, {seconds:.1f} s, "
-        f"{1000 // min(delays)} fps at most, {TICK} ms grid)"
+        f"wrote {movie} ({size:,} bytes, {len(delays)} frames, {seconds:.1f} s, "
+        f"{FPS} fps)"
     )
 
 
@@ -1501,7 +1494,7 @@ def hinoki_executable(given: str | None) -> Path:
 def require_tools() -> None:
     for tool in ("ffmpeg", "fc-match", "rsvg-convert", "git", "sed", "curl"):
         if shutil.which(tool) is None:
-            raise DemoError(f"{tool} is needed to record the GIF")
+            raise DemoError(f"{tool} is needed to record the animation")
 
 
 def require_free_port() -> None:
@@ -1544,12 +1537,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         refuse_paths(frames, scratch)
         pictures = scratch / "frames"
         pictures.mkdir()
-        gif = encode(frames, Painter(scratch), pictures, args.colors)
+        movie = encode(frames, Painter(scratch), pictures, args.colors)
         if args.keep_frames:
             shutil.copytree(pictures, args.keep_frames, dirs_exist_ok=True)
-    report(gif)
-    if gif.stat().st_size > MAX_BYTES:
-        raise DemoError(f"{gif.name} is larger than {MAX_BYTES:,} bytes")
+    report(movie)
+    if movie.stat().st_size > MAX_BYTES:
+        raise DemoError(f"{movie.name} is larger than {MAX_BYTES:,} bytes")
 
 
 if __name__ == "__main__":
