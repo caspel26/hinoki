@@ -39,6 +39,7 @@ from hinoki import settings
 class BlogSettings(settings.AppSettings, prefix="BLOG_"):
     pass
 
+
 # BLOG_PAGINATION__PAGE_SIZE=25  BLOG_PAGINATION__MAX_PAGE_SIZE=200
 ```
 

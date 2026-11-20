@@ -601,7 +601,7 @@ def build(
     return _construct_settings(cls, prefix, path, values, problems)
 
 
-def _build_field(  # noqa: PLR0913 - settings build context is shared through recursion
+def _build_field(  # noqa: PLR0913, PLR0917 - settings build context is shared through recursion
     cls: type[Settings],
     name: str,
     hint: Any,
