@@ -2010,11 +2010,13 @@ impl<'a, V: View> Run<'a, V> {
         if !self.length(node, size, path, "character")? {
             return Ok(None);
         }
-        let matched = self.view.text(&text).ok();
-        if matched.as_ref().is_some_and(|t| t.contains('\0')) {
+        let Ok(matched) = self.view.text(&text) else {
+            return self.fail(path, "type", "must be valid Unicode text".to_owned());
+        };
+        if matched.contains('\0') {
             return self.fail(path, "nul", "must not contain NUL characters".to_owned());
         }
-        if !self.pattern(node, matched, path)? {
+        if !self.pattern(node, Some(matched), path)? {
             return Ok(None);
         }
         Ok(Some(self.view.string_out(text)))
