@@ -36,19 +36,30 @@ The complete request body and every part are buffered in memory. The default bod
 Per action, or for the whole application (an action's own choice wins):
 
 ```python
-from hinoki import Hinoki, JSONParser, JSONRenderer, Request, http
-from hinoki.parsers import TextParser
+# notes/main.py
+from hinoki import Hinoki, JSONRenderer
 from hinoki.renderers import TextRenderer
 
-app = Hinoki(renderers=[JSONRenderer(sort_keys=True), TextRenderer()])
+from notes.settings import ProjectSettings
+
+app = Hinoki(
+    settings=ProjectSettings,
+    renderers=[JSONRenderer(sort_keys=True), TextRenderer()],
+)
+```
+
+```python
+# notes/apps/billing/api.py (continued)
+from hinoki import JSONParser, JSONRenderer, Request
+from hinoki.parsers import TextParser
 
 
-@http.get("/report", renderers=[JSONRenderer(indent=2)])
-async def report() -> dict[str, int]: ...
+@invoices.get("/report", renderers=[JSONRenderer(indent=2)])
+async def report() -> InvoiceReport: ...
 
 
-@http.post("/hook", parsers=[JSONParser(), TextParser()])
-async def hook(request: Request) -> None: ...  # request.data is a dict or a str
+@invoices.post("/hook", parsers=[JSONParser(), TextParser()], atomic=True)
+async def hook(request: Request) -> HookReceipt: ...  # request.data is a dict or a str
 ```
 
 ## Answer XML
@@ -78,6 +89,7 @@ JSONRenderer(default=str)  # Decimal, Path, ... become text
 ## Inherit and override
 
 ```python
+# notes/apps/billing/codecs.py
 from hinoki import JSONParser, JSONRenderer
 
 

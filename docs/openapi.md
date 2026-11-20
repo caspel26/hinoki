@@ -11,15 +11,15 @@ related:
 
 `Hinoki.openapi()` builds an OpenAPI 3.1 document from the routes registered with the app. Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.
 
-Generate the document from a project target without starting a server:
+Generate the document from the application without starting a server:
 
 ```sh
-cd examples
-uv run --project .. hinoki openapi notes.main:app --output openapi.json
-uv run --project .. hinoki openapi notes.main:app --check openapi.json
+hinoki openapi --output openapi.json
+hinoki openapi --check openapi.json
+hinoki openapi --breaking-against openapi-baseline.json
 ```
 
-The command does not open a database and works even when `openapi_url` is disabled. It writes stable, sorted JSON, and `--check` compares parsed JSON so whitespace-only changes do not report drift. See the [command-line guide](cli.md#openapi) for output and exit-status details.
+`--output` writes stable, sorted JSON. `--check` compares parsed JSON with a committed file, so whitespace-only changes do not report drift. `--breaking-against` compares with an earlier document (the released one) and prints one `breaking: …` line per change that would break an existing client. The three options are exclusive. The command opens no database and works even when `openapi_url` is disabled. See [inspect an application](inspect.md#openapi) for output and exit status.
 
 ## Serve the document and viewers
 
@@ -55,15 +55,15 @@ Tools that only read the standard method fields do not see these operations: Swa
 * `access=...` adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.
 * Admin HTML routes marked `hide_from_docs` are omitted.
 
-A `dict[str, X]` field becomes `type: object` with `additionalProperties` (the value schema), `propertyNames` (the key schema) and `minProperties`/`maxProperties` from its declared entry limits. The framework bounds on client input (1000 entries, 256-character keys) are not part of the document because components describe responses too; see [dictionary fields](schemas.md#dictionary-fields).
+A `dict[str, X]` field becomes `type: object` with `additionalProperties` (the value schema), `propertyNames` (the key schema) and `minProperties`/`maxProperties` from its declared entry limits. The framework bounds on client input (1000 entries, 256-character keys) are not part of the document because components describe responses too; see [dictionary fields](schema-collections.md#dictionary-fields).
 
-`date`, `time` and `timedelta` fields become `type: string` with `format: date`, `time` and `duration`. A `Decimal` field becomes `type: string`, `format: decimal` and a `pattern` for its text form, with `ge`/`le`/`gt`/`lt` as `minimum`/`maximum`/`exclusiveMinimum`/`exclusiveMaximum`; `max_digits` and `decimal_places` are not written, nor is a `Decimal` field's `multiple_of`. An `int` field's `multiple_of` becomes `multipleOf`. IP address and network fields become `type: string` with `format: ipv4`, `ipv6`, `ipv4network` or `ipv6network`. A `Path` field becomes `type: string` with `format: path`, and a `SecretStr` field `type: string` with `format: password` and `writeOnly: true`. A `bytes` field becomes `type: string`, `format: byte` and `contentEncoding: base64`, and its decoded-size limits are not written either, since they count bytes rather than characters. See [dates, durations, decimals and bytes](schemas.md#dates-durations-decimals-and-bytes).
+`date`, `time` and `timedelta` fields become `type: string` with `format: date`, `time` and `duration`. A `Decimal` field becomes `type: string`, `format: decimal` and a `pattern` for its text form, with `ge`/`le`/`gt`/`lt` as `minimum`/`maximum`/`exclusiveMinimum`/`exclusiveMaximum`; `max_digits` and `decimal_places` are not written, nor is a `Decimal` field's `multiple_of`. An `int` field's `multiple_of` becomes `multipleOf`. IP address and network fields become `type: string` with `format: ipv4`, `ipv6`, `ipv4network` or `ipv6network`. A `Path` field becomes `type: string` with `format: path`, and a `SecretStr` field `type: string` with `format: password` and `writeOnly: true`. A `bytes` field becomes `type: string`, `format: byte` and `contentEncoding: base64`, and its decoded-size limits are not written either, since they count bytes rather than characters. See [dates, durations, decimals and bytes](schema-types.md#dates-durations-decimals-and-bytes).
 
-An `Enum` or `Literal` field becomes `type: string` or `type: integer` with an `enum` list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in `anyOf` with `null`. See [enums and literals](schemas.md#enums-and-literals).
+An `Enum` or `Literal` field becomes `type: string` or `type: integer` with an `enum` list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in `anyOf` with `null`. See [enums and literals](schema-types.md#enums-and-literals).
 
-A `set[X]` or `frozenset[X]` field becomes an array with `uniqueItems: true`, `tuple[X, ...]` an array of `X`, and a fixed `tuple[X, Y]` an array with `prefixItems`, `items: false` and equal `minItems`/`maxItems`. See [sets and tuples](schemas.md#sets-and-tuples).
+A `set[X]` or `frozenset[X]` field becomes an array with `uniqueItems: true`, `tuple[X, ...]` an array of `X`, and a fixed `tuple[X, Y]` an array with `prefixItems`, `items: false` and equal `minItems`/`maxItems`. See [sets and tuples](schema-collections.md#sets-and-tuples).
 
-A plain union such as `int | str` becomes `anyOf` of its variants, and `Any` or `object` an unconstrained schema (`{}`). See [plain unions and `Any`](schemas.md#plain-unions-and-any).
+A plain union such as `int | str` becomes `anyOf` of its variants, and `Any` or `object` an unconstrained schema (`{}`). See [plain unions and `Any`](schema-collections.md#plain-unions-and-any).
 
 Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.
 
@@ -78,7 +78,7 @@ discriminator:
     dog: "#/components/schemas/Dog"
 ```
 
-See [Schemas: discriminated unions](schemas.md#discriminated-unions) for the Python declarations and validation behavior.
+See [Collections and unions: discriminated unions](schema-collections.md#discriminated-unions) for the Python declarations and validation behavior.
 
 For file binding syntax, limits and the in-memory boundary, see [upload files](endpoints.md#upload-files).
 

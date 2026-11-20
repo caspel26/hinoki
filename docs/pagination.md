@@ -6,22 +6,24 @@ status: implemented
 
 An action opts into page-number pagination with `pagination=PageNumberPagination()`. A size you leave out comes from the application's `pagination` settings group; without settings the defaults are `page_size=20` and `max_page_size=100`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.
 
-This is the Tracker's authenticated list pattern: it limits each page to the
-caller’s own tasks. Include the route in an app whose settings declare a database,
-as the [Tracker app factory](tutorial/6-run.md) does.
+The Billing app lists invoices a page at a time. The handler asks the model for one page, and `Page.map()` turns its rows into schemas:
 
 ```python
-from tracker.models import Member, Task
-from tracker.schemas import TaskOut
-from tracker.security import member_only
-from hinoki import Caller, http
+# notes/apps/billing/api.py
+from hinoki import RouteGroup
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
+from notes.security import billing_staff
 
-@http.get("/tasks", access=member_only, pagination=PageNumberPagination())
-async def list_tasks(page: PageParams, caller: Caller[Member]) -> Page[TaskOut]:
-    rows = await Task.filter(owner_id=caller.user.id).apaginate(page)
-    return rows.map(TaskOut.from_model)
+from .models import Invoice
+from .schemas import InvoiceOut
+
+invoices = RouteGroup("/invoices", access=billing_staff, atomic=True)
+
+
+@invoices.get("/", pagination=PageNumberPagination())
+async def list_invoices(page: PageParams) -> Page[InvoiceOut]:
+    return (await Invoice.all().apaginate(page)).map(InvoiceOut.from_model)
 ```
 
 Pages are one-based. `page_size` defaults to the strategy's configured size and cannot exceed its maximum. Invalid values produce a validation response before the handler runs; `page` is limited to 1 000 000 000, and longer or larger values answer `422` with the code `le`.
@@ -30,22 +32,23 @@ Pages are one-based. `page_size` defaults to the strategy's configured size and 
 
 ## Defaults for the whole application
 
-`settings.AppSettings` has a `pagination` group, set in code, in the environment (`BLOG_PAGINATION__PAGE_SIZE=25`, `BLOG_PAGINATION__MAX_PAGE_SIZE=200`) or in TOML:
+`settings.AppSettings` has a `pagination` group, set in code, in the environment or in TOML. With the project's settings class:
 
 ```python
+# notes/settings.py
 from hinoki import settings
 
 
-class BlogSettings(settings.AppSettings, prefix="BLOG_"):
+class ProjectSettings(settings.AppSettings, prefix="NOTES_"):
     pass
-
-
-# BLOG_PAGINATION__PAGE_SIZE=25  BLOG_PAGINATION__MAX_PAGE_SIZE=200
 ```
 
-Pass `BlogSettings` to `Hinoki(settings=BlogSettings, ...)` in your app
-factory; keep that app's database module and access policy in the same
-assembly.
+```sh
+export NOTES_PAGINATION__PAGE_SIZE=25
+export NOTES_PAGINATION__MAX_PAGE_SIZE=200
+```
+
+The application in `notes/main.py` reads them through `Hinoki(settings=ProjectSettings, ...)`.
 
 Precedence, from strongest to weakest: a size set on the action's `PageNumberPagination(...)`, the application's `pagination` settings, then 20 and 100. Each size is resolved separately, so `PageNumberPagination(page_size=10)` keeps its 10 and takes its maximum from the settings. The result must satisfy `1 <= page_size <= max_page_size`: invalid settings fail when they load, and an action whose own size does not fit the resolved other one (for example `PageNumberPagination(max_page_size=10)` under a settings `page_size` of 25) fails when it is included, naming the action. The generated OpenAPI parameters show the resolved values.
 
