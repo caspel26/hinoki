@@ -36,7 +36,7 @@ from typing import (
 from uuid import UUID
 
 from hinoki import core
-from hinoki.blocking import run_sync
+from hinoki.blocking import refuse_event_loop, run_sync
 from hinoki.db import Database
 from hinoki.errors import (
     ErrorDetail,
@@ -1658,6 +1658,7 @@ class Model:
     ) -> list[Self]:
         """Sync ``abulk_create`` for sync handlers; inside an open transaction
         it is a savepoint of that transaction (see ``run_bulk``)."""
+        refuse_event_loop()
         instances = cls.bulk_instances(items)
         if not instances:
             return []
@@ -1666,6 +1667,7 @@ class Model:
     @classmethod
     def bulk_update(cls, instances: Iterable[Self], /) -> list[Self]:
         """Sync ``abulk_update`` for sync handlers; scoped as ``bulk_create``."""
+        refuse_event_loop()
         rows = cls.saved_rows(instances)
         if not rows:
             return []
@@ -1674,6 +1676,7 @@ class Model:
     @classmethod
     def bulk_delete(cls, items: Iterable[Self | Any], /) -> int:
         """Sync ``abulk_delete`` for sync handlers; scoped as ``bulk_create``."""
+        refuse_event_loop()
         keys = [cls.delete_key(item) for item in items]
         if not keys:
             return 0
