@@ -113,7 +113,10 @@ def report_app(
 ) -> list[str]:
     """The lines shown once the app exists."""
     if not style.fancy:
-        return [f"created app {name} at {created}", f"registered in {manifest}"]
+        return [
+            f"created app {name} at {shown_path(created)}",
+            f"registered in {shown_path(manifest)}",
+        ]
     mounted = f"mounted at {prefix or f'/{name}'}"
     if requires:
         mounted += f", requires {', '.join(requires)}"

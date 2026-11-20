@@ -17,6 +17,7 @@ from hinoki.orm.migrations import models_of
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.routing import Includable, Mount
 from hinoki.scaffold import NAME, RESERVED_NAMES
+from hinoki.terminal import shown_path
 
 _MODULE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
 
@@ -340,9 +341,9 @@ def manifest_routes(start: Path | None = None) -> list[Includable]:
     resolved = written.resolve()
     path = find_manifest_or_none(resolved) or _manifest_along(written)
     if path is None:
-        searched = str(written)
+        searched = shown_path(written)
         if resolved != written:
-            searched += f" (resolved: {resolved})"
+            searched += f" (resolved: {shown_path(resolved)})"
         raise ProjectError(f"no hinoki.toml found in {searched} or above it")
     return load_manifest(path).route_items()
 

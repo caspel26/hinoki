@@ -105,13 +105,18 @@ def elapsed(seconds: float) -> str:
 
 
 def shown_path(target: Path) -> str:
-    """``target`` relative to here when inside it, else with ``~`` for home."""
+    """``target`` relative to here when inside it, else with ``~`` for home
+    (as written or with its symlinks resolved)."""
     try:
         return str(target.relative_to(Path.cwd()))
     except ValueError:
-        home = str(Path.home())
-        text = str(target)
-        return "~" + text[len(home) :] if text.startswith(home + os.sep) else text
+        pass
+    text = str(target)
+    home = Path.home()
+    for prefix in dict.fromkeys((str(home), str(home.resolve()))):
+        if text.startswith(prefix + os.sep):
+            return "~" + text[len(prefix) :]
+    return text
 
 
 LOGO = Path(__file__).with_name("logo.png")
