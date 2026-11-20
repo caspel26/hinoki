@@ -19,7 +19,7 @@ from collections.abc import AsyncIterator, Coroutine
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID
 
 import pytest
@@ -2589,3 +2589,19 @@ async def test_a_refused_head_is_answered_before_the_client_stops_sending(
     refused, closed = await send_streaming(port, head, b"x" * 262_144)
     assert refused.status == 400
     assert closed
+
+
+async def test_malformed_class_response_headers_answer_500_not_503() -> None:
+    class Items(API):
+        response_headers: ClassVar[Any] = [["x-a", "b"]]
+
+        @http.get("/items")
+        def list(self) -> dict[str, int]:
+            return {"n": 1}
+
+    worker = KisoWorker(Hinoki(include=[Items]), "127.0.0.1", 0)
+    port = await worker.start()
+    try:
+        assert (await fetch(port, "GET", "/items")).status == 500
+    finally:
+        await worker.stop()
