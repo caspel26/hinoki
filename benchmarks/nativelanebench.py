@@ -21,16 +21,19 @@ numbers say nothing about other frameworks.
 
 import argparse
 import asyncio
+import itertools
 import json
 import statistics
 import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from hinoki import Hinoki, RuntimeConfig, http
+from hinoki import Hinoki, RuntimeConfig, Schema, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.modules import Module, ModuleContext
 from hinoki.orm import Model, field
@@ -60,8 +63,12 @@ class Seed(Module):
     def __init__(self) -> None:
         self.database: Database | None = None
 
-    async def setup(self, ctx: ModuleContext) -> None:
-        database = ctx.get(Database)
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        await self.seed(ctx.get(Database))
+        yield
+
+    async def seed(self, database: Database) -> None:
         await database.execute(
             "create table if not exists bench_notes "
             "(id integer primary key, title text not null)"
@@ -93,10 +100,18 @@ async def mixed() -> dict[str, Any]:
     return {"id": found.id}
 
 
+# Ids above the seeded 1..100; one process, so a plain counter is unique.
+NEW_IDS = itertools.count(1_000_000)
+
+
+class NoteIn(Schema):
+    title: str
+
+
 @http.post("/bench/write", atomic=True)
-async def write(title: str) -> dict[str, str]:
-    await BenchNote.acreate(title=title)
-    return {"title": title}
+async def write(payload: NoteIn) -> dict[str, str]:
+    await BenchNote.acreate(id=next(NEW_IDS), title=payload.title)
+    return {"title": payload.title}
 
 
 LOAD = r"""
