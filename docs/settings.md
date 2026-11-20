@@ -48,7 +48,7 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
 | `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
-| `server` | `server` | `kiso` | `granian` or `kiso`; `--server` overrides it. See [Running an application](serving.md#the-rust-server) |
+| `server` | `server` | `kiso` | `granian` or `kiso`; `--server` overrides it. See [Running an application](serving.md#kiso) |
 | `server` | `host` | `127.0.0.1` | Bind address used by `hinoki dev/serve` |
 | `server` | `port` | `8000` | `1` to `65535` |
 | `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
@@ -60,12 +60,12 @@ Settings types live in the `hinoki.settings` namespace: `from hinoki import sett
 | `server` | `recent_requests` | unset | Kiso only: file that also receives each request as a JSON line for `hinoki mcp`'s `recent_requests` tool; works with the access log off |
 | `server` | `access_log_slow_ms` | unset | Kiso only: keep only answers at least this slow (ms); failures are still logged |
 | `server` | `access_log_format` | unset | Kiso only (Granian refuses it): `pretty`, `plain`, `json` or `logger` (route to the `hinoki.access` Python logger). Unset is `pretty` on a colour terminal and `plain` otherwise |
-| `server` | `max_connections` | unset (10000) | Rust server only: open-connection limit, `1` to `1000000`; refused under Granian |
-| `server` | `header_read_timeout` | unset (10 seconds) | Rust server only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
-| `server` | `body_read_timeout` | unset (10 seconds) | Rust server only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |
-| `server` | `write_timeout` | unset (30 seconds) | Rust server only: how long a response write may make no progress before the connection is closed; above 0 and at most 3600; refused under Granian |
-| `server` | `native_dispatch` | unset (on) | Rust server only: run the `async def` handlers it can prove safe without an asyncio task (see [the native handler lane](serving.md#the-native-handler-lane)); `false` keeps every handler in an asyncio task; refused under Granian |
-| `server` | `tls_cert_file`, `tls_key_file` | unset | PEM certificate chain and private key; both or neither, and both must exist. Serves HTTPS on either server; the Rust server reads them once at start |
+| `server` | `max_connections` | unset (10000) | Kiso only: open-connection limit, `1` to `1000000`; refused under Granian |
+| `server` | `header_read_timeout` | unset (10 seconds) | Kiso only: time to receive request headers, and the keep-alive idle limit; refused under Granian |
+| `server` | `body_read_timeout` | unset (10 seconds) | Kiso only: silence allowed while a body is read (at most half of `execution.request_timeout`); refused under Granian |
+| `server` | `write_timeout` | unset (30 seconds) | Kiso only: how long a response write may make no progress before the connection is closed; above 0 and at most 3600; refused under Granian |
+| `server` | `native_dispatch` | unset (on) | Kiso only: run the `async def` handlers it can prove safe without an asyncio task (see [the native handler lane](serving.md#the-native-handler-lane)); `false` keeps every handler in an asyncio task; refused under Granian |
+| `server` | `tls_cert_file`, `tls_key_file` | unset | PEM certificate chain and private key; both or neither, and both must exist. Serves HTTPS on either server; Kiso reads them once at start |
 | `server` | `http2` | `false` | Serve HTTP/2 over TLS (ALPN `h2`, with `http/1.1` as fallback); needs `tls_cert_file` and `tls_key_file`, otherwise refused when settings load. No cleartext HTTP/2; on either server |
 | `server` | `trusted_proxies` | empty | IP addresses or CIDRs allowed to supply forwarded client/protocol metadata; an IPv6 zone id (`fe80::1%lo0`) is refused when settings load, whichever server runs |
 | `server` | `request_id_header` | `x-request-id` | HTTP header used for generated request IDs; other framework-owned names are refused |
@@ -127,7 +127,7 @@ LOGGING = {
 BLOG_LOGGING__CONFIG=myapp.logs:LOGGING
 ```
 
-The value may also name a function that returns the mapping. It is applied when each worker starts, right after Hinoki's own `hinoki` logger setup, with `disable_existing_loggers` off unless your mapping sets it. A mapping that configures the `hinoki` logger replaces Hinoki's handler on it. A target that cannot be imported or is not a mapping raises during startup. Kiso's access log is written by the Rust server; set `server.access_log_format = "logger"` to route it through the `hinoki.access` logger.
+The value may also name a function that returns the mapping. It is applied when each worker starts, right after Hinoki's own `hinoki` logger setup, with `disable_existing_loggers` off unless your mapping sets it. A mapping that configures the `hinoki` logger replaces Hinoki's handler on it. A target that cannot be imported or is not a mapping raises during startup. Kiso's access log is written by Kiso; set `server.access_log_format = "logger"` to route it through the `hinoki.access` logger.
 
 From a trusted peer, Hinoki accepts a single `X-Forwarded-Proto` value of `http` or `https` and walks a bounded `X-Forwarded-For` chain from the peer side to the first untrusted address. `Request.scheme` and `Request.client` use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. `X-Forwarded-Host` is never used: `Host`, `allowed_hosts` and generated URLs continue to use the original Host header.
 
