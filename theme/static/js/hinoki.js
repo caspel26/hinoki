@@ -289,6 +289,7 @@
   const input = $("[data-palette-input]");
   const list = $("[data-palette-list]");
   let paletteOpen = false;
+  let paletteOpener = null;
   let docs = null;
   let titles = {};
   let items = [];
@@ -404,6 +405,7 @@
   const openPalette = async () => {
     if (!palette || paletteOpen) return;
     paletteOpen = true;
+    paletteOpener = document.activeElement;
     palette.hidden = false;
     overlay.hidden = false;
     input.value = "";
@@ -417,6 +419,8 @@
     if (!palette) return;
     paletteOpen = false;
     palette.hidden = true;
+    if (paletteOpener && paletteOpener.isConnected && paletteOpener !== document.body) paletteOpener.focus({ preventScroll: true });
+    paletteOpener = null;
     if (!document.body.classList.contains("menu-open")) overlay.hidden = true;
   }
 
@@ -452,6 +456,22 @@
       if (paletteOpen) closePalette();
       closeMenu();
       hidePopover();
+    } else if (e.key === "Tab" && paletteOpen) {
+      // The search dialog is modal: Tab cycles inside it.
+      const focusable = $$('input, a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])', palette).filter((el) => el.offsetParent);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) return;
+      if (!palette.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   });
 
