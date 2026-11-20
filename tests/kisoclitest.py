@@ -382,6 +382,43 @@ def test_run_supervised_opens_listener_and_computes_scheme(
     listener.close()
 
 
+def test_run_supervised_passes_the_applications_docs_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Mock()
+    monkeypatch.setattr(serve_module, "open_listener", Mock(return_value=listener))
+    monkeypatch.setattr("hinoki.runtime.supervisor.Supervisor", supervisor)
+    args = argparse.Namespace(target="app:factory", workers=None)
+    app = Hinoki(openapi_url="/openapi.json", docs_url="/docs")
+    settings = ServerSettings()
+    serve_module.run_supervised(args, app, ("127.0.0.1", 8123), settings, True)
+    assert supervisor.return_value.docs == "/docs"
+    listener.close()
+
+
+@pytest.mark.parametrize(
+    ("docs", "line"),
+    [("/docs", "docs: http://127.0.0.1:{port}/docs"), (None, None)],
+)
+def test_the_supervisor_announces_the_docs_url_after_the_address(
+    docs: str | None,
+    line: str | None,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 4)
+    port = listener.getsockname()[1]
+    supervisor = Supervisor("app:make", listener, 1, 1.0, reload=True)
+    supervisor.docs = docs
+    monkeypatch.setattr(signal, "signal", lambda *_: None)
+    supervisor.stop.set()
+    assert supervisor.run() == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == f"listening on http://127.0.0.1:{port} (reloading)"
+    assert lines[1:] == ([line.format(port=port)] if line else [])
+
+
 def test_run_rust_chooses_inline_or_supervised_and_refuses_bad_listener(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
