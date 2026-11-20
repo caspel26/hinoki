@@ -271,6 +271,39 @@ def test_cli_eof_closes_modules_and_skips_app_hooks(
     assert ">>> " in output.getvalue()
 
 
+@pytest.mark.parametrize("cell", ["raise SystemExit", "raise SystemExit(3)"])
+def test_cli_exit_leaves_the_shell_without_a_traceback(
+    cell: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events: list[str] = []
+
+    class TestModule(Module):
+        name = "shell-exit-module"
+
+        @asynccontextmanager
+        async def lifespan(self, _ctx: ModuleContext) -> AsyncIterator[None]:
+            yield
+            events.append("module-stop")
+
+    app = Hinoki(modules=[TestModule()])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(shellcli, "build_app", lambda _target: app)
+    output, errors = io.StringIO(), io.StringIO()
+
+    result = run(
+        Namespace(target="sample.main:app", models=None),
+        stdin=_Terminal(f"{cell}\nprint('after exit')\n"),
+        stdout=output,
+        stderr=errors,
+    )
+
+    assert result == 0
+    assert events == ["module-stop"]
+    assert "Traceback" not in output.getvalue()
+    assert "after exit" not in output.getvalue()
+    assert errors.getvalue() == ""
+
+
 def test_cli_reports_startup_failure_before_prompt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -748,7 +781,7 @@ def test_loop_closes_even_when_pending_task_cleanup_raises(
 
 @pytest.mark.parametrize(
     ("error", "output"),
-    [(KeyboardInterrupt(), "KeyboardInterrupt"), (SystemExit(1), "SystemExit")],
+    [(KeyboardInterrupt(), "KeyboardInterrupt")],
 )
 def test_console_keeps_running_after_control_flow_exceptions(
     error: BaseException, output: str
