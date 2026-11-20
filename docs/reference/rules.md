@@ -2,14 +2,12 @@
 
 ::: hinoki.rules.RuleSet
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.rules.Rule
 
 ::: hinoki.rules.Diagnostic
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.rules.Actions

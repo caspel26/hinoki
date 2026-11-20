@@ -2,7 +2,6 @@
 
 ::: hinoki.schema.Schema
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.schemaconfig.SchemaConfig
@@ -11,7 +10,6 @@
 
 ::: hinoki.fields.Field
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.schema.Invalid

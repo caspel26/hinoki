@@ -298,6 +298,10 @@
   font: 500 12px/1.4 var(--hn-font-mono);
 }
 
+.hn-hero__meta span {
+  white-space: nowrap;
+}
+
 .hn-actions {
   display: flex;
   flex-wrap: wrap;
@@ -924,25 +928,6 @@
 
 .hn-walk__tabs button[aria-selected="true"] i {
   color: var(--hn-brand);
-}
-
-.hn-walk__bar {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 2px;
-  background: var(--hn-brand);
-  transform: scaleX(0);
-  transform-origin: left;
-}
-
-.hn-walk__tabs button[aria-selected="true"] .hn-walk__bar.is-run {
-  animation: fill var(--dur, 7s) linear forwards;
-}
-
-@keyframes fill {
-  to { transform: scaleX(1); }
 }
 
 .hn-walk__panel {
@@ -1854,6 +1839,14 @@
 
 .hn-hero__bg {
   inset: -40px 0 0 !important;
+}
+
+/* On phones the glow and hairlines run to the screen edge instead of stopping
+   at the page gutter. */
+@media (max-width: 960px) {
+  .hn-hero__bg {
+    inset: -40px calc(50% - 50vw) 0 !important;
+  }
 }
 
 @media (max-width: 640px) {
