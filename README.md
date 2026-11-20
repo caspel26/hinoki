@@ -85,7 +85,7 @@ Request values are validated before the handler runs. Unknown input fields are r
 ## What Hinoki provides
 
 - **Typed API declarations:** function and class endpoints, access policies, transactions, declared errors, generated CRUD, OpenAPI and test clients.
-- **Architecture checks:** five optional rules cover access, write transactions, model responses, exposed fields and import direction. Findings include a source location and a fix; waivers need an owner and reason.
+- **Architecture checks:** eleven optional built-in rules cover access, permissions, return types, pagination, write transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes and import direction. Findings include a source location and a fix; waivers need an owner and reason.
 - **Database support:** the ORM supports SQLite, PostgreSQL, MySQL and MariaDB, with relations and reviewed SQL migration files. SQLite is the local-development default. Importing an app does not connect or change tables.
 - **Tools:** typed settings, a CLI, application and development MCP integrations, and an optional admin mounted explicitly in the app.
 
@@ -96,11 +96,11 @@ cd examples
 uv run --project .. hinoki check tracker.app:create_app
 ```
 
-The [Blog example](examples/blog) demonstrates relations, authentication and the optional admin. The admin has four themes, uses the application's access policy and does not include a sign-in page. See the [admin guide](docs/admin.md) for setup and screenshots.
+The [Blog example](examples/blog) demonstrates relations, authentication and the optional admin. The admin has four themes and, by default, its own users with a sign-in page and per-model permissions; it can instead use the application's access policy. See the [admin guide](docs/admin.md) for setup and screenshots.
 
 ## Python and Rust boundary
 
-The extension provides path matching, selected request parsing, schema validation and serialization, cryptography, and ORM SQL compilation and execution. The ASGI adapter, handlers and most request-pipeline work run in Python. The Rust HTTP server is the default; Granian remains available with `--server granian`. See [Serving](docs/serving.md) for the boundary and server limitations.
+The extension provides path matching, selected request parsing, schema validation and serialization, cryptography, and ORM SQL compilation and execution. The ASGI adapter, handlers and most request-pipeline work run in Python; an eligible `async def` handler that only awaits ORM calls, and some generated CRUD writes, are driven from Rust on Kiso. The Rust HTTP server (Kiso) is the default; Granian remains available with `--server granian`. See [Serving](docs/serving.md) for the boundary and server limitations.
 
 ## Status and measurements
 
