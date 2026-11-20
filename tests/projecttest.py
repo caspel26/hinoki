@@ -1,5 +1,6 @@
 """Project registry and modular-app commands."""
 
+import argparse
 import importlib
 import json
 import sys
@@ -294,6 +295,84 @@ def test_manage_uses_the_manifest_application_from_nested_directory(
     assert "this app has no management commands" in capsys.readouterr().out
 
 
+TARGET_HANDLERS = {
+    "check": "hinoki.__main__.run_check",
+    "dev": "hinoki.serve.run_dev",
+    "mcp": "hinoki.__main__.run_mcp_command",
+    "openapi": "hinoki.openapicli.run_openapi",
+    "routes": "hinoki.routescli.run_routes",
+    "serve": "hinoki.serve.run_serve",
+    "settings": "hinoki.settingscli.run_settings",
+}
+
+
+def _record_targets(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    seen: list[str] = []
+
+    def record(args: argparse.Namespace) -> int:
+        seen.append(args.target)
+        return 0
+
+    for handler in TARGET_HANDLERS.values():
+        monkeypatch.setattr(handler, record)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    return seen
+
+
+@pytest.mark.parametrize("command", sorted(TARGET_HANDLERS))
+def test_app_commands_default_to_the_manifest_application(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str
+) -> None:
+    project = create("sample", tmp_path)
+    monkeypatch.chdir(project / "sample")
+    seen = _record_targets(monkeypatch)
+
+    assert main([command]) == 0
+    assert seen == ["sample.main:app"]
+    assert str(project.resolve()) in sys.path
+
+
+@pytest.mark.parametrize("command", sorted(TARGET_HANDLERS))
+def test_app_commands_need_a_target_outside_a_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    seen = _record_targets(monkeypatch)
+
+    assert main([command]) == 2
+    assert seen == []
+    assert capsys.readouterr().err == (
+        "error: pass TARGET outside a project with hinoki.toml\n"
+    )
+
+
+def test_an_explicit_target_wins_over_the_manifest_application(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = create("sample", tmp_path)
+    monkeypatch.chdir(project)
+    seen = _record_targets(monkeypatch)
+
+    for command in TARGET_HANDLERS:
+        assert main([command, "other.main:create_app"]) == 0
+    assert seen == ["other.main:create_app"] * len(TARGET_HANDLERS)
+
+
+def test_routes_without_a_target_load_the_project_app_from_a_subdirectory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    name = f"routed{uuid4().hex[:10]}"
+    project = create(name, tmp_path)
+    monkeypatch.chdir(project / name)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+
+    assert main(["routes"]) == 0
+    assert "/health" in capsys.readouterr().out
+
+
 def test_app_command_refuses_duplicates_and_preserves_existing_files(
     tmp_path: Path,
 ) -> None:
@@ -498,6 +577,50 @@ def test_multi_app_preview_rejects_name_as_ambiguous(
 
     assert main(["migrations", "plan", "--dry-run", "--name", "preview"]) == 1
     assert "--name requires --app for a multi-app preview" in capsys.readouterr().err
+
+
+def test_multi_app_plan_without_an_app_names_the_positional_form(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    assert main(["migrations", "plan"]) == 1
+    error = capsys.readouterr().err
+    assert f"multiple apps ({name}, billing)" in error
+    assert "`hinoki migrations plan <app>`" in error
+    assert not list(project.rglob("*.sql"))
+
+
+def test_migration_sql_searches_every_app_and_refuses_an_ambiguous_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _billing_models = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    assert main(["migrations", "plan", name, "--name", "shared"]) == 0
+    assert main(["migrations", "plan", "billing", "--name", "shared"]) == 0
+    billing_dir = project / name / "apps" / "billing" / "migrations"
+    (billing_dir / "0002-billing-only.sql").write_text(
+        "-- billing only\n", encoding="utf-8"
+    )
+    capsys.readouterr()
+
+    assert main(["migrations", "sql", "0002-billing-only"]) == 0
+    assert capsys.readouterr().out == "-- billing only\n"
+
+    assert main(["migrations", "sql", "0001-shared"]) == 1
+    error = capsys.readouterr().err
+    assert f"exists in apps {name}, billing" in error and "--app" in error
+
+    assert main(["migrations", "sql", "0001-shared", "--app", "billing"]) == 0
+    assert "create table invoices" in capsys.readouterr().out.lower()
+
+    assert main(["migrations", "sql", "9999-missing"]) == 1
+    assert "no app has a migration named '9999-missing'" in capsys.readouterr().err
 
 
 def test_project_dry_run_shows_destructive_changes_without_write_permission(
