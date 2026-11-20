@@ -1522,16 +1522,6 @@ impl Core {
                 (None, Vec::new())
             }
             Resolved::Route(action, params) => (Some(action), params),
-            Resolved::Missing(_, _) if self.has_policies() => {
-                return self.enqueue(
-                    head,
-                    asked,
-                    (None, Vec::new()),
-                    true,
-                    None,
-                    (NativeInput::default(), false),
-                );
-            }
             Resolved::Missing(early, extra) => return self.answer(&asked, early, extra),
         };
         if let Some(pattern) = action.and_then(|number| self.templates.get(&number)) {
