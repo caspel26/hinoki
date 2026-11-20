@@ -451,3 +451,14 @@ def test_password_checks_hold_no_connection_and_are_rate_limited() -> None:
         assert routes[path].atomic is False  # hashing waits with no connection
         assert routes[path].rate_limit is not None
     assert routes["/admin/logout"].atomic is True
+
+
+def test_search_cannot_name_an_excluded_column() -> None:
+    from hinoki.admin import ModelAdmin  # noqa: PLC0415 - only this test
+
+    class Notes(ModelAdmin, model=LoginNote):  # type: ignore[type-arg]
+        exclude = ("title",)
+        search = ("title",)
+
+    with pytest.raises(RegistrationError, match="search names excluded columns"):
+        Admin(secret="s" * 40).register(Notes)
