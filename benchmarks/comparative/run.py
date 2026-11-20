@@ -97,6 +97,8 @@ LABELS = {
 CONCURRENCY = 64
 WARMUP = 10
 DURATION = 20
+QUIET_POLL = 10
+QUIET_TIMEOUT = 1800
 SCENARIOS = {
     "health": ("GET", "/health", None),
     "list": ("GET", "/posts?page=1&page_size=20", None),
@@ -258,6 +260,7 @@ def environment(args: argparse.Namespace) -> dict:
             "concurrency": CONCURRENCY,
             "warmup_s": args.warmup,
             "duration_s": args.duration,
+            "max_load": args.max_load,
             "runs": args.runs,
             "run_offset": args.run_offset,
             "scenarios": args.scenario or list(SCENARIOS),
@@ -279,6 +282,12 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--scenario", choices=tuple(SCENARIOS), nargs="+")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--duration", type=int, default=DURATION)
+    parser.add_argument(
+        "--max-load",
+        type=float,
+        default=None,
+        help="wait before every sample until the one-minute load average is at most this",
+    )
     parser.add_argument("--warmup", type=int, default=WARMUP)
     return parser.parse_args()
 
@@ -341,6 +350,25 @@ def record_worker_cpu(process: subprocess.Popen, output: Path) -> None:
     output.write_text("pid pgid cputime command\n" + "\n".join(mine) + "\n")
 
 
+def wait_for_quiet(max_load: float | None, log: Path, label: str) -> None:
+    """Hold the next sample until the one-minute load average is at most ``max_load``.
+
+    Every sample's starting load is appended to ``log``. Giving up after
+    ``QUIET_TIMEOUT`` seconds stops the run instead of measuring on a busy host.
+    """
+    deadline = time.monotonic() + QUIET_TIMEOUT
+    load = os.getloadavg()[0]
+    while max_load is not None and load > max_load:
+        if time.monotonic() > deadline:
+            raise SystemExit(
+                f"load average stayed above {max_load} for {QUIET_TIMEOUT} s before {label}"
+            )
+        time.sleep(QUIET_POLL)
+        load = os.getloadavg()[0]
+    with log.open("a") as handle:
+        handle.write(f"{label} load1={load:.2f}\n")
+
+
 def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) -> None:
     reset_db()
     process = start(name, args.out / f"{name}-server.log")
@@ -357,6 +385,11 @@ def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) ->
             oha(url, method, data, args.warmup, None)
             for run in range(1, args.runs + 1):
                 sample = run + args.run_offset
+                wait_for_quiet(
+                    args.max_load,
+                    args.out / "loadavg.txt",
+                    f"{name}-{scenario}-{sample}",
+                )
                 oha(
                     url,
                     method,
