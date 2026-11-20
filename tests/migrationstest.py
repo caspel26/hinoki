@@ -972,6 +972,7 @@ def test_migrations_take_the_app_as_an_argument_or_as_an_option(
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setenv("HINOKI_DATABASE_URL", f"sqlite://{tmp_path / 'argument.db'}")
     written = package / "migrations"
 
     assert main(["migrations", "plan", "argumentapp", "--check"]) == 1
