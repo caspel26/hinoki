@@ -49,6 +49,20 @@ If the handler raises, response encoding/rendering fails, the request times out,
 `RouteGroup(..., atomic=True)` makes `POST`, `PUT`, `PATCH` and `DELETE` atomic
 by default; `GET` actions are not. An action opts out with `atomic=False`.
 
+A project created with `hinoki new` enforces `Transactions.require_atomic()`
+(`HNK-TXN-001`), so a write that opts out stops `hinoki check` and startup until
+you record the decision. List the action in `except_` in `notes/rules.py`:
+
+```python
+# notes/rules.py
+project_rules = RuleSet(
+    # ... the other rules
+    Transactions.require_atomic(except_=["notes.apps.billing.api.remind"]),
+)
+```
+
+A temporary exception goes in `hinoki-rules.toml` instead ([waivers](rules.md#accept-an-exception-with-a-waiver)).
+
 ## Atomic blocks and functions in application code
 
 `db.atomic` (`from hinoki import db`) opens the same kind of scope in your own code, on the database that is current for the task: the one a request makes active, or the one set with `hinoki.orm.use_database(...)`. Use it as a block:
