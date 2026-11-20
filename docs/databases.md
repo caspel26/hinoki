@@ -14,6 +14,52 @@ selects the backend; models and queries stay the same wherever the backends'
 SQL features overlap. With nothing configured, the database is local SQLite at
 `.hinoki/local.sqlite3`.
 
+## Set up a database in four steps
+
+1. **Declare it.** `hinoki new notes --database postgresql` does this for you;
+   otherwise add the field to your settings class:
+
+    ```python
+    # notes/settings.py
+    class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
+        database: settings.DatabaseSettings
+    ```
+
+2. **Populate it.** `DatabaseSettings` has no values of its own until you give
+   it some. Pick one source:
+
+    | Source | Use it for | Example |
+    | --- | --- | --- |
+    | Nothing | local development: a SQLite file at `.hinoki/local.sqlite3` | – |
+    | `.env` | one URL on your machine (copy `.env.example`; add `.env` to `.gitignore`) | `NOTES_DATABASE__URL=postgresql://notes:secret@localhost:5432/notes` |
+    | Environment | containers and CI | `export NOTES_DATABASE__URL_FILE=/run/secrets/database-url` |
+    | `settings.toml` | non-secret fields (`engine`, `host`, `name`, `user`), with the password from the environment | [connection fields](#connection-fields) |
+
+    The prefix (`NOTES_`) comes from the settings class, and `__` separates the
+    group from the field.
+
+3. **Check it.** `hinoki settings` shows each value with its source; the URL
+   and the password are redacted:
+
+    ```console
+    $ hinoki settings | grep DATABASE__URL
+    NOTES_DATABASE__URL                      .env         ***
+    ```
+
+    `hinoki migrations status` names the database it will use, and fails with
+    a clear error if the server does not answer:
+
+    ```console
+    $ hinoki migrations status
+    database: postgresql://***@127.0.0.1:5432/notes (from settings: ProjectSettings.database)
+    ```
+
+4. **Create the tables.** Hinoki never creates or migrates a database at
+   startup: run `hinoki migrations apply` once you have models
+   ([migrations](migrations.md)).
+
+The rest of this page lists every field, the URL forms and each backend.
+
 ## Configure the application
 
 Declare a `database` field on the project settings. `hinoki new` adds it when
