@@ -185,7 +185,9 @@ tests/projects/rulesapp.py:7: HNK-ACC-001 [waived] GET /health (health) declares
 ```
 
 An expired waiver stops applying and reports `HNK-WVR-002`; one that matches
-nothing reports `HNK-WVR-001` (both warnings). A diagnostic that means "the rule
+nothing reports `HNK-WVR-001`. Both are warnings: they print as `[warning]`,
+count under `warning(s)` in the summary (`summary.warning` in JSON, never
+`violated`) and never change the exit code. A diagnostic that means "the rule
 could not do its job" cannot be waived. An invalid or unreadable file makes
 `hinoki check` exit with `2`.
 
