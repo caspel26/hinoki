@@ -123,7 +123,7 @@ kbd {
   -webkit-backdrop-filter: saturate(150%) blur(10px);
   box-shadow: var(--hn-soft);
   pointer-events: auto;
-  transition: background var(--hn-dur-2) var(--hn-ease), border-color var(--hn-dur-2) var(--hn-ease), box-shadow var(--hn-dur-2) var(--hn-ease), backdrop-filter var(--hn-dur-2) var(--hn-ease);
+  transition: background var(--hn-dur-2) var(--hn-ease), border-color var(--hn-dur-2) var(--hn-ease), box-shadow var(--hn-dur-2) var(--hn-ease);
 }
 
 /* Once the page scrolls, the bar turns to frosted glass. */

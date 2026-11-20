@@ -29,6 +29,9 @@
       document.documentElement.classList.add("js");
     })();
   </script>
+  <link rel="preload" href="static/fonts/plex-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="static/fonts/ibm-plex-mono-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="static/fonts/ibm-plex-mono-latin-500.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="static/css/tokens.css">
   <link rel="stylesheet" href="static/css/base.css">
   <link rel="stylesheet" href="static/css/prose.css">
@@ -159,12 +162,12 @@
         <p class="hn-kicker"><span aria-hidden="true">$</span> hinoki check</p>
         <h1 class="hn-hero__title" id="hn-hero-title" aria-label="A Python API framework that checks its own architecture."><span class="hn-w" style="--w:0">A</span> <span class="hn-w" style="--w:1">Python</span> <span class="hn-w" style="--w:2">API</span> <span class="hn-w" style="--w:3">framework</span> <span class="hn-w" style="--w:4">that</span> <span class="hn-w" style="--w:5">checks</span> <span class="hn-w" style="--w:6">its</span> <span class="hn-w" style="--w:7">own</span> <span class="hn-w hn-w--accent" style="--w:8">architecture.</span></h1>
         <p class="hn-hero__lead">Typed Python declarations become one contract shared by routing, validation, access policies, transactions, OpenAPI and development tools. Optional rules check the architectural promises you make.</p>
-        <p class="hn-hero__meta"><span>pre-alpha</span> · <span>Python 3.12+</span> · <span>SQLite</span> · <span>PostgreSQL</span> · <span>MySQL</span> · <span>MariaDB</span> · <span>Rust server Kiso</span> · <span>MIT</span></p>
         <div class="hn-actions">
-          <a class="hn-btn hn-btn--primary" href="quick-start/">Run the quick start</a>
+          <a class="hn-btn hn-btn--primary" href="quick-start/">Run the quick start <span class="hn-btn__arrow" aria-hidden="true">→</span></a>
           <a class="hn-btn hn-btn--ghost" href="#walkthrough">See a project end to end</a>
         </div>
         <a class="hn-bench-link" href="benchmarks/">Read the retained benchmark report <span aria-hidden="true">↗</span></a>
+        <ul class="hn-hero__meta" aria-label="Project facts"><li>pre-alpha</li><li>Python 3.12+</li><li>SQLite</li><li>PostgreSQL</li><li>MySQL</li><li>MariaDB</li><li>Rust server Kiso</li><li>MIT</li></ul>
       </div>
 
       <div class="hn-panel ide" data-hn-panel>
@@ -232,10 +235,10 @@
       </div>
     </div>
 
-    <section class="hn-section reveal" aria-labelledby="hn-index-title">
-      <p class="hn-label"><b>00</b> The manual</p>
-      <h2 id="hn-index-title">Everything, in six sections.</h2>
-      <p class="hn-sub">Open a section to browse its pages.</p>
+    <section class="hn-section" aria-labelledby="hn-index-title">
+      <p class="hn-label reveal"><b>00</b> The manual</p>
+      <h2 id="hn-index-title" class="reveal">Everything, in six sections.</h2>
+      <p class="hn-sub reveal">Open a section to browse its pages.</p>
       
       
       
@@ -300,7 +303,7 @@
 
     <section class="hn-section" aria-labelledby="hn-problem-title">
       <p class="hn-label reveal"><b>01</b> The problem</p>
-      <h2 id="hn-problem-title">Architecture drifts. Hinoki turns each promise into a check.</h2>
+      <h2 id="hn-problem-title" class="reveal">Architecture drifts. Hinoki turns each promise into a check.</h2>
       <ul class="hn-gaps" data-stagger>
         <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">An endpoint that forgot its access policy is public by default.</p><p class="hn-gaps__fix">Declare <code>access=</code>; <a href="rules/#the-eleven-rules"><code>HNK-ACC-001</code></a> fails the check when it is missing.</p></li>
         <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">A write that should be atomic is not.</p><p class="hn-gaps__fix">Declare <code>atomic=True</code>; <code>HNK-TXN-001</code> reports every state-changing action without it.</p></li>
@@ -322,25 +325,25 @@
         </div>
 
         <div class="hn-walk__panel" role="tabpanel" id="hn-wp-model" aria-labelledby="hn-w-model" data-panel="model">
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>models.py</span></div><span class="ide__path">examples/notes</span></div><pre><code><span class="hn-ln" data-line="9"><span class="nd">@db.ordered_by</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span></span><span class="hn-ln" data-line="10"><span class="nd">@db.table</span><span class="p">(</span><span class="s2">"notes"</span><span class="p">)</span></span><span class="hn-ln" data-line="11"><span class="k">class</span> <span class="nc">Note</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span></span><span class="hn-ln" data-line="12">    <span class="n">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span></span><span class="hn-ln" data-line="13">    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></span><span class="hn-ln" data-line="14">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></span></code></pre></div></div>
+          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>models.py</span></div><span class="ide__path">examples/notes/apps/notes</span></div><pre><code><span class="hn-ln" data-line="9"><span class="nd">@db.ordered_by</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span></span><span class="hn-ln" data-line="10"><span class="nd">@db.table</span><span class="p">(</span><span class="s2">"notes"</span><span class="p">)</span></span><span class="hn-ln" data-line="11"><span class="k">class</span> <span class="nc">Note</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span></span><span class="hn-ln" data-line="12">    <span class="n">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span></span><span class="hn-ln" data-line="13">    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></span><span class="hn-ln" data-line="14">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></span></code></pre></div></div>
           <div class="hn-walk__note"><h3>Describe the table</h3><p>A model is a typed class. Hinoki compiles its queries for the configured database in the Rust ORM, and nothing touches a database at import.</p><a class="hn-link" href="models/">Define models</a></div>
         </div>
 
         <div class="hn-walk__panel" role="tabpanel" id="hn-wp-schema" aria-labelledby="hn-w-schema" data-panel="schema" hidden>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>api.py</span></div><span class="ide__path">examples/notes</span></div><pre><code><span class="hn-ln" data-line="11"><span class="k">class</span> <span class="nc">NoteIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span></span><span class="hn-ln" data-line="12">    <span class="n">title</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)]</span></span><span class="hn-ln" data-line="13">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></span><span class="hn-ln" data-line="16"><span class="k">class</span> <span class="nc">NoteOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span></span><span class="hn-ln" data-line="17">    <span class="n">id</span><span class="p">:</span> <span class="n">UUID</span></span><span class="hn-ln" data-line="18">    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span></span><span class="hn-ln" data-line="19">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span></span></code></pre></div></div>
+          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>api.py</span></div><span class="ide__path">examples/notes/apps/notes</span></div><pre><code><span class="hn-ln" data-line="11"><span class="k">class</span> <span class="nc">NoteIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span></span><span class="hn-ln" data-line="12">    <span class="n">title</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)]</span></span><span class="hn-ln" data-line="13">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></span><span class="hn-ln" data-line="16"><span class="k">class</span> <span class="nc">NoteOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span></span><span class="hn-ln" data-line="17">    <span class="n">id</span><span class="p">:</span> <span class="n">UUID</span></span><span class="hn-ln" data-line="18">    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span></span><span class="hn-ln" data-line="19">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span></span></code></pre></div></div>
           <div class="hn-walk__note"><h3>State what crosses the boundary</h3><p>Validation is strict, with no coercion. A response exposes only the fields its <code>Schema</code> names.</p><a class="hn-link" href="schemas/">Schemas</a></div>
         </div>
 
         <div class="hn-walk__panel" role="tabpanel" id="hn-wp-endpoint" aria-labelledby="hn-w-endpoint" data-panel="endpoint" hidden>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>api.py</span></div><span class="ide__path">examples/notes</span></div><pre><code><span class="hn-ln" data-line="22"><span class="n">notes</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/notes"</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></span><span class="hn-ln hn-ln--gap" data-line="…"></span><span class="hn-ln" data-line="35"><span class="nd">@notes.post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span></span><span class="hn-ln" data-line="36"><span class="k">async</span> <span class="k">def</span> <span class="nf">create_note</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">NoteIn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NoteOut</span><span class="p">:</span></span><span class="hn-ln" data-line="37">    <span class="k">return</span> <span class="n">NoteOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="k">await</span> <span class="n">Note</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">))</span></span></code></pre></div></div>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>api.py</span></div><span class="ide__path">examples/tracker</span></div><pre><code><span class="hn-ln" data-line="24"><span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span></span><span class="hn-ln" data-line="25">    <span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span></span><span class="hn-ln" data-line="26"><span class="p">)</span>  <span class="c1"># stated once for the group</span></span></code></pre></div></div>
+          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>api.py</span></div><span class="ide__path">examples/notes/apps/notes</span></div><pre><code><span class="hn-ln" data-line="22"><span class="n">notes</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/notes"</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></span><span class="hn-ln hn-ln--gap" data-line="…"></span><span class="hn-ln" data-line="35"><span class="nd">@notes.post</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span></span><span class="hn-ln" data-line="36"><span class="k">async</span> <span class="k">def</span> <span class="nf">create_note</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">NoteIn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NoteOut</span><span class="p">:</span></span><span class="hn-ln" data-line="37">    <span class="k">return</span> <span class="n">NoteOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="k">await</span> <span class="n">Note</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">))</span></span></code></pre></div></div>
+          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>api.py</span></div><span class="ide__path">examples/tracker/apps/tracker</span></div><pre><code><span class="hn-ln" data-line="24"><span class="n">tasks</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span></span><span class="hn-ln" data-line="25">    <span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span></span><span class="hn-ln" data-line="26"><span class="p">)</span>  <span class="c1"># stated once for the group</span></span></code></pre></div></div>
           <div class="hn-walk__note"><h3>Declare behaviour beside the action</h3><p>Access, transactions and errors are options of the decorator or defaults of a group. The same declaration feeds routing, OpenAPI and the rules.</p><a class="hn-link" href="endpoints/">Requests and responses</a></div>
         </div>
 
         <div class="hn-walk__panel" role="tabpanel" id="hn-wp-check" aria-labelledby="hn-w-check" data-panel="check" hidden>
           <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>rules.py</span></div><span class="ide__path">examples/tracker</span></div><pre><code><span class="hn-ln" data-line="8"><span class="n">tracker_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span></span><span class="hn-ln" data-line="9">    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"tracker.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"tracker.api.health"</span><span class="p">]),</span></span><span class="hn-ln" data-line="10">    <span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"tracker.*"</span><span class="p">),</span></span><span class="hn-ln ide-fold" data-line="11">▸ 14 more lines</span><span class="hn-ln" data-line="25"><span class="p">)</span></span></code></pre></div></div>
           <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--sh"></i>terminal</span></div></div><pre><code><span class="hn-ln"><span class="gp">$</span> cd examples</span><span class="hn-ln"><span class="gp">$</span> uv run hinoki check tracker.main:app</span><span class="hn-ln">13 rule(s): 0 violated, 0 unverifiable, 0 waived</span></code></pre></div></div>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--sql"></i>0001-initial.sql</span></div><span class="ide__path">examples/tracker/migrations</span></div><pre><code><span class="hn-ln" data-line="1"><span class="c1">-- hinoki migration 0001-initial</span></span><span class="hn-ln" data-line="2"><span class="c1">-- generated from the models; review it.</span></span><span class="hn-ln" data-line="3"> </span><span class="hn-ln" data-line="4"><span class="c1">-- create table tracker_members</span></span><span class="hn-ln" data-line="5"><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="ss">"tracker_members"</span> <span class="p">(</span></span><span class="hn-ln" data-line="6">    <span class="ss">"id"</span> <span class="n">uuid</span> <span class="k">PRIMARY KEY</span><span class="p">,</span></span><span class="hn-ln" data-line="7">    <span class="ss">"name"</span> <span class="nb">varchar</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span> <span class="k">NOT NULL</span><span class="p">,</span></span><span class="hn-ln" data-line="8">    <span class="ss">"token"</span> <span class="nb">text</span> <span class="k">NOT NULL UNIQUE</span></span><span class="hn-ln" data-line="9"><span class="p">);</span></span></code></pre></div></div>
+          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--sql"></i>0001-initial.sql</span></div><span class="ide__path">examples/tracker/apps/tracker/migrations</span></div><pre><code><span class="hn-ln" data-line="1"><span class="c1">-- hinoki migration 0001-initial</span></span><span class="hn-ln" data-line="2"><span class="c1">-- generated from the models; review it.</span></span><span class="hn-ln" data-line="3"> </span><span class="hn-ln" data-line="4"><span class="c1">-- create table tracker_members</span></span><span class="hn-ln" data-line="5"><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="ss">"tracker_members"</span> <span class="p">(</span></span><span class="hn-ln" data-line="6">    <span class="ss">"id"</span> <span class="n">uuid</span> <span class="k">PRIMARY KEY</span><span class="p">,</span></span><span class="hn-ln" data-line="7">    <span class="ss">"name"</span> <span class="nb">varchar</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span> <span class="k">NOT NULL</span><span class="p">,</span></span><span class="hn-ln" data-line="8">    <span class="ss">"token"</span> <span class="nb">text</span> <span class="k">NOT NULL UNIQUE</span></span><span class="hn-ln" data-line="9"><span class="p">);</span></span></code></pre></div></div>
           <div class="hn-walk__note"><h3>Check it, then review SQL</h3><p>Run rules from the example project. Migrations are SQL files you review and apply explicitly; startup never changes tables.</p><a class="hn-link" href="migrations/">Migrations</a></div>
         </div>
       </div>
@@ -378,8 +381,8 @@
 
     <section class="hn-section" aria-labelledby="hn-rules-title">
       <p class="hn-label reveal"><b>05</b> Rules</p>
-      <h2 id="hn-rules-title">Eleven rules ship today. All are optional.</h2>
-      <div class="hn-explorer" data-hn-explorer>
+      <h2 id="hn-rules-title" class="reveal">Eleven rules ship today. All are optional.</h2>
+      <div class="hn-explorer reveal" data-hn-explorer>
         <div class="hn-explorer__filters" data-slider role="group" aria-label="Filter rules by phase">
           <button type="button" data-phase="all" aria-pressed="true">all <span>11</span></button>
           <button type="button" data-phase="startup" aria-pressed="false">startup <span>10</span></button>
@@ -444,7 +447,7 @@
             </div>
             <div data-detail="imp" hidden>
               <p class="hn-file">declaration</p><pre><code>Imports.<span class="f">forbid</span>(
-    source<span class="o">=</span><span class="s">"tracker.models"</span>, target<span class="o">=</span><span class="s">"tracker.api"</span>
+    source<span class="o">=</span><span class="s">"tracker.apps.tracker.models"</span>, target<span class="o">=</span><span class="s">"tracker.apps.tracker.api"</span>
 )</code></pre>
               <p class="hn-note">Read from the source files; dynamic imports are reported, not ignored. Example output: see the <a href="rules/">Rules guide</a>.</p>
             </div>
@@ -456,8 +459,8 @@
 
     <section class="hn-section" aria-labelledby="hn-who-title">
       <p class="hn-label reveal"><b>06</b> Fit</p>
-      <h2 id="hn-who-title">Who it is for, and who it is not for yet.</h2>
-      <div class="hn-who">
+      <h2 id="hn-who-title" class="reveal">Who it is for, and who it is not for yet.</h2>
+      <div class="hn-who reveal">
         <div class="hn-who__col hn-who__col--yes">
           <h3>A fit today</h3>
           <ul>
@@ -480,9 +483,9 @@
 
     <section class="hn-section" aria-labelledby="hn-start-title">
       <p class="hn-label reveal"><b>07</b> Start</p>
-      <h2 id="hn-start-title">Start from a checkout.</h2>
-      <p class="hn-sub">This repository's Hinoki framework is not published on PyPI; the <code>hinoki</code> name belongs to an unrelated legacy package. These commands come from the README and the quick start.</p>
-      <div class="hn-walk" data-hn-tabs>
+      <h2 id="hn-start-title" class="reveal">Start from a checkout.</h2>
+      <p class="hn-sub reveal">This repository's Hinoki framework is not published on PyPI; the <code>hinoki</code> name belongs to an unrelated legacy package. These commands come from the README and the quick start.</p>
+      <div class="hn-walk reveal" data-hn-tabs>
         <div class="hn-walk__tabs" data-slider role="tablist" aria-label="Commands">
           <button type="button" role="tab" id="hn-c-install" aria-controls="hn-cp-install" aria-selected="true" data-tab="install">Install</button>
           <button type="button" role="tab" id="hn-c-run" aria-controls="hn-cp-run" aria-selected="false" tabindex="-1" data-tab="run">Run an example</button>
@@ -509,7 +512,7 @@
     <div class="hn-band__inner">
       <h2>Hinoki is pre-alpha.</h2>
       <p>APIs can still change. The status page lists what is implemented, what is a boundary today, and what is not available.</p>
-      <p class="hn-band__links"><a class="hn-link" href="status/">Project status</a> <a class="hn-link" href="https://github.com/caspel26/hinoki">Source on GitHub</a></p>
+      <p class="hn-band__links"><a class="hn-btn hn-btn--primary" href="status/">Project status <span class="hn-btn__arrow" aria-hidden="true">→</span></a> <a class="hn-btn hn-btn--ghost" href="https://github.com/caspel26/hinoki">Source on GitHub</a></p>
     </div>
   </div>
 
