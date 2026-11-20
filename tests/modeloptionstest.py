@@ -394,7 +394,7 @@ def test_unique_names_are_validated() -> None:
 
 
 def test_abstract_models_cannot_name_a_unique_constraint() -> None:
-    with pytest.raises(RegistrationError, match="abstract model .* name"):
+    with pytest.raises(RegistrationError, match=r"abstract model .* name"):
 
         @db.unique("owner", "slug", name="uq_mo_owned_slug")
         class NamedBase(Model, abstract=True):
@@ -445,7 +445,7 @@ def two_columns(table: str, name: str) -> type[Model]:
 
 def test_unique_names_must_not_collide_with_other_database_names() -> None:
     first = two_columns("mo_pair_one", "uq_mo_pair")
-    with pytest.raises(MigrationError, match="'UQ_MO_PAIR'.*mo_pair_one"):
+    with pytest.raises(MigrationError, match=r"'UQ_MO_PAIR'.*mo_pair_one"):
         state_of([first, two_columns("mo_pair_two", "UQ_MO_PAIR")])
     with pytest.raises(MigrationError, match="table mo_pair_one"):
         state_of([first, two_columns("mo_pair_three", "mo_pair_one")])

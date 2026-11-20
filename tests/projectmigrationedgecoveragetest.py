@@ -363,5 +363,5 @@ def test_plan_project_sees_constraint_names_of_unrelated_apps(
     models = {"billing": [paired("pp_invoices")], "crm": [paired("pp_contacts")]}
     monkeypatch.setattr(ProjectManifest, "all_models", lambda _self: models)
     args = argparse.Namespace(app="billing")
-    with pytest.raises(MigrationError, match="uq_shared_pair.*pp_invoices"):
+    with pytest.raises(MigrationError, match=r"uq_shared_pair.*pp_invoices"):
         projectmigrations.plan_project(args, manifest)
