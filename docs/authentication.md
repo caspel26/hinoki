@@ -101,7 +101,9 @@ from hinoki.crypto import ClaimsJWTAuth, JWTKey
 
 
 class Tokens(ClaimsJWTAuth):
-    keys = [JWTKey("2026-11", "HS256", b"0123456789abcdef0123456789abcdef")]  # read it from a Secret
+    keys = [
+        JWTKey("2026-11", "HS256", b"0123456789abcdef0123456789abcdef")
+    ]  # read it from a Secret
     issuer = "https://api.example.com"
     audience = "notes"
 
