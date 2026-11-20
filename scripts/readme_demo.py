@@ -6,11 +6,10 @@ Run from the repository root after ``uv sync --locked``, with port 8000 free::
         --with brotli==1.1.0 python scripts/readme_demo.py
 
 The script runs the real ``hinoki`` CLI in pseudo-terminals inside a throw-away
-directory and records one story: the interactive ``hinoki new notebook``
-(answered with key presses), ``hinoki app create notes``, ``cat`` of the notes
-app's endpoint, ``hinoki check`` failing because the write does not declare
-``atomic=True``, ``sed`` adding it, ``hinoki check`` passing, ``hinoki dev``
-serving the project on Kiso and ``curl`` creating a note through it. A terminal
+directory and records one story: the interactive ``hinoki new blog`` (answered
+with key presses, down to its last question, "Create an app now?", and the name
+``posts``), ``hinoki check`` passing, ``hinoki dev`` serving the project on Kiso
+with its docs URL and ``curl`` creating a post through it. A terminal
 emulator (pyte) keeps the screen; every frame of the GIF is that screen drawn
 with IBM Plex Mono from ``theme/static/fonts`` inside a drawn window, between
 title cards made from ``lockup-dark.svg``. Glyphs Plex Mono lacks (the ``◢◤``
@@ -30,8 +29,9 @@ message changes.
 
 There is no shell: the script draws the prompt and the typing, and carries out
 ``cd`` and the ``&`` that leaves ``hinoki dev`` serving (a shell's job notice is
-not drawn). It writes the notes app's files between ``hinoki app create`` and
-``cat``, and plans and applies the migration of the notes table off screen,
+not drawn). It writes the posts app's files (access policy, model and
+endpoint) after ``hinoki new``, and plans and applies the migration of the posts
+table off screen,
 because ``hinoki migrations`` prints the absolute path of the throw-away
 database.
 
@@ -41,12 +41,12 @@ frames per second is the smoothest rate a GIF plays reliably (60 is not
 representable). A frame that does not change the picture is merged into the
 previous one, so the file holds only distinct frames.
 
-The children get ``NOTEBOOK_ALLOWED_HOSTS`` (a documented setting) so ``hinoki
+The children get ``BLOG_ALLOWED_HOSTS`` (a documented setting) so ``hinoki
 dev`` does not log the ``allowed_hosts is '*'`` warning meant for deployments,
 and ``hinoki new`` skips ``uv sync``: the commands run with this checkout's
 ``hinoki``.
 
-It needs ``ffmpeg``, ``fc-match``, ``rsvg-convert``, ``git``, ``sed`` and
+It needs ``ffmpeg``, ``fc-match``, ``rsvg-convert``, ``git`` and
 ``curl`` on the PATH.
 """
 
@@ -66,7 +66,6 @@ import signal
 import socket
 import struct
 import subprocess
-import sys
 import tempfile
 import termios
 import time
@@ -95,7 +94,7 @@ MARGIN_X, MARGIN_Y, RADIUS = 30, 24, 12  # backdrop around the rounded window
 WIDTH, HEIGHT = WIN_W + 2 * MARGIN_X, WIN_H + 2 * MARGIN_Y
 PAD_X = MARGIN_X + INSET_X
 PAD_Y = MARGIN_Y + BAR + INSET_Y
-TITLE = "hinoki \u2014 notebook"
+TITLE = "hinoki \u2014 blog"
 TAGLINE = "Typed Python APIs. Architecture rules you can run."
 SITE = "hinoki.caspel.dev"
 CARD_MS = 1600  # the title card before and after the session
@@ -111,7 +110,7 @@ LOGO_CHUNK = re.compile(
     rb"\x1b_G([^;\x1b]*);[^\x1b]*\x1b\\"
 )  # one kitty graphics chunk
 TICK = 20  # ms: one frame at 50 fps, the shortest GIF delay browsers honour
-INTRO_MS, OUTRO_MS = 1800, 700  # the title card that opens and closes the loop
+INTRO_MS, OUTRO_MS = 1400, 700  # the title card that opens and closes the loop
 FADE_MS = 200  # cross-fade between the title card and the terminal
 BLINK_MS = 500  # the cursor's on and off phases while the terminal waits
 OUTPUT_CAP_MS = 400  # longest pause kept between two outputs of a program
@@ -121,6 +120,7 @@ SPIN_FRAMES = 32  # frames kept of a run where one line animates (the shimmer fi
 SETTLE_S = 0.35  # quiet time before a key is pressed
 TYPING_SEED = 26  # the typing rhythm is irregular but the same on every run
 HESITATE = 0.05  # chance that a typed character is followed by a pause
+LONG_LINE = 40  # a typed command longer than this is typed faster
 REVEAL_LINES = 3  # lines printed at once that appear one after another
 
 COLORS = {
@@ -150,24 +150,24 @@ ANSI = {
 }
 
 # Not ``journal``: systemd's JOURNAL_STREAM would read as an unknown setting.
-PROJECT, APP = "notebook", "notes"
-ACCESS = '''"""Who may write notes."""
+PROJECT, APP = "blog", "posts"
+ACCESS = '''"""Who may write posts."""
 
 from hinoki import Access, BearerAuth, Caller, Permission
 
 
-class NotePermission(Permission):
-    WRITE = "notes:write"
+class PostPermission(Permission):
+    WRITE = "posts:write"
 
 
 class Tokens(BearerAuth[str]):
     async def resolve_token(self, token: str) -> Caller[str] | None:
         if token != "demo-token":
             return None
-        return Caller(id="ann", user="ann", permissions={NotePermission.WRITE})
+        return Caller(id="ann", user="ann", permissions={PostPermission.WRITE})
 
 
-editors = Access(auth=Tokens(), permissions=[NotePermission.WRITE])
+editors = Access(auth=Tokens(), permissions=[PostPermission.WRITE])
 '''
 
 MODEL = '''"""Models owned by this app."""
@@ -177,47 +177,45 @@ from uuid import UUID, uuid4
 from hinoki.orm import Model, field, pk
 
 
-class Note(Model):
+class Post(Model):
     id: UUID = pk(default_factory=uuid4)
     title: str = field(max_length=80)
     body: str = ""
 '''
 
-# ``cat`` shows all of it on one cleared screen (22 lines).
 API = f"""from typing import Annotated
 
 from hinoki import Field, RouteGroup, Schema, derive
 
-from {PROJECT}.apps.notes.access import editors
-from {PROJECT}.apps.notes.models import Note
+from {PROJECT}.apps.posts.access import editors
+from {PROJECT}.apps.posts.models import Post
 
 
-class NoteIn(Schema):
+class PostIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=80)]
 
 
-@derive(Note)
-class NoteOut(Schema): ...
+@derive(Post)
+class PostOut(Schema): ...
 
 
-notes = RouteGroup(access=editors)
+posts = RouteGroup(access=editors, atomic=True)
 
 
-@notes.post("/", status=201)
-async def create_note(data: NoteIn) -> NoteOut:
-    return NoteOut.from_model(await Note.acreate(data))
+@posts.post("/", status=201)
+async def create_post(data: PostIn) -> PostOut:
+    return PostOut.from_model(await Post.acreate(data))
 """
 
-ROUTES = f'''"""Routes of the notes app, mounted at /notes by hinoki.toml."""
+ROUTES = f'''"""Routes of the posts app, mounted at /posts by hinoki.toml."""
 
-from {PROJECT}.apps.notes.api import notes
+from {PROJECT}.apps.posts.api import posts
 
-routes = [notes]
+routes = [posts]
 '''
 APP_DIR = f"{PROJECT}/apps/{APP}"
-ATOMIC = "s/editors)/editors, atomic=True)/"  # the sed script the demo runs
 TOKEN = "demo-token"  # noqa: S105 - accepted only by the throw-away app
-NOTE = '{"title":"Ship it"}'
+POST = '{"title":"Ship it"}'
 
 Cell = tuple[str, str, str, bool, bool, bool]  # text, fg, bg, bold, reverse, faint
 Row = tuple[Cell, ...]
@@ -480,9 +478,11 @@ class Session:
         """Type ``text`` at the prompt (there is no shell: the line is drawn)."""
         self.prompt()
         self.hold(think_ms)
+        # A long command is typed faster, as a practised hand would.
+        speed = 0.6 if len(text) > LONG_LINE else 1.0
         for index, char in enumerate(text):
-            self.emit(char, keystroke(self.rng, text, index), pinned=True)
-        self.hold(320)
+            delay = round(keystroke(self.rng, text, index) * speed)
+            self.emit(char, max(delay, TICK), pinned=True)
         self.emit("\r\n", TICK)
         self.prompted = False
         self.clock = time.monotonic()
@@ -633,7 +633,7 @@ def child_env(hinoki: Path) -> dict[str, str]:
 
 
 def new_keys(session: Session) -> list[Key]:
-    """Answers to ``hinoki new``: name ``notebook``, SQLite, no ``uv sync``."""
+    """Answers to ``hinoki new``: ``blog``, SQLite, no ``uv sync``, app ``posts``."""
     typed = session.keys(PROJECT, 900)
     # The banner image arrives before the prompt reads keys: wait for the prompt.
     typed[0] = replace(typed[0], wait_for="Project name")
@@ -647,11 +647,19 @@ def new_keys(session: Session) -> list[Key]:
         *(Key(ENTER, 380) for _ in range(3)),  # agent files, skills, git
         Key("n", 600),  # install: this checkout's hinoki is already on the PATH
         Key(ENTER, 350),
+        Key(ENTER, 800, wait_for="Create an app now?"),  # yes: the default
+        *replace_first(session.keys(APP, 700), wait_for="App name"),
+        Key(ENTER, 500),
     ]
 
 
+def replace_first(keys: list[Key], **changes: Any) -> list[Key]:
+    """``keys`` with ``changes`` applied to the first one."""
+    return [replace(keys[0], **changes), *keys[1:]]
+
+
 def write_app(project: Path) -> None:
-    """Fill in the notes app ``hinoki app create`` made."""
+    """Fill in the posts app ``hinoki new`` created."""
     package = project / APP_DIR
     (package / "access.py").write_text(ACCESS)
     (package / "models.py").write_text(MODEL)
@@ -691,52 +699,28 @@ def refuse(session: Session, *texts: str) -> None:
 
 
 def create_project(session: Session, workdir: Path) -> Path:
-    """``hinoki new notebook``, ``cd notebook`` and ``hinoki app create notes``."""
-    new = Scene(["hinoki", "new"], keys=new_keys(session), hold_ms=2400, timeout_s=600)
+    """``hinoki new blog`` with its app, then ``cd blog``."""
+    new = Scene(["hinoki", "new"], keys=new_keys(session), hold_ms=1800, timeout_s=600)
     session.run(new, workdir)
     project = workdir / PROJECT
     if not (project / "hinoki.toml").is_file():
         raise DemoError(f"hinoki new did not create {PROJECT}/hinoki.toml")
-    session.type_line(f"cd {PROJECT}")
-    session.run(Scene(["clear"], hold_ms=200), project)
-    create = Scene(
-        ["hinoki", "app", "create", APP],
-        keys=[
-            Key(ENTER, 800, wait_for="URL prefix"),  # the default: /notes
-            Key(ENTER, 600, wait_for="Depends on"),  # nothing
-        ],
-        hold_ms=1500,
-    )
-    session.run(create, project)
     expect(session, f"Created app {APP}")
     write_app(project)
-    session.run(Scene(["clear"], hold_ms=200), project)
-    session.run(Scene(["cat", f"{APP_DIR}/api.py"], hold_ms=3400), project)
+    session.type_line(f"cd {PROJECT}")
     return project
 
 
 def check_rules(session: Session, project: Path) -> None:
-    """``hinoki check`` fails on the write, ``sed`` declares it atomic, it passes."""
+    """``hinoki check`` passes on the project and its app."""
     # From here to the request everything fits on one screen: no scrolling.
     session.run(Scene(["clear"], hold_ms=200), project)
-    session.run(Scene(["hinoki", "check"], hold_ms=3800, status=1), project)
-    expect(session, "atomic=True", "1 violated")
-    # BSD sed (macOS) wants a backup suffix after -i; the screen shows the GNU form.
-    in_place = ["-i", ""] if sys.platform == "darwin" else ["-i"]
-    sed = Scene(
-        ["sed", *in_place, ATOMIC, f"{APP_DIR}/api.py"],
-        shown=shlex.join(["sed", "-i", ATOMIC, f"{APP_DIR}/api.py"]),
-        hold_ms=500,
-    )
-    session.run(sed, project)
-    if "atomic=True" not in (project / APP_DIR / "api.py").read_text():
-        raise DemoError("sed did not add atomic=True")
-    session.run(Scene(["hinoki", "check"], hold_ms=2200), project)
+    session.run(Scene(["hinoki", "check"], hold_ms=1800), project)
     expect(session, "0 violated")
 
 
 def serve(session: Session, project: Path) -> None:
-    """Create the notes table, serve the project on Kiso and post a note."""
+    """Create the posts table, serve the project on Kiso and create a post."""
     offscreen(["hinoki", "migrations", "plan", APP], project, session.env)
     offscreen(["hinoki", "migrations", "apply"], project, session.env)
     # The worker imports the app after the banner: wait until it is quiet.
@@ -751,9 +735,9 @@ def serve(session: Session, project: Path) -> None:
             "-H",
             f"authorization: Bearer {TOKEN}",
             "--json",
-            NOTE,
+            POST,
         ],
-        hold_ms=3200,
+        hold_ms=2600,
         settle_s=0.8,  # the server logs the request just after curl exits
     )
     session.run(curl, project)
