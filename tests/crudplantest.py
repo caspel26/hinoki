@@ -2144,6 +2144,24 @@ def test_owner_scope_is_native_on_every_supported_dialect() -> None:
         assert set(owned_pipeline(url).crud_plan_reasons) == {"eligible"}
 
 
+def test_owned_update_read_back_repeats_the_owner_filter() -> None:
+    pipeline = owned_pipeline()
+    plan = next(
+        item.plan
+        for item in pipeline.crud_plan_selections
+        if item is not None and item.action == "update"
+    )
+    templates = {(dialect, kind): sql for dialect, kind, sql in plan.templates()}
+
+    for dialect in ("mysql", "mariadb"):
+        scoped = QuerySet(OwnedNote).filter(id=UUID(int=1), owner_id="o")
+        assert (
+            templates[dialect, "update_read_back"]
+            == scoped.compile(dialect=dialect)[0] + " FOR UPDATE"
+        )
+        assert "`owner_id` = ?" not in templates[dialect, "write_read_back"]
+
+
 @pytest.mark.parametrize(
     "attributes",
     [{"identity_key": lambda user: user.id}],
