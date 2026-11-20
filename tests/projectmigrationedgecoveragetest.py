@@ -35,10 +35,28 @@ def _settings_with_url(url: str) -> type:
 
 
 @pytest.mark.parametrize(
-    "failure", [ImportError("no module"), RuntimeError("boom"), SystemExit(3)]
+    ("failure", "message"),
+    [
+        (
+            ModuleNotFoundError("No module named 'gone'", name="gone"),
+            r"cannot import the application sample\.main:app "
+            r"\(ModuleNotFoundError: 'gone'\)",
+        ),
+        (
+            RuntimeError("boom"),
+            r"cannot load the application sample\.main:app \(RuntimeError\)",
+        ),
+        (
+            SystemExit(3),
+            r"cannot load the application sample\.main:app \(SystemExit\)",
+        ),
+    ],
 )
 def test_an_application_that_cannot_load_stops_the_resolution(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: BaseException
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: BaseException,
+    message: str,
 ) -> None:
     def fail(_target: str) -> object:
         raise failure
@@ -47,7 +65,7 @@ def test_an_application_that_cannot_load_stops_the_resolution(
     monkeypatch.setattr(projectmigrations, "build_app", fail)
     args = argparse.Namespace(database=None)
 
-    with pytest.raises(projectmigrations.SettingsLoadError, match="--database"):
+    with pytest.raises(projectmigrations.DatabaseResolutionError, match=message):
         projectmigrations.migration_database(args, _manifest(tmp_path))
 
 

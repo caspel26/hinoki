@@ -202,7 +202,7 @@ def test_admin_commands_stop_when_the_project_settings_fail(
     code = main(["admin", "create-superuser", "ada", "--password-stdin"])
 
     err = capsys.readouterr().err
-    assert code == 1 and "cannot load the application's settings" in err
+    assert code == 2 and "cannot load the application's settings" in err
     assert "migrations use" not in err
     assert not (project / ".hinoki/local.sqlite3").exists()
 
