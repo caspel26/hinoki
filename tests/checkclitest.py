@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from hinoki import scenario
 from hinoki.__main__ import main
 from hinoki.checkcli import load_object
 from hinoki.rules import Diagnostic, Phase, Severity, Status
@@ -236,6 +237,16 @@ def test_check_that_cannot_run_exits_2(
 ) -> None:
     assert main(["check", *arguments]) == 2
     assert capsys.readouterr().err.startswith("error:")
+
+
+def test_mcp_help_names_the_methods_that_read_scenarios_allow(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        main(["mcp", "--help"])
+    text = " ".join(capsys.readouterr().out.split())
+    assert "GET only" not in text
+    assert "read = " + ", ".join(sorted(scenario.SAFE)) in text
 
 
 def test_a_broken_waiver_file_exits_2(
