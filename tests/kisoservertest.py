@@ -1637,6 +1637,38 @@ class Branded(API):
         return {"brand": "kiso"}
 
 
+@pytest.mark.parametrize("method", ["GET", "HEAD", "DELETE"])
+@pytest.mark.parametrize(
+    "origin", ["https://client.example", "https://evil.example", ""]
+)
+async def test_unrouted_answers_under_policies_match_the_pipeline(
+    origin: str, method: str
+) -> None:
+    app = Hinoki(
+        include=[Branded],
+        settings=AppSettings(
+            allowed_hosts=("t",),
+            cors=CorsSettings(origins=("https://client.example",), credentials=True),
+        ),
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    port = await worker.start()
+    headers = [(b"host", b"t")] + ([(b"origin", origin.encode())] if origin else [])
+    extra = f"origin: {origin}\r\n" if origin else ""
+    try:
+        lanes = record_lanes(worker)
+        for target, status in {"/missing": 404, "/branded": 405}.items():
+            if method != "DELETE" and target == "/branded":
+                continue
+            received = await fetch(port, method, target, extra=extra)
+            served = final_answer(received.status, received.headers, received.body)
+            assert served[0] == status
+            assert served == await pipeline_answer(worker, method, target, headers)
+        assert lanes == []
+    finally:
+        await worker.stop()
+
+
 @pytest.mark.parametrize("method", ["GET", "HEAD"])
 @pytest.mark.parametrize("origin", ["https://client.example", ""])
 async def test_documentation_pages_are_answered_without_python(

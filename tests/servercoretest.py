@@ -515,12 +515,13 @@ def test_docs_and_openapi_paths_are_answered_natively() -> None:
     assert server.drain(10) == []
 
 
-def test_native_policies_run_before_unrouted_python_fallback() -> None:
+def test_native_policies_run_before_unrouted_answers() -> None:
     app = Hinoki(settings=AppSettings(allowed_hosts=("example.com",)))
     server = classifier(app)
     submission = server.submit("GET", "/anything", b"", [(b"host", b"example.com")])
-    assert submission.early is None
-    assert [request.action for request in server.drain(1)] == [None]
+    assert submission.early is not None
+    assert normalized(*submission.early)[0] == 404
+    assert server.drain(1) == []
     denied = server.submit("GET", "/anything", b"", [(b"host", b"wrong.example")])
     assert denied.early is not None
     assert normalized(*denied.early)[0] == 400
@@ -691,9 +692,9 @@ def test_an_asterisk_target_is_not_redirected() -> None:
     app.include(native)
     server = classifier(app)
     submission = server.submit("OPTIONS", "*", b"", [(b"host", b"example.com")])
-    assert submission.early is None  # the Python pipeline answers it
-    [request] = server.drain(1)
-    assert request.action is None
+    assert submission.early is not None  # not redirected: a plain 404, as in Python
+    assert submission.early[0] == 404
+    assert server.drain(1) == []
 
 
 def test_https_selects_the_https_policy_headers() -> None:
