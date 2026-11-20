@@ -200,7 +200,8 @@ are Python objects, and the request crosses the interpreter lock. Rust owns the
 sockets, TLS, the access log, the limits and the end of the response.
 
 * **Request body.** Read in full before the call, up to `execution.max_body_bytes`: `413` above it, `408` if it stalls, `400` if malformed. Kiso therefore answers `413` for a body Granian's WSGI interface would pass on (Granian has no limit).
-* **Response.** Streamed: the head goes out with the first piece, a slow client slows the application down (a bounded buffer), and a client that leaves makes the next write fail and closes the iterable. An exception before the head answers `500` with an empty body and the traceback in the log; after it, the stream is reset instead of ending as complete.
+* **Request headers.** Each becomes `HTTP_*` in the environment, and repeats are joined by a comma; repeated `Cookie` headers (one per cookie, as HTTP/2 clients send them) are joined by `; `. A header whose name contains an underscore is dropped, because `X_Foo` and `X-Foo` would both become `HTTP_X_FOO`; a client could otherwise pose as a header your proxy sets, such as `Remote-User`. Use dashes in custom header names.
+* **Response.** Streamed: the head goes out with the first piece, a slow client slows the application down (a bounded buffer), and a client that leaves makes the next write fail and closes the iterable. An exception before the head answers `500` with an empty body and the traceback in the log; after it, the stream is reset instead of ending as complete. A header value with a line break or another control character is an error in `start_response`, so it answers `500` with the traceback too. A body shorter or longer than the `Content-Length` the application set closes the connection with an error line from Kiso. A `close()` of the iterable that raises after the whole body was sent is logged by the `hinoki.runtime` logger, and the response still ends normally.
 * **Timeout.** `execution.request_timeout` bounds the time until the response starts (`504`). A running sync call cannot be stopped; it keeps its thread until it returns.
 * **Applies:** TLS and HTTP/2, `access_log` and `access_log_format`, `server_timing`, `max_connections`, header and body timeouts, `--workers` and graceful shutdown (`lifecycle.shutdown_timeout`).
 * **Does not apply:** the native lane (`native_dispatch` is refused), host, CORS and redirect policies of the server (a wrapped Hinoki application still applies its own), and `trusted_proxies` (refused: the client address is the TCP peer).
@@ -226,7 +227,7 @@ The path is checked against Kiso and Granian (`--interface wsgi`, with one and t
 - `hinoki dev` reloads with `watchfiles`, also part of the `server` extra, on either server; without it `dev` exits with that message and `serve` still works.
 - `--workers` outside the supported range is refused on Kiso; `0` means "use `server.workers`".
 - `--interface wsgi` with `server.native_dispatch` or `server.trusted_proxies` set on Kiso exits with status `2` and names the setting.
-- `--interface wsgi` with a `Hinoki` application, a factory or a non-callable exits with an error that points to `WSGIAdapter`.
+- `--interface wsgi` with a `Hinoki` application or a non-callable exits with an error that points to `WSGIAdapter`. A factory exits with status `2`: `error: wsgi:create_app is a factory; for --interface wsgi name a WSGI callable, such as WSGIAdapter(app) from hinoki.wsgi`. Build the application at import time instead, as in `wsgi_app = WSGIAdapter(create_app())`.
 - A Kiso-only setting under `--server granian` exits with status `2` and names the setting.
 
 ## See also

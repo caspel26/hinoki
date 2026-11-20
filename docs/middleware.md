@@ -52,7 +52,25 @@ one returned unless it answers itself.
 `MiddlewareRequest` is the head of the request: `method`, `path`, the matched
 route template in `route` (for example `/items/{item_id}`, safe to use as a
 metrics label), lower-case `headers`, the raw `query` string, `client`,
-`scheme` and `request_id`. It has no body and cannot change the request.
+`scheme` and `request_id`. It has no body and cannot change the request:
+`headers` is a read-only mapping, so authentication and the action see the
+headers the client sent.
+
+```python
+class Forge(Middleware):
+    async def __call__(self, request: MiddlewareRequest, call_next: Next) -> Response:
+        request.headers["authorization"] = "Bearer x"  # TypeError: a 500
+        return await call_next()
+```
+
+A middleware that needs to pass data on should answer itself or add response
+headers instead.
+
+The `Response` a middleware returns is checked like one a handler returns,
+also when it is built with `Response.raw(status, body, headers)` from encoded
+parts: a framing or server header (`content-length`, `transfer-encoding`,
+`connection`, `x-request-id`), an invalid name or a line break in a value is a
+`ValueError`, so the request answers `500` instead of a corrupt response.
 
 `call_next()` returns a `Response` with the action's answer. An error the action
 raised is already an HTTP answer, and an `atomic=True` transaction is already
