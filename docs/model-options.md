@@ -61,7 +61,9 @@ distinct columns. A single column uses `field(unique=True)`.
 ```python
 @db.unique("customer_id", "reference", name="uq_quotes_customer_reference")
 class Quote(Model):
-    ...
+    id: UUID = pk(default_factory=uuid4)
+    customer_id: UUID = foreign_key(Customer, on_delete=OnDelete.RESTRICT)
+    reference: str = field(max_length=40)
 ```
 
 * Without `name=` the backend names the constraint. With it, the migration
