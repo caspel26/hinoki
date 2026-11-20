@@ -2,7 +2,7 @@
 
 The order matters because validation, access and transactions have different failure behavior.
 
-1. The Rust server accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see [serving](serving.md#the-rust-server). (With `--server granian`, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)
+1. Kiso accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see [serving](serving.md#kiso). (With `--server granian`, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)
 2. Hinoki matches the method and path.
 3. For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. The request body has not been read yet, so an unauthenticated client cannot make the server buffer it.
 4. Hinoki negotiates the response type from `Accept` (`406` when nothing fits), reads the body of `POST`/`PUT`/`PATCH`/`QUERY` requests, then binds and validates path, query, header and body values before the handler runs.
@@ -16,4 +16,4 @@ The default `execution.request_timeout` is 30 seconds and covers request process
 
 Each request gets a request ID in the configured `server.request_id_header` response header (`x-request-id` by default). Hinoki generates it by default; with `server.trust_request_id=True`, it accepts a validated inbound ID only from a configured trusted proxy. Built-in error JSON includes the same value as `request_id`. Startup and shutdown have separate defaults of 30 and 10 seconds in `lifecycle.startup_timeout` and `lifecycle.shutdown_timeout`; startup failure is reported through the ASGI lifespan protocol, and shutdown runs resource cleanup under its deadline. Application [startup and shutdown hooks](modules.md#startup-and-shutdown-hooks) run inside those limits.
 
-The router, parsing, validation and selected serialization work use Rust, but the server hand-off (Granian and the ASGI adapter, or the Rust server's queue) crosses Python objects. See [sync and async](sync-async.md) for what runs on which executor.
+The router, parsing, validation and selected serialization work use Rust, but the server hand-off (Granian and the ASGI adapter, or Kiso's queue) crosses Python objects. See [sync and async](sync-async.md) for what runs on which executor.
