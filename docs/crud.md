@@ -67,7 +67,7 @@ access = CrudAccess(
 
 Here list and retrieve are public, create and update need `billing_staff`, delete needs `billing_admin`. Unknown action names raise `TypeError`. Generated writes always need a policy: a write left without one raises `RegistrationError` (when a `@crud` class is declared, or when a `crud(...)` value is included) unless you pass `public_writes=True` on purpose. The `access=` of `crud(...)` covers generated actions only; a handwritten action in the class form states its own.
 
-Rules see a generated action under the module that calls `crud(...)`: the value in `notes/apps/billing/routes.py` produces `notes.apps.billing.routes.InvoiceCrud.list`, `.retrieve`, `.create`, `.update` and `.delete`, and the class form uses its class (`notes.apps.billing.api.Invoices.list`). So the scaffold's `match="notes.*"` rules check them, and a public list goes in `except_` like any other action:
+Rules see a generated action under the module that declares the `crud(...)` value: the value in `notes/apps/billing/routes.py` produces `notes.apps.billing.routes.InvoiceCrud.list`, `.retrieve`, `.create`, `.update` and `.delete`, and the class form uses its class (`notes.apps.billing.api.Invoices.list`). So the scaffold's `match="notes.*"` rules check them, and a public list goes in `except_` like any other action:
 
 ```python
 Actions.require_access(
@@ -75,6 +75,15 @@ Actions.require_access(
     except_=["notes.api.health", "notes.apps.billing.routes.InvoiceCrud.list"],
 )
 ```
+
+The same names select [MCP tools](app-mcp.md#choose-the-tools): `tools=["notes.apps.billing.*"]` also publishes the generated reads, and the writes with `allow_writes=True`.
+
+How the name is chosen:
+
+* A shared helper that wraps `crud(...)` and is called at the top level of a feature module names the actions after that feature module, not after the helper's module.
+* `name="ArchiveCrud"` sets the class name; `name="notes.apps.archive.ArchiveCrud"` sets the module too. Pass it when the value is built deeper (a factory that calls another factory, or a function run from `main.py`), or when one module declares two `crud(...)` values for the same model. `name=` is for the function form only.
+* Two different classes whose actions would share a name raise `RegistrationError` when included, naming both paths, so one `except_` entry, waiver or MCP pattern never covers both by accident.
+* One value mounted twice (`Mount("/a", notes)` and `Mount("/b", notes)`) keeps one name, as any `API` class or function does: an exception for it covers both mounts.
 
 ## Hooks in the class form
 
