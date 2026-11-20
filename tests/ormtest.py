@@ -316,3 +316,11 @@ async def test_models_follow_the_transaction_scope(db: Database) -> None:
 def test_a_queryset_is_awaited_directly_and_has_no_aall() -> None:
     assert hasattr(QuerySet, "__await__")
     assert not hasattr(QuerySet, "aall")
+
+
+def test_a_page_order_always_ends_with_the_primary_key() -> None:
+    assert Post.all().stably_ordered().order == (("id", False),)
+    by_title = Post.all().order_by("-title").stably_ordered()
+    assert by_title.order == (("title", True), ("id", False))
+    by_key = Post.all().order_by("-id").stably_ordered()
+    assert by_key.order == (("id", True),)
