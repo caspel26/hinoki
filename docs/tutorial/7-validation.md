@@ -150,8 +150,9 @@ class Product(Model):
 ```
 
 The checks run before `acreate`, `asave` and queryset `aupdate`, and their
-synchronous forms. An invalid write raises `ModelValidationError` with
-structured `details` and sends no SQL. Rows that are read are not revalidated.
+synchronous forms. An invalid write raises `ModelValidationError` (import it
+from `hinoki.errors`) with structured `details` and sends no SQL. Rows that are
+read are not revalidated.
 See [field constraints and validators](../models.md#model-field-constraints-and-validators).
 
 ## Recap

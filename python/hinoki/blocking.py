@@ -16,18 +16,26 @@ from typing import Any
 from hinoki import context
 
 
-def run_sync[T](coroutine: Coroutine[Any, Any, T]) -> T:
-    """Run ``coroutine`` on the worker's loop and wait for its result."""
+def refuse_event_loop() -> None:
+    """Raise when called on the event loop, where a sync model call would
+    block the whole worker."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        pass
-    else:
+        return
+    raise RuntimeError(
+        "a sync model method was called on the event loop; await the "
+        "a... variant instead"
+    )
+
+
+def run_sync[T](coroutine: Coroutine[Any, Any, T]) -> T:
+    """Run ``coroutine`` on the worker's loop and wait for its result."""
+    try:
+        refuse_event_loop()
+    except RuntimeError:
         coroutine.close()
-        raise RuntimeError(
-            "a sync model method was called on the event loop; await the "
-            "a... variant instead"
-        )
+        raise
     loop = context.event_loop.get()
     if loop is None:
         coroutine.close()

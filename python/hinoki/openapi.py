@@ -17,8 +17,10 @@ from typing import TYPE_CHECKING, Any, get_args, get_origin
 from hinoki.errors import MAX_RETRY_AFTER, APIError, RegistrationError, TooManyRequests
 from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
+from hinoki.http.response import Response
 from hinoki.pagination import MAX_NUMBER, Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
+from hinoki.runtime.responsecheck import union_arms
 from hinoki.schema import Schema, SchemaExtra
 
 if TYPE_CHECKING:
@@ -304,6 +306,9 @@ class OpenAPIBuilder:
         if isinstance(annotation, type) and issubclass(annotation, Schema):
             return self.component(annotation)
         if is_union(annotation):
+            typed = [arm for arm in union_arms(annotation) if arm is not Response]
+            if len(typed) == 1:  # ``T | Response``: a Response documents itself
+                return self.annotation(typed[0])
             raise RegistrationError(
                 "bare union return annotations are unsupported; use a wrapper Schema"
             )

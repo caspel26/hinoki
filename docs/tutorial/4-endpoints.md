@@ -45,7 +45,7 @@ the path prefix, the policy and the transaction once for the tasks:
 # tracker/api.py
 from uuid import UUID
 
-from hinoki import Caller, RouteGroup, errors, http
+from hinoki import Caller, RouteGroup, Schema, errors, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 from . import operations
@@ -55,9 +55,13 @@ from .schemas import TaskIn, TaskOut
 from .security import member_only
 
 
+class Health(Schema):
+    status: str
+
+
 @http.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> Health:
+    return Health(status="ok")
 
 
 tasks = RouteGroup("/tasks", access=member_only, atomic=True)

@@ -31,7 +31,7 @@ uv run hinoki migrations apply
 | | `hinoki routes` | Every route with its access policy and server lane. | [Inspect](inspect.md#routes) |
 | | `hinoki settings` | Effective settings and their sources, secrets redacted. | [Inspect](inspect.md#settings) |
 | | `hinoki openapi` | Print, write or diff the OpenAPI document. | [Inspect](inspect.md#openapi) |
-| | `hinoki version` | Hinoki, Python, native core and Granian versions. | [Inspect](inspect.md#version) |
+| | `hinoki version` | The Hinoki version; `--verbose` adds Python, platform, native core and Granian. | [Inspect](inspect.md#version) |
 | Data | `hinoki migrations plan\|status\|apply\|sql` | Plan and apply migrations for every registered app. | [below](#migrations) |
 | | `hinoki admin create-superuser\|set-password` | Manage admin users from the terminal. | [below](#admin) |
 | Integrate | `hinoki mcp` | Serve project context to an AI agent over MCP. | [below](#mcp) |
@@ -59,7 +59,7 @@ attribute name is right. The commands report
 `hinoki --help` lists the commands in groups (Start, Inspect, Data, Integrate); `hinoki COMMAND --help` shows one command's options. A mistyped command or migrations action gets a suggestion:
 
 ```text
-hinoki: error: argument group: invalid choice: 'chek' (choose from ...)
+hinoki: error: argument <command>: invalid choice: 'chek' (choose from 'check', ...)
   did you mean 'check'?
 ```
 
@@ -75,7 +75,7 @@ It completes command, subcommand and option names; it does not complete option v
 
 ### Terminal output
 
-On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a status glyph per check (`✔` ok, `▲` warning, `✘` failed or violated, `–` skipped) with the fix on its own line, and routes with coloured methods. When output is piped or redirected, or with `NO_COLOR` or `TERM=dumb`, the text is plain and unchanged, and `--format json` is never styled.
+On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a status glyph per check (`✔` ok, `▲` warning, `✘` failed or violated, `?` unverifiable, `–` skipped or waived) with the fix on its own line, and routes with coloured methods. The `check` summary is green only when the exit code is `0`. When output is piped or redirected, or with `NO_COLOR` or `TERM=dumb`, the text is plain and unchanged, and `--format json` is never styled.
 
 ## `app` {#app}
 
