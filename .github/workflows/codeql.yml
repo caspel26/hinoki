@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "theme/**"
+      - "assets/**"
+      - "*.md"
+      - "mkdocs.yml"
+      - LICENSE
   schedule:
     - cron: "17 3 * * 1"
 
