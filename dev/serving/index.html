@@ -441,7 +441,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:57:05 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:01:27 UTC">November 20, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -716,7 +716,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
 <li><strong>Request path.</strong> A path whose decoded form holds a NUL byte or a <code>.</code> or <code>..</code> segment (<code>%00</code>, <code>%2e%2e</code>, <code>%2f</code> included) answers <code>400</code> before the application is called.</li>
 <li><strong>Request headers.</strong> Each becomes <code>HTTP_*</code> in the environment, and repeats are joined by a comma; repeated <code>Cookie</code> headers (one per cookie, as HTTP/2 clients send them) are joined by <code>;</code>. A header whose name contains an underscore is dropped, because <code>X_Foo</code> and <code>X-Foo</code> would both become <code>HTTP_X_FOO</code>; a client could otherwise pose as a header your proxy sets, such as <code>Remote-User</code>. Use dashes in custom header names.</li>
 <li><strong>Response.</strong> Streamed: the head goes out with the first piece, a slow client slows the application down (a bounded buffer), and a client that leaves makes the next write fail and closes the iterable. An exception before the head answers <code>500</code> with an empty body and the traceback in the log; after it, the stream is reset instead of ending as complete. A header value with a line break or another control character is an error in <code>start_response</code>, so it answers <code>500</code> with the traceback too. A body shorter or longer than the <code>Content-Length</code> the application set closes the connection with an error line from Kiso. A <code>close()</code> of the iterable that raises after the whole body was sent is logged by the <code>hinoki.runtime</code> logger, and the response still ends normally.</li>
-<li><strong>Timeout.</strong> <code>execution.request_timeout</code> bounds the time until the response starts (<code>504</code>). A running sync call cannot be stopped; it keeps its thread until it returns.</li>
+<li><strong>Timeout.</strong> <code>execution.request_timeout</code> bounds the time until the response starts (<code>504</code>) and, once it has started, the silence between two pieces of the body: an application that stays quiet longer has its stream reset and its iterable closed. A slow client does not count, only a slow application. A running sync call cannot be stopped; it keeps its thread until it returns.</li>
 <li><strong>Applies:</strong> TLS and HTTP/2, <code>access_log</code> and <code>access_log_format</code>, <code>server_timing</code>, <code>max_connections</code>, header and body timeouts, <code>--workers</code> and graceful shutdown (<code>lifecycle.shutdown_timeout</code>).</li>
 <li><strong>Does not apply:</strong> the native lane (<code>native_dispatch</code> is refused), host, CORS and redirect policies of the server (a wrapped Hinoki application still applies its own), and <code>trusted_proxies</code> (refused: the client address is the TCP peer).</li>
 <li><strong>Settings.</strong> A plain callable has no settings of its own, so <code>server</code>, <code>execution</code> and <code>lifecycle</code> come from the environment (<code>EXECUTION__SYNC_WORKERS</code>, <code>SERVER__WORKERS</code>, ...); a bad value stops the command with status <code>2</code>. A <code>WSGIAdapter</code> uses its application's settings.</li>
@@ -778,7 +778,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:57:05 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:01:27 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
