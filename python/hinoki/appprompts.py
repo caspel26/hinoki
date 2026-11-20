@@ -31,7 +31,7 @@ def name_check(taken: Collection[str]) -> Check:
         if not name:
             return "an app name is required"
         if name in RESERVED_NAMES or not NAME.fullmatch(name):
-            return "use lower-case letters and digits, starting with a letter"
+            return "use lower-case letters, digits and single underscores from a letter"
         if name in taken:
             return f"app '{name}' is already registered"
         return None

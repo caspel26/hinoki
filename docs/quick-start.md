@@ -179,7 +179,8 @@ prefix = "/entries"
 requires = []
 ```
 
-App names are lower-case letters and digits, with no underscores. Define the
+App names are lower-case letters and digits with single underscores between words
+(for example `api_v1`), starting with a letter. Define the
 app's models in `notes/apps/entries/models.py`, then
 `uv run hinoki migrations plan entries`; [8. Projects and apps](tutorial/8-projects.md)
 walks through it.

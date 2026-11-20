@@ -155,7 +155,10 @@ def _unlock_manifest_windows(lock_file: BinaryIO) -> None:
 
 def _validate_app_name(name: str) -> None:
     if not NAME.fullmatch(name) or name in RESERVED_NAMES:
-        raise ProjectError("app name must be lower-case letters and digits")
+        raise ProjectError(
+            "app name must be lower-case letters and digits, with single underscores "
+            "between words"
+        )
 
 
 def _check_duplicate_app(manifest: ProjectManifest, name: str) -> None:
