@@ -6,15 +6,21 @@ Run from the repository root after ``uv sync --locked``, with port 8000 free::
         --with brotli==1.1.0 python scripts/readme_demo.py
 
 The script runs the real ``hinoki`` CLI in a pseudo-terminal inside a throw-away
-directory: the interactive ``hinoki new`` (answered with key presses), then
-``migrations plan``/``apply``, ``hinoki dev`` (stopped with Ctrl-C) and ``hinoki
-check``. A terminal emulator (pyte) keeps the screen; every frame of the GIF is that
-screen drawn with IBM Plex Mono from ``theme/static/fonts``. Only the timing is
-edited: waits are shortened and repeated spinner frames are dropped. The output is
-never rewritten, so re-run the script after a prompt or a message changes.
+directory: the interactive ``hinoki new`` (answered with key presses), ``hinoki
+dev`` (stopped with Ctrl-C), then ``hinoki check`` on a route group without
+``atomic=True`` and again once the script has added it. A terminal emulator (pyte)
+keeps the screen; every frame of the GIF is that screen drawn with IBM Plex Mono
+from ``theme/static/fonts`` inside a drawn window, between a title card made from
+``lockup-dark.svg``. Glyphs Plex Mono lacks (the ``◢◤`` mark, box lines, spinners)
+are drawn as shapes. Only the timing is edited: waits are shortened and repeated
+spinner frames are dropped. The output is never rewritten, so re-run the script
+after a prompt or a message changes.
 
-It needs ``ffmpeg``, ``fc-match``, ``git`` and ``uv`` on the PATH. ``hinoki new``
-runs ``uv sync`` in the new project, which builds the extension from this checkout.
+The children get ``NOTES_ALLOWED_HOSTS`` (a documented setting) so ``hinoki dev``
+does not log the ``allowed_hosts is '*'`` warning meant for deployments, and
+``hinoki new`` skips ``uv sync``: the commands run with this checkout's ``hinoki``.
+
+It needs ``ffmpeg``, ``fc-match``, ``rsvg-convert``, ``git`` and ``uv`` on the PATH.
 """
 
 from __future__ import annotations
@@ -40,19 +46,27 @@ from typing import Any
 
 import pyte
 from fontTools.ttLib import TTFont
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets" / "readme"
 FONTS = ROOT / "theme" / "static" / "fonts"
-MAX_BYTES = 1_500_000
+MAX_BYTES = 600_000
 PORT = 8000
 
-COLS, ROWS = 88, 24
+COLS, ROWS = 100, 24
 CELL_W, CELL_H, FONT_SIZE = 9, 22, 15
-WIDTH, HEIGHT, BAR = 880, 600, 40
-PAD_X = (WIDTH - COLS * CELL_W) // 2
-PAD_Y = BAR + (HEIGHT - BAR - ROWS * CELL_H) // 2
+BAR, INSET_X, INSET_Y = 36, 18, 14  # title bar; terminal padding inside the window
+WIN_W = COLS * CELL_W + 2 * INSET_X
+WIN_H = BAR + ROWS * CELL_H + 2 * INSET_Y
+MARGIN_X, MARGIN_Y, RADIUS = 40, 34, 12  # backdrop around the rounded window
+WIDTH, HEIGHT = WIN_W + 2 * MARGIN_X, WIN_H + 2 * MARGIN_Y
+PAD_X = MARGIN_X + INSET_X
+PAD_Y = MARGIN_Y + BAR + INSET_Y
+TITLE = "hinoki \u2014 notes"
+TAGLINE = "Typed Python APIs. Architecture rules you can run."
+SITE = "caspel26.github.io/hinoki"
+CARD_MS = 1600  # the title card before and after the session
 
 ENTER, DOWN, CTRL_C = "\r", "\x1b[B", "\x03"
 SGR_256 = 5  # 38;5;n selects an indexed colour, 38;2;r;g;b a true colour
@@ -66,15 +80,17 @@ QUIET_S, BURST_S = 0.04, 0.08  # snapshot after this quiet, or this often
 
 COLORS = {
     "fg": "#e6e0f5",
-    "bg": "#211a2e",
-    "bar": "#15111f",
-    "dots": "#4a3d66",
-    "title": "#a99bcc",
-    "border": "#31274a",
+    "bg": "#1c1726",
+    "bar": "#26212f",
+    "border": "#3a3448",
+    "title": "#9d9ca9",
     "cursor": "#b98cff",
     "prompt": "#b9a0e7",
     "comment": "#9d9ca9",
+    "backdrop": "#17171c",
+    "backdrop_glow": "#2a2734",
 }
+LIGHTS = ("#ff5f57", "#febc2e", "#28c840")  # close, minimise, zoom
 # Named ANSI colours mapped to the dark values of ``hinoki.terminal.PALETTE``.
 ANSI = {
     "black": "#1d1a24",
@@ -88,6 +104,25 @@ ANSI = {
     "white": "#eeedf2",
 }
 
+SECURITY = '''"""Who may change notes."""
+
+from hinoki import Access, BearerAuth, Caller, Permission
+
+
+class NotePermission(Permission):
+    WRITE = "notes:write"
+
+
+class Tokens(BearerAuth[str]):
+    async def resolve_token(self, token: str) -> Caller[str] | None:
+        if token != "demo-token":
+            return None
+        return Caller(id="ann", user="ann", permissions={NotePermission.WRITE})
+
+
+editors = Access(auth=Tokens(), permissions=[NotePermission.WRITE])
+'''
+
 MODEL = '''"""Models owned by the project app."""
 
 from uuid import UUID, uuid4
@@ -99,6 +134,50 @@ class Note(Model):
     id: UUID = pk(default_factory=uuid4)
     title: str = field(max_length=80)
     body: str = ""
+'''
+
+GROUP = 'notes = RouteGroup("/notes", access=editors)'
+API = f'''"""Endpoints."""
+
+from typing import Annotated
+
+from hinoki import Field, RouteGroup, Schema, derive, http
+
+from notes.models import Note
+from notes.security import editors
+
+
+class Health(Schema):
+    status: str
+
+
+@http.get("/health")
+def health() -> Health:
+    return Health(status="ok")
+
+
+class NoteIn(Schema):
+    title: Annotated[str, Field(min_length=1, max_length=80)]
+    body: Annotated[str, Field(max_length=2000)] = ""
+
+
+@derive(Note)
+class NoteOut(Schema): ...
+
+
+{GROUP}
+
+
+@notes.post("/", status=201)
+async def create_note(data: NoteIn) -> NoteOut:
+    return NoteOut.from_model(await Note.acreate(data))
+'''
+
+ROUTES = '''"""The project's own routes."""
+
+from notes.api import health, notes
+
+routes = [health, notes]
 '''
 
 Cell = tuple[str, str, str, bool, bool, bool]  # text, fg, bg, bold, reverse, faint
@@ -138,9 +217,9 @@ class Scene:
 class Frame:
     rows: tuple[Row, ...]
     cursor: tuple[int, int] | None
-    title: str
     duration: int
     pinned: bool = False  # a key press or the end of a scene: never dropped
+    card: str = ""  # "intro" or "outro": the title card instead of the screen
 
 
 class DemoScreen(pyte.Screen):  # type: ignore[misc]
@@ -194,7 +273,6 @@ class Session:
         self.stream = pyte.ByteStream(self.screen)
         self.frames: list[Frame] = []
         self.rows: dict[Row, Row] = {}
-        self.title = ""
         self.prompted = False
 
     def text(self) -> str:
@@ -219,12 +297,17 @@ class Session:
             last.duration += duration
             last.pinned = last.pinned or pinned
             return
-        self.frames.append(Frame(rows, cursor, self.title, duration, pinned))
+        self.frames.append(Frame(rows, cursor, duration, pinned))
+
+    def card(self, kind: str, duration: int) -> None:
+        """Show the title card (drawn by the painter, not terminal output)."""
+        rows, _ = self.snapshot()
+        self.frames.append(Frame(rows, None, duration, pinned=True, card=kind))
 
     def hold(self, duration: int) -> None:
-        """Show the current screen for ``duration`` and keep the frame."""
+        """Show the current screen for at least ``duration`` and keep the frame."""
         self.snap(0)
-        self.frames[-1].duration = duration
+        self.frames[-1].duration = max(self.frames[-1].duration, duration)
         self.frames[-1].pinned = True
 
     def prompt(self) -> None:
@@ -238,7 +321,6 @@ class Session:
 
     def type_line(self, text: str, *, comment: bool = False) -> None:
         """Type ``text`` at the prompt (there is no shell: the line is drawn)."""
-        self.title = text
         self.prompt()
         if comment:
             self.feed(sgr(COLORS["comment"]))
@@ -384,12 +466,13 @@ def child_env(hinoki: Path) -> dict[str, str]:
         "COLORTERM": "truecolor",
         "LANG": "C.UTF-8",
         "HINOKI_IMAGES": "0",
+        "NOTES_ALLOWED_HOSTS": "127.0.0.1,localhost",
         "PATH": path,
     }
 
 
 def new_keys() -> list[Key]:
-    """Answers to ``hinoki new``: name ``notes``, SQLite, defaults elsewhere."""
+    """Answers to ``hinoki new``: name ``notes``, SQLite, no ``uv sync``."""
     name = [Key("n", 900), *(Key(char, 130) for char in "otes")]
     return [
         *name,
@@ -397,35 +480,55 @@ def new_keys() -> list[Key]:
         Key(ENTER, 700),  # parent directory: .
         Key(DOWN, 1100),  # database: none -> sqlite
         Key(ENTER, 600),
-        Key(ENTER, 1300),  # server: kiso
-        *(Key(ENTER, 550) for _ in range(4)),  # agent files, skills, git, uv sync
+        Key(ENTER, 1100),  # server: kiso
+        *(Key(ENTER, 450) for _ in range(3)),  # agent files, skills, git
+        Key("n", 700),  # install: this checkout's hinoki is already on the PATH
+        Key(ENTER, 450),
     ]
+
+
+def write_api(project: Path) -> None:
+    package = project / "notes"
+    (package / "security.py").write_text(SECURITY)
+    (package / "models.py").write_text(MODEL)
+    (package / "api.py").write_text(API)
+    (package / "routes.py").write_text(ROUTES)
+
+
+def add_atomic(project: Path) -> None:
+    api = project / "notes" / "api.py"
+    api.write_text(API.replace(GROUP, GROUP.replace(")", ", atomic=True)")))
 
 
 def record(workdir: Path, env: dict[str, str]) -> list[Frame]:
     """Run every scene and return the frames, failing on unexpected output."""
     session = Session(env)
-    new = Scene(["hinoki", "new"], keys=new_keys(), hold_ms=2600, timeout_s=1800)
+    session.card("intro", CARD_MS)
+    new = Scene(["hinoki", "new"], keys=new_keys(), hold_ms=2600, timeout_s=600)
     session.run(new, workdir)
     project = workdir / "notes"
     if not (project / "hinoki.toml").is_file():
         raise DemoError("hinoki new did not create notes/hinoki.toml")
     session.type_line("cd notes")
     session.run(Scene(["clear"], hold_ms=100), project)
-    session.type_line("# add a model", comment=True)
-    (project / "notes" / "models.py").write_text(MODEL)
-    session.run(Scene(["cat", "notes/models.py"], hold_ms=2200), project)
-    uv = ["uv", "run", "hinoki"]
-    session.run(Scene([*uv, "migrations", "plan"], hold_ms=1800), project)
-    session.run(Scene([*uv, "migrations", "apply"], hold_ms=1200), project)
     # The worker imports the app after the banner; stop it once it is serving.
-    stop = Key(CTRL_C, 2200, wait_for="listening on", settle_s=6.0)
-    session.run(Scene([*uv, "dev"], keys=[stop], hold_ms=500, status=None), project)
-    if "Traceback" in session.text():
-        raise DemoError("hinoki dev printed a traceback when it was stopped")
-    session.run(Scene([*uv, "check"], hold_ms=4000), project)
+    stop = Key(CTRL_C, 2400, wait_for="listening on", settle_s=4.0)
+    session.run(
+        Scene(["hinoki", "dev"], keys=[stop], hold_ms=500, status=None), project
+    )
+    if "Traceback" in session.text() or "WARNING" in session.text():
+        raise DemoError("hinoki dev printed a warning or a traceback")
+    session.type_line("# notes/api.py: a RouteGroup with POST /notes", comment=True)
+    write_api(project)
+    session.run(Scene(["hinoki", "check"], hold_ms=3200, status=1), project)
+    if "atomic=True" not in session.text():
+        raise DemoError("hinoki check did not ask for atomic=True")
+    session.type_line("# add atomic=True to the RouteGroup", comment=True)
+    add_atomic(project)
+    session.run(Scene(["hinoki", "check"], hold_ms=3000), project)
     if "0 violated" not in session.text():
         raise DemoError("hinoki check did not report 0 violated")
+    session.card("outro", CARD_MS + 600)
     return session.frames
 
 
@@ -518,44 +621,139 @@ def cell_colors(item: Cell) -> tuple[str, str]:
     return front, back
 
 
+def backdrop() -> Image.Image:
+    """A dark backdrop, lighter towards the centre, with a faint violet orb."""
+    glow = Image.radial_gradient("L").resize((WIDTH, HEIGHT))
+    image = Image.composite(
+        Image.new("RGBA", (WIDTH, HEIGHT), COLORS["backdrop"]),
+        Image.new("RGBA", (WIDTH, HEIGHT), COLORS["backdrop_glow"]),
+        glow,
+    )
+    orb = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    ImageDraw.Draw(orb).ellipse((-120, -160, 300, 220), fill=(122, 85, 196, 60))
+    image.alpha_composite(orb.filter(ImageFilter.GaussianBlur(80)))
+    return image
+
+
+def light(color: str, size: int = 12, scale: int = 8) -> Image.Image:
+    """One traffic light: a smooth circle with a slightly darker ring."""
+    big = Image.new("RGBA", (size * scale, size * scale), (0, 0, 0, 0))
+    ring = blend(color, "#000000", 0.25)
+    ImageDraw.Draw(big).ellipse(
+        (0, 0, size * scale - 1, size * scale - 1),
+        fill=color,
+        outline=ring,
+        width=scale // 2,
+    )
+    return big.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def lockup(scratch: Path, *, width: int = 0, height: int = 0) -> Image.Image:
+    """``lockup-dark.svg`` (mark and wordmark) as an RGBA image of the given size."""
+    out = scratch / f"lockup-{width}x{height}.png"
+    size = ["-w", str(width)] if width else ["-h", str(height)]
+    source = ASSETS / "lockup-dark.svg"
+    subprocess.run(["rsvg-convert", *size, str(source), "-o", str(out)], check=True)
+    return Image.open(out).convert("RGBA")
+
+
 class Painter:
-    """Draws frames: window chrome, then the cell grid in IBM Plex Mono."""
+    """Draws frames: the window on its backdrop, then the cell grid in IBM Plex Mono."""
 
     def __init__(self, scratch: Path) -> None:
         regular = plex("ibm-plex-mono-latin-400.woff2", scratch)
         bold = plex("ibm-plex-mono-latin-500.woff2", scratch)
         self.regular = ImageFont.truetype(regular, FONT_SIZE)
         self.bold = ImageFont.truetype(bold, FONT_SIZE)
-        self.sans = ImageFont.truetype(plex("plex-sans-latin-wght.woff2", scratch), 13)
+        sans = plex("plex-sans-latin-wght.woff2", scratch)
+        self.sans = ImageFont.truetype(sans, 13)
+        self.tagline = ImageFont.truetype(sans, 17)
         self.cmap = set(TTFont(FONTS / "ibm-plex-mono-latin-400.woff2").getBestCmap())
         ascent, descent = self.regular.getmetrics()
         self.offset = (CELL_H - ascent - descent) // 2
         self.fallbacks: dict[str, ImageFont.FreeTypeFont] = {}
+        self.lockup = lockup(scratch, width=360)
+        self.base = self.window(lockup(scratch, height=14))
 
     def render(self, frame: Frame) -> Image.Image:
-        image = Image.new("RGB", (WIDTH, HEIGHT), COLORS["bg"])
+        image = self.base.copy()
         draw = ImageDraw.Draw(image)
-        self.chrome(draw, frame.title)
+        if frame.card:
+            self.title_card(image, draw, outro=frame.card == "outro")
+            return image
         for y, row in enumerate(frame.rows):
             self.row(draw, y, row)
         if frame.cursor is not None:
             self.cursor(draw, frame, *frame.cursor)
         return image
 
-    def chrome(self, draw: ImageDraw.ImageDraw, title: str) -> None:
-        draw.rectangle((0, 0, WIDTH - 1, BAR - 1), fill=COLORS["bar"])
-        draw.line((0, BAR, WIDTH, BAR), fill=COLORS["border"])
-        for index in range(3):
-            x = 22 + 20 * index
-            draw.ellipse((x - 6, 14, x + 6, 26), fill=COLORS["dots"])
+    def window(self, mark: Image.Image) -> Image.Image:
+        """The backdrop, the shadow and the empty window, drawn once."""
+        image = backdrop()
+        box = (MARGIN_X, MARGIN_Y, MARGIN_X + WIN_W - 1, MARGIN_Y + WIN_H - 1)
+        shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        drop = (box[0], box[1] + 18, box[2], box[3] + 18)
+        ImageDraw.Draw(shadow).rounded_rectangle(drop, RADIUS, fill=(0, 0, 0, 150))
+        image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(18)))
+        draw = ImageDraw.Draw(image)
+        draw.rounded_rectangle(box, RADIUS, fill=COLORS["bg"], outline=COLORS["border"])
+        bar = (box[0], box[1], box[2], box[1] + BAR)
+        draw.rounded_rectangle(
+            bar,
+            RADIUS,
+            fill=COLORS["bar"],
+            outline=COLORS["border"],
+            corners=(True, True, False, False),
+        )
+        draw.line((box[0], bar[3], box[2], bar[3]), fill=COLORS["border"])
+        self.title_bar(image, draw, mark)
+        return image.convert("RGB")
+
+    def title_bar(
+        self, image: Image.Image, draw: ImageDraw.ImageDraw, mark: Image.Image
+    ) -> None:
+        middle = MARGIN_Y + BAR // 2
+        for index, color in enumerate(LIGHTS):
+            x = MARGIN_X + 20 + 20 * index
+            image.alpha_composite(light(color), (x - 6, middle - 6))
         draw.text(
-            (WIDTH / 2, BAR / 2),
-            title,
+            (WIDTH / 2, middle),
+            TITLE,
             font=self.sans,
             fill=COLORS["title"],
             anchor="mm",
         )
-        draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=COLORS["border"])
+        faint = mark.copy()
+        faint.putalpha(faint.getchannel("A").point(lambda alpha: alpha * 35 // 100))
+        left = MARGIN_X + WIN_W - 16 - faint.width
+        image.alpha_composite(faint, (left, middle - faint.height // 2))
+
+    def title_card(
+        self, image: Image.Image, draw: ImageDraw.ImageDraw, *, outro: bool
+    ) -> None:
+        """The lockup and the tagline, centred where the terminal would be."""
+        centre_x = MARGIN_X + WIN_W // 2
+        centre_y = PAD_Y + ROWS * CELL_H // 2 - 30
+        logo = self.lockup
+        image.paste(
+            logo, (centre_x - logo.width // 2, centre_y - logo.height // 2), logo
+        )
+        below = centre_y + logo.height // 2 + 34
+        draw.text(
+            (centre_x, below),
+            TAGLINE,
+            font=self.tagline,
+            fill=COLORS["title"],
+            anchor="mm",
+        )
+        if outro:
+            draw.text(
+                (centre_x, below + 34),
+                SITE,
+                font=self.sans,
+                fill=COLORS["prompt"],
+                anchor="mm",
+            )
 
     def row(self, draw: ImageDraw.ImageDraw, y: int, row: Row) -> None:
         for x, item in enumerate(row):
@@ -616,7 +814,9 @@ BOX = {
     "\u2534": (1, 0, 1, 1),
     "\u253c": (1, 1, 1, 1),
 }
-SHAPES = "\u25c6\u25c7\u25cf\u25cb\u25a0\u25b2\u25e2\u25e4\u2714\u2718\u2190\u2192"
+SHAPES = (
+    "\u25c6\u25c7\u25cf\u25cb\u25a0\u25b2\u25e2\u25e4\u2714\u2718\u2190\u2192\u276f"
+)
 
 
 def draw_shape(
@@ -679,6 +879,7 @@ def strokes(char: str, cx: int, cy: int) -> list[tuple[str, Any]]:
             ("thin", [(cx - 4, cy), (cx + 4, cy)]),
             ("fill", [(cx + 4, cy), (cx + 1, cy - 3), (cx + 1, cy + 3)]),
         ],
+        "\u276f": [("line", [(cx - 2, cy - 5), (cx + 3, cy), (cx - 2, cy + 5)])],
     }[char]
 
 
@@ -709,7 +910,8 @@ def encode(frames: list[Frame], painter: Painter, scratch: Path) -> Path:
     listing.append(f"file '{scratch / f'f{len(frames) - 1:04d}.png'}'")
     concat = scratch / "frames.txt"
     concat.write_text("\n".join(listing) + "\n")
-    painter.render(frames[-1]).save(ASSETS / "demo.png", optimize=True)
+    still = next(frame for frame in reversed(frames) if not frame.card)
+    painter.render(still).save(ASSETS / "demo.png", optimize=True)
     source = ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i"]
     palette = scratch / "palette.png"
     subprocess.run(
@@ -717,7 +919,7 @@ def encode(frames: list[Frame], painter: Painter, scratch: Path) -> Path:
             *source,
             str(concat),
             "-vf",
-            "palettegen=max_colors=64:stats_mode=diff",
+            "palettegen=max_colors=128:stats_mode=diff",
             str(palette),
         ],
         check=True,
@@ -750,7 +952,7 @@ def hinoki_executable(given: str | None) -> Path:
 
 
 def require_tools() -> None:
-    for tool in ("ffmpeg", "fc-match", "git", "uv"):
+    for tool in ("ffmpeg", "fc-match", "rsvg-convert", "git", "uv"):
         if shutil.which(tool) is None:
             raise DemoError(f"{tool} is needed to record the GIF")
 
@@ -764,11 +966,12 @@ def require_free_port() -> None:
             raise DemoError(f"port {PORT} is in use: stop the server first") from error
 
 
-def warn_paths(frames: list[Frame], scratch: Path) -> None:
-    """Report screens that show the throw-away directory (absolute paths)."""
+def refuse_paths(frames: list[Frame], scratch: Path) -> None:
+    """Fail when a screen shows an absolute path: the scratch or home directory."""
     shown = ["".join(item[0] for item in row) for frame in frames for row in frame.rows]
-    if any(str(scratch) in line for line in shown):
-        print(f"note: some frames show the scratch path {scratch}")
+    for path in (str(scratch), str(Path.home())):
+        if any(path in line for line in shown):
+            raise DemoError(f"a frame shows the absolute path {path}")
 
 
 def parse(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -788,7 +991,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="hinoki-demo-") as name:
         scratch = Path(name)
         frames = compress(record(scratch, env))
-        warn_paths(frames, scratch)
+        refuse_paths(frames, scratch)
         pictures = scratch / "frames"
         pictures.mkdir()
         gif = encode(frames, Painter(scratch), pictures)
