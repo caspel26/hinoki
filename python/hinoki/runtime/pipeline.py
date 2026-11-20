@@ -476,7 +476,8 @@ class Pipeline:
     ) -> Response:
         try:
             return await work
-        except asyncio.CancelledError:
+        # Only our own deadline is absorbed, any other cancellation is re-raised.
+        except asyncio.CancelledError:  # NOSONAR
             task = asyncio.current_task()
             if reason == "deadline" and task is not None and task.cancelling() == 0:
                 return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
