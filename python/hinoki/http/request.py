@@ -54,11 +54,13 @@ class Headers(Mapping[str, str]):
 
 def media_type(raw: str) -> str:
     """The media type of a Content-Type value without parameters, lower-case."""
-    if "," in raw:
+    kind = raw.split(";", maxsplit=1)[0]
+    if "," in kind:
         # Repeated headers arrive joined with ", ": which value counts is
-        # ambiguous, and proxies may pick a different one.
+        # ambiguous, and proxies may pick a different one. A comma inside a
+        # quoted parameter is legitimate and is not checked here.
         raise InvalidBody("invalid_content_type", "several Content-Type values")
-    return raw.split(";", maxsplit=1)[0].strip().lower()
+    return kind.strip().lower()
 
 
 class Request:
