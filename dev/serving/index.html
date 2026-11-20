@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:00 UTC">November 20, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -567,7 +567,7 @@ on <a href="../kiso/">Kiso server</a>.</p>
 <td><code>server.server_timing</code></td>
 <td><code>NOTES_SERVER__SERVER_TIMING</code></td>
 <td>unset</td>
-<td>Kiso only: add a <code>Server-Timing</code> header (<code>kiso;dur=3.2;desc="native"</code>: milliseconds the server took and the serving lane); unset means <code>hinoki dev</code> only</td>
+<td>Kiso only: add a <code>Server-Timing</code> header (<code>kiso;dur=3.2;desc="native"</code>: milliseconds the server took and the serving lane, with the same values as the access log's <a href="../kiso/#limits"><code>lane</code></a>); unset means <code>hinoki dev</code> only</td>
 </tr>
 <tr>
 <td><code>server.recent_requests</code></td>
@@ -595,7 +595,7 @@ on <a href="../kiso/">Kiso server</a>.</p>
 </tr>
 </tbody>
 </table>
-<p>The connection limits and timeouts (<code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code>, <code>write_timeout</code>), <code>native_dispatch</code>, the TLS files and <code>http2</code>, and <code>trusted_proxies</code> are described under <a href="../kiso/">Kiso</a> and in the <a href="../settings/#built-in-fields-and-defaults">settings table</a>.</p>
+<p>The connection limits and timeouts (<code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code>, <code>write_timeout</code>), <code>native_dispatch</code>, the TLS files and <code>http2</code>, and <code>trusted_proxies</code> are described under <a href="../kiso/">Kiso</a> and in the <a href="../settings/#built-in-fields-and-defaults">settings table</a>. Left unset, they are <code>None</code> in <code>hinoki settings</code> and Kiso applies its own defaults (for example 10000 connections and a 10-second header timeout), so that Granian can refuse the Kiso-only ones only when you set them.</p>
 <p><code>dev</code> always runs one worker with reload. <code>hinoki settings</code> shows what is in
 effect (<a href="../inspect/#settings">Inspect an application</a>).</p>
 <p>Before serving a deployment, narrow <a href="../web-security/#allowed_hosts"><code>allowed_hosts</code></a>
@@ -738,7 +738,7 @@ wrap the application:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:00 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

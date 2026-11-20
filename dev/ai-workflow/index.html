@@ -438,17 +438,18 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:49 UTC">November 20, 2026</span></span>
+            <span>4 min read</span>
           </p>
           
         </header>
         
-<p>A project made by <code>hinoki new</code> is ready for a coding agent: rules already on, an <code>AGENTS.md</code> with the conventions, and a read-only MCP server that describes the app. This page shows the loop and where the agent's authority ends.</p>
+<p>A project made by <code>hinoki new</code> is ready for a coding agent: rules already on, an <code>AGENTS.md</code> with the conventions, and an MCP server that describes the app. This page shows the loop and where the agent's authority ends.</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>new<span class="w"> </span>shop<span class="w">    </span><span class="c1"># asks for the directory, database, server, agent files, skills, git and uv sync</span>
 <span class="nb">cd</span><span class="w"> </span>shop
-pytest
-hinoki<span class="w"> </span>check
+uv<span class="w"> </span>sync<span class="w">            </span><span class="c1"># unless you answered yes to uv sync</span>
+uv<span class="w"> </span>run<span class="w"> </span>pytest
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check
 </code></pre></div>
 <p>The generated tests pass and <code>hinoki check</code> exits 0; this repository's own test suite generates a project and runs both on every change.</p>
 <h2 id="what-the-project-contains">What the project contains<a class="headerlink" href="#what-the-project-contains" title="Permanent link">&para;</a></h2>
@@ -515,7 +516,7 @@ hinoki<span class="w"> </span>check
 <p><code>AGENTS.md</code> states the same conventions as <a href="../patterns/">structure an application</a>: public only on purpose, <code>atomic=True</code> for writes, <code>Schema</code> classes in responses, explicit relation loading, server values win on create, migrations as reviewed SQL.</p>
 <h2 id="give-the-agent-tools">Give the agent tools<a class="headerlink" href="#give-the-agent-tools" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>The development MCP</strong> lets the agent read the real registry, rules and models, explain one action or error code, check the project and draft a model. It never writes. See <a href="../dev-mcp/">development MCP</a>.</li>
+<li><strong>The development MCP</strong> lets the agent read the real registry, rules and models, explain one action or error code, check the project and draft a model. It never writes source code, rules or waivers; only <code>run_scenario</code>, when you enable it, runs real handlers. See <a href="../dev-mcp/">development MCP</a>.</li>
 <li><strong>Skills</strong> (optional): <code>hinoki skills install</code> writes four playbooks under <code>.claude/skills/</code>: <code>hinoki-add-endpoint</code>, <code>hinoki-fix-rule</code>, <code>hinoki-review-api</code> and <code>hinoki-test-api</code>. Each names the MCP tool or command to run and what belongs to the owner. See <a href="../cli/#skills"><code>hinoki skills</code></a>.</li>
 <li><strong>Errors that say what to do</strong>: validation errors list every problem with a path and a stable code, and a registration error names the action and parameter.</li>
 </ul>
@@ -583,7 +584,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ai-workflow.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

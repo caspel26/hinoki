@@ -438,13 +438,13 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:49 UTC">November 20, 2026</span></span>
             <span>3 min read</span>
           </p>
           
         </header>
         
-<p><code>hinoki mcp</code> starts an MCP server on stdio that describes your app, its rules and its models to a coding agent. It is read-only: it never writes source code, rules or waivers.</p>
+<p><code>hinoki mcp</code> starts an MCP server on stdio that describes your app, its rules and its models to a coding agent. It never writes source code, rules or waivers. The one exception to reading only is <code>run_scenario</code>, which you enable with <code>--scenarios</code>: it runs real handlers and can change data (<a href="#run-requests-against-the-app">below</a>).</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>mcp
 </code></pre></div>
 <p>The application defaults to <code>project.application</code> in <code>hinoki.toml</code>, the rules to the app's own <code>Hinoki(rules=...)</code> and the package to the application's package; pass <code>--models</code> to describe models. Projects made by <code>hinoki new</code> contain a <code>.mcp.json</code> that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.</p>
@@ -607,7 +607,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/dev-mcp.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

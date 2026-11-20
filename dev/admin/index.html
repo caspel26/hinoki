@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:58 UTC">November 20, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -595,7 +595,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 <h3 id="sessions-and-cookies">Sessions and cookies<a class="headerlink" href="#sessions-and-cookies" title="Permanent link">&para;</a></h3>
 <ul>
 <li>The session is a random token in the <code>hinoki_admin_session</code> cookie: <code>HttpOnly</code>, <code>SameSite=Lax</code>, scoped to the admin's path. The database stores only its SHA-256, so a copy of the table cannot be replayed.</li>
-<li>Forms carry a signed CSRF token. The sign-in form's token must match the <code>SameSite=Strict</code> <code>hinoki_csrf</code> cookie and pass the <code>Origin</code> check; other forms are bound to the signed-in user.</li>
+<li>Every form carries a signed CSRF token that must equal the <code>SameSite=Strict</code> <code>hinoki_csrf</code> cookie. On the sign-in form the token is signed for signing in; on every other form it is bound to the signed-in user. A form is also refused when the browser marks it as sent from another site (<code>Sec-Fetch-Site: cross-site</code> or <code>same-site</code>) or its <code>Origin</code> header names another host; a request without these headers relies on the token alone.</li>
 <li>Cookies are <code>Secure</code> on HTTPS. Behind a TLS-terminating proxy, set <code>server.trusted_proxies</code> so the forwarded scheme is believed, or pass <code>Admin(secure_cookies=True)</code>: cookies are then always <code>Secure</code> and named <code>__Secure-hinoki_admin_session</code> and <code>__Secure-hinoki_csrf</code>, so a sibling site cannot plant them. Changing the option signs everyone out once.</li>
 <li>A session ends after <code>admin.session_hours</code>, after <code>admin.idle_minutes</code> without a request, on sign-out, on a password change and when its user is deactivated. Reactivating a user never revives an old session.</li>
 </ul>
@@ -713,7 +713,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:58 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

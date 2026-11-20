@@ -438,8 +438,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
-            <span>4 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:50 UTC">November 20, 2026</span></span>
+            <span>5 min read</span>
           </p>
           
         </header>
@@ -493,7 +493,9 @@ Create the tables once, with the same variable:</p>
 <div class="language-sh highlight"><pre><span></span><code><span class="nv">NOTES_DATABASE__URL</span><span class="o">=</span>sqlite://./.hinoki/test.sqlite3<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
 <p>When one test needs other settings, build a second application from the same
-routes instead of changing the shared one:</p>
+routes instead of changing the shared one. This example only calls <code>/health</code>, so
+its new database needs no tables; to give a test migrated tables, copy them as
+<a href="#give-each-test-its-own-database">below</a>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/exportstest.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
@@ -512,11 +514,42 @@ routes instead of changing the shared one:</p>
 </code></pre></div>
 <p>Use synthetic rows and credentials, and never point test settings at production
 data.</p>
+<h3 id="give-each-test-its-own-database">Give each test its own database<a class="headerlink" href="#give-each-test-its-own-database" title="Permanent link">&para;</a></h3>
+<p>The tests above share one file, so rows one test writes are still there in the
+next. To start every test from empty, migrated tables, copy the file you migrated
+above into the test's temporary directory and build the application on the copy:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/conftest.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ASGIClient</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
+
+<span class="n">TEMPLATE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">".hinoki/test.sqlite3"</span><span class="p">)</span>  <span class="c1"># migrated once with the command above</span>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">client</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="n">ASGIClient</span><span class="p">]:</span>
+    <span class="n">copy</span> <span class="o">=</span> <span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"test.sqlite3"</span>
+    <span class="n">shutil</span><span class="o">.</span><span class="n">copyfile</span><span class="p">(</span><span class="n">TEMPLATE</span><span class="p">,</span> <span class="n">copy</span><span class="p">)</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">ProjectSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">overrides</span><span class="o">=</span><span class="p">{</span><span class="s2">"database"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"url"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"sqlite://</span><span class="si">{</span><span class="n">copy</span><span class="si">}</span><span class="s2">"</span><span class="p">}})</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">())</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">app</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">client</span>
+</code></pre></div>
+<p>A test takes <code>client</code> as an argument; whatever it writes is gone in the next
+test, and the template file is never modified. Run <code>migrations apply</code> on the
+template again after you add a migration. The copy works for SQLite files only.</p>
 <h2 id="catch-undeclared-errors">Catch undeclared errors<a class="headerlink" href="#catch-undeclared-errors" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient(app, strict_errors=True)</code> fails the test when an action answers an
 HTTP error that is missing from its <code>errors=</code> declaration, so the OpenAPI
 document cannot drift from what the action really does.</p>
-<p>Both clients have <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>head</code>, <code>options</code> and
+<p><code>ASGIClient</code> and <code>SyncClient</code> (for synchronous tests, <a href="#synchronous-tests-and-time">below</a>) both have <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>head</code>, <code>options</code> and
 <code>query</code> (the HTTP <code>QUERY</code> method; its body goes in <code>json=</code> or <code>body=</code>, while the
 <code>query=</code> option of every call is the query string), plus
 <code>request(method, path, ...)</code> for any other method.</p>
@@ -551,12 +584,14 @@ document cannot drift from what the action really does.</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>ruff<span class="w"> </span>check<span class="w"> </span>.
 uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>ruff<span class="w"> </span>format<span class="w"> </span>--check<span class="w"> </span>.
 uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>mypy
+uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>complexipy<span class="w"> </span>.<span class="w"> </span>--failed
 uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pytest<span class="w"> </span>--cov
 cargo<span class="w"> </span>fmt<span class="w"> </span>--all<span class="w"> </span>--check
 cargo<span class="w"> </span>clippy<span class="w"> </span>--workspace<span class="w"> </span>--all-targets<span class="w"> </span>--<span class="w"> </span>-D<span class="w"> </span>warnings
 cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace
+uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>--group<span class="w"> </span>docs<span class="w"> </span>mkdocs<span class="w"> </span>build<span class="w"> </span>--strict
 </code></pre></div>
-<p>PostgreSQL-dependent Python and Rust tests require <code>HINOKI_TEST_DATABASE_URL</code>; without it those tests are skipped. Migration conformance tests for MySQL and MariaDB also require <code>HINOKI_TEST_MYSQL_URL</code> and <code>HINOKI_TEST_MARIADB_URL</code>, respectively. CI provides disposable real-server services. See <a href="../toolchain/">toolchain and CI</a> for packaging and docs checks too.</p>
+<p>PostgreSQL-dependent Python and Rust tests require <code>HINOKI_TEST_DATABASE_URL</code>; without it those tests are skipped. Migration conformance tests for MySQL and MariaDB also require <code>HINOKI_TEST_MYSQL_URL</code> and <code>HINOKI_TEST_MARIADB_URL</code>, respectively. CI provides disposable real-server services. See <a href="../toolchain/">toolchain and CI</a> for the Rust complexity check, the pre-commit hooks and the packaging checks.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../new-project/">Create a project</a>: what the generated tests and settings contain.</li>
@@ -585,12 +620,14 @@ cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#test-protected-actions">Test protected actions</a></li><li><a href="#use-a-disposable-database">Use a disposable database</a></li><li><a href="#catch-undeclared-errors">Catch undeclared errors</a></li><li><a href="#test-file-uploads">Test file uploads</a></li><li><a href="#headers-and-hosts">Headers and hosts</a></li><li><a href="#synchronous-tests-and-time">Synchronous tests and time</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#test-protected-actions">Test protected actions</a></li><li><a href="#use-a-disposable-database">Use a disposable database</a>
+            <ul><li><a href="#give-each-test-its-own-database">Give each test its own database</a></li></ul>
+          </li><li><a href="#catch-undeclared-errors">Catch undeclared errors</a></li><li><a href="#test-file-uploads">Test file uploads</a></li><li><a href="#headers-and-hosts">Headers and hosts</a></li><li><a href="#synchronous-tests-and-time">Synchronous tests and time</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:50 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

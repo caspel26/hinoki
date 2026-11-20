@@ -540,7 +540,9 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 </code></pre></div>
 <p><code>--lanes</code> adds, per route, whether <a href="../kiso/#the-native-handler-lane">Kiso</a> runs
 the handler natively (<code>native</code>) or through the Python pipeline (<code>python</code>), with
-the reason. JSON always has <code>method</code>, <code>path</code>, <code>handler</code>, <code>access</code>, <code>status</code>,
+the reason. The access log's <code>lane</code> field means something narrower: a request
+for a <code>native</code> route here still logs <code>python</code> unless Rust runs a generated CRUD
+plan for it. JSON always has <code>method</code>, <code>path</code>, <code>handler</code>, <code>access</code>, <code>status</code>,
 <code>lane</code> and <code>lane_reason</code>.</p>
 <h2 id="openapi">Export the OpenAPI document with <code>openapi</code><a class="headerlink" href="#openapi" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>--output<span class="w"> </span>openapi.json
