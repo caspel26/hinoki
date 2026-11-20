@@ -558,7 +558,7 @@ deliberately. Reads are public by default; <code>CrudAccess(list=..., retrieve=.
 protects them.
 Writes run in a transaction. <code>pagination</code> selects the page-number policy for
 the generated list route.</p>
-<p>On the Rust server, eligible generated routes are selected automatically and
+<p>On Kiso, eligible generated routes are selected automatically and
 execute in Rust. List, retrieve, create, PATCH update and delete are eligible
 when their schemas and model are supported and the resource has no access
 policy, owner/assignment rule or custom hook. Unsupported and stale plans keep
@@ -645,7 +645,7 @@ can overwrite omitted fields, primary-key updates, unknown assigned columns,
 and incompatible derived schemas. <code>only=</code> and <code>exclude=</code> schemas remain
 subject to these same checks.</p>
 <p>A stored row that the <code>read=</code> schema refuses (for example a <code>max_length</code> that the data exceeds) is a server-side fault, not a client error: the action answers <code>500</code> and the response does not repeat the stored values; the server-side error names the model, the read schema, the field and the code. Client input that fails a create or update schema still answers <code>422</code>.</p>
-<h2 id="model-hooks-and-the-rust-server">Model hooks and the Rust server<a class="headerlink" href="#model-hooks-and-the-rust-server" title="Permanent link">&para;</a></h2>
+<h2 id="model-hooks-and-kiso">Model hooks and Kiso<a class="headerlink" href="#model-hooks-and-kiso" title="Permanent link">&para;</a></h2>
 <p>Generated create and PATCH update write through the model, so its <a href="../models/#lifecycle-hooks-and-instance-state">lifecycle hooks</a> run: create calls <code>acreate</code>, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (<code>403</code>/<code>404</code>) exactly as on the unhooked path. A model that defines any of <code>before_save</code>, <code>before_create</code>, <code>after_create</code> or <code>after_save</code> is not eligible for the native create and update routes, which execute without Python model code; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.</p>
 <h2 id="openapi-and-inspection">OpenAPI and inspection<a class="headerlink" href="#openapi-and-inspection" title="Permanent link">&para;</a></h2>
 <p>To inspect routes without starting the server:</p>
@@ -679,14 +679,14 @@ side-effects beyond the single model mutation.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#access-per-action">Access per action</a></li><li><a href="#hooks-in-the-class-form">Hooks in the class form</a></li><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-the-rust-server">Model hooks and the Rust server</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
+            <ul><li><a href="#access-per-action">Access per action</a></li><li><a href="#hooks-in-the-class-form">Hooks in the class form</a></li><li><a href="#generated-actions">Generated actions</a></li><li><a href="#reuse-and-customization">Reuse and customization</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-kiso">Model hooks and Kiso</a></li><li><a href="#openapi-and-inspection">OpenAPI and inspection</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.11</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 21:50:52 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 00:10:17 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
