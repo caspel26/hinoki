@@ -5,9 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
+from hinoki.checkcli import build_app
 from hinoki.db import Database
 from hinoki.errors import MigrationError
 from hinoki.orm import Model, migrator
@@ -26,23 +30,94 @@ from hinoki.orm.migrations import (
 from hinoki.project import (
     ProjectError,
     ProjectManifest,
+    add_project_root,
     find_manifest_or_none,
     load_manifest,
 )
-from hinoki.settings import DatabaseSettings
+from hinoki.settings import LOCAL_DATABASE_URL, DatabaseSettings, SettingsError
 
 URL_VARIABLE = "HINOKI_DATABASE_URL"
+DEFAULT_SOURCE = "local SQLite default"
+
+
+@dataclass(frozen=True)
+class MigrationDatabase:
+    """The database a migration command targets and where it was configured."""
+
+    url: str
+    source: str
+
+    def describe(self) -> str:
+        """One line naming the database and its source, without credentials."""
+        return f"database: {redacted_url(self.url)} (from {self.source})"
+
+
+def redacted_url(url: str) -> str:
+    """The URL with its password masked and its query options elided."""
+    parts = urlsplit(url)
+    netloc = parts.netloc
+    if parts.password is not None:
+        netloc = f"{parts.username or ''}:***@{netloc.rpartition('@')[2]}"
+    query = "?..." if parts.query else ""
+    return f"{parts.scheme}://{netloc}{parts.path}{query}"
+
+
+def migration_database(
+    args: argparse.Namespace, manifest: ProjectManifest | None
+) -> MigrationDatabase:
+    """Resolve ``--database``, then ``HINOKI_DATABASE_URL``, then the project
+    application's ``database`` setting, then the local SQLite default."""
+    if getattr(args, "database", None):
+        return MigrationDatabase(args.database, "--database")
+    environment = os.environ.get(URL_VARIABLE)
+    if environment:
+        return MigrationDatabase(environment, URL_VARIABLE)
+    configured = _settings_database(manifest) if manifest is not None else None
+    url, source = configured or (DatabaseSettings().url.reveal(), DEFAULT_SOURCE)
+    return MigrationDatabase(_anchor_sqlite(url, manifest), source)
 
 
 def migration_database_url(
     args: argparse.Namespace, manifest: ProjectManifest | None
 ) -> str:
-    """Resolve CLI/environment/default DB input, anchoring implicit project SQLite."""
-    explicit = args.database or os.environ.get(URL_VARIABLE)
-    if explicit:
-        return explicit
+    """The URL of :func:`migration_database`."""
+    return migration_database(args, manifest).url
 
-    url = DatabaseSettings().url.reveal()
+
+def _settings_database(manifest: ProjectManifest) -> tuple[str, str] | None:
+    """The URL and source of the application's ``database`` setting, if any.
+
+    Building the application reads its settings but opens no connection.
+    """
+    add_project_root(manifest)
+    try:
+        app = build_app(manifest.application)
+    except (Exception, SystemExit) as error:  # any failure keeps today's default
+        print(
+            f"warning: cannot load the application's settings ({_reason(error)}); "
+            "migrations use HINOKI_DATABASE_URL, --database or the local SQLite "
+            "default",
+            file=sys.stderr,
+        )
+        return None
+    group = getattr(app.settings, "database", None)
+    if not isinstance(group, DatabaseSettings):
+        return None
+    url = group.url.reveal()
+    if url == LOCAL_DATABASE_URL:
+        return None
+    return url, f"settings: {type(app.settings).__name__}.database"
+
+
+def _reason(error: BaseException) -> str:
+    # Settings errors name variables but never values; other messages may not.
+    if isinstance(error, SettingsError):
+        return str(error)
+    return type(error).__name__
+
+
+def _anchor_sqlite(url: str, manifest: ProjectManifest | None) -> str:
+    """Root a relative SQLite path at the project, not the working directory."""
     if manifest is None or not url.startswith("sqlite://"):
         return url
     path = Path(url.removeprefix("sqlite://"))
@@ -88,6 +163,7 @@ def plan_project(
     app_name: str | None = None,
     *,
     all_app_preview: bool = False,
+    dialect: str | None = None,
 ) -> Plan:
     app = manifest.app(args.app if app_name is None else app_name)
     models = manifest.all_models()
@@ -104,9 +180,11 @@ def plan_project(
         for model in models[dependency.name]
     ]
     history = _project_migration_history(manifest, directories)
+    if dialect is None:
+        dialect = database_dialect(migration_database_url(args, manifest))
     candidate = state_of(
         models[app.name],
-        database_dialect(migration_database_url(args, manifest)),
+        dialect,
         reference_models=external,
     )
     latest = {name: states[-1] if states else EMPTY for name, states in history.items()}
@@ -121,7 +199,7 @@ def plan_project(
         args.name,
         allow_destructive=args.allow_destructive or args.check or args.dry_run,
         write=not args.dry_run and not args.check,
-        dialect=database_dialect(migration_database_url(args, manifest)),
+        dialect=dialect,
         reference_models=external,
     )
 

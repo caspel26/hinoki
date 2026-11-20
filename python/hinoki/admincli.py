@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import getpass
-import os
 import sys
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 
@@ -45,9 +44,8 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
         )
         sub.add_argument(
             "--database",
-            default=os.environ.get(URL_VARIABLE),
-            help=f"connection URL; prefer {URL_VARIABLE}, which keeps a password "
-            "out of the process list",
+            help=f"connection URL; prefer {URL_VARIABLE} or the app's database "
+            "setting, which keep a password out of the process list",
         )
 
 

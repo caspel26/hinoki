@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import os
 import sys
 from pathlib import Path
 from typing import cast
@@ -30,6 +29,7 @@ from hinoki.project import ProjectError, ProjectManifest, resolve_target
 from hinoki.projectmigrations import (
     URL_VARIABLE,
     manifest_for,
+    migration_database,
     migration_database_url,
     plan_project,
     run_database_project,
@@ -97,16 +97,15 @@ def parser() -> argparse.ArgumentParser:
     )
     planner.add_argument(
         "--database",
-        default=os.environ.get(URL_VARIABLE),
-        help=f"target database URL; defaults to local SQLite or {URL_VARIABLE}",
+        help=f"target database URL (default: {URL_VARIABLE}, the app's database "
+        "setting, then local SQLite)",
     )
     for name, text in (("apply", "apply pending migrations"), ("status", "list them")):
         sub = actions.add_parser(name, help=text)
         sub.add_argument(
             "--database",
-            default=os.environ.get(URL_VARIABLE),
-            help=f"connection URL; prefer {URL_VARIABLE}, which keeps a password "
-            "out of the process list",
+            help=f"connection URL; prefer {URL_VARIABLE} or the app's database "
+            "setting, which keep a password out of the process list",
         )
         sub.add_argument(
             "app_name",
@@ -196,10 +195,17 @@ def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
         if args.app is None and len(manifest.apps) > 1 and (args.check or args.dry_run):
             if args.name is not None:
                 raise MigrationError("--name requires --app for a multi-app preview")
+            dialect = database_dialect(migration_database_url(args, manifest))
             return [
                 (
                     app.name,
-                    plan_project(args, manifest, app.name, all_app_preview=True),
+                    plan_project(
+                        args,
+                        manifest,
+                        app.name,
+                        all_app_preview=True,
+                        dialect=dialect,
+                    ),
                 )
                 for app in manifest.ordered_apps()
             ]
@@ -238,8 +244,9 @@ async def run_database(args: argparse.Namespace) -> None:
     if manifest is not None:
         manifest.ordered_apps(args.app)
         migration_directories = manifest.migration_directories()
-    database_url = migration_database_url(args, manifest)
-    database = await Database.connect(database_url, max_size=1)
+    target = migration_database(args, manifest)
+    print(target.describe(), file=sys.stderr)
+    database = await Database.connect(target.url, max_size=1)
     try:
         if manifest is not None:
             await run_database_project(args, manifest, database, migration_directories)
@@ -345,8 +352,9 @@ def run_migrations_with_error_handling(args: argparse.Namespace) -> int:
     except DatabaseError as error:
         print(f"error: database: {error}", file=sys.stderr)
         print(
-            f"  fix: check the URL in {URL_VARIABLE} (or --database) and that "
-            "the selected database server accepts the connection",
+            f"  fix: check the database named above ({URL_VARIABLE}, --database or "
+            "the app's database setting) and that the selected database server "
+            "accepts the connection",
             file=sys.stderr,
         )
         return 1
