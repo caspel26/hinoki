@@ -8,13 +8,18 @@ shared limit passes its own policy, see the rate limit section of the endpoints 
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from datetime import datetime, timedelta
 
+from hinoki.admin.users.models import LoginWindowRow
+from hinoki.db import UniqueViolation
 from hinoki.errors import TooManyRequests
 from hinoki.ratelimit import RateLimitContext
+from hinoki.utils import utc_now
 
 MAX_CLIENTS = 10_000  # the table never holds more addresses than this
 UNKNOWN_FACTOR = 10  # clients with no known address share one, larger, window
@@ -75,3 +80,55 @@ class LoginWindow:
             if now - oldest[0] < self.window:
                 break
             self.windows.popitem(last=False)
+
+
+class DatabaseLoginWindow:
+    """The same window as ``LoginWindow``, kept in the ``hinoki_admin_login_windows``
+    table so every worker and every host counts together and a restart keeps it.
+
+    Clients are stored as a SHA-256 digest, never as an address. A count moves
+    with a conditional update (compare and swap), so concurrent attempts never
+    pass more than ``limit``; when the swap keeps losing, the attempt is refused."""
+
+    ATTEMPTS = 8
+
+    def __init__(
+        self,
+        limit: int = 10,
+        window: int = 60,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
+        self.limit = limit
+        self.window = window
+        self.clock = clock
+
+    async def check(self, context: RateLimitContext) -> None:
+        now = self.clock()
+        key = hashlib.sha256(window_key(context.client).encode()).hexdigest()
+        limit = self.limit * (UNKNOWN_FACTOR if context.client is None else 1)
+        await LoginWindowRow.adelete(
+            started_at__lt=now - timedelta(seconds=self.window)
+        )
+        for _ in range(self.ATTEMPTS):
+            if await self.count(key, now, limit):
+                return
+        raise TooManyRequests(1)
+
+    async def count(self, key: str, now: datetime, limit: int) -> bool:
+        """Count one attempt; False when another worker won the race."""
+        row = await LoginWindowRow.aget_or_none(key=key)
+        if row is None:
+            try:
+                await LoginWindowRow.acreate(
+                    key=key, started_at=now, count=1, returning=False
+                )
+            except UniqueViolation:
+                return False
+            return True
+        if row.count >= limit:
+            left = row.started_at + timedelta(seconds=self.window) - now
+            raise TooManyRequests(max(1, int(left.total_seconds()) + 1))
+        won = await LoginWindowRow.aupdate_where(
+            {"key": key, "count": row.count}, {"count": row.count + 1}, returning=False
+        )
+        return bool(won)

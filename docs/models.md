@@ -76,7 +76,8 @@ when models are aggregated for migrations, projects or one Admin instance.
 
 A model has exactly one primary key. `pk()` is the field-specifier shorthand for
 `field(primary_key=True, ...)`; pass `default` or `default_factory` explicitly
-when the key is optional in the constructor. Fields are keyword-only when
+when the key is optional in the constructor. The key's type cannot be nullable
+(`int | None` raises `RegistrationError` when the model is defined). Fields are keyword-only when
 constructing a model. Single-column uniqueness is `field(unique=True)`; use
 `@unique("a", "b")` for a composite constraint. There is no nested `class Meta`.
 

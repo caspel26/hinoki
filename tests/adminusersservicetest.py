@@ -33,7 +33,8 @@ class Clock:
 async def database(tmp_path: Path) -> AsyncIterator[Database]:
     connected = await Database.connect(f"sqlite://{tmp_path / 'admin.sqlite3'}")
     assert await migrator.apply(connected, MIGRATIONS, namespace="admin") == [
-        "0001-initial"
+        "0001-initial",
+        "0002-login-windows",
     ]
     with use_database(connected):
         yield connected

@@ -5,13 +5,16 @@ ordering, counting, pagination and bulk update/delete. Nothing runs until an
 from __future__ import annotations
 
 import builtins
+import contextlib
 import dataclasses
 from collections.abc import Generator, Iterable
+from contextlib import AbstractAsyncContextManager
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 from hinoki import core
 from hinoki.blocking import run_sync
+from hinoki.db import Database, current_owner
 from hinoki.errors import FieldError, MultipleObjectsReturned
 from hinoki.orm.context import current_database
 from hinoki.orm.relations import ALIAS_PREFIX, Relation, store
@@ -433,10 +436,18 @@ class QuerySet[M: Model]:
     def paginate(self, params: PageParams) -> Page[M]:
         return run_sync(self.apaginate(params))
 
+    def stably_ordered(self) -> QuerySet[M]:
+        """The queryset with the primary key as the last sort key, so rows with
+        equal sort values keep a fixed position from one page to the next."""
+        key = self.model.__primary_key__
+        if any(column == key for column, _ in self.order):
+            return self
+        return self.derive(order=(*self.order, (key, False)))
+
     async def apaginate(self, params: PageParams) -> Page[M]:
-        """One page plus the total. Without ``order_by`` the primary key orders
-        the rows so pages are stable."""
-        ordered = self if self.order else self.order_by(self.model.__primary_key__)
+        """One page plus the total. The primary key is the final sort key so
+        pages are stable."""
+        ordered = self.stably_ordered()
         total = await self.acount()
         window = ordered.limit(params.page_size).offset(params.offset)
         return Page(await window, params.page, params.page_size, total)
@@ -574,6 +585,17 @@ def write_statement(
     )
 
 
+def write_transaction(database: Database) -> AbstractAsyncContextManager[Any]:
+    """The transaction a write runs in: a savepoint when one is open. When the
+    open transaction belongs to another task (a sync handler's ``run_sync``
+    writes from a helper task while its owner waits), that transaction already
+    rolls everything back on an error, so none is nested."""
+    active = database.active()
+    if active is not None and current_owner() is not active.owner:
+        return contextlib.nullcontext()
+    return database.atomic()
+
+
 async def written_rows(
     model: type[Model],
     sql: str,
@@ -590,7 +612,7 @@ async def written_rows(
     database = current_database()
     if database.dialect not in NO_RETURNING:
         return await database.fetch(sql, *params)
-    async with database.atomic():
+    async with write_transaction(database):
         key = model.__primary_key__
         # A key lookup cannot leave its own filter, so it needs no pre-read.
         if by_key and any(name != key or op != "eq" for name, op, _ in filters):

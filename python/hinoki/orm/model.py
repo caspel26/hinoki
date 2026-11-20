@@ -8,7 +8,6 @@ docs/typing.md) until generated stubs exist.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import copy
 import dataclasses
 import datetime
@@ -38,7 +37,6 @@ from uuid import UUID
 
 from hinoki import core
 from hinoki.blocking import run_sync
-from hinoki.db import current_owner
 from hinoki.errors import (
     ErrorDetail,
     FieldError,
@@ -56,7 +54,13 @@ from hinoki.fieldtypes import (
 )
 from hinoki.orm.context import current_database
 from hinoki.orm.naming import resolve_model_names
-from hinoki.orm.queryset import QuerySet, delete_keys, write_statement, written_rows
+from hinoki.orm.queryset import (
+    QuerySet,
+    delete_keys,
+    write_statement,
+    write_transaction,
+    written_rows,
+)
 from hinoki.orm.relations import OnDelete, Related, Relation
 from hinoki.utils import Clock, utc_now
 
@@ -717,6 +721,10 @@ class Model:
             name for name in cls.__columns__ if is_json_field(annotations.get(name))
         )
         cls.__field_types__ = cls.check_field_validations(fields, annotations)
+        if keys and cls.__field_types__[keys[0]].nullable:
+            raise RegistrationError(
+                f"{cls.__name__}: the primary key cannot be nullable"
+            )
         cls.__field_annotations__ = annotations
         cls.__field_validators__ = {
             item.name: item.metadata.get(MARK, FieldMeta()).validators
@@ -1214,15 +1222,9 @@ class Model:
 
     @staticmethod
     def hook_transaction() -> AbstractAsyncContextManager[Any]:
-        """The transaction a hooked write runs in: a savepoint when one is open.
-        When the open transaction belongs to another task (a sync handler's
-        ``run_sync`` writes from a helper task while its owner waits), that
-        transaction already rolls everything back on an error, so none is nested."""
-        database = current_database()
-        active = database.active()
-        if active is not None and current_owner() is not active.owner:
-            return contextlib.nullcontext()
-        return database.atomic()
+        """The transaction a hooked write runs in: a savepoint when one is open
+        (see ``write_transaction``)."""
+        return write_transaction(current_database())
 
     async def run_hooks(self, *names: str) -> None:
         """Run the overridden hooks among ``names``, ``def`` or ``async def``."""

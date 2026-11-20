@@ -61,8 +61,24 @@ def public_error(error: APIError) -> Response:
     extra: dict[str, Any] = {"message": error.message}
     if error.details is not None:
         extra["details"] = error.details
-    headers = [(k.encode(), v.encode()) for k, v in error.headers.items()]
-    return HTTPError(error.status, error.code, headers, **extra).response
+    return HTTPError(
+        error.status, error.code, checked_headers(error.headers), **extra
+    ).response
+
+
+def checked_headers(headers: dict[str, str]) -> list[tuple[bytes, bytes]]:
+    """The headers of an ``APIError`` that pass the same checks as a ``Response``'s
+    (no control characters, no framing headers); the others are dropped and logged."""
+    # A local import: hinoki.http.response imports this module.
+    from hinoki.http.response import encode_header  # noqa: PLC0415
+
+    kept: list[tuple[bytes, bytes]] = []
+    for name, value in headers.items():
+        try:
+            kept.append(encode_header(name, value))
+        except ValueError as problem:
+            log.warning("error header dropped: %s", problem)
+    return kept
 
 
 def builtin_error(exc: Exception) -> Response | None:

@@ -321,7 +321,10 @@ def test_the_planner_creates_and_changes_indexes(tmp_path: Path) -> None:
 
     second = plan([Mark2], tmp_path, "indexes")
     text = " ".join(o.sql for o in second.operations)
-    assert 'CREATE INDEX "ix_mo_marks_url"' in text and text.count("DROP INDEX") == 2
+    assert (
+        'CREATE INDEX "ix_mo_marks_url_fbe48776"' in text
+        and text.count("DROP INDEX") == 2
+    )
     assert not any(o.destructive for o in second.operations)
 
 
