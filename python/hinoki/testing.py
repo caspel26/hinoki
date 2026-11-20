@@ -1,7 +1,7 @@
 """An in-process client for tests: drives the application through the ASGI
 lifespan and http protocols, with no sockets and no server process.
 
-    async with ASGIClient(create_app()) as client:
+    async with ASGIClient(app) as client:
         reply = await client.post("/tasks", json={"title": "x"}, token="abc")
         assert reply.status == 201
 

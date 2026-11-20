@@ -2,9 +2,9 @@
 (the default), or under Granian.
 
     hinoki dev                                         # the project's application
-    hinoki dev   blog.main:create_app                  # reload on change
-    hinoki serve blog.main:create_app                  # production-style, no reload
-    hinoki serve blog.main:create_app --server granian # Granian instead
+    hinoki dev   notes.main:app                        # reload on change
+    hinoki serve notes.main:app                        # production-style, no reload
+    hinoki serve notes.main:app --server granian       # Granian instead
 
 ``TARGET`` is ``module:name`` where ``name`` is an application (``Hinoki``) or
 a function returning one; inside a project it defaults to ``project.application``

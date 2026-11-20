@@ -1,7 +1,7 @@
 """``hinoki routes``: every action of an application on one screen.
 
-    hinoki routes blog.main:create_app
-    hinoki routes blog.main:create_app --path /posts --method GET --format json
+    hinoki routes                                      # the project's application
+    hinoki routes notes.main:app --path /notes --method GET --format json
 
 Lists method, path, handler and access in path order. Nothing is served and no
 database is opened; the application is built the way ``hinoki check`` builds it.
