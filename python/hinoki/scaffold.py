@@ -185,7 +185,8 @@ uv run pytest           # the tests need no database
 uv run hinoki dev                   # serve with reload on http://127.0.0.1:8000
 uv run hinoki routes                # list the routes
 uv run hinoki check                 # run the project's rules
-uv run hinoki migrations plan       # plan the default app's migrations
+uv run hinoki app create <name>     # add an app: its models, routes and migrations
+uv run hinoki migrations plan <app> # plan an app's migrations
 uv run hinoki migrations apply      # initialize the local SQLite database
 uv run hinoki manage                # list project management commands
 ```
@@ -237,14 +238,14 @@ uv run hinoki dev                               # reload; `serve` runs it for pr
 
 ## Adding a database and a protected resource
 
-The generated app has neither. The reference is `examples/tracker` in the framework repository; the shape is:
+The generated project has no app, database or protected resource. Models live in apps, never in the project package: run `uv run hinoki app create <name>` first, then work inside `{name}/apps/<name>/`. The reference is `examples/tracker` in the framework repository; the shape is:
 
-1. `models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="...")` (`OnDelete` comes from `hinoki.orm`). Then turn on the two model rules in `rules.py` (`Models.require_explicit_table`, `Models.require_foreign_key_index`): pin each table with `table=` or `@db.table(...)`, and index each foreign key with `@db.indexed("owner_id")`.
-2. `schemas.py`: an `In` schema without the owner, an `Out` schema.
-3. `operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
-4. `security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
-5. `api.py`: actions with `access=...`, `caller: Caller[Member]`, `atomic=True` on writes, `pagination=` on lists; `routes.py`: the list of routes that `hinoki.toml` points to (a new action is not served until it is listed there); `main.py`: `Hinoki(settings=..., include=manifest_routes())`, which serves the routes `hinoki.toml` lists and opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
-6. `hinoki migrations plan`, then review the SQL. The project manifest discovers app models and migration packages.
+1. `apps/<name>/models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="...")` (`OnDelete` comes from `hinoki.orm`). Then turn on the two model rules in `rules.py` (`Models.require_explicit_table`, `Models.require_foreign_key_index`): pin each table with `table=` or `@db.table(...)`, and index each foreign key with `@db.indexed("owner_id")`.
+2. `apps/<name>/schemas.py`: an `In` schema without the owner, an `Out` schema.
+3. `apps/<name>/operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
+4. `apps/<name>/security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
+5. `apps/<name>/api.py`: actions with `access=...`, `caller: Caller[Member]`, `atomic=True` on writes, `pagination=` on lists; list them in `apps/<name>/routes.py`, which `hinoki.toml` points to (a new action is not served until it is listed there). `main.py` stays `Hinoki(settings=..., include=manifest_routes())`, which serves the routes `hinoki.toml` lists and opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
+6. `hinoki migrations plan <name>`, then review the SQL. The project manifest discovers app models and migration packages.
 7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(app) as client: await client.post("/x", json={{...}}, token="...")`.
 
 ## What you may not do
@@ -363,12 +364,7 @@ def files(
         "hinoki.toml": (
             "[project]\n"
             f'application = "{name}.main:app"\n'
-            f'routes = "{name}.routes:routes"\n\n'
-            "[[apps]]\n"
-            f'name = "{name}"\n'
-            f'models = "{name}.models"\n'
-            f'migrations = "{name}.migrations"\n'
-            "requires = []\n"
+            f'routes = "{name}.routes:routes"\n'
         ),
         "README.md": README.format(**values),
         "AGENTS.md": AGENTS.format(**values),
@@ -380,8 +376,6 @@ def files(
         f"{name}/api.py": API.format(**values),
         f"{name}/routes.py": ROUTES.format(**values),
         f"{name}/rules.py": RULES.format(**values),
-        f"{name}/models.py": '"""Models owned by the project app."""\n',
-        f"{name}/migrations/__init__.py": "",
         "tests/__init__.py": "",
         "tests/healthtest.py": TEST.format(**values),
         ".gitignore": (

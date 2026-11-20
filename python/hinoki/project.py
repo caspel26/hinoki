@@ -82,6 +82,10 @@ class ProjectManifest:
     def app(self, name: str | None = None) -> ProjectApp:
         """Resolve one app, requiring a name when the project is modular."""
         if name is None:
+            if not self.apps:
+                raise ProjectError(
+                    "no apps are registered; create one with `hinoki app create <name>`"
+                )
             if len(self.apps) != 1:
                 raise ProjectError("pass --app because this project has multiple apps")
             return self.apps[0]
