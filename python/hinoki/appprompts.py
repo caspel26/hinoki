@@ -21,7 +21,8 @@ from hinoki.terminal import Style
 
 APP_FILES = (
     ("models.py", "tables of the app"),
-    ("routes.py", "endpoints, mounted at the prefix"),
+    ("api.py", "endpoints of the app"),
+    ("routes.py", "routes served, mounted at the prefix"),
     ("migrations/", "migration history"),
 )
 
