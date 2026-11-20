@@ -194,7 +194,7 @@ def test_check_json_is_versioned_and_waivers_make_it_pass(
     )
     report = json.loads(capsys.readouterr().out)
     assert code == 0
-    assert report["schema_version"] == 1
+    assert report["schema_version"] == 2
     assert report["summary"]["waived"] == 3 and report["summary"]["failing"] == 0
     assert {d["status"] for d in report["diagnostics"]} == {"waived"}
 
@@ -217,8 +217,11 @@ def test_text_keeps_waivers_with_their_finding_and_counts_warnings_apart(
     main(
         ["check", APP, "--rules", RULES, "--waivers", str(waivers), "--format", "json"]
     )
-    summary = json.loads(capsys.readouterr().out)["summary"]
-    assert (summary["violated"], summary["warning"]) == (2, 1)
+    report = json.loads(capsys.readouterr().out)
+    assert report["schema_version"] == 2
+    assert (report["summary"]["violated"], report["summary"]["warning"]) == (2, 1)
+    statuses = {d["rule"]: d["status"] for d in report["diagnostics"]}
+    assert statuses[STALE] == "warning"
 
 
 def test_check_without_rules_passes_and_says_zero(

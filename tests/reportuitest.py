@@ -58,18 +58,39 @@ def test_check_lists_findings_and_a_coloured_summary() -> None:
     text = plain(checkcli.render(found, 2, "text", FANCY))
     assert "✘  rule.one a.py:1" in text
     assert "fix: do x" in text
-    assert "▲  rule.two b.py:2" in text
+    assert "?  rule.two b.py:2" in text
     assert "✘  2 rule(s): 1 violated, 1 unverifiable, 0 waived" in text
     assert "\x1b" in checkcli.render(found, 2, "text", FANCY)
 
 
 def test_check_marks_warnings_and_keeps_a_green_summary() -> None:
     notice = Diagnostic(
-        "HNK-WVR-001", Severity.WARNING, Phase.STARTUP, "stale", "w.toml", "why"
+        "HNK-WVR-001",
+        Severity.WARNING,
+        Phase.STARTUP,
+        "stale",
+        "w.toml",
+        "why",
+        Status.WARNING,
     )
     text = plain(checkcli.render([notice], 1, "text", FANCY))
     assert "▲  HNK-WVR-001 w.toml" in text
     assert "✔  1 rule(s): 0 violated, 0 unverifiable, 0 waived, 1 warning(s)" in text
+
+
+def test_an_unverifiable_check_never_shows_a_green_summary() -> None:
+    unsure = Diagnostic(
+        "rule.two",
+        Severity.ERROR,
+        Phase.STATIC,
+        "unsure",
+        "b.py:2",
+        "why",
+        Status.UNVERIFIABLE,
+    )
+    text = plain(checkcli.render([unsure], 1, "text", FANCY))
+    assert "?  rule.two b.py:2" in text  # not the ▲ of a warning
+    assert "✘  1 rule(s): 0 violated, 1 unverifiable, 0 waived" in text
 
 
 def test_check_passes_with_a_green_summary() -> None:
