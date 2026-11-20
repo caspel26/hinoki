@@ -6,6 +6,7 @@ import pytest
 
 from hinoki.runtime import banner
 from hinoki.settings import ServerSettings
+from hinoki.terminal import ANSI
 
 
 def line(settings: ServerSettings, *, colour: bool, **overrides: object) -> str:
@@ -31,11 +32,29 @@ def test_dev_turns_the_access_log_on_and_the_settings_turn_the_lane_off() -> Non
     )
 
 
-def test_a_coloured_banner_names_kiso_in_bold_and_keeps_the_facts() -> None:
+@pytest.mark.parametrize(
+    ("environment", "kiso"),
+    [
+        ({"TERM": "xterm"}, "\x1b[1;35mKiso 1.2.3\x1b[0m"),
+        ({"COLORTERM": "truecolor"}, "\x1b[1;38;2;185;160;231mKiso 1.2.3\x1b[0m"),
+    ],
+)
+def test_a_coloured_banner_carries_the_mark_and_brand_colours(
+    monkeypatch: pytest.MonkeyPatch, environment: dict[str, str], kiso: str
+) -> None:
+    for name in ("TERM", "COLORTERM", "COLORFGBG"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
     text = line(ServerSettings(), colour=True)
-    assert text.startswith("\x1b[1;36mKiso 1.2.3\x1b[0m")
-    assert "serve \u00b7 1 worker \u00b7 http" in text
-    assert text.count("\n") == 1
+    first, facts = text.split("\n")
+    assert ANSI.sub("", first) == "\u25e2\u25e4 Kiso 1.2.3  Hinoki's Rust server"
+    assert kiso in first
+    assert "\x1b[1;36m" not in text
+    assert ANSI.sub("", facts) == (
+        "   serve \u00b7 1 worker \u00b7 http \u00b7 "
+        "access log off \u00b7 native lane on"
+    )
 
 
 def test_colour_needs_a_terminal_and_no_no_color(

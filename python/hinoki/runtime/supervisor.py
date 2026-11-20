@@ -74,9 +74,18 @@ class Supervisor:
         ]
 
     def spawn(self) -> subprocess.Popen[bytes]:
-        return subprocess.Popen(  # noqa: S603 - our own interpreter and module
-            self.command(), pass_fds=(self.listener.fileno(),)
-        )
+        """Start a worker with SIGINT blocked: a terminal Ctrl-C reaches the
+        whole process group, and while the worker still imports Hinoki it
+        would end it with a traceback. The supervisor owns the stop (SIGTERM);
+        the worker unblocks SIGINT first thing, behind a no-op handler
+        (``kiso.take_interrupts``)."""
+        previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+        try:
+            return subprocess.Popen(  # noqa: S603 - our own interpreter and module
+                self.command(), pass_fds=(self.listener.fileno(),)
+            )
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
 
     def on_signal(self, _number: int, _frame: FrameType | None) -> None:
         """First signal: stop gracefully. Another one: kill the workers now."""
