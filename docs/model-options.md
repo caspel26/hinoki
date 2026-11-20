@@ -71,11 +71,17 @@ class Quote(Model):
   PostgreSQL, SQLite, MySQL and MariaDB, so the constraint keeps a stable,
   chosen name in the database.
 * A name is a letter or underscore followed by up to 62 letters, digits or
-  underscores. A name used twice, in one model or across the planned tables,
-  is refused.
+  underscores, compared without case (as MySQL and MariaDB do). Planning
+  refuses a name already used by another constraint, a table, or an index or
+  foreign key that Hinoki names, among the planned models and, in a project
+  with `hinoki.toml`, in every app.
+* Only a table model can name a constraint: on an abstract model `name=`
+  raises `RegistrationError`, because every table inheriting it would repeat
+  the name. Unnamed constraints are inherited as usual.
 * Changing the constraints or their names on an existing table is not planned
-  on PostgreSQL, MySQL or MariaDB (write that migration by hand); SQLite
-  rebuilds the table and reports it as destructive.
+  on PostgreSQL, MySQL or MariaDB (write that migration by hand). SQLite
+  rebuilds the table; a rename alone is not destructive, while changed columns
+  are reported as destructive because existing rows may violate them.
 
 ## Indexes
 

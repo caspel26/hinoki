@@ -234,7 +234,8 @@ class Article(Keyed, Tracked):
   `@db.indexed`, and the order and timestamp column of the first base that sets
   one. A decorator on the subclass *replaces* that kind of option. A
   `field(index=True)` index belongs to its column and is dropped when a subclass
-  redeclares the column without it.
+  redeclares the column without it. Constraint names are not inherited: an
+  abstract model cannot use `@db.unique(..., name=...)`.
 * **Plain mixins** (non-model classes) contribute annotated fields and methods;
   `ClassVar` annotations are not fields. Type checkers do not see mixin fields
   as constructor arguments: prefer an abstract model.
