@@ -16,6 +16,7 @@ from hinoki.errors import (
     RegistrationError,
 )
 from hinoki.orm import Model, QuerySet, field, use_database
+from hinoki.orm.migrations import index_name
 from hinoki.pagination import PageParams
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -331,3 +332,9 @@ def test_a_page_order_always_ends_with_the_primary_key() -> None:
     assert by_title.order == (("title", True), ("id", False))
     by_key = Post.all().order_by("-id").stably_ordered()
     assert by_key.order == (("id", True),)
+
+
+def test_index_names_do_not_collide_for_ambiguous_underscores() -> None:
+    assert index_name("t", ["a_b"]) != index_name("t", ["a", "b"])
+    assert index_name("t_a", ["b"]) != index_name("t", ["a_b"])
+    assert len(index_name("t" * 80, ["c"], "mysql")) <= 64
