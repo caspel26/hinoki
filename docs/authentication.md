@@ -187,6 +187,41 @@ async def me(caller: Caller[None]) -> WhoAmI:
 `tokens.issue({"sub": "u1", "scopes": ["notes:write"]}, ttl=900)` signs with the
 first key that can sign and sets `iat`, `exp`, and `iss`/`aud` when configured.
 
+### The policies of the billing examples {#billing-policies}
+
+The endpoint, CRUD and transaction guides import `billing_staff` and
+`billing_admin` from one module. Declare the policies once and import them
+wherever an action or `RouteGroup` names them:
+
+```python
+# notes/security.py
+from collections.abc import Sequence
+from typing import ClassVar
+
+from hinoki import Access, Permission
+from hinoki.crypto import ClaimsJWTAuth, JWTKey
+
+
+class BillingPermission(Permission):
+    MANAGE = "billing:manage"
+    ADMIN = "billing:admin"
+
+
+class StaffTokens(ClaimsJWTAuth):
+    keys: ClassVar[Sequence[JWTKey]] = (
+        JWTKey("2026-11", "HS256", b"0123456789abcdef0123456789abcdef"),
+    )  # read the key from a Secret in a real application
+
+
+tokens = StaffTokens()
+billing_staff = Access(auth=tokens, permissions=[BillingPermission.MANAGE])
+billing_admin = Access(auth=tokens, permissions=[BillingPermission.ADMIN])
+```
+
+A token from `tokens.issue({"sub": "u1", "scopes": ["billing:manage"]}, ttl=900)`
+passes `billing_staff`; without a token the answer is `401`, and with a token
+that lacks the permission it is `403`.
+
 Generated CRUD routes protected by an unmodified `ClaimsJWTAuth` can run on the native lane. Rust only admits requests: a single `Authorization: Bearer <token>` header whose token verifies (signature, expiry, issuer, audience, `sub`) and carries every required permission goes straight to the native action. Every other request, including a missing, malformed, expired, forged or under-privileged one, is handed to the Python pipeline, which answers exactly as it does without the native lane (`401` with the challenge, or `403`). With `owner` and `identity_key = caller_id`, create, update and delete are native too: Rust sets the owner column from `sub`, and update/delete are constrained to rows that `sub` owns. Foreign or missing rows, and MySQL/MariaDB, are answered by the Python pipeline. A subclass that overrides a method, a modified instance, or any other auth class keeps the route on Python. The route's key, issuer, audience, leeway and permission snapshot is rechecked about once per second; reassigning them disarms the native plan until the worker restarts, so a rotation reaches native routes after that interval, not per verification. `hinoki routes --lanes` shows which lane each route uses.
 
 Rust verifies the token on these routes too: a handler route protected by an unmodified `ClaimsJWTAuth` (not generated CRUD) is authenticated by Rust, which admits the caller or answers `401` or `403` itself with the same body and `WWW-Authenticate` challenge as Python, in the same order relative to path/query errors, the rate limit and body validation. Rust defers to Python for anything it cannot decide identically: several `Authorization` headers, a value that is not a plain `Bearer <token>`, or a request Rust already found malformed. A rate limit still runs afterwards in Python, with the admitted caller. Error handlers registered with `app.errors` do not apply to these answers, on either path, because they translate other exceptions. The provider and policy are checked about once per second as for CRUD routes.

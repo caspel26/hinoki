@@ -23,12 +23,20 @@ hinoki openapi --breaking-against openapi-baseline.json
 
 ## Serve the document and viewers
 
-All three URLs are disabled by default. Set `openapi_url` to serve JSON; add `docs_url` for the bundled Swagger UI or `redoc_url` for ReDoc:
+All three URLs are disabled by default. Set `openapi_url` to serve JSON; add `docs_url` for the bundled Swagger UI or `redoc_url` for ReDoc. A project created with `hinoki new` already sets the first two:
 
 ```python
+# notes/main.py
 from hinoki import Hinoki
+from hinoki.project import manifest_routes
+
+from notes.rules import project_rules
+from notes.settings import ProjectSettings
 
 app = Hinoki(
+    settings=ProjectSettings,
+    include=manifest_routes(),
+    rules=project_rules,
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -65,7 +73,7 @@ A `set[X]` or `frozenset[X]` field becomes an array with `uniqueItems: true`, `t
 
 A plain union such as `int | str` becomes `anyOf` of its variants, and `Any` or `object` an unconstrained schema (`{}`). See [plain unions and `Any`](schema-collections.md#plain-unions-and-any).
 
-Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.
+Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. The return value is also checked against the annotation at runtime ([details](endpoints.md#the-response-is-checked-against-the-annotation)).
 
 ```yaml
 oneOf:

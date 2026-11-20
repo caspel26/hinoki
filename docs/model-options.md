@@ -21,7 +21,7 @@ from hinoki import db
 from hinoki.orm import Model, OnDelete, field, foreign_key, pk
 from hinoki.utils import utc_now
 
-from .customers import Customer
+# Customer is the model declared earlier in this file (see Models).
 
 
 @db.unique("customer_id", "reference")

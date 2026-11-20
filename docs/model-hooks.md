@@ -58,6 +58,10 @@ this write's changes while they run.
 
 With any hook defined, the write runs in a transaction (a savepoint inside an
 open one): an exception in a hook rolls the write back and reaches the caller.
+A hook that opens its own `db.atomic()` fails with `DatabaseError` (`nested
+atomic scopes (savepoints) must be opened by the task that owns the
+transaction`) when a sync write runs inside a sync handler's
+`with db.atomic():`; from async code it nests as a savepoint.
 `after_*` hooks run before the commit. Work that must happen only after it goes
 through `self.after_commit(callback)`, a sync or async callable without
 arguments. Callbacks run in order after the outermost commit; a rollback drops
