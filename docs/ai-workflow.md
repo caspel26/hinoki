@@ -8,7 +8,7 @@ related:
 
 # Build with a coding agent
 
-A project made by `hinoki new` is ready for a coding agent: rules already on, an `AGENTS.md` with the conventions, and a read-only MCP server that describes the app. This page shows the loop and where the agent's authority ends.
+A project made by `hinoki new` is ready for a coding agent: rules already on, an `AGENTS.md` with the conventions, and an MCP server that describes the app. This page shows the loop and where the agent's authority ends.
 
 ```sh
 hinoki new shop    # asks for the directory, database, server, agent files, skills, git and uv sync
@@ -41,7 +41,7 @@ The generated tests pass and `hinoki check` exits 0; this repository's own test 
 
 ## Give the agent tools
 
-* **The development MCP** lets the agent read the real registry, rules and models, explain one action or error code, check the project and draft a model. It never writes. See [development MCP](dev-mcp.md).
+* **The development MCP** lets the agent read the real registry, rules and models, explain one action or error code, check the project and draft a model. It never writes source code, rules or waivers; only `run_scenario`, when you enable it, runs real handlers. See [development MCP](dev-mcp.md).
 * **Skills** (optional): `hinoki skills install` writes four playbooks under `.claude/skills/`: `hinoki-add-endpoint`, `hinoki-fix-rule`, `hinoki-review-api` and `hinoki-test-api`. Each names the MCP tool or command to run and what belongs to the owner. See [`hinoki skills`](cli.md#skills).
 * **Errors that say what to do**: validation errors list every problem with a path and a stable code, and a registration error names the action and parameter.
 
