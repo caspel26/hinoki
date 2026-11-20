@@ -763,6 +763,14 @@ mod tests {
     }
 
     #[test]
+    fn sqlite_offset_without_limit_uses_an_unbounded_limit() {
+        let mut query = select(vec![]);
+        query.offset = Some(4);
+        let (sql, _) = compile_select_with(&query, Dialect::Sqlite).unwrap();
+        assert!(sql.ends_with(" LIMIT -1 OFFSET 4"));
+    }
+
+    #[test]
     fn hostile_identifiers_are_rejected_before_any_sql_is_built() {
         for bad in ["a\"; DROP TABLE x; --", "a b", "", "1abc", "naïve", "a-b"] {
             assert!(
