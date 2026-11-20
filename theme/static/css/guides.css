@@ -1,0 +1,131 @@
+/* Guide index (theme/guides.html): each link list becomes a grid of cards under an icon header. */
+
+.hn-guides .prose > ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  max-width: none;
+  margin: var(--sp-4) 0 var(--sp-6);
+  padding: 0;
+  list-style: none;
+}
+
+.hn-guides .prose > ul > li {
+  position: relative;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--hn-edge);
+  border-radius: var(--radius-card);
+  background: var(--hn-surface-1);
+  color: var(--hn-text-2);
+  font-size: 14px;
+  line-height: 1.55;
+  transition: border-color var(--hn-dur-1) var(--hn-ease), background var(--hn-dur-1) var(--hn-ease);
+}
+
+.hn-guides .prose > ul > li::marker {
+  content: none;
+}
+
+.hn-guides .prose > ul > li > a:first-child {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--hn-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* The whole card is the link's hit area. */
+.hn-guides .prose > ul > li > a:first-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.hn-guides .prose > ul > li > a:first-child:focus-visible {
+  outline: none;
+}
+
+.hn-guides .prose > ul > li:has(> a:first-child:hover) {
+  border-color: var(--hn-brand);
+  background: var(--hn-surface-2);
+}
+
+.hn-guides .prose > ul > li:has(> a:first-child:hover) > a:first-child {
+  color: var(--hn-brand);
+}
+
+.hn-guides .prose > ul > li:has(> a:first-child:focus-visible) {
+  outline: 2px solid var(--hn-brand);
+  outline-offset: 2px;
+}
+
+.hn-guides .prose > ul > li code {
+  font-size: 0.86em;
+}
+
+.hn-card__desc {
+  display: block;
+}
+
+.hn-card__desc::first-letter {
+  text-transform: uppercase;
+}
+
+/* Group headers: icon tile + title. The icon follows the group heading's id. */
+.hn-guides .prose > h2 {
+  --i: url("../icons/lucide/book-open.svg");
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  margin-top: var(--sp-7);
+  padding-left: 48px;
+}
+
+.hn-guides .prose > h2::before,
+.hn-guides .prose > h2::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.hn-guides .prose > h2::before {
+  left: 0;
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 9px;
+  background: var(--hn-icon-tint);
+}
+
+.hn-guides .prose > h2::after {
+  left: 8px;
+  inline-size: var(--icon-m);
+  block-size: var(--icon-m);
+  background: var(--hn-icon);
+  -webkit-mask: var(--i) center / contain no-repeat;
+  mask: var(--i) center / contain no-repeat;
+}
+
+@media (forced-colors: active) {
+  .hn-guides .prose > h2::after {
+    background: CanvasText;
+  }
+}
+
+.hn-guides .prose > h2#data { --i: url("../icons/lucide/database.svg"); }
+.hn-guides .prose > h2#endpoints { --i: url("../icons/lucide/route.svg"); }
+.hn-guides .prose > h2#security-and-checks { --i: url("../icons/lucide/shield-check.svg"); }
+.hn-guides .prose > h2#runtime { --i: url("../icons/lucide/server.svg"); }
+.hn-guides .prose > h2#integrations { --i: url("../icons/lucide/plug.svg"); }
+.hn-guides .prose > h2#operating { --i: url("../icons/lucide/gauge.svg"); }
+.hn-guides .prose > h2#concepts-and-project { --i: url("../icons/lucide/lightbulb.svg"); }
+
+@media (max-width: 560px) {
+  .hn-guides .prose > ul {
+    grid-template-columns: 1fr;
+  }
+}

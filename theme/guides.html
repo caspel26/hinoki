@@ -1,0 +1,5 @@
+{% extends "main.html" %}
+{#- Guide index: each "## Group" plus its link list renders as a group of cards (see guides.css). -#}
+{% block bodyclass %}is-doc hn-guides{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ 'static/css/guides.css' | url }}">{% endblock %}
+{% block page_content scoped %}{{ page.content | replace("</a>: ", "</a><span class=\"hn-card__desc\">") | replace("</li>", "</span></li>") if "</a>: " in page.content else page.content }}{% endblock %}

@@ -158,7 +158,7 @@
     <main class="main" id="main">
       <article class="prose" style="--sheet: '{{ sheet }}'">
         {% if sec.active %}<p class="kicker" data-search-exclude><span class="i-tile">{{ m.icon(m.page_icon(page, sec.active.title), "m") }}</span><span>{{ sec.active.title }}{% if page.parent and page.parent.title != sec.active.title %}<span class="kicker__sep" aria-hidden="true">/</span>{{ page.parent.title }}{% endif %}</span></p>{% endif %}
-        {{ page.content }}
+        {% block page_content scoped %}{{ page.content }}{% endblock %}
         {% if page.meta and page.meta.related_pages %}
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
