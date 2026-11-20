@@ -1,13 +1,14 @@
 """Routes declared in hinoki.toml are bound by the app that the manifest names."""
 
 import importlib
+import re
 import sys
 from pathlib import Path
 
 import pytest
 
 from hinoki import Hinoki
-from hinoki.project import ProjectError, load_manifest
+from hinoki.project import ProjectError, load_manifest, manifest_routes
 
 FEATURE = """from hinoki import http
 
@@ -192,3 +193,42 @@ def test_a_malformed_manifest_is_ignored_by_an_unrelated_application(
     monkeypatch.syspath_prepend(str(tmp_path))
     monkeypatch.delitem(sys.modules, "plain", raising=False)
     assert paths(importlib.import_module("plain").app) == []
+
+
+def test_manifest_routes_reads_the_manifest_above_the_calling_file(
+    project: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, package = project
+    write(
+        root / package / "app.py",
+        "from hinoki import Hinoki\nfrom hinoki.project import manifest_routes\n\n"
+        "app = Hinoki(include=manifest_routes())\n",
+    )
+    monkeypatch.chdir(root.parent)
+    app = importlib.import_module(f"{package}.app").app
+    assert paths(app) == ["/health", "/posts", "/invoicing"]
+
+
+def test_manifest_routes_from_an_explicit_start_directory(
+    project: tuple[Path, str],
+) -> None:
+    root, package = project
+    app = Hinoki(include=manifest_routes(root / package / "posts"))
+    assert paths(app) == ["/health", "/posts", "/invoicing"]
+
+
+def test_manifest_routes_outside_a_project_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outside = tmp_path / "outside"
+    write(
+        outside / "loose.py",
+        "from hinoki.project import manifest_routes\n\nroutes = manifest_routes()\n",
+    )
+    monkeypatch.syspath_prepend(str(outside))
+    monkeypatch.delitem(sys.modules, "loose", raising=False)
+    missing = rf"no hinoki\.toml found in {re.escape(str(outside))} or above"
+    with pytest.raises(ProjectError, match=missing):
+        importlib.import_module("loose")
+    with pytest.raises(ProjectError, match=missing):
+        manifest_routes(outside)
