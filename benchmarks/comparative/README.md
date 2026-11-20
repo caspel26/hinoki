@@ -21,7 +21,7 @@ Each uses its own idiomatic stack, at its own recommended server:
 
 | | Code | ORM / driver | Server |
 | --- | --- | --- | --- |
-| Hinoki | `hinoki_app.py` | Hinoki ORM (Rust, tokio-postgres) | Granian, ASGI |
+| Hinoki | `hinoki_app.py` | Hinoki ORM (Rust, tokio-postgres) | Granian, ASGI (Kiso, Hinoki's Rust server, in the `kiso` run) |
 | FastAPI | `fastapi_app.py` | SQLAlchemy 2 async, asyncpg | Uvicorn (uvloop) |
 | Django Ninja | `ninja_app.py` | Django async ORM, psycopg 3 with pool | Uvicorn (uvloop), Django ASGI |
 | Django Bolt | `benchapp/api.py` | Django async ORM, psycopg 3 with pool | its own Actix server (`runbolt`) |
@@ -38,11 +38,14 @@ the stored row before measurements.
 
 `run.py` does, for each stack in turn: reset the database to the seed, start the server pinned to CPUs 0–3, run `verify.py`, warm up every scenario, then measure each scenario five times with `oha` (64 concurrent connections, load generator pinned to CPUs 6–7) and keep each raw JSON result. PostgreSQL runs in a disposable container (`postgres:17`, `pg_stat_statements` enabled). Created rows are removed after the `create` scenario.
 
-There are two independent runs. The documented-stack run uses Granian for
+There are three independent runs. The documented-stack run uses Granian for
 Hinoki, Uvicorn for FastAPI and Django Ninja, and Django Bolt's own server. The
 `same-granian` control uses the same Granian configuration for the three ASGI
-applications; it excludes Bolt because Bolt does not expose ASGI. These slices
-answer different questions and must not be combined into a single ranking.
+applications; it excludes Bolt because Bolt does not expose ASGI. The `kiso` run
+serves only Hinoki, on its own Rust server (`hinoki serve --server kiso`, 4
+workers, the same pool and CPU pinning); Kiso is not an ASGI server, so the other
+stacks have no counterpart in it. These slices answer different questions and
+must not be combined into a single ranking.
 
 **Nothing is measured unless verification passes.** `verify.py` compares each service with an oracle that reads the rows straight from PostgreSQL: the same status and the same data for the same requests (datetimes compared after parsing), and the same number of SQL statements per scenario, counted with `pg_stat_statements` after every worker has been warmed (PostgreSQL's own foreign-key trigger statements excluded). That is what prevents one framework from looking faster because it loads less, or slower because it issues an N+1.
 
@@ -63,11 +66,13 @@ BENCH_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench BENCH_PO
   uv run --locked python run.py --server-mode documented --out results/YYYY-MM-DD/documented
 BENCH_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench BENCH_POSTGRES_CONTAINER=hinoki-bench-pg \
   uv run --locked python run.py --server-mode same-granian --out results/YYYY-MM-DD/same-granian
+BENCH_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench BENCH_POSTGRES_CONTAINER=hinoki-bench-pg \
+  uv run --locked python run.py --server-mode kiso --out results/YYYY-MM-DD/kiso
 uv run --locked python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/same-granian \
-  > ../../docs/benchmarks.md
+  results/YYYY-MM-DD/kiso > ../../docs/benchmarks.md
 ```
 
-Use `--smoke` with either `--server-mode` to verify behavior and query counts
+Use `--smoke` with any `--server-mode` to verify behavior and query counts
 without measuring. Use `--runs`, `--duration` and `--warmup` only when recording
 the chosen values in the report metadata and rationale. Remove the disposable
 container when finished: `docker rm -f hinoki-bench-pg`.
