@@ -31,6 +31,9 @@ from hinoki.utils import utc_today
 from hinoki.waivers import NAME, WaiverError, apply_waivers, read_waivers
 
 USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, RegistrationError)
+WAIVERS_HELP = (
+    f"waiver file (default: Hinoki(waivers=...), else {NAME} at the project root)"
+)
 
 
 def load_object(spec: str) -> object:
@@ -125,7 +128,7 @@ def add_arguments(
     check.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     check.add_argument("--package", action="append", help="package to scan (static)")
     check.add_argument("--phase", choices=[p.value for p in Phase])
-    check.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
+    check.add_argument("--waivers", help=WAIVERS_HELP)
     check.add_argument("--format", choices=["text", "json"], default="text")
     check.add_argument(
         "--allow-effects",
@@ -144,7 +147,7 @@ def add_arguments(
     server.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     server.add_argument("--package", action="append", help="package to scan (static)")
     server.add_argument("--models", action="append", help="module that defines models")
-    server.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
+    server.add_argument("--waivers", help=WAIVERS_HELP)
     server.add_argument(
         "--requests",
         help="file of recent requests (default ./.hinoki/requests.jsonl)",
