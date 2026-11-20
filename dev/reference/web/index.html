@@ -2862,14 +2862,15 @@ MCP tool description then show.</p>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">raw</span><span class="p">(</span>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">bytes</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">]],</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">bytes</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">]],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>A response from parts the runtime already holds, without checking them
-again.</p>
+        <p>A response from encoded parts, checked like one built from text: a
+framing or server header, a bad name or a CR/LF in a value raise
+<code>ValueError</code>. Header names are lowercased.</p>
 
 
     </div>

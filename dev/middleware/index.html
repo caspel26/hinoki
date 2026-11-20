@@ -441,8 +441,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:40:46 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -482,7 +482,21 @@ one returned unless it answers itself.</p>
 <p><code>MiddlewareRequest</code> is the head of the request: <code>method</code>, <code>path</code>, the matched
 route template in <code>route</code> (for example <code>/items/{item_id}</code>, safe to use as a
 metrics label), lower-case <code>headers</code>, the raw <code>query</code> string, <code>client</code>,
-<code>scheme</code> and <code>request_id</code>. It has no body and cannot change the request.</p>
+<code>scheme</code> and <code>request_id</code>. It has no body and cannot change the request:
+<code>headers</code> is a read-only mapping, so authentication and the action see the
+headers the client sent.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Forge</span><span class="p">(</span><span class="n">Middleware</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">MiddlewareRequest</span><span class="p">,</span> <span class="n">call_next</span><span class="p">:</span> <span class="n">Next</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
+        <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">"authorization"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"Bearer x"</span>  <span class="c1"># TypeError: a 500</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">call_next</span><span class="p">()</span>
+</code></pre></div>
+<p>A middleware that needs to pass data on should answer itself or add response
+headers instead.</p>
+<p>The <code>Response</code> a middleware returns is checked like one a handler returns,
+also when it is built with <code>Response.raw(status, body, headers)</code> from encoded
+parts: a framing or server header (<code>content-length</code>, <code>transfer-encoding</code>,
+<code>connection</code>, <code>x-request-id</code>), an invalid name or a line break in a value is a
+<code>ValueError</code>, so the request answers <code>500</code> instead of a corrupt response.</p>
 <p><code>call_next()</code> returns a <code>Response</code> with the action's answer. An error the action
 raised is already an HTTP answer, and an <code>atomic=True</code> transaction is already
 rolled back, so a middleware that reads the database after <code>call_next()</code> sees
@@ -550,7 +564,7 @@ change the lane.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:40:46 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/middleware.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

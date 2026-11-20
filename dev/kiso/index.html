@@ -441,7 +441,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:10:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></span>
             <span>20 min read</span>
           </p>
           
@@ -513,6 +513,7 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 </li>
 <li>A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.</li>
 <li>A WSGI callable (<code>--interface wsgi</code>) runs in Python threads behind this listener, not on the native lane: see <a href="../serving/#wsgi-on-kiso">WSGI on Kiso</a> for what applies to it.</li>
+<li>An answer Kiso cannot send as given (an informational status, a header name or value HTTP does not allow, an unreadable <code>content-length</code>) becomes a bare <code>500</code>, and the reason is written to stderr, for example <code>kiso: error: the response cannot be sent (invalid header "x-evil"); answering 500 instead</code>. The access log records the <code>500</code>. A streamed body that is shorter or longer than its <code>content-length</code> is cut off with an error line on stderr and the connection is closed (HTTP/1.1) or the stream reset (HTTP/2), so the client never mistakes it for a complete answer. The access log keeps the status of the head here, because it is written when the head is decided.</li>
 </ul>
 <h2 id="workers-signals-and-restarts">Workers, signals and restarts<a class="headerlink" href="#workers-signals-and-restarts" title="Permanent link">&para;</a></h2>
 <p>With one worker <code>hinoki serve</code> runs the server in its own process. With several workers (and always under <code>hinoki dev</code>) it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
@@ -571,7 +572,7 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:10:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
