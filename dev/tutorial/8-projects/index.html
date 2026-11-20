@@ -326,8 +326,10 @@ for example when you rename the class.</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>billing
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>create table billing_invoices
+<div class="highlight"><pre><span></span><code>database: sqlite:///…/notes/.hinoki/local.sqlite3 (from local SQLite default)
+create table billing_invoices
 wrote …/notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
+database: sqlite:///…/notes/.hinoki/local.sqlite3 (from local SQLite default)
 notes: nothing to apply
 billing: 0001-create-table-billing-invoices
 </code></pre></div>
@@ -337,8 +339,12 @@ next migration; the number and the slug come from the change. Review the
 name; <code>apply</code> runs every app in dependency order.</p>
 <div class="admonition note">
 <p class="admonition-title">Where the data goes</p>
-<p>With no database URL, <code>apply</code> creates <code>.hinoki/local.sqlite3</code> beside
-<code>hinoki.toml</code>. Set <code>HINOKI_DATABASE_URL</code> to target another database.
+<p><code>apply</code> uses the application's <code>database</code> setting, so the variable that
+configures the server, such as <code>NOTES_DATABASE__URL</code>, also configures the
+migrations; <code>plan</code>, <code>status</code> and <code>apply</code> print the database they chose. With no
+database configured, <code>apply</code> creates <code>.hinoki/local.sqlite3</code> beside
+<code>hinoki.toml</code>. <code>HINOKI_DATABASE_URL</code> overrides the setting for one run.
+If the application cannot be loaded, the commands stop (exit 2) instead of guessing.
 Migrations never run when the application starts.</p>
 </div>
 <h2 id="check-the-project">Check the project<a class="headerlink" href="#check-the-project" title="Permanent link">&para;</a></h2>
@@ -386,7 +392,7 @@ never repeat the prefix. The project's rules require every action to name an
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.9</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>

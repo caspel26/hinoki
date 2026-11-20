@@ -643,17 +643,22 @@ runtime:</p>
 
 <span class="n">app</span><span class="o">.</span><span class="n">install</span><span class="p">(</span><span class="n">DatabaseModule</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">max_size</span><span class="o">=</span><span class="mi">4</span><span class="p">))</span>
 </code></pre></div>
-<h2 id="migrations-use-their-own-url">Migrations use their own URL<a class="headerlink" href="#migrations-use-their-own-url" title="Permanent link">&para;</a></h2>
-<p><code>hinoki migrations</code> does not read the application's settings. It uses
-<code>--database</code>, then <code>HINOKI_DATABASE_URL</code>, then the local SQLite default
-anchored beside <code>hinoki.toml</code>. Point it at the application's database
-explicitly:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$NOTES_DATABASE__URL</span><span class="s2">"</span>
-hinoki<span class="w"> </span>migrations<span class="w"> </span>status
+<p>The migration commands use this module's URL too, and print
+<code>(from application: DatabaseModule)</code>. A database module of your own whose URL
+Hinoki cannot read stops them; pass <code>--database</code> or <code>HINOKI_DATABASE_URL</code>.</p>
+<h2 id="migrations-use-the-applications-database">Migrations use the application's database<a class="headerlink" href="#migrations-use-the-applications-database" title="Permanent link">&para;</a></h2>
+<p><code>hinoki migrations</code> reads the database of the project's application (its
+<code>DatabaseModule</code>, or its <code>database</code> setting),
+so the variables above configure both the server and the migration commands.
+<code>--database</code> or <code>HINOKI_DATABASE_URL</code> override it for one run; with none of
+them set, the local SQLite default is anchored beside <code>hinoki.toml</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">NOTES_DATABASE__URL</span><span class="o">=</span>postgresql://notes:secret@db.internal/notes
+hinoki<span class="w"> </span>migrations<span class="w"> </span>status<span class="w">   </span><span class="c1"># database: postgresql://***@db.internal/notes (from settings: ...)</span>
 hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
-<p>Hinoki never runs migrations at startup. See <a href="../migrations/">migrations</a> for
-planning, review and per-backend behaviour.</p>
+<p>Hinoki never runs migrations at startup. See <a href="../migrations/#which-database">which database</a>
+for the full order, and <a href="../migrations/">migrations</a> for planning, review and
+per-backend behaviour.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../settings/">Settings</a>: source precedence, secrets and validation</li>
@@ -682,14 +687,14 @@ planning, review and per-backend behaviour.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#configure-the-application">Configure the application</a></li><li><a href="#connection-fields">Connection fields</a></li><li><a href="#one-url">One URL</a></li><li><a href="#backends">Backends</a></li><li><a href="#replace-the-database-module">Replace the database module</a></li><li><a href="#migrations-use-their-own-url">Migrations use their own URL</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#configure-the-application">Configure the application</a></li><li><a href="#connection-fields">Connection fields</a></li><li><a href="#one-url">One URL</a></li><li><a href="#backends">Backends</a></li><li><a href="#replace-the-database-module">Replace the database module</a></li><li><a href="#migrations-use-the-applications-database">Migrations use the application's database</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.2</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>

@@ -466,10 +466,10 @@ billing_invoices</code>) unless <code>--name</code> replaces it.</p>
 <code>--dry-run</code> without one cover every app.</p>
 <div class="admonition warning">
 <p class="admonition-title">Plan for the backend you deploy</p>
-<p>The SQL uses the dialect of the selected URL: <code>--database</code>, then
-<code>HINOKI_DATABASE_URL</code>, then local SQLite. Export the production backend's
-URL (a disposable database of the same kind) before planning. The state
-file is backend-neutral.</p>
+<p>The SQL uses the dialect of the <a href="#which-database">selected database</a>:
+usually the application's own <code>database</code> setting. Point it at the
+production backend (a disposable database of the same kind) before
+planning. The state file is backend-neutral.</p>
 </div>
 <h2 id="review-before-applying">Review before applying<a class="headerlink" href="#review-before-applying" title="Permanent link">&para;</a></h2>
 <p>Read both files. Changes that can lose data are <strong>destructive</strong> and are not
@@ -488,8 +488,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class=
 nothing. Changing a constraint on an existing column may need a hand-written
 migration.</p>
 <h2 id="apply-and-inspect">Apply and inspect<a class="headerlink" href="#apply-and-inspect" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span><span class="s2">"</span><span class="nv">$NOTES_DATABASE__URL</span><span class="s2">"</span>
-hinoki<span class="w"> </span>migrations<span class="w"> </span>status
+<div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
 hinoki<span class="w"> </span>migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-create-table-billing-invoices
 hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>billing
@@ -516,13 +515,46 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class
 </tr>
 </tbody>
 </table>
-<p>The database is chosen the same way as for <code>plan</code>; application settings such
-as <code>NOTES_DATABASE__URL</code> are not read. The implicit SQLite default
-(<code>sqlite://./.hinoki/local.sqlite3</code>) is anchored beside <code>hinoki.toml</code>, so a
-subdirectory uses the same file; an explicit relative SQLite URL stays relative
-to the current directory. A connection failure prints <code>error: database: …</code>
-without the URL and exits <code>1</code>. A <code>--database</code> URL is visible in the process
-list and shell history: do not put a password in it.</p>
+<h3 id="which-database">Which database<a class="headerlink" href="#which-database" title="Permanent link">&para;</a></h3>
+<p><code>plan</code>, <code>status</code> and <code>apply</code> use the first of:</p>
+<ol>
+<li><code>--database URL</code>;</li>
+<li>the <code>HINOKI_DATABASE_URL</code> environment variable;</li>
+<li>the project's application (<code>project.application</code> in <code>hinoki.toml</code>): a
+   <code>DatabaseModule</code> it passes in <code>modules=</code> or installs with <code>app.install(...)</code>,
+   otherwise its <code>database</code> setting, read from its settings sources as the
+   server reads them, for example <code>NOTES_DATABASE__URL</code> or <code>.env</code>;</li>
+<li>local SQLite, <code>sqlite://./.hinoki/local.sqlite3</code>.</li>
+</ol>
+<p>The application is imported from the project root to read its settings, so
+<code>.env</code> and other relative settings files are the ones beside <code>hinoki.toml</code>,
+even from a subdirectory. Anything it prints while importing goes to standard
+error. No connection opens until the command needs one, and nothing is
+started. The command never falls back to another database: it stops with exit
+<code>2</code> when</p>
+<ul>
+<li>the application cannot be imported (the message names the missing module or
+  attribute) or its settings cannot be loaded;</li>
+<li>it installs a database module of its own whose URL Hinoki cannot read;</li>
+<li>the database is in-memory SQLite (<code>sqlite://:memory:</code>), where nothing it
+  migrates would survive.</li>
+</ul>
+<p>Fix the application, or choose the database with <code>--database</code> or
+<code>HINOKI_DATABASE_URL</code>, which skip step 3 and never import the application. An
+application without a database uses the local SQLite default. Outside a
+project (<code>--models</code>/<code>--dir</code>), step 3 is skipped.</p>
+<p><code>plan</code>, <code>status</code> and <code>apply</code> print the chosen database and its source on
+standard error. Everything before the host (user and password) and the URL
+options are masked, and a URL that does not parse is not echoed:</p>
+<div class="highlight"><pre><span></span><code>$ NOTES_DATABASE__URL=postgresql://notes:secret@db.internal/notes hinoki migrations status
+database: postgresql://***@db.internal/notes (from settings: ProjectSettings.database)
+</code></pre></div>
+<p>A relative SQLite path from the settings or the default is anchored beside
+<code>hinoki.toml</code>, so a subdirectory uses the same file; a relative SQLite URL
+given with <code>--database</code> or <code>HINOKI_DATABASE_URL</code> stays relative to the current
+directory. A connection failure prints <code>error: database: …</code> and exits <code>1</code>. A
+<code>--database</code> URL is visible in the process list and shell history: do not put
+a password in it.</p>
 <p>The root app keeps unprefixed ledger keys; added apps use namespaced keys, so
 <code>accounts/0001-initial.sql</code> and <code>billing/0001-initial.sql</code> are distinct records.</p>
 <p>Run <code>apply</code> once per deployment, from one process, never from every worker's
@@ -535,11 +567,16 @@ timeout (5 seconds), then fails as locked.</p>
 <div class="highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
 </code></pre></div>
 <p>Exits <code>1</code> when any app has model changes without a migration file, destructive
-ones included, and <code>0</code> otherwise. It covers every app in dependency order
-(<code>plan billing --check</code>: that app and its prerequisites), writes nothing and
-opens no database, but imports every registered model and migration module, so
-those imports must be safe in CI. <code>status</code> compares files with a live
-database instead.</p>
+ones included, <code>0</code> otherwise, and <code>2</code> when the database whose dialect it plans
+for cannot be resolved (<a href="#which-database">which database</a>). It covers every
+app in dependency order (<code>plan billing --check</code>: that app and its
+prerequisites), writes nothing and opens no connection. It imports every
+registered model and migration module and, unless <code>--database</code> or
+<code>HINOKI_DATABASE_URL</code> names the database, the project's application to read
+its database, so those imports must be safe in CI:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">HINOKI_DATABASE_URL</span><span class="o">=</span>postgresql://ci@localhost/notes<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>plan<span class="w"> </span>--check
+</code></pre></div>
+<p><code>status</code> compares files with a live database instead.</p>
 <h2 id="apps-and-dependencies">Apps and dependencies<a class="headerlink" href="#apps-and-dependencies" title="Permanent link">&para;</a></h2>
 <p>An app that references another app's models declares it in <code>requires</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># hinoki.toml</span>
@@ -635,7 +672,9 @@ app keeps its ledger keys, so existing history is not replayed.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#plan-a-migration">Plan a migration</a></li><li><a href="#review-before-applying">Review before applying</a></li><li><a href="#apply-and-inspect">Apply and inspect</a></li><li><a href="#check-migration-drift">Check migration drift</a></li><li><a href="#apps-and-dependencies">Apps and dependencies</a>
+            <ul><li><a href="#plan-a-migration">Plan a migration</a></li><li><a href="#review-before-applying">Review before applying</a></li><li><a href="#apply-and-inspect">Apply and inspect</a>
+            <ul><li><a href="#which-database">Which database</a></li></ul>
+          </li><li><a href="#check-migration-drift">Check migration drift</a></li><li><a href="#apps-and-dependencies">Apps and dependencies</a>
             <ul><li><a href="#cross-app-migration-safety">Cross-app migration safety</a></li></ul>
           </li><li><a href="#backend-behaviour">Backend behaviour</a></li><li><a href="#without-a-manifest">Without a manifest</a></li><li><a href="#see-also">See also</a></li></ul>
           
@@ -644,8 +683,8 @@ app keeps its ledger keys, so existing history is not replayed.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.8</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>6 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

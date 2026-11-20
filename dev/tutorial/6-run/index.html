@@ -313,8 +313,12 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 </div>
 </div>
 </div>
-<p><code>HINOKI_DATABASE_URL</code> is the database of the migration commands; the
-application reads its own settings. <code>hinoki dev</code> serves on
+<p>The migration commands use the <code>database</code> setting of the project application
+named in <code>examples/hinoki.toml</code> (<code>project.app:app</code>, configured by
+<code>EXAMPLES_DATABASE__URL</code>), not the tracker's own settings, so
+<code>HINOKI_DATABASE_URL</code> points them at the tracker's database. In a project whose
+application is the tracker, <code>TRACKER_DATABASE__URL</code> alone configures both
+(<a href="../../migrations/#which-database">which database</a>). <code>hinoki dev</code> serves on
 <code>http://127.0.0.1:8000</code> and reloads on change; open <code>/docs</code> or <code>/redoc</code>.
 <code>hinoki serve</code> runs without reload and takes host, port and workers from the
 <code>server</code> settings (<a href="../../serving/">serving</a>).</p>
@@ -380,7 +384,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>2.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:42:16 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>

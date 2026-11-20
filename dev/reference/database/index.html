@@ -286,8 +286,9 @@ the dialect automatically.</p>
 <h2 id="configure-a-backend">Configure a backend<a class="headerlink" href="#configure-a-backend" title="Permanent link">&para;</a></h2>
 <p>Database URLs are secrets, so configure them through the environment rather
 than TOML. For local development, leave the URL unset to use the default
-SQLite file. To select another database for migration commands, set
-<code>HINOKI_DATABASE_URL</code>; an app can use its own secret environment setting. TOML may configure
+SQLite file. The migration commands read the application's <code>database</code> setting
+too; <code>HINOKI_DATABASE_URL</code> overrides it for them (<a href="../../migrations/#which-database">which
+database</a>). TOML may configure
 non-secret pool options, for example:</p>
 <div class="highlight"><pre><span></span><code><span class="k">[database]</span>
 <span class="n">max_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">8</span>
@@ -1407,7 +1408,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>5.8</dd></div>
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 21:17:53 UTC">November 18, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:42:16 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>

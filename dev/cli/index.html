@@ -607,7 +607,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span class="w"> </span>ada<span class="w">            </span><span class="c1"># asks for the password twice, no echo</span>
 <span class="nb">printf</span><span class="w"> </span><span class="s1">'%s\n'</span><span class="w"> </span><span class="s2">"</span><span class="nv">$ADA_PASSWORD</span><span class="s2">"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>admin<span class="w"> </span>set-password<span class="w"> </span>ada<span class="w"> </span>--password-stdin
 </code></pre></div>
-<p>A password is read from a terminal prompt or, with <code>--password-stdin</code>, from one line of standard input; it is never taken from the command line, where other users of the machine could read it, and it is never printed. Without a terminal and without the flag the command stops; with the flag on a terminal it still prompts without echo, and a line longer than a password can be is refused unread. Ctrl-C or Ctrl-D at the prompt exits with status <code>2</code>, and a refused connection is reported as such (status <code>1</code>), not as missing tables. The database is <code>HINOKI_DATABASE_URL</code>, <code>--database</code>, or the project's local SQLite, as for <code>hinoki migrations</code>. The user tables must exist: register and apply them first (<code>hinoki app add admin ...</code>, <code>hinoki migrations apply admin</code>, see <a href="../admin/#who-may-sign-in">who may sign in</a>); otherwise the command exits 1 and says so. Usernames are lower-cased; the shortest password is <code>admin.min_password_length</code>. Exit status is <code>0</code> on success, <code>2</code> for a refused input (a taken name, a weak or mistyped password, an unknown user).</p>
+<p>A password is read from a terminal prompt or, with <code>--password-stdin</code>, from one line of standard input; it is never taken from the command line, where other users of the machine could read it, and it is never printed. Without a terminal and without the flag the command stops; with the flag on a terminal it still prompts without echo, and a line longer than a password can be is refused unread. Ctrl-C or Ctrl-D at the prompt exits with status <code>2</code>, and a refused connection is reported as such, naming the masked database and its source (status <code>1</code>), not as missing tables. The database is chosen as for <code>hinoki migrations</code>: <code>--database</code>, <code>HINOKI_DATABASE_URL</code>, the project application's installed <code>DatabaseModule</code> or <code>database</code> setting, then the project's local SQLite; the command prints it on standard error as <code>database: … (from …)</code>, and stops with status <code>2</code> when the project's application or database cannot be resolved. The user tables must exist: register and apply them first (<code>hinoki app add admin ...</code>, <code>hinoki migrations apply admin</code>, see <a href="../admin/#who-may-sign-in">who may sign in</a>); otherwise the command exits 1 and says so. Usernames are lower-cased; the shortest password is <code>admin.min_password_length</code>. Exit status is <code>0</code> on success, <code>2</code> for a refused input (a taken name, a weak or mistyped password, an unknown user).</p>
 <h2 id="migrations"><code>migrations</code><a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h2>
 <p>In a project, migration modules come from <code>hinoki.toml</code>; you never pass model or
 migration paths:</p>
@@ -624,16 +624,20 @@ likewise requires an app in a multi-app project. <code>--name</code> is optional
 focused plan: Hinoki derives a stable slug from the first planned schema change
 (for example, <code>create-table-notes</code>); pass <code>--name initial-notes</code> to override
 it. All-app previews cannot use <code>--name</code>. Numbering is automatic. <code>apply</code>
-initializes the configured local SQLite database when no database URL is set.
-In a manifest project the implicit <code>.hinoki/local.sqlite3</code> file is rooted
-beside <code>hinoki.toml</code>, even if you run the command from a subdirectory; explicit
-relative SQLite URLs remain relative to the current working directory. Added
+initializes the configured local SQLite database when no database is configured.
+In a manifest project the implicit <code>.hinoki/local.sqlite3</code> file, and a relative
+SQLite path from the application's settings, are rooted beside <code>hinoki.toml</code>,
+even if you run the command from a subdirectory; relative SQLite URLs given
+with <code>--database</code> or <code>HINOKI_DATABASE_URL</code> remain relative to the current
+working directory. Added
 apps have separate migration ledger namespaces, so identical numbered
 filenames do not collide; the scaffolded root app retains its existing
 unprefixed migration keys. <code>--app billing</code> includes its declared prerequisite
 apps for migration application.</p>
 <p><code>plan --check</code> fails CI (exit 1) when the models have changes that no migration
-file records; it reads files only and never connects to a database. Migration
+file records, and exits 2 when the database it plans for cannot be resolved; it
+never connects to a database. In a project it imports the application to read
+its database unless <code>--database</code> or <code>HINOKI_DATABASE_URL</code> is set. Migration
 safety across apps, destructive changes and the ledger are explained in
 <a href="../migrations/">Migrations</a>.</p>
 <p>Without a <code>hinoki.toml</code>, name the modules explicitly:</p>
@@ -641,7 +645,7 @@ safety across apps, destructive changes and the ledger are explained in
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>apply
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
 </code></pre></div>
-<p><code>plan</code> requires <code>--models MODULE</code>; <code>--name</code> is an optional slug override and is derived from the first planned schema change when omitted. <code>--dry-run</code> prints operations without writing files. Destructive operations require <code>--allow-destructive</code>. Without <code>HINOKI_DATABASE_URL</code>, plan/status/apply target the local SQLite file at <code>.hinoki/local.sqlite3</code>; <code>--database URL</code> selects another supported backend. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints <code>error: database: …</code> with a <code>fix:</code> line and exits 1; the URL is not printed. <code>sql NAME</code> prints a migration's SQL. Use a disposable database while reviewing migrations.</p>
+<p><code>plan</code> requires <code>--models MODULE</code>; <code>--name</code> is an optional slug override and is derived from the first planned schema change when omitted. <code>--dry-run</code> prints operations without writing files. Destructive operations require <code>--allow-destructive</code>. plan/status/apply target <code>--database</code>, then <code>HINOKI_DATABASE_URL</code>, then the <code>DatabaseModule</code> or <code>database</code> setting of the project's application, then the local SQLite file at <code>.hinoki/local.sqlite3</code> (<a href="../migrations/#which-database">which database</a>); <code>plan</code>, <code>status</code> and <code>apply</code> print the chosen database and its source on standard error with the credentials masked, and stop with exit 2 when the project's application or database cannot be resolved. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints <code>error: database: …</code> with a <code>fix:</code> line and exits 1; the error itself does not repeat the URL. <code>sql NAME</code> prints a migration's SQL. Use a disposable database while reviewing migrations.</p>
 <p>On an animated terminal, <code>plan</code> and <code>apply</code> show a spinner while they work and finish with a timing line (<code>✔ applied   1.2s</code>); the commands' own output is printed unchanged before it. Piped output, <code>NO_COLOR</code>, <code>TERM=dumb</code>, <code>CI</code> and <code>HINOKI_ANIMATE=0</code> print only the commands' own output.</p>
 <h2 id="mcp"><code>mcp</code><a class="headerlink" href="#mcp" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>mcp
@@ -756,7 +760,7 @@ its target when you run the command from the <code>examples/</code> project dire
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.33</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 13:09:14 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>11 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
