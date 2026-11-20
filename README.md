@@ -30,7 +30,13 @@
   <a href="https://caspel26.github.io/hinoki/dev/status/">Status</a>
 </p>
 
-Hinoki is a pre-alpha Python framework for HTTP APIs, with a compiled Rust core. Handlers declare their input, output, access policy and transaction behavior. Those declarations feed request handling, the OpenAPI document and optional architecture rules.
+Hinoki is a pre-alpha Python framework for HTTP APIs, with a compiled Rust core. Handlers declare their input, output, access policy and `atomic` write behavior. Those declarations feed request handling, the OpenAPI document and optional architecture rules.
+
+<p align="center">
+  <img src="assets/readme/demo.gif" alt="hinoki check passes on a new project, then reports three violated rules for a POST endpoint with no access policy, no atomic=True and an unbounded text field" width="820">
+</p>
+
+<p align="center"><sub>Real <code>hinoki check</code> output, recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>.</sub></p>
 
 > [!WARNING]
 > **Not released.** The API and migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated legacy project. Evaluate this repository from a source checkout and use disposable data.
@@ -97,6 +103,17 @@ uv run --project .. hinoki check tracker.app:create_app
 ```
 
 The [Blog example](examples/blog) demonstrates relations, authentication and the optional admin. The admin has four themes and, by default, its own users with a sign-in page and per-model permissions; it can instead use the application's access policy. See the [admin guide](docs/admin.md) for setup and screenshots.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-login-dark.png">
+    <img src="assets/readme/admin-login-light.png" alt="The Blog admin sign-in page" width="48%">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-users-dark.png">
+    <img src="assets/readme/admin-users-light.png" alt="The Users section of the Blog admin" width="48%">
+  </picture>
+</p>
 
 ## Python and Rust boundary
 
