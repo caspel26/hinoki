@@ -11,6 +11,7 @@ from hinoki import (
     API,
     UNSET,
     Access,
+    Actions,
     BearerAuth,
     Caller,
     CrudAccess,
@@ -24,6 +25,7 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field
+from hinoki.rules import Project, RuleSet, qualified
 from tests.harness import Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -127,6 +129,20 @@ def test_writes_without_a_policy_fail_at_declaration() -> None:
 def test_public_writes_must_be_explicit() -> None:
     api = simple(access=None, create=NoteIn, public_writes=True)
     assert shape(api)[("POST", "/notes")] is None
+
+
+def test_rules_scoped_to_the_declaring_module_see_the_function_form() -> None:
+    declared = crud(
+        Note,
+        path="/notes",
+        read=NoteOut,
+        create=NoteIn,
+        access=CrudAccess(default=writer, list=None),
+    )
+    app = Hinoki(include=[declared], enforce_rules=False)
+    assert f"{__name__}.NoteCrud.list" in {qualified(r) for r in app.routes}
+    found = RuleSet(Actions.require_access(match=f"{__name__}.*")).run(Project(app))
+    assert [d.subject for d in found] == [f"{__name__}.NoteCrud.list"]
 
 
 def test_omit_leaves_an_action_to_handwritten_code() -> None:
