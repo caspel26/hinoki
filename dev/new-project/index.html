@@ -444,8 +444,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
-            <span>5 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -506,12 +506,24 @@ From the Hinoki checkout:</p>
 <td>yes / no</td>
 <td>yes</td>
 </tr>
+<tr>
+<td>Create an app now?</td>
+<td>yes / no</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>App name (only after yes)</td>
+<td>lower-case letters and digits, starting with a letter; an invalid name is asked again</td>
+<td><code>core</code></td>
+</tr>
 </tbody>
 </table>
 <p>Each answer collapses into a summary line. When the files are written, the
-command lists the key ones, runs <code>git init</code> and <code>uv sync</code> with a timer, and ends
-with the next commands to type. Nothing is written until the last answer, so
-Ctrl-C or Esc cancels cleanly.</p>
+command lists the key ones, creates the app you named with the same code as
+<a href="../cli/#app"><code>hinoki app create</code></a> (and registers it in <code>hinoki.toml</code>), runs
+<code>git init</code> and <code>uv sync</code> with a timer, and ends with the next commands to type.
+When no app was created, the summary says how to add one. Nothing is written
+until the last answer, so Ctrl-C, Esc or end of input cancels cleanly (exit 130).</p>
 <h2 id="create-a-project-without-questions">Create a project without questions<a class="headerlink" href="#create-a-project-without-questions" title="Permanent link">&para;</a></h2>
 <p>Every question has a flag. <code>--no-input</code> never asks and uses the defaults for
 what is missing, which suits scripts and CI (without a terminal no question is
@@ -559,6 +571,14 @@ asked either):</p>
 <td>run <code>uv sync</code>. Without a prompt: off</td>
 </tr>
 <tr>
+<td><code>--app NAME</code></td>
+<td>also create this app and register it, without asking. The name is checked before anything is written</td>
+</tr>
+<tr>
+<td><code>--no-app</code></td>
+<td>create no app and do not ask about one; the two flags exclude each other</td>
+</tr>
+<tr>
 <td><code>--hinoki SOURCE</code></td>
 <td>where the project installs Hinoki from; see <a href="#where-hinoki-comes-from">below</a></td>
 </tr>
@@ -590,8 +610,10 @@ under its <code>prefix</code>.</p>
 <span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span>
 </code></pre></div>
 <p>The project package holds no models and registers no app. Models live in apps:
-<code>uv run hinoki app create billing</code> writes <code>notes/apps/billing/</code> and adds the
-<code>[[apps]]</code> entry for it (<a href="../cli/#app"><code>hinoki app create</code></a>).</p>
+The last question of <code>hinoki new</code> (or <code>--app billing</code>) creates the first one;
+<code>uv run hinoki app create billing</code> adds more later. Either way it writes
+<code>notes/apps/billing/</code> and adds the <code>[[apps]]</code> entry for it
+(<a href="../cli/#app"><code>hinoki app create</code></a>).</p>
 <h2 id="run-it">Run it<a class="headerlink" href="#run-it" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>notes
 uv<span class="w"> </span>run<span class="w"> </span>pytest
@@ -660,6 +682,10 @@ database</a> lists the URL forms and the connection fields.</p>
   <code>hinoki</code> or a standard-library module such as <code>json</code>, which would shadow
   imports in the project. A refused name is asked again; with <code>--no-input</code> the
   command exits 2.</li>
+<li>An app name follows the same rule. A refused name is asked again; <code>--app</code> with a bad
+  name exits 2 before anything is written. If the project is written but the
+  app cannot be created, the error is printed, the project stays and the exit
+  status is 2.</li>
 <li><code>PATH/NAME</code> must not exist or must be empty; nothing is overwritten.</li>
 <li><code>git</code> or <code>uv</code> missing or failing prints a warning and keeps the project.</li>
 <li>Nothing else is installed or run.</li>
@@ -698,7 +724,7 @@ database</a> lists the URL forms and the connection fields.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/new-project.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

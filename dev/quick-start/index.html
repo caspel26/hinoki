@@ -220,8 +220,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></span>
+            <span>4 min read</span>
           </p>
           
         </header>
@@ -283,28 +283,41 @@ defaults:</p>
 <td>yes</td>
 <td>yes</td>
 </tr>
+<tr>
+<td>Create an app now?</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>App name</td>
+<td><code>core</code></td>
+<td><code>entries</code></td>
+</tr>
 </tbody>
 </table>
-<p>It writes the project, runs <code>git init</code> and <code>uv sync</code>, and prints the next
-commands. The files that matter:</p>
+<p>It writes the project and the <code>entries</code> app, runs <code>git init</code> and <code>uv sync</code>, and
+prints the next commands. The files that matter:</p>
 <div class="language-text highlight"><pre><span></span><code>notes/
-├── hinoki.toml        manifest: application and routes (no app yet)
+├── hinoki.toml        manifest: application, routes and the entries app
 ├── notes/
 │   ├── main.py        the application
 │   ├── api.py         GET /health
 │   ├── routes.py      routes = [health]
 │   ├── settings.py    typed settings, NOTES_* variables
-│   └── rules.py       architecture rules
+│   ├── rules.py       architecture rules
+│   └── apps/entries/  models, endpoints, routes and migrations of the app
 ├── tests/             pytest suite
 └── AGENTS.md          agent instructions
 </code></pre></div>
-<p>The project package holds no models. They live in apps, which you add next.</p>
+<p>The project package holds no models. They live in apps; answering no to the
+last question leaves the project without one, and
+<a href="#add-another-app">Add another app</a> shows how to add it later.</p>
 <div class="admonition tip">
 <p class="admonition-title">Scripts and CI</p>
-<p><code>uv run hinoki new notes --dir .. --no-input --database sqlite --git --install</code>
+<p><code>uv run hinoki new notes --dir .. --no-input --database sqlite --git --install --app entries</code>
 gives the same answers without prompts. Plain <code>--no-input</code> uses the defaults
-instead: no database, no <code>git init</code>, no <code>uv sync</code>. All options are in
-<a href="../new-project/"><code>hinoki new</code></a>.</p>
+instead: no database, no <code>git init</code>, no <code>uv sync</code> and no app. All options are
+in <a href="../new-project/"><code>hinoki new</code></a>.</p>
 </div>
 <h2 id="test-and-serve-it">Test and serve it<a class="headerlink" href="#test-and-serve-it" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>../notes
@@ -369,20 +382,19 @@ its value came from. To use another file:</p>
 <span class="nv">NOTES_DATABASE__URL</span><span class="o">=</span>sqlite://./.hinoki/notes.sqlite3
 </code></pre></div>
 <p><a href="../databases/">Configure a database</a> covers PostgreSQL, MySQL and MariaDB, and
-connection fields instead of a URL. The project has no models yet; add them in an
-app, as <a href="#add-your-first-app">the next section</a> and the
+connection fields instead of a URL. The project has no models yet; add them in
+the app, as <a href="#your-first-app">the next section</a> and the
 <a href="../tutorial/">tutorial</a> show.</p>
-<h2 id="add-your-first-app">Add your first app<a class="headerlink" href="#add-your-first-app" title="Permanent link">&para;</a></h2>
-<p>Models live in apps, not in the project package. Create one:</p>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>entries
-</code></pre></div>
+<h2 id="your-first-app">Your first app<a class="headerlink" href="#your-first-app" title="Permanent link">&para;</a></h2>
+<p>Models live in apps, not in the project package. <code>hinoki new</code> created <code>entries</code>
+when you answered the last question:</p>
 <div class="language-text highlight"><pre><span></span><code>notes/apps/entries/
 ├── api.py         endpoints of the app
 ├── routes.py      the routes served, mounted at /entries
 ├── models.py      tables of the app
 └── migrations/    migration history
 </code></pre></div>
-<p>The command registers it in <code>hinoki.toml</code>:</p>
+<p>It is registered in <code>hinoki.toml</code>:</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="k">[[apps]]</span>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"entries"</span>
 <span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.entries.models"</span>
@@ -395,6 +407,10 @@ app, as <a href="#add-your-first-app">the next section</a> and the
 app's models in <code>notes/apps/entries/models.py</code>, then
 <code>uv run hinoki migrations plan entries</code>; <a href="../tutorial/8-projects/">8. Projects and apps</a>
 walks through it.</p>
+<h3 id="add-another-app">Add another app<a class="headerlink" href="#add-another-app" title="Permanent link">&para;</a></h3>
+<p>If you answered no, or want a second app, create it from the project:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
+</code></pre></div>
 <h2 id="next">Next<a class="headerlink" href="#next" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../tutorial/">Tutorial</a>: build an API layer by layer.</li>
@@ -425,12 +441,14 @@ walks through it.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#create-a-project">Create a project</a></li><li><a href="#test-and-serve-it">Test and serve it</a></li><li><a href="#what-the-manifest-does">What the manifest does</a></li><li><a href="#where-the-database-is-configured">Where the database is configured</a></li><li><a href="#add-your-first-app">Add your first app</a></li><li><a href="#next">Next</a></li></ul>
+            <ul><li><a href="#create-a-project">Create a project</a></li><li><a href="#test-and-serve-it">Test and serve it</a></li><li><a href="#what-the-manifest-does">What the manifest does</a></li><li><a href="#where-the-database-is-configured">Where the database is configured</a></li><li><a href="#your-first-app">Your first app</a>
+            <ul><li><a href="#add-another-app">Add another app</a></li></ul>
+          </li><li><a href="#next">Next</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

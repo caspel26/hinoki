@@ -444,8 +444,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
-            <span>11 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -471,7 +471,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <tr>
 <td>Start</td>
 <td><code>hinoki new [NAME]</code></td>
-<td>Create a project; asks for what the flags leave out.</td>
+<td>Create a project; asks for what the flags leave out, ending with "Create an app now?" (<code>--app NAME</code>, <code>--no-app</code>).</td>
 <td><a href="../new-project/">Create a project</a></td>
 </tr>
 <tr>
@@ -591,7 +591,7 @@ hinoki<span class="w"> </span>completion<span class="w"> </span>fish<span class=
 <h3 id="terminal-output">Terminal output<a class="headerlink" href="#terminal-output" title="Permanent link">&para;</a></h3>
 <p>On a colour terminal, <code>doctor</code>, <code>check</code> and <code>routes</code> print a coloured report: a status glyph per check (<code>✔</code> ok, <code>▲</code> warning, <code>✘</code> failed or violated, <code>?</code> unverifiable, <code>–</code> skipped or waived) with the fix on its own line, and routes with coloured methods. The <code>check</code> summary is green only when the exit code is <code>0</code>. When output is piped or redirected, or with <code>NO_COLOR</code> or <code>TERM=dumb</code>, the text is plain and unchanged, and <code>--format json</code> is never styled.</p>
 <h2 id="app"><code>app</code><a class="headerlink" href="#app" title="Permanent link">&para;</a></h2>
-<p>The generated <code>hinoki.toml</code> registers no app: the project package keeps <code>main.py</code>, settings, rules and the health route, and models live in apps. Create each one with:</p>
+<p>The generated <code>hinoki.toml</code> registers no app unless <code>hinoki new</code> created one (the last question in a terminal, or <code>--app NAME</code>): the project package keeps <code>main.py</code>, settings, rules and the health route, and models live in apps. Create each one with:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
 </code></pre></div>
 <p>This creates <code>NAME/apps/billing/{models.py,routes.py,migrations/}</code> and registers the model, migration and routes modules in <code>hinoki.toml</code> (<code>routes = "NAME.apps.billing.routes:routes"</code>, <code>prefix = "/billing"</code>). Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
@@ -764,7 +764,7 @@ its target when you run the command from the <code>examples/</code> project dire
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
