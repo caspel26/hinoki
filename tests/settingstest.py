@@ -2,6 +2,7 @@
 # ruff: noqa: S105 - fixture values, not secrets
 
 import dataclasses
+import inspect
 import io
 import json
 import logging
@@ -15,6 +16,7 @@ import pytest
 
 from hinoki import Hinoki, Request, context, http
 from hinoki.__main__ import main
+from hinoki.db import Database, DatabaseModule
 from hinoki.settings import (
     LOCAL_DATABASE_URL,
     AppSettings,
@@ -97,6 +99,12 @@ def test_nested_groups_defaults_and_types_load_from_the_environment() -> None:
     assert settings.mail.tags == ["x", "y"] and settings.mail.reply_to is None
     assert settings.execution.sync_workers == 16 and settings.execution.sync_queue == 64
     assert settings.database.max_size == 10 and settings.logging.level == "info"
+
+
+def test_every_database_pool_default_matches_the_settings_default() -> None:
+    expected = DatabaseSettings().max_size
+    for target in (Database.connect, DatabaseModule.__init__):
+        assert inspect.signature(target).parameters["max_size"].default == expected
 
 
 def test_database_settings_default_to_local_sqlite() -> None:
