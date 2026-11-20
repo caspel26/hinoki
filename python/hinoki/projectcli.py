@@ -26,6 +26,8 @@ from hinoki.project import (
 from hinoki.scaffold import APP_API, APP_ROUTES, NAME, RESERVED_NAMES
 from hinoki.terminal import Style
 
+LOCK_NAME = ".hinoki-app-create.lock"
+
 
 def create_app(
     name: str,
@@ -73,23 +75,62 @@ def _create_app_locked(
 
 @contextmanager
 def _manifest_lock(manifest_path: Path) -> Iterator[None]:
-    """Serialize app registration across processes on POSIX and Windows."""
-    lock_path = manifest_path.parent / ".hinoki-app-create.lock"
-    with lock_path.open("a+b") as lock_file:
-        if os.name == "nt":
-            _lock_manifest_windows(lock_file)
-        else:
-            # POSIX flock is released by the kernel if the process exits.
-            import fcntl  # noqa: PLC0415 - only available on POSIX
+    """Serialize app registration across processes on POSIX and Windows.
 
+    The lock file is removed when the lock is released."""
+    lock_path = manifest_path.parent / LOCK_NAME
+    lock = _windows_lock if os.name == "nt" else _posix_lock
+    with lock(lock_path):
+        yield
+
+
+@contextmanager
+def _posix_lock(lock_path: Path) -> Iterator[None]:
+    # POSIX flock is released by the kernel if the process exits.
+    import fcntl  # noqa: PLC0415 - only available on POSIX
+
+    while True:
+        lock_file = lock_path.open("a+b")
+        try:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        except BaseException:
+            lock_file.close()
+            raise
+        if _is_current_lock(lock_file, lock_path):
+            break
+        # The previous holder removed this file; lock the one at the path now.
+        lock_file.close()
+    with lock_file:
         try:
             yield
         finally:
-            if os.name == "nt":
-                _unlock_manifest_windows(lock_file)
-            else:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            # Unlink before unlocking so a waiter on this file sees it is stale.
+            with suppress(FileNotFoundError):
+                lock_path.unlink()
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _is_current_lock(lock_file: BinaryIO, lock_path: Path) -> bool:
+    try:
+        current = lock_path.stat()
+    except FileNotFoundError:
+        return False
+    opened = os.fstat(lock_file.fileno())
+    return (current.st_dev, current.st_ino) == (opened.st_dev, opened.st_ino)
+
+
+@contextmanager
+def _windows_lock(lock_path: Path) -> Iterator[None]:
+    with lock_path.open("a+b") as lock_file:
+        _lock_manifest_windows(lock_file)
+        try:
+            yield
+        finally:
+            _unlock_manifest_windows(lock_file)
+    # Windows refuses to delete a file another process still has open, so a
+    # waiting process keeps the file and locks it next.
+    with suppress(OSError):
+        lock_path.unlink()
 
 
 def _lock_manifest_windows(lock_file: BinaryIO) -> None:
