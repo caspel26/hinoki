@@ -810,7 +810,9 @@ already atomic scope becomes a savepoint.</p>
   </span>
 
 <a href="#hinoki.db.Atomic.scopes" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">scopes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">AtomicScope</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">scopes</span><span class="p">:</span> <span class="n">ContextVar</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">AtomicScope</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="n">ContextVar</span><span class="p">(</span>
+    <span class="s2">"hinoki_atomic_scopes"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">()</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
