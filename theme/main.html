@@ -162,7 +162,7 @@
 
     <main class="main" id="main">
       <article class="prose" style="--sheet: '{{ sheet }}'">
-        {% if sec.active %}<p class="kicker" data-search-exclude>{{ sheet }} · {{ sec.active.title }}</p>{% endif %}
+        {% if sec.active %}<p class="kicker" data-search-exclude>{{ sec.active.title }}</p>{% endif %}
         {{ page.content }}
         {% if page.meta and page.meta.related_pages %}
         <aside class="related" aria-label="Related pages">
