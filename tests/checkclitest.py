@@ -303,3 +303,48 @@ def test_waivers_help_names_the_real_default(
         main([command, "--help"])
     shown = " ".join(capsys.readouterr().out.split())
     assert "Hinoki(waivers=...), else hinoki-rules.toml at the project root" in shown
+
+
+def project_with_models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A manifest project whose rules need its models imported."""
+    package = tmp_path / "checkmodelsproj"
+    package.mkdir()
+    write(package / "__init__.py", "")
+    write(
+        package / "models.py",
+        "from hinoki.orm import Model, field\n\n\nclass Note(Model):\n"
+        "    id: int = field(primary_key=True)\n"
+        "    title: str = field(max_length=40)\n",
+    )
+    write(
+        package / "main.py",
+        "from hinoki import Hinoki, Models\n"
+        "from hinoki.rules import RuleSet\n\n"
+        "app = Hinoki(rules=RuleSet(Models.require_explicit_table("
+        'match="checkmodelsproj.*")))\n',
+    )
+    write(
+        tmp_path / "hinoki.toml",
+        '[project]\napplication = "checkmodelsproj.main:app"\n\n'
+        '[[apps]]\nname = "checkmodelsproj"\nmodels = "checkmodelsproj.models"\n'
+        'migrations = "checkmodelsproj.migrations"\nrequires = []\n',
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def test_check_imports_the_models_named_in_the_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_with_models(tmp_path, monkeypatch)
+    try:
+        assert main(["check"]) == 1
+    finally:
+        for name in [m for m in sys.modules if m.startswith("checkmodelsproj")]:
+            del sys.modules[name]
+    out = capsys.readouterr().out
+    assert "derived table name" in out
+    assert "unverifiable" not in out.replace("0 unverifiable", "")
