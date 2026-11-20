@@ -69,7 +69,7 @@ never changes the database: create the tables with
   with `unique=True` or `pk()`, which are already indexed. A `foreign_key` has
   no `index=` option: index it with `@db.indexed(...)`, or a composite index
   that starts with it, as `Invoice` does ([model options](model-options.md)).
-* **Composite uniqueness** is `@unique("a", "b")`; there is no nested
+* **Composite uniqueness** is `@db.unique("a", "b")`; there is no nested
   `class Meta`.
 
 ## Column types
@@ -209,14 +209,11 @@ exists to be subclassed.
 
 ```python
 # notes/apps/billing/models.py (continued)
-from hinoki.orm import timestamps
-
-
 class Keyed(Model, abstract=True):
     id: UUID = pk(default_factory=uuid4)
 
 
-@timestamps()
+@db.timestamps()
 @db.ordered_by("-updated_at")
 class Tracked(Model, abstract=True):
     created_at: datetime = field(default_factory=utc_now)
@@ -233,7 +230,7 @@ class Article(Keyed, Tracked):
 
 * `abstract=True` is not inherited; an abstract model needs no primary key, a
   table model needs exactly one, its own or inherited.
-* **Options** from abstract bases are inherited: all `@unique` and
+* **Options** from abstract bases are inherited: all `@db.unique` and
   `@db.indexed`, and the order and timestamp column of the first base that sets
   one. A decorator on the subclass *replaces* that kind of option. A
   `field(index=True)` index belongs to its column and is dropped when a subclass

@@ -54,7 +54,7 @@ def test_clock_moves() -> None:
 ```
 
 `ManualClock` stores UTC instants, accepts only aware values and works with
-`app.now(clock)`, `utc_today(clock)` and `@timestamps(clock=...)`.
+`app.now(clock)`, `utc_today(clock)` and `@db.timestamps(clock=...)`.
 
 ## Application timezone
 
@@ -76,10 +76,7 @@ process can use different timezones; there is no `Hinoki(timezone=...)`.
 
 ```python
 # notes/apps/billing/models.py (continued)
-from hinoki.orm import timestamps
-
-
-@timestamps()
+@db.timestamps()
 class Statement(Model):
     id: UUID = pk(default_factory=uuid4)
     title: str = field(max_length=120)
@@ -87,11 +84,11 @@ class Statement(Model):
     updated_at: datetime = field(default_factory=utc_now)
 ```
 
-* `@timestamps()` sets the non-nullable `updated_at: datetime` column on every
+* `@db.timestamps()` sets the non-nullable `updated_at: datetime` column on every
   ORM update: `Model.aupdate`, `aupdate_where`, `asave`, `aupdate_from`,
-  `QuerySet.aupdate` and their sync forms. One statement gives every row the
-  same time; a value supplied for the column is replaced.
-* `@timestamps("modified_at", clock=my_clock)` names another column or injects
+  `abulk_update`, `QuerySet.aupdate` and their sync forms. One statement gives
+  every row the same time; a value supplied for the column is replaced.
+* `@db.timestamps("modified_at", clock=my_clock)` names another column or injects
   a clock; clock values must be aware and are stored in UTC.
 * Creation uses the field factories. Raw SQL bypasses the decorator: use a
   database trigger if independent writers need database-authoritative times.

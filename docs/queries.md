@@ -191,7 +191,7 @@ count = await Invoice.filter(customer_id=customer.id).aupdate(
 
 Nothing is re-read: database-side changes (timestamp precision, numeric scale,
 JSON normalization, triggers) are not reflected; read with `aget` when you need
-them. `@timestamps` and validation still run. PostgreSQL and SQLite count
+them. `@db.timestamps()` and validation still run. PostgreSQL and SQLite count
 matched rows; MySQL and MariaDB count rows whose values changed. A model cannot
 declare a field named `returning`.
 

@@ -50,7 +50,7 @@ site.register(PostAdmin)
 | `per_page`, `show_count` | Page size; row count in the sidebar | The site's `Admin(per_page=20, show_count=False)` |
 | `bulk_delete` | Offer bulk delete where `can(principal, "delete")` allows | `True` |
 
-`Tone` (`NEUTRAL`, `ACCENT`, `OK`, `WARN`, `DANGER`, `INFO`) is the color role of badges, stats and events. Without configuration the label and plural come from the model, the order from `@db.ordered_by` and the "last modified" line from its `@timestamps` column (`from hinoki.orm import timestamps`).
+`Tone` (`NEUTRAL`, `ACCENT`, `OK`, `WARN`, `DANGER`, `INFO`) is the color role of badges, stats and events. Without configuration the label and plural come from the model, the order from `@db.ordered_by` and the "last modified" line from its `@db.timestamps()` column.
 
 Search matches a row when any `search` column contains the typed text, compared case-insensitively as text (a number or date matches its printed form). Naming an `exclude`d column in `search` is refused at registration, because which rows match would reveal its value.
 
