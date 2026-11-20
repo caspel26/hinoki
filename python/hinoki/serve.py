@@ -32,6 +32,7 @@ from hinoki.runtime import banner
 from hinoki.runtime.listener import ListenError, check_port, open_listener
 from hinoki.settings import MAX_WORKERS, AppSettings, ServerSettings, SettingsError
 from hinoki.target import load_target as import_target
+from hinoki.wsgi import WSGIAdapter
 
 
 def add_arguments(
@@ -56,6 +57,30 @@ def add_arguments(
         )
         if name == "serve":
             sub.add_argument("--workers", type=int, help="override server.workers")
+        sub.add_argument(
+            "--interface",
+            choices=("asgi", "wsgi"),
+            help="how the server calls TARGET: a Hinoki application (asgi, the "
+            "default) or a WSGI callable (wsgi); overrides server.interface",
+        )
+
+
+def load_wsgi_target(target: str) -> Any:
+    """The WSGI callable named by ``target`` (``--interface wsgi``): a
+    ``WSGIAdapter`` or any ``(environ, start_response)`` callable. Nothing
+    builds it, so a factory is not supported."""
+    try:
+        found = import_target(target)
+    except (ImportError, AttributeError, ValueError) as exc:
+        raise SystemExit(f"error: cannot load {target}: {exc}") from None
+    if isinstance(found, Hinoki):
+        raise SystemExit(
+            f"error: {target} is a Hinoki application (ASGI); for --interface wsgi "
+            "name a WSGI callable, such as WSGIAdapter(app) from hinoki.wsgi"
+        )
+    if not callable(found):
+        raise SystemExit(f"error: {target} is not a WSGI callable")
+    return found
 
 
 def load_target(target: str) -> tuple[Any, bool]:
@@ -76,11 +101,17 @@ def load_target(target: str) -> tuple[Any, bool]:
         )  # callable with no arguments
     ):
         return found, True
-    raise SystemExit(f"error: {target} is neither an application nor a factory")
+    raise SystemExit(
+        f"error: {target} is neither an application nor a factory "
+        "(for a WSGI callable, pass --interface wsgi)"
+    )
 
 
-def settings_of(app: Hinoki) -> ServerSettings:
-    """The ``server`` group of an application (defaults when it has none)."""
+def settings_of(app: object) -> ServerSettings:
+    """The ``server`` group of an application, or of the application a
+    ``WSGIAdapter`` wraps (defaults when there is none)."""
+    if isinstance(app, WSGIAdapter):
+        app = app.app
     settings = getattr(app, "settings", None)
     if isinstance(settings, AppSettings):
         return settings.server
@@ -217,7 +248,10 @@ def granian_tls(settings: ServerSettings) -> dict[str, Any]:
 
 
 def run_granian(
-    args: argparse.Namespace, reload: bool, settings: ServerSettings
+    args: argparse.Namespace,
+    reload: bool,
+    settings: ServerSettings,
+    interface: str = "asgi",
 ) -> int:
     try:
         from granian import Granian  # noqa: PLC0415 - optional dependency
@@ -237,12 +271,13 @@ def run_granian(
             file=sys.stderr,
         )
         return 2
-    _, is_factory = load_target(args.target)
+    # A WSGI callable is never a factory: nothing builds it.
+    is_factory = False if interface == "wsgi" else load_target(args.target)[1]
     server = Granian(
         args.target,
         address=args.host or settings.host,
         port=args.port or settings.port,
-        interface=Interfaces.ASGI,
+        interface=Interfaces.WSGI if interface == "wsgi" else Interfaces.ASGI,
         workers=1 if reload else (getattr(args, "workers", None) or settings.workers),
         runtime_threads=settings.runtime_threads,
         backlog=settings.backlog,
@@ -255,9 +290,115 @@ def run_granian(
     return 0
 
 
+def wsgi_refusal(settings: ServerSettings) -> str | None:
+    """Why Kiso cannot host a WSGI callable with these settings, if it cannot."""
+    if settings.native_dispatch is not None:
+        return (
+            "server.native_dispatch does not apply to --interface wsgi (the native "
+            "lane serves Hinoki routes, which a WSGI callable does not have); unset it"
+        )
+    if settings.trusted_proxies:
+        return (
+            "server.trusted_proxies is not supported with --interface wsgi on Kiso: "
+            "the client address is the TCP peer; unset it, or use --server granian"
+        )
+    return None
+
+
+def run_wsgi_kiso(
+    args: argparse.Namespace, reload: bool, target: Any, settings: ServerSettings
+) -> int:
+    """Host a WSGI callable on Kiso: in this process for one worker, a supervisor
+    with a process per worker otherwise (and always for ``dev``)."""
+    reason = wsgi_refusal(settings) or rust_refusal(args, reload)
+    if reason is not None:
+        return refuse(reason)
+    address = (args.host or settings.host, args.port or settings.port)
+    workers = 1 if reload else (getattr(args, "workers", None) or settings.workers)
+    scheme = "https" if settings.tls_cert_file else "http"
+    try:
+        check_port(address[1])
+        banner.show(
+            settings,
+            version=__version__,
+            dev=reload,
+            workers=workers,
+            scheme=scheme,
+            interface="wsgi",
+        )
+        if workers == 1 and not reload:
+            # Imported here: wsgiworker imports the Rust worker module.
+            from hinoki.runtime import wsgiworker  # noqa: PLC0415
+
+            return wsgiworker.run(target, *address, settings, dev=reload)
+        from hinoki.runtime.supervisor import Supervisor  # noqa: PLC0415
+
+        listener = open_listener(*address, settings.backlog)
+        grace = stop_grace_of(target)
+        return Supervisor(
+            args.target,
+            listener,
+            workers,
+            grace,
+            reload=reload,
+            scheme=scheme,
+            interface="wsgi",
+        ).run()
+    except ListenError as error:
+        return refuse(f"cannot listen on {address[0]}:{address[1]}: {error}")
+
+
+def stop_grace_of(target: Any) -> float:
+    """How long a WSGI worker may take to stop: the drain, then the adapter's
+    own shutdown (its application's modules, when it wraps one)."""
+    wrapped = target.app if isinstance(target, WSGIAdapter) else None
+    if isinstance(wrapped, Hinoki):
+        return stop_grace(wrapped)
+    return 3 * AppSettings().lifecycle.shutdown_timeout
+
+
+def run_wsgi(args: argparse.Namespace, reload: bool) -> int:
+    """``--interface wsgi``: a WSGI callable on Kiso or on Granian."""
+    target = load_wsgi_target(args.target)
+    settings = settings_of(target)
+    chosen = choose_server(args, settings)
+    if isinstance(chosen, int):
+        return chosen
+    if chosen == "kiso":
+        return run_wsgi_kiso(args, reload, target, settings)
+    del target
+    return run_granian(args, reload, settings, interface="wsgi")
+
+
+def wanted_interface(args: argparse.Namespace) -> str:
+    """The interface to serve: ``--interface``, else ``server.interface`` of a
+    ``WSGIAdapter`` target, else ASGI."""
+    asked = getattr(args, "interface", None)
+    if asked:
+        return str(asked)
+    try:
+        found = import_target(args.target)
+    except (ImportError, AttributeError, ValueError):
+        return "asgi"  # load_target reports it
+    if isinstance(found, WSGIAdapter) and settings_of(found).interface == "wsgi":
+        return "wsgi"
+    return "asgi"
+
+
 def run(args: argparse.Namespace, reload: bool) -> int:
+    if wanted_interface(args) == "wsgi":
+        return run_wsgi(args, reload)
+    return run_asgi(args, reload)
+
+
+def run_asgi(args: argparse.Namespace, reload: bool) -> int:
     app = built_app(args.target)
     settings = settings_of(app)
+    if settings.interface == "wsgi" and getattr(args, "interface", None) is None:
+        return refuse(
+            "server.interface is wsgi, but TARGET is a Hinoki application (ASGI); "
+            "name a WSGI callable such as WSGIAdapter(app), or pass --interface asgi"
+        )
     chosen = choose_server(args, settings)
     if isinstance(chosen, int):
         return chosen

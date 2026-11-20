@@ -87,6 +87,7 @@ The measured phase 1 path is documented in the [native CRUD orientation run](rus
     * Setting a format turns the log on, in `serve` too, unless `access_log` is `false`.
     * `access_log_skip = ["/health", "/static/*"]` leaves noisy paths out and `access_log_slow_ms = 100` keeps only slow answers; failures (status 400 and up) are always logged.
 * A client that disconnects does not cancel its running handler; the handler finishes and its answer is discarded.
+* A WSGI callable (`--interface wsgi`) runs in Python threads behind this listener, not on the native lane: see [WSGI on Kiso](serving.md#wsgi-on-kiso) for what applies to it.
 
 ## Workers, signals and restarts
 

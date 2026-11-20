@@ -20,6 +20,7 @@ mod router;
 mod rows;
 mod schema;
 mod server;
+mod wsgi;
 mod xml;
 
 use pyo3::exceptions::PyValueError;
@@ -92,6 +93,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     db::register(m)?;
     server::register(m)?;
     kiso::register(m)?;
+    wsgi::register(m)?;
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
     m.add_function(wrap_pyfunction!(xml::parse_xml_body, m)?)?;

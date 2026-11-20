@@ -31,6 +31,7 @@ use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
 use crate::headers::Header;
+use crate::stream::{Delivery, Live, Reply, Streamed};
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
@@ -69,10 +70,16 @@ pub struct Answer {
 /// Decides every answer. It runs on a tokio thread and must not need the GIL.
 pub trait Backend: Send + Sync + 'static {
     fn handle(&self, request: Incoming) -> impl Future<Output = Answer> + Send;
+
+    /// Like [`Backend::handle`], for a backend that may answer with a body it
+    /// is still producing. The default answers with [`Backend::handle`].
+    fn deliver(&self, request: Incoming) -> impl Future<Output = Delivery> + Send {
+        async move { Delivery::Whole(self.handle(request).await) }
+    }
 }
 
-fn plain(status: StatusCode) -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::new(Bytes::new()));
+fn plain(status: StatusCode) -> Response<Reply> {
+    let mut response = Response::new(Reply::Whole(Full::new(Bytes::new())));
     *response.status_mut() = status;
     response
 }
@@ -141,21 +148,41 @@ fn incoming_of(
 /// does an informational status: `101` would hand the connection to hyper's
 /// upgrade path (and h2 has no 101), and the server serves no protocol that
 /// switches.
-fn response_of(answer: Answer, head_only: bool) -> Response<Full<Bytes>> {
-    let Ok(status) = StatusCode::from_u16(answer.status) else {
+fn response_of(delivery: Delivery, head_only: bool) -> Response<Reply> {
+    let (status, headers, body) = match delivery {
+        Delivery::Whole(answer) => (
+            answer.status,
+            answer.headers,
+            Reply::Whole(Full::new(if head_only {
+                Bytes::new()
+            } else {
+                Bytes::from(answer.body)
+            })),
+        ),
+        // A HEAD answer drops the receiver, which tells the producer to stop.
+        Delivery::Streamed(Streamed {
+            status,
+            headers,
+            chunks,
+        }) => (
+            status,
+            headers,
+            if head_only {
+                Reply::Whole(Full::new(Bytes::new()))
+            } else {
+                Reply::Live(Live::new(chunks))
+            },
+        ),
+    };
+    let Ok(status) = StatusCode::from_u16(status) else {
         return plain(StatusCode::INTERNAL_SERVER_ERROR);
     };
     if status.is_informational() {
         return plain(StatusCode::INTERNAL_SERVER_ERROR);
     }
-    let body = if head_only {
-        Bytes::new()
-    } else {
-        Bytes::from(answer.body)
-    };
-    let mut response = Response::new(Full::new(body));
+    let mut response = Response::new(body);
     *response.status_mut() = status;
-    for (name, value) in &answer.headers {
+    for (name, value) in &headers {
         let Ok(name) = HeaderName::from_bytes(name) else {
             return plain(StatusCode::INTERNAL_SERVER_ERROR);
         };
@@ -248,7 +275,7 @@ pub async fn respond<B: Backend>(
     peer: SocketAddr,
     transport: Transport,
     request: Request<RequestBody>,
-) -> Result<Response<Full<Bytes>>, Infallible> {
+) -> Result<Response<Reply>, Infallible> {
     let head_only = request.method() == Method::HEAD;
     let version = request.version();
     let (parts, body) = request.into_parts();
@@ -260,23 +287,16 @@ pub async fn respond<B: Backend>(
         .access_log
         .map(|style| (style, incoming.clone_head()));
     let timed = transport.server_timing.then(|| Arc::clone(&incoming.trace));
-    let answer = backend.handle(incoming).await;
+    let delivery = backend.deliver(incoming).await;
+    let status = delivery.status();
     let timing = timed.map(|trace| server_timing(started.elapsed(), trace.lane()));
     if let Some((style, head)) = logged {
         let elapsed = started.elapsed();
-        if transport
-            .log_filter
-            .keeps(&head.path, answer.status, elapsed)
-        {
-            head.log(
-                style,
-                answer.status,
-                elapsed,
-                transport.log_filter.sink.as_ref(),
-            );
+        if transport.log_filter.keeps(&head.path, status, elapsed) {
+            head.log(style, status, elapsed, transport.log_filter.sink.as_ref());
         }
     }
-    let mut response = response_of(answer, head_only);
+    let mut response = response_of(delivery, head_only);
     if let Some(value) = timing {
         response.headers_mut().insert("server-timing", value);
     }
@@ -298,12 +318,12 @@ pub async fn respond<B: Backend>(
 mod tests {
     use super::*;
 
-    fn answer(status: u16, headers: Vec<Header>, body: &[u8]) -> Answer {
-        Answer {
+    fn whole(status: u16, headers: Vec<Header>, body: &[u8]) -> Delivery {
+        Delivery::Whole(Answer {
             status,
             headers,
             body: body.to_vec(),
-        }
+        })
     }
 
     #[test]
@@ -317,7 +337,7 @@ mod tests {
     #[test]
     fn head_keeps_the_declared_length_and_drops_the_body() {
         let headers = vec![(b"content-length".to_vec(), b"5".to_vec())];
-        let response = response_of(answer(200, headers, b"hello"), true);
+        let response = response_of(whole(200, headers, b"hello"), true);
         assert_eq!(response.headers()["content-length"], "5");
         assert!(response.body().is_end_stream());
     }
@@ -328,21 +348,18 @@ mod tests {
             (b"set-cookie".to_vec(), b"a=1".to_vec()),
             (b"set-cookie".to_vec(), b"b=2".to_vec()),
         ];
-        let response = response_of(answer(200, headers, b""), false);
+        let response = response_of(whole(200, headers, b""), false);
         assert_eq!(response.headers().get_all("set-cookie").iter().count(), 2);
     }
 
     #[test]
     fn unrepresentable_answers_become_a_bare_500() {
-        let bad_status = response_of(answer(99, vec![], b""), false);
+        let bad_status = response_of(whole(99, vec![], b""), false);
         assert_eq!(bad_status.status(), 500);
-        assert_eq!(response_of(answer(101, vec![], b""), false).status(), 500);
+        assert_eq!(response_of(whole(101, vec![], b""), false).status(), 500);
         let bad_name = vec![(b"bad name".to_vec(), b"x".to_vec())];
-        assert_eq!(response_of(answer(200, bad_name, b""), false).status(), 500);
+        assert_eq!(response_of(whole(200, bad_name, b""), false).status(), 500);
         let bad_value = vec![(b"x".to_vec(), b"a\nb".to_vec())];
-        assert_eq!(
-            response_of(answer(200, bad_value, b""), false).status(),
-            500
-        );
+        assert_eq!(response_of(whole(200, bad_value, b""), false).status(), 500);
     }
 }

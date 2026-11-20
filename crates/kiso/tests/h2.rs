@@ -13,7 +13,9 @@ use bytes::Bytes;
 use h2::client::{self, SendRequest};
 use http::Request;
 use kiso::tls::acceptor;
-use kiso::{serve, Answer, Backend, Closed, Incoming, NativeJobs, ServerConfig};
+use kiso::{
+    serve, Answer, Backend, Closed, Delivery, Incoming, NativeJobs, ServerConfig, Streamed,
+};
 use rustls::crypto::ring::default_provider;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, ServerName};
@@ -150,6 +152,23 @@ impl Backend for Fake {
             "/hold" => std::future::pending().await,
             _ => answer(b"hello"),
         }
+    }
+
+    async fn deliver(&self, request: Incoming) -> Delivery {
+        if request.path != "/live" {
+            return Delivery::Whole(self.handle(request).await);
+        }
+        let (sender, chunks) = tokio::sync::mpsc::channel(1);
+        tokio::spawn(async move {
+            sender.send(Ok(Bytes::from_static(b"one "))).await.ok();
+            sleep(Duration::from_millis(1500)).await;
+            sender.send(Ok(Bytes::from_static(b"two"))).await.ok();
+        });
+        Delivery::Streamed(Streamed {
+            status: 200,
+            headers: Vec::new(),
+            chunks,
+        })
     }
 }
 
@@ -847,6 +866,22 @@ async fn a_stalled_response_does_not_cut_a_slow_stream_on_the_connection() {
         ended.is_ok(),
         "the connection outlived its shutdown timeout"
     );
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_slow_producer_is_not_a_stalled_client() {
+    // The producer pauses for 1.5 s against a 300 ms write timeout and a
+    // 400 ms shutdown timeout, so a stall verdict would cut the response.
+    let config = ServerConfig {
+        shutdown_timeout: Duration::from_millis(400),
+        ..stall_config()
+    };
+    let running = start(config, true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let (parts, body) = call(&send, request("GET", "/live").body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 200);
+    assert_eq!(body, b"one two");
     running.stop.send(true).unwrap();
 }
 

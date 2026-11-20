@@ -86,7 +86,8 @@ and Python's `>>>` / `...` prompts.
 - Without a terminal the shell exits 2: "`hinoki shell` requires an interactive
   terminal".
 - Ctrl-D exits, Ctrl-C at the prompt exits, Ctrl-C during a cell interrupts that
-  cell.
+  cell. `exit()`, `quit()` or `raise SystemExit` in a cell also end the session
+  and close the app modules; the shell exits 0 whatever code is passed.
 - A model module that does not import stops the shell with
   `cannot load model module '…'`; a duplicate class name with
   `model name 'Invoice' occurs in both '…' and '…'`. Both exit 2.

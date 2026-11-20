@@ -774,6 +774,24 @@ def _ignore_interrupt(_number: int, _frame: object) -> None:
     return None
 
 
+def run_wsgi_worker(args: argparse.Namespace, host: str, port: int) -> int:
+    # Imported here: wsgiworker imports this module for the access log.
+    from hinoki.runtime import wsgiworker  # noqa: PLC0415
+    from hinoki.serve import load_wsgi_target  # noqa: PLC0415
+
+    target = load_wsgi_target(args.target)
+    settings = settings_of(target)
+    return wsgiworker.run(
+        target,
+        host,
+        port,
+        settings,
+        listener_fd=args.fd,
+        parent=args.parent,
+        dev=args.dev,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m hinoki.runtime.kiso")
     parser.add_argument("target", help="module:application or module:factory")
@@ -784,6 +802,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--parent", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--interface",
+        choices=("asgi", "wsgi"),
+        default="asgi",
+        help="how the target is called (default asgi)",
+    )
     args = parser.parse_args(argv)
     if args.parent is not None:
         take_interrupts()
@@ -794,6 +818,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     host, port = (
         inherited_address(args.fd) if args.fd is not None else (args.host, args.port)
     )
+    if args.interface == "wsgi":
+        return run_wsgi_worker(args, host, port)
     found, is_factory = load_target(args.target)
     app = found() if is_factory else found
     settings = settings_of(app)

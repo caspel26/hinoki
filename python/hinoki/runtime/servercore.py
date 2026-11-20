@@ -213,8 +213,12 @@ def native_handler_eligible(binding: Binding) -> bool:
     """Select the automatic native response path for a simple GET or DELETE, or
     for a body method with one ``Schema`` body and only built-in parsers."""
     route = binding.route
-    if route.owner is not None and not (
-        stock_owner(route.owner) and not getattr(route.owner, "response_headers", ())
+    if route.middleware or (
+        route.owner is not None
+        and not (
+            stock_owner(route.owner)
+            and not getattr(route.owner, "response_headers", ())
+        )
     ):
         return False
     if route.method in BODY_METHODS:

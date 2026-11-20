@@ -27,6 +27,7 @@ pub mod queue;
 pub mod redirect;
 pub mod requestid;
 pub mod stall;
+pub mod stream;
 pub mod streams;
 pub mod tls;
 
@@ -48,3 +49,4 @@ pub use limits::Limits;
 pub use plan::{CrudPlanSlot, InputKind, InputParam, Plan, PlanError, RoutePlan};
 pub use proxy::Networks;
 pub use queue::{InFlight, Permit, Queue};
+pub use stream::{Aborted, Chunk, Delivery, Streamed};

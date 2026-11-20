@@ -44,5 +44,12 @@ Set `NOTES_DATABASE__URL` to serve another database, and `EXAMPLES_DATABASE__URL
 to the same URL for the migration commands (they use the examples' manifest
 application).
 
+To serve Notes as a WSGI callable instead (for a deployment that only runs
+WSGI), use [`wsgi.py`](wsgi.py):
+
+```sh
+uv run hinoki serve notes.wsgi:wsgi_app --interface wsgi
+```
+
 Notes has no authentication, no admin and no rules on purpose: its routes are
 public and its list is not paginated. Tracker and Blog enable every built-in rule.
