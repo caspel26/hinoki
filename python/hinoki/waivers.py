@@ -106,7 +106,19 @@ def load_waivers(path: Path) -> list[Waiver]:
     entries = data.get("waiver", [])
     if not isinstance(entries, list):
         raise WaiverError(f"{path}: [[waiver]] must be a list of tables")
-    return [parse_waiver(i, dict(entry)) for i, entry in enumerate(entries, 1)]
+    try:
+        return [parse_waiver(i, dict(entry)) for i, entry in enumerate(entries, 1)]
+    except WaiverError as exc:
+        raise WaiverError(f"{path}: {exc}") from exc
+
+
+def read_waivers(path: str | Path | None = None) -> list[Waiver]:
+    """The waivers ``hinoki check`` and application startup apply:
+    ``./hinoki-rules.toml`` by default, where an absent file means none. A file
+    named explicitly must exist."""
+    if path is not None and not Path(path).is_file():
+        raise WaiverError(f"waiver file {path} does not exist")
+    return load_waivers(Path(path or NAME))
 
 
 def notice(rule: str, message: str, subject: str) -> Diagnostic:

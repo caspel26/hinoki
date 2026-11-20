@@ -60,7 +60,8 @@ from hinoki.settings import (
     DocsSettings,
     Settings,
 )
-from hinoki.utils import Clock, _read_utc, utc_now
+from hinoki.utils import Clock, _read_utc, utc_now, utc_today
+from hinoki.waivers import EXPIRED, WaiverError, apply_waivers, read_waivers
 
 
 def check_startup_url(value: str | None) -> str | None:
@@ -529,17 +530,31 @@ class Hinoki:
 
     def enforce(self) -> None:
         """Fail with every startup-rule violation when rules are enforced. With
-        ``enforce_rules=False`` the diagnostics are only logged."""
+        ``enforce_rules=False`` the diagnostics are only logged. The owner's
+        waivers in ``./hinoki-rules.toml`` apply as in ``hinoki check``; an
+        invalid waiver file always fails."""
         if self.rules is None:
             return
-        diagnostics = self.rules.run(Project(self), Phase.STARTUP)
+        try:
+            waivers = read_waivers()
+        except WaiverError as exc:
+            raise RegistrationError(f"invalid waivers: {exc}") from exc
+        diagnostics = apply_waivers(
+            self.rules.run(Project(self), Phase.STARTUP), waivers, utc_today()
+        )
+        # Only startup rules ran, so an unused waiver may belong to a static rule.
+        expired = [d for d in diagnostics if d.rule_id == EXPIRED]
         broken = failing(diagnostics)
-        if not broken:
-            return
-        report = "\n".join(d.text() for d in broken)
-        if self.enforce_rules:
+        report = "\n".join(d.text() for d in (*broken, *expired))
+        if self.enforce_rules and broken:
             raise RegistrationError(f"{len(broken)} rule violation(s):\n{report}")
-        log.warning("%d rule violation(s):\n%s", len(broken), report)
+        if report:
+            log.warning(
+                "%d rule violation(s), %d expired waiver(s):\n%s",
+                len(broken),
+                len(expired),
+                report,
+            )
 
     async def __call__(
         self, scope: MutableMapping[str, Any], receive: Any, send: Any

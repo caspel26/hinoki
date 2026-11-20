@@ -11,7 +11,6 @@ import argparse
 import datetime
 import json
 import sys
-from pathlib import Path
 
 from hinoki.app import Hinoki
 from hinoki.errors import RegistrationError
@@ -29,7 +28,7 @@ from hinoki.rules import (
 from hinoki.target import load_target
 from hinoki.terminal import Style
 from hinoki.utils import utc_today
-from hinoki.waivers import NAME, WaiverError, apply_waivers, load_waivers
+from hinoki.waivers import NAME, WaiverError, apply_waivers, read_waivers
 
 USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, RegistrationError)
 
@@ -106,10 +105,7 @@ def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> i
         rules = build_rules(args.rules, app)
         project = Project(app, tuple(args.package or default_packages(args.target)))
         phase = Phase(args.phase) if args.phase else None
-        wanted = Path(args.waivers or NAME)
-        if args.waivers and not wanted.is_file():
-            raise WaiverError(f"waiver file {wanted} does not exist")
-        waivers = load_waivers(wanted)
+        waivers = read_waivers(args.waivers)
         found = rules.run(project, phase, allow_effects=args.allow_effects)
         found = apply_waivers(found, waivers, today or utc_today())
     except (*USAGE_ERRORS, WaiverError, SystemExit) as exc:  # factories may exit
