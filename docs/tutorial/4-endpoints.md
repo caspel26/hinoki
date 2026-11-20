@@ -4,7 +4,7 @@ status: implemented
 
 # 4. Endpoints
 
-The HTTP layer maps requests to operations and operations to responses. It contains no business rule and no SQL.
+The HTTP layer maps requests to operations and operations to responses. It contains no business rule and no SQL. The excerpt follows `examples/tracker/api.py`; the file also declares the public `health` route and sets the list's page sizes (`PageNumberPagination(page_size=10, max_page_size=50)`).
 
 ```python
 from uuid import UUID
@@ -14,7 +14,7 @@ from tracker.errors import DoneTasksAreKept, TaskAlreadyDone
 from tracker.models import Member, Task
 from tracker.schemas import TaskIn, TaskOut
 from tracker.security import member_only
-from hinoki import Caller, Hinoki, RouteGroup, errors, http
+from hinoki import Caller, RouteGroup, errors
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 
@@ -44,10 +44,9 @@ async def complete_task(task_id: UUID, caller: Caller[Member]) -> TaskOut:
 @tasks.delete("/{task_id}", status=204, errors=(errors.NotFound, DoneTasksAreKept))
 async def delete_task(task_id: UUID, caller: Caller[Member]) -> None:
     await operations.delete_task(caller.user.id, task_id)
-
-
-app = Hinoki(include=[tasks])
 ```
+
+The factory in the next chapter includes `tasks` in the application.
 
 * **Access** is a reusable policy (`member_only`) naming the provider that authenticates (a bearer token here) and the permissions required. Public is the default, so protect on purpose; a rule below enforces it.
 * **`atomic=True`** wraps writes in a transaction that commits after the response is encoded and rolls back before an error becomes HTTP.

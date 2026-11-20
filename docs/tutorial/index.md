@@ -29,4 +29,4 @@ operations.py   business rules, plain async functions, no HTTP types
 models.py       tables and relations
 ```
 
-Prerequisites: [install](../getting-started.md) from a checkout. A disposable PostgreSQL configured as `HINOKI_TEST_DATABASE_URL` is needed to run the database-backed Tracker tests in chapters 1–6. The standalone validation examples in chapter 7 need no database; chapter 8 uses local SQLite by default.
+Prerequisites: [install](../getting-started.md) from a checkout. The Tracker tests in chapters 1–6 need a disposable database in `HINOKI_TEST_DATABASE_URL` (PostgreSQL, or a throwaway SQLite file; chapter 6 shows both). The standalone validation examples in chapter 7 need no database; chapter 8 uses local SQLite by default.

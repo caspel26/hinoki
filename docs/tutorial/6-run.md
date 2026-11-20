@@ -88,7 +88,9 @@ async def test_tracker_api(members: tuple[Member, Member]) -> None:
 
 This is an excerpt of `test_every_business_error_of_the_tracker_is_declared`;
 its `members` fixture creates the two users and provides a fresh migrated
-database. Run the repository test with a disposable PostgreSQL URL:
+database. Run the repository test with a disposable database URL, which the
+fixture empties first (PostgreSQL, or a throwaway SQLite file such as
+`sqlite://./.hinoki/tracker-test.sqlite3`):
 
 ```sh
 HINOKI_TEST_DATABASE_URL="$TRACKER_DATABASE__URL" uv run pytest tests/trackertest.py
