@@ -1,7 +1,6 @@
 """Routes declared in hinoki.toml are bound by the app that the manifest names."""
 
 import importlib
-import re
 import sys
 from pathlib import Path
 
@@ -227,7 +226,8 @@ def test_manifest_routes_outside_a_project_is_an_error(
     )
     monkeypatch.syspath_prepend(str(outside))
     monkeypatch.delitem(sys.modules, "loose", raising=False)
-    missing = rf"no hinoki\.toml found in {re.escape(str(outside))} or above"
+    monkeypatch.chdir(tmp_path)
+    missing = r"no hinoki\.toml found in outside or above"
     with pytest.raises(ProjectError, match=missing):
         importlib.import_module("loose")
     with pytest.raises(ProjectError, match=missing):

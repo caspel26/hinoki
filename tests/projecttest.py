@@ -860,6 +860,37 @@ def test_plan_shortens_a_path_under_home_with_a_tilde(
     assert str(tmp_path) not in out
 
 
+def test_plan_shortens_a_path_under_a_symlinked_home_with_a_tilde(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+    home = tmp_path / "home-link"
+    home.symlink_to(tmp_path, target_is_directory=True)
+    _shown_from(monkeypatch, tmp_path / "elsewhere", home)
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote ~{os.sep}{project.name}{os.sep}{name}{os.sep}migrations" in out
+
+
+def test_plain_app_create_shows_paths_relative_to_the_working_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("sample", tmp_path)
+    monkeypatch.chdir(project)
+
+    assert main(["app", "create", "billing"]) == 0
+    output = capsys.readouterr().out
+    created = Path("sample", "apps", "billing")
+    assert f"created app billing at {created}\nregistered in hinoki.toml" in output
+
+
 def test_focused_child_plan_requires_recorded_parent_table(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
