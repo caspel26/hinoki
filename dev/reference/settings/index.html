@@ -347,10 +347,11 @@
 
         <p>Build the settings. Precedence: <code>overrides</code>, <code>env</code> (default: the
 process environment), dotenv, TOML file, and field defaults.</p>
-<p><code>strict</code> (default) makes a variable that starts with <code>prefix</code> but
-names no field an error, which catches typos; pass <code>strict=False</code> when
-another program shares the prefix. With an empty prefix nothing can be
-told apart from the rest of the environment, so no typo check happens.</p>
+<p><code>strict</code> (default) makes a variable that starts with <code>prefix</code> and
+looks like a setting but names no field an error, which catches typos;
+other variables that only share the prefix are ignored. With an empty
+prefix nothing can be told apart from the rest of the environment, so
+no typo check happens.</p>
 <p><code>prefix</code>, <code>dotenv</code> and <code>toml</code> default to what the class declared.</p>
 
 

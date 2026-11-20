@@ -437,8 +437,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
-            <span>10 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 17:33:49 UTC">November 20, 2026</span></span>
+            <span>11 min read</span>
           </p>
           
         </header>
@@ -941,7 +941,7 @@ double underscore.</p>
 </table>
 <p>Values are converted strictly: integers are ASCII digits (no <code>1_000</code>, no <code>0x10</code>), booleans are <code>true/false/yes/no/on/off/1/0</code>, lists are comma separated (use <code>tuple[str, ...]</code> to keep them immutable), <code>Literal[...]</code> takes one of its choices, and an empty value for <code>X | None</code> means <code>None</code>.</p>
 <h2 id="mistakes-fail-at-startup-all-at-once">Mistakes fail at startup, all at once<a class="headerlink" href="#mistakes-fail-at-startup-all-at-once" title="Permanent link">&para;</a></h2>
-<p>A variable that starts with your prefix but names no field is an error (a typo guard; <code>strict=False</code> turns it off when another program shares the prefix). A missing required value, a bad number or a value that is not one of the choices is an error too, and <strong>every problem is listed together</strong>, with variable names and reasons but never values:</p>
+<p>A variable that starts with your prefix and looks like one of your settings but names no field is an error (a typo guard; <code>strict=False</code> turns it off). It looks like a setting when its first word starts a field's variable (<code>NOTES_DATABASE_URL</code>, <code>NOTES_SERVER__PROT</code>) or when it is spelt close to one (<code>NOTES_THEMES</code>). Other variables that only share the prefix belong to another program and are ignored: systemd's <code>JOURNAL_STREAM</code> does not break a project whose prefix is <code>JOURNAL_</code>. A missing required value, a bad number or a value that is not one of the choices is an error too, and <strong>every problem is listed together</strong>, with variable names and reasons but never values:</p>
 <div class="language-text highlight"><pre><span></span><code>invalid settings:
   NOTES_EXECUTION__SYNC_WORKERS: must be an integer
   NOTES_DATABASE__MAX_SIZE: must be an integer
@@ -1010,7 +1010,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Setting both <code>NOTES_STRIPE_KEY</code> and <code>NOTES_STRIPE_KEY_FILE</code> is an error; only a regular file up to 64 KiB is read.</li>
-<li>A variable with your prefix that names no field is an error; pass <code>strict=False</code> to <code>load</code> when another program shares the prefix.</li>
+<li>A variable with your prefix that looks like a setting (same first word, or a close spelling) but names no field is an error; other variables that only share the prefix, such as <code>JOURNAL_STREAM</code>, are ignored. Pass <code>strict=False</code> to <code>load</code> to turn the check off.</li>
 <li>The <code>server</code> group is applied by <code>hinoki dev</code> and <code>hinoki serve</code>, not by other ASGI servers (<a href="../serving/#settings-that-apply-to-one-server-only">Serving</a>).</li>
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
@@ -1046,7 +1046,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 17:33:49 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
