@@ -291,6 +291,56 @@ fn overloaded() -> Delivery {
     Delivery::Whole(answer)
 }
 
+/// Pass the body on, but reset the stream when the application is silent for
+/// `gap`: a stalled iterable would otherwise hold the connection open for ever.
+/// Dropping the receiving end makes the application's next write report that
+/// nobody is listening.
+fn bounded_gaps(mut pieces: mpsc::Receiver<Chunk>, gap: Duration) -> mpsc::Receiver<Chunk> {
+    let (forward, forwarded) = mpsc::channel(STREAM_DEPTH);
+    tokio::spawn(async move {
+        loop {
+            let piece = match timeout(gap, pieces.recv()).await {
+                Ok(Some(piece)) => piece,
+                Ok(None) => return,
+                Err(_) => Err(Aborted),
+            };
+            let aborted = piece.is_err();
+            if forward.send(piece).await.is_err() || aborted {
+                return;
+            }
+        }
+    });
+    forwarded
+}
+
+/// Whether the decoded path holds a NUL byte or a `.`/`..` segment, which no
+/// application should have to guard against (`%2e%2e` and `%2f` included).
+fn unsafe_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        let pair = bytes.get(at + 1..at + 3).and_then(|hex| {
+            let text = std::str::from_utf8(hex).ok()?;
+            u8::from_str_radix(text, 16).ok()
+        });
+        match (bytes[at], pair) {
+            (b'%', Some(byte)) => {
+                decoded.push(byte);
+                at += 3;
+            }
+            (byte, _) => {
+                decoded.push(byte);
+                at += 1;
+            }
+        }
+    }
+    decoded.contains(&0)
+        || decoded
+            .split(|byte| *byte == b'/')
+            .any(|part| part == b"." || part == b"..")
+}
+
 fn body_failure(error: &BodyError) -> Delivery {
     match error {
         BodyError::TooLarge => plain(413, "the request body is too large\n"),
@@ -334,6 +384,9 @@ impl WsgiBackend {
     async fn submit(&self, request: Incoming) -> Delivery {
         if let Some(early) = &request.refusal {
             return plain(early.status(), "the request was refused\n");
+        }
+        if unsafe_path(&request.path) {
+            return plain(400, "the request path is invalid\n");
         }
         let Incoming {
             method,
@@ -383,7 +436,7 @@ impl WsgiBackend {
             Ok(Ok(Started { status, headers })) => Delivery::Streamed(Streamed {
                 status,
                 headers,
-                chunks: receiver,
+                chunks: bounded_gaps(receiver, self.limits.request_timeout),
             }),
             Ok(Err(_)) => plain(500, "the application failed\n"),
             Err(_) => plain(504, "the application took too long\n"),
@@ -638,6 +691,49 @@ def bridge(call):
     call.finish()
 ";
 
+    const STALLS: &std::ffi::CStr = c"
+import time
+def bridge(call):
+    call.start(200, [])
+    call.send(b'one')
+    time.sleep(2)
+    call.send(b'two')
+    call.finish()
+";
+
+    #[test]
+    fn a_producer_silent_past_the_timeout_resets_the_stream() {
+        let backend = backend(STALLS, 1, 1);
+        runtime().block_on(async {
+            let Delivery::Streamed(mut streamed) = backend.deliver(incoming()).await else {
+                panic!("a streamed response")
+            };
+            assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("one"))));
+            let next = timeout(Duration::from_millis(1500), streamed.chunks.recv()).await;
+            assert_eq!(next, Ok(Some(Err(Aborted))));
+        });
+    }
+
+    #[test]
+    fn a_decoded_path_with_a_nul_or_a_dot_segment_is_refused() {
+        for path in [
+            "/x%00y",
+            "/a/../b",
+            "/a/%2e%2E/b",
+            "/a%2f..%2fb",
+            "/./a",
+            "/a/..",
+            "/..",
+        ] {
+            assert!(unsafe_path(path), "{path} must be refused");
+        }
+        for path in [
+            "/", "/a/b", "/a..b", "/a%2fb", "/.hidden", "/a%20b", "/a/...", "/%zz",
+        ] {
+            assert!(!unsafe_path(path), "{path} must pass");
+        }
+    }
+
     #[test]
     fn body_failures_map_to_client_errors() {
         assert_eq!(status_of(&body_failure(&BodyError::TooLarge)), 413);
@@ -675,6 +771,16 @@ def bridge(call):
             assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("two"))));
             assert_eq!(streamed.chunks.recv().await, None);
         });
+    }
+
+    #[test]
+    fn an_unsafe_path_answers_400_without_calling_the_application() {
+        let backend = backend(ANSWERS, 1, 1);
+        for path in ["/a/../b", "/x%00y"] {
+            let mut request = incoming();
+            request.path = path.into();
+            assert_eq!(runtime().block_on(backend.deliver(request)).status(), 400);
+        }
     }
 
     #[test]

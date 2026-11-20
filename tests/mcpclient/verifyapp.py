@@ -24,9 +24,9 @@ PORT = 8807
 SETUP = """
 import asyncio, os
 from pathlib import Path
-from tracker.models import Member, Task
-from tracker import operations
-from tracker.schemas import TaskIn
+from tracker.apps.tracker.models import Member, Task
+from tracker.apps.tracker import operations
+from tracker.apps.tracker.schemas import TaskIn
 from hinoki.orm import migrator
 from hinoki.db import Database
 from hinoki.orm import use_database
@@ -36,7 +36,7 @@ async def main():
     for s in ("DROP TABLE IF EXISTS tracker_tasks", "DROP TABLE IF EXISTS tracker_members",
               "DROP TABLE IF EXISTS hinoki_migrations"):
         await db.execute(s)
-    await migrator.apply(db, Path("tracker/migrations"))
+    await migrator.apply(db, Path("tracker/apps/tracker/migrations"))
     with use_database(db):
         ann = await Member.acreate(name="Ann", token="ann-token")
         await operations.create_task(ann.id, TaskIn(title="write the MCP guide"))

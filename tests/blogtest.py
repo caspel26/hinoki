@@ -12,8 +12,8 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from blog.apps.blog.models import Post, User
 from blog.main import app
-from blog.models import Post, User
 from openapi_spec_validator import validate
 
 from hinoki.db import Database

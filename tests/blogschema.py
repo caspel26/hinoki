@@ -5,7 +5,9 @@ from pathlib import Path
 from hinoki.db import Database
 from hinoki.orm import migrator
 
-MIGRATIONS = Path(__file__).parent.parent / "examples" / "blog" / "migrations"
+MIGRATIONS = (
+    Path(__file__).parent.parent / "examples" / "blog" / "apps" / "blog" / "migrations"
+)
 DROP = (
     "DROP TABLE IF EXISTS blog_posts",
     "DROP TABLE IF EXISTS blog_users",

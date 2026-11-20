@@ -11,7 +11,7 @@ A model describes a table; a `Schema` describes what crosses the API. A column
 reaches a client only when a schema names it.
 
 ```python
-# tracker/schemas.py
+# tracker/apps/tracker/schemas.py
 from typing import Annotated
 
 from hinoki import Field, Schema, derive

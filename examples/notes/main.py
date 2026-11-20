@@ -7,7 +7,7 @@ reads the settings and opens nothing.
 
 from hinoki import Hinoki
 
-from .api import notes
+from .apps.notes.api import notes
 from .settings import NotesSettings
 
 app = Hinoki(

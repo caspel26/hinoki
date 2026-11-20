@@ -1294,8 +1294,14 @@ class AdminSettings(Settings):
     session_hours: int = 12  # a session ends this long after sign-in, whatever else
     idle_minutes: int = 120  # ... or this long after its last request
     min_password_length: int = 12
+    theme: str | None = None  # a built-in theme for an Admin that names none
 
     def validate(self) -> None:
+        if self.theme is not None:
+            # Circular: hinoki.admin itself imports this module.
+            from hinoki.admin.themes import resolve  # noqa: PLC0415
+
+            resolve(self.theme)
         if self.secret is not None and len(self.secret.reveal().encode()) < MIN_SECRET:
             raise ValueError(f"secret needs at least {MIN_SECRET} bytes")
         if not 1 <= self.session_hours <= MAX_SESSION_HOURS:

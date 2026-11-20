@@ -18,7 +18,28 @@ from hinoki.db import Database
 from hinoki.orm import migrator
 from hinoki.orm.migrations import plan
 from hinoki.project import ProjectError, find_manifest, load_manifest
-from hinoki.scaffold import create
+from hinoki.scaffold import create as scaffold
+
+
+def create(name: str, parent: Path, *, database: str = "none") -> Path:
+    """Scaffold a project and register a root app, the layout these tests plan."""
+    project = scaffold(name, parent, database=database)
+    (project / name / "models.py").write_text(
+        '"""Models owned by the project app."""\n', encoding="utf-8"
+    )
+    migrations = project / name / "migrations"
+    migrations.mkdir()
+    (migrations / "__init__.py").write_text("", encoding="utf-8")
+    manifest = project / "hinoki.toml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8") + "\n[[apps]]\n"
+        f'name = "{name}"\n'
+        f'models = "{name}.models"\n'
+        f'migrations = "{name}.migrations"\n'
+        "requires = []\n",
+        encoding="utf-8",
+    )
+    return project
 
 
 def test_manifest_orders_dependencies_and_keeps_declaration_order(
@@ -72,20 +93,23 @@ def test_manifest_rejects_invalid_dependencies_and_modules(
         load_manifest(path)
 
 
-def test_new_project_has_manifest_and_default_migration_package(
+def test_new_project_has_a_manifest_with_no_apps_until_one_is_created(
     tmp_path: Path,
 ) -> None:
-    project = create("sample", tmp_path)
+    project = scaffold("sample", tmp_path)
 
     manifest = load_manifest(project / "hinoki.toml")
 
     assert manifest.application == "sample.main:app"
-    assert manifest.apps[0].models == "sample.models"
-    assert manifest.apps[0].migrations == "sample.migrations"
-    assert manifest.migration_namespace(manifest.apps[0]) == ""
-    assert (project / "sample/models.py").is_file()
-    assert (project / "sample/migrations/__init__.py").is_file()
+    assert manifest.apps == ()
     assert ".hinoki/" in (project / ".gitignore").read_text()
+
+    projectcli.create_app("billing", project)
+    created = load_manifest(project / "hinoki.toml").apps[0]
+    assert created.models == "sample.apps.billing.models"
+    assert created.migrations == "sample.apps.billing.migrations"
+    assert (project / "sample/apps/billing/models.py").is_file()
+    assert (project / "sample/apps/billing/migrations/__init__.py").is_file()
 
 
 @pytest.mark.parametrize("database", ["none", "sqlite", "postgresql"])

@@ -1,7 +1,9 @@
 # Tracker
 
-A layered app: HTTP routes in `api.py`, business operations in `operations.py`,
-tables in `models.py` and architecture rules in `rules.py`. Every task read and
+A layered app, laid out as a project (`tracker/`: `main.py`, settings, rules)
+with one app, `tracker/apps/tracker/`: HTTP routes in `api.py`, business
+operations in `operations.py` and tables in `models.py`; architecture rules are
+in the project's `rules.py`. Every task read and
 write is scoped to the authenticated member, and the task list is also an
 authenticated MCP tool. The [tutorial](https://hinoki.caspel.dev/dev/tutorial/)
 walks through it chapter by chapter.
@@ -15,7 +17,7 @@ uv run hinoki migrations apply tracker
 uv run hinoki dev tracker.main:app
 ```
 
-The checked-in migrations are in [`migrations/`](migrations/). The database is
+The checked-in migrations are in [`apps/tracker/migrations/`](apps/tracker/migrations/). The database is
 `.hinoki/local.sqlite3`; set `TRACKER_DATABASE__URL` for another one, and
 `EXAMPLES_DATABASE__URL` to the same URL for the migration commands. Open `/docs`
 for the OpenAPI UI.
