@@ -11,7 +11,7 @@ Hinoki keeps unreleased documentation separate from release documentation.
 
 ## Development
 
-The [`dev` documentation](https://caspel26.github.io/hinoki/dev/) follows `main` and may change at any time. Before the first release, the site root redirects here. Treat it as documentation for the current pre-release code.
+The [`dev` documentation](https://hinoki.caspel.dev/dev/) follows `main` and may change at any time. Before the first release, the site root redirects here. Treat it as documentation for the current pre-release code.
 
 ## Releases
 
