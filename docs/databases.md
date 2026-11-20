@@ -147,8 +147,7 @@ first. Hinoki does not run migrations automatically at app startup.
 On a fresh local checkout, `hinoki migrations ... apply` uses the default
 SQLite URL when `HINOKI_DATABASE_URL` is unset. Opening that URL creates
 `.hinoki/local.sqlite3` if it does not exist; applying creates the migration
-ledger and runs the pending SQL files. As with Django's separate
-`makemigrations` and `migrate` steps, first run `plan` to generate migration
+ledger and runs the pending SQL files. First run `plan` to generate migration
 files from model changes, then run `apply` to create the tables. `status` also
 opens the selected database and creates its ledger table if needed.
 
