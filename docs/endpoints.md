@@ -158,7 +158,9 @@ Bind a file by the multipart field name. An action that declares a file paramete
     status=201,
     parsers=[MultiPartParser(max_parts=4, max_part_bytes=512_000)],
 )
-async def attach(request: Request, invoice_id: UUID, document: UploadedFile) -> Attached:
+async def attach(
+    request: Request, invoice_id: UUID, document: UploadedFile
+) -> Attached:
     title = request.POST.get("title", "")[:120]
     # Validate content and choose a generated storage name before saving.
     return Attached(title=title, filename=document.filename, size=document.size)

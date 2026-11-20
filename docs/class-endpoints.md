@@ -93,15 +93,23 @@ class InvoiceAlreadyPaid(errors.Conflict):
     message = "The invoice is already paid."
 
 
-@crud(Invoice, path="/invoices", read=InvoiceOut, create=InvoiceIn, access=billing_staff)
+@crud(
+    Invoice, path="/invoices", read=InvoiceOut, create=InvoiceIn, access=billing_staff
+)
 class Invoices(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Invoice]:
         return Invoice.all().order_by("reference")
 
-    @http.post("/{item_id}/pay", access=billing_staff, atomic=True,
-               errors=(errors.NotFound, InvoiceAlreadyPaid))
+    @http.post(
+        "/{item_id}/pay",
+        access=billing_staff,
+        atomic=True,
+        errors=(errors.NotFound, InvoiceAlreadyPaid),
+    )
     async def pay(self, item_id: UUID) -> InvoiceOut:
-        changed = await Invoice.aupdate_where({"id": item_id, "paid": False}, {"paid": True})
+        changed = await Invoice.aupdate_where(
+            {"id": item_id, "paid": False}, {"paid": True}
+        )
         if not changed:
             await Invoice.aget(id=item_id)  # 404 when it does not exist
             raise InvoiceAlreadyPaid()
@@ -138,7 +146,13 @@ from .models import Invoice
 from .schemas import InvoiceIn, InvoiceOut
 
 routes: list[Includable] = [
-    crud(Invoice, path="/invoices", read=InvoiceOut, create=InvoiceIn, access=billing_staff),
+    crud(
+        Invoice,
+        path="/invoices",
+        read=InvoiceOut,
+        create=InvoiceIn,
+        access=billing_staff,
+    ),
 ]
 ```
 

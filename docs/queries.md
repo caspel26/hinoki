@@ -21,9 +21,7 @@ models from [Define models](models.md).
     # inside an async operation or handler
     invoice = await Invoice.aget(id=invoice_id)
     maybe = await Invoice.aget_or_none(reference="INV-7")
-    unpaid = await Invoice.filter(customer_id=customer.id, paid=False).order_by(
-        "reference"
-    )
+    unpaid = await Invoice.filter(customer_id=customer.id, paid=False).order_by("reference")
     first = await Invoice.filter(paid=False).afirst()
     count = await Invoice.filter(paid=False).acount()
     page = await Invoice.all().apaginate(PageParams(page=1, page_size=20))
@@ -131,9 +129,7 @@ invoice = await Invoice.acreate(InvoiceIn(reference="INV-8"), customer_id=custom
 invoice.paid = True
 await invoice.asave()  # updates the changed columns
 await invoice.aupdate_from(InvoicePatch(paid=False))
-changed = await Invoice.aupdate_where(
-    {"id": invoice.id, "paid": False}, {"paid": True}
-)
+changed = await Invoice.aupdate_where({"id": invoice.id, "paid": False}, {"paid": True})
 ```
 
 * Keywords set by the server win over values from a `Schema`; a `Schema` never

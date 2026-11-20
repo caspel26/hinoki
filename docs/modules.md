@@ -140,7 +140,9 @@ def say_goodbye(ctx: ModuleContext) -> None:
     log.info("worker stopping")
 
 
-app = Hinoki(settings=ProjectSettings, on_startup=[warm_cache], on_shutdown=[say_goodbye])
+app = Hinoki(
+    settings=ProjectSettings, on_startup=[warm_cache], on_shutdown=[say_goodbye]
+)
 ```
 
 A hook takes the worker's `ModuleContext` (`ctx.settings`, `ctx.get(Type)`, `ctx.tasks`). It is `async def`, or a plain `def` that runs on the bounded sync executor like a sync handler. Model methods reach the worker's database inside a hook as they do inside a request.

@@ -117,13 +117,15 @@ class Booking(Schema):
     receipt: Annotated[bytes, Field(max_length=1024)]
 
 
-booking = Booking.validate({
-    "day": "2026-03-14",
-    "opens": "09:30:00+01:00",
-    "length": "PT1H30M",
-    "price": "19.90",
-    "receipt": "aGVsbG8=",
-})
+booking = Booking.validate(
+    {
+        "day": "2026-03-14",
+        "opens": "09:30:00+01:00",
+        "length": "PT1H30M",
+        "price": "19.90",
+        "receipt": "aGVsbG8=",
+    }
+)
 assert booking.length == dt.timedelta(hours=1, minutes=30)
 assert booking.dump()["price"] == "19.90"
 ```

@@ -18,7 +18,15 @@ checks reject values that are valid but not acceptable.
 # registration.py
 from typing import Annotated
 
-from hinoki import Field, Invalid, Schema, errors, field_check, field_normalize, object_check
+from hinoki import (
+    Field,
+    Invalid,
+    Schema,
+    errors,
+    field_check,
+    field_normalize,
+    object_check,
+)
 
 
 class Registration(Schema):

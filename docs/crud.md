@@ -60,7 +60,9 @@ Writes run in a transaction. `pagination=` selects the page-number policy of the
 # notes/apps/billing/routes.py (variant)
 from hinoki import CrudAccess
 
-access = CrudAccess(default=billing_staff, list=None, retrieve=None, delete=billing_admin)
+access = CrudAccess(
+    default=billing_staff, list=None, retrieve=None, delete=billing_admin
+)
 ```
 
 Here list and retrieve are public, create and update need `billing_staff`, delete needs `billing_admin`. Unknown action names raise `TypeError`. Generated writes always need a policy: a write left without one fails at declaration unless you pass `public_writes=True` on purpose. The `access=` of `crud(...)` covers generated actions only; a handwritten action in the class form states its own.
@@ -94,7 +96,9 @@ def normalised(reference: str) -> str:
     return reference.strip().upper()
 
 
-@crud(Invoice, path="/invoices", read=InvoiceOut, create=InvoiceIn, access=billing_staff)
+@crud(
+    Invoice, path="/invoices", read=InvoiceOut, create=InvoiceIn, access=billing_staff
+)
 class Invoices(API):
     async def store(self, values: dict[str, Any], principal: Caller[Any]) -> Invoice:
         values["reference"] = normalised(str(values["reference"]))
