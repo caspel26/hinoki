@@ -377,6 +377,28 @@ body.menu-open .menu-icon-close {
   margin: 0 auto;
 }
 
+/* Decorative, fixed brand mark behind the page; desktop only. */
+.shell::before {
+  position: fixed;
+  right: 32px;
+  bottom: 24px;
+  z-index: -1;
+  inline-size: 196px;
+  block-size: 280px;
+  background: var(--hn-watermark);
+  content: "";
+  opacity: 0.6;
+  pointer-events: none;
+  -webkit-mask: url("../favicon.svg") center / contain no-repeat;
+  mask: url("../favicon.svg") center / contain no-repeat;
+}
+
+@media (max-width: 960px), print {
+  .shell::before {
+    display: none;
+  }
+}
+
 .side,
 .margin {
   position: sticky;
@@ -1234,6 +1256,23 @@ body.menu-open .overlay {
     font-weight: 650;
   }
 
+  .mobile-sheet__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mobile-sheet__brand .brand__mark {
+    width: auto;
+    height: 18px;
+  }
+
+  .mobile-sheet__brand .brand__word {
+    display: block;
+    width: auto;
+    height: 14px;
+  }
+
   .mobile-sheet__close {
     width: 38px;
     height: 38px;
@@ -1351,6 +1390,15 @@ body.menu-open .overlay {
   }
 
   .brand__word {
+    display: block;
+    width: 56px;
+    height: 16px;
+  }
+}
+
+/* Below 375 px the wordmark keeps its place and the stage chip goes. */
+@media (max-width: 374px) {
+  .top [data-project-stage] {
     display: none;
   }
 }

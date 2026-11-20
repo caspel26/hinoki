@@ -540,6 +540,7 @@
     const lang = codeLang(block);
     const lines = code.textContent.replace(/\n$/, "").split("\n").length;
     const btn = copyButton(code);
+    if (lines >= 7) block.classList.add("is-tall");
     if (file || (lang && lines >= 2)) {
       const head = document.createElement("div");
       head.className = "code-head";

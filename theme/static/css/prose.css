@@ -224,6 +224,26 @@
   overflow: hidden;
 }
 
+/* Decorative brand mark in tall code blocks; no text, at most 5% alpha. */
+.highlight.is-tall::after {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  inline-size: 28px;
+  block-size: 40px;
+  background: var(--hn-watermark);
+  content: "";
+  pointer-events: none;
+  -webkit-mask: url("../favicon.svg") center / contain no-repeat;
+  mask: url("../favicon.svg") center / contain no-repeat;
+}
+
+@media (max-width: 960px), print {
+  .highlight.is-tall::after {
+    display: none;
+  }
+}
+
 .highlight pre {
   margin: 0;
   padding: 14px 16px;
