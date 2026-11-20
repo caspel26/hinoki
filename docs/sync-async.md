@@ -11,7 +11,7 @@ Hinoki runs on one event loop per worker. **Async is the native way; sync is a s
 A name with the `a` prefix awaits the database (`aget`, `acreate`, `acount`); the same name without it is the blocking twin for sync handlers. A query builder is lazy until you evaluate it, and awaiting the queryset itself is the async twin of `.list()`:
 
 ```python
-posts = await Post.filter(published=True).order_by("-created")   # async
+posts = await Post.filter(published=True).order_by("-created")  # async
 posts = Post.filter(published=True).order_by("-created").list()  # sync handler
 first = await Post.all().afirst()
 ```

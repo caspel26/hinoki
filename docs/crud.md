@@ -22,8 +22,7 @@ from app.models import Post
 from app.security import editor
 
 
-class PostOut(Schema, model=Post):
-    ...
+class PostOut(Schema, model=Post): ...
 
 
 class PostCreate(Schema):
@@ -116,7 +115,14 @@ from hinoki import API, Caller, Hinoki, crud, http
 from hinoki.orm import QuerySet
 
 
-@crud(Post, path="/posts", read=PostOut, create=PostCreate, access=editor, owner="author_id")
+@crud(
+    Post,
+    path="/posts",
+    read=PostOut,
+    create=PostCreate,
+    access=editor,
+    owner="author_id",
+)
 class Posts(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
         return Post.filter(published=True).order_by("-id")

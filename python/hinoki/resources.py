@@ -690,11 +690,11 @@ class CrudAccess:
     """
 
     default: Access | None = None
-    list: Access | None | Unset = UNSET
-    retrieve: Access | None | Unset = UNSET
-    create: Access | None | Unset = UNSET
-    update: Access | None | Unset = UNSET
-    delete: Access | None | Unset = UNSET
+    list: Access | Unset | None = UNSET
+    retrieve: Access | Unset | None = UNSET
+    create: Access | Unset | None = UNSET
+    update: Access | Unset | None = UNSET
+    delete: Access | Unset | None = UNSET
 
     def resolve(self) -> dict[str, Access | None]:
         found = {name: getattr(self, name) for name in ACTIONS}

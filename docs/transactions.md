@@ -24,10 +24,12 @@ For a function route group, `RouteGroup(..., atomic=True)` makes write methods (
 ```python
 tasks = RouteGroup("/tasks", access=member_only, atomic=True)
 
-@tasks.post("/", status=201)                    # atomic
+
+@tasks.post("/", status=201)  # atomic
 async def create_task(data: TaskInput) -> TaskOutput: ...
 
-@tasks.post("/{task_id}/ping", atomic=False)    # not atomic
+
+@tasks.post("/{task_id}/ping", atomic=False)  # not atomic
 async def ping(task_id: int) -> None: ...
 ```
 
@@ -37,6 +39,7 @@ async def ping(task_id: int) -> None: ...
 
 ```python
 from hinoki import db
+
 
 async def transfer(source: Account, target: Account, amount: int) -> None:
     async with db.atomic():
@@ -54,6 +57,7 @@ async def close_project(project_id: int) -> None:
     await Task.filter(project_id=project_id).aupdate({"done": True})
     await Project.aupdate(id=project_id, closed=True)
 
+
 @db.atomic()
 async def reopen_project(project_id: int) -> None: ...
 ```
@@ -70,11 +74,11 @@ A scope opened while another scope of the same task is already open becomes a sa
 async with db.atomic():
     await Order.acreate(data)
     try:
-        async with db.atomic():          # SAVEPOINT
+        async with db.atomic():  # SAVEPOINT
             await Coupon.aupdate(id=coupon_id, used=True)
             raise CouponExpired()
     except CouponExpired:
-        pass                             # only the coupon update is undone
+        pass  # only the coupon update is undone
 # the order commits here
 ```
 
