@@ -530,14 +530,22 @@ def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[
         if suffix not in {"eq", "ne"}:
             raise FieldError(f"{key} cannot compare with None")
         return name, "isnull" if suffix == "eq" else "notnull", []
-    if suffix == "in" and isinstance(value, str | bytes):
-        raise FieldError(f"{key} needs a list of values, not a string")
-    values = list(value) if suffix == "in" else [value]
+    values = condition_values(key, suffix, value)
     if model.__field_types__[name].kind == "decimal":
         if suffix == "contains":
             raise FieldError(f"{key}: contains does not apply to a Decimal column")
         values = [decimal_value(model, name, item) for item in values]
     return name, suffix, values
+
+
+def condition_values(key: str, suffix: str, value: Any) -> list[Any]:
+    """The values one filter compares with: ``__in`` takes a collection, never a
+    string, which would be split into its characters."""
+    if suffix != "in":
+        return [value]
+    if isinstance(value, str | bytes):
+        raise FieldError(f"{key} needs a list of values, not a string")
+    return list(value)
 
 
 Filter = tuple[str, str, list[Any]]
