@@ -9,6 +9,7 @@ import re
 import sys
 import tomllib
 from pathlib import Path
+from types import FrameType
 from typing import cast
 
 from hinoki.orm import MARK, FieldMeta, Model
@@ -324,6 +325,27 @@ def load_manifest(path: Path | None = None) -> ProjectManifest:
     manifest = ProjectManifest(manifest_path.resolve(), application, apps, routes)
     manifest.ordered_apps()
     return manifest
+
+
+def manifest_routes(start: Path | None = None) -> list[Includable]:
+    """The routes ``hinoki.toml`` declares: the project's, then each app's at its
+    prefix, for ``Hinoki(include=manifest_routes())``.
+
+    The manifest is found from ``start``, by default the directory of the calling
+    file (the working directory when the caller has no file), upwards. Outside a
+    project this raises ``ProjectError``.
+    """
+    directory = start if start is not None else _caller_directory(sys._getframe(1))
+    path = find_manifest_or_none(directory)
+    if path is None:
+        shown = directory if directory is not None else Path.cwd()
+        raise ProjectError(f"no hinoki.toml found in {shown} or above it")
+    return load_manifest(path).route_items()
+
+
+def _caller_directory(frame: FrameType) -> Path | None:
+    file = frame.f_globals.get("__file__")
+    return Path(file).parent if isinstance(file, str) else None
 
 
 def manifest_declaring(module: str, file: str | None) -> ProjectManifest | None:
