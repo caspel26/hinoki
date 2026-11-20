@@ -25,8 +25,8 @@ from hinoki.runtime.binding import (
     Param,
 )
 from hinoki.runtime.crudplan import CrudPlanSelection, select_crud_plan
-from hinoki.runtime.pipeline import Pipeline
-from hinoki.runtime.responses import RETRY_LATER, HTTPError
+from hinoki.runtime.pipeline import Pipeline, docs_response
+from hinoki.runtime.responses import RETRY_LATER, HTTPError, Response
 
 log = logging.getLogger("hinoki.server")
 
@@ -205,6 +205,22 @@ def hosts_of(pipeline: Pipeline) -> tuple[list[bytes], list[bytes]] | None:
     )
 
 
+def static_pages_of(
+    pipeline: Pipeline,
+) -> list[tuple[str, list[tuple[bytes, bytes]], bytes]]:
+    """The OpenAPI document and documentation pages as the answers the Python
+    pipeline would give, so Rust can serve them without crossing into Python."""
+    pages = []
+    url = pipeline.app.openapi_url
+    if pipeline.document is not None and url is not None:
+        answer = Response.json(HTTPStatus.OK, pipeline.document)
+        pages.append((url, list(answer.headers), answer.body))
+    for path, page in pipeline.docs.items():
+        answer = docs_response(page)
+        pages.append((path, list(answer.headers), answer.body))
+    return pages
+
+
 def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     """The classifier for one worker. It starts not ready; the lifespan flips it."""
     app = pipeline.app
@@ -257,4 +273,5 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         ),
         hosts=hosts_of(pipeline),
         redirect_https=pipeline.security.redirect_https,
+        static_pages=static_pages_of(pipeline),
     )

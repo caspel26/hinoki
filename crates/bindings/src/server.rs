@@ -979,6 +979,7 @@ pub struct Core {
     trust_request_id: bool,
     proxies: Networks,
     python_paths: Vec<String>,
+    static_pages: Vec<StaticPage>,
     startup_probe: Option<StartupProbe>,
 }
 
@@ -1043,6 +1044,17 @@ struct StartupProbe {
     body: Vec<u8>,
 }
 
+/// A fixed answer to `GET`/`HEAD` of one path: the OpenAPI document, a
+/// documentation page or one of its assets, built once at startup.
+struct StaticPage {
+    path: String,
+    headers: Vec<Header>,
+    body: Vec<u8>,
+}
+
+/// `(path, headers, body)` of a [`StaticPage`].
+type StaticSpec = (String, Vec<Header>, Vec<u8>);
+
 /// The Python handle of a [`Core`].
 #[pyclass(name = "ServerCore", module = "hinoki.core", frozen)]
 pub struct ServerCore {
@@ -1064,7 +1076,7 @@ impl ServerCore {
         request_timeout_ms=30000,
         trust_request_id=false, python_paths=Vec::new(),
         cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new(),
-        hosts=None, redirect_https=false
+        hosts=None, redirect_https=false, static_pages=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1085,6 +1097,7 @@ impl ServerCore {
         startup_body: Vec<u8>,
         hosts: Option<HostsSpec>,
         redirect_https: bool,
+        static_pages: Vec<StaticSpec>,
     ) -> PyResult<Self> {
         if redirect_https && hosts.is_none() {
             return Err(PyValueError::new_err(
@@ -1157,6 +1170,14 @@ impl ServerCore {
                 trust_request_id,
                 proxies,
                 python_paths,
+                static_pages: static_pages
+                    .into_iter()
+                    .map(|(path, headers, body)| StaticPage {
+                        path,
+                        headers,
+                        body,
+                    })
+                    .collect(),
                 startup_probe,
             }),
         })
@@ -1491,6 +1512,9 @@ impl Core {
         if is_startup_probe {
             return self.startup_response(&asked, head.method, head.query, &head.headers);
         }
+        if let Some(page) = self.static_page(head.method, head.path) {
+            return Ok(self.static_response(&asked, page));
+        }
         let (action, params) = match self.resolve(head.method, head.path) {
             // A raw target the server cannot read as a plain path, and the
             // documentation pages, are the Python pipeline's to answer.
@@ -1609,6 +1633,47 @@ impl Core {
 
     fn has_policies(&self) -> bool {
         self.hosts.is_some() || self.cors.is_some() || self.redirect_https
+    }
+
+    /// The prebuilt page for a `GET`/`HEAD` of its path. Python compares the
+    /// decoded path, so `/openapi%2Ejson` is the document too.
+    fn static_page(&self, method: &str, path: &str) -> Option<&StaticPage> {
+        if !matches!(method, "GET" | "HEAD") || self.static_pages.is_empty() {
+            return None;
+        }
+        let decoded = percent_decode(path);
+        self.static_pages
+            .iter()
+            .find(|page| page.path.as_bytes() == decoded.as_slice())
+    }
+
+    fn static_response(&self, asked: &Asked, page: &StaticPage) -> Outcome {
+        if asked.id_ignored {
+            self.ignored_ids.fetch_add(1, Ordering::Relaxed);
+        }
+        let cors = self
+            .cors
+            .as_ref()
+            .map(|policy| policy.headers(&asked.origin))
+            .unwrap_or_default();
+        let mut body = page.body.clone();
+        let headers = final_headers(
+            &page.headers,
+            &self.policies[usize::from(asked.https)],
+            &[],
+            (&self.id_name, asked.request_id.as_bytes()),
+            &cors,
+            200,
+            body.len(),
+        );
+        if asked.head_only {
+            body.clear();
+        }
+        Outcome::Early(Reply {
+            status: 200,
+            headers,
+            body,
+        })
     }
 
     fn startup_response(
