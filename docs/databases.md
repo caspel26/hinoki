@@ -17,7 +17,8 @@ SQL features overlap. With nothing configured, the database is local SQLite at
 ## Set up a database in four steps
 
 1. **Declare it.** `hinoki new notes --database postgresql` does this for you;
-   otherwise add the field to your settings class:
+   otherwise add the field to your settings class. Name a TOML file only if
+   you will use one (step 2): the file named by `toml=` must exist.
 
     ```python
     # notes/settings.py
@@ -25,21 +26,24 @@ SQL features overlap. With nothing configured, the database is local SQLite at
         database: settings.DatabaseSettings
     ```
 
-2. **Populate it.** `DatabaseSettings` has no values of its own until you give
-   it some. Pick one source:
+2. **Populate it.** With nothing set, `DatabaseSettings` points at a local
+   SQLite file, `.hinoki/local.sqlite3`. To use another database, pick one
+   source:
 
     | Source | Use it for | Example |
     | --- | --- | --- |
-    | Nothing | local development: a SQLite file at `.hinoki/local.sqlite3` | – |
-    | `.env` | one URL on your machine (copy `.env.example`; add `.env` to `.gitignore`) | `NOTES_DATABASE__URL=postgresql://notes:secret@localhost:5432/notes` |
+    | Nothing | local development on SQLite | – |
+    | `.env` | one URL on your machine (`hinoki new --database postgresql` writes a `.env.example` to copy; keep `.env` out of git) | `NOTES_DATABASE__URL=postgresql://notes:secret@localhost:5432/notes` |
     | Environment | containers and CI | `export NOTES_DATABASE__URL_FILE=/run/secrets/database-url` |
-    | `settings.toml` | non-secret fields (`engine`, `host`, `name`, `user`), with the password from the environment | [connection fields](#connection-fields) |
+    | `settings.toml` | non-secret fields (`engine`, `host`, `name`, `user`), with the password from the environment; add `toml="settings.toml"` to the class | [connection fields](#connection-fields) |
 
     The prefix (`NOTES_`) comes from the settings class, and `__` separates the
-    group from the field.
+    group from the field. Until you set one of them, a project created with
+    `--database postgresql` still uses the local SQLite file, and so do its
+    migrations.
 
-3. **Check it.** `hinoki settings` shows each value with its source; the URL
-   and the password are redacted:
+3. **Check it.** `hinoki settings`, run from the project root, shows each
+   value with its source; the URL and the password are redacted:
 
     ```console
     $ hinoki settings | grep DATABASE__URL
@@ -54,9 +58,12 @@ SQL features overlap. With nothing configured, the database is local SQLite at
     database: postgresql://***@127.0.0.1:5432/notes (from settings: ProjectSettings.database)
     ```
 
-4. **Create the tables.** Hinoki never creates or migrates a database at
-   startup: run `hinoki migrations apply` once you have models
-   ([migrations](migrations.md)).
+    `status` connects and records its migration ledger, so on SQLite it
+    creates the database file.
+
+4. **Create the tables.** Hinoki never creates tables or runs migrations at
+   startup (it only creates the local SQLite file): run
+   `hinoki migrations apply` once you have models ([migrations](migrations.md)).
 
 The rest of this page lists every field, the URL forms and each backend.
 
@@ -78,7 +85,9 @@ class ProjectSettings(
 
 Each worker opens one bounded pool during startup and closes it during
 shutdown. Importing models or routes never opens a connection, and no
-`modules=` entry is needed.
+`modules=` entry is needed. The file named by `toml=` must exist, even if it
+is empty: otherwise the settings fail to load with
+`settings.toml: TOML file cannot be read or parsed`.
 
 Configure a server database with **connection fields** or with **one URL**.
 Setting both is an error when settings load.
@@ -182,7 +191,7 @@ output and connection errors.
 
 | Backend | Security defaults | Limits |
 | --- | --- | --- |
-| SQLite | no network, no TLS | one writer at a time; bounded connections and a five-second busy timeout; a relative path resolves from the application's working directory |
+| SQLite | no network, no TLS | one writer at a time; bounded connections and a five-second busy timeout; a relative path resolves from the server's working directory (start it from the project root; migrations anchor it beside `hinoki.toml`) |
 | PostgreSQL | `sslmode=prefer`; use `verify-full` for remote servers; `sslrootcert` adds a PEM CA to the system roots. `require`, `verify-ca` and `verify-full` all verify the certificate | native UUID, timestamp, JSON and byte types |
 | MySQL | TLS required, certificate and host verified against the system trust store; `require_ssl=false` only for an isolated disposable local server | InnoDB, native JSON; no `RETURNING` |
 | MariaDB | TLS required by default | separate backend, tested on MariaDB 11.4 with its own conformance job. `JSON` is a text alias: typed `dict`/`list` fields decode by declaration; low-level `Database.fetch()` returns JSON values as bytes |
@@ -191,6 +200,64 @@ SQL Server and Oracle are not supported. Any other scheme, such as `oracle://`
 or `mssql://`, fails when the pool is created with
 `DatabaseError: unsupported database URL scheme`; the message does not repeat
 the URL.
+
+### PostgreSQL TLS
+
+PostgreSQL URLs accept `sslmode=disable`, `prefer`, `require`, `verify-ca` or
+`verify-full`, and `sslrootcert=/path/to/ca.pem`. `prefer` tries TLS first and
+falls back to plaintext only if the server declines TLS; a certificate or
+handshake error fails closed. All TLS connections verify the server
+certificate chain and hostname: `require`, `verify-ca` and `verify-full` all
+require TLS, and Hinoki's `verify-ca` also verifies the hostname. Trust uses
+Mozilla WebPKI roots plus any PEM certificates in `sslrootcert` (at most
+1 MiB), so `sslmode=require` needs a trusted certificate too. `sslmode=allow`
+is unsupported. Mount the CA file where each worker can read it.
+
+Hinoki does not create the PostgreSQL role or database: create them once with
+your usual tools before the first `hinoki migrations apply`.
+
+### SQLite storage
+
+SQLite uses bundled SQLite 3.35 or newer. UUID and timestamp columns use text
+storage; JSON uses JSON text. `contains` matching is ASCII case-insensitive.
+In-memory databases are not supported, because each pooled connection would
+have an independent database.
+
+## Use the database from a script
+
+A script, a one-off task or a test fixture opens its own pool with
+`Database.connect` and makes it current with `use_database`, so model queries
+find it. Run it from the project root so a relative SQLite path and `.env`
+match the server's:
+
+```python
+# scripts/unpaid.py
+import asyncio
+
+from hinoki.db import Database
+from hinoki.orm import use_database
+
+from notes.apps.billing.models import Invoice
+from notes.settings import ProjectSettings
+
+
+async def main() -> None:
+    settings = ProjectSettings.load()
+    database = await Database.connect(
+        settings.database.url.reveal(), max_size=settings.database.max_size
+    )
+    try:
+        with use_database(database):
+            print(await Invoice.filter(paid=False).acount())
+    finally:
+        database.close()
+
+
+asyncio.run(main())
+```
+
+`Database.close()` is a plain call, not awaited. The script does not create
+tables: run `hinoki migrations apply` against the same database first.
 
 ## Replace the database module
 
@@ -223,7 +290,10 @@ hinoki migrations status   # database: postgresql://***@db.internal/notes (from 
 hinoki migrations apply
 ```
 
-Hinoki never runs migrations at startup. See [which database](migrations.md#which-database)
+Hinoki never runs migrations at startup. An application that declares no
+`database` setting and installs no `DatabaseModule` has no database at run
+time, although its migrations still fall back to the local SQLite file:
+declare the field before you add models. See [which database](migrations.md#which-database)
 for the full order, and [migrations](migrations.md) for planning, review and
 per-backend behaviour.
 
