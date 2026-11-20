@@ -441,7 +441,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:24 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -563,7 +563,7 @@ asked either):</p>
 </table>
 <h2 id="what-you-get">What you get<a class="headerlink" href="#what-you-get" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code>notes/
-├── hinoki.toml          project registry: application, apps, models, migrations
+├── hinoki.toml          project registry: application, routes, apps
 ├── hinoki-rules.toml    rule waivers (an example, commented out)
 ├── pyproject.toml       dependencies, pytest, Ruff
 ├── README.md
@@ -573,9 +573,7 @@ asked either):</p>
 │   ├── api.py           the health endpoint
 │   ├── routes.py        the routes hinoki.toml points to
 │   ├── settings.py      typed settings (NOTES_ variables and .env)
-│   ├── rules.py         architecture rules
-│   ├── models.py
-│   └── migrations/
+│   └── rules.py         architecture rules
 └── tests/
     └── healthtest.py    one test, no database needed
 </code></pre></div>
@@ -587,14 +585,10 @@ under its <code>prefix</code>.</p>
 <span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
 <span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span>
-
-<span class="k">[[apps]]</span>
-<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes"</span>
-<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.models"</span>
-<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.migrations"</span>
-<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
 </code></pre></div>
-<p>Add apps with <a href="../cli/#app"><code>hinoki app create</code></a>.</p>
+<p>The project package holds no models and registers no app. Models live in apps:
+<code>uv run hinoki app create billing</code> writes <code>notes/apps/billing/</code> and adds the
+<code>[[apps]]</code> entry for it (<a href="../cli/#app"><code>hinoki app create</code></a>).</p>
 <h2 id="run-it">Run it<a class="headerlink" href="#run-it" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>notes
 uv<span class="w"> </span>run<span class="w"> </span>pytest
@@ -701,7 +695,7 @@ database</a> lists the URL forms and the connection fields.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:24 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/new-project.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

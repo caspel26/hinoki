@@ -245,7 +245,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
             <span>1 min read</span>
           </p>
           
@@ -309,7 +309,9 @@ to your own project.</p>
 </table>
 <p>Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
 chapter 8 continues the project from the <a href="../quick-start/">Quick start</a>.</p>
-<p>The shape you end with:</p>
+<p>The Tracker is one project (<code>tracker/</code>: <code>main.py</code>, settings, rules) with one app
+(<code>tracker/apps/tracker/</code>) that owns the models, schemas, operations, security and
+endpoints, created the way chapter 8 creates yours. Its layers:</p>
 <div class="language-text highlight"><pre><span></span><code>api.py          HTTP: shapes, status codes, access, transactions
    ↓
 operations.py   business rules: plain async functions, no HTTP types
@@ -353,7 +355,7 @@ the directory's own <code>project.app:app</code>, which declares no rules, and r
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/index.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

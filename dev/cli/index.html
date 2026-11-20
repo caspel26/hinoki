@@ -441,7 +441,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:22:50 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
             <span>11 min read</span>
           </p>
           
@@ -588,7 +588,7 @@ hinoki<span class="w"> </span>completion<span class="w"> </span>fish<span class=
 <h3 id="terminal-output">Terminal output<a class="headerlink" href="#terminal-output" title="Permanent link">&para;</a></h3>
 <p>On a colour terminal, <code>doctor</code>, <code>check</code> and <code>routes</code> print a coloured report: a status glyph per check (<code>✔</code> ok, <code>▲</code> warning, <code>✘</code> failed or violated, <code>?</code> unverifiable, <code>–</code> skipped or waived) with the fix on its own line, and routes with coloured methods. The <code>check</code> summary is green only when the exit code is <code>0</code>. When output is piped or redirected, or with <code>NO_COLOR</code> or <code>TERM=dumb</code>, the text is plain and unchanged, and <code>--format json</code> is never styled.</p>
 <h2 id="app"><code>app</code><a class="headerlink" href="#app" title="Permanent link">&para;</a></h2>
-<p>The generated <code>hinoki.toml</code> registers the default app and its models and migrations. Add modules without moving files by creating another app:</p>
+<p>The generated <code>hinoki.toml</code> registers no app: the project package keeps <code>main.py</code>, settings, rules and the health route, and models live in apps. Create each one with:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
 </code></pre></div>
 <p>This creates <code>NAME/apps/billing/{models.py,routes.py,migrations/}</code> and registers the model, migration and routes modules in <code>hinoki.toml</code> (<code>routes = "NAME.apps.billing.routes:routes"</code>, <code>prefix = "/billing"</code>). Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
@@ -634,8 +634,8 @@ even if you run the command from a subdirectory; relative SQLite URLs given
 with <code>--database</code> or <code>HINOKI_DATABASE_URL</code> remain relative to the current
 working directory. Added
 apps have separate migration ledger namespaces, so identical numbered
-filenames do not collide; the scaffolded root app retains its existing
-unprefixed migration keys. <code>apply billing</code> includes its declared prerequisite
+filenames do not collide; a project whose root package was
+registered as an app (older scaffolds) retains its unprefixed migration keys. <code>apply billing</code> includes its declared prerequisite
 apps for migration application.</p>
 <p><code>plan --check</code> fails CI (exit 1) when the models have changes that no migration
 file records, and exits 2 when the database it plans for cannot be resolved; it
@@ -761,7 +761,7 @@ its target when you run the command from the <code>examples/</code> project dire
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:22:50 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

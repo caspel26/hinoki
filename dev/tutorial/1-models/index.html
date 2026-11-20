@@ -245,7 +245,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -253,7 +253,7 @@
         
 <p>A model declares a table. A relation is loaded only when you ask for it, never
 as a side effect of reading an attribute.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/models.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tracker/models.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
@@ -297,7 +297,7 @@ as a side effect of reading an attribute.</p>
 <h2 id="apply-the-migrations">Apply the migrations<a class="headerlink" href="#apply-the-migrations" title="Permanent link">&para;</a></h2>
 <p>A migration is a SQL file generated from the models and checked in beside them.
 Tracker ships two; the second adds the composite index:</p>
-<div class="language-sql highlight"><pre><span></span><code><span class="c1">-- tracker/migrations/0002-indexes.sql</span>
+<div class="language-sql highlight"><pre><span></span><code><span class="c1">-- tracker/apps/tracker/migrations/0002-indexes.sql</span>
 <span class="c1">-- index tracker_tasks (owner_id, created_at)</span>
 <span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">"ix_tracker_tasks_owner_id_created_at"</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="ss">"owner_id"</span><span class="p">,</span><span class="w"> </span><span class="ss">"created_at"</span><span class="p">);</span>
 </code></pre></div>
@@ -351,7 +351,7 @@ migration. Review its SQL, then apply it.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:05 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
