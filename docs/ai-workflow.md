@@ -1,69 +1,94 @@
 ---
 status: implemented
 related:
+  - dev-mcp.md
   - rules.md
   - app-mcp.md
 ---
 
-# Building a backend with an AI agent and Hinoki
+# Build with a coding agent
 
-What exists today (2026-11-13), what it guarantees, and what it does not.
-
-## 1. Start a project an agent can work in
+A project made by `hinoki new` is ready for a coding agent: rules already on, an `AGENTS.md` with the conventions, and a read-only MCP server that describes the app. This page shows the loop and where the agent's authority ends.
 
 ```sh
-uv run hinoki new shop --dir ~/projects     # lower-case letters and digits only
-cd ~/projects/shop && uv sync && uv run pytest
+hinoki new shop    # asks for the directory, database, server, agent files, skills, git and uv sync
+cd shop
+pytest
+hinoki check shop.main:app
 ```
 
-The generated project contains a health route, **rules that are already on** (`HNK-ACC-001` actions name an access policy and `HNK-ACC-002` a permission, `HNK-API-001` and `HNK-API-002` responses are concrete `Schema` types, `HNK-API-003` lists are paginated, `HNK-TXN-001` writes use a transaction, `HNK-SCH-001` fields such as `password_hash` never appear in a response schema, `HNK-SCH-002` request text has a length limit); the two model rules `HNK-DB-001` and `HNK-DB-002` are written in `rules.py` as comments to turn on with your first model, because a model rule that matches no model fails the check, `AGENTS.md` (commands, conventions, and where the agent's authority ends), `CLAUDE.md` (a pointer to it), `.mcp.json` (starts the read-only development MCP) and `hinoki-rules.toml` (the owner's exceptions). The project's own tests pass and `hinoki check` exits 0; the test suite of this repository generates a project and runs both on every change.
+The generated tests pass and `hinoki check` exits 0; this repository's own test suite generates a project and runs both on every change.
 
-## 2. What the agent gets
+## What the project contains
 
-* **`AGENTS.md`**: the same conventions this repository uses: public unless protected on purpose, `atomic=True` for writes, `Schema` classes in responses, no model responses, explicit relation loading, create from a `Schema` with server values winning, migrations as reviewed SQL.
-* **The development MCP** (`hinoki mcp`, read only): `inspect_project` (the real registry), `list_rules`, `explain_action` (signature, `Schema` types, access, diagnostics for one action), `check_project` (rule diagnostics with stable IDs and locations) `explain_error` (what a validation or HTTP error code means and how to fix it) and `propose_model` (source text for a model, its In/Patch/Out `Schema` classes and CRUD actions from a field list; returned, never written). The tools never write code, rules or waivers.
-* **Optional `run_scenario`**, off by default: `hinoki mcp --scenarios read` lets the agent send GET/HEAD/OPTIONS/QUERY requests to the app in-process and see status and body; `--scenarios write` allows any method. It runs the real handlers and the app's lifespan even in `read` mode (a GET handler may write), so it is not annotated read-only and should only face a disposable database. A failed startup is reported without its message (which may hold a connection string); the details go to the server's stderr. Only the owner can switch it on; the agent cannot.
-* **Errors that say what to do**: validation errors list every problem with its path and a stable code; `explain_error` maps a code to its meaning and fix; a registration error names the action and parameter.
+| File | Purpose |
+| --- | --- |
+| `AGENTS.md` | Commands, conventions and where the agent's authority ends; `CLAUDE.md` points to it |
+| `rules.py` | Eight rules on from the start (below); the model rules `HNK-DB-001` and `HNK-DB-002` commented out until the first model exists, because a model rule that matches no model fails |
+| `.mcp.json` | Starts the [development MCP](dev-mcp.md) |
+| `hinoki-rules.toml` | The owner's waivers |
 
-See the [development MCP guide](dev-mcp.md) for tool arguments, result shapes and the effectful scenario option.
+| Rule | Promise |
+| --- | --- |
+| `HNK-ACC-001`, `HNK-ACC-002` | Every action names an access policy and a permission |
+| `HNK-API-001`, `HNK-API-002` | Responses are concrete `Schema` types |
+| `HNK-API-003` | Lists are paginated |
+| `HNK-TXN-001` | Writes run in a transaction |
+| `HNK-SCH-001` | Fields such as `password_hash` never appear in a response `Schema` |
+| `HNK-SCH-002` | Request text has a length limit |
 
-### Optional agent skills
+`AGENTS.md` states the same conventions as [structure an application](patterns.md): public only on purpose, `atomic=True` for writes, `Schema` classes in responses, explicit relation loading, server values win on create, migrations as reviewed SQL.
 
-`hinoki new shop --skills` (or the prompt in a terminal) and `hinoki skills install` in an existing project write four Markdown playbooks under `.claude/skills/`: `hinoki-add-endpoint`, `hinoki-fix-rule`, `hinoki-review-api` and `hinoki-test-api`. Each one tells an assistant which MCP tool or CLI command to run and which changes belong to the owner (never `hinoki-rules.toml`). They are off by default; see [`hinoki skills`](cli.md#skills).
+## Give the agent tools
 
-### Checking a change against clients
+* **The development MCP** lets the agent read the real registry, rules and models, explain one action or error code, check the project and draft a model. It never writes. See [development MCP](dev-mcp.md).
+* **Skills** (optional): `hinoki skills install` writes four playbooks under `.claude/skills/`: `hinoki-add-endpoint`, `hinoki-fix-rule`, `hinoki-review-api` and `hinoki-test-api`. Each names the MCP tool or command to run and what belongs to the owner. See [`hinoki skills`](cli.md#skills).
+* **Errors that say what to do**: validation errors list every problem with a path and a stable code, and a registration error names the action and parameter.
+
+## The loop
+
+1. The agent reads the project with `inspect_project`.
+2. It makes one small change: a model, a `Schema`, an action.
+3. It runs `pytest`, `ruff`, `mypy` and `hinoki check`.
+4. A violation is a stable rule ID, a location and an explanation; the fix is a code change.
+
+**Waivers are the owner's decision.** `hinoki-rules.toml` is read by the tools, never written, and a waiver needs a reason, an owner and a bounded target. An agent that edits it to pass a check breaks `AGENTS.md`; the framework cannot stop someone with write access, but the change is visible in review. Put the file under `CODEOWNERS`.
+
+## Check a change against clients
 
 ```sh
-uv run hinoki openapi shop.main:app --output openapi-baseline.json     # released version
-uv run hinoki openapi shop.main:app --breaking-against openapi-baseline.json
+hinoki openapi shop.main:app --output openapi-baseline.json
+hinoki openapi shop.main:app --breaking-against openapi-baseline.json
 ```
 
-Exit status `1` lists each change that would break an existing client (removed operations or response fields, new required request input, narrowed enums, changed types); see [`openapi`](cli.md#openapi).
+Take the baseline from the released version. The second command exits `1` and lists each change that breaks an existing client: removed operations or response fields, new required input, narrowed enums, changed types. See [`hinoki openapi`](inspect.md#openapi).
 
-### Generated request bodies
+## Generate request bodies
 
-`hinoki.ai.samples.request_cases(app.openapi())` returns one `RequestCase` per operation with a JSON body: a `method`, a `path`, a `body` that satisfies the declared schema, and `invalid`, a list of `(description, body)` pairs that each break one rule (wrong type, missing property, too long, below a bound, and so on).
+`request_cases` reads an OpenAPI document and returns one `RequestCase` per operation with a JSON body: `method`, `path`, a valid `body`, and `invalid`, a list of `(description, body)` pairs that each break one constraint.
 
 ```python
+# tests/bodiestest.py
 from hinoki.ai.samples import request_cases
 
-for case in request_cases(app.openapi()):
-    ...  # send case.body: expect 2xx; send each body in case.invalid: expect 422
+from shop.main import app
+
+CASES = request_cases(app.openapi())  # one per operation with a JSON body
 ```
 
-The generator reads only the OpenAPI document. It raises `CannotSample` for a schema it cannot build a value for (such as a regular-expression pattern), and a path with parameters needs real values before it is sent. Use a disposable database and synthetic data.
+Parametrize a test over `CASES`: send `case.body` and expect a `2xx`, then send each body in `case.invalid` and expect `422`.
 
-## 3. The loop
+It raises `CannotSample` for a schema it cannot build a value for, such as a regular-expression pattern. Fill path parameters with real values before sending, and use a disposable database.
 
-1. The agent asks the MCP for the project (`inspect_project`) to read the registered routes and models.
-2. It makes a small change (a model, a `Schema`, an action).
-3. It runs `pytest`, `ruff`, `mypy` and `hinoki check`.
-4. A rule violation is a stable ID, a location and an explanation. The fix is to change the code. **Waivers are the owner's decision**: `hinoki-rules.toml` is read by the tools, never written, and a waiver needs a reason, an owner and a bounded target. An agent that edits it to pass a check is violating `AGENTS.md`; the framework cannot stop someone with write access, it makes the change visible in review (put the file under CODEOWNERS).
+## Limits
 
-## 4. Limits (what this does not do)
+* The development MCP describes and checks a project. To let an agent use a running app, [expose selected actions over MCP](app-mcp.md).
+* Rules check declarations, not what a function body does. Import rules read the project's own files and report dynamic imports as unverifiable.
+* `propose_model` is a starting point: owner scoping, pagination and `unique_together`, but no business rules, state transitions or other relations.
+* This workflow was verified by generating a project and running its tests and `check`, and by one fresh agent adding an owner-scoped resource from `AGENTS.md` alone. One run by one agent is evidence, not a benchmark.
 
-* The development MCP describes and checks a project; to let an agent use a running app, publish selected actions with `hinoki.ai.mcpapp.expose_as_mcp` (allowlist, caller's own credentials, reads by default; see [Application MCP](app-mcp.md)).
-* The development MCP was exercised with the official `mcp` Python client (`tests/mcpclient/verify.py`: initialize, `tools/list`, `tools/call`); other clients are untested.
-* `propose_model` is a starting point: it can scope rows to an owner (`owner=`), paginates the list and takes `unique_together`, but business rules, state transitions and relations beyond the owner are yours to write.
-* Rules decide declarations, not what a function body does; static import rules read the project's own files and report dynamic imports as unverifiable.
-* The guide was verified twice: by generating a project and running its tests and `check`, and by having a fresh agent add an owner-scoped `Bookmark` resource from the generated `AGENTS.md` alone. That run found the problems now fixed (the framework path in the generated `pyproject.toml`, the missing test client, the database variable for `check`, the missing recipe, `explain_error` gaps, `propose_model` without ownership). It is one run by one agent, not a benchmark.
+## See also
+
+* [Development MCP](dev-mcp.md)
+* [Rules](rules.md)
+* [Structure an application](patterns.md)

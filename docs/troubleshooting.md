@@ -1,54 +1,68 @@
+---
+status: implemented
+related:
+  - cli.md
+  - serving.md
+  - settings.md
+---
+
 # Troubleshooting
 
-## `cannot load module:attribute`
+Each section starts with the message or symptom you see.
 
-Run the command from the application checkout and check both the module path and attribute spelling. `hinoki` adds the current directory when importing targets, but the package still needs to be importable Python code.
+## `error: cannot load notes.main:app`
+
+Run the command from the project directory (the one with `hinoki.toml`) and check the module path and the attribute after the colon. Hinoki adds the current directory to the import path, but the module must still import cleanly: the text after the colon is the original exception.
 
 ## Settings report a missing or unknown variable
 
-Check the settings class's `prefix=` and nested field names. Nested groups use `__`, for example `APP_DATABASE__URL`. Run `hinoki settings module:SettingsClass --example` to inspect expected names. settings.Secret values are redacted by design.
+Check the settings class's `prefix=` and the nested names: groups are joined with `__`, as in `NOTES_DATABASE__URL`. Print every expected name with:
 
-## Database connection fails at startup
+```sh
+hinoki settings notes.main:app --example
+```
 
-The database module opens a pool in each worker's startup. Confirm the selected
-backend URL, network reachability and database availability from the same
-environment as the worker. Check the backend-specific URL, TLS and migration
-limits in [Configure a database](databases.md). Use one worker and a small pool
-while debugging; total maximum connections are replicas × workers × pool size.
+`settings.Secret` values are shown redacted on purpose.
+
+## The database connection fails at startup
+
+Each worker opens its pool during startup. Check the backend URL, network reachability and the server from the same environment as the worker, and the backend notes in [configure a database](databases.md). While debugging, use one worker and a small pool: total connections are replicas × workers × pool size.
 
 ## `server.<name> is not supported by the granian server`
 
-`hinoki serve` refuses a setting that the chosen server cannot honour instead of ignoring it, and exits with status 2. Unset the setting or run on Kiso (`--server kiso`, the default). See [settings that apply to one server only](serving.md#settings-that-apply-to-one-server-only).
+`hinoki serve` refuses a setting the chosen server cannot honour, and exits with status 2. Unset it or run on Kiso, the default. See [settings that apply to one server only](serving.md#settings-that-apply-to-one-server-only).
 
 ## `cannot listen on HOST:PORT`
 
-The address is in use or the host or port is invalid. Stop the other process or pass another `--port`; the command exits with status 2.
+The address is in use, or the host or port is invalid. Stop the other process or pass another `--port`; the command exits with status 2.
 
 ## Every request answers `400 disallowed_host` or `503 not_ready`
 
-`400 disallowed_host` means the `Host` header is not in `allowed_hosts` ([settings](settings.md#allowed_hosts)). `503 not_ready` is answered while a worker's startup has not finished and once shutdown has begun ([serving](serving.md#optional-startup-probe)).
+`400 disallowed_host`: the `Host` header is not in [`allowed_hosts`](web-security.md#allowed_hosts). `503 not_ready`: the worker has not finished starting, or has begun shutting down ([startup probe](serving.md#optional-startup-probe)).
 
-## A related field is not loaded
+## `RelationNotLoaded`
 
-Foreign-key attributes do not trigger queries. Add `select_related("author")` or `prefetch_related("posts")` to the query that needs the relation.
+Relations are never loaded lazily. Name the relation in the query that needs it: `select_related("author")` for a single row, `prefetch_related("posts")` for a collection. See [relations](relations.md).
 
 ## `hinoki check` reports `unverifiable`
 
-The rule could not establish its promise. Read the diagnostic explanation and any `fix:` line. Some rules inspect only declarations; effectful checks require the explicit `--allow-effects` flag.
+The rule could not establish its promise. Read the explanation and any `fix:` line. Some rules inspect only declarations; checks with side effects run only with `hinoki check notes.main:app --allow-effects`.
 
-## A sync handler or auth provider stalls
+## Sync handlers answer `503 overloaded`
 
-Sync code runs on a bounded executor and can saturate. Prefer async database and network calls in async handlers. See [sync and async](sync-async.md) for limits and [server settings](serving.md) for worker configuration.
+Sync handlers and sync hooks share a bounded pool and queue. Move database and network calls to async handlers, keep sync hooks short, or size the pool; see [sync and async code](sync-async.md#size-the-pool).
 
 ## A migration is marked destructive
 
-Review the generated SQL and the data it may remove. Test the change against a disposable database backup before using `--allow-destructive`. See [migrations](migrations.md).
+Read the generated SQL and the data it removes, and test it against a disposable copy before passing `--allow-destructive`. See [migrations](migrations.md).
 
-If the issue persists, include the Hinoki version, the command or route, the complete diagnostic, and a minimal example. Remove credentials and user data first.
+## Report a problem
 
-For a version report, run `hinoki version --verbose --format json`. The output includes installed runtime details without reading application settings or opening a database.
+Collect the environment without reading settings or opening a database:
 
-For a consolidated local report, run [`hinoki doctor`](cli.md#doctor). It imports
-the selected app target, but does not start its lifecycle, run rules, connect to
-a database or write files. Use the focused commands above for database and
-migration state.
+```sh
+hinoki version --verbose --format json
+hinoki doctor
+```
+
+`hinoki doctor` imports the project application but does not start it, run rules, connect to a database or write files. Include the Hinoki version, the command or route, the complete diagnostic and a minimal example; remove credentials and personal data first.

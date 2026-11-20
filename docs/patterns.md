@@ -1,96 +1,111 @@
-# Structuring a Hinoki application: pattern and best practices
+---
+status: implemented
+related:
+  - function-endpoints.md
+  - class-endpoints.md
+  - rules.md
+---
 
-Opinionated, with reasons. It describes how the framework's features fit together; each rule is something the framework either enforces, can check with an optional rule, or leaves to review (marked **enforced**, **rule** or **convention**). The reference blog (`examples/blog`) and the small notes example (`examples/notes`) show the parts; `examples/tracker` is the layered example: `api` → `operations` → `models`, row permission in the statements, the direction enforced by `Imports.forbid`, operations tested without HTTP.
+# Structure an application
+
+Opinionated, with reasons. Each practice below is **enforced** by the framework, checkable with an optional **rule**, or a **convention** left to review. The [Tracker example](https://github.com/caspel26/hinoki/tree/main/examples/tracker) shows them together: `api` → `operations` → `models`, row permission in the statements, the direction enforced by `Imports.forbid`, operations tested without HTTP.
 
 ## 1. Three layers, one direction
 
-```
-HTTP layer      API classes / functions   shapes, status codes, access policy, atomic=True
-   │            (hinoki.routing, Access, Schema)
+```text
+HTTP layer      actions (functions or API classes)   shapes, status codes, access, atomic=True
+   │
    ▼
-Operations      plain async functions     one business operation each; no Request, no HTTP types
-   │            (commands/queries)
+Operations      plain async functions                one business operation each; no HTTP types
+   │
    ▼
-Persistence     Model / QuerySet          tables, relations, explicit loading
+Persistence     Model / QuerySet                     tables, relations, explicit loading
 ```
 
-* **HTTP layer** turns a request into typed values (`Schema`, path/query parameters, `Caller`) and an operation's result into a response schema. It contains no business rules and no SQL.
-* **Operations** hold the rules ("an editor may publish only their own draft"). They take plain arguments (`principal`, a `Schema`, ids) so they can be called from an action, a CLI, a test, an admin hook (`ModelAdmin.save`) or an MCP tool. **Why:** an action that reads cookies or headers cannot be reused; an operation can.
-* **Persistence** never imports the HTTP layer. **Rule:** `Imports.forbid(source="shop.models", target="shop.api")` (and the same for operations → api).
-* Small apps may skip the middle layer (the notes example does). Add it when an action contains a rule you would want to call from somewhere else.
+* **HTTP layer** turns a request into typed values (`Schema`, path and query parameters, `Caller`) and an operation's result into a response `Schema`. No business rules, no SQL.
+* **Operations** hold the rules ("an editor may publish only their own draft"). They take plain arguments (`principal`, a `Schema`, IDs), so an action, a CLI command, a test, an admin hook or an MCP tool can call them. An action that reads cookies or headers cannot be reused; an operation can.
+* **Persistence** never imports the HTTP layer. **Rule:** `Imports.forbid(source="notes.apps.billing.models", target="notes.apps.billing.api")`, and the same for operations → api.
+* Small apps may skip the middle layer. Add it when an action holds a rule another entry point needs.
 
 ## 2. Where each concern lives
 
+Actions are [functions](function-endpoints.md) by default, grouped in a `RouteGroup` that states shared options once; an [`API` class](class-endpoints.md) earns its place for `crud(...)` resources with hooks or inherited actions.
+
 | Concern | Put it | Why |
 | --- | --- | --- |
-| Authentication | An auth provider (`BearerAuth`, `JWTAuth`, …) returning a `Caller` | One path, identical for HTTP, admin and MCP |
-| Coarse permission | `Access(auth=…, permissions=[…])` on the action (or once for a function group: `tasks = RouteGroup("/tasks", access=member_only, atomic=True)`, then `@tasks.get("/")`). **Public is the default**: protect on purpose. **Rule:** `Actions.require_access` | A forgotten policy is the most common hole |
-| Row permission (ownership, tenant) | Prefer the **statement**: scope `aupdate`/`adelete` by owner so the check and write are one operation. | Avoids a check-then-write race. Hidden rows usually look missing (404). If the API promises a distinct 403 for another owner's row, preserve that contract with a conditional write and explicit fallback classification; document the information it reveals. |
+| Routes | Each app's `routes.py`; prefixes only in `hinoki.toml` ([register routes](routes.md)). **Convention** | One place to read the map; one source per path segment |
+| Authentication | A provider (`BearerAuth`, `JWTAuth`, …) returning a `Caller` | One path for HTTP, admin and MCP |
+| Coarse permission | `access=` on the action, or once on its `RouteGroup`. **Public is the default**: protect on purpose. **Rule:** `Actions.require_access` | A forgotten policy is the most common hole |
+| Row permission (owner, tenant) | The **statement**: scope `aupdate`/`adelete` by owner so check and write are one operation | No check-then-write race; hidden rows look missing (`404`). If the API promises a distinct `403`, make the conditional write and its fallback explicit, and document what it reveals |
 | Input validation | The `Schema` (types, constraints, patterns) | Strict, no coercion, validated in Rust before your code runs |
 | Business rules | Operations | Testable without HTTP |
-| Transactions | `atomic=True` on the action (writes) | Commit after the response is encoded, rollback before the error becomes HTTP. **Rule:** `Transactions.require_atomic` |
-| Errors | Raise `APIError` subclasses and **declare them on the action**: `@http.post(..., errors=(PostAlreadyPublished, errors.Forbidden))`. A database `UniqueViolation` is already a `409 unique_conflict`; answer exceptions you cannot change once with `@app.error_handler(...)` | Failures are exceptions. The declaration (status and code come from the class) feeds OpenAPI, the MCP tool description and, in tests, `ASGIClient(app, strict_errors=True)`, which fails on an error answer the action did not declare. **A returned `Response` commits the transaction** |
-| Secrets | Settings/environment, passed to `JWTKey`, `Admin(secret=…)`, never defaults | Nothing to leak from the repository |
+| Transactions | `atomic=True` on every write. **Rule:** `Transactions.require_atomic` | Commit after the response is encoded; rollback before the error becomes HTTP |
+| Errors | Raise `APIError` subclasses and declare them: `errors=(InvoiceAlreadyPaid,)`. Translate exceptions you cannot change once with `@app.error_handler(...)` | The declaration feeds OpenAPI, MCP and `ASGIClient(app, strict_errors=True)`. A database `UniqueViolation` is already `409 unique_conflict`. **A returned `Response` commits the transaction** |
+| Secrets | Settings and the environment, never defaults | Nothing to leak from the repository |
 
 ## 3. `Schema` classes and models
 
-* Models describe tables; `Schema` classes describe the API. **Never return a model.** Name them by role: `PostIn`/`PostCreate` (what a client may set), `PostPatch` (every field `UNSET` by default), `PostOut` (what a client may see). **Rules:** `Actions.forbid_model_responses()` refuses an action whose return type is a `Model` (also inside `list`/`Page`/unions); `Schemas.forbid_exposure("password_hash", …)` keeps columns out of responses even through nesting and subclasses.
-* Create from a `Schema` and add what only the server knows: `await Post.acreate(data, author_id=principal.user.id)` (server values win over the client's). Update with `await row.aupdate_from(patch)` (writes only what was sent). Respond with `PostOut.from_model(row, author_name=row.author.name)`.
-* A server-assigned field must not exist in the input schema at all; the keyword override is a second line of defence.
-* Constraints and patterns belong on the `Schema`, using the Rust pattern syntax (whole-value, no look-around).
+* Models describe tables; `Schema` classes describe the API. **Never return a model**: respond with `InvoiceOut.from_model(row)`. Name classes by role: `InvoiceIn` (what a client may set), `InvoicePatch` (every field `UNSET` by default), `InvoiceOut` (what a client may see, often `@derive(Invoice)`). **Rules:** `Actions.forbid_model_responses()` refuses a `Model` return type, also inside `list`, `Page` and unions; `Schemas.forbid_exposure("password_hash", …)` keeps columns out of responses through nesting and subclasses.
+* Create from a `Schema` and add what only the server knows: `await Post.acreate(data, author_id=principal.user.id)`; server values win. Update with `await row.aupdate_from(patch)`, which writes only what was sent.
+* A server-assigned field does not exist in the input `Schema` at all; the keyword override is a second line of defence.
+* Constraints and patterns belong on the `Schema`, in the Rust pattern syntax (whole value, no look-around).
 
 ## 4. Relations and queries
 
-* Relations are never lazy. Load what the response shows (`select_related` for single values, `prefetch_related` for collections) in the same place that builds the response, so the cost is visible in one function.
-* Paginate every list (`pagination=…` + `PageParams`). Never return an unbounded list; never `await` a whole table to count or aggregate (use `acount()`, filters, or SQL).
-* Filter and order only by names you choose; never pass client-supplied column names to `filter` or `order_by` (the admin only sorts by its displayed columns for this reason).
+* Relations are never lazy. Load what the response shows (`select_related` for single values, `prefetch_related` for collections) in the function that builds the response, so the cost is visible in one place.
+* Paginate every list (`pagination=` + `PageParams` + `Page[...]`). Never return an unbounded list; never load a whole table to count or aggregate (use `acount()`, filters or SQL). **Rule:** `Actions.require_pagination`.
+* Filter and order only by names you choose; never pass client-supplied column names to `filter` or `order_by`.
 
 ## 5. Sync and async
 
-Prefer `async` handlers. A sync handler runs on a bounded thread pool and may use the sync model methods (`Model.get`, `create`, …) through the worker's event loop; it must not block for long, and the queue is bounded (`overloaded` → 503). CPU-heavy work (password hashing) goes through `PasswordHasher`, which has its own bounded pool and releases the GIL. Never call blocking code from an `async` handler.
+Prefer `async` handlers. A sync handler runs on a bounded pool and uses the sync model methods; it must not block for long, and a full queue answers `503 overloaded`. Password hashing has its own bounded pool. Never call blocking code from an `async` handler. See [sync and async code](sync-async.md).
 
 ## 6. Modules
 
-An application is a set of modules with explicit dependencies and a lifespan (`DatabaseModule`, your own `Module`). Importing a module registers nothing and opens nothing. Resources are created in the worker's lifespan, once per worker; migrations are applied by a deploy step, never at startup, never from every worker. A standalone maintenance script such as `examples/blog/seed.py` owns and closes its short-lived database connection directly because it runs outside a server lifecycle.
+An application is a set of modules with explicit dependencies and a lifespan (`DatabaseModule`, your own `Module`). Importing a module registers and opens nothing. Resources are created once per worker, in its lifespan. Migrations are a deploy step, never run at startup or from every worker. A standalone script owns and closes its own short-lived connection.
 
 ## 7. Migrations
 
-`hinoki migrations plan` writes reviewable SQL and a state file; destructive operations are flagged and need `--allow-destructive`; adding a NOT NULL column without a default is flagged. Review the SQL like code, apply with `migrations apply` against a disposable database first.
+```sh
+hinoki migrations plan billing
+hinoki migrations apply
+```
+
+`plan` writes reviewable SQL and a state file; destructive operations are flagged and need `--allow-destructive`, and a new `NOT NULL` column without a default is flagged. Review the SQL like code and apply it to a disposable database first. See [migrations](migrations.md).
 
 ## 8. Testing
 
-* Run the database tests against disposable servers for the backends you support: PostgreSQL uses `HINOKI_TEST_DATABASE_URL`, with separate migration conformance runs for MySQL (`HINOKI_TEST_MYSQL_URL`) and MariaDB (`HINOKI_TEST_MARIADB_URL`). Without a URL, tests that require that backend are skipped; read the skip summary and do not treat another backend's green run as conformance for it.
-* Drive the application through the ASGI harness (no sockets) for HTTP behaviour; test operations directly.
-* For security code, use independent test vectors and known expected outputs; inject the clock (`JWTAuth.now`) so tests do not depend on elapsed time.
-* Look at rendered UI in real browsers (`tests/browser/verify.py`) before calling it done.
+* Run database tests against disposable servers for each backend you support: `HINOKI_TEST_DATABASE_URL` (PostgreSQL), `HINOKI_TEST_MYSQL_URL`, `HINOKI_TEST_MARIADB_URL`. Without a URL those tests are skipped: read the skip summary; one backend's green run is not conformance for another.
+* Drive HTTP behaviour through the ASGI client (no sockets); test operations directly.
+* For security code, use independent test vectors and inject the clock (`JWTAuth.now`).
 
 ## 9. Security defaults to keep
 
-HTTPS terminates somewhere you control (set `Admin(secure_cookies=True)` behind a proxy); `Access` on everything that is not public on purpose; CSRF on every cookie-authenticated form (the admin does it); strict CSP; passwords with Argon2id only; JWT keys with a fixed algorithm and a `kid`; no token, password or hash in logs or error bodies; uploads held within the 1 MiB body cap unless you add streaming; real personal data never in tests or fixtures.
+HTTPS terminates somewhere you control (`Admin(secure_cookies=True)` behind a proxy); `access=` on everything that is not public on purpose; CSRF on every cookie-authenticated form (the admin does it); a strict CSP; Argon2id passwords; JWT keys with a fixed algorithm and a `kid`; no token, password or hash in logs or error bodies; uploads within the 1 MiB body limit; no real personal data in tests or fixtures.
 
 ## 10. Rules to turn on from day one
 
-`hinoki new` generates a project with eight rules enabled (`HNK-ACC-001`, `HNK-ACC-002`, `HNK-API-001`, `HNK-API-002`, `HNK-API-003`, `HNK-TXN-001`, `HNK-SCH-001`, `HNK-SCH-002`) and the two model rules (`HNK-DB-001`, `HNK-DB-002`) commented out until the first model exists. Turn them on then, and add `Imports.forbid` (`HNK-IMP-001`) for the layer direction in section 1. Waivers live in `hinoki-rules.toml`, are decided by the owner, have a reason and a bounded target, and are never edited by tools or agents to make a check pass.
+`hinoki new` enables eight rules (`HNK-ACC-001`, `HNK-ACC-002`, `HNK-API-001`, `HNK-API-002`, `HNK-API-003`, `HNK-TXN-001`, `HNK-SCH-001`, `HNK-SCH-002`) and leaves the model rules `HNK-DB-001` and `HNK-DB-002` commented out until the first model exists. Turn those on then, and add `Imports.forbid` (`HNK-IMP-001`) for the direction in [section 1](#1-three-layers-one-direction). Waivers live in `hinoki-rules.toml`, are the owner's decision, carry a reason and a bounded target, and are never edited by tools or agents to pass a check.
 
 ## 11. Anti-patterns
 
-* Returning a `Model` or a dict built from one.
-* For a distinct 403 response on a write that can race, make the conditional write and fallback explicit.
+* Returning a `Model`, or a dict built from one.
 * A business rule inside an action that another entry point also needs.
-* `Response(4xx)` inside a `atomic=True` action (it commits).
-* Client-supplied column names reaching `filter`/`order_by`.
-* Applying migrations at startup; creating a pool at import time.
-* A broad waiver (`*`) or editing waivers to silence a rule.
+* `Response(4xx)` from an `atomic=True` action: it commits.
+* Client-supplied column names reaching `filter` or `order_by`.
+* Applying migrations at startup; creating a pool at import.
+* A broad waiver (`*`), or editing waivers to silence a rule.
 * Catching `Exception` in an action to "keep going": let the framework translate it and roll back.
+* `app.include(...)` in a project with `hinoki.toml`: list the routes in `routes.py`.
 
 ## 12. More than one service
 
-Split a system only for a reason you can name (independent deploys, different scaling, a team boundary), because every split costs something the framework cannot hide:
+Split a system only for a reason you can name (independent deploys, different scaling, a team boundary); every split costs something the framework cannot hide.
 
-* **No joins, no shared transaction.** A foreign key never crosses a service. Store the other service's id as a plain value, and treat what it returns as a snapshot. A write that must touch two services is a sequence of calls that can half-fail: make each step idempotent (a client-supplied key, or a natural unique constraint) and decide what a retry does before writing the code.
-* **Each service owns its tables.** Other services call its API; they never read its database. Migrations belong to the owner and are applied by its deploy step ([section 7](#7-migrations)).
-* **The caller is a `Caller` too.** Service-to-service calls authenticate like any client (a JWT with a service identity and narrow `permissions`, verified by `JWTAuth`); do not forward the end user's token unless the callee must act as that user.
-* **Wrap every remote call in an operation** ([section 1](#1-three-layers-one-direction)) with a timeout and a mapped failure (a 502/503 you chose), never letting a client library's exception become the response.
-* **Share contracts, not models.** Publish the response `Schema` classes (or the OpenAPI document) that other services depend on; keep `Model`s private.
+* **No joins, no shared transaction.** A foreign key never crosses a service. Store the other service's ID as a plain value and treat its answers as snapshots. A write across two services is a sequence of calls that can half-fail: make each step idempotent and decide what a retry does before writing the code.
+* **Each service owns its tables.** Others call its API, never its database. Its migrations belong to it and are applied by its deploy step ([section 7](#7-migrations)).
+* **The caller is a `Caller` too.** Service-to-service calls authenticate like any client (a JWT with a service identity and narrow permissions); do not forward the end user's token unless the callee must act as that user.
+* **Wrap every remote call in an operation** ([section 1](#1-three-layers-one-direction)) with a timeout and a failure you chose (`502` or `503`), never a client library's exception.
+* **Share contracts, not models.** Publish the response `Schema` classes or the OpenAPI document; keep models private.
 
-Not covered yet: a runnable two-service example and a client helper.
+A runnable two-service example and a client helper do not exist yet.
