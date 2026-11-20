@@ -554,3 +554,157 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<WsgiServer>()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kiso::accesslog::Trace;
+
+    fn status_of(delivery: &Delivery) -> u16 {
+        delivery.status()
+    }
+
+    fn incoming() -> Incoming {
+        Incoming {
+            method: "GET".into(),
+            path: "/".into(),
+            query: Vec::new(),
+            headers: Vec::new(),
+            peer: "127.0.0.1:1".parse().unwrap(),
+            secure: false,
+            http_version: "1.1",
+            refusal: None,
+            body: None,
+            trace: Arc::new(Trace::default()),
+        }
+    }
+
+    fn backend(code: &std::ffi::CStr, threads: usize, queue: usize) -> WsgiBackend {
+        Python::initialize();
+        let bridge = Python::attach(|py| {
+            let module =
+                PyModule::from_code(py, code, c"bridge.py", c"bridge").expect("bridge compiles");
+            module.getattr("bridge").expect("bridge exists").unbind()
+        });
+        let limits = WsgiLimits {
+            threads,
+            queue,
+            max_body_bytes: 1024,
+            request_timeout: Duration::from_millis(600),
+        };
+        WsgiBackend::start(bridge, limits).expect("threads start")
+    }
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    const ANSWERS: &std::ffi::CStr = c"
+def bridge(call):
+    call.start(201, [(b'x-a', b'1')])
+    call.send(b'one')
+    call.send(b'two')
+    call.finish()
+";
+
+    const FAILS: &std::ffi::CStr = c"
+def bridge(call):
+    raise RuntimeError('boom')
+";
+
+    const FAILS_LATE: &std::ffi::CStr = c"
+def bridge(call):
+    call.start(200, [])
+    call.send(b'part')
+    raise RuntimeError('late')
+";
+
+    const SLOW: &std::ffi::CStr = c"
+import time
+def bridge(call):
+    time.sleep(2)
+    call.start(200, [])
+    call.finish()
+";
+
+    #[test]
+    fn body_failures_map_to_client_errors() {
+        assert_eq!(status_of(&body_failure(&BodyError::TooLarge)), 413);
+        assert_eq!(status_of(&body_failure(&BodyError::Timeout)), 408);
+        assert_eq!(status_of(&body_failure(&BodyError::Malformed)), 400);
+        assert_eq!(status_of(&body_failure(&BodyError::Disconnected)), 400);
+    }
+
+    #[test]
+    fn overload_asks_the_client_to_retry() {
+        let Delivery::Whole(answer) = overloaded() else {
+            panic!("a whole answer")
+        };
+        assert_eq!(answer.status, 503);
+        assert!(answer
+            .headers
+            .contains(&(b"retry-after".to_vec(), b"1".to_vec())));
+    }
+
+    #[test]
+    fn limits_must_be_positive() {
+        assert!(positive("sync_workers", 0).is_err());
+        assert_eq!(positive("sync_workers", 3).unwrap(), 3);
+    }
+
+    #[test]
+    fn a_response_streams_its_pieces_in_order() {
+        let backend = backend(ANSWERS, 1, 1);
+        runtime().block_on(async {
+            let Delivery::Streamed(mut streamed) = backend.deliver(incoming()).await else {
+                panic!("a streamed response")
+            };
+            assert_eq!(streamed.status, 201);
+            assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("one"))));
+            assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("two"))));
+            assert_eq!(streamed.chunks.recv().await, None);
+        });
+    }
+
+    #[test]
+    fn a_failure_before_the_head_answers_500() {
+        let backend = backend(FAILS, 1, 1);
+        let delivery = runtime().block_on(backend.deliver(incoming()));
+        assert_eq!(delivery.status(), 500);
+    }
+
+    #[test]
+    fn a_failure_after_the_head_resets_the_stream() {
+        let backend = backend(FAILS_LATE, 1, 1);
+        runtime().block_on(async {
+            let Delivery::Streamed(mut streamed) = backend.deliver(incoming()).await else {
+                panic!("a streamed response")
+            };
+            assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("part"))));
+            assert_eq!(streamed.chunks.recv().await, Some(Err(Aborted)));
+        });
+    }
+
+    #[test]
+    fn a_full_pool_and_queue_refuse_and_a_slow_call_times_out() {
+        let backend = Arc::new(backend(SLOW, 1, 1));
+        runtime().block_on(async {
+            let first = tokio::spawn({
+                let backend = Arc::clone(&backend);
+                async move { backend.deliver(incoming()).await.status() }
+            });
+            let second = tokio::spawn({
+                let backend = Arc::clone(&backend);
+                async move { backend.deliver(incoming()).await.status() }
+            });
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert_eq!(backend.deliver(incoming()).await.status(), 503);
+            // The pool is busy past request_timeout: the waiting ones answer 504.
+            assert_eq!(first.await.unwrap(), 504);
+            assert_eq!(second.await.unwrap(), 504);
+        });
+    }
+}
