@@ -16,7 +16,12 @@ from typing import Protocol
 from hinoki.terminal import Style
 
 DOCTOR_GLYPHS = {"ok": "ok", "warning": "warn", "failed": "bad", "skipped": "skip"}
-CHECK_GLYPHS = {"violated": "bad", "unverifiable": "warn", "waived": "skip"}
+CHECK_GLYPHS = {
+    "violated": "bad",
+    "unverifiable": "unsure",
+    "waived": "skip",
+    "warning": "warn",
+}
 METHOD_COLORS = {
     "GET": "good",
     "POST": "info",
@@ -66,6 +71,15 @@ def doctor_text(style: Style, checks: Sequence[DoctorCheck], note: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def check_summary(rules: int, totals: dict[str, int]) -> str:
+    line = (
+        f"{rules} rule(s): {totals['violated']} violated, "
+        f"{totals['unverifiable']} unverifiable, {totals['waived']} waived"
+    )
+    warnings = totals.get("warning", 0)
+    return f"{line}, {warnings} warning(s)" if warnings else line
+
+
 def check_text(
     style: Style, found: Sequence[FoundDiagnostic], rules: int, totals: dict[str, int]
 ) -> str:
@@ -79,11 +93,8 @@ def check_text(
             lines.append(f"       {style.dim('fix:')} {item.fix}")
         if item.waiver:
             lines.append(f"       {style.dim('waived: ' + item.waiver)}")
-    summary = (
-        f"{rules} rule(s): {totals['violated']} violated, "
-        f"{totals['unverifiable']} unverifiable, {totals['waived']} waived"
-    )
-    clean = totals["violated"] == 0
+    summary = check_summary(rules, totals)
+    clean = totals["failing"] == 0  # green exactly when the exit code is 0
     lines.append("")
     lines.append(style.ok(summary) if clean else style.error(summary))
     return "\n".join(lines)

@@ -15,7 +15,7 @@ import sys
 from hinoki.app import Hinoki
 from hinoki.errors import RegistrationError
 from hinoki.newcli import add_arguments as add_new_arguments
-from hinoki.reportui import check_text
+from hinoki.reportui import check_summary, check_text
 from hinoki.rules import (
     SCHEMA_VERSION,
     Diagnostic,
@@ -31,6 +31,9 @@ from hinoki.utils import utc_today
 from hinoki.waivers import NAME, WaiverError, apply_waivers, read_waivers
 
 USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, RegistrationError)
+WAIVERS_HELP = (
+    f"waiver file (default: Hinoki(waivers=...), else {NAME} at the project root)"
+)
 
 
 def load_object(spec: str) -> object:
@@ -90,12 +93,12 @@ def render(
         )
     if style is not None and style.color:
         return check_text(style, diagnostics, rule_count, totals)
-    lines = [d.text() for d in diagnostics]
-    lines.extend(f"    waived: {d.waiver}" for d in diagnostics if d.waiver)
-    lines.append(
-        f"{rule_count} rule(s): {totals['violated']} violated, "
-        f"{totals['unverifiable']} unverifiable, {totals['waived']} waived"
-    )
+    lines = []
+    for found in diagnostics:
+        lines.append(found.text())
+        if found.waiver:
+            lines.append(f"    waived: {found.waiver}")
+    lines.append(check_summary(rule_count, totals))
     return "\n".join(lines)
 
 
@@ -125,7 +128,7 @@ def add_arguments(
     check.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     check.add_argument("--package", action="append", help="package to scan (static)")
     check.add_argument("--phase", choices=[p.value for p in Phase])
-    check.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
+    check.add_argument("--waivers", help=WAIVERS_HELP)
     check.add_argument("--format", choices=["text", "json"], default="text")
     check.add_argument(
         "--allow-effects",
@@ -144,7 +147,7 @@ def add_arguments(
     server.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     server.add_argument("--package", action="append", help="package to scan (static)")
     server.add_argument("--models", action="append", help="module that defines models")
-    server.add_argument("--waivers", help=f"waiver file (default ./{NAME})")
+    server.add_argument("--waivers", help=WAIVERS_HELP)
     server.add_argument(
         "--requests",
         help="file of recent requests (default ./.hinoki/requests.jsonl)",

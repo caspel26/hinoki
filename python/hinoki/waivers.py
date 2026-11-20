@@ -150,7 +150,7 @@ def notice(rule: str, message: str, subject: str) -> Diagnostic:
         message,
         NAME,
         "Waivers are exceptions with an owner and a reason; keep them current.",
-        Status.VIOLATED,
+        Status.WARNING,
         subject,
     )
 
