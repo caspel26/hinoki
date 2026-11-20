@@ -39,7 +39,7 @@ select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
 known-first-party = ["{name}"]
 {sources}"""
 
-MAIN = '''"""The application, declared: ``uv run hinoki dev {name}.main:app``."""
+MAIN = '''"""The application, declared: ``uv run hinoki dev`` serves it."""
 
 from hinoki import Hinoki
 
@@ -150,12 +150,7 @@ MCP = """{{
   "mcpServers": {{
     "hinoki": {{
       "command": "uv",
-      "args": [
-        "run", "hinoki", "mcp",
-        "{name}.main:app",
-        "--rules", "{name}.rules:project_rules",
-        "--package", "{name}"
-      ]
+      "args": ["run", "hinoki", "mcp"]
     }}
   }}
 }}
@@ -168,12 +163,12 @@ A Hinoki application.
 ```sh
 uv sync                 # installs Hinoki and the development tools
 uv run pytest           # the tests need no database
-uv run hinoki dev {name}.main:app     # serve with reload on http://127.0.0.1:8000
-uv run hinoki routes {name}.main:app  # list the routes
-uv run hinoki check {name}.main:app   # run the project's rules
-uv run hinoki migrations plan        # plan the default app's migrations
-uv run hinoki migrations apply       # initialize the local SQLite database
-uv run hinoki manage                 # list project management commands
+uv run hinoki dev                   # serve with reload on http://127.0.0.1:8000
+uv run hinoki routes                # list the routes
+uv run hinoki check                 # run the project's rules
+uv run hinoki migrations plan       # plan the default app's migrations
+uv run hinoki migrations apply      # initialize the local SQLite database
+uv run hinoki manage                # list project management commands
 ```
 
 Hinoki is pre-alpha and not published on PyPI: `pyproject.toml` names where `uv`
@@ -197,8 +192,8 @@ uv sync
 uv run pytest                                   # tests
 uv run ruff check . && uv run ruff format .     # lint and format
 uv run mypy {name}                              # types
-uv run hinoki check {name}.main:app --rules {name}.rules:project_rules --package {name}
-uv run hinoki dev {name}.main:app      # reload; `serve` runs it for production
+uv run hinoki check                             # the project's rules
+uv run hinoki dev                               # reload; `serve` runs it for production
 ```
 
 `check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database: settings.DatabaseSettings`, run them with a dummy value (`{upper}_DATABASE__URL=postgres://unused uv run hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.

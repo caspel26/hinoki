@@ -123,7 +123,9 @@ def add_arguments(
     commands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
     check = commands.add_parser("check", help="run the project's rules")
-    check.add_argument("target", help="module:app or module:factory")
+    check.add_argument(
+        "target", nargs="?", help="module:app or module:factory (default: project app)"
+    )
     check.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     check.add_argument("--package", action="append", help="package to scan (static)")
     check.add_argument("--phase", choices=[p.value for p in Phase])
@@ -140,7 +142,9 @@ def add_arguments(
     server = commands.add_parser(
         "mcp", help="serve read-only project context over MCP (stdio)"
     )
-    server.add_argument("target", help="module:app or module:factory")
+    server.add_argument(
+        "target", nargs="?", help="module:app or module:factory (default: project app)"
+    )
     server.add_argument("--rules", help="module:ruleset (default: the app's rules)")
     server.add_argument("--package", action="append", help="package to scan (static)")
     server.add_argument("--models", action="append", help="module that defines models")

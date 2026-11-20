@@ -88,12 +88,17 @@ class Column:
             )
         self.limit: int | None = limit
 
+    @property
+    def uses_field(self) -> bool:
+        """Whether the model line needs ``field(...)`` options."""
+        return bool(self.limit or self.unique or self.nullable)
+
     def model_line(self) -> str:
         options = [f"max_length={self.limit}"] if self.limit else []
         if self.unique:
             options.append("unique=True")
         annotation = f"{self.kind} | None" if self.nullable else self.kind
-        if options or self.nullable:
+        if self.uses_field:
             options += ["default=None"] if self.nullable else []
             return f"    {self.name}: {annotation} = field({', '.join(options)})"
         return f"    {self.name}: {annotation}"
@@ -193,12 +198,14 @@ def _proposal_source(
         "",
         "from hinoki import UNSET, Caller, Field, Schema, Unset, http",
         "from hinoki.orm import Model"
-        + (", OnDelete, field, foreign_key" if owned else ", field"),
+        + (", OnDelete" if owned else "")
+        + (", field" if any(c.uses_field for c in columns) else "")
+        + (", foreign_key, pk" if owned else ", pk"),
         "from hinoki.pagination import Page, PageNumberPagination, PageParams",
         "",
         "",
         f"class {model}(Model, {class_options}):",
-        "    id: UUID = field(primary_key=True, default_factory=uuid4)",
+        "    id: UUID = pk(default_factory=uuid4)",
         *(
             [
                 f"    owner_id: UUID = foreign_key({owner_model}, on_delete=OnDelete.RESTRICT, "
@@ -282,7 +289,8 @@ def _proposal_steps(table_name: str, owner_model: str | None) -> list[str]:
     steps = [
         "Review and edit; this is a starting point, not a finished design.",
         "Fields the server assigns (state, timestamps) must not be in the In schema.",
-        f"Run: hinoki migrations plan --models <module> --name add_{table_name}",
+        f"Run: hinoki migrations plan --name add_{table_name} "
+        "(name the app first in a multi-app project: hinoki migrations plan <app>)",
         "Run: hinoki check",
     ]
     if owner_model is not None:

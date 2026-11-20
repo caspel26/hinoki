@@ -1,9 +1,10 @@
 """The route and factory form of the smallest useful Hinoki app.
 
-    uv run --project .. hinoki dev notes.main:app
+    uv run hinoki dev notes.main:app
 
 The examples project manifest registers this model and its migration package;
-nothing here touches a database at import.
+nothing here touches a database at import. Run it from ``examples/``, whose
+manifest names another application, so the target stays explicit.
 """
 
 from typing import Annotated

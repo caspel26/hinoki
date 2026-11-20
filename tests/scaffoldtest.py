@@ -50,7 +50,7 @@ def test_the_project_has_what_an_agent_needs(tmp_path: Path) -> None:
         and "explain_error" in agents
     )
     mcp = json.loads((target / ".mcp.json").read_text())
-    assert mcp["mcpServers"]["hinoki"]["args"][-2:] == ["--package", "shop"]
+    assert mcp["mcpServers"]["hinoki"]["args"] == ["run", "hinoki", "mcp"]
     assert "read and follow" in (target / "CLAUDE.md").read_text().lower()
 
 
@@ -97,17 +97,7 @@ def test_the_generated_project_passes_its_own_rules_and_tests(tmp_path: Path) ->
     target = create("shop", tmp_path)
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(target), *sys.path])}
     check = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "hinoki",
-            "check",
-            "shop.main:app",
-            "--rules",
-            "shop.rules:project_rules",
-            "--package",
-            "shop",
-        ],
+        [sys.executable, "-m", "hinoki", "check"],
         cwd=target,
         env=env,
         capture_output=True,
@@ -223,7 +213,8 @@ def test_scaffold_toml_escapes_checkout_paths_and_git_values(tmp_path: Path) -> 
 
 def test_the_project_has_a_readme_with_the_commands(tmp_path: Path) -> None:
     readme = (create("shop", tmp_path) / "README.md").read_text()
-    assert "uv run hinoki dev shop.main:app" in readme and "uv run pytest" in readme
+    assert "uv run hinoki dev " in readme and "uv run pytest" in readme
+    assert "main:app" not in readme
     assert "not published on PyPI" in readme
 
 

@@ -2,8 +2,8 @@
 
 Optional and explicit. Register the tables as an app and apply their migrations
 (``hinoki app add admin --models hinoki.admin.users.models --migrations
-hinoki.admin.users.migrations``, then ``hinoki migrate``); importing this package
-never touches a database.
+hinoki.admin.users.migrations``, then ``hinoki migrations apply``); importing this
+package never touches a database.
 """
 
 from pathlib import Path

@@ -409,6 +409,9 @@ def test_propose_model_generates_source_that_imports_and_registers() -> None:
     )
     assert len(app.routes) == 5
     assert "TODO: add access" in result["source"]
+    assert "id: UUID = pk(default_factory=uuid4)" in result["source"]
+    assert "primary_key" not in result["source"]
+    assert not any("--models" in step for step in result["next_steps"])
     for bad in (
         {"name": "id"},
         {"name": "Title"},
