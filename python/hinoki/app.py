@@ -43,7 +43,7 @@ from hinoki.routing import (
     RouteGroup,
     route_of,
 )
-from hinoki.rules import Phase, Project, RuleSet, failing
+from hinoki.rules import Phase, Project, RuleSet, failing, qualified
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.runtime.binding import (
     Binding,
@@ -352,6 +352,7 @@ class Hinoki:
         """
         self._check_mutable()
         pending, groups = self._collect_routes(items)
+        refuse_shared_names([*self._routes, *pending])
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
         # CRUD row plans must be scoped to this app's resolved renderers and binding.
@@ -592,6 +593,23 @@ class Hinoki:
     def _check_mutable(self) -> None:
         if self._adapter is not None:
             raise RegistrationError("application is already serving; it is frozen")
+
+
+def refuse_shared_names(routes: Sequence[Route]) -> None:
+    """Two different API classes must not give an action the same qualified name:
+    one rule pattern, waiver or MCP tool would then silently cover both. The same
+    class mounted twice keeps one name."""
+    owners: dict[str, tuple[type, str]] = {}
+    for route in routes:
+        if route.owner is None:
+            continue
+        name = qualified(route)
+        first = owners.setdefault(name, (route.owner, route.path))
+        if first[0] is not route.owner:
+            raise RegistrationError(
+                f"{name} is declared by two classes ({first[1]} and {route.path}); "
+                "give one a distinct class name, or crud(..., name=...)"
+            )
 
 
 def flatten(items: Sequence[object], prefix: str = "") -> Iterator[tuple[object, str]]:
