@@ -2,128 +2,141 @@
   <a href="https://caspel26.github.io/hinoki/">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="assets/readme/lockup-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="assets/readme/lockup-light.svg">
-      <img src="assets/readme/lockup-light.svg" alt="Hinoki" width="340">
+      <img src="assets/readme/lockup-light.svg" alt="Hinoki" width="360">
     </picture>
   </a>
 </p>
 
-<h3 align="center">Typed Python APIs. Architecture rules you can run.</h3>
+<p align="center">
+  <strong>Typed Python APIs. Architecture rules you can run.</strong><br>
+  <sub>A Python framework for HTTP APIs, with a Rust core.</sub>
+</p>
 
 <p align="center">
   <a href="https://github.com/caspel26/hinoki/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/caspel26/hinoki/ci.yml?branch=main&label=CI&labelColor=1d1a24"></a>
-  <a href="https://codecov.io/gh/caspel26/hinoki"><img alt="Coverage" src="https://codecov.io/gh/caspel26/hinoki/branch/main/graph/badge.svg?labelColor=1d1a24"></a>
-  <a href="https://sonarcloud.io/project/overview?id=caspel26_hinoki"><img alt="Quality gate" src="https://sonarcloud.io/api/project_badges/measure?project=caspel26_hinoki&metric=alert_status"></a>
-  <a href="https://github.com/caspel26/hinoki/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://img.shields.io/github/actions/workflow/status/caspel26/hinoki/codeql.yml?branch=main&label=CodeQL&labelColor=1d1a24"></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/caspel26/hinoki"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/caspel26/hinoki/badge"></a>
-  <a href="https://www.bestpractices.dev/projects/16941"><img alt="OpenSSF Best Practices" src="https://www.bestpractices.dev/projects/16941/badge"></a>
+  <a href="https://codecov.io/gh/caspel26/hinoki"><img alt="Coverage" src="https://codecov.io/gh/caspel26/hinoki/branch/main/graph/badge.svg"></a>
   <img alt="Python 3.12, 3.13 and 3.14" src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-7a55c4?labelColor=1d1a24">
   <a href="https://caspel26.github.io/hinoki/dev/status/"><img alt="Status: pre-alpha" src="https://img.shields.io/badge/status-pre--alpha-e3c29b?labelColor=1d1a24"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7a55c4?labelColor=1d1a24"></a>
 </p>
 
 <p align="center">
+  <a href="https://caspel26.github.io/hinoki/dev/">Documentation</a> ·
   <a href="https://caspel26.github.io/hinoki/dev/quick-start/">Quick start</a> ·
   <a href="https://caspel26.github.io/hinoki/dev/tutorial/">Tutorial</a> ·
-  <a href="https://caspel26.github.io/hinoki/dev/benchmarks/">Benchmark report</a> ·
   <a href="examples">Examples</a> ·
   <a href="https://caspel26.github.io/hinoki/dev/status/">Status</a>
 </p>
 
-Hinoki is a pre-alpha Python framework for HTTP APIs, with a compiled Rust core. Handlers declare their input, output, access policy and `atomic` write behavior. Those declarations feed request handling, the OpenAPI document and optional architecture rules.
-
 <p align="center">
-  <img src="assets/readme/demo.gif" alt="hinoki check passes on a new project, then reports three violated rules for a POST endpoint with no access policy, no atomic=True and an unbounded text field" width="820">
+  <picture>
+    <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/demo.png">
+    <img src="assets/readme/demo.gif" alt="hinoki new asks for a project name, a parent directory, a database and a server, then creates the project and installs it. In the project, hinoki migrations plan and apply create a table, hinoki dev starts the Kiso server and hinoki check reports no violated rules." width="840">
+  </picture>
 </p>
-
-<p align="center"><sub>Real <code>hinoki check</code> output, recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>.</sub></p>
+<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened.</sub></p>
 
 > [!WARNING]
-> **Not released.** The API and migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated legacy project. Evaluate this repository from a source checkout and use disposable data.
+> **Pre-alpha, not released.** The API and the migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project: install Hinoki from this repository and use disposable data.
 
-## Try the Notes API
+## Start a project
 
-You need [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain. The native extension builds from source. These commands use the example's default local SQLite database:
+You need [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain; the native extension builds from source.
 
 ```sh
 git clone https://github.com/caspel26/hinoki
 cd hinoki
 uv sync --locked
-cd examples
-uv run --project .. hinoki migrations plan --app notes
-uv run --project .. hinoki migrations sql --app notes 0001-create-table-notes
-uv run --project .. hinoki migrations apply --app notes
-uv run --project .. hinoki dev notes.main:app
+uv run hinoki new   # asks for the name, parent directory (..), database and server
+cd ../notes         # the name you chose
+uv run hinoki dev   # API docs at http://127.0.0.1:8000/docs
+uv run hinoki check # runs the project's rules
+uv run pytest
 ```
 
-Open <http://127.0.0.1:8000/docs> to inspect the generated OpenAPI UI. The full [Quick start](docs/quick-start.md) explains migration review, requests and database selection. To scaffold a project from the checkout, run `uv run hinoki new NAME`; its routes live in `routes.py`, which `hinoki.toml` points to, so `main.py` needs no `include=`. See [Installation](docs/getting-started.md).
+`hinoki.toml` names the application, its routes, models and migrations, so commands inside a project take no target. The [Quick start](docs/quick-start.md) walks through the prompts.
 
-## What the code looks like
+## Write an API
 
-This excerpt is from the [Notes example](examples/notes). The handler returns a model; the declared `NoteOut` type controls the response fields:
+A model, then a group of actions that share a path, an access policy and a transaction:
 
 ```python
-from typing import Annotated
-from uuid import UUID
+# notes/models.py
+from uuid import UUID, uuid4
 
-from hinoki import Field, Schema, http
-from .models import Note
+from hinoki.orm import Model, field, pk
+
+
+class Note(Model):
+    id: UUID = pk(default_factory=uuid4)
+    title: str = field(max_length=80)
+    body: str = ""
+```
+
+```python
+# notes/api.py
+from typing import Annotated
+
+from hinoki import Field, RouteGroup, Schema, derive
+from hinoki.pagination import Page, PageNumberPagination, PageParams
+
+from notes.models import Note
+from notes.security import editors
 
 
 class NoteIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=80)]
-    body: str = ""
+    body: Annotated[str, Field(max_length=2000)] = ""
 
 
-class NoteOut(Schema):
-    id: UUID
-    title: str
-    body: str
+@derive(Note)
+class NoteOut(Schema): ...
 
 
-@http.post("/notes", status=201, atomic=True)
-async def create(data: NoteIn) -> NoteOut:
-    return await Note.acreate(data)  # type: ignore[return-value]
+note_routes = RouteGroup("/notes", access=editors, atomic=True)
+
+
+@note_routes.get("/", pagination=PageNumberPagination(page_size=20))
+async def list_notes(page: PageParams) -> Page[NoteOut]:
+    return (await Note.all().apaginate(page)).map(NoteOut.from_model)
+
+
+@note_routes.post("/", status=201)
+async def create_note(data: NoteIn) -> NoteOut:
+    return NoteOut.from_model(await Note.acreate(data))
 ```
 
-Request values are validated before the handler runs. Unknown input fields are rejected by default; set `config=SchemaConfig(extra=SchemaExtra.IGNORE)` on a `Schema` to ignore them explicitly. A response exposes only its declared `Schema` fields. See [Schemas](docs/schemas.md) for configuration and error behavior.
+`editors` is an `Access` policy: a token check and the permissions it requires ([Authentication](docs/authentication.md)). List the group in `notes/routes.py` (`routes = [health, note_routes]`); `main.py` does not change. Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `uv run hinoki migrations plan` writes the migration, `uv run hinoki migrations apply` runs it.
 
-## What Hinoki provides
+## What you get
 
-- **Typed API declarations:** function and class endpoints, access policies, transactions, declared errors, generated CRUD, OpenAPI and test clients.
-- **Architecture checks:** eleven optional built-in rules cover access, permissions, return types, pagination, write transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes and import direction. Findings include a source location and a fix; waivers need an owner and reason.
-- **Database support:** the ORM supports SQLite, PostgreSQL, MySQL and MariaDB, with relations and reviewed SQL migration files. SQLite is the local-development default. Importing an app does not connect or change tables.
-- **Tools:** typed settings, a CLI, application and development MCP integrations, and an optional admin mounted explicitly in the app.
+- **Declared contracts.** `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client.
+- **Rules you can run.** `hinoki check` has eleven built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes and import direction. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason.
+- **ORM and migrations.** SQLite, PostgreSQL, MySQL and MariaDB, explicit relation loading, and SQL migration files you review. Importing an app never connects to a database.
+- **Tools.** Typed settings, generated CRUD, a CLI, MCP servers for the application and for development, and an optional admin.
 
-The [Tracker example](examples/tracker) shows application layers, access control and rules. Its checks can run from `examples/` with the repository's locked environment:
+## Admin
 
-```sh
-cd examples
-uv run --project .. hinoki check tracker.app:create_app
-```
-
-The [Blog example](examples/blog) demonstrates relations, authentication and the optional admin. The admin has four themes and, by default, its own users with a sign-in page and per-model permissions; it can instead use the application's access policy. See the [admin guide](docs/admin.md) for setup and screenshots.
+The optional admin is mounted explicitly. By default it has its own users, a sign-in page and per-model permissions; it can use your application's access policy instead. It has four themes, each with light and dark modes. See the [admin guide](docs/admin.md).
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-login-dark.png">
-    <img src="assets/readme/admin-login-light.png" alt="The Blog admin sign-in page" width="48%">
+    <img src="assets/readme/admin-login-light.png" alt="The admin sign-in page" width="32%">
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-users-dark.png">
-    <img src="assets/readme/admin-users-light.png" alt="The Users section of the Blog admin" width="48%">
+    <img src="assets/readme/admin-users-light.png" alt="The Users section of the admin" width="63%">
   </picture>
 </p>
 
-## Python and Rust boundary
+## Python and Rust
 
-The extension provides path matching, selected request parsing, schema validation and serialization, cryptography, and ORM SQL compilation and execution. The ASGI adapter, handlers and most request-pipeline work run in Python; an eligible `async def` handler that only awaits ORM calls, and some generated CRUD writes, are driven from Rust on Kiso. The Rust HTTP server (Kiso) is the default; Granian remains available with `--server granian`. See [Serving](docs/serving.md) for the boundary and server limitations.
+`hinoki dev` and `hinoki serve` run on Kiso, Hinoki's HTTP server written in Rust; `--server granian` runs Granian instead. Path matching, selected request parsing, schema validation and serialization, and ORM SQL compilation and execution run in the extension. The ASGI adapter, handlers and most of the request pipeline run in Python; on Kiso, an `async def` handler that only awaits ORM calls is driven from Rust. [Serving](docs/serving.md) documents the boundary.
 
-## Status and measurements
+## Status
 
-Hinoki is pre-alpha and is tested in CI on Linux with Python 3.12–3.14. SQL Server, Oracle, streaming responses, WebSockets, cursor pagination and per-route CORS are not available. The [status page](https://caspel26.github.io/hinoki/dev/status/) lists current boundaries.
-
-The [benchmark report](docs/benchmarks.md) describes retained runs and their limits. Results apply only to the listed workloads, configurations and machine; they are not a general framework ranking or a production-readiness claim.
+Pre-alpha, tested in CI on Linux with Python 3.12–3.14. The [status page](https://caspel26.github.io/hinoki/dev/status/) lists what is not available yet. The [benchmark report](docs/benchmarks.md) describes retained runs and their limits; it is not a general ranking.
 
 <p align="center">
   <a href="https://caspel26.github.io/hinoki/dev/guides/">Guides</a> ·
