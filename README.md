@@ -35,10 +35,10 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/demo.png">
-    <img src="assets/readme/demo.gif" alt="In a terminal window, hinoki new shows the Hinoki banner, asks for a project name, a database and a server, and creates the notebook project. hinoki app create notes adds a notes app, and its api.py declares a POST /notes action. hinoki check reports that POST /notes does not declare atomic=True; after atomic=True is added to the route group, it reports no violated rules. hinoki dev starts the Kiso server, and a curl request to POST /notes returns 201 Created with the new note." width="840">
+    <img src="assets/readme/demo.gif" alt="In a terminal window, hinoki new shows the Hinoki banner and asks for a project name, a database, a server and the rest; its last question, Create an app now?, is answered yes and the app is named posts. hinoki check reports no violated rules, hinoki dev starts the Kiso server, and a curl request to POST /posts returns 201 Created with the new post." width="840">
   </picture>
 </p>
-<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the app's source files and migrations are written off screen. The banner is the logo image that Hinoki prints in terminals with inline-image support (kitty, Ghostty, iTerm2, WezTerm); other terminals show a text banner instead.</sub></p>
+<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the posts app's source files and migrations are written off screen. The banner is the logo image that Hinoki prints in terminals with inline-image support (kitty, Ghostty, iTerm2, WezTerm); other terminals show a text banner instead.</sub></p>
 
 > [!WARNING]
 > **Pre-alpha, not released.** The API and the migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project: install Hinoki from this repository and use disposable data.
@@ -53,7 +53,7 @@ You need [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain; the nativ
 git clone https://github.com/caspel26/hinoki && cd hinoki
 uv sync --locked
 source .venv/bin/activate
-hinoki new notes --dir ..   # asks for the database, the server and the rest
+hinoki new notes --dir ..   # asks for the database, the server, the rest and a first app
 cd ../notes
 hinoki dev                  # API docs at http://127.0.0.1:8000/docs
 ```
@@ -97,7 +97,7 @@ hinoki routes   # list every route with its access policy
 
 ## Write an API
 
-The project package holds no models. Create an app for them, which registers its models, migrations and routes in `hinoki.toml`:
+The project package holds no models. Answer yes to the last question of `hinoki new` (or pass `--app NAME`), or create an app later; it registers its models, migrations and routes in `hinoki.toml`:
 
 ```sh
 hinoki app create notes

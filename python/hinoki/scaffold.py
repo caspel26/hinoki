@@ -238,7 +238,7 @@ uv run hinoki dev                               # reload; `serve` runs it for pr
 
 ## Adding a database and a protected resource
 
-The generated project has no app, database or protected resource. Models live in apps, never in the project package: run `uv run hinoki app create <name>` first, then work inside `{name}/apps/<name>/`. The reference is `examples/tracker` in the framework repository; the shape is:
+The generated project has no database or protected resource, and has an app only if `hinoki new` created one. Models live in apps, never in the project package: if `hinoki.toml` registers no app, run `uv run hinoki app create <name>` first, then work inside `{name}/apps/<name>/`. The reference is `examples/tracker` in the framework repository; the shape is:
 
 1. `apps/<name>/models.py`: a `Member` (id, name, token) and your model with `owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="...")` (`OnDelete` comes from `hinoki.orm`). Then turn on the two model rules in `rules.py` (`Models.require_explicit_table`, `Models.require_foreign_key_index`): pin each table with `table=` or `@db.table(...)`, and index each foreign key with `@db.indexed("owner_id")`.
 2. `apps/<name>/schemas.py`: an `In` schema without the owner, an `Out` schema.

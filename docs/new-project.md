@@ -30,11 +30,15 @@ In a terminal, `hinoki new` asks for everything the command line leaves out:
 | Agent skills? | yes / no | no |
 | Initialize a git repository? | yes / no | yes |
 | Install dependencies (uv sync)? | yes / no | yes |
+| Create an app now? | yes / no | yes |
+| App name (only after yes) | lower-case letters and digits, starting with a letter; an invalid name is asked again | `core` |
 
 Each answer collapses into a summary line. When the files are written, the
-command lists the key ones, runs `git init` and `uv sync` with a timer, and ends
-with the next commands to type. Nothing is written until the last answer, so
-Ctrl-C or Esc cancels cleanly.
+command lists the key ones, creates the app you named with the same code as
+[`hinoki app create`](cli.md#app) (and registers it in `hinoki.toml`), runs
+`git init` and `uv sync` with a timer, and ends with the next commands to type.
+When no app was created, the summary says how to add one. Nothing is written
+until the last answer, so Ctrl-C, Esc or end of input cancels cleanly (exit 130).
 
 ## Create a project without questions
 
@@ -56,6 +60,8 @@ uv run hinoki new notes --no-input --database sqlite --git --install
 | `--skills` / `--no-skills` | also write the [agent skills](cli.md#skills) under `.claude/skills` |
 | `--git` / `--no-git` | run `git init`; no commit is made. Without a prompt: off |
 | `--install` / `--no-install` | run `uv sync`. Without a prompt: off |
+| `--app NAME` | also create this app and register it, without asking. The name is checked before anything is written |
+| `--no-app` | create no app and do not ask about one; the two flags exclude each other |
 | `--hinoki SOURCE` | where the project installs Hinoki from; see [below](#where-hinoki-comes-from) |
 
 ## What you get
@@ -90,8 +96,10 @@ routes = "notes.routes:routes"
 ```
 
 The project package holds no models and registers no app. Models live in apps:
-`uv run hinoki app create billing` writes `notes/apps/billing/` and adds the
-`[[apps]]` entry for it ([`hinoki app create`](cli.md#app)).
+The last question of `hinoki new` (or `--app billing`) creates the first one;
+`uv run hinoki app create billing` adds more later. Either way it writes
+`notes/apps/billing/` and adds the `[[apps]]` entry for it
+([`hinoki app create`](cli.md#app)).
 
 ## Run it
 
@@ -163,6 +171,10 @@ Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape
   `hinoki` or a standard-library module such as `json`, which would shadow
   imports in the project. A refused name is asked again; with `--no-input` the
   command exits 2.
+- An app name follows the same rule. A refused name is asked again; `--app` with a bad
+  name exits 2 before anything is written. If the project is written but the
+  app cannot be created, the error is printed, the project stays and the exit
+  status is 2.
 - `PATH/NAME` must not exist or must be empty; nothing is overwritten.
 - `git` or `uv` missing or failing prints a warning and keeps the project.
 - Nothing else is installed or run.

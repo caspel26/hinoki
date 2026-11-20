@@ -32,30 +32,35 @@ defaults:
 | Agent skills? | no | no |
 | Initialize a git repository? | yes | yes |
 | Install dependencies (uv sync)? | yes | yes |
+| Create an app now? | yes | yes |
+| App name | `core` | `entries` |
 
-It writes the project, runs `git init` and `uv sync`, and prints the next
-commands. The files that matter:
+It writes the project and the `entries` app, runs `git init` and `uv sync`, and
+prints the next commands. The files that matter:
 
 ```text
 notes/
-├── hinoki.toml        manifest: application and routes (no app yet)
+├── hinoki.toml        manifest: application, routes and the entries app
 ├── notes/
 │   ├── main.py        the application
 │   ├── api.py         GET /health
 │   ├── routes.py      routes = [health]
 │   ├── settings.py    typed settings, NOTES_* variables
-│   └── rules.py       architecture rules
+│   ├── rules.py       architecture rules
+│   └── apps/entries/  models, endpoints, routes and migrations of the app
 ├── tests/             pytest suite
 └── AGENTS.md          agent instructions
 ```
 
-The project package holds no models. They live in apps, which you add next.
+The project package holds no models. They live in apps; answering no to the
+last question leaves the project without one, and
+[Add another app](#add-another-app) shows how to add it later.
 
 !!! tip "Scripts and CI"
-    `uv run hinoki new notes --dir .. --no-input --database sqlite --git --install`
+    `uv run hinoki new notes --dir .. --no-input --database sqlite --git --install --app entries`
     gives the same answers without prompts. Plain `--no-input` uses the defaults
-    instead: no database, no `git init`, no `uv sync`. All options are in
-    [`hinoki new`](new-project.md).
+    instead: no database, no `git init`, no `uv sync` and no app. All options are
+    in [`hinoki new`](new-project.md).
 
 ## Test and serve it
 
@@ -145,17 +150,14 @@ NOTES_DATABASE__URL=sqlite://./.hinoki/notes.sqlite3
 ```
 
 [Configure a database](databases.md) covers PostgreSQL, MySQL and MariaDB, and
-connection fields instead of a URL. The project has no models yet; add them in an
-app, as [the next section](#add-your-first-app) and the
+connection fields instead of a URL. The project has no models yet; add them in
+the app, as [the next section](#your-first-app) and the
 [tutorial](tutorial/index.md) show.
 
-## Add your first app
+## Your first app
 
-Models live in apps, not in the project package. Create one:
-
-```sh
-uv run hinoki app create entries
-```
+Models live in apps, not in the project package. `hinoki new` created `entries`
+when you answered the last question:
 
 ```text
 notes/apps/entries/
@@ -165,7 +167,7 @@ notes/apps/entries/
 └── migrations/    migration history
 ```
 
-The command registers it in `hinoki.toml`:
+It is registered in `hinoki.toml`:
 
 ```toml
 [[apps]]
@@ -181,6 +183,14 @@ App names are lower-case letters and digits, with no underscores. Define the
 app's models in `notes/apps/entries/models.py`, then
 `uv run hinoki migrations plan entries`; [8. Projects and apps](tutorial/8-projects.md)
 walks through it.
+
+### Add another app
+
+If you answered no, or want a second app, create it from the project:
+
+```sh
+uv run hinoki app create billing
+```
 
 ## Next
 

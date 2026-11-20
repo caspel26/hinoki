@@ -110,8 +110,11 @@ def report_app(
     manifest: Path,
     prefix: str,
     requires: tuple[str, ...],
+    next_steps: bool = True,
 ) -> list[str]:
-    """The lines shown once the app exists."""
+    """The lines shown once the app exists.
+
+    ``hinoki new`` passes ``next_steps=False`` and shows its own."""
     if not style.fancy:
         return [
             f"created app {name} at {shown_path(created)}",
@@ -136,6 +139,10 @@ def report_app(
             f"{style.paint('+', 'good')} {style.text('hinoki.toml')}  {registered}",
         ),
         style.line("rail"),
+    ]
+    if not next_steps:
+        return lines
+    lines += [
         style.line("active", style.bold("Next steps")),
         style.line(
             "rail", f"{style.paint('$', 'brand')} uv run hinoki migrations plan"
