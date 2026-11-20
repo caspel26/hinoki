@@ -20,6 +20,12 @@
   font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+/* A heading without a lead keeps the same gap to its content as one with a lead. */
+.home .hn-section > h2:not(:has(+ .hn-sub)) {
+  margin-bottom: var(--sp-6);
 }
 
 .home h3 {
@@ -59,6 +65,7 @@
   color: var(--hn-text-2);
   font-size: 19px;
   line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .hn-note {
@@ -89,24 +96,29 @@
   font-size: 0.875em;
 }
 
-/* Reveal on scroll */
+/* Reveal on scroll. A one-shot animation rather than a transition, so the
+   reveal delay never leaks into an element's own hover transitions, and the
+   content is never fully invisible. */
 
-.js .reveal {
-  opacity: 1;
+@keyframes reveal-in {
+  from { opacity: 0.35; transform: translate3d(0, 14px, 0); }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .js .reveal {
-    opacity: 0.4;
-    transform: translateY(10px);
-    transition: opacity 360ms var(--hn-ease), transform 420ms var(--hn-ease);
-    transition-delay: min(calc(var(--i, 0) * 50ms), 300ms);
+  .js .reveal:not(.is-in) {
+    opacity: 0.35;
+    transform: translate3d(0, 14px, 0);
   }
-}
 
-.js .reveal.is-in {
-  opacity: 1;
-  transform: none;
+  .js .reveal.is-in {
+    animation: reveal-in 520ms var(--hn-ease) backwards;
+    animation-delay: min(calc(var(--i, 0) * 60ms), 360ms);
+  }
+
+  /* Section heads read in order: label, heading, lead, then the content. */
+  .hn-section > h2.reveal { --i: 1; }
+  .hn-section > .hn-sub.reveal { --i: 2; }
+  .hn-section > .reveal:not(.hn-label, h2, .hn-sub) { --i: 3; }
 }
 
 /* Buttons and links */
@@ -124,8 +136,14 @@
   transition: background 140ms var(--hn-ease), border-color 140ms var(--hn-ease), transform 220ms var(--hn-spring);
 }
 
-.hn-btn:hover {
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .hn-btn:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.hn-btn:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .hn-btn--primary {
@@ -301,6 +319,7 @@
   color: var(--hn-text-2);
   font-size: 19px;
   line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .hn-hero__meta {
@@ -610,11 +629,19 @@
   transition: border-color 200ms var(--hn-ease), transform 300ms var(--hn-spring), box-shadow 300ms var(--hn-ease);
 }
 
-.hn-index__card:hover,
 .hn-index__card:focus-within {
   border-color: var(--hn-brand);
   transform: translateY(-3px);
   box-shadow: var(--hn-raise), var(--hn-pop);
+}
+
+/* Hover lifts only where a pointer can hover, so a tap never leaves a card raised. */
+@media (hover: hover) {
+  .hn-index__card:hover {
+    border-color: var(--hn-brand);
+    transform: translateY(-3px);
+    box-shadow: var(--hn-raise), var(--hn-pop);
+  }
 }
 
 .hn-index__head {
@@ -1486,6 +1513,26 @@
 
   .hn-switch button {
     min-height: 44px;
+  }
+
+  /* Phones: a shorter lead and full-width calls to action keep the primary
+     action inside the first screen. */
+  .hn-hero {
+    padding-top: var(--sp-7);
+  }
+
+  .hn-hero__lead,
+  .hn-sub {
+    font-size: 17px;
+  }
+
+  .hn-actions {
+    gap: var(--sp-3);
+  }
+
+  .hn-actions .hn-btn {
+    flex: 1 1 100%;
+    justify-content: center;
   }
 
 }
