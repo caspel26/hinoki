@@ -29,7 +29,7 @@ from hinoki.runtime.config import RuntimeConfig
 from hinoki.shell import ShellRuntime, run_console, terminal_reader
 from hinoki.shellcli import _target_and_models, model_namespace, run
 from hinoki.shellui import farewell, greeting, prompts
-from hinoki.terminal import Style
+from hinoki.terminal import ANSI, Style
 
 
 class ShellNote(Model, table="shell_notes"):
@@ -789,6 +789,7 @@ def test_branded_shell_greets_with_app_models_and_branded_prompts() -> None:
     text = "\n".join(greeting(FANCY, "Blog", "BlogSettings", names))
 
     assert "ctrl-d to exit" in text and "Blog" in text and "BlogSettings" in text
+    assert "hinoki \u203a shell" in ANSI.sub("", text)
     assert "Model0" in text and "+3 more" in text and "Model8" not in text
     assert "await" in text
     primary, continuation = prompts(FANCY)
