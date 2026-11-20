@@ -1,5 +1,6 @@
 ---
 status: implemented
+template: guides.html
 ---
 
 # Guides
