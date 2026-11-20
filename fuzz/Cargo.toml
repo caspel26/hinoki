@@ -1,0 +1,37 @@
+[package]
+name = "kiso-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kiso = { path = "../crates/kiso" }
+
+# Standalone workspace: the fuzz targets need a nightly toolchain and must not
+# become members of the main workspace.
+[workspace]
+
+[[bin]]
+name = "redirect_location"
+path = "fuzz_targets/redirect_location.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "host_allow_list"
+path = "fuzz_targets/host_allow_list.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "declared_length"
+path = "fuzz_targets/declared_length.rs"
+test = false
+doc = false
+bench = false
