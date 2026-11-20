@@ -304,6 +304,7 @@ ownership, schema requirements and route replacement.</p>
     <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">(),</span>
     <span class="n">omit</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CrudDeclaration</span>
 </code></pre></div>
 
@@ -313,7 +314,9 @@ ownership, schema requirements and route replacement.</p>
 <p><code>app.include(crud(...))</code> mounts the generated actions; <code>@crud(...)</code> on a
 class adds the hooks (<code>get_queryset</code>, <code>to_schema</code>, <code>written_queryset</code>,
 <code>store</code>, <code>change</code>, <code>remove</code>) and handwritten actions.
-A single <code>Access</code> protects every action; <code>CrudAccess</code> sets them apart.</p>
+A single <code>Access</code> protects every action; <code>CrudAccess</code> sets them apart.
+<code>name=</code> names the generated class (<code>"ArchiveCrud"</code>) or its module and
+class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP patterns match.</p>
 
 
     </div>
@@ -611,6 +614,72 @@ class that adds hooks and handwritten actions.</p>
 
 
 
+<h3 id="hinoki.resources.CrudDeclaration.module" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">module</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.resources.CrudDeclaration.module" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">module</span> <span class="o">=</span> <span class="n">prefix</span> <span class="ow">or</span> <span class="n">module</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.resources.CrudDeclaration.name" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">name</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.resources.CrudDeclaration.name" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">name</span> <span class="o">=</span> <span class="n">short</span> <span class="ow">or</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s1">Crud'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.resources.CrudDeclaration.named" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">named</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.resources.CrudDeclaration.named" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">named</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.resources.CrudDeclaration.generated" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">generated</span>
 
@@ -666,7 +735,12 @@ class that adds hooks and handwritten actions.</p>
 
 
 <a href="#hinoki.resources.CrudDeclaration.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">_CrudConfig</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">_CrudConfig</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">module</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="vm">__name__</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -689,7 +763,8 @@ class that adds hooks and handwritten actions.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The generated API class (built once).</p>
+        <p>The generated API class (built once), named after the module that
+declared it (or <code>name=</code>) so rules scoped to that module see its actions.</p>
 
 
     </div>
@@ -809,7 +884,7 @@ class that adds hooks and handwritten actions.</p>
             <ul><li><a href="#hinoki.resources.crud">crud</a></li><li><a href="#hinoki.resources.CrudAccess">CrudAccess</a>
             <ul><li><a href="#hinoki.resources.CrudAccess.default">default</a></li><li><a href="#hinoki.resources.CrudAccess.list">list</a></li><li><a href="#hinoki.resources.CrudAccess.retrieve">retrieve</a></li><li><a href="#hinoki.resources.CrudAccess.create">create</a></li><li><a href="#hinoki.resources.CrudAccess.update">update</a></li><li><a href="#hinoki.resources.CrudAccess.delete">delete</a></li><li><a href="#hinoki.resources.CrudAccess.resolve">resolve</a></li></ul>
           </li><li><a href="#hinoki.resources.CrudDeclaration">CrudDeclaration</a>
-            <ul><li><a href="#hinoki.resources.CrudDeclaration.config">config</a></li><li><a href="#hinoki.resources.CrudDeclaration.path">path</a></li><li><a href="#hinoki.resources.CrudDeclaration.generated">generated</a></li><li><a href="#hinoki.resources.CrudDeclaration.built">built</a></li><li><a href="#hinoki.resources.CrudDeclaration.__init__">__init__</a></li><li><a href="#hinoki.resources.CrudDeclaration.api">api</a></li><li><a href="#hinoki.resources.CrudDeclaration.__call__">__call__</a></li><li><a href="#hinoki.resources.CrudDeclaration.build">build</a></li></ul>
+            <ul><li><a href="#hinoki.resources.CrudDeclaration.config">config</a></li><li><a href="#hinoki.resources.CrudDeclaration.path">path</a></li><li><a href="#hinoki.resources.CrudDeclaration.module">module</a></li><li><a href="#hinoki.resources.CrudDeclaration.name">name</a></li><li><a href="#hinoki.resources.CrudDeclaration.named">named</a></li><li><a href="#hinoki.resources.CrudDeclaration.generated">generated</a></li><li><a href="#hinoki.resources.CrudDeclaration.built">built</a></li><li><a href="#hinoki.resources.CrudDeclaration.__init__">__init__</a></li><li><a href="#hinoki.resources.CrudDeclaration.api">api</a></li><li><a href="#hinoki.resources.CrudDeclaration.__call__">__call__</a></li><li><a href="#hinoki.resources.CrudDeclaration.build">build</a></li></ul>
           </li><li><a href="#hinoki.resources.Crud">Crud</a></li></ul>
           
         </nav>

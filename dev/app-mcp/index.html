@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:49 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -469,7 +469,7 @@
 </code></pre></div>
 <p><code>Hinoki(...)</code> has already included the routes listed in <code>hinoki.toml</code>; <code>expose_as_mcp</code> selects among those, so call it after the app exists.</p>
 <h2 id="choose-the-tools">Choose the tools<a class="headerlink" href="#choose-the-tools" title="Permanent link">&para;</a></h2>
-<p><code>tools</code> are <code>fnmatch</code> patterns over qualified action names, the same names rules match: <code>module.function</code>, or <code>module.Class.method</code> for an action of an <code>API</code> class. <code>"notes.apps.billing.api.*"</code> selects every action of that module.</p>
+<p><code>tools</code> are <code>fnmatch</code> patterns over qualified action names, the same names rules match: <code>module.function</code>, or <code>module.Class.method</code> for an action of an <code>API</code> class. <code>"notes.apps.billing.api.*"</code> selects every action of that module. Generated CRUD actions are named after the module that declares the <code>crud(...)</code> value (<code>notes.apps.billing.routes.InvoiceCrud.list</code>, see <a href="../crud/">Generated CRUD</a>), so a module pattern selects them too.</p>
 <ul>
 <li>Only <code>GET</code>, <code>HEAD</code> and <code>QUERY</code> actions are exposed by default. A <code>QUERY</code> tool takes the request body as its input.</li>
 <li><code>allow_writes=True</code> also exposes <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> actions. Use it only when write tools are intended and <code>access</code> permits them.</li>
@@ -544,7 +544,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/app-mcp.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

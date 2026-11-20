@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -687,6 +687,11 @@
 <td>Rename it, or stop generating that action (<code>omit=</code>, no <code>create=</code>)</td>
 </tr>
 <tr>
+<td><code>RegistrationError: … is declared by two classes (/a and /b)</code></td>
+<td>Two different classes (often two <code>crud(...)</code> values for one model in one module) give an action the same qualified name</td>
+<td>Rename one class, or pass <code>crud(..., name="ArchiveCrud")</code></td>
+</tr>
+<tr>
 <td>A handwritten action is public</td>
 <td><code>crud(access=...)</code> covers generated actions only</td>
 <td>Add <code>access=</code> to its decorator</td>
@@ -730,7 +735,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/class-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
