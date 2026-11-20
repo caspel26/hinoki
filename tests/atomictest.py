@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, RouteGroup, Schema, Transactions, db, http
-from hinoki.db import Database, DatabaseModule
+from hinoki import Hinoki, RouteGroup, Schema, Transactions, context, db, http
+from hinoki.blocking import run_sync
+from hinoki.db import Database, DatabaseModule, current
 from hinoki.orm import current_database, use_database
 from hinoki.rules import Project, RuleSet
 from hinoki.runtime.kiso import KisoWorker
@@ -153,14 +154,84 @@ def test_the_decorator_keeps_the_function_metadata_and_signature() -> None:
     assert inspect.unwrap(add) is not add
 
 
-def test_a_sync_function_is_refused_when_decorated() -> None:
-    def sync(name: str) -> str:
-        return name
+async def in_thread[T](call: Callable[[], T]) -> T:
+    """Run ``call`` as a sync handler would: on a worker thread whose context
+    points at this loop, so the sync model calls reach the database."""
+    token = context.event_loop.set(asyncio.get_running_loop())
+    try:
+        return await asyncio.to_thread(call)
+    finally:
+        context.event_loop.reset(token)
 
-    with pytest.raises(TypeError, match="coroutine functions only"):
-        db.atomic(sync)  # type: ignore[arg-type]
-    with pytest.raises(TypeError, match="coroutine functions only"):
-        db.atomic()(sync)  # type: ignore[arg-type]
+
+def sync_insert(name: str) -> None:
+    run_sync(insert(name))
+
+
+@db.atomic
+def sync_add(name: str, *, fail: bool = False) -> str:
+    sync_insert(name)
+    if fail:
+        raise ZeroDivisionError
+    return name
+
+
+def test_sync_decorated_function_keeps_metadata_and_stays_plain() -> None:
+    assert sync_add.__name__ == "sync_add"
+    assert not inspect.iscoroutinefunction(sync_add)
+    assert inspect.unwrap(sync_add) is not sync_add
+
+
+def failing_sync_block(name: str) -> None:
+    with db.atomic():
+        sync_insert(name)
+        raise ZeroDivisionError
+
+
+async def test_a_sync_block_commits_and_rolls_back_on_a_worker_thread(
+    database: Database,
+) -> None:
+    def work() -> None:
+        with db.atomic():
+            sync_insert("kept")
+        assert current.get() is None
+        with pytest.raises(ZeroDivisionError):
+            failing_sync_block("undone")
+
+    await in_thread(work)
+    assert await names(database) == ["kept"]
+
+
+async def test_a_sync_decorated_function_commits_and_rolls_back(
+    database: Database,
+) -> None:
+    def work() -> str:
+        with pytest.raises(ZeroDivisionError):
+            sync_add("b", fail=True)
+        return sync_add("a")
+
+    assert await in_thread(work) == "a"
+    assert await names(database) == ["a"]
+
+
+async def test_a_nested_sync_block_is_a_savepoint(database: Database) -> None:
+    def work() -> None:
+        with db.atomic():
+            sync_insert("outer")
+            with pytest.raises(ZeroDivisionError):
+                failing_sync_block("inner")
+            sync_insert("after")
+
+    await in_thread(work)
+    assert await names(database) == ["after", "outer"]
+
+
+async def test_a_sync_block_refuses_to_run_on_the_event_loop(
+    database: Database,
+) -> None:
+    with pytest.raises(RuntimeError, match="event loop"), db.atomic():
+        pass
+    assert database.active() is None
 
 
 async def test_without_a_current_database_entering_fails_clearly() -> None:
@@ -276,3 +347,24 @@ async def test_one_atomic_object_keeps_a_scope_stack_per_task(
 
     await asyncio.gather(first(), second(), return_exceptions=True)
     assert sorted(log) == [("a", True), ("b", False)]
+
+
+@http.post("/sync-items", status=201)
+def create_sync_item(data: Item) -> Saved:
+    with db.atomic():
+        sync_insert(data.name)
+        if data.name == "boom":
+            raise RuntimeError("after the write")
+    return Saved(name=data.name)
+
+
+async def test_a_sync_handler_can_use_a_block_in_its_own_code(
+    database: Database, url: str
+) -> None:
+    app = Hinoki(include=[create_sync_item], modules=[DatabaseModule(url)])
+    async with ASGIClient(app) as client:
+        created = await client.post("/sync-items", json={"name": "a"})
+        failed = await client.post("/sync-items", json={"name": "boom"})
+    assert (created.status, created.body) == (201, {"name": "a"})
+    assert failed.status == 500
+    assert await names(database) == ["a"]

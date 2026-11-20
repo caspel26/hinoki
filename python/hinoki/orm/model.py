@@ -18,7 +18,7 @@ import re
 import sys
 import types
 import typing
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from contextlib import AbstractAsyncContextManager
 from decimal import Decimal
 from typing import (
@@ -56,7 +56,7 @@ from hinoki.fieldtypes import (
 )
 from hinoki.orm.context import current_database
 from hinoki.orm.naming import resolve_model_names
-from hinoki.orm.queryset import QuerySet, write_statement, written_rows
+from hinoki.orm.queryset import QuerySet, delete_keys, write_statement, written_rows
 from hinoki.orm.relations import OnDelete, Related, Relation
 from hinoki.utils import Clock, utc_now
 
@@ -1478,6 +1478,57 @@ class Model:
         return await QuerySet(cls.concrete()).filter(**conditions).adelete()
 
     @classmethod
+    async def abulk_create(
+        cls, items: Iterable[Schema | dict[str, Any]], /, *, returning: bool = True
+    ) -> list[Self]:
+        """Insert many rows in one transaction: all of them or none. Each item is a
+        ``Schema`` or a dict of field values; defaults, factories, validation and
+        write hooks apply exactly as for ``acreate``. Returns the rows in order."""
+        instances = [
+            cls.from_schema(**item) if isinstance(item, dict) else cls.from_schema(item)
+            for item in items
+        ]
+        if not instances:
+            return []
+        async with current_database().atomic():
+            return [await row.insert(returning=returning) for row in instances]
+
+    @classmethod
+    async def abulk_update(cls, instances: Iterable[Self], /) -> list[Self]:
+        """Save the changes of many loaded instances in one transaction: all of
+        them or none. Unchanged instances write nothing; an unsaved one is refused."""
+        rows = list(instances)
+        for row in rows:
+            if row.is_new:
+                raise FieldError(
+                    f"{cls.__name__}: abulk_update got an unsaved instance; "
+                    "use abulk_create"
+                )
+        if not rows:
+            return []
+        async with current_database().atomic():
+            return [await row.asave() for row in rows]
+
+    @classmethod
+    async def abulk_delete(cls, items: Iterable[Self | Any], /) -> int:
+        """Delete many rows by instance or primary-key value in one transaction;
+        returns how many existed. Nothing is deleted for an empty list."""
+        keys = [cls.delete_key(item) for item in items]
+        if not keys:
+            return 0
+        async with current_database().atomic():
+            return await delete_keys(cls.concrete(), keys)
+
+    @classmethod
+    def delete_key(cls, item: Self | Any) -> Any:
+        """The primary-key value ``abulk_delete`` removes for ``item``."""
+        if not isinstance(item, cls):
+            return item
+        if item.is_new:
+            raise FieldError(f"{cls.__name__}: abulk_delete got an unsaved instance")
+        return getattr(item, cls.__primary_key__)
+
+    @classmethod
     def create(
         cls, data: Schema | None = None, /, *, returning: bool = True, **values: Any
     ) -> Self:
@@ -1553,6 +1604,23 @@ class Model:
     @classmethod
     def delete(cls, **conditions: Any) -> int:
         return run_sync(cls.adelete(**conditions))
+
+    @classmethod
+    def bulk_create(
+        cls, items: Iterable[Schema | dict[str, Any]], /, *, returning: bool = True
+    ) -> list[Self]:
+        """Sync ``abulk_create`` for sync handlers."""
+        return run_sync(cls.abulk_create(items, returning=returning))
+
+    @classmethod
+    def bulk_update(cls, instances: Iterable[Self], /) -> list[Self]:
+        """Sync ``abulk_update`` for sync handlers."""
+        return run_sync(cls.abulk_update(instances))
+
+    @classmethod
+    def bulk_delete(cls, items: Iterable[Self | Any], /) -> int:
+        """Sync ``abulk_delete`` for sync handlers."""
+        return run_sync(cls.abulk_delete(items))
 
     @classmethod
     def merged_values(

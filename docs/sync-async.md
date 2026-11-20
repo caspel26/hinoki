@@ -25,13 +25,13 @@ first = await Post.all().afirst()
 | Action handlers | `async def` | `def` | Sync runs on the executor |
 | Generated CRUD hooks (`get_queryset`, `written_queryset`, `to_schema`, `store`, `change`, `remove`) | `async def` | `def` | Sync overrides run on the same bounded executor; use the matching sync or async ORM methods |
 | Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor, so sync model calls are safe inside them |
-| Model: create / get / update / delete | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from` | `create`, `get`, `get_or_none`, `update`, `update_where`, `delete`, `save`, `update_from` | Sync calls only work inside a sync handler or hook served by Hinoki. The sync writes take the same `returning=False` option as their async twins ([models](models.md#writes-that-do-not-read-the-row-back)) |
+| Model: create / get / update / delete | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from`, `abulk_create`, `abulk_update`, `abulk_delete` | `create`, `get`, `get_or_none`, `update`, `update_where`, `delete`, `save`, `update_from`, `bulk_create`, `bulk_update`, `bulk_delete` | Sync calls only work inside a sync handler or hook served by Hinoki. The sync writes take the same `returning=False` option as their async twins ([models](models.md#writes-that-do-not-read-the-row-back)) |
 | QuerySet: read | `await queryset`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
 | QuerySet: write | `aupdate`, `adelete` | `update`, `delete` | |
 | Relations | explicit loading (`select_related`, `prefetch_related`) | same | never lazy, so no hidden I/O in either style |
 | Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Use the model/queryset methods from sync code; raw SQL is an async-only escape hatch |
 | Transactions | `atomic=True` on the action | same | The runtime owns it for both styles |
-| Atomic blocks in application code | `async with db.atomic():`, `@db.atomic` | none | `@db.atomic` on a plain `def` raises `TypeError`; in a sync handler use `atomic=True` on the action ([transactions](transactions.md#atomic-blocks-and-functions-in-application-code)) |
+| Atomic blocks in application code | `async with db.atomic():`, `@db.atomic` on an `async def` | `with db.atomic():`, `@db.atomic` on a plain `def` | The sync forms run on a worker thread served by Hinoki and raise `RuntimeError` on the event loop; `atomic=True` on the action covers a whole handler ([transactions](transactions.md#atomic-blocks-and-functions-in-application-code)) |
 | `Schema`, `Request`, `Response`, parsers, renderers | plain code | same | No I/O |
 | Password hashing | `await hasher.hash/verify` | `hash_sync`, `verify_sync` | The async calls use a bounded thread pool |
 | Error handlers (`app.error_handler`) | `async def` | `def` | Run on the loop: no blocking calls inside |
