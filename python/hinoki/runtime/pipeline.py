@@ -19,6 +19,7 @@ import logging
 import secrets
 from collections.abc import Awaitable, Callable
 from http import HTTPStatus
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 from hinoki import context, core
@@ -655,7 +656,7 @@ class Pipeline:
             method=scope["method"],
             path=scope["path"],
             route=binding.route.path,
-            headers=headers,
+            headers=MappingProxyType(headers),
             query=scope.get("query_string", b"").decode("latin-1"),
             client=scope.get("client"),
             scheme=scope.get("scheme", ""),
