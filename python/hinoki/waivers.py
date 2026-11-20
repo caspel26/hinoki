@@ -18,6 +18,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import fnmatch
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -97,20 +98,29 @@ def parse_waiver(index: int, raw: dict[str, Any]) -> Waiver:
 
 
 def load_waivers(path: Path) -> list[Waiver]:
-    """The waivers in ``path``; an absent file means none."""
-    if not path.is_file():
+    """The waivers in ``path``; nothing at ``path`` means none. Anything else
+    that cannot be read as a waiver file is a ``WaiverError``."""
+    if not os.path.lexists(path):
         return []
+    if not path.is_file():
+        raise WaiverError(
+            f"{path} is not a regular file (a directory or a broken symbolic link)"
+        )
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise WaiverError(f"{path}: cannot read: {exc}") from exc
+    try:
+        return parse_waivers(tomllib.loads(text))
+    except (TypeError, ValueError) as exc:  # includes WaiverError and TOML errors
         raise WaiverError(f"{path}: {exc}") from exc
+
+
+def parse_waivers(data: dict[str, Any]) -> list[Waiver]:
     entries = data.get("waiver", [])
-    if not isinstance(entries, list):
-        raise WaiverError(f"{path}: [[waiver]] must be a list of tables")
-    try:
-        return [parse_waiver(i, dict(entry)) for i, entry in enumerate(entries, 1)]
-    except WaiverError as exc:
-        raise WaiverError(f"{path}: {exc}") from exc
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+        raise WaiverError("[[waiver]] must be a list of tables")
+    return [parse_waiver(i, entry) for i, entry in enumerate(entries, 1)]
 
 
 def waiver_path(path: str | Path | None = None) -> Path:
@@ -127,7 +137,7 @@ def read_waivers(path: str | Path | None = None) -> list[Waiver]:
     """The waivers ``hinoki check``, ``hinoki mcp`` and application startup
     apply (see ``waiver_path``). An absent default file means none; a file
     named explicitly must exist."""
-    if path is not None and not Path(path).is_file():
+    if path is not None and not os.path.lexists(path):
         raise WaiverError(f"waiver file {path} does not exist")
     return load_waivers(waiver_path(path))
 
