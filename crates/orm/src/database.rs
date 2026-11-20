@@ -845,12 +845,14 @@ impl Transaction {
                 let mut lease = mysql.lock().await;
                 lease.batch(statement).await?;
                 if self.mysql_migration_lock {
-                    lease
+                    // The transaction is already settled; a failed release only
+                    // costs the session, which the pool discards on drop.
+                    let _ = lease
                         .fetch(
                             "SELECT RELEASE_LOCK(CONCAT('h', LEFT(SHA2(DATABASE(), 256), 63))) AS released",
                             &[],
                         )
-                        .await?;
+                        .await;
                 }
                 self.mysql_migration_lock = false;
                 drop(lease);
