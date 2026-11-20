@@ -14,7 +14,9 @@
   <meta property="og:title" content="Admin · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta property="og:image:alt" content="Hinoki: A Python API framework that checks its own architecture.">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/reference/admin/">
   <script>
     (function () {
@@ -30,6 +32,7 @@
   <link rel="stylesheet" href="../../static/css/tokens.css">
   <link rel="stylesheet" href="../../static/css/base.css">
   <link rel="stylesheet" href="../../static/css/prose.css">
+  <link rel="stylesheet" href="../../static/css/icons.css">
   <link rel="stylesheet" href="../../static/css/benchmarks.css">
   
 </head>
@@ -58,37 +61,30 @@
       </div>
       <nav class="top__nav" aria-label="Sections">
         
-        
           
         
           
-            
-            <a class="top__link" href="../../getting-started/"><b>01</b>Get started</a>
+            <a class="top__link" href="../../getting-started/"><span class="i i--rocket" aria-hidden="true"></span>Get started</a>
           
         
           
-            
-            <a class="top__link" href="../../tutorial/"><b>02</b>Tutorial</a>
+            <a class="top__link" href="../../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span>Tutorial</a>
           
         
           
-            
-            <a class="top__link" href="../../guides/"><b>03</b>Guides</a>
+            <a class="top__link" href="../../guides/"><span class="i i--book-open" aria-hidden="true"></span>Guides</a>
           
         
           
-            
-            <a class="top__link" href="../../concepts/"><b>04</b>Concepts</a>
+            <a class="top__link" href="../../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span>Concepts</a>
           
         
           
-            
-            <a class="top__link is-active" href="../"><b>05</b>Reference</a>
+            <a class="top__link is-active" href="../" aria-current="true"><span class="i i--braces" aria-hidden="true"></span>Reference</a>
           
         
           
-            
-            <a class="top__link" href="../../status/"><b>06</b>Project</a>
+            <a class="top__link" href="../../status/"><span class="i i--folder-git-2" aria-hidden="true"></span>Project</a>
           
         
       </nav>
@@ -101,7 +97,7 @@
           <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
         </button>
-        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+        <a class="icon-btn top__repo" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
         </a>
       </div>
@@ -154,7 +150,7 @@
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
-        <span class="mobile-sheet__title">Navigation</span>
+        <span class="mobile-sheet__title mobile-sheet__brand"><svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../../static/hinoki-logo.svg#mark"/></svg><svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="Hinoki navigation"><use href="../../static/hinoki-logo.svg#wordmark"/></svg></span>
         <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         </button>
@@ -164,106 +160,100 @@
           <p class="side__label">Sections</p>
           <ul class="side__list">
             
-            
               
             
               
-                
-                <li><a class="side__link" href="../../getting-started/"><i>01</i><span>Get started</span></a></li>
+                <li><a class="side__link" href="../../getting-started/"><span class="i i--rocket" aria-hidden="true"></span><span>Get started</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+                <li><a class="side__link" href="../../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span><span>Tutorial</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../../guides/"><i>03</i><span>Guides</span></a></li>
+                <li><a class="side__link" href="../../guides/"><span class="i i--book-open" aria-hidden="true"></span><span>Guides</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../../concepts/"><i>04</i><span>Concepts</span></a></li>
+                <li><a class="side__link" href="../../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span><span>Concepts</span></a></li>
               
             
               
-                
-                <li><a class="side__link is-active" href="../"><i>05</i><span>Reference</span></a></li>
+                <li><a class="side__link is-active" href="../"><span class="i i--braces" aria-hidden="true"></span><span>Reference</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../../status/"><i>06</i><span>Project</span></a></li>
+                <li><a class="side__link" href="../../status/"><span class="i i--folder-git-2" aria-hidden="true"></span><span>Project</span></a></li>
               
             
+            <li class="side__repo"><a class="side__link" href="https://github.com/caspel26/hinoki"><svg class="side__gh" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg><span>GitHub</span></a></li>
           </ul>
         </nav>
         
-          <p class="side__sec"><b>05</b>Reference</p>
+          <p class="side__sec"><span class="i i--braces" aria-hidden="true"></span>Reference</p>
           <p class="side__label">In this section</p>
           
           
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../"><i>5.1</i><span>Overview</span></a></li>
+                <li><a class="side__link" href="../"><span>Overview</span></a></li>
               
             
               
-                <li><a class="side__link" href="../web/"><i>5.2</i><span>Core API</span></a></li>
+                <li><a class="side__link" href="../web/"><span>Core API</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>5.3</i><span>Generated CRUD</span></a></li>
+                <li><a class="side__link" href="../crud/"><span>Generated CRUD</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>5.4</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../schemas/"><span>Schemas</span></a></li>
               
             
               
-                <li><a class="side__link" href="../orm/"><i>5.5</i><span>Models and queries</span></a></li>
+                <li><a class="side__link" href="../orm/"><span>Models and queries</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>5.6</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../codecs/"><span>Parsers and renderers</span></a></li>
               
             
               
-                <li><a class="side__link" href="../auth/"><i>5.7</i><span>Auth and crypto</span></a></li>
+                <li><a class="side__link" href="../auth/"><span>Auth and crypto</span></a></li>
               
             
               
-                <li><a class="side__link" href="../database/"><i>5.8</i><span>Database</span></a></li>
+                <li><a class="side__link" href="../database/"><span>Database</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>5.9</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>5.10</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../runtime/"><i>5.11</i><span>Modules and runtime</span></a></li>
+                <li><a class="side__link" href="../runtime/"><span>Modules and runtime</span></a></li>
               
             
               
-                <li><a class="side__link" href="../tools/"><i>5.12</i><span>AI tools</span></a></li>
+                <li><a class="side__link" href="../tools/"><span>AI tools</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>5.13</i><span>Admin</span></a></li>
+                <li><a class="side__link is-active" href="./" aria-current="page"><span>Admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>5.14</i><span>Testing</span></a></li>
+                <li><a class="side__link" href="../testing/"><span>Testing</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>5.15</i><span>Utilities</span></a></li>
+                <li><a class="side__link" href="../utilities/"><span>Utilities</span></a></li>
               
             
             </ul>
@@ -273,9 +263,19 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '5.13'">
-        <p class="kicker" data-search-exclude>5.13 · Reference</p>
-        <h1 id="admin-api">Admin API<a class="headerlink" href="#admin-api" title="Permanent link">&para;</a></h1>
+      <article class="prose">
+        <header class="page-head">
+          <p class="kicker" data-search-exclude><span class="i-tile"><span class="i i--braces i--m" aria-hidden="true"></span></span><span>Reference</span></p>
+          <h1 id="admin-api">Admin API<a class="headerlink" href="#admin-api" title="Permanent link">&para;</a></h1>
+          
+          <p class="page-meta" data-search-exclude>
+            
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:32:45 UTC">November 18, 2026</span></span>
+            <span>1 min read</span>
+          </p>
+          
+        </header>
+        
 
 
 <div class="doc doc-object doc-class">
@@ -326,7 +326,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.users" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">users</span> <span class="o">=</span> <span class="n">users</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">users</span> <span class="o">=</span> <span class="n">users</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -348,7 +348,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.access" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">=</span> <span class="n">access</span> <span class="ow">or</span> <span class="n">Access</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">=</span> <span class="n">access</span> <span class="ow">or</span> <span class="n">Access</span><span class="p">(</span>
     <span class="n">auth</span><span class="o">=</span><span class="n">AdminSessionAuth</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span>
     <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">BASE_PERMISSION</span><span class="p">],</span>
 <span class="p">)</span>
@@ -373,7 +373,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.secure_cookies" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">secure_cookies</span> <span class="o">=</span> <span class="n">secure_cookies</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">secure_cookies</span> <span class="o">=</span> <span class="n">secure_cookies</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -395,7 +395,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin._csrf" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">_csrf</span> <span class="o">=</span> <span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_csrf</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">Csrf</span><span class="p">(</span><span class="n">secret</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cookie_name</span><span class="p">(</span><span class="n">CSRF_COOKIE</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">secret</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
     <span class="k">else</span> <span class="kc">None</span>
@@ -421,7 +421,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin._prefix" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">_prefix</span> <span class="o">=</span> <span class="n">prefix</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_prefix</span> <span class="o">=</span> <span class="n">prefix</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -443,7 +443,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.per_page" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">per_page</span> <span class="o">=</span> <span class="n">per_page</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">per_page</span> <span class="o">=</span> <span class="n">per_page</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -465,7 +465,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.show_count" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">show_count</span> <span class="o">=</span> <span class="n">show_count</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">show_count</span> <span class="o">=</span> <span class="n">show_count</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -487,7 +487,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin._served" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">_served</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_served</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -509,7 +509,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.mount" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">mount</span> <span class="o">=</span> <span class="s1">''</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">mount</span> <span class="o">=</span> <span class="s1">''</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -531,7 +531,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.site" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">site</span> <span class="o">=</span> <span class="n">site</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">site</span> <span class="o">=</span> <span class="n">site</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -553,7 +553,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.tagline" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">tagline</span> <span class="o">=</span> <span class="n">tagline</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">tagline</span> <span class="o">=</span> <span class="n">tagline</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -575,7 +575,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.workspace" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">workspace</span> <span class="o">=</span> <span class="n">workspace</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">workspace</span> <span class="o">=</span> <span class="n">workspace</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -597,7 +597,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.links" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">links</span> <span class="o">=</span> <span class="n">links</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">links</span> <span class="o">=</span> <span class="n">links</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -619,7 +619,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.logout_url" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">logout_url</span> <span class="o">=</span> <span class="n">logout_url</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">logout_url</span> <span class="o">=</span> <span class="n">logout_url</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -641,7 +641,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.role" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">role</span> <span class="o">=</span> <span class="n">role</span> <span class="ow">or</span> <span class="n">default_role</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">role</span> <span class="o">=</span> <span class="n">role</span> <span class="ow">or</span> <span class="n">default_role</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -663,7 +663,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.activity" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">activity</span> <span class="o">=</span> <span class="n">activity</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">activity</span> <span class="o">=</span> <span class="n">activity</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -685,7 +685,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.dashboard" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">dashboard</span> <span class="o">=</span> <span class="n">dashboard</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">dashboard</span> <span class="o">=</span> <span class="n">dashboard</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -707,7 +707,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.timezone" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">timezone</span><span class="p">:</span> <span class="n">tzinfo</span> <span class="o">=</span> <span class="n">UTC</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">timezone</span><span class="p">:</span> <span class="n">tzinfo</span> <span class="o">=</span> <span class="n">UTC</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -729,7 +729,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin._bound_timezone" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">_bound_timezone</span><span class="p">:</span> <span class="n">tzinfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_bound_timezone</span><span class="p">:</span> <span class="n">tzinfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -751,7 +751,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.templates" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">templates</span> <span class="o">=</span> <span class="n">Templates</span><span class="p">(</span><span class="n">templates</span><span class="p">,</span> <span class="n">theme</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">templates</span> <span class="o">=</span> <span class="n">Templates</span><span class="p">(</span><span class="n">templates</span><span class="p">,</span> <span class="n">theme</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -773,7 +773,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.theme" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">theme</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">templates</span><span class="o">.</span><span class="n">theme</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">theme</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">templates</span><span class="o">.</span><span class="n">theme</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -795,7 +795,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.parts" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">parts</span> <span class="o">=</span> <span class="n">Components</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">templates</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">parts</span> <span class="o">=</span> <span class="n">Components</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">templates</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -817,7 +817,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.models" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -839,7 +839,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.manage_users" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">manage_users</span> <span class="o">=</span> <span class="n">manage_users</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">manage_users</span> <span class="o">=</span> <span class="n">manage_users</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -861,7 +861,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.digests" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">digests</span> <span class="o">=</span> <span class="p">{</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">digests</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">"admin.css"</span><span class="p">:</span> <span class="n">digest</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">templates</span><span class="o">.</span><span class="n">stylesheet</span><span class="p">()),</span>
     <span class="s2">"admin.js"</span><span class="p">:</span> <span class="n">digest</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">templates</span><span class="o">.</span><span class="n">script</span><span class="p">()),</span>
 <span class="p">}</span>
@@ -886,7 +886,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.session_cookie" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">session_cookie</span><span class="p">:</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">session_cookie</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -908,7 +908,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.csrf" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">csrf</span><span class="p">:</span> <span class="n">Csrf</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">csrf</span><span class="p">:</span> <span class="n">Csrf</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -930,7 +930,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.accounts" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">accounts</span><span class="p">:</span> <span class="n">AdminAccounts</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">accounts</span><span class="p">:</span> <span class="n">AdminAccounts</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -952,7 +952,7 @@
   </span>
 
 <a href="#hinoki.admin.Admin.prefix" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -977,7 +977,7 @@ mounted and names no prefix, <code>/admin</code> when it is included as it is.</
   </span>
 
 <a href="#hinoki.admin.Admin.base" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">base</span><span class="p">:</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">base</span><span class="p">:</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -999,7 +999,7 @@ mounted and names no prefix, <code>/admin</code> when it is included as it is.</
 
 
 <a href="#hinoki.admin.Admin.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">users</span><span class="p">:</span> <span class="n">AdminAccounts</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1040,7 +1040,7 @@ mounted and names no prefix, <code>/admin</code> when it is included as it is.</
 
 
 <a href="#hinoki.admin.Admin.cookie_name" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">cookie_name</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">cookie_name</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1062,7 +1062,7 @@ over plain HTTP, so a sibling site cannot plant it.</p>
 
 
 <a href="#hinoki.admin.Admin.bind_settings" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">bind_settings</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">AdminSettings</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">bind_settings</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">AdminSettings</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1083,7 +1083,7 @@ its own) and the session and password rules of its own users.</p>
 
 
 <a href="#hinoki.admin.Admin.bind_timezone" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">bind_timezone</span><span class="p">(</span><span class="n">timezone</span><span class="p">:</span> <span class="n">tzinfo</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">bind_timezone</span><span class="p">(</span><span class="n">timezone</span><span class="p">:</span> <span class="n">tzinfo</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1104,15 +1104,15 @@ its own) and the session and password rules of its own users.</p>
 
 <a href="#hinoki.admin.Admin.register" class="headerlink" title="Permanent link">&para;</a></h3>
           <div class="doc-overloads">
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">register</span><span class="p">(</span><span class="n">target</span><span class="p">:</span> <span class="n">A</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">A</span>
-</code></pre></div><div class="doc-signature highlight"><pre><span></span><code><span class="nf">register</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">register</span><span class="p">(</span><span class="n">target</span><span class="p">:</span> <span class="n">A</span><span class="p">,</span> <span class="o">/</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">A</span>
+</code></pre></div><div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">register</span><span class="p">(</span>
     <span class="n">target</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span>
     <span class="n">admin</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">M</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
 </code></pre></div>          </div>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">register</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">register</span><span class="p">(</span>
     <span class="n">target</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">admin</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -1123,7 +1123,7 @@ its own) and the session and password rules of its own users.</p>
     <div class="doc doc-contents ">
 
         <p>Add a model to the admin and return <code>target</code>, so it also decorates.</p>
-<div class="highlight"><pre><span></span><code>site = Admin(access=editors, secret=secret)
+<div class="language-text highlight"><pre><span></span><code>site = Admin(access=editors, secret=secret)
 
 @site.register
 class PostAdmin(ModelAdmin, model=Post): ...   # a customised admin
@@ -1145,7 +1145,7 @@ site.register(User)                            # the default admin
 
 
 <a href="#hinoki.admin.Admin.refuse_own_tables" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">refuse_own_tables</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">refuse_own_tables</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="n">admin</span><span class="p">:</span> <span class="nb">object</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
@@ -1169,7 +1169,7 @@ who is a superuser.</p>
 
 
 <a href="#hinoki.admin.Admin.admin" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">admin</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">admin</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">A</span><span class="p">],</span> <span class="n">A</span><span class="p">]</span>
 </code></pre></div>
@@ -1177,7 +1177,7 @@ who is a superuser.</p>
     <div class="doc doc-contents ">
 
         <p>Decorate a <code>ModelAdmin</code> class that does not name its model:</p>
-<div class="highlight"><pre><span></span><code>@site.admin(Post)
+<div class="language-text highlight"><pre><span></span><code>@site.admin(Post)
 class PostAdmin(ModelAdmin):
     columns = ("title", "published")
 </code></pre></div>
@@ -1197,7 +1197,7 @@ is a <code>RegistrationError</code>.</p>
 
 
 <a href="#hinoki.admin.Admin.attach" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">attach</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">attach</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span>
     <span class="n">admin</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">M</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
@@ -1219,7 +1219,7 @@ is a <code>RegistrationError</code>.</p>
 
 
 <a href="#hinoki.admin.Admin.holds_no_connection" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">holds_no_connection</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">holds_no_connection</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1240,7 +1240,7 @@ connection waits on Argon2; their writes open their own, short one.</p>
 
 
 <a href="#hinoki.admin.Admin.api" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">api</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">API</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">api</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">API</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1260,7 +1260,7 @@ connection waits on Argon2; their writes open their own, short one.</p>
 
 
 <a href="#hinoki.admin.Admin.add_user_admin" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">add_user_admin</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">add_user_admin</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1280,7 +1280,7 @@ connection waits on Argon2; their writes open their own, short one.</p>
 
 
 <a href="#hinoki.admin.Admin.check_dashboard" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check_dashboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check_dashboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1298,7 +1298,7 @@ connection waits on Argon2; their writes open their own, short one.</p>
 
 
 <a href="#hinoki.admin.Admin.route_options" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">route_options</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">write</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Options</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">route_options</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">write</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Options</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1319,7 +1319,7 @@ the views that hash a password take the sign-in rate limit.</p>
 
 
 <a href="#hinoki.admin.Admin.bind_mount" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">bind_mount</span><span class="p">(</span><span class="n">mount</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">bind_mount</span><span class="p">(</span><span class="n">mount</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1400,7 +1400,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.model" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1422,7 +1422,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.slug" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1444,7 +1444,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.label" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1466,7 +1466,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.icon" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">icon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'file-text'</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">icon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'file-text'</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1488,7 +1488,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.columns" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1510,7 +1510,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.search" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">search</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">search</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1532,7 +1532,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.ordering" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">ordering</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">ordering</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1554,7 +1554,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.exclude" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">exclude</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">exclude</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1576,7 +1576,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.readonly" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">readonly</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">readonly</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1598,7 +1598,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.assign" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">assign</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">assign</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1620,7 +1620,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.badges" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">badges</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">badges</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span>
     <span class="nb">str</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Badge</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>
 <span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
 </code></pre></div>
@@ -1644,7 +1644,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.tabs" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">tabs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Tab</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">tabs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Tab</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1666,7 +1666,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.fieldsets" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">fieldsets</span><span class="p">:</span> <span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">fieldsets</span><span class="p">:</span> <span class="p">(</span>
     <span class="nb">tuple</span><span class="p">[</span><span class="n">Fieldset</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>
 <span class="p">)</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
@@ -1690,7 +1690,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.modified_field" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">modified_field</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">modified_field</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1712,7 +1712,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.modified_label" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">modified_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'Last modified'</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">modified_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'Last modified'</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1734,7 +1734,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.per_page" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">per_page</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">per_page</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1756,7 +1756,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.show_count" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">show_count</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">show_count</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1778,7 +1778,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.bulk_delete" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">bulk_delete</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">bulk_delete</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1800,7 +1800,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.bulk_actions" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">bulk_actions</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BulkAction</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">bulk_actions</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BulkAction</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1822,7 +1822,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.extra_fields" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">extra_fields</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Extra</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">extra_fields</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Extra</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1845,7 +1845,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.site" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">site</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">site</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1867,7 +1867,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.tab_list" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">tab_list</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Tab</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">tab_list</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Tab</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1889,7 +1889,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.fieldset_list" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">fieldset_list</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Fieldset</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">fieldset_list</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Fieldset</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1909,7 +1909,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.__init_subclass__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init_subclass__</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init_subclass__</span><span class="p">(</span>
     <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
@@ -1929,7 +1929,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1947,7 +1947,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.extras" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">extras</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Extra</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">extras</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Extra</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1971,7 +1971,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.extra_initial" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">extra_initial</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">extra_initial</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1991,7 +1991,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.queryset" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">queryset</span><span class="p">(</span><span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">queryset</span><span class="p">(</span><span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2009,7 +2009,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.can" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">can</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">can</span><span class="p">(</span>
     <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
     <span class="n">action</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">row</span><span class="p">:</span> <span class="n">M</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2031,7 +2031,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.title_of" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">title_of</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">title_of</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2051,7 +2051,7 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.display" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">display</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">display</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2076,7 +2076,7 @@ richer cells).</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.stats" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">stats</span><span class="p">(</span><span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Stat</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">stats</span><span class="p">(</span><span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Stat</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2098,7 +2098,7 @@ richer cells).</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.check" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">(</span>
     <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
     <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
     <span class="n">row</span><span class="p">:</span> <span class="n">M</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
@@ -2126,7 +2126,7 @@ richer cells).</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.save" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">save</span><span class="p">(</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">save</span><span class="p">(</span>
     <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
     <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
     <span class="n">row</span><span class="p">:</span> <span class="n">M</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2152,7 +2152,7 @@ richer cells).</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.remove" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">remove</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">remove</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2174,7 +2174,7 @@ richer cells).</p>
   </span>
 
 <a href="#hinoki.admin.ModelAdmin.ensure_visible" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ensure_visible</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">ensure_visible</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="n">M</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2192,7 +2192,7 @@ richer cells).</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.plural" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">plural</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">plural</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2210,7 +2210,7 @@ richer cells).</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.shown_columns" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">shown_columns</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">shown_columns</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2231,7 +2231,7 @@ richer cells).</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.default_search" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">default_search</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">default_search</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2252,7 +2252,7 @@ look in, without ever reaching a column the list does not show.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.skipped" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">skipped</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">skipped</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2270,7 +2270,7 @@ look in, without ever reaching a column the list does not show.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.normalize" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">normalize</span><span class="p">(</span><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">normalize</span><span class="p">(</span><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2291,7 +2291,7 @@ look in, without ever reaching a column the list does not show.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin.validate_config" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">validate_config</span><span class="p">(</span><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">validate_config</span><span class="p">(</span><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2309,7 +2309,7 @@ look in, without ever reaching a column the list does not show.</p>
 
 
 <a href="#hinoki.admin.ModelAdmin._validate_bulk_actions" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">_validate_bulk_actions</span><span class="p">(</span><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_validate_bulk_actions</span><span class="p">(</span><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2425,7 +2425,7 @@ look in, without ever reaching a column the list does not show.</p>
 
 
 <a href="#hinoki.admin.Theme.check" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2445,7 +2445,7 @@ look in, without ever reaching a column the list does not show.</p>
 
 
 <a href="#hinoki.admin.Theme.tokens_css" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">tokens_css</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">tokens_css</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2916,7 +2916,7 @@ sparkline; without data there is no chart.</p>
   </span>
 
 <a href="#hinoki.admin.THEMES" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">THEMES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Theme</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">THEMES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Theme</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
     <span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="p">(</span><span class="n">STUDIO</span><span class="p">,</span> <span class="n">CONSOLE</span><span class="p">,</span> <span class="n">PAPER</span><span class="p">,</span> <span class="n">BENTO</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2954,10 +2954,7 @@ sparkline; without data there is no chart.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>5.13</dd></div>
-          
           <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 12:32:45 UTC">November 18, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>1 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
@@ -2967,8 +2964,47 @@ sparkline; without data there is no chart.</p>
 
   <footer class="foot">
     <div class="foot__inner">
-      <span>hinoki <span data-docs-version-footer>v0.0.1</span> · pre-alpha · MIT · © 2026 caspel26</span>
-      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+      <div class="foot__about">
+        <a class="foot__brand" href="../.." aria-label="Hinoki home">
+          <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../../static/hinoki-logo.svg#mark"/></svg>
+          <svg class="brand__word" viewBox="0 0 655 184" aria-hidden="true"><use href="../../static/hinoki-logo.svg#wordmark"/></svg>
+        </a>
+        <p class="foot__tagline">A Python API framework that checks its own architecture.</p>
+      </div>
+      <nav aria-labelledby="foot-docs">
+        <p class="foot__title" id="foot-docs">Docs</p>
+        <ul>
+          
+            
+          
+            <li><a href="../../getting-started/">Get started</a></li>
+          
+            
+          
+            <li><a href="../../guides/">Guides</a></li>
+          
+            
+          
+            <li><a href="../">Reference</a></li>
+          
+            
+          
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-project">
+        <p class="foot__title" id="foot-project">Project</p>
+        <ul>
+          <li><a href="https://github.com/caspel26/hinoki">GitHub</a></li>
+          <li><a href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/caspel26/hinoki/blob/main/LICENSE">Licence (MIT)</a></li>
+          <li><a href="../../static/icons/lucide/LICENSE.txt">Lucide icons (ISC)</a></li>
+        </ul>
+      </nav>
+      <div class="foot__bottom">
+        <span>hinoki <span data-docs-version-footer>v0.0.1</span></span>
+        <span class="chip">pre-alpha</span>
+        <span>© 2026 caspel26</span>
+      </div>
     </div>
   </footer>
 

@@ -14,7 +14,9 @@
   <meta property="og:title" content="Class-based APIs · Hinoki">
   <meta property="og:description" content="A Python API framework that checks its own architecture.">
   <meta property="og:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
+  <meta property="og:image:alt" content="Hinoki: A Python API framework that checks its own architecture.">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://caspel26.github.io/hinoki/devstatic/og.png">
   <link rel="canonical" href="https://caspel26.github.io/hinoki/dev/class-endpoints/">
   <script>
     (function () {
@@ -30,6 +32,7 @@
   <link rel="stylesheet" href="../static/css/tokens.css">
   <link rel="stylesheet" href="../static/css/base.css">
   <link rel="stylesheet" href="../static/css/prose.css">
+  <link rel="stylesheet" href="../static/css/icons.css">
   <link rel="stylesheet" href="../static/css/benchmarks.css">
   
 </head>
@@ -58,37 +61,30 @@
       </div>
       <nav class="top__nav" aria-label="Sections">
         
-        
           
         
           
-            
-            <a class="top__link" href="../getting-started/"><b>01</b>Get started</a>
+            <a class="top__link" href="../getting-started/"><span class="i i--rocket" aria-hidden="true"></span>Get started</a>
           
         
           
-            
-            <a class="top__link" href="../tutorial/"><b>02</b>Tutorial</a>
+            <a class="top__link" href="../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span>Tutorial</a>
           
         
           
-            
-            <a class="top__link is-active" href="../guides/"><b>03</b>Guides</a>
+            <a class="top__link is-active" href="../guides/" aria-current="true"><span class="i i--book-open" aria-hidden="true"></span>Guides</a>
           
         
           
-            
-            <a class="top__link" href="../concepts/"><b>04</b>Concepts</a>
+            <a class="top__link" href="../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span>Concepts</a>
           
         
           
-            
-            <a class="top__link" href="../reference/"><b>05</b>Reference</a>
+            <a class="top__link" href="../reference/"><span class="i i--braces" aria-hidden="true"></span>Reference</a>
           
         
           
-            
-            <a class="top__link" href="../status/"><b>06</b>Project</a>
+            <a class="top__link" href="../status/"><span class="i i--folder-git-2" aria-hidden="true"></span>Project</a>
           
         
       </nav>
@@ -101,7 +97,7 @@
           <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
         </button>
-        <a class="icon-btn" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+        <a class="icon-btn top__repo" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
         </a>
       </div>
@@ -154,7 +150,7 @@
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
-        <span class="mobile-sheet__title">Navigation</span>
+        <span class="mobile-sheet__title mobile-sheet__brand"><svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg><svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="Hinoki navigation"><use href="../static/hinoki-logo.svg#wordmark"/></svg></span>
         <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         </button>
@@ -164,106 +160,100 @@
           <p class="side__label">Sections</p>
           <ul class="side__list">
             
-            
               
             
               
-                
-                <li><a class="side__link" href="../getting-started/"><i>01</i><span>Get started</span></a></li>
+                <li><a class="side__link" href="../getting-started/"><span class="i i--rocket" aria-hidden="true"></span><span>Get started</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../tutorial/"><i>02</i><span>Tutorial</span></a></li>
+                <li><a class="side__link" href="../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span><span>Tutorial</span></a></li>
               
             
               
-                
-                <li><a class="side__link is-active" href="../guides/"><i>03</i><span>Guides</span></a></li>
+                <li><a class="side__link is-active" href="../guides/"><span class="i i--book-open" aria-hidden="true"></span><span>Guides</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../concepts/"><i>04</i><span>Concepts</span></a></li>
+                <li><a class="side__link" href="../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span><span>Concepts</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../reference/"><i>05</i><span>Reference</span></a></li>
+                <li><a class="side__link" href="../reference/"><span class="i i--braces" aria-hidden="true"></span><span>Reference</span></a></li>
               
             
               
-                
-                <li><a class="side__link" href="../status/"><i>06</i><span>Project</span></a></li>
+                <li><a class="side__link" href="../status/"><span class="i i--folder-git-2" aria-hidden="true"></span><span>Project</span></a></li>
               
             
+            <li class="side__repo"><a class="side__link" href="https://github.com/caspel26/hinoki"><svg class="side__gh" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg><span>GitHub</span></a></li>
           </ul>
         </nav>
         
-          <p class="side__sec"><b>03</b>Guides</p>
+          <p class="side__sec"><span class="i i--book-open" aria-hidden="true"></span>Guides</p>
           <p class="side__label">In this section</p>
           
           
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../guides/"><i>3.1</i><span>Overview</span></a></li>
+                <li><a class="side__link" href="../guides/"><span>Overview</span></a></li>
               
             
               
-                <li class="side__group"><span>Data</span>
+                <li class="side__group"><span><span class="i i--database" aria-hidden="true"></span>Data</span>
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../databases/"><i>3.2</i><span>Configure a database</span></a></li>
+                <li><a class="side__link" href="../databases/"><span>Configure a database</span></a></li>
               
             
               
-                <li><a class="side__link" href="../models/"><i>3.3</i><span>Define models</span></a></li>
+                <li><a class="side__link" href="../models/"><span>Define models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-options/"><i>3.4</i><span>Model options</span></a></li>
+                <li><a class="side__link" href="../model-options/"><span>Model options</span></a></li>
               
             
               
-                <li><a class="side__link" href="../relations/"><i>3.5</i><span>Relations</span></a></li>
+                <li><a class="side__link" href="../relations/"><span>Relations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../queries/"><i>3.6</i><span>Query and write rows</span></a></li>
+                <li><a class="side__link" href="../queries/"><span>Query and write rows</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li>
+                <li><a class="side__link" href="../model-hooks/"><span>Lifecycle hooks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../migrations/"><i>3.8</i><span>Migrations</span></a></li>
+                <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schemas/"><i>3.9</i><span>Schemas</span></a></li>
+                <li><a class="side__link" href="../schemas/"><span>Schemas</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schema-types/"><i>3.10</i><span>Scalar field types</span></a></li>
+                <li><a class="side__link" href="../schema-types/"><span>Scalar field types</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schema-collections/"><i>3.11</i><span>Collections and unions</span></a></li>
+                <li><a class="side__link" href="../schema-collections/"><span>Collections and unions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../schema-validation/"><i>3.12</i><span>Validate input</span></a></li>
+                <li><a class="side__link" href="../schema-validation/"><span>Validate input</span></a></li>
               
             
               
-                <li><a class="side__link" href="../model-schemas/"><i>3.13</i><span>Schemas from models</span></a></li>
+                <li><a class="side__link" href="../model-schemas/"><span>Schemas from models</span></a></li>
               
             
               
-                <li><a class="side__link" href="../utilities/"><i>3.14</i><span>Time and utilities</span></a></li>
+                <li><a class="side__link" href="../utilities/"><span>Time and utilities</span></a></li>
               
             
             </ul>
@@ -271,43 +261,43 @@
               
             
               
-                <li class="side__group"><span>Endpoints</span>
+                <li class="side__group"><span><span class="i i--route" aria-hidden="true"></span>Endpoints</span>
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../function-endpoints/"><i>3.15</i><span>Function-based APIs</span></a></li>
+                <li><a class="side__link" href="../function-endpoints/"><span>Function-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./"><i>3.16</i><span>Class-based APIs</span></a></li>
+                <li><a class="side__link is-active" href="./" aria-current="page"><span>Class-based APIs</span></a></li>
               
             
               
-                <li><a class="side__link" href="../routes/"><i>3.17</i><span>Register routes</span></a></li>
+                <li><a class="side__link" href="../routes/"><span>Register routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../endpoints/"><i>3.18</i><span>Requests and responses</span></a></li>
+                <li><a class="side__link" href="../endpoints/"><span>Requests and responses</span></a></li>
               
             
               
-                <li><a class="side__link" href="../crud/"><i>3.19</i><span>Generate CRUD routes</span></a></li>
+                <li><a class="side__link" href="../crud/"><span>Generate CRUD routes</span></a></li>
               
             
               
-                <li><a class="side__link" href="../errors/"><i>3.20</i><span>Errors</span></a></li>
+                <li><a class="side__link" href="../errors/"><span>Errors</span></a></li>
               
             
               
-                <li><a class="side__link" href="../pagination/"><i>3.21</i><span>Pagination</span></a></li>
+                <li><a class="side__link" href="../pagination/"><span>Pagination</span></a></li>
               
             
               
-                <li><a class="side__link" href="../codecs/"><i>3.22</i><span>Parsers and renderers</span></a></li>
+                <li><a class="side__link" href="../codecs/"><span>Parsers and renderers</span></a></li>
               
             
               
-                <li><a class="side__link" href="../openapi/"><i>3.23</i><span>OpenAPI document</span></a></li>
+                <li><a class="side__link" href="../openapi/"><span>OpenAPI document</span></a></li>
               
             
             </ul>
@@ -315,19 +305,19 @@
               
             
               
-                <li class="side__group"><span>Security and checks</span>
+                <li class="side__group"><span><span class="i i--shield-check" aria-hidden="true"></span>Security and checks</span>
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../authentication/"><i>3.24</i><span>Authentication and access</span></a></li>
+                <li><a class="side__link" href="../authentication/"><span>Authentication and access</span></a></li>
               
             
               
-                <li><a class="side__link" href="../web-security/"><i>3.25</i><span>Hosts, CORS and HTTPS</span></a></li>
+                <li><a class="side__link" href="../web-security/"><span>Hosts, CORS and HTTPS</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rules/"><i>3.26</i><span>Rules</span></a></li>
+                <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
             </ul>
@@ -335,51 +325,51 @@
               
             
               
-                <li class="side__group"><span>Runtime</span>
+                <li class="side__group"><span><span class="i i--server" aria-hidden="true"></span>Runtime</span>
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../modules/"><i>3.27</i><span>Application modules</span></a></li>
+                <li><a class="side__link" href="../modules/"><span>Application modules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../transactions/"><i>3.28</i><span>Transactions</span></a></li>
+                <li><a class="side__link" href="../transactions/"><span>Transactions</span></a></li>
               
             
               
-                <li><a class="side__link" href="../settings/"><i>3.29</i><span>Settings</span></a></li>
+                <li><a class="side__link" href="../settings/"><span>Settings</span></a></li>
               
             
               
-                <li><a class="side__link" href="../serving/"><i>3.30</i><span>Serve an application</span></a></li>
+                <li><a class="side__link" href="../serving/"><span>Serve an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../kiso/"><i>3.31</i><span>Kiso server</span></a></li>
+                <li><a class="side__link" href="../kiso/"><span>Kiso server</span></a></li>
               
             
               
-                <li><a class="side__link" href="../testing/"><i>3.32</i><span>Test an application</span></a></li>
+                <li><a class="side__link" href="../testing/"><span>Test an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../cli/"><i>3.33</i><span>Command line</span></a></li>
+                <li><a class="side__link" href="../cli/"><span>Command line</span></a></li>
               
             
               
-                <li><a class="side__link" href="../new-project/"><i>3.34</i><span>Create a project</span></a></li>
+                <li><a class="side__link" href="../new-project/"><span>Create a project</span></a></li>
               
             
               
-                <li><a class="side__link" href="../inspect/"><i>3.35</i><span>Inspect an application</span></a></li>
+                <li><a class="side__link" href="../inspect/"><span>Inspect an application</span></a></li>
               
             
               
-                <li><a class="side__link" href="../shell/"><i>3.36</i><span>Interactive shell</span></a></li>
+                <li><a class="side__link" href="../shell/"><span>Interactive shell</span></a></li>
               
             
               
-                <li><a class="side__link" href="../typing/"><i>3.37</i><span>Typing</span></a></li>
+                <li><a class="side__link" href="../typing/"><span>Typing</span></a></li>
               
             
             </ul>
@@ -387,27 +377,27 @@
               
             
               
-                <li class="side__group"><span>Integrations</span>
+                <li class="side__group"><span><span class="i i--plug" aria-hidden="true"></span>Integrations</span>
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../admin/"><i>3.38</i><span>Add an admin</span></a></li>
+                <li><a class="side__link" href="../admin/"><span>Add an admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../admin-customize/"><i>3.39</i><span>Customize the admin</span></a></li>
+                <li><a class="side__link" href="../admin-customize/"><span>Customize the admin</span></a></li>
               
             
               
-                <li><a class="side__link" href="../app-mcp/"><i>3.40</i><span>Expose actions over MCP</span></a></li>
+                <li><a class="side__link" href="../app-mcp/"><span>Expose actions over MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../dev-mcp/"><i>3.41</i><span>Development MCP</span></a></li>
+                <li><a class="side__link" href="../dev-mcp/"><span>Development MCP</span></a></li>
               
             
               
-                <li><a class="side__link" href="../ai-workflow/"><i>3.42</i><span>Build with a coding agent</span></a></li>
+                <li><a class="side__link" href="../ai-workflow/"><span>Build with a coding agent</span></a></li>
               
             
             </ul>
@@ -415,19 +405,19 @@
               
             
               
-                <li class="side__group"><span>Operating</span>
+                <li class="side__group"><span><span class="i i--gauge" aria-hidden="true"></span>Operating</span>
             <ul class="side__list">
             
               
-                <li><a class="side__link" href="../sync-async/"><i>3.43</i><span>Sync and async code</span></a></li>
+                <li><a class="side__link" href="../sync-async/"><span>Sync and async code</span></a></li>
               
             
               
-                <li><a class="side__link" href="../benchmarks/"><i>3.44</i><span>Benchmarks</span></a></li>
+                <li><a class="side__link" href="../benchmarks/"><span>Benchmarks</span></a></li>
               
             
               
-                <li><a class="side__link" href="../rust-crud-orientation/"><i>3.45</i><span>Generated CRUD on the native path</span></a></li>
+                <li><a class="side__link" href="../rust-crud-orientation/"><span>Generated CRUD on the native path</span></a></li>
               
             
             </ul>
@@ -441,9 +431,19 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '3.16'">
-        <p class="kicker" data-search-exclude>3.16 · Guides</p>
-        <h1 id="class-based-apis">Class-based APIs<a class="headerlink" href="#class-based-apis" title="Permanent link">&para;</a></h1>
+      <article class="prose">
+        <header class="page-head">
+          <p class="kicker" data-search-exclude><span class="i-tile"><span class="i i--route i--m" aria-hidden="true"></span></span><span>Guides<span class="kicker__sep" aria-hidden="true">/</span>Endpoints</span></p>
+          <h1 id="class-based-apis">Class-based APIs<a class="headerlink" href="#class-based-apis" title="Permanent link">&para;</a></h1>
+          
+          <p class="page-meta" data-search-exclude>
+            <span class="chip chip--implemented">implemented</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></span>
+            <span>5 min read</span>
+          </p>
+          
+        </header>
+        
 <p>A class-based API is a subclass of <code>API</code> whose methods carry the same <code>@http.*</code> decorators as functions. A class adds a path prefix, inheritance and, with <code>@crud(...)</code>, generated routes with hooks. For ordinary endpoints prefer <a href="../function-endpoints/">functions and a <code>RouteGroup</code></a>, which also states access, transactions and errors once.</p>
 <h2 id="when-to-use-it">When to use it<a class="headerlink" href="#when-to-use-it" title="Permanent link">&para;</a></h2>
 <table>
@@ -470,7 +470,7 @@
 </table>
 <p>A class that only puts three functions under a prefix gains nothing over a <code>RouteGroup</code>, and each of its actions must repeat <code>access=</code>, <code>atomic=</code> and <code>errors=</code>.</p>
 <h2 id="a-plain-class">A plain class<a class="headerlink" href="#a-plain-class" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/reports.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/reports.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
@@ -494,7 +494,7 @@
 <p><code>path=</code> is the class prefix; each action's path is relative to it, so this action is served at <code>/billing/reports/counts</code> once <code>Reports</code> is in <code>routes.py</code>.</p>
 <h2 id="inherit-and-override">Inherit and override<a class="headerlink" href="#inherit-and-override" title="Permanent link">&para;</a></h2>
 <p>A subclass inherits every routed method. Members are resolved by name, most derived first:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/reports.py (continued)</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/reports.py (continued)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ArchiveReports</span><span class="p">(</span><span class="n">Reports</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/archive"</span><span class="p">):</span>  <span class="c1"># /archive/counts, own prefix</span>
     <span class="k">pass</span>
 
@@ -528,7 +528,7 @@
 <p>Include only the classes you serve. A base and a subclass with the same prefix are two copies of every inherited route, and the application refuses the second.</p>
 <h2 id="generated-crud-with-hooks">Generated CRUD with hooks<a class="headerlink" href="#generated-crud-with-hooks" title="Permanent link">&para;</a></h2>
 <p><code>@crud(...)</code> generates list and retrieve, plus the writes you give a schema for, on a class whose only base is <code>API</code>. Hooks change what the generated actions do; any other decorated method is a handwritten action:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
 
@@ -568,7 +568,7 @@
             <span class="k">raise</span> <span class="n">InvoiceAlreadyPaid</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">InvoiceOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">changed</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">Invoices</span>
@@ -608,7 +608,7 @@
 </table>
 <p>The <code>access=</code> of <code>crud(...)</code> covers generated actions only; a handwritten method states its own. <code>pay</code> changes the row only if it is still unpaid, in one statement, so two concurrent calls cannot both succeed. Hooks, <code>CrudAccess</code>, <code>owner=</code> and every keyword are in <a href="../crud/">Generate CRUD routes</a>.</p>
 <p>When a resource needs no code, <code>crud(...)</code> is a value, not a class:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">crud</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
@@ -644,7 +644,7 @@
 <li><strong>Let <code>crud</code> generate or omit, not compete.</strong> To write <code>list</code> or <code>retrieve</code> yourself, pass <code>omit=("list",)</code> and define a method with another name; to write <code>create</code> yourself, leave <code>create=</code> out.</li>
 </ol>
 <h2 id="test-it">Test it<a class="headerlink" href="#test-it" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="c1"># tests/invoicestest.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/invoicestest.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.apps.billing.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">Invoices</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
 
@@ -730,10 +730,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Sheet</dt><dd>3.16</dd></div>
-          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
           <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>5 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/class-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
@@ -743,8 +740,47 @@
 
   <footer class="foot">
     <div class="foot__inner">
-      <span>hinoki <span data-docs-version-footer>v0.0.1</span> · pre-alpha · MIT · © 2026 caspel26</span>
-      <a href="https://github.com/caspel26/hinoki">GitHub</a>
+      <div class="foot__about">
+        <a class="foot__brand" href=".." aria-label="Hinoki home">
+          <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+          <svg class="brand__word" viewBox="0 0 655 184" aria-hidden="true"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+        </a>
+        <p class="foot__tagline">A Python API framework that checks its own architecture.</p>
+      </div>
+      <nav aria-labelledby="foot-docs">
+        <p class="foot__title" id="foot-docs">Docs</p>
+        <ul>
+          
+            
+          
+            <li><a href="../getting-started/">Get started</a></li>
+          
+            
+          
+            <li><a href="../guides/">Guides</a></li>
+          
+            
+          
+            <li><a href="../reference/">Reference</a></li>
+          
+            
+          
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-project">
+        <p class="foot__title" id="foot-project">Project</p>
+        <ul>
+          <li><a href="https://github.com/caspel26/hinoki">GitHub</a></li>
+          <li><a href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/caspel26/hinoki/blob/main/LICENSE">Licence (MIT)</a></li>
+          <li><a href="../static/icons/lucide/LICENSE.txt">Lucide icons (ISC)</a></li>
+        </ul>
+      </nav>
+      <div class="foot__bottom">
+        <span>hinoki <span data-docs-version-footer>v0.0.1</span></span>
+        <span class="chip">pre-alpha</span>
+        <span>© 2026 caspel26</span>
+      </div>
     </div>
   </footer>
 

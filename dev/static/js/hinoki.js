@@ -289,6 +289,7 @@
   const input = $("[data-palette-input]");
   const list = $("[data-palette-list]");
   let paletteOpen = false;
+  let paletteOpener = null;
   let docs = null;
   let titles = {};
   let items = [];
@@ -404,6 +405,7 @@
   const openPalette = async () => {
     if (!palette || paletteOpen) return;
     paletteOpen = true;
+    paletteOpener = document.activeElement;
     palette.hidden = false;
     overlay.hidden = false;
     input.value = "";
@@ -417,6 +419,8 @@
     if (!palette) return;
     paletteOpen = false;
     palette.hidden = true;
+    if (paletteOpener && paletteOpener.isConnected && paletteOpener !== document.body) paletteOpener.focus({ preventScroll: true });
+    paletteOpener = null;
     if (!document.body.classList.contains("menu-open")) overlay.hidden = true;
   }
 
@@ -452,31 +456,121 @@
       if (paletteOpen) closePalette();
       closeMenu();
       hidePopover();
+    } else if (e.key === "Tab" && paletteOpen) {
+      // The search dialog is modal: Tab cycles inside it.
+      const focusable = $$('input, a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])', palette).filter((el) => el.offsetParent);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) return;
+      if (!palette.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   });
 
-  /* ---------- Copy buttons ---------- */
-  $$(".highlight").forEach((block) => {
-    if (block.closest("[data-no-copy]")) return;
+  /* ---------- Scrollable tables ---------- */
+  $$(".prose table").forEach((table) => {
+    if (table.closest(".table-wrap, .benchmark-table-wrap, [data-no-wrap]")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    wrap.tabIndex = 0;
+    wrap.setAttribute("role", "region");
+    const caption = table.caption && table.caption.textContent.trim();
+    wrap.setAttribute("aria-label", caption || "Table");
+    table.before(wrap);
+    wrap.appendChild(table);
+  });
+
+  /* ---------- Code block headers and copy buttons ---------- */
+  const LANGS = { python: "Python", pycon: "Python", py: "Python", toml: "TOML", sh: "Shell", bash: "Shell", shell: "Shell", console: "Shell", json: "JSON", sql: "SQL", yaml: "YAML", css: "CSS", html: "HTML", rust: "Rust", js: "JavaScript" };
+  const FILE_LINE = /^\s*(?:#|\/\/)\s*([\w.\/-]+\.\w+(?:\s+\([^)\n]*\))?)\s*$/;
+
+  // Removes the first displayed line of a highlighted block (a "# path/file.py" comment).
+  const dropFirstLine = (code) => {
+    for (const node of [...code.childNodes]) {
+      const text = node.textContent;
+      const nl = text.indexOf("\n");
+      if (nl < 0) {
+        node.remove();
+        continue;
+      }
+      if (node.nodeType === Node.TEXT_NODE) node.nodeValue = text.slice(nl + 1);
+      else node.remove();
+      return;
+    }
+  };
+
+  const codeFile = (block, code) => {
+    const title = $(".filename", block);
+    if (title) {
+      const name = title.textContent.trim();
+      title.remove();
+      return name;
+    }
+    const m = FILE_LINE.exec(code.textContent.split("\n", 1)[0]);
+    if (!m) return "";
+    dropFirstLine(code);
+    return m[1];
+  };
+
+  const codeLang = (block) => {
+    const cls = [...block.classList].find((c) => c.startsWith("language-"));
+    return (cls && LANGS[cls.slice(9)]) || "";
+  };
+
+  const copyButton = (code) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "copy-btn";
-    btn.textContent = "Copy";
     btn.setAttribute("aria-label", "Copy code");
+    btn.innerHTML = '<span class="i i--copy" aria-hidden="true"></span><span class="copy-btn__label">Copy</span>';
     btn.addEventListener("click", async () => {
-      const code = $("pre", block);
       try {
         await navigator.clipboard.writeText(code.innerText.replace(/\n$/, ""));
       } catch (e) {
+        toast("Copy failed: select the code instead");
         return;
       }
-      btn.textContent = "Copied";
+      const icon = $(".i", btn);
+      btn.classList.add("is-done");
+      icon.className = "i i--check";
+      $(".copy-btn__label", btn).textContent = "Copied";
       toast("Copied to clipboard");
       setTimeout(() => {
-        btn.textContent = "Copy";
+        btn.classList.remove("is-done");
+        icon.className = "i i--copy";
+        $(".copy-btn__label", btn).textContent = "Copy";
       }, 1400);
     });
-    block.appendChild(btn);
+    return btn;
+  };
+
+  $$(".highlight").forEach((block) => {
+    if (block.closest("[data-no-copy]") || block.classList.contains("doc-signature")) return;
+    const code = $("pre code", block) || $("pre", block);
+    if (!code) return;
+    const file = codeFile(block, code);
+    const lang = codeLang(block);
+    const lines = code.textContent.replace(/\n$/, "").split("\n").length;
+    const btn = copyButton(code);
+    if (lines >= 7) block.classList.add("is-tall");
+    if (file || (lang && lines >= 2)) {
+      const head = document.createElement("div");
+      head.className = "code-head";
+      head.innerHTML = `<span class="code-head__file">${esc(file)}</span><span class="code-head__lang">${esc(lang)}</span>`;
+      head.appendChild(btn);
+      block.prepend(head);
+    } else {
+      block.classList.add("is-compact");
+      block.appendChild(btn);
+    }
   });
 
   /* ---------- Diagnostics in rule output ---------- */
@@ -613,15 +707,8 @@
     setActive();
   }
 
-  /* ---------- Sliding thumbs for segmented controls and tabs ---------- */
-  const currentOf = (root) => {
-    if (root.classList.contains("tabbed-labels")) {
-      const inputs = $$(":scope > input", root.parentElement);
-      const idx = inputs.findIndex((i) => i.checked);
-      return idx >= 0 ? $$(":scope > label", root)[idx] : null;
-    }
-    return $('[aria-pressed="true"], [aria-selected="true"]', root);
-  };
+  /* ---------- Sliding thumbs for segmented controls ---------- */
+  const currentOf = (root) => $('[aria-pressed="true"], [aria-selected="true"]', root);
 
   const setupSlider = (root) => {
     if (root.dataset.sliderReady) return;
@@ -642,22 +729,19 @@
     place();
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add("is-ready")));
     new MutationObserver(place).observe(root, { subtree: true, attributes: true, attributeFilter: ["aria-pressed", "aria-selected", "hidden"] });
-    if (root.classList.contains("tabbed-labels")) {
-      root.parentElement.addEventListener("change", place);
-    }
     if ("ResizeObserver" in window) new ResizeObserver(place).observe(root);
     addEventListener("resize", place, { passive: true });
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
   };
   const sliders = () => {
-    $$("[data-slider], .tabbed-labels").forEach(setupSlider);
+    $$("[data-slider]").forEach(setupSlider);
   };
   sliders();
   addEventListener("load", sliders);
 
   /* ---------- Scrollable regions reachable by keyboard ---------- */
   const focusables = () => {
-    $$("pre, pre code, .prose table, .tabbed-labels, .hn-walk__tabs, .top__nav, .hn-index__pages ul").forEach((el) => {
+    $$("pre, pre code, .tabbed-labels, .hn-walk__tabs, .top__nav, .hn-index__pages ul").forEach((el) => {
       const scrolls = el.matches("pre") || el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
       if (scrolls && !el.hasAttribute("tabindex")) {
         el.tabIndex = 0;

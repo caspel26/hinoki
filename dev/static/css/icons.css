@@ -1,0 +1,80 @@
+/* Lucide icons (ISC, see ../icons/lucide/LICENSE.txt), drawn as CSS masks so they take the text colour. */
+
+.i {
+  display: inline-block;
+  flex: none;
+  inline-size: var(--icon-s);
+  block-size: var(--icon-s);
+  background: currentColor;
+  -webkit-mask: var(--i) center / contain no-repeat;
+  mask: var(--i) center / contain no-repeat;
+}
+
+.i--m {
+  inline-size: var(--icon-m);
+  block-size: var(--icon-m);
+}
+
+.i--book-open { --i: url("../icons/lucide/book-open.svg"); }
+.i--braces { --i: url("../icons/lucide/braces.svg"); }
+.i--check { --i: url("../icons/lucide/check.svg"); }
+.i--circle-check { --i: url("../icons/lucide/circle-check.svg"); }
+.i--copy { --i: url("../icons/lucide/copy.svg"); }
+.i--database { --i: url("../icons/lucide/database.svg"); }
+.i--file-code { --i: url("../icons/lucide/file-code.svg"); }
+.i--folder-git-2 { --i: url("../icons/lucide/folder-git-2.svg"); }
+.i--gauge { --i: url("../icons/lucide/gauge.svg"); }
+.i--graduation-cap { --i: url("../icons/lucide/graduation-cap.svg"); }
+.i--info { --i: url("../icons/lucide/info.svg"); }
+.i--lightbulb { --i: url("../icons/lucide/lightbulb.svg"); }
+.i--list-checks { --i: url("../icons/lucide/list-checks.svg"); }
+.i--octagon-x { --i: url("../icons/lucide/octagon-x.svg"); }
+.i--plug { --i: url("../icons/lucide/plug.svg"); }
+.i--rocket { --i: url("../icons/lucide/rocket.svg"); }
+.i--route { --i: url("../icons/lucide/route.svg"); }
+.i--server { --i: url("../icons/lucide/server.svg"); }
+.i--shield-check { --i: url("../icons/lucide/shield-check.svg"); }
+.i--terminal { --i: url("../icons/lucide/terminal.svg"); }
+.i--triangle-alert { --i: url("../icons/lucide/triangle-alert.svg"); }
+
+/* Icon in a tinted square: kicker and guide cards. */
+.i-tile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 9px;
+  background: var(--hn-icon-tint);
+  color: var(--hn-icon);
+}
+
+/* Callout titles. */
+.admonition-title,
+details > summary {
+  --i: url("../icons/lucide/info.svg");
+}
+
+:is(.admonition, details):is(.tip, .success, .hint) > :is(.admonition-title, summary) { --i: url("../icons/lucide/circle-check.svg"); }
+:is(.admonition, details):is(.warning, .caution, .attention) > :is(.admonition-title, summary) { --i: url("../icons/lucide/triangle-alert.svg"); }
+:is(.admonition, details):is(.danger, .failure, .bug, .error) > :is(.admonition-title, summary) { --i: url("../icons/lucide/octagon-x.svg"); }
+:is(.admonition, details):is(.example, .quote) > :is(.admonition-title, summary) { --i: url("../icons/lucide/file-code.svg"); }
+
+.admonition-title::before,
+details > summary::before {
+  content: "";
+  flex: none;
+  inline-size: var(--icon-s);
+  block-size: var(--icon-s);
+  background: currentColor;
+  -webkit-mask: var(--i) center / contain no-repeat;
+  mask: var(--i) center / contain no-repeat;
+}
+
+@media (forced-colors: active) {
+  .i,
+  .admonition-title::before,
+  details > summary::before {
+    background: CanvasText;
+  }
+}
