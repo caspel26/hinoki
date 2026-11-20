@@ -441,7 +441,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:52:57 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:57:05 UTC">November 20, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -713,6 +713,7 @@ are Python objects, and the request crosses the interpreter lock. Rust owns the
 sockets, TLS, the access log, the limits and the end of the response.</p>
 <ul>
 <li><strong>Request body.</strong> Read in full before the call, up to <code>execution.max_body_bytes</code>: <code>413</code> above it, <code>408</code> if it stalls, <code>400</code> if malformed. Kiso therefore answers <code>413</code> for a body Granian's WSGI interface would pass on (Granian has no limit).</li>
+<li><strong>Request path.</strong> A path whose decoded form holds a NUL byte or a <code>.</code> or <code>..</code> segment (<code>%00</code>, <code>%2e%2e</code>, <code>%2f</code> included) answers <code>400</code> before the application is called.</li>
 <li><strong>Request headers.</strong> Each becomes <code>HTTP_*</code> in the environment, and repeats are joined by a comma; repeated <code>Cookie</code> headers (one per cookie, as HTTP/2 clients send them) are joined by <code>;</code>. A header whose name contains an underscore is dropped, because <code>X_Foo</code> and <code>X-Foo</code> would both become <code>HTTP_X_FOO</code>; a client could otherwise pose as a header your proxy sets, such as <code>Remote-User</code>. Use dashes in custom header names.</li>
 <li><strong>Response.</strong> Streamed: the head goes out with the first piece, a slow client slows the application down (a bounded buffer), and a client that leaves makes the next write fail and closes the iterable. An exception before the head answers <code>500</code> with an empty body and the traceback in the log; after it, the stream is reset instead of ending as complete. A header value with a line break or another control character is an error in <code>start_response</code>, so it answers <code>500</code> with the traceback too. A body shorter or longer than the <code>Content-Length</code> the application set closes the connection with an error line from Kiso. A <code>close()</code> of the iterable that raises after the whole body was sent is logged by the <code>hinoki.runtime</code> logger, and the response still ends normally.</li>
 <li><strong>Timeout.</strong> <code>execution.request_timeout</code> bounds the time until the response starts (<code>504</code>). A running sync call cannot be stopped; it keeps its thread until it returns.</li>
@@ -777,7 +778,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:52:57 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:57:05 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
