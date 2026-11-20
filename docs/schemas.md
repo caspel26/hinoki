@@ -21,6 +21,7 @@ class NoteIn(Schema):
     title: Annotated[str, Field(min_length=1, max_length=80)]
     body: str = ""
 
+
 class NoteOut(Schema):
     id: UUID
     title: str
@@ -106,7 +107,10 @@ class Ticket(Schema):
 ticket = Ticket.validate({"channel": "web", "status": "published", "priority": 3})
 assert ticket.status is Status.PUBLISHED and ticket.priority is Priority.HIGH
 assert ticket.dump() == {
-    "channel": "web", "status": "published", "priority": 3, "retries": 0,
+    "channel": "web",
+    "status": "published",
+    "priority": 3,
+    "retries": 0,
 }
 
 try:
@@ -214,12 +218,18 @@ class Point(Schema):
     y: int = 0
 
 
-Locale = Annotated[str, Field(min_length=2, max_length=5, pattern=r"[a-z]{2}(-[A-Z]{2})?")]
+Locale = Annotated[
+    str, Field(min_length=2, max_length=5, pattern=r"[a-z]{2}(-[A-Z]{2})?")
+]
 
 
 class Place(Schema):
-    labels: Annotated[dict[str, Annotated[str, Field(max_length=40)]], Field(max_length=20)]
-    names: dict[Locale, Annotated[str, Field(max_length=80)]] = Field(default_factory=dict)
+    labels: Annotated[
+        dict[str, Annotated[str, Field(max_length=40)]], Field(max_length=20)
+    ]
+    names: dict[Locale, Annotated[str, Field(max_length=80)]] = Field(
+        default_factory=dict
+    )
     points: dict[str, Point] = Field(default_factory=dict)
 
 
@@ -296,10 +306,12 @@ class Address(TypedDict):
     street: str
     zip: NotRequired[str]
 
+
 @dataclass
 class Geo:
     lat: float
     lon: float = 0.0
+
 
 class Place(Schema):
     address: Address
@@ -482,12 +494,15 @@ Declare type parameters with the Python 3.12 syntax and parameterize the class w
 ```python
 from hinoki import Schema, http
 
+
 class User(Schema):
     name: str
+
 
 class Envelope[T](Schema):
     data: T
     count: int = 0
+
 
 @http.get("/user")
 async def show(request) -> Envelope[User]:
@@ -560,9 +575,7 @@ class PersonOut(Schema):
 person = PersonOut.validate({"firstName": "Aki"})
 assert person.dump() == {"firstName": "Aki", "bio": ""}
 assert person.dump(exclude_unset=True) == {"firstName": "Aki"}
-assert person.dump(include={"first_name"}, by_alias=False) == {
-    "first_name": "Aki"
-}
+assert person.dump(include={"first_name"}, by_alias=False) == {"first_name": "Aki"}
 assert person.dump(include=set()) == {}
 ```
 
@@ -581,6 +594,7 @@ With no options, `dump()` preserves its current output and honors custom `dump()
 ```python
 class Signup(Schema):
     handle: Annotated[str, Field(strip=True, lower=True, min_length=3)]
+
 
 Signup.validate({"handle": "  AbC "}).handle  # "abc"
 ```

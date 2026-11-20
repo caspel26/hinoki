@@ -18,9 +18,7 @@ from hinoki.ai.mcpapp import expose_as_mcp
 
 
 def create_app(database_url: str | None = None) -> Hinoki:
-    overrides = (
-        {"database": {"url": database_url}} if database_url is not None else {}
-    )
+    overrides = {"database": {"url": database_url}} if database_url is not None else {}
     app_settings = TrackerSettings.load(overrides=overrides)
     app = Hinoki(
         settings=app_settings,

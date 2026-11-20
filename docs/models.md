@@ -31,7 +31,9 @@ class Member(Model):
 @db.table("tasks")
 class Task(Model):
     id: UUID = pk(default_factory=uuid4)
-    owner_id: UUID = foreign_key(Member, on_delete=OnDelete.RESTRICT, related_name="tasks")
+    owner_id: UUID = foreign_key(
+        Member, on_delete=OnDelete.RESTRICT, related_name="tasks"
+    )
     title: str = field(max_length=120)
     done: bool = False
     created_at: datetime = field(default_factory=utc_now)
@@ -133,8 +135,11 @@ class Product(Model):
     name: str
     price: Decimal
 
-await Product.objects.filter(price__gte=Decimal("9.99")).order_by("price")  # PostgreSQL, MySQL, MariaDB
-await Product.objects.filter(price=Decimal("9.99"))                        # every backend
+
+await Product.objects.filter(price__gte=Decimal("9.99")).order_by(
+    "price"
+)  # PostgreSQL, MySQL, MariaDB
+await Product.objects.filter(price=Decimal("9.99"))  # every backend
 ```
 
 * **Filter values.** A filter value must be a `Decimal`, an `int` or a numeric string; a `float`, a `bool`, `NaN` and an infinity raise `FieldError`, as does `contains` on a `Decimal` column. On SQLite an unsupported comparison or ordering raises `FieldError` naming the column.
@@ -186,7 +191,7 @@ class Task(Model):
 
 
 open_tasks = await Task.active().filter(done=False).order_by("title")
-everything = await Task.all()           # the explicit way around the policy
+everything = await Task.all()  # the explicit way around the policy
 ```
 
 Pass the method where the framework asks for a base query, so every operation built on it sees the same rows:
@@ -238,7 +243,7 @@ By default every write returns the row as the database stored it: PostgreSQL and
 
 ```python
 task = await Task.acreate(title="Draft", owner_id=me, returning=False)  # as sent
-count = await Task.aupdate(id=task.id, done=True, returning=False)       # rows written
+count = await Task.aupdate(id=task.id, done=True, returning=False)  # rows written
 count = await Task.aupdate_where({"owner_id": me}, {"done": True}, returning=False)
 count = await Task.filter(owner_id=me).aupdate({"done": False}, returning=False)
 ```

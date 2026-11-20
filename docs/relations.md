@@ -54,7 +54,9 @@ A foreign key declared in an [abstract model or a mixin](models.md#share-fields-
 
 ```python
 class Owned(Model, abstract=True):
-    team_id: UUID = foreign_key(Team, on_delete=OnDelete.CASCADE, related_name="{model}_set")
+    team_id: UUID = foreign_key(
+        Team, on_delete=OnDelete.CASCADE, related_name="{model}_set"
+    )
 
 
 class Article(Owned):
@@ -162,8 +164,12 @@ class Tag(Model):
 @unique("post_id", "tag_id")
 class PostTag(Model):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    post_id: UUID = foreign_key(Post, on_delete=OnDelete.CASCADE, related_name="tag_links")
-    tag_id: UUID = foreign_key(Tag, on_delete=OnDelete.CASCADE, related_name="post_links")
+    post_id: UUID = foreign_key(
+        Post, on_delete=OnDelete.CASCADE, related_name="tag_links"
+    )
+    tag_id: UUID = foreign_key(
+        Tag, on_delete=OnDelete.CASCADE, related_name="post_links"
+    )
 ```
 
 Create a link by inserting a `PostTag` row. To read a post's tags, query the join model and load its `tag` foreign key in the same query:

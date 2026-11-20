@@ -13,22 +13,25 @@ from blog.models import Post, User
 from hinoki import Mount
 from hinoki.admin import Admin, ModelAdmin, Tone, action
 
+
 class PostAdmin(ModelAdmin, model=Post):
     columns = ("title", "published", "author_id", "created_at")
     readonly = ("created_at",)
     badges = {"published": {True: ("Published", Tone.OK), False: ("Draft", Tone.WARN)}}
-    tabs = ("published",)                       # one tab for each badge: Published | Draft
+    tabs = ("published",)  # one tab for each badge: Published | Draft
     fieldsets = {"Organization": ("author_id", "published")}
 
     @action(confirm="Publish the selected posts?")
     async def publish(self, posts, principal):
         await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
 
+
 def build_admin(theme: str = "studio") -> Admin:
     site = Admin(theme=theme, site="Blog Studio", per_page=8)
-    site.register(PostAdmin)                    # a customised admin ...
-    site.register(User)                         # ... or a model, for the default admin
+    site.register(PostAdmin)  # a customised admin ...
+    site.register(User)  # ... or a model, for the default admin
     return site
+
 
 app = Hinoki(settings=BlogSettings.load(), include=[Mount("/admin", build_admin())])
 ```
@@ -58,7 +61,7 @@ uv run hinoki migrations apply admin
 The admin also needs its signing secret: `admin.secret` in the settings (`PREFIX_ADMIN__SECRET`, at least 32 bytes). The sessions and passwords follow `admin.session_hours` (12), `admin.idle_minutes` (120) and `admin.min_password_length` (12).
 
 ```python
-site = Admin(site="Blog Studio")           # its own users; nothing else to pass
+site = Admin(site="Blog Studio")  # its own users; nothing else to pass
 site.register(PostAdmin)
 site.register(User)
 app = Hinoki(settings=BlogSettings.load(), include=[Mount("/admin", site)])
@@ -101,12 +104,16 @@ class PostAdmin(ModelAdmin, model=Post):
     # never widen it
     def can(self, principal, action, row=None):
         if action == "delete" and row is not None and row.published:
-            return False                       # published posts are never deleted here
+            return False  # published posts are never deleted here
         return super().can(principal, action, row)
 
     # what a list cell shows: a Badge or an Avatar for something richer than text
     def display(self, row, column):
-        return Avatar(row.author.name) if column == "author_id" else super().display(row, column)
+        return (
+            Avatar(row.author.name)
+            if column == "author_id"
+            else super().display(row, column)
+        )
 
     # cross-field validation before anything is written: {field: message} refuses
     async def check(self, values, principal, row):
@@ -122,7 +129,7 @@ class PostAdmin(ModelAdmin, model=Post):
 
     async def remove(self, row, principal):
         if await has_comments(row):
-            raise Refusal("Delete the comments first.")   # shown on the page
+            raise Refusal("Delete the comments first.")  # shown on the page
         await super().remove(row, principal)
 ```
 
@@ -158,8 +165,18 @@ forest = dataclasses.replace(
     studio,
     name="forest",
     label="Forest",
-    light={**studio.light, "accent": "#1f6f50", "accent-hover": "#17543c", "bg": "#f6f8f5"},
-    dark={**studio.dark, "accent": "#5cc79b", "accent-hover": "#7ad6b0", "bg": "#0f1a14"},
+    light={
+        **studio.light,
+        "accent": "#1f6f50",
+        "accent-hover": "#17543c",
+        "bg": "#f6f8f5",
+    },
+    dark={
+        **studio.dark,
+        "accent": "#5cc79b",
+        "accent-hover": "#7ad6b0",
+        "bg": "#0f1a14",
+    },
     layout="topbar",
     extra_css=".hn-brand-text strong { letter-spacing: .04em; }",
 )
