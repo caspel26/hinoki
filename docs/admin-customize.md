@@ -15,8 +15,11 @@ from hinoki.admin import Admin, ModelAdmin, Tone, action
 
 from blog.models import Post
 
+site = Admin(site="Blog Studio", per_page=8)
 
-class PostAdmin(ModelAdmin, model=Post):
+
+@site.admin(Post)
+class PostAdmin(ModelAdmin[Post]):
     columns = ("title", "published", "author_id", "created_at")
     search = ("title", "slug")
     readonly = ("created_at",)
@@ -27,15 +30,11 @@ class PostAdmin(ModelAdmin, model=Post):
     @action(confirm="Publish the selected posts?")
     async def publish(self, posts, principal):
         await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
-
-
-site = Admin(site="Blog Studio", per_page=8)
-site.register(PostAdmin)
 ```
 
 ## Register a model
 
-`site.register(...)` takes a `ModelAdmin` class, which names its model with `model=`, or a model class, which gets the default admin. It returns what it was given, so `@site.register` works as a class decorator; `@site.admin(Post)` registers a class that need not repeat `model=Post`. The slug in the URL is the table name with dashes (`blog-posts`), or the class attribute `slug = "posts"`.
+`@site.admin(Post)` registers a `ModelAdmin` class for a model. `site.register(...)` takes a model class, which gets the default admin, or a `ModelAdmin` class that names its model with `model=`. The slug in the URL is the table name with dashes (`blog-posts`), or the class attribute `slug = "posts"`.
 
 ## Shape the list and the form
 
@@ -67,7 +66,8 @@ from hinoki.admin import Avatar, ModelAdmin, Refusal
 from blog.models import Post
 
 
-class PostAdmin(ModelAdmin, model=Post):
+@site.admin(Post)  # the site created above
+class PostAdmin(ModelAdmin[Post]):
     def queryset(self, principal):  # rows this caller sees, in every statement
         return Post.filter(author_id=principal.user.id).select_related("author")
 
@@ -120,7 +120,8 @@ from hinoki.admin import ModelAdmin, action
 from blog.models import Post
 
 
-class PostAdmin(ModelAdmin, model=Post):
+@site.admin(Post)
+class PostAdmin(ModelAdmin[Post]):
     @action(confirm="Publish the selected posts?")
     async def publish(self, posts: tuple[Post, ...], principal: Caller[Any]) -> None:
         ids = [post.id for post in posts]

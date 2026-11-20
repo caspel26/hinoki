@@ -47,12 +47,12 @@ block the shell's loop.
 
 ```sh
 uv run hinoki shell --models notes.apps.billing.models
-uv run hinoki shell notes.app:create_app --models notes.models
+uv run hinoki shell notes.main:app
 ```
 
 In a project the target defaults to `project.application`, and every registered
 app's models are loaded; repeat `--models` to load only some. Outside a project,
-pass a target (an application or a factory); `--models` is then optional.
+pass a target (`module:app`); `--models` is then optional.
 
 ## What starts and what does not
 

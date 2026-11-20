@@ -11,16 +11,16 @@ related:
 `hinoki mcp` starts an MCP server on stdio that describes your app, its rules and its models to a coding agent. It is read-only: it never writes source code, rules or waivers.
 
 ```sh
-hinoki mcp notes.main:app --models notes.models
+hinoki mcp
 ```
 
-The rules default to the app's own `Hinoki(rules=...)` and the package to the target's package. Projects made by `hinoki new` contain a `.mcp.json` that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.
+The application defaults to `project.application` in `hinoki.toml`, the rules to the app's own `Hinoki(rules=...)` and the package to the application's package; pass `--models` to describe models. Projects made by `hinoki new` contain a `.mcp.json` that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.
 
 ## Options
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `TARGET` | required | The app, or a no-argument factory (`module:create_app`) |
+| `TARGET` | the project application | Another app, as `module:app` |
 | `--models MODULE` | none | Model modules to describe; repeatable |
 | `--rules MODULE:NAME` | the app's rules | Another `RuleSet` |
 | `--package NAME` | the target's package | Packages the rules inspect; repeatable |

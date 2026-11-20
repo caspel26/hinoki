@@ -1,6 +1,7 @@
 """The reference blog end to end: models, auth, transactions, pagination, docs.
 
-Needs a disposable PostgreSQL (HINOKI_TEST_DATABASE_URL); skipped otherwise.
+Needs a disposable database (HINOKI_TEST_DATABASE_URL); skipped otherwise.
+``tests/conftest.py`` points ``BLOG_DATABASE__URL`` at it before the import.
 """
 
 import asyncio
@@ -11,7 +12,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-from blog.main import create_app
+from blog.main import app
 from blog.models import Post, User
 from openapi_spec_validator import validate
 
@@ -46,8 +47,7 @@ async def admin() -> AsyncIterator[Database]:
 
 @pytest.fixture
 async def blog(admin: Database, pool: Pool) -> Client:
-    assert URL is not None
-    return await pool.start(create_app(URL, "t" * 40))
+    return await pool.start(app)
 
 
 def draft(slug: str = "hello-world") -> bytes:

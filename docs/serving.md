@@ -17,9 +17,9 @@ hinoki serve
 
 `hinoki dev` reloads on every change while you work; `hinoki serve` runs without
 reload, with the workers your settings ask for. Both read the application from
-`project.application` in `hinoki.toml`. To run something else, pass a target:
-`module:name`, where `name` is a `Hinoki` application or a function callable
-without arguments that returns one (a factory).
+`project.application` in `hinoki.toml`. To run another application, pass its
+target: `module:app`, such as `hinoki dev notes.main:app`. A function callable
+without arguments that returns an application (a factory) is also accepted.
 
 Each worker imports the target, then opens what the application owns (database
 pool, modules) in its lifespan and closes it on shutdown. Importing your code
@@ -113,7 +113,7 @@ ASGI server can run it directly; the `server` settings group is then ignored,
 because only `hinoki serve` applies it:
 
 ```sh
-granian --interface asgi --factory notes.app:create_app
+granian --interface asgi notes.main:app
 ```
 
 ## Metrics and tracing
@@ -149,9 +149,9 @@ class Timing:
             self.record(scope["method"], status, time.monotonic() - started)
 
 
-app = Timing(
-    create_app(), record=my_metrics.observe
-)  # run this with Granian or any ASGI server
+from notes.main import app as notes_app
+
+app = Timing(notes_app, record=my_metrics.observe)  # serve with any ASGI server
 ```
 
 What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do **not** label by `scope["path"]` (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: `logging.include_request_id` adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.
@@ -170,9 +170,9 @@ wrap the application:
 # wsgi.py
 from hinoki.wsgi import WSGIAdapter
 
-from notes.app import create_app
+from notes.main import app
 
-wsgi_app = WSGIAdapter(create_app())
+wsgi_app = WSGIAdapter(app)
 ```
 
 ```sh

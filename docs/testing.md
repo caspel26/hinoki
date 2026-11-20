@@ -55,29 +55,47 @@ async def test_invoices_need_a_staff_token() -> None:
 
 ## Use a disposable database
 
-The application reads its database from settings, so point the prefix variable
-at a throwaway database before the application module is imported. A
-`conftest.py` at the project root is imported first:
+The application reads its settings when its module is imported, so point the
+prefix variable at a throwaway database first. A `conftest.py` at the project
+root is imported before any test module:
 
 ```python
 # conftest.py
 import os
 
-os.environ.setdefault("NOTES_DATABASE__URL", "sqlite://./.hinoki/test.sqlite3")
+os.environ["NOTES_DATABASE__URL"] = "sqlite://./.hinoki/test.sqlite3"
 ```
 
 This applies when the settings declare `database: settings.DatabaseSettings`.
-Create the tables once; the migration commands read their own variable:
+Create the tables once, with the same variable:
 
 ```sh
-export HINOKI_DATABASE_URL=sqlite://./.hinoki/test.sqlite3
-uv run hinoki migrations apply
+NOTES_DATABASE__URL=sqlite://./.hinoki/test.sqlite3 uv run hinoki migrations apply
+```
+
+When one test needs other settings, build a second application from the same
+routes instead of changing the shared one:
+
+```python
+# tests/exportstest.py
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+from hinoki.testing import ASGIClient
+
+from notes.settings import ProjectSettings
+
+
+async def test_health_with_its_own_database() -> None:
+    settings = ProjectSettings.load(
+        overrides={"database": {"url": "sqlite://./.hinoki/other.sqlite3"}}
+    )
+    app = Hinoki(settings=settings, include=manifest_routes())
+    async with ASGIClient(app) as client:
+        assert (await client.get("/health")).status == 200
 ```
 
 Use synthetic rows and credentials, and never point test settings at production
-data. A [factory](settings.md#where-values-come-from)
-that takes the URL as an argument makes this explicit:
-`ASGIClient(create_app(TEST_DATABASE_URL))`.
+data.
 
 ## Catch undeclared errors
 

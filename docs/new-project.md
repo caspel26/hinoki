@@ -79,7 +79,10 @@ notes/
     └── healthtest.py    one test, no database needed
 ```
 
-`hinoki.toml` names the application, so project commands find it on their own:
+`hinoki.toml` names the application, so project commands find it on their own.
+`notes/main.py` binds the routes the manifest lists with
+`include=manifest_routes()`: `project.routes` first, then each app's `routes`
+under its `prefix`.
 
 ```toml
 # hinoki.toml

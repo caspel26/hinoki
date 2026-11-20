@@ -54,10 +54,9 @@ async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
         await User.acreate(name="Ada", token="editor-token", is_editor=True)
     port = free_port()
     proc = spawn(
-        "blog.main:create_app",
+        "blog.main:app",
         tmp_path / "events.log",
         port,
-        factory=True,
         cwd=ROOT / "examples",
         BLOG_DATABASE__URL=URL,
         BLOG_ADMIN__SECRET="g" * 40,

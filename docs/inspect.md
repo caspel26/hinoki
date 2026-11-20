@@ -24,13 +24,13 @@ Each accepts `--format json` for scripts. On a colour terminal the reports use
 
 ```sh
 uv run hinoki doctor
-uv run hinoki doctor notes.main:app --format json
+uv run hinoki doctor --format json
 ```
 
 With no target, `doctor` uses `project.application` from `hinoki.toml`. If there
 is no manifest or default target, it reports environment checks and marks app
-checks as skipped. An explicit `TARGET` can be an app or factory. Loading it
-imports your Python code, so module-level code and the factory may have their
+checks as skipped. An explicit `TARGET` names another app (`module:app`).
+Loading it imports your Python code, so module-level code may have its
 own side effects. Hinoki does not start app or module lifespans, run hooks,
 start a server, run architecture rules, connect to a database, or write files.
 
@@ -145,8 +145,8 @@ The default prints `hinoki X.Y.Z`. `--verbose` adds the Python version, platform
 - A target that does not import prints an `error:` line with the import failure
   (`error: cannot load TARGET: …` for `routes` and `openapi`) and exits
   non-zero (2 for `check`, `routes` and `openapi`).
-- Importing the target runs your module-level code and factory; keep import-time
-  side effects out of them.
+- Importing the target runs your module-level code; keep import-time
+  side effects out of it.
 - `openapi` options `--output`, `--check` and `--breaking-against` exclude each
   other.
 - `doctor` without `hinoki.toml` still checks the environment and marks the

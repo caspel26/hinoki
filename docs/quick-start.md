@@ -92,9 +92,29 @@ migrations = "notes.migrations"
 requires = []
 ```
 
-The application in `notes/main.py` lists no routes: it binds the ones the
-manifest names. Commands read the same file, so inside the project they need
-no module paths.
+`notes/main.py` declares the application:
+
+```python
+# notes/main.py
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+
+from notes.rules import project_rules
+from notes.settings import ProjectSettings
+
+app = Hinoki(
+    settings=ProjectSettings,  # NOTES_* variables and .env
+    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
+    title="Notes",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    rules=project_rules,
+)
+```
+
+`manifest_routes()` reads `hinoki.toml`, so the application lists no routes of
+its own. Commands read the same file, so inside the project they need no module
+paths.
 
 ## Next
 

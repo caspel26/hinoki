@@ -115,8 +115,29 @@ uv run pytest
 ```
 
 Endpoints for billing go in the app, and `notes/apps/billing/routes.py` lists
-them: `hinoki.toml` mounts that list at `/billing`, so paths inside the app
-never repeat the prefix. The project's rules require every action to name an
+them. The application in `notes/main.py` includes every app's list with
+`manifest_routes()`, which mounts this one at `/billing`, so paths inside the
+app never repeat the prefix:
+
+```python
+# notes/main.py (as hinoki new wrote it)
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+
+from notes.rules import project_rules
+from notes.settings import ProjectSettings
+
+app = Hinoki(
+    settings=ProjectSettings,  # NOTES_* variables and .env
+    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
+    title="Notes",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    rules=project_rules,
+)
+```
+
+The project's rules require every action to name an
 `Access` policy with permissions; build one as in [chapter 4](4-endpoints.md).
 
 ## Recap

@@ -16,16 +16,17 @@ from hinoki.admin import Admin, ModelAdmin, Tone
 
 from blog.models import Post, User
 
+site = Admin(site="Blog Studio")
 
-class PostAdmin(ModelAdmin, model=Post):
+
+@site.admin(Post)
+class PostAdmin(ModelAdmin[Post]):
     columns = ("title", "published", "author_id", "created_at")
     readonly = ("created_at",)
     badges = {"published": {True: ("Published", Tone.OK), False: ("Draft", Tone.WARN)}}
 
 
-site = Admin(site="Blog Studio")
-site.register(PostAdmin)  # a configured model admin
-site.register(User)  # or a model, with the default admin
+site.register(User)  # a model with the default admin
 ```
 
 ```python
@@ -37,7 +38,7 @@ from blog.adminsite import site
 routes: list[Includable] = [Mount("/admin", site)]
 ```
 
-The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py) builds the same site inside a function, because its theme comes from a setting.
+The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/adminsite.py) builds a fuller site the same way, with a theme, links, a dashboard and activity.
 
 ## Create the admin's tables
 

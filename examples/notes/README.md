@@ -1,8 +1,8 @@
 # Notes
 
-The smallest complete Hinoki app: a model, input and output schemas, four
-routes and a database setting. `app.py` holds the routes; `main.py` builds the
-application.
+The smallest complete Hinoki app: a model, input and output schemas, one route
+group and a database setting. `api.py` holds the schemas and the `notes` group;
+`main.py` declares the application.
 
 ## Run
 
@@ -40,8 +40,9 @@ runs. Open `/docs` for the OpenAPI UI.
 
 ## Configure
 
-Set `NOTES_DATABASE__URL` to use another database, and `HINOKI_DATABASE_URL` to
-the same URL for the migration commands.
+Set `NOTES_DATABASE__URL` to serve another database, and `EXAMPLES_DATABASE__URL`
+to the same URL for the migration commands (they use the examples' manifest
+application).
 
 Notes has no authentication, no admin and no rules on purpose: its routes are
 public and its list is not paginated. Tracker and Blog enable every built-in rule.

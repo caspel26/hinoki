@@ -9,7 +9,7 @@ related:
 
 # Register routes
 
-An application serves the routes that `hinoki.toml` points to. The project and each app keep their routes in a `routes.py` that exports a list, and `notes/main.py` does not list them.
+An application serves the routes that `hinoki.toml` points to. The project and each app keep their routes in a `routes.py` that exports a list, and `notes/main.py` includes them all with `manifest_routes()`.
 
 ## From the manifest to the application
 
@@ -31,12 +31,14 @@ requires = []
 ```python
 # notes/main.py
 from hinoki import Hinoki
+from hinoki.project import manifest_routes
 
 from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
+    include=manifest_routes(),
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
@@ -44,12 +46,12 @@ app = Hinoki(
 )
 ```
 
-When the module named by `project.application` builds `Hinoki(...)` without `include=`, the application includes:
+`manifest_routes()` finds `hinoki.toml` from the calling file's directory upwards and returns, in order:
 
 1. the project's `routes` list, at its own paths;
 2. each app's `routes` list under the app's `prefix`, apps in dependency order (`requires`).
 
-An app without a `routes` key, or with an empty list, adds nothing. `hinoki app create billing` writes the `routes.py` and the manifest keys; `hinoki app create billing --prefix /payments` chooses another prefix. `hinoki app list` prints each app with its routes and prefix.
+An app without a `routes` key, or with an empty list, adds nothing. Outside a project it raises `ProjectError`. `hinoki app create billing` writes the `routes.py` and the manifest keys; `hinoki app create billing --prefix /payments` chooses another prefix. `hinoki app list` prints each app with its routes and prefix.
 
 ## One place for each prefix
 
@@ -97,24 +99,11 @@ Nested lists are spread in place, in the order you wrote them. Annotate each lis
 
 ## The application module
 
-Keep `app` at module level in the module that `project.application` names. Use a factory only when building the application needs values that exist at run time, or when you build it several times:
+Declare `app` once, at module level, in the module that `project.application` names. Importing it reads the settings and builds declarations; nothing connects until a worker starts, so commands, servers and tests import the same object. A factory target (`module:create_app`) is still accepted by the commands, for code that must build the application from runtime values.
 
-```python
-# notes/main.py
-from hinoki import Hinoki
+## Routes for tests and options
 
-from notes.settings import ProjectSettings
-
-
-def create_app() -> Hinoki:
-    return Hinoki(settings=ProjectSettings, title="Notes")
-```
-
-Name it in the manifest as `application = "notes.main:create_app"`. A `Hinoki(...)` inside a function of that module binds the manifest routes too.
-
-## Explicit routes: tests, scripts and options
-
-Only the module named by `project.application` binds the manifest. Anywhere else, `Hinoki()` starts empty, and `include=` says what it serves:
+To serve a subset, or the same routes with other settings, build another `Hinoki` with an explicit `include=`:
 
 ```python
 # tests/billingroutestest.py
@@ -125,7 +114,7 @@ from notes.apps.billing.routes import routes
 app = Hinoki(include=[Mount("/billing", routes)])
 ```
 
-An explicit `include=` wins over the manifest, also in the application module, and `include=[]` is an empty application. To add routes that exist only when a setting is on, call `app.include(...)` in the application module before it serves:
+`include=[]` is an empty application. To add routes that exist only when a setting is on, call `app.include(...)` in the application module before it serves:
 
 ```python
 # notes/main.py (continued)

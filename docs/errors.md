@@ -75,7 +75,7 @@ def card_declined(error: CardDeclined) -> errors.APIError:
 * A handler may be `def` or `async def`. One that fails, or does not return an `APIError`, counts as "not handled" and the client receives `500 internal_error` without the exception text.
 * An exception type can be registered once (a second registration raises `ValueError`), and only before the app serves (afterwards `RegistrationError`). The decorator returns the function unchanged. A class or a value that is not a function is refused with `TypeError`.
 * `app.errors.handle(Kind)` is the same call without the `app` checks.
-* With a factory (`create_app()`), call `app.error_handler(Kind)(handler)` inside it after building the app; the decorator form needs the module-level `app` ([Register routes](routes.md#the-application-module)).
+* The decorator needs the module-level `app` ([Register routes](routes.md#the-application-module)); `app.error_handler(Kind)(handler)` registers a function defined elsewhere.
 
 Built in, with nothing to write: `ObjectNotFound` is answered with `404 not_found`, and a database `UniqueViolation` with `409 unique_conflict` (`errors.UniqueConflict`) without exposing the constraint name. Register your own handler to replace either.
 
