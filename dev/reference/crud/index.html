@@ -144,9 +144,8 @@
   
   
   
-  
 
-  <div class="shell" data-sheet="5.3">
+  <div class="shell">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -241,7 +240,7 @@
               
             
               
-                <li><a class="side__link" href="../tools/"><span>AI tools</span></a></li>
+                <li><a class="side__link" href="../tools/"><span>MCP and scaffold</span></a></li>
               
             
               
@@ -270,8 +269,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 12:40:04 UTC">November 19, 2026</span></span>
-            <span>1 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -336,7 +335,16 @@ class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP pattern
   </span>
 
 <a href="#hinoki.resources.CrudAccess" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">CrudAccess</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="nb">list</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">retrieve</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">create</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">update</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">delete</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -539,7 +547,13 @@ class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP pattern
 
 
 <a href="#hinoki.resources.CrudDeclaration" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">CrudDeclaration</span><span class="p">(</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">_CrudConfig</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">module</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="vm">__name__</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -730,29 +744,6 @@ class that adds hooks and handwritten actions.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.resources.CrudDeclaration.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.resources.CrudDeclaration.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="n">config</span><span class="p">:</span> <span class="n">_CrudConfig</span><span class="p">,</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">module</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="vm">__name__</span><span class="p">,</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="hinoki.resources.CrudDeclaration.api" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">api</span>
 
@@ -765,24 +756,6 @@ class that adds hooks and handwritten actions.</p>
 
         <p>The generated API class (built once), named after the module that
 declared it (or <code>name=</code>) so rules scoped to that module see its actions.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.resources.CrudDeclaration.__call__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__call__</span>
-
-
-<a href="#hinoki.resources.CrudDeclaration.__call__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span><span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
 
 
     </div>
@@ -884,13 +857,13 @@ declared it (or <code>name=</code>) so rules scoped to that module see its actio
             <ul><li><a href="#hinoki.resources.crud">crud</a></li><li><a href="#hinoki.resources.CrudAccess">CrudAccess</a>
             <ul><li><a href="#hinoki.resources.CrudAccess.default">default</a></li><li><a href="#hinoki.resources.CrudAccess.list">list</a></li><li><a href="#hinoki.resources.CrudAccess.retrieve">retrieve</a></li><li><a href="#hinoki.resources.CrudAccess.create">create</a></li><li><a href="#hinoki.resources.CrudAccess.update">update</a></li><li><a href="#hinoki.resources.CrudAccess.delete">delete</a></li><li><a href="#hinoki.resources.CrudAccess.resolve">resolve</a></li></ul>
           </li><li><a href="#hinoki.resources.CrudDeclaration">CrudDeclaration</a>
-            <ul><li><a href="#hinoki.resources.CrudDeclaration.config">config</a></li><li><a href="#hinoki.resources.CrudDeclaration.path">path</a></li><li><a href="#hinoki.resources.CrudDeclaration.module">module</a></li><li><a href="#hinoki.resources.CrudDeclaration.name">name</a></li><li><a href="#hinoki.resources.CrudDeclaration.named">named</a></li><li><a href="#hinoki.resources.CrudDeclaration.generated">generated</a></li><li><a href="#hinoki.resources.CrudDeclaration.built">built</a></li><li><a href="#hinoki.resources.CrudDeclaration.__init__">__init__</a></li><li><a href="#hinoki.resources.CrudDeclaration.api">api</a></li><li><a href="#hinoki.resources.CrudDeclaration.__call__">__call__</a></li><li><a href="#hinoki.resources.CrudDeclaration.build">build</a></li></ul>
+            <ul><li><a href="#hinoki.resources.CrudDeclaration.config">config</a></li><li><a href="#hinoki.resources.CrudDeclaration.path">path</a></li><li><a href="#hinoki.resources.CrudDeclaration.module">module</a></li><li><a href="#hinoki.resources.CrudDeclaration.name">name</a></li><li><a href="#hinoki.resources.CrudDeclaration.named">named</a></li><li><a href="#hinoki.resources.CrudDeclaration.generated">generated</a></li><li><a href="#hinoki.resources.CrudDeclaration.built">built</a></li><li><a href="#hinoki.resources.CrudDeclaration.api">api</a></li><li><a href="#hinoki.resources.CrudDeclaration.build">build</a></li></ul>
           </li><li><a href="#hinoki.resources.Crud">Crud</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 12:40:04 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

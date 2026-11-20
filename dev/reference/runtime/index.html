@@ -144,9 +144,8 @@
   
   
   
-  
 
-  <div class="shell" data-sheet="5.11">
+  <div class="shell">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -241,7 +240,7 @@
               
             
               
-                <li><a class="side__link" href="../tools/"><span>AI tools</span></a></li>
+                <li><a class="side__link" href="../tools/"><span>MCP and scaffold</span></a></li>
               
             
               
@@ -270,8 +269,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:32:05 UTC">November 14, 2026</span></span>
-            <span>1 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
+            <span>2 min read</span>
           </p>
           
         </header>
@@ -444,7 +443,8 @@
 
 
 <a href="#hinoki.modules.ModuleContext" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">ModuleContext</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -516,48 +516,8 @@ locator: one instance per worker, keyed by type.</p>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
 
 
-
-<h3 id="hinoki.modules.ModuleContext._provided" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">_provided</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.modules.ModuleContext._provided" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_provided</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="nb">object</span><span class="p">],</span> <span class="nb">object</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.modules.ModuleContext.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.modules.ModuleContext.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-function">
 
@@ -809,7 +769,10 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
 
 
 <a href="#hinoki.management.CommandContext" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">CommandContext</span><span class="p">(</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="n">ModuleContext</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -857,50 +820,8 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
 
 
-
-<h3 id="hinoki.management.CommandContext._modules" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">_modules</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.management.CommandContext._modules" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_modules</span> <span class="o">=</span> <span class="n">modules</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.management.CommandContext.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.management.CommandContext.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="n">settings</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="n">ModuleContext</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-function">
 
@@ -994,7 +915,17 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
   </span>
 
 <a href="#hinoki.runtime.config.RuntimeConfig" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">RuntimeConfig</span><span class="p">(</span>
+    <span class="n">sync_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="n">sync_queue</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
+    <span class="n">request_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
+    <span class="n">startup_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
+    <span class="n">shutdown_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+    <span class="n">max_body_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">,</span>
+    <span class="n">max_query_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8192</span><span class="p">,</span>
+    <span class="n">max_header_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32768</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -1100,7 +1031,8 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
 
 
 <a href="#hinoki.wsgi.WSGIAdapter" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">WSGIAdapter</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -1179,7 +1111,7 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../rules/"><small>Previous</small><span>Rules</span></a>
-        <a class="pager__link pager__link--next" href="../tools/"><small>Next</small><span>AI tools</span></a>
+        <a class="pager__link pager__link--next" href="../tools/"><small>Next</small><span>MCP and scaffold</span></a>
       </nav>
     </main>
 
@@ -1194,11 +1126,11 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
             <ul><li><a href="#hinoki.modules.Module">Module</a>
             <ul><li><a href="#hinoki.modules.Module.name">name</a></li><li><a href="#hinoki.modules.Module.requires">requires</a></li><li><a href="#hinoki.modules.Module.apis">apis</a></li><li><a href="#hinoki.modules.Module.from_settings">from_settings</a></li><li><a href="#hinoki.modules.Module.lifespan">lifespan</a></li></ul>
           </li><li><a href="#hinoki.modules.ModuleContext">ModuleContext</a>
-            <ul><li><a href="#hinoki.modules.ModuleContext.settings">settings</a></li><li><a href="#hinoki.modules.ModuleContext.tasks">tasks</a></li><li><a href="#hinoki.modules.ModuleContext._provided">_provided</a></li><li><a href="#hinoki.modules.ModuleContext.__init__">__init__</a></li><li><a href="#hinoki.modules.ModuleContext.reset">reset</a></li><li><a href="#hinoki.modules.ModuleContext.provide">provide</a></li><li><a href="#hinoki.modules.ModuleContext.find">find</a></li><li><a href="#hinoki.modules.ModuleContext.get">get</a></li></ul>
+            <ul><li><a href="#hinoki.modules.ModuleContext.settings">settings</a></li><li><a href="#hinoki.modules.ModuleContext.tasks">tasks</a></li><li><a href="#hinoki.modules.ModuleContext.reset">reset</a></li><li><a href="#hinoki.modules.ModuleContext.provide">provide</a></li><li><a href="#hinoki.modules.ModuleContext.find">find</a></li><li><a href="#hinoki.modules.ModuleContext.get">get</a></li></ul>
           </li><li><a href="#hinoki.management.Command">Command</a>
             <ul><li><a href="#hinoki.management.Command.name">name</a></li><li><a href="#hinoki.management.Command.help">help</a></li><li><a href="#hinoki.management.Command.requires">requires</a></li><li><a href="#hinoki.management.Command.add_arguments">add_arguments</a></li><li><a href="#hinoki.management.Command.handle">handle</a></li></ul>
           </li><li><a href="#hinoki.management.CommandContext">CommandContext</a>
-            <ul><li><a href="#hinoki.management.CommandContext.settings">settings</a></li><li><a href="#hinoki.management.CommandContext._modules">_modules</a></li><li><a href="#hinoki.management.CommandContext.__init__">__init__</a></li><li><a href="#hinoki.management.CommandContext.get">get</a></li><li><a href="#hinoki.management.CommandContext.find">find</a></li></ul>
+            <ul><li><a href="#hinoki.management.CommandContext.settings">settings</a></li><li><a href="#hinoki.management.CommandContext.get">get</a></li><li><a href="#hinoki.management.CommandContext.find">find</a></li></ul>
           </li><li><a href="#hinoki.management.CommandError">CommandError</a></li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a></li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
             <ul><li><a href="#hinoki.wsgi.WSGIAdapter.start">start</a></li><li><a href="#hinoki.wsgi.WSGIAdapter.close">close</a></li></ul>
           </li></ul>
@@ -1206,7 +1138,7 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 14, 2026 14:32:05 UTC">November 14, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/runtime.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

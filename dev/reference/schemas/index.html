@@ -144,9 +144,8 @@
   
   
   
-  
 
-  <div class="shell" data-sheet="5.4">
+  <div class="shell">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -241,7 +240,7 @@
               
             
               
-                <li><a class="side__link" href="../tools/"><span>AI tools</span></a></li>
+                <li><a class="side__link" href="../tools/"><span>MCP and scaffold</span></a></li>
               
             
               
@@ -270,8 +269,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></span>
-            <span>1 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -317,432 +316,8 @@ with its path.</p>
 
 
 
-<div class="doc doc-object doc-attribute">
 
 
-
-<h3 id="hinoki.schema.Schema.__hinoki_schema__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__hinoki_schema__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__hinoki_schema__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__hinoki_schema__</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__specs__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__specs__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__specs__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__specs__</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FieldSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__assigned_field_info__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__assigned_field_info__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__assigned_field_info__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__assigned_field_info__</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FieldInfo</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__native__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__native__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__native__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__native__</span><span class="p">:</span> <span class="n">CompiledSchema</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__native_dump__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__native_dump__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__native_dump__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__native_dump__</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__checks__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__checks__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__checks__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__checks__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span>
-    <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="nb">str</span><span class="p">],</span> <span class="o">...</span>
-<span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__normalizers__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__normalizers__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__normalizers__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__normalizers__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__before__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__before__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__before__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__before__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__declared_forms__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__declared_forms__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__declared_forms__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__declared_forms__</span><span class="p">:</span> <span class="p">(</span>
-    <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FieldInfo</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__float_fields__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__float_fields__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__float_fields__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__float_fields__</span><span class="p">:</span> <span class="p">(</span>
-    <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FieldType</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__graph_normalizers__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__graph_normalizers__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__graph_normalizers__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__graph_normalizers__</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__graph_before__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__graph_before__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__graph_before__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__graph_before__</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__source__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__source__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__source__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__source__</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__derivation__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__derivation__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__derivation__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__derivation__</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__derived_model__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__derived_model__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__derived_model__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__derived_model__</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__schema_config__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__schema_config__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__schema_config__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__schema_config__</span><span class="p">:</span> <span class="n">SchemaConfig</span> <span class="o">=</span> <span class="n">SchemaConfig</span><span class="p">()</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__computed_specs__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__computed_specs__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__computed_specs__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__computed_specs__</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ComputedSpec</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.schema.Schema.__computed_checked__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__computed_checked__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema.__computed_checked__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">__computed_checked__</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.schema.Schema.__init_subclass__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init_subclass__</span>
-
-
-<a href="#hinoki.schema.Schema.__init_subclass__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init_subclass__</span><span class="p">(</span>
-    <span class="n">model</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="n">_NO_MODEL</span><span class="p">,</span>
-    <span class="n">config</span><span class="p">:</span> <span class="n">SchemaConfig</span> <span class="o">|</span> <span class="n">_ConfigOmitted</span> <span class="o">=</span> <span class="n">_CONFIG_UNSET</span><span class="p">,</span>
-    <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-function">
 
@@ -762,24 +337,6 @@ with its path.</p>
     <div class="doc doc-contents ">
 
         <p>True while type parameters are still open (<code>Envelope</code>).</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.schema.Schema.__class_getitem__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__class_getitem__</span>
-
-
-<a href="#hinoki.schema.Schema.__class_getitem__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__class_getitem__</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
 
 
     </div>
@@ -957,28 +514,6 @@ compiled on first use and cached on the class.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.schema.Schema._validate_prepared" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_validate_prepared</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema._validate_prepared" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_validate_prepared</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="hinoki.schema.Schema.validate_text" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">validate_text</span>
 
@@ -998,37 +533,6 @@ compiled on first use and cached on the class.</p>
 Rust, to the <code>int</code>, <code>float</code> and <code>bool</code> the fields declare. Anything
 that does not convert is left for <code>validate</code> to refuse. Before hooks see
 the raw text (each form value is a list of strings) and run first.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.schema.Schema._validate_instance" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_validate_instance</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
-  </span>
-
-<a href="#hinoki.schema.Schema._validate_instance" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_validate_instance</span><span class="p">(</span>
-    <span class="n">instance</span><span class="p">:</span> <span class="n">Schema</span><span class="p">,</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">allow_naive_datetime</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">skip_fields</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">use_aliases</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">path_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Validate final Python values on a manually constructed instance.</p>
 
 
     </div>
@@ -1209,7 +713,8 @@ fields not supplied at construction. HTTP responses use default options.</p>
   </span>
 
 <a href="#hinoki.schemaconfig.SchemaConfig" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">SchemaConfig</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">extra</span><span class="p">:</span> <span class="n">SchemaExtra</span> <span class="o">=</span> <span class="n">SchemaExtra</span><span class="o">.</span><span class="n">FORBID</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -1378,7 +883,8 @@ default; <code>title: Annotated[str, Field(min_length=1)]</code> adds constraint
 
 
 <a href="#hinoki.schema.Invalid" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Invalid</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -1613,7 +1119,8 @@ be synchronous, take no arguments and not do I/O.</p>
 
 
 <a href="#hinoki.fields.SecretStr" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">SecretStr</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -1660,7 +1167,8 @@ responses give <code>**********</code>; <code>get_secret_value()</code> returns 
 
 
 <a href="#hinoki.errors.ValidationError" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">ValidationError</span><span class="p">(</span><span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ErrorDetail</span><span class="p">])</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -1766,13 +1274,13 @@ deprecated; it requires the legacy <code>model=</code> Schema class keyword.</p>
           
           
             <ul><li><a href="#hinoki.schema.Schema">Schema</a>
-            <ul><li><a href="#hinoki.schema.Schema.__hinoki_schema__">__hinoki_schema__</a></li><li><a href="#hinoki.schema.Schema.__specs__">__specs__</a></li><li><a href="#hinoki.schema.Schema.__assigned_field_info__">__assigned_field_info__</a></li><li><a href="#hinoki.schema.Schema.__native__">__native__</a></li><li><a href="#hinoki.schema.Schema.__native_dump__">__native_dump__</a></li><li><a href="#hinoki.schema.Schema.__checks__">__checks__</a></li><li><a href="#hinoki.schema.Schema.__normalizers__">__normalizers__</a></li><li><a href="#hinoki.schema.Schema.__before__">__before__</a></li><li><a href="#hinoki.schema.Schema.__declared_forms__">__declared_forms__</a></li><li><a href="#hinoki.schema.Schema.__float_fields__">__float_fields__</a></li><li><a href="#hinoki.schema.Schema.__graph_normalizers__">__graph_normalizers__</a></li><li><a href="#hinoki.schema.Schema.__graph_before__">__graph_before__</a></li><li><a href="#hinoki.schema.Schema.__source__">__source__</a></li><li><a href="#hinoki.schema.Schema.__derivation__">__derivation__</a></li><li><a href="#hinoki.schema.Schema.__derived_model__">__derived_model__</a></li><li><a href="#hinoki.schema.Schema.__schema_config__">__schema_config__</a></li><li><a href="#hinoki.schema.Schema.__computed_specs__">__computed_specs__</a></li><li><a href="#hinoki.schema.Schema.__computed_checked__">__computed_checked__</a></li><li><a href="#hinoki.schema.Schema.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.schema.Schema.is_generic">is_generic</a></li><li><a href="#hinoki.schema.Schema.__class_getitem__">__class_getitem__</a></li><li><a href="#hinoki.schema.Schema.computed_fields">computed_fields</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema._validate_prepared">_validate_prepared</a></li><li><a href="#hinoki.schema.Schema.validate_text">validate_text</a></li><li><a href="#hinoki.schema.Schema._validate_instance">_validate_instance</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.replace">replace</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
+            <ul><li><a href="#hinoki.schema.Schema.is_generic">is_generic</a></li><li><a href="#hinoki.schema.Schema.computed_fields">computed_fields</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema.validate_text">validate_text</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.replace">replace</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
           </li><li><a href="#hinoki.schemaconfig.SchemaConfig">SchemaConfig</a></li><li><a href="#hinoki.schemaconfig.SchemaExtra">SchemaExtra</a></li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.field_normalize">field_normalize</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.schema.before_validate">before_validate</a></li><li><a href="#hinoki.computed.computed_field">computed_field</a></li><li><a href="#hinoki.fields.SecretStr">SecretStr</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

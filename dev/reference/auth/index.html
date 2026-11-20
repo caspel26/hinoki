@@ -144,9 +144,8 @@
   
   
   
-  
 
-  <div class="shell" data-sheet="5.7">
+  <div class="shell">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -241,7 +240,7 @@
               
             
               
-                <li><a class="side__link" href="../tools/"><span>AI tools</span></a></li>
+                <li><a class="side__link" href="../tools/"><span>MCP and scaffold</span></a></li>
               
             
               
@@ -271,7 +270,7 @@
           <p class="page-meta" data-search-exclude>
             
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 01:33:42 UTC">November 19, 2026</span></span>
-            <span>1 min read</span>
+            <span>5 min read</span>
           </p>
           
         </header>
@@ -292,7 +291,8 @@
   </span>
 
 <a href="#hinoki.auth.Caller" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Caller</span><span class="p">(</span><span class="nb">id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span> <span class="n">permissions</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">())</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -382,7 +382,10 @@ service account) and <code>permissions</code> is what the caller may do::</p>
   </span>
 
 <a href="#hinoki.auth.Credentials" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Credentials</span><span class="p">(</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">query</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -726,7 +729,13 @@ or plain <code>def</code>.</p>
   </span>
 
 <a href="#hinoki.crypto.JWTKey" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">JWTKey</span><span class="p">(</span>
+    <span class="n">kid</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">algorithm</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">public</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -802,7 +811,8 @@ a public key passed as a seed would let anyone who knows it forge tokens.</p>
 
 
 <a href="#hinoki.crypto.JWTAuth" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">JWTAuth</span><span class="p">()</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -939,7 +949,8 @@ configured, unless <code>claims</code> already has them.</p>
 
 
 <a href="#hinoki.crypto.ClaimsJWTAuth" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">ClaimsJWTAuth</span><span class="p">()</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -1000,7 +1011,16 @@ method keeps the routes on the Python request pipeline.</p>
 
 
 <a href="#hinoki.crypto.PasswordHasher" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">PasswordHasher</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">memory_kib</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MIN_MEMORY_KIB</span><span class="p">,</span>
+    <span class="n">time_cost</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MIN_TIME_COST</span><span class="p">,</span>
+    <span class="n">lanes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="n">max_pending</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
+    <span class="n">allow_weak</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 

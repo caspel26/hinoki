@@ -144,9 +144,8 @@
   
   
   
-  
 
-  <div class="shell" data-sheet="5.6">
+  <div class="shell">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -241,7 +240,7 @@
               
             
               
-                <li><a class="side__link" href="../tools/"><span>AI tools</span></a></li>
+                <li><a class="side__link" href="../tools/"><span>MCP and scaffold</span></a></li>
               
             
               
@@ -271,7 +270,7 @@
           <p class="page-meta" data-search-exclude>
             
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 04:43:49 UTC">November 20, 2026</span></span>
-            <span>1 min read</span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -403,7 +402,8 @@ limit). Customise by overriding <code>prepare(data)</code> to reshape the decode
 
 
 <a href="#hinoki.parsers.FormParser" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">FormParser</span><span class="p">(</span><span class="n">max_fields</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_FIELDS</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -452,7 +452,11 @@ each field as text.</p>
 
 
 <a href="#hinoki.parsers.MultiPartParser" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">MultiPartParser</span><span class="p">(</span>
+    <span class="n">max_parts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_PARTS</span><span class="p">,</span>
+    <span class="n">max_part_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_PART_BYTES</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -600,7 +604,11 @@ the limits.</p>
 
 
 <a href="#hinoki.parsers.XMLParser" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">XMLParser</span><span class="p">(</span>
+    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_XML_DEPTH</span><span class="p">,</span>
+    <span class="n">max_elements</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_XML_ELEMENTS</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -657,7 +665,12 @@ element count are capped.</p>
   </span>
 
 <a href="#hinoki.parsers.Parsed" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Parsed</span><span class="p">(</span>
+    <span class="n">data</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="n">fields</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(),</span>
+    <span class="n">files</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">UploadedFile</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(),</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -704,7 +717,8 @@ and files for <code>request.POST</code> / <code>request.FILES</code>.</p>
 
 
 <a href="#hinoki.errors.InvalidBody" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">InvalidBody</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -756,7 +770,13 @@ and files for <code>request.POST</code> / <code>request.FILES</code>.</p>
   </span>
 
 <a href="#hinoki.UploadedFile" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">UploadedFile</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">content</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -849,7 +869,12 @@ use it as a path.</p>
 
 
 <a href="#hinoki.renderers.JSONRenderer" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">JSONRenderer</span><span class="p">(</span>
+    <span class="n">indent</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">sort_keys</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -1022,7 +1047,8 @@ as is: escape untrusted data before putting it in.</p>
 
 
 <a href="#hinoki.renderers.XMLRenderer" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">XMLRenderer</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'response'</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'item'</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">

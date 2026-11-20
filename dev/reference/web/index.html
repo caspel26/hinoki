@@ -144,9 +144,8 @@
   
   
   
-  
 
-  <div class="shell" data-sheet="5.2">
+  <div class="shell">
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -241,7 +240,7 @@
               
             
               
-                <li><a class="side__link" href="../tools/"><span>AI tools</span></a></li>
+                <li><a class="side__link" href="../tools/"><span>MCP and scaffold</span></a></li>
               
             
               
@@ -270,13 +269,13 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
-            <span>1 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:06 UTC">November 20, 2026</span></span>
+            <span>19 min read</span>
           </p>
           
         </header>
         
-<p><code>from hinoki import Hinoki, RouteGroup, Mount, http, errors</code>. Guides: <a href="../../function-endpoints/">function-based APIs</a>, <a href="../../class-endpoints/">class-based APIs</a>, <a href="../../routes/">register routes</a>, <a href="../../errors/">errors</a>.</p>
+<p><code>from hinoki import Hinoki, RouteGroup, Mount, http, errors</code> and <code>from hinoki.project import manifest_routes</code>. Guides: <a href="../../function-endpoints/">function-based APIs</a>, <a href="../../class-endpoints/">class-based APIs</a>, <a href="../../routes/">register routes</a>, <a href="../../errors/">errors</a>.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -288,7 +287,28 @@
 
 
 <a href="#hinoki.app.Hinoki" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Hinoki</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">modules</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Module</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Module</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">commands</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Command</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Command</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">on_startup</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">on_shutdown</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">startup_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">runtime</span><span class="p">:</span> <span class="n">RuntimeConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">openapi_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">docs_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">redoc_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">rules</span><span class="p">:</span> <span class="n">RuleSet</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">enforce_rules</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">waivers</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -331,50 +351,6 @@ must exist. Without it, <code>hinoki-rules.toml</code> at the project root is us
 
 
 
-<h3 id="hinoki.app.Hinoki._startup_url" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">_startup_url</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.app.Hinoki._startup_url" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_startup_url</span> <span class="o">=</span> <span class="n">check_startup_url</span><span class="p">(</span><span class="n">startup_url</span><span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.app.Hinoki._timezone" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">_timezone</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.app.Hinoki._timezone" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_timezone</span> <span class="o">=</span> <span class="n">ZoneInfo</span><span class="p">(</span><span class="n">built_in</span><span class="o">.</span><span class="n">timezone</span><span class="p">)</span> <span class="k">if</span> <span class="n">built_in</span> <span class="k">else</span> <span class="n">UTC</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
 <h3 id="hinoki.app.Hinoki.settings" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">settings</span>
 
@@ -409,28 +385,6 @@ must exist. Without it, <code>hinoki-rules.toml</code> at the project root is us
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">waiver_file</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">(</span>
     <span class="kc">None</span> <span class="k">if</span> <span class="n">waivers</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">Path</span><span class="p">(</span><span class="n">waivers</span><span class="p">)</span>
 <span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.app.Hinoki._automatic_database" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">_automatic_database</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.app.Hinoki._automatic_database" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_automatic_database</span><span class="p">:</span> <span class="n">DatabaseModule</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">automatic</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -607,69 +561,6 @@ must exist. Without it, <code>hinoki-rules.toml</code> at the project root is us
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.app.Hinoki.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.app.Hinoki.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">settings</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">include</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">modules</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Module</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Module</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-    <span class="n">commands</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Command</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Command</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-    <span class="n">on_startup</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
-    <span class="n">on_shutdown</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
-    <span class="n">startup_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">runtime</span><span class="p">:</span> <span class="n">RuntimeConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">openapi_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
-    <span class="n">docs_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
-    <span class="n">redoc_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
-    <span class="n">rules</span><span class="p">:</span> <span class="n">RuleSet</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">enforce_rules</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="n">waivers</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._project_routes" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_project_routes</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
-  </span>
-
-<a href="#hinoki.app.Hinoki._project_routes" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_project_routes</span><span class="p">(</span><span class="n">caller</span><span class="p">:</span> <span class="n">FrameType</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Without <code>include=</code>, the routes <code>hinoki.toml</code> declares, when the
-manifest names the module that builds this application.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="hinoki.app.Hinoki.admin_settings" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">admin_settings</span>
 
@@ -681,98 +572,6 @@ manifest names the module that builds this application.</p>
     <div class="doc doc-contents ">
 
         <p>The app's <code>admin</code> settings group, or <code>None</code> without built-in settings.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._configure_runtime" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_configure_runtime</span>
-
-
-<a href="#hinoki.app.Hinoki._configure_runtime" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_configure_runtime</span><span class="p">(</span>
-    <span class="n">built_in</span><span class="p">:</span> <span class="n">AppSettings</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">runtime</span><span class="p">:</span> <span class="n">RuntimeConfig</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._configure_docs" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_configure_docs</span>
-
-
-<a href="#hinoki.app.Hinoki._configure_docs" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_configure_docs</span><span class="p">(</span>
-    <span class="n">docs</span><span class="p">:</span> <span class="n">DocsSettings</span><span class="p">,</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">openapi_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">docs_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">redoc_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._configure_policy" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_configure_policy</span>
-
-
-<a href="#hinoki.app.Hinoki._configure_policy" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_configure_policy</span><span class="p">(</span>
-    <span class="n">built_in</span><span class="p">:</span> <span class="n">AppSettings</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">rules</span><span class="p">:</span> <span class="n">RuleSet</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">enforce_rules</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
-    <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._initialize_registries" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_initialize_registries</span>
-
-
-<a href="#hinoki.app.Hinoki._initialize_registries" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_initialize_registries</span><span class="p">(</span>
-    <span class="n">commands</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Command</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">Command</span><span class="p">]],</span>
-    <span class="n">on_startup</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">],</span>
-    <span class="n">on_shutdown</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">],</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
 
 
     </div>
@@ -860,44 +659,6 @@ an <code>api()</code> (the admin). Lists and tuples of those are flattened, so a
 feature package can export one <code>routes</code> list, and <code>Mount(prefix, ...)</code>
 places a feature under a path chosen here.</p>
 <p>All-or-nothing per call: on conflict the application is unchanged.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._collect_routes" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_collect_routes</span>
-
-
-<a href="#hinoki.app.Hinoki._collect_routes" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_collect_routes</span><span class="p">(</span>
-    <span class="n">items</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Route</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="n">RouteGroup</span><span class="p">]]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._stage_router" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_stage_router</span>
-
-
-<a href="#hinoki.app.Hinoki._stage_router" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_stage_router</span><span class="p">(</span><span class="n">pending</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Route</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Router</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
 
 
     </div>
@@ -1106,30 +867,6 @@ project's <code>hinoki-rules.toml</code>. An invalid waiver file always fails.</
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.app.Hinoki.__call__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__call__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#hinoki.app.Hinoki.__call__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__call__</span><span class="p">(</span>
-    <span class="n">scope</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">receive</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">send</span><span class="p">:</span> <span class="n">Any</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="hinoki.app.Hinoki.error_handler" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">error_handler</span>
 
@@ -1147,24 +884,6 @@ def card_error(error: stripe.CardError) -&gt; errors.APIError:
     return errors.APIError(error.user_message, status=402)
 </code></pre></div>
 <p>Errors that already are <code>APIError</code> subclasses need no handler.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.app.Hinoki._check_mutable" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_check_mutable</span>
-
-
-<a href="#hinoki.app.Hinoki._check_mutable" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_check_mutable</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
 
 
     </div>
@@ -1240,26 +959,6 @@ methods declared with <code>@http.get</code>/<code>@http.post</code>/... become 
 
 
 
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.api.API.__init_subclass__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init_subclass__</span>
-
-
-<a href="#hinoki.api.API.__init_subclass__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init_subclass__</span><span class="p">(</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="nb">object</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-function">
 
@@ -1372,7 +1071,14 @@ without a decorator removes the inherited route.</p>
 
 
 <a href="#hinoki.routing.RouteGroup" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">RouteGroup</span><span class="p">(</span>
+    <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -1508,50 +1214,6 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 
-<h3 id="hinoki.routing.RouteGroup._handlers" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">_handlers</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.routing.RouteGroup._handlers" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_handlers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.routing.RouteGroup._included" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">_included</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.routing.RouteGroup._included" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">_included</span> <span class="o">=</span> <span class="kc">False</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
 <h3 id="hinoki.routing.RouteGroup.handlers" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">handlers</span>
 
@@ -1574,68 +1236,6 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.routing.RouteGroup.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.routing.RouteGroup.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.routing.RouteGroup._include" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_include</span>
-
-
-<a href="#hinoki.routing.RouteGroup._include" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_include</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.routing.RouteGroup._decorate" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">_decorate</span>
-
-
-<a href="#hinoki.routing.RouteGroup._decorate" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">_decorate</span><span class="p">(</span>
-    <span class="n">declaration</span><span class="p">:</span> <span class="n">RouteDeclaration</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">R</span><span class="p">]</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">R</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-function">
 
@@ -1810,7 +1410,8 @@ admin) or a list or tuple of those.</p>
 
 
 <a href="#hinoki.routing.Mount" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Mount</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">items</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -1892,24 +1493,6 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
 
 
 
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.routing.Mount.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.routing.Mount.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="n">items</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
 
 
   </div>
@@ -1931,7 +1514,23 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
   </span>
 
 <a href="#hinoki.routing.Route" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Route</span><span class="p">(</span>
+    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">handler</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">object</span><span class="p">],</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">owner</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">parsers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Parser</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_PARSERS</span><span class="p">,</span>
+    <span class="n">renderers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Renderer</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_RENDERERS</span><span class="p">,</span>
+    <span class="n">errors</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -2320,42 +1919,35 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
 
 
 
-<div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.routing.Route.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.routing.Route.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">handler</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">object</span><span class="p">],</span>
-    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
-    <span class="n">owner</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-    <span class="n">parsers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Parser</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_PARSERS</span><span class="p">,</span>
-    <span class="n">renderers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Renderer</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_RENDERERS</span><span class="p">,</span>
-    <span class="n">errors</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
-    <span class="n">validate_response</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
+  </div>
 
     </div>
 
 </div>
 
+<div class="doc doc-object doc-function">
 
 
-  </div>
+<h2 id="hinoki.project.manifest_routes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.project.manifest_routes</span>
+
+
+<a href="#hinoki.project.manifest_routes" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">manifest_routes</span><span class="p">(</span>
+    <span class="n">start</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The routes <code>hinoki.toml</code> declares: the project's, then each app's at its
+prefix, for <code>Hinoki(include=manifest_routes())</code>.</p>
+<p>The manifest is found from <code>start</code>, by default the directory of the calling
+file (the working directory when the caller has no file), upwards. Outside a
+project this raises <code>ProjectError</code>.</p>
+
 
     </div>
 
@@ -2589,7 +2181,22 @@ MCP tool description then show.</p>
 
 
 <a href="#hinoki.http.request.Request" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Request</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">scheme</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">client</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
+    <span class="n">path_params</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_PARSERS</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -2614,44 +2221,6 @@ MCP tool description then show.</p>
 
 
 
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.http.request.Request.__slots__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__slots__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.http.request.Request.__slots__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="s2">"COOKIES"</span><span class="p">,</span>
-    <span class="s2">"GET"</span><span class="p">,</span>
-    <span class="s2">"body"</span><span class="p">,</span>
-    <span class="s2">"cached"</span><span class="p">,</span>
-    <span class="s2">"client"</span><span class="p">,</span>
-    <span class="s2">"headers"</span><span class="p">,</span>
-    <span class="s2">"host"</span><span class="p">,</span>
-    <span class="s2">"method"</span><span class="p">,</span>
-    <span class="s2">"parsers"</span><span class="p">,</span>
-    <span class="s2">"path"</span><span class="p">,</span>
-    <span class="s2">"path_params"</span><span class="p">,</span>
-    <span class="s2">"request_id"</span><span class="p">,</span>
-    <span class="s2">"scheme"</span><span class="p">,</span>
-    <span class="s2">"user"</span><span class="p">,</span>
-<span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-attribute">
 
@@ -3069,38 +2638,6 @@ MCP tool description then show.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.http.request.Request.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.http.request.Request.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">scheme</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">client</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
-    <span class="n">query</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
-    <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
-    <span class="n">path_params</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
-    <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-    <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_PARSERS</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="hinoki.http.request.Request.parsed" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">parsed</span>
 
@@ -3154,7 +2691,13 @@ MCP tool description then show.</p>
 
 
 <a href="#hinoki.http.response.Response" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Response</span><span class="p">(</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -3179,29 +2722,6 @@ MCP tool description then show.</p>
 
 
 
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.http.response.Response.__slots__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">__slots__</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.http.response.Response.__slots__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'body'</span><span class="p">,</span> <span class="s1">'headers'</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
 
 <div class="doc doc-object doc-attribute">
 
@@ -3274,29 +2794,6 @@ MCP tool description then show.</p>
 
 
 
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.http.response.Response.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.http.response.Response.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
-    <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
-    <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
 
 
   </div>
@@ -3349,7 +2846,10 @@ semicolon or backslash); encode richer data yourself.</p>
   </span>
 
 <a href="#hinoki.access.Access" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Access</span><span class="p">(</span>
+    <span class="n">auth</span><span class="p">:</span> <span class="n">BaseAuth</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">permissions</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -3428,26 +2928,6 @@ that name it are protected. Enforcement belongs to the request pipeline.</p>
 
 
 
-<div class="doc doc-object doc-function">
-
-
-<h3 id="hinoki.access.Access.__init__" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">__init__</span>
-
-
-<a href="#hinoki.access.Access.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">__init__</span><span class="p">(</span>
-    <span class="n">auth</span><span class="p">:</span> <span class="n">BaseAuth</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">permissions</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-
-    </div>
-
-</div>
-
 
 
   </div>
@@ -3465,7 +2945,15 @@ that name it are protected. Enforcement belongs to the request pipeline.</p>
 
 
 <a href="#hinoki.errors.APIError" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">APIError</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3517,7 +3005,15 @@ override them, which is how a handler answers with a status of its own:
 
 
 <a href="#hinoki.errors.BadRequest" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">BadRequest</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3563,7 +3059,15 @@ override them, which is how a handler answers with a status of its own:
 
 
 <a href="#hinoki.errors.Unauthorized" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Unauthorized</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3609,7 +3113,15 @@ override them, which is how a handler answers with a status of its own:
 
 
 <a href="#hinoki.errors.Forbidden" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Forbidden</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3655,7 +3167,15 @@ override them, which is how a handler answers with a status of its own:
 
 
 <a href="#hinoki.errors.NotFound" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">NotFound</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3701,7 +3221,15 @@ override them, which is how a handler answers with a status of its own:
 
 
 <a href="#hinoki.errors.Conflict" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Conflict</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3747,7 +3275,13 @@ override them, which is how a handler answers with a status of its own:
 
 
 <a href="#hinoki.errors.TooManyRequests" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">TooManyRequests</span><span class="p">(</span>
+    <span class="n">retry_after</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3797,7 +3331,15 @@ override them, which is how a handler answers with a status of its own:
 
 
 <a href="#hinoki.errors.UniqueConflict" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">UniqueConflict</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
@@ -3877,7 +3419,8 @@ subclass as <code>Model.NotFound</code>; HTTP maps it to 404.</p>
 
 
 <a href="#hinoki.errors.ErrorRegistry" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">ErrorRegistry</span><span class="p">()</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -4045,7 +3588,14 @@ finite timeouts; an async one runs on the event loop.</p>
   </span>
 
 <a href="#hinoki.ratelimit.RateLimitContext" class="headerlink" title="Permanent link">&para;</a></h2>
-
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">RateLimitContext</span><span class="p">(</span>
+    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">route</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">client</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">lookup</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">type</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">Any</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
 
     <div class="doc doc-contents first">
 
@@ -4120,21 +3670,21 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
           
           
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
-            <ul><li><a href="#hinoki.app.Hinoki._startup_url">_startup_url</a></li><li><a href="#hinoki.app.Hinoki._timezone">_timezone</a></li><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki._automatic_database">_automatic_database</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.__init__">__init__</a></li><li><a href="#hinoki.app.Hinoki._project_routes">_project_routes</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki._configure_runtime">_configure_runtime</a></li><li><a href="#hinoki.app.Hinoki._configure_docs">_configure_docs</a></li><li><a href="#hinoki.app.Hinoki._configure_policy">_configure_policy</a></li><li><a href="#hinoki.app.Hinoki._initialize_registries">_initialize_registries</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki._collect_routes">_collect_routes</a></li><li><a href="#hinoki.app.Hinoki._stage_router">_stage_router</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.__call__">__call__</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li><li><a href="#hinoki.app.Hinoki._check_mutable">_check_mutable</a></li></ul>
+            <ul><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
-            <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.__init_subclass__">__init_subclass__</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
+            <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
-            <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup._handlers">_handlers</a></li><li><a href="#hinoki.routing.RouteGroup._included">_included</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.__init__">__init__</a></li><li><a href="#hinoki.routing.RouteGroup._include">_include</a></li><li><a href="#hinoki.routing.RouteGroup._decorate">_decorate</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li><li><a href="#hinoki.routing.RouteGroup.query">query</a></li></ul>
+            <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li><li><a href="#hinoki.routing.RouteGroup.query">query</a></li></ul>
           </li><li><a href="#hinoki.routing.Includable">Includable</a></li><li><a href="#hinoki.routing.Mount">Mount</a>
-            <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li><li><a href="#hinoki.routing.Mount.__init__">__init__</a></li></ul>
+            <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
-            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li><li><a href="#hinoki.routing.Route.__init__">__init__</a></li></ul>
-          </li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
-            <ul><li><a href="#hinoki.http.request.Request.__slots__">__slots__</a></li><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.__init__">__init__</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
+            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li></ul>
+          </li><li><a href="#hinoki.project.manifest_routes">manifest_routes</a></li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
+            <ul><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.http.response.Response">Response</a>
-            <ul><li><a href="#hinoki.http.response.Response.__slots__">__slots__</a></li><li><a href="#hinoki.http.response.Response.status">status</a></li><li><a href="#hinoki.http.response.Response.body">body</a></li><li><a href="#hinoki.http.response.Response.headers">headers</a></li><li><a href="#hinoki.http.response.Response.__init__">__init__</a></li></ul>
+            <ul><li><a href="#hinoki.http.response.Response.status">status</a></li><li><a href="#hinoki.http.response.Response.body">body</a></li><li><a href="#hinoki.http.response.Response.headers">headers</a></li></ul>
           </li><li><a href="#hinoki.http.response.set_cookie">set_cookie</a></li><li><a href="#hinoki.access.Access">Access</a>
-            <ul><li><a href="#hinoki.access.Access.auth">auth</a></li><li><a href="#hinoki.access.Access.permissions">permissions</a></li><li><a href="#hinoki.access.Access.__init__">__init__</a></li></ul>
+            <ul><li><a href="#hinoki.access.Access.auth">auth</a></li><li><a href="#hinoki.access.Access.permissions">permissions</a></li></ul>
           </li><li><a href="#hinoki.errors.APIError">APIError</a></li><li><a href="#hinoki.errors.BadRequest">BadRequest</a></li><li><a href="#hinoki.errors.Unauthorized">Unauthorized</a></li><li><a href="#hinoki.errors.Forbidden">Forbidden</a></li><li><a href="#hinoki.errors.NotFound">NotFound</a></li><li><a href="#hinoki.errors.Conflict">Conflict</a></li><li><a href="#hinoki.errors.TooManyRequests">TooManyRequests</a></li><li><a href="#hinoki.errors.UniqueConflict">UniqueConflict</a></li><li><a href="#hinoki.errors.ObjectNotFound">ObjectNotFound</a></li><li><a href="#hinoki.errors.ErrorRegistry">ErrorRegistry</a>
             <ul><li><a href="#hinoki.errors.ErrorRegistry.is_builtin">is_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate_builtin">translate_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate">translate</a></li></ul>
           </li><li><a href="#rate-limits">Rate limits</a></li><li><a href="#hinoki.ratelimit.RateLimitPolicy">RateLimitPolicy</a></li><li><a href="#hinoki.ratelimit.RateLimitContext">RateLimitContext</a>
@@ -4144,7 +3694,7 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:06 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
