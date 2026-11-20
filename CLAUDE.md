@@ -23,7 +23,7 @@ uv run --locked --group docs mkdocs build --strict
 - Independent Python framework: not built on another web framework. Infrastructure servers such as Granian are allowed.
 - Substantial Rust core for request processing, routing and ORM execution. Document the real server/binding boundary; do not call a path entirely native if it crosses Python objects.
 - Hinoki owns its public schema and settings interfaces. Do not add an external validation framework as a convenience dependency (no Pydantic, Django, FastAPI or Starlette).
-- Base syntax: `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete`, `@http.query` (`from hinoki import http`), reusable typed `Access` policies, and `access` and `transaction` options on the decorator. Preserve normal Python and decorator composition. Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` assignments.
+- Base syntax: `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete`, `@http.query` (`from hinoki import http`), reusable typed `Access` policies, and `access` and `atomic` options on the decorator. Preserve normal Python and decorator composition. Do not reintroduce declaration blocks such as `with get/post`, or inline `get(query=...)`/`lookup=...` assignments.
 - CRUD generation is required; its advanced syntax is provisional.
 - Explicit application modules and dependencies, a defined worker lifespan, bounded sync execution, startup and graceful shutdown.
 - Remote services do not share ORM joins or pretend to share local transactions.
