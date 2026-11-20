@@ -137,8 +137,9 @@ tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does 
 
 Each status means one thing: **violated** (demonstrated), **unverifiable** (the
 check could not decide: a dynamic import, a pattern that matched nothing, a
-return type that does not name its schema, or a rule that crashed) and
-**waived**. Unverifiable fails like a violation; it is never a pass.
+return type that does not name its schema, or a rule that crashed), **waived**
+and **warning** (a notice about the waiver file itself). Unverifiable fails like
+a violation; it is never a pass. A warning never fails.
 
 The fix line each rule prints:
 
@@ -157,8 +158,12 @@ The fix line each rule prints:
 `hinoki check --format json` prints the same diagnostics as versioned data
 (`schema_version`, `rules`, `summary`, and per diagnostic `rule`, `severity`,
 `phase`, `status`, `message`, `location`, `explanation`, `subject`, `waiver`,
-`fix`) for CI, editors and agents. Exit codes: `0` clean, `1` failing, `2` the
-check could not run. The other options are on [Inspect an application](inspect.md#check).
+`fix`) for CI, editors and agents. `summary` counts each status (`violated`,
+`unverifiable`, `waived`, `warning`) and adds `failing`, the number that sets
+the exit code. `schema_version` is `2`: version 1 reported waiver notices as
+`violated` and had no `warning` count. Exit codes: `0` clean, `1` failing, `2`
+the check could not run. The other options are on
+[Inspect an application](inspect.md#check).
 
 ## Accept an exception with a waiver
 
@@ -190,7 +195,9 @@ tests/projects/rulesapp.py:7: HNK-ACC-001 [waived] GET /health (health) declares
 ```
 
 An expired waiver stops applying and reports `HNK-WVR-002`; one that matches
-nothing reports `HNK-WVR-001` (both warnings). A diagnostic that means "the rule
+nothing reports `HNK-WVR-001`. Both have status `warning`: they print as
+`[warning]`, count under `warning(s)` in the summary (`summary.warning` in JSON)
+and never change the exit code. A diagnostic that means "the rule
 could not do its job" cannot be waived. An invalid or unreadable file makes
 `hinoki check` exit with `2`.
 

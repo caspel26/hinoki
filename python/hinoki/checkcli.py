@@ -15,7 +15,7 @@ import sys
 from hinoki.app import Hinoki
 from hinoki.errors import RegistrationError
 from hinoki.newcli import add_arguments as add_new_arguments
-from hinoki.reportui import check_text
+from hinoki.reportui import check_summary, check_text
 from hinoki.rules import (
     SCHEMA_VERSION,
     Diagnostic,
@@ -90,12 +90,12 @@ def render(
         )
     if style is not None and style.color:
         return check_text(style, diagnostics, rule_count, totals)
-    lines = [d.text() for d in diagnostics]
-    lines.extend(f"    waived: {d.waiver}" for d in diagnostics if d.waiver)
-    lines.append(
-        f"{rule_count} rule(s): {totals['violated']} violated, "
-        f"{totals['unverifiable']} unverifiable, {totals['waived']} waived"
-    )
+    lines = []
+    for found in diagnostics:
+        lines.append(found.text())
+        if found.waiver:
+            lines.append(f"    waived: {found.waiver}")
+    lines.append(check_summary(rule_count, totals))
     return "\n".join(lines)
 
 
