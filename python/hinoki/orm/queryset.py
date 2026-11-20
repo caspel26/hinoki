@@ -433,10 +433,18 @@ class QuerySet[M: Model]:
     def paginate(self, params: PageParams) -> Page[M]:
         return run_sync(self.apaginate(params))
 
+    def stably_ordered(self) -> QuerySet[M]:
+        """The queryset with the primary key as the last sort key, so rows with
+        equal sort values keep a fixed position from one page to the next."""
+        key = self.model.__primary_key__
+        if any(column == key for column, _ in self.order):
+            return self
+        return self.derive(order=(*self.order, (key, False)))
+
     async def apaginate(self, params: PageParams) -> Page[M]:
-        """One page plus the total. Without ``order_by`` the primary key orders
-        the rows so pages are stable."""
-        ordered = self if self.order else self.order_by(self.model.__primary_key__)
+        """One page plus the total. The primary key is the final sort key so
+        pages are stable."""
+        ordered = self.stably_ordered()
         total = await self.acount()
         window = ordered.limit(params.page_size).offset(params.offset)
         return Page(await window, params.page, params.page_size, total)
