@@ -1,14 +1,14 @@
 """The native lane: an async handler driven from Rust instead of an asyncio task.
 
-A route is served here only when everything it does is known at startup: a
-non-atomic ``async def`` that ``nativeproof`` shows awaits nothing but stock
-ORM reads. A guarded route (access policy, rate limit, ``Query`` schema or
-several renderers) runs its guards first, and a body method reads and checks
-its body, inside the same coroutine; the body read is a native wait too. The
-coroutine runs without a task: the first step on
-the loop thread, each database wait on the native runtime, every later step
-back on the loop thread (so a task the handler spawns sees the loop). The
-request timeout is the driver's deadline.
+A route is served here only when everything it does is known at startup: an
+``async def`` that ``nativeproof`` shows awaits nothing but stock ORM reads;
+an ``atomic`` route runs it inside the transaction the lane opens. A guarded
+route (access policy, rate limit, ``Query`` schema or several renderers) runs
+its guards first, and a body method reads and checks its body, inside the same
+coroutine; the body read is a native wait too. The coroutine runs without a
+task: the first step on the loop thread, each database wait on the native
+runtime, every later step back on the loop thread (so a task the handler
+spawns sees the loop). The request timeout is the driver's deadline.
 
 A request the lane cannot serve (an input error, a route outside it) takes the
 asyncio path. A coroutine that awaits something only asyncio can run (a
@@ -54,8 +54,6 @@ def lane_refusal(binding: Binding) -> str | None:
         reason = "not an async def handler"
     elif not native_handler_eligible(binding):
         reason = "not natively eligible"
-    elif route.atomic:
-        reason = "runs in a transaction"
     return reason or native_refusal(route.handler)
 
 
