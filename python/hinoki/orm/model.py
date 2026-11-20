@@ -1399,7 +1399,8 @@ class Model:
     async def aget_or_none(cls, **conditions: Any) -> Self | None:
         try:
             return await cls.aget(**conditions)
-        except cls.NotFound:
+        # NotFound is an exception class the model metaclass builds at class creation.
+        except cls.NotFound:  # NOSONAR
             return None
 
     @overload
