@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -452,10 +452,18 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 </code></pre></div>
 <p><code>--output</code> writes stable, sorted JSON. <code>--check</code> compares parsed JSON with a committed file, so whitespace-only changes do not report drift. <code>--breaking-against</code> compares with an earlier document (the released one) and prints one <code>breaking: …</code> line per change that would break an existing client. The three options are exclusive. The command opens no database and works even when <code>openapi_url</code> is disabled. See <a href="../inspect/#openapi">inspect an application</a> for output and exit status.</p>
 <h2 id="serve-the-document-and-viewers">Serve the document and viewers<a class="headerlink" href="#serve-the-document-and-viewers" title="Permanent link">&para;</a></h2>
-<p>All three URLs are disabled by default. Set <code>openapi_url</code> to serve JSON; add <code>docs_url</code> for the bundled Swagger UI or <code>redoc_url</code> for ReDoc:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<p>All three URLs are disabled by default. Set <code>openapi_url</code> to serve JSON; add <code>docs_url</code> for the bundled Swagger UI or <code>redoc_url</code> for ReDoc. A project created with <code>hinoki new</code> already sets the first two:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
+    <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span>
+    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
     <span class="n">redoc_url</span><span class="o">=</span><span class="s2">"/redoc"</span><span class="p">,</span>
@@ -481,7 +489,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 <p>An <code>Enum</code> or <code>Literal</code> field becomes <code>type: string</code> or <code>type: integer</code> with an <code>enum</code> list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in <code>anyOf</code> with <code>null</code>. See <a href="../schema-types/#enums-and-literals">enums and literals</a>.</p>
 <p>A <code>set[X]</code> or <code>frozenset[X]</code> field becomes an array with <code>uniqueItems: true</code>, <code>tuple[X, ...]</code> an array of <code>X</code>, and a fixed <code>tuple[X, Y]</code> an array with <code>prefixItems</code>, <code>items: false</code> and equal <code>minItems</code>/<code>maxItems</code>. See <a href="../schema-collections/#sets-and-tuples">sets and tuples</a>.</p>
 <p>A plain union such as <code>int | str</code> becomes <code>anyOf</code> of its variants, and <code>Any</code> or <code>object</code> an unconstrained schema (<code>{}</code>). See <a href="../schema-collections/#plain-unions-and-any">plain unions and <code>Any</code></a>.</p>
-<p>Discriminated unions declared as <code>Schema</code> fields become OpenAPI <code>oneOf</code> schemas with a <code>discriminator</code> and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper <code>Schema</code>; bare union return annotations are rejected instead of producing an incomplete schema. As elsewhere, the response annotation does not cause runtime response validation.</p>
+<p>Discriminated unions declared as <code>Schema</code> fields become OpenAPI <code>oneOf</code> schemas with a <code>discriminator</code> and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper <code>Schema</code>; bare union return annotations are rejected instead of producing an incomplete schema. The return value is also checked against the annotation at runtime (<a href="../endpoints/#the-response-is-checked-against-the-annotation">details</a>).</p>
 <div class="language-yaml highlight"><pre><span></span><code><span class="nt">oneOf</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">$ref</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Cat"</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">$ref</span><span class="p">:</span><span class="w"> </span><span class="s">"#/components/schemas/Dog"</span>
@@ -531,7 +539,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

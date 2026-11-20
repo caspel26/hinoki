@@ -438,8 +438,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></span>
-            <span>5 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -560,7 +560,7 @@
 </div>
 </div>
 </div>
-<p><code>billing_staff</code> is an <code>Access</code> policy declared once in <code>notes/security.py</code>; see <a href="../authentication/">authentication</a>. <code>notes/main.py</code> stays as <code>hinoki new</code> wrote it: the application it declares binds every <code>routes</code> list named in <code>hinoki.toml</code> (<a href="../routes/">Register routes</a>).</p>
+<p><code>billing_staff</code> is an <code>Access</code> policy declared once in <code>notes/security.py</code> (<a href="../authentication/#billing-policies">the billing policies</a>). <code>notes/main.py</code> stays as <code>hinoki new</code> wrote it: the application it declares binds every <code>routes</code> list named in <code>hinoki.toml</code> (<a href="../routes/">Register routes</a>).</p>
 <p>The manifest prefix and the group prefix join, and a <code>"/"</code> path means the group prefix itself:</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>routes<span class="w"> </span>--path<span class="w"> </span>/billing
 </code></pre></div>
@@ -610,7 +610,7 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 </tr>
 </tbody>
 </table>
-<p>A public action must also be listed in <code>except_</code> of <code>Actions.require_access</code> and <code>Actions.require_permissions</code> in <code>notes/rules.py</code>, or the application refuses to start (<code>HNK-ACC-001</code>). The rule exists so that public endpoints are a written decision.</p>
+<p>A public action must also be listed in <code>except_</code> of <code>Actions.require_access</code> in <code>notes/rules.py</code>, for example <code>except_=["notes.api.health", "notes.apps.billing.api.summary"]</code>, or the application refuses to start (<code>HNK-ACC-001</code>). The rule exists so that public endpoints are a written decision. <code>Actions.require_permissions</code> (<code>HNK-ACC-002</code>) only checks actions that have a policy, so it needs no entry.</p>
 <h2 id="compose-with-other-decorators">Compose with other decorators<a class="headerlink" href="#compose-with-other-decorators" title="Permanent link">&para;</a></h2>
 <p>Put the HTTP decorator outermost. The group records the function it receives when <code>@invoices.get(...)</code> runs, so a decorator above it would not be served:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
@@ -734,7 +734,7 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/function-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

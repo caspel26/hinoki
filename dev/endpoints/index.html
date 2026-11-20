@@ -438,8 +438,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:16:24 UTC">November 20, 2026</span></span>
-            <span>10 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
+            <span>11 min read</span>
           </p>
           
         </header>
@@ -506,6 +506,11 @@
 </tbody>
 </table>
 <p>Each option is checked when the route is declared or registered.</p>
+<p>The fragments below continue <code>notes/apps/billing/api.py</code> from <a href="../function-endpoints/">function APIs</a>. Besides its imports they use these:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">XML</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Form</span><span class="p">,</span> <span class="n">MultiPartParser</span><span class="p">,</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">UploadedFile</span>
+</code></pre></div>
 <h2 id="read-with-a-body-httpquery">Read with a body: <code>@http.query</code><a class="headerlink" href="#read-with-a-body-httpquery" title="Permanent link">&para;</a></h2>
 <p><code>QUERY</code> is the HTTP method for a read whose input does not fit a query string: it is safe and idempotent like <code>GET</code>, and carries a body like <code>POST</code>.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
@@ -614,6 +619,12 @@
 <h3 id="rate-limit-an-action">Rate limit an action<a class="headerlink" href="#rate-limit-an-action" title="Permanent link">&para;</a></h3>
 <p>Hinoki ships no limiter. A route names a policy with <code>rate_limit=</code>, and the application owns the rule, the key and the storage, because a counter kept in one worker's memory is wrong across workers and after a restart:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/accounts/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">RateLimitContext</span><span class="p">,</span> <span class="n">errors</span><span class="p">,</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">LoginIn</span><span class="p">,</span> <span class="n">SessionOut</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisStore</span>  <span class="c1"># your module's resource</span>
+
+
 <span class="k">class</span><span class="w"> </span><span class="nc">LoginLimit</span><span class="p">:</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">store</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">resource</span><span class="p">(</span><span class="n">RedisStore</span><span class="p">)</span>  <span class="c1"># provided by a module, per worker</span>
@@ -637,7 +648,7 @@
 </code></pre></div>
 <ul>
 <li><strong>At startup.</strong> An annotation that cannot be checked stops the app with a <code>RegistrationError</code> that names the action: no annotation, <code>Any</code>, <code>object</code>, <code>set[...]</code>, a plain class, or <code>Response</code> inside a collection. Annotate a concrete type, or declare the action with <code>validate_response=False</code> to skip the check for that action.</li>
-<li><strong>At runtime.</strong> A result that does not match is a <code>500 internal_error</code>, because the fault is the server's, not the client's. With <code>debug=True</code> (development) the answer names the action, the type it returned and the annotation it broke, for example <code>raw_invoice returned a dict that does not match its return annotation InvoiceOut</code>. Without debug the body is generic. The log and the answer never contain the value itself. With <code>atomic=True</code> the check runs inside the transaction, so a mismatch rolls the write back.</li>
+<li><strong>At runtime.</strong> A result that does not match is a <code>500 internal_error</code>, because the fault is the server's, not the client's. With the <a href="../web-security/#debug"><code>debug</code> setting</a> on (development only; <code>hinoki dev</code> does not turn it on) the answer names the action, the type it returned and the annotation it broke, for example <code>raw_invoice returned a dict that does not match its return annotation InvoiceOut</code>. Without debug the body is generic. The log and the answer never contain the value itself. With <code>atomic=True</code> the check runs inside the transaction, so a mismatch rolls the write back.</li>
 <li><strong>What is accepted.</strong> A <code>Schema</code> class, <code>list[...]</code>, <code>dict[str, ...]</code> and <code>Page[...]</code> of these, <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> (a <code>bool</code> is not an <code>int</code>), <code>bytes</code>, <code>datetime</code>, <code>date</code>, <code>UUID</code>, <code>Decimal</code>, <code>None</code>, plain <code>dict</code> and <code>list</code>, <code>Any</code> or <code>object</code> as an item type, and unions of these. <code>Annotated[...]</code> is unwrapped. The check never coerces.</li>
 <li><strong><code>Response</code>.</strong> <code>-&gt; Response</code> and <code>InvoiceOut | Response</code> are accepted: a returned <code>Response</code> carries its own status, headers and body and is not checked. Actions with a bodyless status (<code>204</code>, <code>304</code>) are not checked.</li>
 <li><strong>What it does not check.</strong> A <code>Schema</code> instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a <code>dump()</code> override can still change the bytes afterwards.</li>
@@ -677,7 +688,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:16:24 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

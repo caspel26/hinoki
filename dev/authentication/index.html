@@ -438,8 +438,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -632,6 +632,36 @@ lifetimes short.</p>
 </code></pre></div>
 <p><code>tokens.issue({"sub": "u1", "scopes": ["notes:write"]}, ttl=900)</code> signs with the
 first key that can sign and sets <code>iat</code>, <code>exp</code>, and <code>iss</code>/<code>aud</code> when configured.</p>
+<h3 id="billing-policies">The policies of the billing examples<a class="headerlink" href="#billing-policies" title="Permanent link">&para;</a></h3>
+<p>The endpoint, CRUD and transaction guides import <code>billing_staff</code> and
+<code>billing_admin</code> from one module. Declare the policies once and import them
+wherever an action or <code>RouteGroup</code> names them:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/security.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">Permission</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.crypto</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClaimsJWTAuth</span><span class="p">,</span> <span class="n">JWTKey</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">BillingPermission</span><span class="p">(</span><span class="n">Permission</span><span class="p">):</span>
+    <span class="n">MANAGE</span> <span class="o">=</span> <span class="s2">"billing:manage"</span>
+    <span class="n">ADMIN</span> <span class="o">=</span> <span class="s2">"billing:admin"</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">StaffTokens</span><span class="p">(</span><span class="n">ClaimsJWTAuth</span><span class="p">):</span>
+    <span class="n">keys</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">JWTKey</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">JWTKey</span><span class="p">(</span><span class="s2">"2026-11"</span><span class="p">,</span> <span class="s2">"HS256"</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"0123456789abcdef0123456789abcdef"</span><span class="p">),</span>
+    <span class="p">)</span>  <span class="c1"># read the key from a Secret in a real application</span>
+
+
+<span class="n">tokens</span> <span class="o">=</span> <span class="n">StaffTokens</span><span class="p">()</span>
+<span class="n">billing_staff</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">tokens</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">BillingPermission</span><span class="o">.</span><span class="n">MANAGE</span><span class="p">])</span>
+<span class="n">billing_admin</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">tokens</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">BillingPermission</span><span class="o">.</span><span class="n">ADMIN</span><span class="p">])</span>
+</code></pre></div>
+<p>A token from <code>tokens.issue({"sub": "u1", "scopes": ["billing:manage"]}, ttl=900)</code>
+passes <code>billing_staff</code>; without a token the answer is <code>401</code>, and with a token
+that lacks the permission it is <code>403</code>.</p>
 <p>Generated CRUD routes protected by an unmodified <code>ClaimsJWTAuth</code> can run on the native lane. Rust only admits requests: a single <code>Authorization: Bearer &lt;token&gt;</code> header whose token verifies (signature, expiry, issuer, audience, <code>sub</code>) and carries every required permission goes straight to the native action. Every other request, including a missing, malformed, expired, forged or under-privileged one, is handed to the Python pipeline, which answers exactly as it does without the native lane (<code>401</code> with the challenge, or <code>403</code>). With <code>owner</code> and <code>identity_key = caller_id</code>, create, update and delete are native too: Rust sets the owner column from <code>sub</code>, and update/delete are constrained to rows that <code>sub</code> owns. Foreign or missing rows, and MySQL/MariaDB, are answered by the Python pipeline. A subclass that overrides a method, a modified instance, or any other auth class keeps the route on Python. The route's key, issuer, audience, leeway and permission snapshot is rechecked about once per second; reassigning them disarms the native plan until the worker restarts, so a rotation reaches native routes after that interval, not per verification. <code>hinoki routes --lanes</code> shows which lane each route uses.</p>
 <p>Rust verifies the token on these routes too: a handler route protected by an unmodified <code>ClaimsJWTAuth</code> (not generated CRUD) is authenticated by Rust, which admits the caller or answers <code>401</code> or <code>403</code> itself with the same body and <code>WWW-Authenticate</code> challenge as Python, in the same order relative to path/query errors, the rate limit and body validation. Rust defers to Python for anything it cannot decide identically: several <code>Authorization</code> headers, a value that is not a plain <code>Bearer &lt;token&gt;</code>, or a request Rust already found malformed. A rate limit still runs afterwards in Python, with the admitted caller. Error handlers registered with <code>app.errors</code> do not apply to these answers, on either path, because they translate other exceptions. The provider and policy are checked about once per second as for CRUD routes.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
@@ -669,12 +699,14 @@ first key that can sign and sets <code>iat</code>, <code>exp</code>, and <code>i
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#name-your-permissions">Name your permissions</a></li><li><a href="#define-a-provider">Define a provider</a></li><li><a href="#attach-a-policy">Attach a policy</a></li><li><a href="#what-clients-receive">What clients receive</a></li><li><a href="#hash-passwords">Hash passwords</a></li><li><a href="#verify-json-web-tokens">Verify JSON Web Tokens</a></li><li><a href="#claims-only-tokens-on-the-native-lane">Claims-only tokens on the native lane</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#name-your-permissions">Name your permissions</a></li><li><a href="#define-a-provider">Define a provider</a></li><li><a href="#attach-a-policy">Attach a policy</a></li><li><a href="#what-clients-receive">What clients receive</a></li><li><a href="#hash-passwords">Hash passwords</a></li><li><a href="#verify-json-web-tokens">Verify JSON Web Tokens</a></li><li><a href="#claims-only-tokens-on-the-native-lane">Claims-only tokens on the native lane</a>
+            <ul><li><a href="#billing-policies">The policies of the billing examples</a></li></ul>
+          </li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

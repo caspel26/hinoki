@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
             <span>9 min read</span>
           </p>
           
@@ -624,8 +624,10 @@ migration you can pass <code>enforce_rules=False</code> to <code>Hinoki(...)</co
 then logged as a warning instead.</p>
 <h2 id="read-the-results">Read the results<a class="headerlink" href="#read-the-results" title="Permanent link">&para;</a></h2>
 <p><code>hinoki check</code> prints one line per finding, with its location and a <code>fix:</code> hint.
-This output comes from a deliberately broken project in Hinoki's own tests
-(<code>tests/projects/rulesapp.py</code>):</p>
+This output comes from a deliberately broken project in Hinoki's own tests,
+checked from a clone of the repository:</p>
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>check<span class="w"> </span>tests.projects.rulesapp:create_app<span class="w"> </span>--rules<span class="w"> </span>tests.projects.rulesapp:rules
+</code></pre></div>
 <div class="language-text highlight"><pre><span></span><code>tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
   fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)
 tests/projects/rulesapp.py:12: HNK-ACC-001 [violated] POST /items (create) declares no access policy
@@ -844,7 +846,7 @@ same ID twice.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

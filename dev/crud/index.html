@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -517,6 +517,8 @@
 <p><code>access=</code> takes one <code>Access</code>, which protects <strong>every</strong> generated action including reads, or <code>CrudAccess</code> to set actions apart. An action without its own entry uses <code>default</code>; <code>None</code> means public:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py (variant)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrudAccess</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_admin</span><span class="p">,</span> <span class="n">billing_staff</span>
 
 <span class="n">access</span> <span class="o">=</span> <span class="n">CrudAccess</span><span class="p">(</span>
     <span class="n">default</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span> <span class="nb">list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">retrieve</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="n">billing_admin</span>
@@ -674,7 +676,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resource
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:08:38 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
