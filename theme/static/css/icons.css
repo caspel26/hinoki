@@ -63,12 +63,10 @@ details > summary {
 .admonition-title::before,
 details > summary::before {
   content: "";
-  display: inline-block;
+  flex: none;
   inline-size: var(--icon-s);
   block-size: var(--icon-s);
-  margin-right: 8px;
   background: currentColor;
-  vertical-align: -3px;
   -webkit-mask: var(--i) center / contain no-repeat;
   mask: var(--i) center / contain no-repeat;
 }

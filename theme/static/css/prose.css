@@ -53,11 +53,46 @@
   text-wrap: balance;
 }
 
-.prose h1 + p {
+.prose h1 + p:not(.page-meta),
+.page-head + p {
   margin: 0 0 var(--sp-6);
   color: var(--hn-text-2);
   font-size: 18px;
   line-height: 1.6;
+}
+
+.page-head {
+  margin: 0 0 var(--sp-5);
+}
+
+.page-head > :last-child {
+  margin-bottom: 0;
+}
+
+.page-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: var(--sp-3) 0 0;
+  color: var(--hn-text-3);
+  font: 400 13px/1.5 var(--hn-font-sans);
+}
+
+.page-meta > span + span:not(.chip)::before {
+  content: "·";
+  margin-right: 14px;
+  color: var(--hn-text-3);
+}
+
+.page-meta > .chip + span:not(.chip)::before {
+  content: none;
+}
+
+@media (max-width: 640px) {
+  .page-meta > span + span:not(.chip)::before {
+    content: none;
+  }
 }
 
 .prose h2 {
@@ -438,30 +473,63 @@ details {
   --callout: var(--hn-info);
   --callout-tint: var(--hn-tint-info);
   margin: var(--sp-5) 0;
-  padding: 0 var(--sp-4);
-  border: 1px solid color-mix(in srgb, var(--callout) 28%, transparent);
-  border-radius: 18px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--callout) 30%, transparent);
+  border-left: 3px solid var(--callout);
+  border-radius: 8px;
   background: var(--callout-tint);
   font-size: 15px;
 }
 
+.admonition > :first-child,
+details > :first-child {
+  margin-top: 0;
+}
+
 .admonition-title,
 details > summary {
-  margin: 0 calc(var(--sp-4) * -1) !important;
-  padding: 10px var(--sp-4) 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px !important;
+  padding: 0;
   color: var(--callout);
-  font-size: var(--fs-m);
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 600;
   cursor: default;
 }
 
 details > summary {
   cursor: pointer;
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::after {
+  content: "";
+  inline-size: 7px;
+  block-size: 7px;
+  margin: 0 4px 0 auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--hn-dur-1) var(--hn-ease);
+}
+
+details[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+details:not([open]) > summary {
+  margin-bottom: 0 !important;
 }
 
 .admonition > :last-child,
 details > :last-child {
-  margin-bottom: var(--sp-3);
+  margin-bottom: 0;
 }
 
 :is(.admonition, details):is(.tip, .success, .hint) { --callout: var(--hn-green); --callout-tint: var(--hn-tint-success); }
@@ -472,23 +540,42 @@ details > :last-child {
 
 /* ---------- Tables ---------- */
 
-.prose table {
-  display: block;
-  width: 100%;
+.table-wrap {
   margin: var(--sp-5) 0;
   overflow-x: auto;
+  border: 1px solid var(--hn-edge);
+  border-radius: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.prose table {
+  display: table;
+  width: 100%;
+  margin: var(--sp-5) 0;
   border-collapse: collapse;
   font-size: var(--fs-m);
 }
 
+.table-wrap > table {
+  margin: 0;
+}
+
+/* Without the script that adds .table-wrap, the table scrolls by itself. */
+html:not(.js) .prose table {
+  display: block;
+  overflow-x: auto;
+}
+
 .prose th {
-  padding: 10px var(--sp-3);
+  padding: 9px var(--sp-3);
   border-bottom: 1px solid var(--hn-edge-2);
-  color: var(--hn-text-3);
-  font-size: var(--fs-xs);
+  background: var(--hn-surface-2);
+  color: var(--hn-text-2);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.02em;
   text-align: left;
+  white-space: nowrap;
 }
 
 .prose td {
@@ -497,14 +584,25 @@ details > :last-child {
   vertical-align: top;
 }
 
+.prose tbody tr {
+  transition: background var(--hn-dur-1) var(--hn-ease);
+}
+
+.prose tbody tr:hover {
+  background: var(--hn-brand-tint);
+}
+
 @media (max-width: 640px) {
-  .prose table {
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
+  .prose td {
+    min-width: 12rem;
   }
 
-  .prose th,
-  .prose td {
+  .prose td:first-child,
+  .prose td:last-child {
+    min-width: 0;
+  }
+
+  .prose td > code {
     white-space: nowrap;
   }
 }

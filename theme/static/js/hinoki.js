@@ -455,6 +455,19 @@
     }
   });
 
+  /* ---------- Scrollable tables ---------- */
+  $$(".prose table").forEach((table) => {
+    if (table.closest(".table-wrap, .benchmark-table-wrap, [data-no-wrap]")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    wrap.tabIndex = 0;
+    wrap.setAttribute("role", "region");
+    const caption = table.caption && table.caption.textContent.trim();
+    wrap.setAttribute("aria-label", caption || "Table");
+    table.before(wrap);
+    wrap.appendChild(table);
+  });
+
   /* ---------- Code block headers and copy buttons ---------- */
   const LANGS = { python: "Python", pycon: "Python", py: "Python", toml: "TOML", sh: "Shell", bash: "Shell", shell: "Shell", console: "Shell", json: "JSON", sql: "SQL", yaml: "YAML", css: "CSS", html: "HTML", rust: "Rust", js: "JavaScript" };
   const FILE_LINE = /^\s*(?:#|\/\/)\s*([\w.\/-]+\.\w+(?:\s+\([^)\n]*\))?)\s*$/;
@@ -707,7 +720,7 @@
 
   /* ---------- Scrollable regions reachable by keyboard ---------- */
   const focusables = () => {
-    $$("pre, pre code, .prose table, .tabbed-labels, .hn-walk__tabs, .top__nav, .hn-index__pages ul").forEach((el) => {
+    $$("pre, pre code, .tabbed-labels, .hn-walk__tabs, .top__nav, .hn-index__pages ul").forEach((el) => {
       const scrolls = el.matches("pre") || el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
       if (scrolls && !el.hasAttribute("tabindex")) {
         el.tabIndex = 0;

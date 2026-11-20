@@ -156,9 +156,21 @@
     </aside>
 
     <main class="main" id="main">
-      <article class="prose" style="--sheet: '{{ sheet }}'">
-        {% if sec.active %}<p class="kicker" data-search-exclude><span class="i-tile">{{ m.icon(m.page_icon(page, sec.active.title), "m") }}</span><span>{{ sec.active.title }}{% if page.parent and page.parent.title != sec.active.title %}<span class="kicker__sep" aria-hidden="true">/</span>{{ page.parent.title }}{% endif %}</span></p>{% endif %}
-        {% block page_content scoped %}{{ page.content }}{% endblock %}
+      <article class="prose">
+        {#- The page head groups the section, the H1 and the page facts; the rest of the content follows it. -#}
+        {% set parts = page.content.split('</h1>', 1) if page.content and '</h1>' in page.content else ['', page.content or ''] %}
+        <header class="page-head">
+          {% if sec.active %}<p class="kicker" data-search-exclude><span class="i-tile">{{ m.icon(m.page_icon(page, sec.active.title), "m") }}</span><span>{{ sec.active.title }}{% if page.parent and page.parent.title != sec.active.title %}<span class="kicker__sep" aria-hidden="true">/</span>{{ page.parent.title }}{% endif %}</span></p>{% endif %}
+          {% if parts[0] %}{{ parts[0] }}</h1>{% endif %}
+          {% if page.meta and (page.meta.status or page.meta.git_revision_date_localized or page.meta.reading_minutes) %}
+          <p class="page-meta" data-search-exclude>
+            {% if page.meta.status %}<span class="chip chip--{{ page.meta.status }}">{{ page.meta.status }}</span>{% endif %}
+            {% if page.meta.git_revision_date_localized %}<span>Updated {{ page.meta.git_revision_date_localized }}</span>{% endif %}
+            {% if page.meta.reading_minutes %}<span>{{ page.meta.reading_minutes }} min read</span>{% endif %}
+          </p>
+          {% endif %}
+        </header>
+        {% block page_content scoped %}{{ parts[1] }}{% endblock %}
         {% if page.meta and page.meta.related_pages %}
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -186,10 +198,7 @@
         </nav>
         {% endif %}
         <dl class="titleblock">
-          {% if sheet %}<div><dt>Sheet</dt><dd>{{ sheet }}</dd></div>{% endif %}
-          {% if page.meta and page.meta.status %}<div><dt>Status</dt><dd><span class="chip chip--{{ page.meta.status }}">{{ page.meta.status }}</span></dd></div>{% endif %}
           {% if page.meta and page.meta.git_revision_date_localized %}<div><dt>Updated</dt><dd>{{ page.meta.git_revision_date_localized }}</dd></div>{% endif %}
-          {% if page.meta and page.meta.reading_minutes %}<div><dt>Reading</dt><dd>{{ page.meta.reading_minutes }} min</dd></div>{% endif %}
           {% if page.edit_url %}<div><dt>Source</dt><dd><a href="{{ page.edit_url }}">Edit on GitHub</a></dd></div>{% endif %}
         </dl>
       </div>
@@ -199,8 +208,35 @@
 
   <footer class="foot">
     <div class="foot__inner">
-      <span>hinoki <span data-docs-version-footer>v{{ config.extra.hn_version }}</span> · pre-alpha · MIT · © 2026 caspel26</span>
-      <a href="{{ config.repo_url }}">GitHub</a>
+      <div class="foot__about">
+        <a class="foot__brand" href="{{ nav.homepage.url | default('.', true) | url }}" aria-label="{{ config.site_name }} home">
+          <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="{{ 'static/hinoki-logo.svg' | url }}#mark"/></svg>
+          <svg class="brand__word" viewBox="0 0 655 184" aria-hidden="true"><use href="{{ 'static/hinoki-logo.svg' | url }}#wordmark"/></svg>
+        </a>
+        <p class="foot__tagline">{{ config.site_description }}</p>
+      </div>
+      <nav aria-labelledby="foot-docs">
+        <p class="foot__title" id="foot-docs">Docs</p>
+        <ul>
+          {% for item in nav %}
+            {% if item.title in ["Get started", "Guides", "Reference"] %}<li><a href="{{ m.first_url(item) | url }}">{{ item.title }}</a></li>{% endif %}
+          {% endfor %}
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-project">
+        <p class="foot__title" id="foot-project">Project</p>
+        <ul>
+          <li><a href="{{ config.repo_url }}">GitHub</a></li>
+          <li><a href="{{ config.repo_url }}/blob/main/ROADMAP.md">Roadmap</a></li>
+          <li><a href="{{ config.repo_url }}/blob/main/LICENSE">Licence (MIT)</a></li>
+          <li><a href="{{ 'static/icons/lucide/LICENSE.txt' | url }}">Lucide icons (ISC)</a></li>
+        </ul>
+      </nav>
+      <div class="foot__bottom">
+        <span>hinoki <span data-docs-version-footer>v{{ config.extra.hn_version }}</span></span>
+        <span class="chip">pre-alpha</span>
+        <span>© 2026 caspel26</span>
+      </div>
     </div>
   </footer>
 
