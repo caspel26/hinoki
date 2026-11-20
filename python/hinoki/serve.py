@@ -68,7 +68,7 @@ def add_arguments(
 def load_wsgi_target(target: str) -> Any:
     """The WSGI callable named by ``target`` (``--interface wsgi``): a
     ``WSGIAdapter`` or any ``(environ, start_response)`` callable. Nothing
-    builds it, so a factory is not supported."""
+    builds it, so a factory is refused (exit status 2)."""
     try:
         found = import_target(target)
     except (ImportError, AttributeError, ValueError) as exc:
@@ -80,7 +80,30 @@ def load_wsgi_target(target: str) -> Any:
         )
     if not callable(found):
         raise SystemExit(f"error: {target} is not a WSGI callable")
+    if is_factory(found):
+        print(
+            f"error: {target} is a factory; for --interface wsgi name a WSGI "
+            "callable, such as WSGIAdapter(app) from hinoki.wsgi",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     return found
+
+
+def is_factory(found: object) -> bool:
+    """Whether ``found`` is called with no arguments to build an application
+    (a declared action is not)."""
+    if not callable(found) or hasattr(found, ROUTE_ATTR):
+        return False
+    try:
+        parameters = inspect.signature(found).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return all(
+        p.default is not inspect.Parameter.empty
+        or p.kind in {p.VAR_POSITIONAL, p.VAR_KEYWORD}
+        for p in parameters
+    )
 
 
 def load_target(target: str) -> tuple[Any, bool]:
@@ -91,15 +114,7 @@ def load_target(target: str) -> tuple[Any, bool]:
         raise SystemExit(f"error: cannot load {target}: {exc}") from None
     if isinstance(found, Hinoki):
         return found, False
-    if (
-        callable(found)
-        and not hasattr(found, ROUTE_ATTR)  # a declared action is not a factory
-        and all(
-            p.default is not inspect.Parameter.empty
-            or p.kind in {p.VAR_POSITIONAL, p.VAR_KEYWORD}
-            for p in inspect.signature(found).parameters.values()
-        )  # callable with no arguments
-    ):
+    if is_factory(found):
         return found, True
     raise SystemExit(
         f"error: {target} is neither an application nor a factory "
