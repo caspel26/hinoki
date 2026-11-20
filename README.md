@@ -9,7 +9,7 @@
 
 <p align="center">
   <strong>Typed Python APIs. Architecture rules you can run.</strong><br>
-  <sub>A Python framework for HTTP APIs, with a Rust core.</sub>
+  <sub>A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso.</sub>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/demo.png">
-    <img src="assets/readme/demo.gif" alt="hinoki new asks for a project name, a parent directory, a database and a server, then creates the project and installs it. In the project, hinoki migrations plan and apply create a table, hinoki dev starts the Kiso server and hinoki check reports no violated rules." width="840">
+    <img src="assets/readme/demo.gif" alt="In a terminal window, hinoki new shows the Hinoki banner, asks for a project name, a parent directory, a database and a server, and creates the notes project. In the project, hinoki dev starts the Kiso server. hinoki check reports that POST /notes does not declare atomic=True; after atomic=True is added to the route group, it reports no violated rules." width="840">
   </picture>
 </p>
 <p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened.</sub></p>
@@ -43,39 +43,61 @@
 > [!WARNING]
 > **Pre-alpha, not released.** The API and the migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project: install Hinoki from this repository and use disposable data.
 
-## Start a project
+Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls: `hinoki dev` and `hinoki serve` use it by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix.
+
+## Quick start
 
 You need [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain; the native extension builds from source.
 
 ```sh
-git clone https://github.com/caspel26/hinoki
-cd hinoki
+git clone https://github.com/caspel26/hinoki && cd hinoki
 uv sync --locked
-uv run hinoki new   # asks for the name, parent directory (..), database and server
-cd ../notes         # the name you chose
-uv run hinoki dev   # API docs at http://127.0.0.1:8000/docs
-uv run hinoki check # runs the project's rules
-uv run pytest
+source .venv/bin/activate
+hinoki new notes --dir ..   # asks for the database, the server and the rest
+cd ../notes
+hinoki dev                  # API docs at http://127.0.0.1:8000/docs
 ```
 
-`hinoki.toml` names the application, its routes, models and migrations, so commands inside a project take no target. The [Quick start](docs/quick-start.md) walks through the prompts.
+The [Quick start](docs/quick-start.md) walks through the prompts.
+
+## Declare and run an app
+
+`hinoki new` writes the application as a module-level `app` in `notes/main.py`, titled after the project:
+
+```python
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+
+from notes.rules import project_rules
+from notes.settings import ProjectSettings
+
+app = Hinoki(
+    settings=ProjectSettings,  # NOTES_* variables and .env
+    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
+    title="Notes",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    rules=project_rules,
+)
+```
+
+`hinoki.toml` names that application, its routes, models and migrations, so commands inside the project take no target:
+
+```toml
+[project]
+application = "notes.main:app"
+routes = "notes.routes:routes"
+```
+
+```sh
+hinoki dev      # serve on Kiso, reload on changes
+hinoki check    # run the project's rules
+hinoki routes   # list every route with its access policy
+```
 
 ## Write an API
 
-A model, then a group of actions that share a path, an access policy and a transaction, beside the generated `health` endpoint:
-
-```python
-# notes/models.py
-from uuid import UUID, uuid4
-
-from hinoki.orm import Model, field, pk
-
-
-class Note(Model):
-    id: UUID = pk(default_factory=uuid4)
-    title: str = field(max_length=80)
-    body: str = ""
-```
+Endpoints are plain functions. A `RouteGroup` shares a path, an access policy and a transaction across its actions:
 
 ```python
 # notes/api.py
@@ -106,20 +128,42 @@ class NoteIn(Schema):
 class NoteOut(Schema): ...
 
 
-note_routes = RouteGroup("/notes", access=editors, atomic=True)
+notes = RouteGroup("/notes", access=editors, atomic=True)
 
 
-@note_routes.get("/", pagination=PageNumberPagination(page_size=20))
+@notes.get("/", pagination=PageNumberPagination(page_size=20))
 async def list_notes(page: PageParams) -> Page[NoteOut]:
     return (await Note.all().apaginate(page)).map(NoteOut.from_model)
 
 
-@note_routes.post("/", status=201)
+@notes.post("/", status=201)
 async def create_note(data: NoteIn) -> NoteOut:
     return NoteOut.from_model(await Note.acreate(data))
 ```
 
-`editors` is an `Access` policy: a token check and the permissions it requires ([Authentication](docs/authentication.md)). List the group in `notes/routes.py` (`routes = [health, note_routes]`); `main.py` does not change. Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `uv run hinoki migrations plan` writes the migration, `uv run hinoki migrations apply` runs it.
+```python
+# notes/models.py
+from uuid import UUID, uuid4
+
+from hinoki.orm import Model, field, pk
+
+
+class Note(Model):
+    id: UUID = pk(default_factory=uuid4)
+    title: str = field(max_length=80)
+    body: str = ""
+```
+
+`editors` is an `Access` policy: a token check and the permissions it requires ([Authentication](docs/authentication.md)). List the endpoints in `notes/routes.py` (`routes = [health, notes]`); `main.py` does not change.
+
+```console
+$ hinoki routes
+GET     /health  public                   notes.api.health
+GET     /notes   Tokens[notes:write]      notes.api.list_notes
+POST    /notes   Tokens[notes:write]      notes.api.create_note
+```
+
+Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `hinoki migrations plan` writes the migration, `hinoki migrations apply` runs it. For CRUD, `crud(Note, path=..., read=..., create=...)` generates the routes, and a class-based `API` adds hooks and handwritten actions ([CRUD](docs/crud.md), [class-based APIs](docs/class-endpoints.md)).
 
 ## What you get
 
@@ -145,7 +189,7 @@ The optional admin is mounted explicitly. By default it has its own users, a sig
 
 ## Python and Rust
 
-`hinoki dev` and `hinoki serve` run on Kiso, Hinoki's HTTP server written in Rust; `--server granian` runs Granian instead. Path matching, selected request parsing, schema validation and serialization, and ORM SQL compilation and execution run in the extension. The ASGI adapter, handlers and most of the request pipeline run in Python; on Kiso, an `async def` handler that only awaits ORM calls is driven from Rust. [Serving](docs/serving.md) documents the boundary.
+Kiso is part of the native extension and has no ASGI boundary: eligible routes skip Python routing and binding. Granian runs every request through the ASGI pipeline. Path matching, selected request parsing, schema validation and serialization, and ORM SQL compilation and execution run in the extension. Handlers and most of the request pipeline run in Python; on Kiso, an `async def` handler that only awaits ORM calls is driven from Rust. [Serving](docs/serving.md) and [Kiso](docs/kiso.md) document the boundary.
 
 ## Status
 
