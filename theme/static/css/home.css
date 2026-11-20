@@ -92,10 +92,16 @@
 /* Reveal on scroll */
 
 .js .reveal {
-  opacity: 0;
-  transform: translateY(18px);
-  transition: opacity 600ms var(--hn-ease), transform 700ms var(--hn-ease);
-  transition-delay: calc(var(--i, 0) * 70ms);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js .reveal {
+    opacity: 0.4;
+    transform: translateY(10px);
+    transition: opacity 360ms var(--hn-ease), transform 420ms var(--hn-ease);
+    transition-delay: min(calc(var(--i, 0) * 50ms), 300ms);
+  }
 }
 
 .js .reveal.is-in {
@@ -272,12 +278,10 @@
 
 .hn-w {
   display: inline-block;
-  animation: word-in 700ms var(--hn-ease) both;
-  animation-delay: calc(120ms + var(--w) * 70ms);
 }
 
 @keyframes word-in {
-  from { opacity: 0; transform: translateY(0.5em); filter: blur(4px); }
+  from { opacity: 0.8; transform: translateY(0.12em); }
 }
 
 .hn-hero__lead {
@@ -286,14 +290,12 @@
   color: var(--hn-text-2);
   font-size: 19px;
   line-height: 1.6;
-  animation: rise-in 700ms 600ms var(--hn-ease) both;
 }
 
 .hn-hero__meta {
   margin-top: var(--sp-4) !important;
   color: var(--hn-text-3);
   font: 500 12px/1.4 var(--hn-font-mono);
-  animation: rise-in 700ms 720ms var(--hn-ease) both;
 }
 
 .hn-actions {
@@ -302,7 +304,24 @@
   align-items: center;
   gap: var(--sp-3) var(--sp-5);
   margin-top: var(--sp-6);
-  animation: rise-in 700ms 840ms var(--hn-ease) both;
+}
+
+/* Entrance motion is short, capped at 300 ms of stagger and never starts invisible. */
+@media (prefers-reduced-motion: no-preference) {
+  .hn-w {
+    animation: word-in 360ms var(--hn-ease) both;
+    animation-delay: min(calc(var(--w) * 32ms), 300ms);
+  }
+
+  .hn-hero__lead,
+  .hn-hero__meta,
+  .hn-actions {
+    animation: soft-in 320ms var(--hn-ease) both;
+  }
+
+  .hn-panel {
+    animation: panel-in 420ms var(--hn-ease) both;
+  }
 }
 
 /* Hero panel: the inspected joint */
@@ -315,11 +334,10 @@
   border-radius: 24px;
   background: var(--hn-surface-1);
   box-shadow: var(--hn-raise), var(--hn-pop);
-  animation: panel-in 900ms 300ms var(--hn-ease) both;
 }
 
 @keyframes panel-in {
-  from { opacity: 0; transform: translateY(24px) scale(0.985); }
+  from { opacity: 0.6; transform: translateY(6px); }
 }
 
 .hn-rings {

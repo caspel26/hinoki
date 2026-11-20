@@ -8,7 +8,13 @@
   color: var(--hn-text-2);
   font-size: var(--fs-base);
   line-height: 1.75;
-  animation: rise-in 420ms var(--hn-ease) both;
+}
+
+/* A short fade that never starts invisible, so first paint is always readable. */
+@media (prefers-reduced-motion: no-preference) {
+  .js .prose {
+    animation: soft-in var(--hn-dur-2) var(--hn-ease);
+  }
 }
 
 .prose strong {
@@ -107,7 +113,7 @@
   font-weight: 400;
   text-decoration: none;
   opacity: 0;
-  transition: opacity 120ms var(--hn-ease);
+  transition: opacity var(--hn-dur-1) var(--hn-ease);
 }
 
 :is(h1, h2, h3, h4):hover > .headerlink,
@@ -130,7 +136,7 @@
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
   text-underline-offset: 0.2em;
-  transition: text-decoration-color 120ms var(--hn-ease);
+  transition: text-decoration-color var(--hn-dur-1) var(--hn-ease);
 }
 
 .prose a:hover {
@@ -336,21 +342,21 @@
 }
 
 .tabbed-set:has(> input:nth-of-type(1):checked) > .tabbed-labels > label:nth-child(1) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(1):checked) > .tabbed-content > .tabbed-block:nth-child(1) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(1):checked) > .tabbed-content > .tabbed-block:nth-child(1) { display: block; }
 .tabbed-set:has(> input:nth-of-type(2):checked) > .tabbed-labels > label:nth-child(2) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(2):checked) > .tabbed-content > .tabbed-block:nth-child(2) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(2):checked) > .tabbed-content > .tabbed-block:nth-child(2) { display: block; }
 .tabbed-set:has(> input:nth-of-type(3):checked) > .tabbed-labels > label:nth-child(3) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(3):checked) > .tabbed-content > .tabbed-block:nth-child(3) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(3):checked) > .tabbed-content > .tabbed-block:nth-child(3) { display: block; }
 .tabbed-set:has(> input:nth-of-type(4):checked) > .tabbed-labels > label:nth-child(4) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(4):checked) > .tabbed-content > .tabbed-block:nth-child(4) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(4):checked) > .tabbed-content > .tabbed-block:nth-child(4) { display: block; }
 .tabbed-set:has(> input:nth-of-type(5):checked) > .tabbed-labels > label:nth-child(5) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(5):checked) > .tabbed-content > .tabbed-block:nth-child(5) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(5):checked) > .tabbed-content > .tabbed-block:nth-child(5) { display: block; }
 .tabbed-set:has(> input:nth-of-type(6):checked) > .tabbed-labels > label:nth-child(6) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(6):checked) > .tabbed-content > .tabbed-block:nth-child(6) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(6):checked) > .tabbed-content > .tabbed-block:nth-child(6) { display: block; }
 .tabbed-set:has(> input:nth-of-type(7):checked) > .tabbed-labels > label:nth-child(7) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(7):checked) > .tabbed-content > .tabbed-block:nth-child(7) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(7):checked) > .tabbed-content > .tabbed-block:nth-child(7) { display: block; }
 .tabbed-set:has(> input:nth-of-type(8):checked) > .tabbed-labels > label:nth-child(8) { color: var(--hn-text); background: var(--hn-tint-brand); }
-.tabbed-set:has(> input:nth-of-type(8):checked) > .tabbed-content > .tabbed-block:nth-child(8) { display: block; animation: rise-in 220ms var(--hn-ease); }
+.tabbed-set:has(> input:nth-of-type(8):checked) > .tabbed-content > .tabbed-block:nth-child(8) { display: block; }
 
 /* ---------- Callouts ---------- */
 
@@ -469,13 +475,12 @@ details > :last-child {
   color: var(--hn-text-2);
   font-size: var(--fs-m);
   text-decoration: none;
-  transition: border-color 140ms var(--hn-ease), color 140ms var(--hn-ease), transform 200ms var(--hn-spring);
+  transition: border-color var(--hn-dur-1) var(--hn-ease), color var(--hn-dur-1) var(--hn-ease);
 }
 
 .related a:hover {
   border-color: var(--hn-brand);
   color: var(--hn-text);
-  transform: translateY(-2px);
 }
 
 .footnote {
