@@ -880,7 +880,10 @@ def test_command_line_reports_a_failed_connection_without_a_traceback(
     for action in ("status", "apply"):
         assert main([*args, action, "--database", url]) == 1
         captured = capsys.readouterr()
-        assert captured.err.startswith("error: database: ")
+        assert captured.err.startswith(
+            "database: postgres://***@127.0.0.1:1/nowhere?... "
+            "(from --database)\nerror: database: "
+        )
         assert "fix:" in captured.err and "HINOKI_DATABASE_URL" in captured.err
         assert "Traceback" not in captured.err and "hunter2" not in captured.err
         assert captured.out == ""
@@ -969,6 +972,7 @@ def test_migrations_take_the_app_as_an_argument_or_as_an_option(
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setenv("HINOKI_DATABASE_URL", f"sqlite://{tmp_path / 'argument.db'}")
     written = package / "migrations"
 
     assert main(["migrations", "plan", "argumentapp", "--check"]) == 1

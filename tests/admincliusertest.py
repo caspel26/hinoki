@@ -10,6 +10,7 @@ from hinoki.__main__ import main
 from hinoki.admin.users import AdminAccounts, AdminSession, AdminUser, migrations_path
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
+from hinoki.scaffold import create
 
 PASSWORD = "correct horse battery"  # noqa: S105 - a fixture, not a credential
 
@@ -176,7 +177,34 @@ def test_a_refused_connection_is_not_reported_as_missing_tables(
 
     err = capsys.readouterr().err
     assert code == 1 and "cannot reach the database" in err
+    assert "postgres://***@127.0.0.1:1/none (from HINOKI_DATABASE_URL)" in err
     assert "secret-pw" not in err and "hinoki app add" not in err
+
+
+def test_admin_commands_name_the_database_they_use(
+    url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stdin(monkeypatch, PASSWORD + "\n")
+
+    assert main(["admin", "create-superuser", "ada", "--password-stdin"]) == 0
+    assert f"database: {url} (from HINOKI_DATABASE_URL)" in capsys.readouterr().err
+
+
+def test_admin_commands_stop_when_the_project_settings_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = create("adminbroken", tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv("ADMINBROKEN_DATABASE__MAX_SIZE", "0")
+    stdin(monkeypatch, PASSWORD + "\n")
+
+    code = main(["admin", "create-superuser", "ada", "--password-stdin"])
+
+    err = capsys.readouterr().err
+    assert code == 2 and "cannot load the application's settings" in err
+    assert "migrations use" not in err
+    assert not (project / ".hinoki/local.sqlite3").exists()
 
 
 def test_an_endless_line_on_stdin_is_refused_without_reading_it_all(

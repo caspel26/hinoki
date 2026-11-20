@@ -79,8 +79,12 @@ From `examples/`:
     uv run hinoki dev tracker.app:create_app
     ```
 
-`HINOKI_DATABASE_URL` is the database of the migration commands; the
-application reads its own settings. `hinoki dev` serves on
+The migration commands use the `database` setting of the project application
+named in `examples/hinoki.toml` (`project.app:app`, configured by
+`EXAMPLES_DATABASE__URL`), not the tracker's own settings, so
+`HINOKI_DATABASE_URL` points them at the tracker's database. In a project whose
+application is the tracker, `TRACKER_DATABASE__URL` alone configures both
+([which database](../migrations.md#which-database)). `hinoki dev` serves on
 `http://127.0.0.1:8000` and reloads on change; open `/docs` or `/redoc`.
 `hinoki serve` runs without reload and takes host, port and workers from the
 `server` settings ([serving](../serving.md)).

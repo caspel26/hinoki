@@ -10,15 +10,19 @@ from __future__ import annotations
 
 import asyncio
 import getpass
-import os
 import sys
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 
 from hinoki.admin.users import AdminAccounts, AdminUser, AdminUserError
 from hinoki.db import Database, DatabaseError
+from hinoki.errors import MigrationError
 from hinoki.orm import use_database
 from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
-from hinoki.projectmigrations import URL_VARIABLE, migration_database_url
+from hinoki.projectmigrations import (
+    URL_VARIABLE,
+    MigrationDatabase,
+    migration_database,
+)
 
 MAX_LINE = 1100  # characters read as a password; more is refused, not buffered
 APPLY_HINT = (
@@ -45,9 +49,8 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
         )
         sub.add_argument(
             "--database",
-            default=os.environ.get(URL_VARIABLE),
-            help=f"connection URL; prefer {URL_VARIABLE}, which keeps a password "
-            "out of the process list",
+            help=f"connection URL; prefer {URL_VARIABLE} or the app's database "
+            "setting, which keep a password out of the process list",
         )
 
 
@@ -84,11 +87,11 @@ async def set_password(accounts: AdminAccounts, args: Namespace) -> str:
 ACTIONS = {"create-superuser": create_superuser, "set-password": set_password}
 
 
-async def run_action(args: Namespace, url: str) -> str:
+async def run_action(args: Namespace, target: MigrationDatabase) -> str:
     try:
-        database = await Database.connect(url, max_size=2)
+        database = await Database.connect(target.url, max_size=2)
     except DatabaseError:
-        raise CannotConnectError from None
+        raise CannotConnectError(target.display()) from None
     try:
         with use_database(database):
             return await ACTIONS[args.admin_action](AdminAccounts(), args)
@@ -103,23 +106,26 @@ class CannotConnectError(Exception):
 def explain(error: BaseException) -> tuple[str, int]:
     """The message and exit status for an error the command reports."""
     if isinstance(error, CannotConnectError):
-        return "cannot reach the database with that URL", 1
+        return f"cannot reach the database {error}", 1
     if isinstance(error, DatabaseError):
         return APPLY_HINT, 1
     if isinstance(error, EOFError | KeyboardInterrupt):
         return "cancelled", 2
-    return str(error), 2
+    stops = isinstance(error, MigrationError)
+    return str(error), 1 if stops else 2
 
 
 def run(args: Namespace) -> int:
     """Run one admin command with user-friendly errors."""
     try:
         path = find_manifest_or_none()
-        url = migration_database_url(args, load_manifest(path) if path else None)
-        message = asyncio.run(run_action(args, url))
+        target = migration_database(args, load_manifest(path) if path else None)
+        print(target.describe(), file=sys.stderr)
+        message = asyncio.run(run_action(args, target))
     except (
         AdminUserError,
         ProjectError,
+        MigrationError,
         CannotConnectError,
         DatabaseError,
         EOFError,

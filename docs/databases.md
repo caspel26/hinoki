@@ -159,21 +159,27 @@ from hinoki.db import DatabaseModule
 app.install(DatabaseModule(url, max_size=4))
 ```
 
-## Migrations use their own URL
+The migration commands use this module's URL too, and print
+`(from application: DatabaseModule)`. A database module of your own whose URL
+Hinoki cannot read stops them; pass `--database` or `HINOKI_DATABASE_URL`.
 
-`hinoki migrations` does not read the application's settings. It uses
-`--database`, then `HINOKI_DATABASE_URL`, then the local SQLite default
-anchored beside `hinoki.toml`. Point it at the application's database
-explicitly:
+## Migrations use the application's database
+
+`hinoki migrations` reads the database of the project's application (its
+`DatabaseModule`, or its `database` setting),
+so the variables above configure both the server and the migration commands.
+`--database` or `HINOKI_DATABASE_URL` override it for one run; with none of
+them set, the local SQLite default is anchored beside `hinoki.toml`:
 
 ```sh
-export HINOKI_DATABASE_URL="$NOTES_DATABASE__URL"
-hinoki migrations status
+export NOTES_DATABASE__URL=postgresql://notes:secret@db.internal/notes
+hinoki migrations status   # database: postgresql://***@db.internal/notes (from settings: ...)
 hinoki migrations apply
 ```
 
-Hinoki never runs migrations at startup. See [migrations](migrations.md) for
-planning, review and per-backend behaviour.
+Hinoki never runs migrations at startup. See [which database](migrations.md#which-database)
+for the full order, and [migrations](migrations.md) for planning, review and
+per-backend behaviour.
 
 ## See also
 
