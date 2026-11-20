@@ -71,7 +71,7 @@ They come from the application's `server` settings group; flags override them:
 | `server.backlog` | `NOTES_SERVER__BACKLOG` | `1024` | |
 | `server.access_log` | `NOTES_SERVER__ACCESS_LOG` | unset | Unset logs in `hinoki dev` only (or whenever `access_log_format` is set); `true` or `false` decides for both |
 | `server.access_log_skip` | `NOTES_SERVER__ACCESS_LOG_SKIP` | unset | Kiso only: comma-separated paths the log leaves out (health checks); exact, or a prefix when the entry ends with `*` |
-| `server.server_timing` | `NOTES_SERVER__SERVER_TIMING` | unset | Kiso only: add a `Server-Timing` header (`kiso;dur=3.2;desc="native"`: milliseconds the server took and the serving lane); unset means `hinoki dev` only |
+| `server.server_timing` | `NOTES_SERVER__SERVER_TIMING` | unset | Kiso only: add a `Server-Timing` header (`kiso;dur=3.2;desc="native"`: milliseconds the server took and the serving lane, with the same values as the access log's [`lane`](kiso.md#limits)); unset means `hinoki dev` only |
 | `server.recent_requests` | `NOTES_SERVER__RECENT_REQUESTS` | unset | Kiso only: file that also receives each request as a JSON line, read by the `recent_requests` tool of [`hinoki mcp`](dev-mcp.md); rotated near 1 MiB |
 | `server.access_log_slow_ms` | `NOTES_SERVER__ACCESS_LOG_SLOW_MS` | unset | Kiso only: keep only answers at least this slow, in milliseconds |
 | `server.access_log_format` | `NOTES_SERVER__ACCESS_LOG_FORMAT` | unset | Kiso only: `pretty`, `plain`, `json` or `logger`. Unset is `pretty` on a colour terminal and `plain` otherwise |
