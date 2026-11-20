@@ -145,6 +145,13 @@ def test_model_declaration_errors_fail_at_class_creation() -> None:
         type("NoKey", (Model,), {"__annotations__": {"x": int}}, table="t")
 
 
+def test_a_primary_key_cannot_be_nullable() -> None:
+    with pytest.raises(RegistrationError, match="primary key cannot be nullable"):
+
+        class NullableKey(Model, table="nullable_keys"):
+            id: int | None = field(primary_key=True, default=None)
+
+
 def test_each_model_has_its_own_not_found() -> None:
     assert issubclass(Post.NotFound, ObjectNotFound)
     assert Post.NotFound is not Author.NotFound
