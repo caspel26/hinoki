@@ -72,12 +72,15 @@ uv run hinoki migrations apply tracker
 ```
 
 ```text
+database: sqlite:///.../examples/.hinoki/local.sqlite3 (from local SQLite default)
 tracker          pending  0001-initial
 tracker          pending  0002-indexes
+database: sqlite:///.../examples/.hinoki/local.sqlite3 (from local SQLite default)
 tracker: 0001-initial, 0002-indexes
 ```
 
-With no database URL, the commands use `examples/.hinoki/local.sqlite3`.
+Each command first names the database it uses. With no database configured,
+that is `examples/.hinoki/local.sqlite3`.
 Migrations run only when you call `apply`; an application never migrates at
 startup.
 
