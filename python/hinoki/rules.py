@@ -28,7 +28,7 @@ from hinoki.schema import Schema
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: status "warning" and summary.warning
 
 
 class Severity(StrEnum):
@@ -46,6 +46,7 @@ class Status(StrEnum):
     VIOLATED = "violated"
     UNVERIFIABLE = "unverifiable"
     WAIVED = "waived"
+    WARNING = "warning"  # reported, never failing (the waiver notices)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

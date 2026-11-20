@@ -195,9 +195,34 @@ def test_check_json_is_versioned_and_waivers_make_it_pass(
     )
     report = json.loads(capsys.readouterr().out)
     assert code == 0
-    assert report["schema_version"] == 1
+    assert report["schema_version"] == 2
     assert report["summary"]["waived"] == 3 and report["summary"]["failing"] == 0
     assert {d["status"] for d in report["diagnostics"]} == {"waived"}
+
+
+def test_text_keeps_waivers_with_their_finding_and_counts_warnings_apart(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    waivers = write(
+        tmp_path / "w.toml",
+        GOOD.replace("pkg.health", "tests.projects.rulesapp.health")
+        + '[[waiver]]\nrule="HNK-API-001"\ntarget="tests.projects.none"\n'
+        'reason="unused"\nowner="tests"\n',
+    )
+    main(["check", APP, "--rules", RULES, "--waivers", str(waivers)])
+    lines = capsys.readouterr().out.splitlines()
+    waived = next(i for i, line in enumerate(lines) if "[waived]" in line)
+    assert lines[waived + 2].startswith("    waived: liveness probe")
+    assert any(f"{STALE} [warning]" in line for line in lines)
+    assert lines[-1] == "2 rule(s): 2 violated, 0 unverifiable, 1 waived, 1 warning(s)"
+    main(
+        ["check", APP, "--rules", RULES, "--waivers", str(waivers), "--format", "json"]
+    )
+    report = json.loads(capsys.readouterr().out)
+    assert report["schema_version"] == 2
+    assert (report["summary"]["violated"], report["summary"]["warning"]) == (2, 1)
+    statuses = {d["rule"]: d["status"] for d in report["diagnostics"]}
+    assert statuses[STALE] == "warning"
 
 
 def test_check_without_rules_passes_and_says_zero(
@@ -255,3 +280,13 @@ def test_a_broken_waiver_file_exits_2(
     bad = write(tmp_path / "w.toml", "[[waiver")
     assert main(["check", APP, "--waivers", str(bad)]) == 2
     assert "error:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", ["check", "mcp"])
+def test_waivers_help_names_the_real_default(
+    command: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit):
+        main([command, "--help"])
+    shown = " ".join(capsys.readouterr().out.split())
+    assert "Hinoki(waivers=...), else hinoki-rules.toml at the project root" in shown
