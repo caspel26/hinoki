@@ -717,6 +717,10 @@ class Model:
             name for name in cls.__columns__ if is_json_field(annotations.get(name))
         )
         cls.__field_types__ = cls.check_field_validations(fields, annotations)
+        if keys and cls.__field_types__[keys[0]].nullable:
+            raise RegistrationError(
+                f"{cls.__name__}: the primary key cannot be nullable"
+            )
         cls.__field_annotations__ = annotations
         cls.__field_validators__ = {
             item.name: item.metadata.get(MARK, FieldMeta()).validators
