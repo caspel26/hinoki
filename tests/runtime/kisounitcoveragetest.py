@@ -64,6 +64,9 @@ class _Request:
     def respond_final(self, *values: Any) -> None:
         self.responses.append(values)
 
+    def respond_routed(self, *values: Any) -> None:
+        self.responses.append(values)
+
 
 def _worker() -> Any:
     worker: Any = object.__new__(kiso.KisoWorker)
@@ -322,7 +325,7 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
 ) -> None:
     worker: Any = _worker()
     response = SimpleNamespace(status=200, headers=[], body=b"answer")
-    worker.pipeline.handle = lambda *_args: asyncio.sleep(0, result=response)
+    worker.pipeline.handle_unfinished = lambda *_args: asyncio.sleep(0, result=response)
     worker.pipeline.handle_native = lambda *_args: asyncio.sleep(0, result=response)
     failed: list[Any] = []
 
@@ -333,7 +336,7 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
 
     normal = _Request(method="HEAD", id_ignored=True)
     await worker._serve(cast(Any, normal))
-    assert normal.responses == [(200, [], b"")]
+    assert normal.responses == [(200, [], b"answer", ())]
 
     native = _Request(native_handler=True, action="native")
     worker.pipeline.bindings = {
@@ -354,7 +357,7 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
     async def pipeline_error(*_args: Any) -> Any:
         raise RuntimeError("handler error")
 
-    worker.pipeline.handle = pipeline_error
+    worker.pipeline.handle_unfinished = pipeline_error
     broken = _Request()
     await worker._serve(cast(Any, broken))
     assert failed == [missing_action, broken]

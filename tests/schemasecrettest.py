@@ -259,7 +259,7 @@ async def test_the_request_lanes_match_and_never_echo_the_secret() -> None:
     lanes: list[str] = []
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]
-    pipeline.handle = recording(lanes, "python", pipeline.handle)  # type: ignore[method-assign]
+    pipeline.handle_unfinished = recording(lanes, "python", pipeline.handle_unfinished)  # type: ignore[method-assign]
     port = await worker.start()
     try:
         served = [

@@ -68,7 +68,7 @@ async def test_the_native_lane_validates_and_encodes_like_the_python_lane() -> N
     lanes: list[str] = []
     pipeline = worker.pipeline
     pipeline.handle_native = recording(lanes, "native", pipeline.handle_native)  # type: ignore[method-assign]
-    pipeline.handle = recording(lanes, "python", pipeline.handle)  # type: ignore[method-assign]
+    pipeline.handle_unfinished = recording(lanes, "python", pipeline.handle_unfinished)  # type: ignore[method-assign]
     port = await worker.start()
     try:
         native = [
