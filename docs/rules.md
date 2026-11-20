@@ -106,7 +106,7 @@ passes silently.
 
 | Where | Rules | Waivers | On failure |
 | --- | --- | --- | --- |
-| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of `rules=` | not read | startup fails with `RegistrationError` listing every failing diagnostic |
+| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of `rules=` | `hinoki-rules.toml` in the current directory | startup fails with `RegistrationError` listing every failing diagnostic |
 | `hinoki check` | both phases (or `--phase`) | `hinoki-rules.toml` | exit code `1` |
 | `hinoki mcp` | both phases | `hinoki-rules.toml` | reported to the agent |
 
@@ -190,11 +190,51 @@ nothing reports `HNK-WVR-001` (both warnings). A diagnostic that means "the rule
 could not do its job" cannot be waived. An invalid file makes `hinoki check` exit
 with `2`.
 
-!!! warning "Waivers are read by tools, not by the application"
-    Startup enforcement does not read `hinoki-rules.toml`, so a waived startup
-    violation still stops the app. Use `except_` in the `RuleSet` for exceptions
-    the running application must accept.
+### Waivers at startup
 
+Application startup reads the same file as `hinoki check`
+(`hinoki-rules.toml` in the current directory, so start the server from the
+project root) and applies it the same way. This app requires access on every
+action, yet it starts and serves `/health` because the owner waived it:
+
+```python
+# shop/main.py
+from hinoki import Actions, Hinoki, Request, http
+from hinoki.rules import RuleSet
+
+
+@http.get("/health")
+def health(request: Request) -> dict[str, str]:
+    return {"status": "ok"}
+
+
+app = Hinoki(rules=RuleSet(Actions.require_access()), include=[health])
+```
+
+```toml
+# hinoki-rules.toml
+[[waiver]]
+rule = "HNK-ACC-001"
+target = "shop.main.health"
+reason = "liveness probe is public by design"
+owner = "platform-team"
+```
+
+Without the waiver, `hinoki serve shop.main:app` fails at startup with
+`RegistrationError: 1 rule violation(s)`.
+
+At startup:
+
+- An absent file means no waivers.
+- An invalid file fails startup with `RegistrationError` ("invalid waivers:
+  hinoki-rules.toml: waiver #1: missing target"), even with
+  `enforce_rules=False`.
+- An expired waiver does not apply: the violation fails startup and the
+  `RegistrationError` also lists the `HNK-WVR-002` notice. Without a remaining
+  violation the notice is logged as a warning.
+- `HNK-WVR-001` (unused waiver) is reported only by `hinoki check` and
+  `hinoki mcp`: startup runs only the startup rules, so a waiver for a static
+  rule such as `HNK-IMP-001` is expected to match nothing there.
 Waivers are the owner's decision: tools read the file and never write it. Put it
 under CODEOWNERS; the generated `AGENTS.md` tells agents the same.
 

@@ -71,8 +71,9 @@ The command exits with status 1. Remove `atomic=False` to restore the check.
 ## Waivers
 
 An accepted exception is a **waiver** in `hinoki-rules.toml`, with a reason, an
-owner and a bounded target. The project owner writes waivers; tools and agents
-read them but never edit them to make a check pass.
+owner and a bounded target. `hinoki check` and application startup apply the
+same waivers. The project owner writes waivers; tools and agents read them but
+never edit them to make a check pass.
 
 ## Recap
 
