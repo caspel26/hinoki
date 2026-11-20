@@ -99,7 +99,10 @@ blog_rules = RuleSet(
 ```
 
 The model rules match the model's *module* (`blog.*`) and report unverifiable
-when no model matches, even with `*`. `require_access` and `require_atomic`
+when no model matches, even with `*`. In a project with `hinoki.toml`,
+`hinoki check` first imports the models of every `[[apps]]` entry, so they are
+found without importing them from the application module. `require_access` and
+`require_atomic`
 report unverifiable when a pattern other than `*` matches no action. Neither
 passes silently.
 
