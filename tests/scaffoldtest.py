@@ -63,6 +63,16 @@ def test_the_project_root_owns_no_models_and_registers_no_app(tmp_path: Path) ->
     assert not (target / "shop/migrations").exists()
 
 
+def test_underscores_are_allowed_between_words_in_project_and_app_names(
+    tmp_path: Path,
+) -> None:
+    target = create("my_shop", tmp_path)
+    created = create_project_app("api_v1", target)
+    assert created == target / "my_shop/apps/api_v1"
+    manifest = tomllib.loads((target / "hinoki.toml").read_text())
+    assert [app["models"] for app in manifest["apps"]] == ["my_shop.apps.api_v1.models"]
+
+
 def test_models_live_in_apps_created_after_the_project(tmp_path: Path) -> None:
     target = create("shop", tmp_path)
     created = create_project_app("catalog", target)
@@ -77,7 +87,10 @@ def test_models_live_in_apps_created_after_the_project(tmp_path: Path) -> None:
     [
         "",
         "Shop",
-        "my_shop",
+        "my__shop",
+        "shop_",
+        "_shop",
+        "class",
         "my-shop",
         "1shop",
         "a b",
@@ -597,7 +610,7 @@ def test_key_driven_prompts_settle_into_a_summary_line() -> None:
         True,
     )
     shown = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", out.getvalue())
-    assert "use lower-case letters and digits" in shown
+    assert "use lower-case letters, digits and single underscores" in shown
     assert "\u25c7  Name" in shown and "sqlite" in shown
 
 
@@ -665,8 +678,8 @@ def test_the_last_question_offers_an_app_and_declining_asks_no_name() -> None:
 def test_the_app_name_is_asked_again_until_it_is_valid(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert fill_app_question("y", "my_posts", "json", "Posts", "posts").app == "posts"
-    assert capsys.readouterr().err.count("lower-case letters and digits") == 3
+    assert fill_app_question("y", "my-posts", "json", "Posts", "posts").app == "posts"
+    assert capsys.readouterr().err.count("single underscores") == 3
 
 
 def test_app_flags_skip_the_question() -> None:
@@ -740,8 +753,8 @@ def test_the_no_app_flag_creates_no_app(tmp_path: Path) -> None:
 def test_a_bad_app_flag_is_refused_before_anything_is_created(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert main(["new", "shop", "--app", "my_posts", "--dir", str(tmp_path)]) == 2
-    assert "lower-case letters and digits" in capsys.readouterr().err
+    assert main(["new", "shop", "--app", "my-posts", "--dir", str(tmp_path)]) == 2
+    assert "single underscores" in capsys.readouterr().err
     assert not any(tmp_path.iterdir())
 
 

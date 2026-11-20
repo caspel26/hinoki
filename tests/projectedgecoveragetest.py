@@ -24,7 +24,9 @@ def _manifest(root: Path, *, apps: tuple[ProjectApp, ...] = ()) -> ProjectManife
     return ProjectManifest(path, "sample.main:app", apps)
 
 
-@pytest.mark.parametrize("name", ["", "Bad", "bad-name", "bad_name", "hinoki"])
+@pytest.mark.parametrize(
+    "name", ["", "Bad", "bad-name", "bad__name", "bad_", "_bad", "class", "hinoki"]
+)
 def test_create_app_rejects_invalid_or_reserved_names(
     name: str, tmp_path: Path
 ) -> None:
