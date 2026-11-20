@@ -220,6 +220,12 @@ fn finish_call(py: Python<'_>, call: &Bound<'_, WsgiCall>, outcome: PyResult<Py<
 }
 
 fn run_job(bridge: &Py<PyAny>, job: Job, active: &AtomicUsize) {
+    // Nobody waits for the head: the request timed out or the client left
+    // while the job was queued, and running it would repeat side effects the
+    // client was told did not happen.
+    if job.call.head.is_closed() {
+        return;
+    }
     active.fetch_add(1, Ordering::AcqRel);
     Python::attach(|py| match Bound::new(py, WsgiCall::from(job.call)) {
         Ok(call) => {
@@ -329,9 +335,6 @@ impl WsgiBackend {
         if let Some(early) = &request.refusal {
             return plain(early.status(), "the request was refused\n");
         }
-        let Ok(admission) = Arc::clone(&self.admission).try_acquire_owned() else {
-            return overloaded();
-        };
         let Incoming {
             method,
             path,
@@ -349,6 +352,11 @@ impl WsgiBackend {
                 Err(error) => return body_failure(&error),
             },
             None => Vec::new(),
+        };
+        // Admitted only once the body is in: a client still sending it holds
+        // neither a thread nor a queue slot.
+        let Ok(admission) = Arc::clone(&self.admission).try_acquire_owned() else {
+            return overloaded();
         };
         let (head, started) = oneshot::channel();
         let (chunks, receiver) = mpsc::channel(STREAM_DEPTH);
@@ -686,6 +694,50 @@ def bridge(call):
             assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("part"))));
             assert_eq!(streamed.chunks.recv().await, Some(Err(Aborted)));
         });
+    }
+
+    #[test]
+    fn a_job_nobody_waits_for_does_not_run_the_application() {
+        Python::initialize();
+        let module = Python::attach(|py| {
+            PyModule::from_code(
+                py,
+                c"
+import time
+ran = []
+def bridge(call):
+    ran.append(call)
+    time.sleep(1)
+    call.start(200, [])
+    call.finish()
+",
+                c"counting.py",
+                c"counting",
+            )
+            .expect("bridge compiles")
+            .unbind()
+        });
+        let bridge = Python::attach(|py| module.bind(py).getattr("bridge").unwrap().unbind());
+        let limits = WsgiLimits {
+            threads: 1,
+            queue: 1,
+            max_body_bytes: 1024,
+            request_timeout: Duration::from_millis(300),
+        };
+        let backend = Arc::new(WsgiBackend::start(bridge, limits).expect("threads start"));
+        runtime().block_on(async {
+            let first = tokio::spawn({
+                let backend = Arc::clone(&backend);
+                async move { backend.deliver(incoming()).await.status() }
+            });
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            // Queued behind the first call, then answered 504 while it waits.
+            assert_eq!(backend.deliver(incoming()).await.status(), 504);
+            assert_eq!(first.await.unwrap(), 504);
+        });
+        std::thread::sleep(Duration::from_millis(1500));
+        let ran = Python::attach(|py| module.bind(py).getattr("ran").unwrap().len().unwrap());
+        assert_eq!(ran, 1, "the abandoned request ran");
     }
 
     #[test]
