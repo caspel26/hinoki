@@ -290,6 +290,8 @@ def select_crud_plan(
     binding: Binding, pipeline: Any
 ) -> tuple[CrudPlanSelection | None, str]:
     """Build a dark native plan, or return a stable reason for lane C."""
+    if binding.route.middleware:
+        return None, "middleware"
     candidate, reason = crud_candidate(binding)
     if candidate is None:
         return None, reason

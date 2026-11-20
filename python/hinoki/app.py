@@ -20,6 +20,7 @@ from hinoki.db import DatabaseModule
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorRegistrar, ErrorRegistry, RegistrationError
 from hinoki.fields import UNSET, Unset
+from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder
@@ -180,6 +181,7 @@ class Hinoki:
         waivers: str | Path | None = None,
         parsers: Sequence[Parser] | None = None,
         renderers: Sequence[Renderer] | None = None,
+        middleware: Sequence[Middleware] = (),
     ) -> None:
         if isinstance(settings, type) and issubclass(settings, Settings):
             settings = settings.load()  # a class: read its variables now
@@ -189,6 +191,7 @@ class Hinoki:
         self._timezone = ZoneInfo(built_in.timezone) if built_in else UTC
         docs = built_in.docs if built_in else DocsSettings()
         self.settings = settings
+        self.middleware = check_middleware(middleware)
         self._configure_runtime(built_in, runtime)
         self._configure_docs(docs, title, version, openapi_url, docs_url, redoc_url)
         self._configure_policy(built_in, rules, enforce_rules, parsers, renderers)
@@ -470,6 +473,8 @@ class Hinoki:
                 )
             except ValueError as exc:
                 raise RegistrationError(f"{route.name}: pagination {exc}") from exc
+        if self.middleware:
+            changes["middleware"] = (*self.middleware, *route.middleware)
         return dataclasses.replace(route, **changes) if changes else route
 
     def install(self, *modules: Module) -> None:

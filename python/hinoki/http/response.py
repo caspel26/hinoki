@@ -65,6 +65,24 @@ class Response:
         self.body = raw
         self.headers = [encode_header(name, value) for name, value in items]
 
+    @classmethod
+    def raw(
+        cls, status: int, body: bytes, headers: list[tuple[bytes, bytes]]
+    ) -> Response:
+        """A response from parts the runtime already holds, without checking them
+        again."""
+        response = cls.__new__(cls)
+        response.status = status
+        response.body = body
+        response.headers = headers
+        return response
+
+    def with_header(self, name: str, value: str) -> Response:
+        """A copy with one more header."""
+        return Response.raw(
+            self.status, self.body, [*self.headers, encode_header(name, value)]
+        )
+
 
 def set_cookie(
     name: str,

@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypeVar
 from hinoki.access import Access
 from hinoki.errors import APIError, TooManyRequests
 from hinoki.fields import UNSET, Unset
+from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.pagination import PageNumberPagination
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
@@ -54,6 +55,7 @@ class Route:
     errors: tuple[type[APIError], ...] = ()
     validate_response: bool = True
     rate_limit: RateLimitPolicy | None = None
+    middleware: tuple[Middleware, ...] = ()
 
     @property
     def is_async(self) -> bool:
@@ -78,6 +80,7 @@ class Options:
     errors: Sequence[type[APIError]] = ()
     validate_response: bool = True
     rate_limit: RateLimitPolicy | None = None
+    middleware: Sequence[Middleware] = ()
 
 
 class RouteDeclaration:
@@ -122,6 +125,7 @@ class RouteDeclaration:
             errors=check_errors(rate_limited(options)),
             validate_response=options.validate_response,
             rate_limit=options.rate_limit,
+            middleware=check_middleware(options.middleware),
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
@@ -162,6 +166,7 @@ def get(
     errors: Sequence[type[APIError]] = (),
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
+    middleware: Sequence[Middleware] = (),
 ) -> RouteDeclaration:
     """Declare a GET action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -177,6 +182,7 @@ def get(
         errors,
         validate_response,
         rate_limit,
+        middleware,
     )
     return RouteDeclaration("GET", path, options)
 
@@ -194,6 +200,7 @@ def post(
     errors: Sequence[type[APIError]] = (),
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
+    middleware: Sequence[Middleware] = (),
 ) -> RouteDeclaration:
     """Declare a POST action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -209,6 +216,7 @@ def post(
         errors,
         validate_response,
         rate_limit,
+        middleware,
     )
     return RouteDeclaration("POST", path, options)
 
@@ -226,6 +234,7 @@ def put(
     errors: Sequence[type[APIError]] = (),
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
+    middleware: Sequence[Middleware] = (),
 ) -> RouteDeclaration:
     """Declare a PUT action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -241,6 +250,7 @@ def put(
         errors,
         validate_response,
         rate_limit,
+        middleware,
     )
     return RouteDeclaration("PUT", path, options)
 
@@ -258,6 +268,7 @@ def patch(
     errors: Sequence[type[APIError]] = (),
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
+    middleware: Sequence[Middleware] = (),
 ) -> RouteDeclaration:
     """Declare a PATCH action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -273,6 +284,7 @@ def patch(
         errors,
         validate_response,
         rate_limit,
+        middleware,
     )
     return RouteDeclaration("PATCH", path, options)
 
@@ -290,6 +302,7 @@ def delete(
     errors: Sequence[type[APIError]] = (),
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
+    middleware: Sequence[Middleware] = (),
 ) -> RouteDeclaration:
     """Declare a DELETE action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -305,6 +318,7 @@ def delete(
         errors,
         validate_response,
         rate_limit,
+        middleware,
     )
     return RouteDeclaration("DELETE", path, options)
 
@@ -322,6 +336,7 @@ def query(
     errors: Sequence[type[APIError]] = (),
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
+    middleware: Sequence[Middleware] = (),
 ) -> RouteDeclaration:
     """Declare a QUERY action: a safe, idempotent request that carries a body
     (a search too large or too structured for a query string). It binds its
@@ -340,6 +355,7 @@ def query(
         errors,
         validate_response,
         rate_limit,
+        middleware,
     )
     return RouteDeclaration("QUERY", path, options)
 
@@ -449,6 +465,7 @@ class RouteGroup:
             errors=(*self.errors, *own_errors),
             validate_response=options.pop("validate_response", True),
             rate_limit=options.pop("rate_limit", None),
+            middleware=options.pop("middleware", ()),
         )
         if options:
             raise TypeError(f"unknown action options {sorted(options)}")
