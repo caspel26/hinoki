@@ -244,21 +244,31 @@
     }
   });
 
-  /* ---------- Header glass on scroll ---------- */
+  /* ---------- Header glass and reading meter, once per frame ---------- */
   const bar = $(".top");
-  const glass = () => bar && bar.classList.toggle("is-scrolled", scrollY > 12);
-  addEventListener("scroll", glass, { passive: true });
-  glass();
-
-  /* ---------- Reading meter ---------- */
   const meter = $(".meter i");
-  const updateMeter = () => {
-    if (!meter) return;
-    const max = document.documentElement.scrollHeight - innerHeight;
-    meter.style.transform = `scaleX(${max > 0 ? Math.min(1, scrollY / max) : 0})`;
+  let scrollMax = 0;
+  let scrollFrame = 0;
+  const measure = () => {
+    scrollMax = document.documentElement.scrollHeight - innerHeight;
   };
-  addEventListener("scroll", updateMeter, { passive: true });
-  updateMeter();
+  const onFrame = () => {
+    scrollFrame = 0;
+    if (bar) bar.classList.toggle("is-scrolled", scrollY > 12);
+    if (meter) meter.style.transform = `scaleX(${scrollMax > 0 ? Math.min(1, scrollY / scrollMax) : 0})`;
+  };
+  const onScroll = () => {
+    if (!scrollFrame) scrollFrame = requestAnimationFrame(onFrame);
+  };
+  const onResize = () => {
+    measure();
+    onScroll();
+  };
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", onResize, { passive: true });
+  if ("ResizeObserver" in window) new ResizeObserver(onResize).observe(document.body);
+  measure();
+  onFrame();
 
   /* ---------- Command palette ---------- */
   const palette = $("[data-palette]");
