@@ -60,6 +60,8 @@ Writes run in a transaction. `pagination=` selects the page-number policy of the
 # notes/apps/billing/routes.py (variant)
 from hinoki import CrudAccess
 
+from notes.security import billing_admin, billing_staff
+
 access = CrudAccess(
     default=billing_staff, list=None, retrieve=None, delete=billing_admin
 )

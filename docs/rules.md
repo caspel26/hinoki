@@ -117,8 +117,12 @@ then logged as a warning instead.
 ## Read the results
 
 `hinoki check` prints one line per finding, with its location and a `fix:` hint.
-This output comes from a deliberately broken project in Hinoki's own tests
-(`tests/projects/rulesapp.py`):
+This output comes from a deliberately broken project in Hinoki's own tests,
+checked from a clone of the repository:
+
+```sh
+hinoki check tests.projects.rulesapp:create_app --rules tests.projects.rulesapp:rules
+```
 
 ```text
 tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy

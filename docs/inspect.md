@@ -96,7 +96,9 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 
 `--lanes` adds, per route, whether [Kiso](kiso.md#the-native-handler-lane) runs
 the handler natively (`native`) or through the Python pipeline (`python`), with
-the reason. JSON always has `method`, `path`, `handler`, `access`, `status`,
+the reason. The access log's `lane` field means something narrower: a request
+for a `native` route here still logs `python` unless Rust runs a generated CRUD
+plan for it. JSON always has `method`, `path`, `handler`, `access`, `status`,
 `lane` and `lane_reason`.
 
 ## Export the OpenAPI document with `openapi` {#openapi}
@@ -129,7 +131,8 @@ The target is an application with typed settings or a settings class
 (`notes.settings:ProjectSettings`). Each value is shown with where it came from;
 `settings.Secret` values are redacted. `--prefix`, `--dotenv` and `--toml`
 replace the sources the class declares. `--example` prints a `.env.example` with
-defaults and types, leaving secrets and required fields blank. See
+defaults and types, leaving required fields blank and commenting out optional
+values with no printable default (secrets, unset values). See
 [Settings](settings.md#see-what-is-in-effect).
 
 ## Report versions with `version` {#version}
