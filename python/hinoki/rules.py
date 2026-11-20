@@ -75,8 +75,15 @@ class Diagnostic:
             "fix": self.fix,
         }
 
+    @property
+    def label(self) -> str:
+        """``warning`` for a warning that applies, else the status: what the
+        report shows and counts."""
+        warns = self.severity is Severity.WARNING and self.status is Status.VIOLATED
+        return "warning" if warns else self.status.value
+
     def text(self) -> str:
-        line = f"{self.location}: {self.rule_id} [{self.status}] {self.message}"
+        line = f"{self.location}: {self.rule_id} [{self.label}] {self.message}"
         return f"{line}\n  fix: {self.fix}" if self.fix else line
 
 
