@@ -508,6 +508,9 @@ def test_shell_bounds_startup_that_suppresses_cancellation(
         runtime.start({})
 
     assert time.monotonic() - started < 1
+    # start() only waits a bounded time for the loop thread; on a slow host the
+    # thread may still be abandoning the task, so wait for it to finish.
+    runtime.thread.join(timeout=10)
     assert not runtime.thread.is_alive()
     assert "abandoning" in caplog.text
 

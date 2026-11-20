@@ -73,8 +73,9 @@ export BLOG_ADMIN__SECRET="$(python -c 'import secrets; print(secrets.token_urls
 | `admin.session_hours` | `12` | A session ends this long after sign-in |
 | `admin.idle_minutes` | `120` | A session ends after this long without a request |
 | `admin.min_password_length` | `12` | Shortest password accepted |
+| `admin.theme` | none | Built-in theme (`studio`, `console`, `paper`, `bento`) for an `Admin` that sets no `theme=`; `studio` when neither is set |
 
-`Admin(secret=...)` overrides the secret for one site. An admin with neither stops the app at startup.
+`Admin(secret=...)` overrides the secret and `Admin(theme=...)` the theme for one site. An admin with neither stops the app at startup.
 
 ## Who may sign in
 

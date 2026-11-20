@@ -86,6 +86,25 @@ def test_model_field_constraints_aggregate_stable_details() -> None:
     assert raised.value.details[2].message == "surrounding whitespace is not allowed"
 
 
+def test_length_messages_count_characters_in_text_and_items_in_lists() -> None:
+    class Sized(Model, table="model_length_units"):
+        id: UUID = field(primary_key=True, default_factory=uuid4)
+        code: str = field(constraints=Field(min_length=3, max_length=4))
+        one: str = field(constraints=Field(min_length=1))
+        tags: list[str] = field(constraints=Field(min_length=2))
+
+    with pytest.raises(ModelValidationError) as raised:
+        Sized.validate_values({"code": "x", "one": "", "tags": ["a"]})
+    assert [item.message for item in raised.value.details] == [
+        "Must contain at least 3 characters.",
+        "Must contain at least 1 character.",
+        "Must contain at least 2 items.",
+    ]
+    with pytest.raises(ModelValidationError) as raised:
+        Sized.validate_values({"code": "toolong", "one": "x", "tags": ["a", "b"]})
+    assert raised.value.details[0].message == "Must contain at most 4 characters."
+
+
 def test_model_validation_is_strict_about_types_and_maps_to_422() -> None:
     with pytest.raises(ModelValidationError) as raised:
         ValidatedRecord.validate_values(
