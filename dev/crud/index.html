@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:06:16 UTC">November 20, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -652,11 +652,11 @@
 <h2 id="inspect-the-generated-routes">Inspect the generated routes<a class="headerlink" href="#inspect-the-generated-routes" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>routes<span class="w"> </span>--path<span class="w"> </span>/billing/invoices
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>GET     /billing/invoices            StaffTokens[billing:manage] hinoki.resources.list
-POST    /billing/invoices            StaffTokens[billing:manage] hinoki.resources.create
-DELETE  /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.delete
-GET     /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.retrieve
-PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.update
+<div class="language-text highlight"><pre><span></span><code>GET     /billing/invoices            StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.list
+POST    /billing/invoices            StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.create
+DELETE  /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.delete
+GET     /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.retrieve
+PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.update
 </code></pre></div>
 <p>Generated routes appear in the OpenAPI document with their schemas, access policies, status codes and pagination. See the <a href="../reference/crud/">CRUD API reference</a>. Prefer a handwritten action when a workflow has its own state transitions, errors or side effects beyond one model mutation.</p>
         
@@ -690,7 +690,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resource
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:06:16 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
