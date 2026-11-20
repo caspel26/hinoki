@@ -287,9 +287,11 @@ impl<'a> FromSql<'a> for PgTimestamp {
 /// Reject a URL whose scheme names no supported backend before it reaches the
 /// PostgreSQL parser. A key/value connection string has no scheme and passes.
 /// The URL itself is never echoed: it may carry credentials.
+const URL_SCHEMES: [&str; 5] = ["sqlite", "postgres", "postgresql", "mysql", "mariadb"];
+
 fn check_postgres_scheme(url: &str) -> Result<(), DbError> {
     let Some((scheme, _)) = url.split_once("://") else {
-        return Ok(());
+        return check_double_slash(url);
     };
     let is_scheme = !scheme.is_empty()
         && scheme
@@ -303,6 +305,22 @@ fn check_postgres_scheme(url: &str) -> Result<(), DbError> {
         "unsupported database URL scheme; use sqlite://, postgres://, postgresql://, \
          mysql:// or mariadb://",
     ))
+}
+
+/// A supported scheme written without `//` would otherwise be read as a
+/// PostgreSQL key-value string and fail with a misleading TLS message.
+fn check_double_slash(url: &str) -> Result<(), DbError> {
+    let named = url
+        .split_once(':')
+        .is_some_and(|(scheme, _)| URL_SCHEMES.contains(&scheme));
+    if named {
+        return Err(DbError::new(
+            ErrorKind::Connect,
+            "invalid database URL: the scheme needs `://` (for example \
+             sqlite://./app.db, with two slashes)",
+        ));
+    }
+    Ok(())
 }
 
 impl Database {
