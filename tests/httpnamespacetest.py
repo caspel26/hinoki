@@ -11,12 +11,12 @@ import hinoki
 from hinoki import http
 
 VERBS = {"delete", "get", "patch", "post", "put", "query"}
-HTTP_TYPES = {"Request", "Response"}
+HTTP_TYPES = {"Request", "Response", "Middleware", "MiddlewareRequest", "Next"}
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("python", "tests", "examples", "benchmarks")
 
 
-def test_the_namespace_exports_exactly_the_verbs() -> None:
+def test_the_namespace_exports_exactly_the_verbs_and_types() -> None:
     assert set(http.__all__) == VERBS | HTTP_TYPES
     assert all(callable(getattr(http, name)) for name in VERBS)
     assert http.Request is hinoki.Request
