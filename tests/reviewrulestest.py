@@ -5,11 +5,21 @@ import io
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 
-from hinoki import Actions, Hinoki, Imports, Request, Schema, Schemas, http
+from hinoki import (
+    Actions,
+    Field,
+    Hinoki,
+    Imports,
+    Request,
+    Schema,
+    Schemas,
+    computed_field,
+    http,
+)
 from hinoki.__main__ import main
 from hinoki.ai import mcp
 from hinoki.ai.mcp import DevProject, Server, serve
@@ -356,3 +366,70 @@ def test_check_allow_effects_runs_effectful_rules(
     ]
     assert main(arguments) == 1
     assert main([*arguments, "--allow-effects"]) == 0
+
+
+class Cat(Schema):
+    kind: Annotated[str, Field(one_of=("cat",))]
+    password_hash: str
+    note: str
+
+
+class Dog(Schema):
+    kind: Annotated[str, Field(one_of=("dog",))]
+
+
+class Pets(Schema):
+    pet: Annotated[Cat | Dog, Field(discriminator="kind")]
+
+
+class Renamed(Schema):
+    secret: Annotated[str, Field(alias="password_hash", max_length=5)]
+
+
+class Derived(Schema):
+    name: str
+
+    @computed_field
+    def password_hash(self) -> str:
+        return self.name
+
+
+@http.get("/pets")
+def pets_route(request: Request) -> Pets:
+    raise NotImplementedError
+
+
+@http.get("/renamed")
+def renamed_route(request: Request) -> Renamed:
+    raise NotImplementedError
+
+
+@http.get("/derived")
+def derived_route(request: Request) -> Derived:
+    raise NotImplementedError
+
+
+@http.post("/pets")
+def pets_input(request: Request, body: Pets) -> None:
+    raise NotImplementedError
+
+
+def exposed(*routes: Any) -> set[str]:
+    app = Hinoki()
+    app.include(*routes)
+    found = RuleSet(Schemas.forbid_exposure("password_hash")).run(project(app))
+    return {d.subject.rsplit(".", 2)[-2] for d in found if d.status is Status.VIOLATED}
+
+
+def test_exposure_sees_union_variants_aliases_and_computed_fields() -> None:
+    assert exposed(pets_route) == {"Cat"}
+    assert exposed(renamed_route) == {"Renamed"}
+    assert exposed(derived_route) == {"Derived"}
+
+
+def test_string_limits_see_union_variants() -> None:
+    app = Hinoki()
+    app.include(pets_input)
+    found = RuleSet(Schemas.require_string_limits()).run(project(app))
+
+    assert any(d.subject.endswith("Cat.note") for d in found)
