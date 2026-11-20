@@ -65,8 +65,9 @@ uv run hinoki check --phase static
 | `--allow-effects` | also run checks declared effectful (files, network, database) | off |
 
 Exit status is `0` when no rule fails, `1` for violations and `2` when the target
-or the checks cannot run. What each rule checks, and how to read and waive a
-result, is in [Rules](rules.md).
+or the checks cannot run. An application with no rules passes with `0 rule(s)` and
+a warning on standard error, since nothing was checked. What each rule checks, and
+how to read and waive a result, is in [Rules](rules.md).
 
 ## List routes with `routes` {#routes}
 

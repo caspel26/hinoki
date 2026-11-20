@@ -124,7 +124,7 @@ class Database:
 
     @classmethod
     async def connect(
-        cls, url: str, *, max_size: int = 8, wait: float = 5.0
+        cls, url: str, *, max_size: int = 10, wait: float = 5.0
     ) -> Database:
         """Open the pool and check the server; PostgreSQL URLs may configure TLS."""
         engine = await core.Database.connect(url, max_size, int(wait * 1000))
@@ -442,7 +442,7 @@ class DatabaseModule(Module):
 
     name = "database"
 
-    def __init__(self, url: str, *, max_size: int = 8, wait: float = 5.0) -> None:
+    def __init__(self, url: str, *, max_size: int = 10, wait: float = 5.0) -> None:
         self.url = url
         self.max_size = max_size
         self.wait = wait

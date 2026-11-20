@@ -82,7 +82,7 @@ class Admin:
         manage_users: bool = True,
         secret: str | bytes | None = None,
         prefix: str | None = None,
-        theme: str | Theme = "studio",
+        theme: str | Theme | None = None,
         templates: str | None = None,
         site: str = "Admin",
         per_page: int = 20,
@@ -125,11 +125,16 @@ class Admin:
         self.dashboard = dashboard
         self.timezone: tzinfo = UTC
         self._bound_timezone: tzinfo | None = None
-        self.templates = Templates(templates, theme)
-        self.theme = self.templates.theme
-        self.parts = Components(self.templates)
+        self._templates_directory = templates
+        self._theme_given = theme is not None
         self.models: dict[str, ModelAdmin[Any]] = {}
         self.manage_users = manage_users
+        self.use_theme(theme or "studio")
+
+    def use_theme(self, theme: str | Theme) -> None:
+        self.templates = Templates(self._templates_directory, theme)
+        self.theme = self.templates.theme
+        self.parts = Components(self.templates, self.timezone)
         self.digests = {
             "admin.css": digest(self.templates.stylesheet()),
             "admin.js": digest(self.templates.script()),
@@ -159,9 +164,12 @@ class Admin:
 
     def bind_settings(self, settings: AdminSettings | None) -> None:
         """Use the app's ``admin`` settings: the secret (unless the admin was given
-        its own) and the session and password rules of its own users."""
+        its own), the theme (unless it was given one) and the session and
+        password rules of its own users."""
         if self.users is not None and settings is not None:
             self.users.bind(settings)
+        if settings is not None and settings.theme and not self._theme_given:
+            self.use_theme(settings.theme)
         if self._csrf is not None:
             return
         if settings is None or settings.secret is None:
