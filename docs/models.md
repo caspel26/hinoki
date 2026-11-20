@@ -238,7 +238,7 @@ The model constructor is statically typed. Some keyword-based model methods stil
 ```python
 tasks = await Task.abulk_create([TaskIn(title="a"), {"title": "b", "owner_id": me}])
 tasks[0].done = True
-await Task.abulk_update(tasks)                 # saves the changed rows
+await Task.abulk_update(tasks)  # saves the changed rows
 deleted = await Task.abulk_delete([tasks[0], other_id])  # instances or primary keys
 ```
 
