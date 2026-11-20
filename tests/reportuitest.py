@@ -63,6 +63,15 @@ def test_check_lists_findings_and_a_coloured_summary() -> None:
     assert "\x1b" in checkcli.render(found, 2, "text", FANCY)
 
 
+def test_check_marks_warnings_and_keeps_a_green_summary() -> None:
+    notice = Diagnostic(
+        "HNK-WVR-001", Severity.WARNING, Phase.STARTUP, "stale", "w.toml", "why"
+    )
+    text = plain(checkcli.render([notice], 1, "text", FANCY))
+    assert "▲  HNK-WVR-001 w.toml" in text
+    assert "✔  1 rule(s): 0 violated, 0 unverifiable, 0 waived, 1 warning(s)" in text
+
+
 def test_check_passes_with_a_green_summary() -> None:
     text = plain(checkcli.render([], 3, "text", FANCY))
     assert text.strip() == "✔  3 rule(s): 0 violated, 0 unverifiable, 0 waived"
