@@ -482,7 +482,7 @@
 <li>A model inherits the options of its <a href="../models/#share-fields-abstract-models-and-mixins">abstract bases</a>. A decorator on the subclass replaces everything inherited for that kind of option (<code>@db.indexed</code> replaces the inherited indexes, and so on) and leaves the other kinds inherited. A <code>field(index=True)</code> index stays with its column: it is inherited while the column keeps <code>index=True</code>, and dropped when the subclass redeclares the column without it. A model that subclasses a table model does not inherit that parent's options.</li>
 <li>Apply options before the model is used: the migration planner, the query layer and the admin read them from the class.</li>
 <li>The fallback table/display names use a small deterministic English suffix rule, not an inflector. Use explicit values for irregular, already-plural or localized names. Pin the table name with <code>@db.table(...)</code> or <code>table=</code> when a class has an existing migration history; changing an implicit name is a guarded drop/create, not a table rename.</li>
-<li>Index names are <code>ix_&lt;table&gt;_&lt;columns&gt;</code>, shortened deterministically (with a hash) past PostgreSQL's 63 bytes.</li>
+<li>Index names are <code>ix_&lt;table&gt;_&lt;columns&gt;_&lt;digest&gt;</code>. The digest covers the table and each column name with its length, so <code>indexed("a_b")</code> and <code>indexed("a", "b")</code> never collide; the readable part is cut to the backend's identifier limit (63 bytes on PostgreSQL, 64 on MySQL and MariaDB).</li>
 </ul>
 <p>Not yet: partial or expression indexes and soft delete. For timestamps, see <a href="../utilities/">utilities</a>; fields are declared explicitly and migrations remain visible.</p>
         
@@ -509,7 +509,7 @@
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.6</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 01:18:31 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:57:18 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>

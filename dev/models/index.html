@@ -463,7 +463,8 @@ registration, or a foreign key to it. Physical-table conflicts are reported
 when models are aggregated for migrations, projects or one Admin instance.</p>
 <p>A model has exactly one primary key. <code>pk()</code> is the field-specifier shorthand for
 <code>field(primary_key=True, ...)</code>; pass <code>default</code> or <code>default_factory</code> explicitly
-when the key is optional in the constructor. Fields are keyword-only when
+when the key is optional in the constructor. The key's type cannot be nullable
+(<code>int | None</code> raises <code>RegistrationError</code> when the model is defined). Fields are keyword-only when
 constructing a model. Single-column uniqueness is <code>field(unique=True)</code>; use
 <code>@unique("a", "b")</code> for a composite constraint. There is no nested <code>class Meta</code>.</p>
 <p>Supported field metadata includes primary key, uniqueness, a single-column
@@ -813,8 +814,8 @@ unsupported types fail during model or migration validation.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:29:10 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>17 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:57:18 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>18 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -1017,7 +1017,7 @@ attribute:</p>
 <li><strong>Limits.</strong> A plain union of schemas where a member has such a hook is refused at class creation: use a <a href="#discriminated-unions">discriminated union</a>. The decorator on a plain method raises <code>RegistrationError</code>.</li>
 </ul>
 <h2 id="text-that-cannot-be-stored">Text that cannot be stored<a class="headerlink" href="#text-that-cannot-be-stored" title="Permanent link">&para;</a></h2>
-<p>A string value or a dict key that contains a NUL character (<code>\u0000</code>) is refused with the code <code>nul</code>, or <code>key_nul</code> for a dict key, on both lanes. PostgreSQL cannot store NUL in <code>text</code>, so the request answers 422 instead of failing later with a server error. The check runs after the length limits and before <code>pattern</code>.</p>
+<p>A string value or a dict key that contains a NUL character (<code>\u0000</code>) is refused with the code <code>nul</code>, or <code>key_nul</code> for a dict key, on both lanes. PostgreSQL cannot store NUL in <code>text</code>, so the request answers 422 instead of failing later with a server error. The check runs after the length limits and before <code>pattern</code>. A Python string that is not valid Unicode (a lone surrogate such as <code>"\ud800"</code>) is refused with the code <code>type</code>, because it cannot be encoded as UTF-8.</p>
 <p>See also the <a href="../glossary/">glossary</a> for what "schema" does and does not mean in these docs.</p>
         
         <aside class="related" aria-label="Related pages">
@@ -1050,7 +1050,7 @@ attribute:</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:52:13 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 02:57:18 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>29 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
