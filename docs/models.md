@@ -137,10 +137,10 @@ class Product(Model):
     price: Decimal
 
 
-await Product.objects.filter(price__gte=Decimal("9.99")).order_by(
+await Product.filter(price__gte=Decimal("9.99")).order_by(
     "price"
 )  # PostgreSQL, MySQL, MariaDB
-await Product.objects.filter(price=Decimal("9.99"))  # every backend
+await Product.filter(price=Decimal("9.99"))  # every backend
 ```
 
 * **Filter values.** A filter value must be a `Decimal`, an `int` or a numeric string; a `float`, a `bool`, `NaN` and an infinity raise `FieldError`, as does `contains` on a `Decimal` column. On SQLite an unsupported comparison or ordering raises `FieldError` naming the column.
@@ -272,7 +272,7 @@ What `returning=False` gives back is the client's side of the write. An insert s
 
 The count is the number the database reports. PostgreSQL and SQLite count the rows the statement matched; MySQL and MariaDB, with the driver's default connection settings, count the rows whose values actually changed, so a row that already held the new values counts 0.
 
-The cost of the default is the data sent back. In a raw-SQL measurement on PostgreSQL 17 with 16 statements in flight, a statement returning every column of a narrow row took 83.7 µs per operation against 75.8 µs returning only the key (+10%); with a ~10 KB `jsonb` column it took 143.4 µs against 75.9 µs (+89%). This is a single-machine measurement, not a guarantee for other workloads.
+The cost of the default is the data sent back, which grows with the width of the row and with large columns such as JSON.
 
 `returning` is a keyword-only option of these methods, so a model cannot declare a field named `returning`: the class definition raises `RegistrationError` and asks for another name.
 

@@ -25,13 +25,13 @@ uv run --project .. hinoki dev blog.main:create_app
 ```
 
 Open `/docs` for OpenAPI or `/admin` for the admin, which asks you to sign in with the superuser you just created; add the editors from its Users section and tick what each may do. `BLOG_JWT_SECRET`
-optionally enables `/auth/login`; without it, use the seeded editor token only
-for local exploration. To select a server database, set
+optionally enables `/auth/login`; without it, use the seeded editor token (see
+below) only for local exploration. To select a server database, set
 `BLOG_DATABASE__URL` and `HINOKI_DATABASE_URL` to the same URL before applying
 migrations and starting the app.
 
 For demo records, `BLOG_DATABASE__URL=... uv run --project .. python -m blog.seed`
-applies migrations and inserts fixed synthetic users and posts. Run it only
+applies migrations and inserts fixed synthetic users and posts (without the variable it uses the local SQLite database). Run it only
 once against a fresh disposable database: those unique demo records are not a
 resettable fixture. Never use real credentials or user data with this command.
 

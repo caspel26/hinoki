@@ -4,10 +4,10 @@ The order matters because validation, access and transactions have different fai
 
 1. Kiso accepts the HTTP request, answers what needs no application code and hands the rest to the request pipeline; see [serving](serving.md#kiso). (With `--server granian`, Granian accepts it and calls the ASGI application, which reaches the same pipeline.)
 2. Hinoki matches the method and path.
-3. For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. The request body has not been read yet, so an unauthenticated client cannot make the server buffer it.
+3. For an action with an access policy, its authentication provider resolves a caller and the policy checks permissions. A `rate_limit=` policy runs next. The request body has not been read yet, so an unauthenticated or rate-limited client cannot make the server buffer it.
 4. Hinoki negotiates the response type from `Accept` (`406` when nothing fits), reads the body of `POST`/`PUT`/`PATCH`/`QUERY` requests, then binds and validates path, query, header and body values before the handler runs.
 5. For `atomic=True`, Hinoki opens a transaction before calling the handler.
-6. The handler returns. Hinoki prepares the response: a configured renderer turns the value into bytes. The declared response type is not checked at runtime.
+6. The handler returns. Hinoki checks the value against the return annotation (a mismatch is `500 internal_error`, inside the transaction, unless the action sets `validate_response=False`), then a configured renderer turns it into bytes. A returned `Response` is not checked or rendered.
 7. The transaction commits after successful response preparation. An exception or cancellation rolls back before an HTTP error is produced.
 
 An unhandled exception does not become a successful response. A failed commit is an error. A response renderer should not perform hidden database I/O.

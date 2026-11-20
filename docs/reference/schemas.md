@@ -24,6 +24,12 @@
 
 ::: hinoki.schema.object_check
 
+::: hinoki.schema.before_validate
+
+::: hinoki.computed.computed_field
+
+::: hinoki.fields.SecretStr
+
 ::: hinoki.errors.ValidationError
 
 ::: hinoki.fields.UNSET

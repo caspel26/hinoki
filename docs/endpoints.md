@@ -28,7 +28,7 @@ async def greet(data: Greeting) -> Greeting:
 app = Hinoki(include=[greet])
 ```
 
-Use `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@http.query` (`from hinoki import http`). Hinoki also answers `HEAD` through each `GET` route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A `405` response's `Allow` header includes `HEAD` whenever `GET` is available. Supported decorator arguments include `status`, `access`, `transaction`, `pagination`, `parsers`, `renderers`, `errors` and `replaces`. Each is checked when the route is declared or registered.
+Use `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@http.query` (`from hinoki import http`). Hinoki also answers `HEAD` through each `GET` route: it runs the GET response path and returns the same status and representation headers without a body. The GET handler therefore runs for HEAD requests too. A `405` response's `Allow` header includes `HEAD` whenever `GET` is available. The decorator arguments are `status`, `access`, `atomic`, `pagination`, `parsers`, `renderers`, `errors`, `replaces`, `validate_response` and `rate_limit`. Each is checked when the route is declared or registered. `atomic=True` runs the action in a transaction ([transactions](transactions.md)); there is no `transaction` argument.
 
 ## Read with a body: `@http.query`
 
@@ -83,20 +83,20 @@ async def get_task(request: Request, task_id: UUID) -> TaskView:
     return TaskView(id=task_id, locale=locale)
 ```
 
-Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a `Form[Schema]` body ([text sources](#form-bodies)). Return annotations describe OpenAPI and output serialization. When the annotation is one concrete Schema (also inside `Annotated[...]`), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a `500 internal_error`, not a client error. Other response values, such as a returned `dict`, are sent unchanged and are not validated at runtime ([details](model-schemas.md#return-a-model-from-a-schema-annotated-handler)). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
+Request path, query and body values are validated before the handler runs; a Schema body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper Schema field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types, with one explicit exception: a `Form[Schema]` body ([text sources](#form-bodies)). Return annotations describe OpenAPI and output serialization, and the returned value is checked against them ([the response check](#the-response-is-checked-against-the-annotation)). When the annotation is one concrete Schema (also inside `Annotated[...]`), a directly returned Model is projected through that Schema, and an instance of a subclass is sent with only the declared Schema's fields; a row that fails the Schema's constraints is a `500 internal_error`, not a client error. A returned `dict` where a `Schema` is declared is also a `500 internal_error`; it is accepted only where the annotation is a `dict` ([details](model-schemas.md#return-a-model-from-a-schema-annotated-handler)). Use a wrapper Schema for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
 
 ## Query strings as a Schema
 
 `Query[...]` reads a whole query string into a `Schema`, for any method, so a filter set can be declared and reused once:
 
 ```python
-from hinoki import Query, Schema, http
+from hinoki import Field, Query, Schema, http
 
 
 class Search(Schema):
     term: str
     limit: int = 10
-    ids: list[int] = []
+    ids: list[int] = Field(default_factory=list)
 
 
 @http.get("/items")
@@ -111,13 +111,13 @@ Text is converted to the `int`, `float` and `bool` the `Schema` declares before 
 A plain `Schema` parameter is a strict JSON body. Wrap it in `Form[...]` to read the same `Schema` from a form, whose values are all text:
 
 ```python
-from hinoki import Form, Schema, http
+from hinoki import Field, Form, Schema, http
 
 
 class Signup(Schema):
     name: str
     age: int
-    tags: list[int] = []
+    tags: list[int] = Field(default_factory=list)
 
 
 @http.post("/signup")
@@ -279,7 +279,7 @@ Both forms declare the same actions with the same decorators. They differ in fou
 | --- | --- | --- |
 | Shared `access=`, `atomic=`, `errors=` | stated once on `RouteGroup(...)` | not available: an `API` class carries a path prefix only, so each action states them |
 | Rust fast path for simple public routes | eligible ([serving](serving.md)) | never: a method has an owner class, so it always takes the Python lane |
-| Inheritance | none: compose with decorators and groups | subclasses extend a base, override an action, or drop an inherited one by redefining it without a decorator (or `replaces=`) |
+| Inheritance | none: compose with decorators and groups | subclasses extend a base, override an action with `replaces=`, or drop a generated one with `omit=` |
 | Generated routes and write hooks | no | `@crud(...)` (`get_queryset`, `to_schema`, `written_queryset`, `store`, `change`, `remove`) |
 
 **Use functions and a `RouteGroup` for ordinary endpoints.** The action's shared policy sits in one place, the handlers are plain functions that a test can call, and a simple public one can be served natively. The group below states access, transactions and the errors its actions may raise once:
@@ -412,12 +412,12 @@ after prefixes are composed.
 
 If a feature declares its own prefix (a `RouteGroup("/tasks")` or `API, path="/tasks"`), mounting adds to it. Pick one place for each prefix: feature-relative paths with `Mount` at the root is the layout that keeps the whole map readable in `main.py`.
 
-To see the resulting map without starting the server, run `hinoki routes blog.main:create_app --path /posts` (the blog example):
+To see the resulting map without starting the server, run `hinoki routes blog.main:create_app --path /posts` from `examples/` (the blog example; its admin needs `BLOG_ADMIN__SECRET` set, see its README):
 
 ```text
 GET     /posts                    public                   blog.api.Posts.listing
-POST    /posts                    TokenAuth[posts:write]   hinoki.crud.create
-DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.crud.delete
+POST    /posts                    TokenAuth[posts:write]   hinoki.resources.create
+DELETE  /posts/{item_id}          TokenAuth[posts:write]   hinoki.resources.delete
 GET     /posts/{item_id}          public                   blog.api.Posts.one
 POST    /posts/{item_id}/publish  TokenAuth[posts:write]   blog.api.Posts.publish
 ```

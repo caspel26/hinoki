@@ -32,7 +32,7 @@ and its declared dependencies.
 Members need a `Member` row with an opaque token to use the API. The API
 provides health, paginated task listing, creation, completion and deletion;
 completed tasks cannot be deleted. The repository tests create synthetic
-members and use a disposable PostgreSQL database.
+members and use a disposable database (PostgreSQL or a throwaway SQLite file in `HINOKI_TEST_DATABASE_URL`).
 
 The manifest registers Notes, Tracker and Blog as separate apps, each with its
 own models and migrations. `hinoki migrations apply` initializes all four in

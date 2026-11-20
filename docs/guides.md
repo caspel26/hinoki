@@ -44,7 +44,7 @@ One page for each part of an application. Start with the data and endpoint guide
 
 ## Integrations
 
-- [Admin](admin.md): An optional module that gives staff a list, search, create, edit, bulk delete and a dashboard for your models; it is included in the framework package and mounted explicitly.
+- [Admin](admin.md): An optional module that gives staff a list, search, create, edit, bulk delete and a dashboard for your models, with its own users, a sign-in page and per-model permissions; it is included in the framework package and mounted explicitly.
 - [Application MCP](app-mcp.md): expose_as_mcp turns selected HTTP actions into tools for an MCP client.
 - [Development MCP](dev-mcp.md): CLI-hosted tools describe an app and its rules to an agent.
 - [Development tools](ai-workflow.md): Scaffold a project and give a coding agent rules, error explanations and an MCP server.
@@ -52,11 +52,19 @@ One page for each part of an application. Start with the data and endpoint guide
 ## Operating
 
 - [Sync and async](sync-async.md): Hinoki runs on one event loop per worker; synchronous handlers run on a bounded worker pool.
-- [Benchmarks](benchmarks.md): retained measurements with their environment, method and limits, including a separate native CRUD orientation run.
+- [Benchmarks](benchmarks.md): retained measurements with their environment, method and limits.
+- [Native CRUD orientation](rust-crud-orientation.md): a separate, workload-specific measurement of generated CRUD on the native path.
+- [Troubleshooting](troubleshooting.md): common startup, import and configuration errors and their fixes.
+- [Toolchain and CI](toolchain.md): the local and CI commands for Python, Rust, database-backed tests, packaging and the docs build.
 
 ## Where to go next
 
+- [Installation](getting-started.md) and the [quick start](quick-start.md): install from a checkout and run the Notes API.
 - [Concepts](concepts.md): the request lifecycle, architecture patterns and the vocabulary.
+- [Request lifecycle](request-lifecycle.md): the order of parsing, validation, access, handler, transaction and response.
+- [Architecture patterns](patterns.md): how to structure an application, with reasons.
+- [Glossary](glossary.md): one word, one meaning, including the four senses of "schema".
 - [Own schemas and ORM](ecosystem.md): what owning `Schema` and `Model` means for other libraries, and the extension points that exist.
 - [Reference](reference/index.md): public symbols, signatures and docstrings.
 - [Status](status.md): what works today and what does not yet.
+- [Documentation versions](documentation-versions.md): how `dev` and release docs are published.

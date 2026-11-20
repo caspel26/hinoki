@@ -16,13 +16,14 @@ CRUD, or apply it to a class when you need `get_queryset`/`to_schema` hooks
 or handwritten `@http.*` actions beside the generated ones.
 
 ```python
-from hinoki import Hinoki, Schema, crud
+from hinoki import Hinoki, Schema, crud, derive
 
 from app.models import Post
 from app.security import editor
 
 
-class PostOut(Schema, model=Post): ...
+@derive(Post)
+class PostOut(Schema): ...
 
 
 class PostCreate(Schema):
@@ -45,9 +46,9 @@ app = Hinoki(include=[posts])
 ```
 
 Add code with the class form. The class extends `API` (its only base);
-`get_queryset(self, principal)` and
-`to_schema(self, item)` are the only hooks; anything else is a handwritten
-action:
+the hooks `get_queryset`, `to_schema`, `written_queryset`, `store`, `change` and
+`remove` change what the generated actions do, and anything else is a
+handwritten action:
 
 ```python
 from typing import Any
@@ -239,12 +240,14 @@ bypass the supplied scoped queryset with an unscoped model write or raw SQL.
 Hinoki checks the persisted item after create/update for model identity and
 server-assigned field invariants, but cannot sandbox arbitrary hook side effects.
 
-Replace a generated action with a same-name decorated method, or use
-`replaces=Crud.CREATE` (or another `Crud` member) on a differently named route.
-An undecorated method named `list`, `retrieve`, `create`, `update` or `delete`
-intentionally shadows and removes that generated route. A differently named
-method without `replaces=` is a separate route and may collide by path/method;
-route registration reports duplicates.
+Replace a generated action with a differently named decorated method that
+names it: `@http.post("/make", replaces=Crud.CREATE)` (`Crud` is in
+`hinoki.resources`). A method that has the name of an action `crud(...)`
+still generates (`list`, `retrieve`, `create`, `update`, `delete`) raises
+`RegistrationError` when the class is declared, and for `list` and `retrieve`
+`omit=` drops the generated route so that a handwritten one can take its place.
+A decorated method without `replaces=` is a separate route and may collide by
+path/method; route registration reports duplicates.
 
 ## Security and validation
 

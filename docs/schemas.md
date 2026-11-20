@@ -71,7 +71,7 @@ except ValidationError as error:
 * **Hashable items.** Set and frozenset items must be hashable: scalars, enums, or tuples and frozensets of those. A set of `Schema`, `list`, `dict` or `set` items raises `RegistrationError`; bare `set`, `tuple[()]` and a misplaced `...` do too.
 * **Construction** takes exactly the declared container (`Place(tags={"a"}, point=(1, 2))`); a list for a `set` field is refused.
 * **Output.** `dump()`, responses and the JSON encoder write arrays, a set sorted when its items compare; `to_dict()` keeps the `set`, `frozenset` and `tuple`.
-* **Models.** A `Model` column annotated with one of these is a JSON column holding an array; the model stores and reads lists, and only `Schema` fields build sets and tuples.
+* **Models.** A `Model` column annotated with a set, frozenset or tuple has no SQL type yet: a migration for it reports `no SQL type`. Use a `list[X]` column, which is stored as JSON, and build sets and tuples in a `Schema`.
 * **Lanes.** The native GIL-free CRUD lane does not read these fields; such a schema is validated through the Python lane, with the same results.
 * **OpenAPI** documents a set as an array with `uniqueItems`, a variadic tuple as an array and a fixed tuple with `prefixItems`, `minItems` and `maxItems`.
 
@@ -127,7 +127,7 @@ except ValidationError as error:
 * **Construction** takes members for an enum field (`Ticket(status=Status.DRAFT)`) and the listed values for a `Literal`; a plain `"draft"` is refused for an enum field. `validate` and the request sources read the value, and a member of a `StrEnum` is read as its text.
 * **Output.** `dump()`, responses and the JSON encoder write the member's value (inside `Schema` instances); `to_dict()` keeps the member.
 * **Text sources.** Form, query and XML values are text; an `IntEnum` or an `int` `Literal` reads its number like an `int` field does.
-* **Models.** A `Model` column annotated with an enum or a `Literal` stays a JSON column; only `Schema` fields check the values.
+* **Models.** A `Model` column annotated with an `Enum` class stores the member's value (`text`, or `bigint` when every value is an integer) and reads the member back; see [models](models.md). A `Literal` has no SQL type yet (a migration reports `no SQL type`); annotate the column with an enum or `str`/`int` and use the `Literal` in the `Schema`.
 * **OpenAPI** documents the field as its `type` (`string` or `integer`) with an `enum` list of the values, inline in the property.
 
 ### Dates, durations, decimals and bytes
@@ -197,9 +197,10 @@ Order.validate({"quantity": 12, "price": "9.97"})  # two `multiple_of` errors
 ```
 
 JSON input is already strict about types (a float is never an integer, a `Decimal` is a string); the text sources (query, form) coerce as documented above. A `float` field always holds a `float`: wire data gives `1.0` for the JSON number `1`, and building a `Schema` in Python stores an `int` given for a `float` field, or for a `float` inside a `list`, `set`, `tuple` or `dict[str, float]`, as a `float` (`Reading(value=1).value` is `1.0`); a `bool` is still refused. A `float` member of a plain union such as `int | float` keeps the value it was given.
+
 * **`bytes` size.** `min_length` and `max_length` count decoded bytes (`at most 1024 bytes`). Client input without a `max_length` is limited to 65536 decoded bytes (`hinoki.fieldtypes.MAX_BYTES_LENGTH`); a declared `max_length` replaces the limit. Fields derived from a `Model` column never get it. `pattern` is matched against the whole decoded value read as Latin-1 text, one character per byte, after the length check: `Field(pattern=r"\x89PNG[\x00-\xff]*")` accepts a PNG header, and a failure answers `pattern`. Both lanes and direct construction agree.
 * **Text sources.** Form, query and XML values use the same text forms, so `validate_text` needs no conversion for these types.
-* **Models.** A `bytes` column stores as `BYTEA` on PostgreSQL and a blob on SQLite, and native CRUD serialises it as base64. Constraints on a `bytes` model column are refused. The ORM stores only `bytes` among these types; `date`, `time`, `timedelta` and `Decimal` are not model column types yet.
+* **Models.** A `bytes` column stores as `BYTEA` on PostgreSQL and a blob on SQLite, and native CRUD serialises it as base64. Constraints on a `bytes` model column are refused. `date`, `time`, `timedelta` and `Decimal` are model column types too (see [models](models.md)).
 * **OpenAPI** documents `date` as `format: date`, `time` as `format: time`, `timedelta` as `format: duration`, `Decimal` as a `string` with `format: decimal` and a `pattern`, and `bytes` as `format: byte` with `contentEncoding: base64`; the `pattern` of a `bytes` field is not described, because it applies to the decoded bytes and not to the base64 text. Decimal bounds appear as `minimum`/`maximum` numbers.
 * **Output.** The JSON encoder writes these values only inside `Schema` instances; a bare `Decimal` or `bytes` in a plain dictionary is still a `TypeError`, so a handler that returns one must return a `Schema` or supply a `default=` hook. A `Decimal` that is `NaN`, infinite or has more than 1000 digits raises `ValueError`.
 
@@ -294,7 +295,7 @@ except ValidationError as error:
 * **Construction** (`Reading(value=1, when="x")`) takes a value of a variant's Python type; the first variant that takes that type is used, so a `date` is never turned into text by an earlier `str` variant.
 * **Native lane.** Plain unions and `Any` are checked in Rust on the Python-object path (`Schema.validate`, handlers on the native lane). A `Schema` that uses one is not lowered to the GIL-free JSON lane, as with tuples; the results are identical.
 * **OpenAPI** describes a plain union as `anyOf` of the variant schemas and `Any` as an unconstrained schema. A `Model` column annotated with a plain union or `Any` stays a JSON column.
-* `HNK-SCH-002` checks each text variant of a union for `max_length`.
+* `HNK-SCH-002` checks each text variant of a union for `max_length`. A `Model` column annotated with a plain union or `Any` is refused by migrations (`unions are not supported`, `no SQL type for Any`).
 
 
 ### `TypedDict` and dataclass fields
@@ -302,6 +303,12 @@ except ValidationError as error:
 A field may be annotated with a `TypedDict` or a dataclass. It is validated as a nested object and described in OpenAPI as a component named after the type.
 
 ```python
+from dataclasses import dataclass
+from typing import NotRequired, TypedDict
+
+from hinoki import Schema
+
+
 class Address(TypedDict):
     street: str
     zip: NotRequired[str]
@@ -394,6 +401,11 @@ assert account.home == Path("/srv/ann")
 `Field(description=..., examples=..., deprecated=True)` documents a field in the OpenAPI document without changing how it validates. `description` is non-empty text, `examples` a non-empty sequence of JSON values and `deprecated` marks the property as deprecated. The notes are written next to the property, so a nullable field is documented as a whole and a nested `Schema` keeps its `$ref`. They combine with constraints and with `alias`.
 
 ```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
 class Profile(Schema):
     nick: Annotated[
         str,
@@ -552,6 +564,14 @@ Each variant's tag field is required and cannot have a default. Tags must be uni
 A `Schema` instance is frozen. `replace(**changes)` returns a copy with the named fields changed; the original is untouched. Every value of the copy goes through the same validation, normalisation and `@field_check`/`@object_check` as a new instance, so a change that breaks a rule raises `ValidationError` with the field path, and a check sees the whole new object. An unknown field name raises `TypeError`. Fields that were never supplied stay unsupplied for `dump(exclude_unset=True)`, and `replace` is reserved as a `Schema` method name, like `dump`.
 
 ```python
+from hinoki import Schema
+
+
+class Card(Schema):
+    title: str
+    stars: int = 0
+
+
 card = Card(title="Draft", stars=1)
 published = card.replace(title="Final", stars=4)
 assert card.stars == 1 and published.stars == 4
@@ -592,6 +612,11 @@ With no options, `dump()` preserves its current output and honors custom `dump()
 `Field(strip=True)`, `Field(lower=True)` and `Field(upper=True)` normalise a `str` field before anything else is checked, so `min_length`, `pattern` and `one_of` see the normalised text and the value you read is the normalised one:
 
 ```python
+from typing import Annotated
+
+from hinoki import Field, Schema
+
+
 class Signup(Schema):
     handle: Annotated[str, Field(strip=True, lower=True, min_length=3)]
 
@@ -645,7 +670,7 @@ Structural validation runs first and rejects wrong types, missing required value
 
 After normalization, field checks receive final values and object checks can compare final fields. Raise `Invalid(code, message)` to reject a value; these checks return `None` and do not transform it. Non-`None` returns and async check methods are programming errors. Applicable custom-check failures are returned together in `errors.ValidationError.details`. Checks must be side-effect free; do not query the database or call external services. Put checks that depend on current data in an operation.
 
-**Which lane runs what.** Types and `Field(...)` constraints are checked in Rust, on the Python-object path and, for most schemas, the GIL-free JSON path. The three decorators are Python callables, so they run in Python: Rust validates the structure first, and the normalizers, field checks and object checks run only on values that passed it. Computed fields are not available yet.
+**Which lane runs what.** Types and `Field(...)` constraints are checked in Rust, on the Python-object path and, for most schemas, the GIL-free JSON path. The three decorators are Python callables, so they run in Python: Rust validates the structure first, and the normalizers, field checks and object checks run only on values that passed it. Computed fields (below) are output only and are not validated.
 
 These decorators validate a `Schema` instance passed through `Schema.validate`; they are not run on a `Model`. Model fields have separate checks that run before ORM writes, described in [Model field constraints and validators](models.md#model-field-constraints-and-validators).
 

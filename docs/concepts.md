@@ -8,7 +8,7 @@ This page connects the main parts of Hinoki. The guides explain each API in deta
 
 ## A declaration is reused
 
-An action's Python signature and decorator options describe routing, binding, access, transaction behavior, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an `API` resource class, or collected in an includable `RouteGroup` of functions with shared defaults.
+An action's Python signature and decorator options describe routing, binding, access, `atomic` transactions, expected errors, OpenAPI and MCP metadata. A route can be included as a standalone function, grouped in an `API` resource class, or collected in an includable `RouteGroup` of functions with shared defaults.
 
 ## One application object
 
@@ -36,7 +36,7 @@ Each server worker owns its module lifespan and database pool. Startup creates r
 
 ## Optional rules
 
-Rules inspect declared routes, schemas, imports or other known project structure. They report a violation or say they could not verify the promise. They do not prove arbitrary function behavior. Enable the checks that suit the application and run them both at startup and in development.
+Rules inspect declared routes, schemas, models, imports or other known project structure. Hinoki ships eleven; see [rules](rules.md). They report a violation or say they could not verify the promise. They do not prove arbitrary function behavior. Enable the checks that suit the application and run them both at startup and in development.
 
 ## Where to continue
 

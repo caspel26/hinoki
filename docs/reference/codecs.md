@@ -14,6 +14,10 @@
 
 ::: hinoki.parsers.XMLParser
 
+::: hinoki.parsers.Parsed
+
+::: hinoki.errors.InvalidBody
+
 ::: hinoki.UploadedFile
 
 ::: hinoki.renderers.Renderer

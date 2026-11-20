@@ -29,11 +29,17 @@ An action that binds an `UploadedFile` and has no parsers of its own gets `Multi
 
 The complete request body and every part are buffered in memory. The default body cap is 1 MiB; increasing it also increases potential memory use across concurrent requests. This parser does not stream or spool files. Keep both the runtime body cap and `max_part_bytes` bounded, and treat filenames and media types as untrusted client input.
 
+`JSONParser`, `JSONRenderer`, `HTMLRenderer`, `XMLParser`, `XMLRenderer`, `FormParser`, `MultiPartParser` and `BytesParser` are importable from `hinoki`; `TextParser` and `TextRenderer` come from `hinoki.parsers` and `hinoki.renderers`.
+
 ## Choose them
 
 Per action, or for the whole application (an action's own choice wins):
 
 ```python
+from hinoki import Hinoki, JSONParser, JSONRenderer, Request, http
+from hinoki.parsers import TextParser
+from hinoki.renderers import TextRenderer
+
 app = Hinoki(renderers=[JSONRenderer(sort_keys=True), TextRenderer()])
 
 

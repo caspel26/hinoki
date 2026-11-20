@@ -1,6 +1,6 @@
 # API reference
 
-Reference for Hinoki's public Python surface. Public names are imported from `hinoki` unless a package is shown. The [user guides](../getting-started.md) explain common workflows; this section lists signatures and API details.
+Reference for Hinoki's public Python surface. Public names are imported from `hinoki` unless a package is shown. The [user guides](../guides.md) explain common workflows; this section lists signatures and API details.
 
 | Area | Package | Reference |
 | --- | --- | --- |

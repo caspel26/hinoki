@@ -44,7 +44,7 @@ class PostAll(Schema): ...
 
 `only` and `exclude` cannot be combined. An empty `only=()` is invalid; `exclude=()` is equivalent to selecting all columns. Model field types, maximum lengths, defaults and nullability are used. Annotations in the class body add fields or override a derived field, and methods and checks in the body are kept. Methods can use zero-argument `super()` as usual.
 
-Unknown columns, a non-model, an empty `only`, optional names outside the selection, a class that is not a `Schema`, or a second `@derive` on the same class fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use `only` or `exclude` when the API must omit private fields. During the compatibility cycle, `@derive(options...)` with `model=Model` remains valid and emits `DeprecationWarning`; use `@derive(Model, options...)` for new code.
+Unknown columns, a non-model, an empty `only`, optional names outside the selection, a class that is not a `Schema`, or a second `@derive` on the same class fail when the class is declared. Relations are not derived as nested values; declare the API shape explicitly. Model derivation includes all columns by default, so use `only` or `exclude` when the API must omit private fields. During the compatibility cycle, a keyword-only `@derive(only=...)` on a class declared with the `model=Model` class keyword remains valid and emits `DeprecationWarning`; use `@derive(Model, options...)` for new code. Passing the model both ways is a `RegistrationError`.
 
 ### Inheriting from a Schema
 

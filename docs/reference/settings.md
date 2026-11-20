@@ -13,7 +13,7 @@
 
 ::: hinoki.settings.AppSettings
     options:
-      members: [execution, lifecycle, logging, docs, server, pagination, cors, security, timezone, debug, allowed_hosts, runtime_config]
+      members: [execution, lifecycle, logging, docs, server, pagination, cors, security, admin, timezone, debug, allowed_hosts, runtime_config]
       show_if_no_docstring: true
 
 ::: hinoki.settings.ExecutionSettings
@@ -38,7 +38,7 @@
 
 ::: hinoki.settings.ServerSettings
     options:
-      members: [server, host, port, workers, runtime_threads, backlog, access_log, max_connections, header_read_timeout, body_read_timeout, trusted_proxies, request_id_header, trust_request_id]
+      members: [server, host, port, workers, runtime_threads, backlog, access_log, access_log_format, access_log_skip, access_log_slow_ms, recent_requests, server_timing, max_connections, header_read_timeout, body_read_timeout, write_timeout, tls_cert_file, tls_key_file, http2, native_dispatch, trusted_proxies, request_id_header, trust_request_id]
       show_if_no_docstring: true
 
 ::: hinoki.settings.PaginationSettings
@@ -54,6 +54,11 @@
 ::: hinoki.settings.SecuritySettings
     options:
       members: [redirect_https, hsts_seconds, hsts_include_subdomains, hsts_preload, frame_options, referrer_policy]
+      show_if_no_docstring: true
+
+::: hinoki.settings.AdminSettings
+    options:
+      members: [secret, session_hours, idle_minutes, min_password_length]
       show_if_no_docstring: true
 
 ::: hinoki.settings.FrameOptions

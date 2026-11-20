@@ -16,6 +16,18 @@ environment as the worker. Check the backend-specific URL, TLS and migration
 limits in [Configure a database](databases.md). Use one worker and a small pool
 while debugging; total maximum connections are replicas × workers × pool size.
 
+## `server.<name> is not supported by the granian server`
+
+`hinoki serve` refuses a setting that the chosen server cannot honour instead of ignoring it, and exits with status 2. Unset the setting or run on Kiso (`--server kiso`, the default). See [settings that apply to one server only](serving.md#settings-that-apply-to-one-server-only).
+
+## `cannot listen on HOST:PORT`
+
+The address is in use or the host or port is invalid. Stop the other process or pass another `--port`; the command exits with status 2.
+
+## Every request answers `400 disallowed_host` or `503 not_ready`
+
+`400 disallowed_host` means the `Host` header is not in `allowed_hosts` ([settings](settings.md#allowed_hosts)). `503 not_ready` is answered while a worker's startup has not finished and once shutdown has begun ([serving](serving.md#optional-startup-probe)).
+
 ## A related field is not loaded
 
 Foreign-key attributes do not trigger queries. Add `select_related("author")` or `prefetch_related("posts")` to the query that needs the relation.

@@ -5,8 +5,8 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 ## Available today
 
 - Typed Python HTTP APIs with optional architecture rules and declared errors.
-- The Rust extension currently provides path matching, selected request parsing, schema validation/serialization, cryptography, and PostgreSQL, SQLite, MySQL and MariaDB ORM execution. The ASGI adapter and application handlers run in Python, except that, on Kiso (the default), an `async def` handler whose only awaits are ORM reads and stock writes the framework can prove safe (guarded, body and `atomic` routes included) is driven from Rust without an asyncio task. SQLite is the local-development default.
-- Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools, model lifecycle hooks, atomic writes (`atomic=True` on actions, `db.atomic` as a block or decorator in application code), response checks against annotations, route rate limit policies, and an optional admin with four themes and its own users.
+- The Rust extension currently provides path matching, selected request parsing, schema validation/serialization, cryptography, and PostgreSQL, SQLite, MySQL and MariaDB ORM execution. The ASGI adapter and application handlers run in Python, except that, on Kiso (the default), an `async def` handler whose only awaits are ORM reads and stock writes the framework can prove safe (guarded, body and `atomic` routes included) is driven from Rust without an asyncio task; eligible public generated `create`, `update` and `delete` actions run their transaction in Rust. SQLite is the local-development default.
+- Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools, model lifecycle hooks, `bulk_*`/`abulk_*` writes, atomic writes (`atomic=True` on actions, `db.atomic` as a block or decorator in application code), response checks against annotations, route rate limit policies, and an optional admin with four themes and its own users.
 
 See the [documentation](https://caspel26.github.io/hinoki/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
 
