@@ -16,7 +16,12 @@ use bytes::Bytes;
 use http_body_util::BodyExt;
 use hyper::body::{Body, Incoming as RequestBody};
 use std::io::ErrorKind;
-use tokio::time::timeout;
+use tokio::time::{timeout, Instant};
+
+/// The whole body must arrive within this many idle timeouts, so a client that
+/// sends one byte just before each idle timeout cannot hold a slot until the
+/// size limit.
+const TOTAL_BUDGET_FACTOR: u32 = 6;
 
 /// Why a body could not be read in full.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,7 +33,8 @@ pub enum BodyError {
     Disconnected,
     /// The body framing is broken (an invalid chunk size, for example).
     Malformed,
-    /// No data for longer than the idle timeout.
+    /// No data for longer than the idle timeout, or the body took longer than
+    /// the total budget.
     Timeout,
 }
 
@@ -108,8 +114,12 @@ where
                 .min(FIRST_RESERVE)
         });
         let mut out = Vec::with_capacity(capacity);
+        let deadline = Instant::now() + self.idle * TOTAL_BUDGET_FACTOR;
         loop {
-            let frame = timeout(self.idle, self.inner.frame())
+            let wait = self
+                .idle
+                .min(deadline.saturating_duration_since(Instant::now()));
+            let frame = timeout(wait, self.inner.frame())
                 .await
                 .map_err(|_| BodyError::Timeout)?;
             match frame {
@@ -135,6 +145,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
+    use std::future::Future;
     use std::io;
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -243,6 +254,43 @@ mod tests {
         let out = body.read_all(limit).await.unwrap();
         assert_eq!(out, b"abc");
         assert!(out.capacity() <= FIRST_RESERVE);
+    }
+
+    /// One byte every `gap`, forever: each chunk beats the idle timeout.
+    struct Trickle {
+        gap: Duration,
+        wait: Pin<Box<tokio::time::Sleep>>,
+    }
+
+    impl Body for Trickle {
+        type Data = Bytes;
+        type Error = io::Error;
+
+        fn poll_frame(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Frame<Bytes>, io::Error>>> {
+            if self.wait.as_mut().poll(cx).is_pending() {
+                return Poll::Pending;
+            }
+            let next = tokio::time::Instant::now() + self.gap;
+            self.wait.as_mut().reset(next);
+            Poll::Ready(Some(Ok(Frame::data(Bytes::from_static(b"x")))))
+        }
+    }
+
+    #[tokio::test]
+    async fn a_client_that_trickles_bytes_is_cut_off_after_the_total_budget() {
+        let idle = Duration::from_millis(100);
+        let gap = Duration::from_millis(60);
+        let body = Trickle {
+            gap,
+            wait: Box::pin(tokio::time::sleep(gap)),
+        };
+        let started = std::time::Instant::now();
+        let outcome = BodyReader::new(body, idle).read_all(1 << 20).await;
+        assert_eq!(outcome.unwrap_err(), BodyError::Timeout);
+        assert!(started.elapsed() < idle * (TOTAL_BUDGET_FACTOR + 4));
     }
 
     #[tokio::test]
