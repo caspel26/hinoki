@@ -220,6 +220,17 @@ async def find(data: NewNote) -> dict[str, Any]:
     return {"title": data.title, "total": await LaneNote.all().acount()}
 
 
+@http.get("/lane/atomic/{id}", atomic=True)
+async def atomic_read(id: int) -> dict[str, Any]:
+    found = await LaneNote.aget(id=id)
+    return {"id": found.id, "open": Holder.current[-1].active() is not None}
+
+
+@http.post("/lane/atomic", status=201, atomic=True)
+async def atomic_write(data: NewNote) -> dict[str, Any]:
+    return {"title": data.title, "open": Holder.current[-1].active() is not None}
+
+
 @http.post("/lane/limited-body", status=201, rate_limit=RefuseAll())
 async def limited_body(data: NewNote) -> dict[str, str]:
     return {"title": data.title}
@@ -227,12 +238,13 @@ async def limited_body(data: NewNote) -> dict[str, str]:
 
 HANDLERS = (note, notes, count, pure, seen_context, boom, missing, sleeping, plain)
 GUARDED = (guarded, slow_auth, limited, limited_sync, search, negotiated)
-BODIES = (echo, replace, amend, find, limited_body)
+BODIES = (echo, replace, amend, find, atomic_read, atomic_write, limited_body)
 SERVED = {"/lane/note/{id}", "/lane/notes", "/lane/count", "/lane/pure"}
 SERVED |= {"/lane/context", "/lane/boom", "/lane/not-found"}
 SERVED |= {"/lane/guarded/{id}", "/lane/slow-auth", "/lane/limited"}
 SERVED |= {"/lane/limited-sync", "/lane/search", "/lane/negotiated"}
 SERVED |= {"/lane/echo", "/lane/limited-body", "/lane/find"}
+SERVED |= {"/lane/atomic/{id}", "/lane/atomic"}
 
 
 def make_app(url: str, **runtime: float) -> Hinoki:
@@ -344,6 +356,26 @@ GUARDED_TARGETS: list[Sent] = [
 ]
 
 
+JSON = "content-type: application/json\r\n"
+ATOMIC_TARGETS: list[Sent] = [
+    "/lane/atomic/1",
+    "/lane/atomic/404",
+    ("POST", "/lane/atomic", JSON, b'{"title":"t"}'),
+    ("POST", "/lane/atomic", JSON, b'{"title":3}'),
+]
+
+
+async def test_atomic_routes_run_in_a_transaction_in_the_lane(url: str) -> None:
+    oracle, none = await serve_all(url, ATOMIC_TARGETS, native=False)
+    served, started = await serve_all(url, ATOMIC_TARGETS, native=True)
+    assert none == []
+    assert [normalized(r) for r in served] == [normalized(r) for r in oracle]
+    assert [r.status for r in served] == [200, 404, 201, 422]
+    assert served[0].json() == {"id": 1, "open": True}
+    assert served[2].json() == {"title": "t", "open": True}
+    assert started == [1, 1, 1, 1]
+
+
 async def test_guarded_routes_take_the_lane_like_the_asyncio_path(url: str) -> None:
     oracle, none = await serve_all(url, GUARDED_TARGETS, native=False)
     served, started = await serve_all(url, GUARDED_TARGETS, native=True)
@@ -368,7 +400,6 @@ async def test_a_guard_waiting_on_asyncio_does_not_run_the_handler_twice(
     assert [r.json() for r in served] == [{"who": "u-editor"}] * 5
 
 
-JSON = "content-type: application/json\r\n"
 BODY_TARGETS: list[Sent] = [
     ("POST", "/lane/echo", JSON, b'{"title":"a"}'),
     ("POST", "/lane/echo", JSON, b'{"title":"a","rank":4}'),
