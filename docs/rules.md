@@ -106,9 +106,9 @@ passes silently.
 
 | Where | Rules | Waivers | On failure |
 | --- | --- | --- | --- |
-| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of `rules=` | `hinoki-rules.toml` in the current directory | startup fails with `RegistrationError` listing every failing diagnostic |
-| `hinoki check` | both phases (or `--phase`) | `hinoki-rules.toml` | exit code `1` |
-| `hinoki mcp` | both phases | `hinoki-rules.toml` | reported to the agent |
+| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of `rules=` | the [waiver file](#which-waiver-file) | startup fails with `RegistrationError` listing every failing diagnostic |
+| `hinoki check` | both phases (or `--phase`) | the waiver file, or `--waivers` | exit code `1` |
+| `hinoki mcp` | both phases | the waiver file, or `--waivers` | reported to the agent |
 
 Startup enforcement means a broken promise never serves traffic. During a
 migration you can pass `enforce_rules=False` to `Hinoki(...)`: violations are
@@ -176,7 +176,8 @@ expires = 2027-01-31
 `rule`, `target`, `reason` and `owner` are required. `target` is an `fnmatch`
 pattern on the diagnostic's subject and must be bounded: a literal prefix of at
 least five characters containing a dot (`shop.api.*`, never `*`). `expires` is
-optional and must be a TOML date, written without quotes. The waived diagnostic
+optional and must be a TOML date, written without quotes; the waiver applies
+through that day and expires once the current UTC date is later. The waived diagnostic
 keeps its line and gains the decision:
 
 ```text
@@ -187,14 +188,32 @@ tests/projects/rulesapp.py:7: HNK-ACC-001 [waived] GET /health (health) declares
 
 An expired waiver stops applying and reports `HNK-WVR-002`; one that matches
 nothing reports `HNK-WVR-001` (both warnings). A diagnostic that means "the rule
-could not do its job" cannot be waived. An invalid file makes `hinoki check` exit
-with `2`.
+could not do its job" cannot be waived. An invalid or unreadable file makes
+`hinoki check` exit with `2`.
+
+### Which waiver file
+
+`hinoki check`, `hinoki mcp` and application startup read the same file:
+
+1. The file named by `Hinoki(waivers=...)`, or by `--waivers` on `check` and
+   `mcp`. A named file must exist.
+2. Otherwise `hinoki-rules.toml` at the project root: the directory of the
+   nearest `hinoki.toml`, searched from the working directory upwards. Running
+   from a subdirectory of the project finds the same file.
+3. Without a `hinoki.toml`, `hinoki-rules.toml` in the working directory.
+
+```python
+app = Hinoki(rules=rules, waivers="config/hinoki-rules.toml")
+```
+
+A missing default file means no waivers. A directory or a broken symbolic link
+with that name is an error, not an absent file. `hinoki mcp --waivers PATH` also
+applies `PATH` to the app that `run_scenario` starts.
 
 ### Waivers at startup
 
-Application startup reads the same file as `hinoki check`
-(`hinoki-rules.toml` in the current directory, so start the server from the
-project root) and applies it the same way. This app requires access on every
+Application startup applies the waiver file the same way as `hinoki check`.
+This app requires access on every
 action, yet it starts and serves `/health` because the owner waived it:
 
 ```python
@@ -225,9 +244,10 @@ Without the waiver, `hinoki serve shop.main:app` fails at startup with
 
 At startup:
 
-- An absent file means no waivers.
-- An invalid file fails startup with `RegistrationError` ("invalid waivers:
-  hinoki-rules.toml: waiver #1: missing target"), even with
+- An absent default file means no waivers.
+- An invalid or unreadable file, or a missing file named with `waivers=`, fails
+  startup with `RegistrationError` ("invalid waivers:
+  .../hinoki-rules.toml: waiver #1: missing target"), even with
   `enforce_rules=False`.
 - An expired waiver does not apply: the violation fails startup and the
   `RegistrationError` also lists the `HNK-WVR-002` notice. Without a remaining
@@ -235,6 +255,7 @@ At startup:
 - `HNK-WVR-001` (unused waiver) is reported only by `hinoki check` and
   `hinoki mcp`: startup runs only the startup rules, so a waiver for a static
   rule such as `HNK-IMP-001` is expected to match nothing there.
+
 Waivers are the owner's decision: tools read the file and never write it. Put it
 under CODEOWNERS; the generated `AGENTS.md` tells agents the same.
 

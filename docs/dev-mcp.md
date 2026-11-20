@@ -24,7 +24,7 @@ The rules default to the app's own `Hinoki(rules=...)` and the package to the ta
 | `--models MODULE` | none | Model modules to describe; repeatable |
 | `--rules MODULE:NAME` | the app's rules | Another `RuleSet` |
 | `--package NAME` | the target's package | Packages the rules inspect; repeatable |
-| `--waivers PATH` | `hinoki-rules.toml` | The owner's waiver file, read only |
+| `--waivers PATH` | as for `hinoki check` ([which file](rules.md#which-waiver-file)) | The owner's waiver file, read only; must exist. `run_scenario` starts the app with it too |
 | `--requests PATH` | `.hinoki/requests.jsonl` | Where `recent_requests` reads |
 | `--scenarios off\|read\|write` | `off` | Registers `run_scenario` (see below) |
 
