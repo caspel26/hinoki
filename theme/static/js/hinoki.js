@@ -711,6 +711,24 @@
   const activeSideLink = sideScroller && $(".side__link.is-active", sideScroller);
   activeSideLink && activeSideLink.scrollIntoView({ block: "nearest" });
 
+  /* Cross-document view transitions slide the active pill; a destination that is
+     not in this sidebar is a section change, which also animates the sidebar. */
+  addEventListener("pageswap", (e) => {
+    const target = e.activation && e.activation.entry && e.activation.entry.url;
+    if (!e.viewTransition || !target || !sideScroller) return;
+    const path = (href) => new URL(href, location.href).pathname;
+    const inSection = $$(".side__link", sideScroller).some(
+      (a) => !a.closest(".side__sections") && path(a.href) === path(target),
+    );
+    if (inSection) return;
+    e.viewTransition.types.add("section");
+    try {
+      sessionStorage.setItem("hn-section", "1");
+    } catch (err) {
+      /* storage blocked: only the outgoing page animates */
+    }
+  });
+
   /* ---------- Table of contents scroll-spy ---------- */
   const toc = $("[data-toc]");
   if (toc) {
