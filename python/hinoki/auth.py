@@ -78,7 +78,7 @@ class BaseAuth[T](ABC):
     @abstractmethod
     def authenticate(
         self, credentials: Credentials
-    ) -> Caller[T] | None | Awaitable[Caller[T] | None]:
+    ) -> Caller[T] | Awaitable[Caller[T] | None] | None:
         """``async def`` or plain ``def`` (a plain one runs on the sync executor)."""
 
 
@@ -91,7 +91,7 @@ class HeaderAuth[T](BaseAuth[T]):
         return {"type": "apiKey", "in": "header", "name": self.header}
 
     @abstractmethod
-    def resolve(self, value: str) -> Caller[T] | None | Awaitable[Caller[T] | None]:
+    def resolve(self, value: str) -> Caller[T] | Awaitable[Caller[T] | None] | None:
         """The principal for a header value or ``None`` if invalid; ``async def``
         or plain ``def``."""
 
@@ -126,7 +126,7 @@ class BearerAuth[T](HeaderAuth[T]):
     @abstractmethod
     def resolve_token(
         self, token: str
-    ) -> Caller[T] | None | Awaitable[Caller[T] | None]:
+    ) -> Caller[T] | Awaitable[Caller[T] | None] | None:
         """``async def`` or plain ``def``, as ``resolve``."""
 
     async def resolve(self, value: str) -> Caller[T] | None:

@@ -36,11 +36,13 @@ Per action, or for the whole application (an action's own choice wins):
 ```python
 app = Hinoki(renderers=[JSONRenderer(sort_keys=True), TextRenderer()])
 
+
 @http.get("/report", renderers=[JSONRenderer(indent=2)])
 async def report() -> dict[str, int]: ...
 
+
 @http.post("/hook", parsers=[JSONParser(), TextParser()])
-async def hook(request: Request) -> None: ...   # request.data is a dict or a str
+async def hook(request: Request) -> None: ...  # request.data is a dict or a str
 ```
 
 ## Answer XML
@@ -49,6 +51,7 @@ async def hook(request: Request) -> None: ...   # request.data is a dict or a st
 
 ```python
 from hinoki import JSONRenderer, XMLRenderer
+
 
 @http.get("/report", renderers=[JSONRenderer(), XMLRenderer(root="report")])
 async def report() -> dict[str, object]:
@@ -60,8 +63,8 @@ async def report() -> dict[str, object]:
 ## Configure the Rust JSON encoder
 
 ```python
-JSONRenderer(indent=2, sort_keys=True)                 # pretty, stable output
-JSONRenderer(default=str)                              # Decimal, Path, ... become text
+JSONRenderer(indent=2, sort_keys=True)  # pretty, stable output
+JSONRenderer(default=str)  # Decimal, Path, ... become text
 ```
 
 `default` is a Python callback for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, `Schema`, anything with `dump()`). With `sort_keys=True` object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always `json.dumps` order for unusual keys, and integer keys sort as text. The public renderer accepts `indent` from 0 to 16, or `None` for compact output.
@@ -75,11 +78,12 @@ from hinoki import JSONParser, JSONRenderer
 class Envelope(JSONRenderer):
     media_type = "application/vnd.myapp+json"
 
-    def prepare(self, value, request):                 # reshape, then Rust encodes
+    def prepare(self, value, request):  # reshape, then Rust encodes
         return {"data": value, "request_id": request.request_id}
 
+
 class SnakeCase(JSONParser):
-    def prepare(self, data):                           # Rust decodes, then reshape
+    def prepare(self, data):  # Rust decodes, then reshape
         return rename_keys(data) if isinstance(data, dict) else data
 ```
 

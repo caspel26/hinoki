@@ -20,8 +20,7 @@ class TaskAlreadyDone(errors.Conflict):
 
 
 @http.post("/tasks/{task_id}/complete", errors=(errors.NotFound, TaskAlreadyDone))
-async def complete(task_id: UUID) -> TaskOutput:
-    ...
+async def complete(task_id: UUID) -> TaskOutput: ...
 ```
 
 An action may declare several errors. The runtime maps a declared `APIError` to its status and response body. Unexpected exceptions remain server errors; do not expose exception text to clients.
@@ -41,11 +40,12 @@ Every `APIError` subclass answers by itself with its `status`, `code` and `messa
 | `errors.APIError` | the `status` you set | anything else |
 
 ```python
-class PaymentDeclined(errors.BadRequest):        # answers 400 on its own
+class PaymentDeclined(errors.BadRequest):  # answers 400 on its own
     code = "payment_declined"
     message = "The payment was declined."
 
-class QuotaExceeded(errors.APIError):            # any other status
+
+class QuotaExceeded(errors.APIError):  # any other status
     status = 429
     code = "quota_exceeded"
 ```
@@ -58,6 +58,7 @@ A library or the database raises its own exception, which is not an HTTP error, 
 
 ```python
 app = Hinoki(include=[...])
+
 
 @app.error_handler(stripe.CardError)
 def card_error(error: stripe.CardError) -> errors.APIError:

@@ -121,7 +121,7 @@ MAX_RECENT = 200
 class DevProject:
     """What the server knows: the app, its rules and optional extras."""
 
-    def __init__(  # noqa: PLR0913 - one optional input per tool
+    def __init__(  # noqa: PLR0913, PLR0917 - one optional input per tool
         self,
         app: Hinoki,
         rules: RuleSet,
