@@ -567,6 +567,9 @@ def test_require_foreign_key_index_flags_unindexed_references() -> None:
     found = rules.run(project())
     assert [d.rule_id for d in found] == ["HNK-DB-002"]
     assert found[0].message.startswith("RulesLoose.parent_id references RulesParent")
+    # foreign_key(...) has no index= option, so the hint must not suggest field().
+    assert "field(index=True)" not in found[0].fix
+    assert '@db.indexed("parent_id")' in found[0].fix
     nothing = RuleSet(Models.require_foreign_key_index(match="no.such.module")).run(
         project()
     )
