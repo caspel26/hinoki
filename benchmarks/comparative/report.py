@@ -15,6 +15,7 @@ FRAMEWORKS = {
     "ninja": "Django Ninja · Uvicorn",
     "bolt": "Django Bolt · Actix",
     "hinoki-granian": "Hinoki · Granian",
+    "hinoki-kiso": "Hinoki · Kiso",
     "fastapi-granian": "FastAPI · Granian",
     "ninja-granian": "Django Ninja · Granian",
 }
@@ -296,7 +297,7 @@ STACK_ROWS = (
         "hinoki",
         "Hinoki",
         "Hinoki ORM (Rust, tokio-postgres)",
-        "Granian (ASGI)",
+        "Granian (ASGI); Kiso in its own view",
         ("hinoki", "granian"),
     ),
     (
@@ -332,6 +333,11 @@ SLICE_TITLES = {
         "Hinoki, FastAPI and Django Ninja run on one Granian version and configuration, which takes the server out of the comparison. "
         "Django Bolt is not in this slice because it does not expose ASGI.",
     ),
+    "kiso": (
+        "Hinoki on its Rust server",
+        "Only Hinoki, served by Kiso (`hinoki serve --server kiso`, 4 workers) instead of Granian. Kiso is not an ASGI server, so the other stacks have no counterpart here. "
+        "This was a separate session from the other two views, so read it next to them with that in mind; it is not a ranking.",
+    ),
 }
 READING_NOTES = (
     "**Requests per second and latency are one measurement.** Every run keeps 64 connections busy, so higher latency means fewer requests per second; the two do not confirm each other.",
@@ -346,7 +352,8 @@ uv sync --locked
 VIRTUAL_ENV=$PWD/.venv uvx maturin develop --release --uv --manifest-path ../../crates/bindings/Cargo.toml
 uv run --locked python run.py --server-mode documented --out results/YYYY-MM-DD/documented
 uv run --locked python run.py --server-mode same-granian --out results/YYYY-MM-DD/same-granian
-uv run --locked python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/same-granian > ../../docs/benchmarks.md
+uv run --locked python run.py --server-mode kiso --out results/YYYY-MM-DD/kiso
+uv run --locked python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/same-granian results/YYYY-MM-DD/kiso > ../../docs/benchmarks.md
 ```"""
 
 
@@ -446,7 +453,7 @@ def main(directories: list[Path]) -> None:
         "---\nstatus: implemented\n---\n",
         f'<p class="bench-eyebrow">FIELD NOTE · {measured_at} · {machine}</p>\n',
         "# Benchmarks\n",
-        "## One API. Two server setups.\n",
+        "## One API. Three server setups.\n",
         "Four framework stacks served the same small API and PostgreSQL data. These measurements describe "
         "one machine and one benchmark session; they do not rank frameworks or predict production performance.\n",
         f'<div class="bench-run-strip"><span><b>01</b>{cpu}</span><span><b>02</b>{cores} logical CPUs</span>'
@@ -454,7 +461,7 @@ def main(directories: list[Path]) -> None:
         '!!! warning "Read this first"\n'
         "    Hinoki is pre-alpha. The run used one host, warm data and loopback networking. It is not a framework ranking or a production claim. Unstable samples stay visible as withheld results.\n",
         "## Results\n",
-        "Switch the server setup to compare each stack on its documented server or compare the three ASGI stacks on Granian. Each chart starts at zero and uses its own scale; read exact values and run ranges in the tables below.\n",
+        "Switch the server setup to compare each stack on its documented server, compare the three ASGI stacks on Granian, or see Hinoki on its own Rust server (Kiso). Each chart starts at zero and uses its own scale; read exact values and run ranges in the tables below.\n",
     ]
     for directory in directories:
         mode = json.loads((directory / "environment.json").read_text())["settings"].get(
