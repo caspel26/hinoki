@@ -681,6 +681,6 @@ assert Profile.validate({"name": "Ada"}).display_name == "Ada"
 
 ## Text that cannot be stored
 
-A string value or a dict key that contains a NUL character (`\u0000`) is refused with the code `nul`, or `key_nul` for a dict key, on both lanes. PostgreSQL cannot store NUL in `text`, so the request answers 422 instead of failing later with a server error. The check runs after the length limits and before `pattern`.
+A string value or a dict key that contains a NUL character (`\u0000`) is refused with the code `nul`, or `key_nul` for a dict key, on both lanes. PostgreSQL cannot store NUL in `text`, so the request answers 422 instead of failing later with a server error. The check runs after the length limits and before `pattern`. A Python string that is not valid Unicode (a lone surrogate such as `"\ud800"`) is refused with the code `type`, because it cannot be encoded as UTF-8.
 
 See also the [glossary](glossary.md) for what "schema" does and does not mean in these docs.

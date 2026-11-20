@@ -386,13 +386,14 @@ def create_table_sql(name: str, spec: State, dialect: str = "postgres") -> str:
 
 
 def index_name(table: str, columns: list[str], dialect: str = "postgres") -> str:
-    """``ix_<table>_<columns>``, shortened with a hash past PostgreSQL's 63 bytes."""
-    name = "ix_" + table + "_" + "_".join(columns)
+    """``ix_<table>_<columns>_<digest>``, cut to the backend's identifier limit.
+    The digest covers the length-prefixed parts, so ``("a_b")`` and ``("a", "b")``
+    never share a name."""
     limit = 64 if dialect in {"mysql", "mariadb"} else MAX_IDENTIFIER
-    if len(name) <= limit:
-        return name
-    digest = hashlib.sha1(name.encode()).hexdigest()[:8]  # noqa: S324 - a name, not security
-    return name[: limit - 9] + "_" + digest
+    identity = f"{len(table)}:{table}" + "".join(f":{len(c)}:{c}" for c in columns)
+    digest = hashlib.sha256(identity.encode()).hexdigest()[:8]
+    prefix = "ix_" + table + "_" + "_".join(columns)
+    return f"{prefix[: limit - 9]}_{digest}"
 
 
 def create_index_sql(table: str, columns: list[str], dialect: str = "postgres") -> str:

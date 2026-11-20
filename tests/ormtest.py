@@ -16,6 +16,7 @@ from hinoki.errors import (
     RegistrationError,
 )
 from hinoki.orm import Model, QuerySet, field, use_database
+from hinoki.orm.migrations import index_name
 from hinoki.pagination import PageParams
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -98,7 +99,7 @@ def test_mysql_dialect_compiles_backticks_and_positional_holders() -> None:
     assert sql == (
         "SELECT `id`, `title` FROM `orm_posts` WHERE `title` = ? AND "
         "LOWER(CAST(`note` AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE(?, "
-        "'\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+        "'!', '!!'), '%', '!%'), '_', '!_')), '%') ESCAPE '!'"
     )
     assert params == ["a", "%_"]
 
@@ -143,6 +144,13 @@ def test_model_declaration_errors_fail_at_class_creation() -> None:
     assert NoTable.__table__ == "ormtest_no_tables"
     with pytest.raises(RegistrationError, match="primary_key"):
         type("NoKey", (Model,), {"__annotations__": {"x": int}}, table="t")
+
+
+def test_a_primary_key_cannot_be_nullable() -> None:
+    with pytest.raises(RegistrationError, match="primary key cannot be nullable"):
+
+        class NullableKey(Model, table="nullable_keys"):
+            id: int | None = field(primary_key=True, default=None)
 
 
 def test_each_model_has_its_own_not_found() -> None:
@@ -316,3 +324,17 @@ async def test_models_follow_the_transaction_scope(db: Database) -> None:
 def test_a_queryset_is_awaited_directly_and_has_no_aall() -> None:
     assert hasattr(QuerySet, "__await__")
     assert not hasattr(QuerySet, "aall")
+
+
+def test_a_page_order_always_ends_with_the_primary_key() -> None:
+    assert Post.all().stably_ordered().order == (("id", False),)
+    by_title = Post.all().order_by("-title").stably_ordered()
+    assert by_title.order == (("title", True), ("id", False))
+    by_key = Post.all().order_by("-id").stably_ordered()
+    assert by_key.order == (("id", True),)
+
+
+def test_index_names_do_not_collide_for_ambiguous_underscores() -> None:
+    assert index_name("t", ["a_b"]) != index_name("t", ["a", "b"])
+    assert index_name("t_a", ["b"]) != index_name("t", ["a_b"])
+    assert len(index_name("t" * 80, ["c"], "mysql")) <= 64

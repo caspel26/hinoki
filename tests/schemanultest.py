@@ -49,3 +49,11 @@ async def test_nul_is_a_422_on_the_request_body_lane(case: str) -> None:
     assert response.status == 422
     assert code in str(response.body)
     assert ok.status == 200
+
+
+@pytest.mark.parametrize("text", ["\ud800", "x\x00y\ud800"])
+def test_a_lone_surrogate_is_refused_on_the_python_lane(text: str) -> None:
+    with pytest.raises(ValidationError):
+        Note.validate({**GOOD, "title": text})
+    with pytest.raises(ValidationError):
+        Note(title=text, tags={}, items=[])

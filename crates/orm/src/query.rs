@@ -217,7 +217,7 @@ fn like_escaping(column: &str, holder: &str, dialect: Dialect) -> String {
             "CAST({column} AS TEXT) LIKE '%' || replace(replace(replace({holder}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' ESCAPE '\\'"
         ),
         Dialect::Mysql => format!(
-            "LOWER(CAST({column} AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE({holder}, '\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+            "LOWER(CAST({column} AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE({holder}, '!', '!!'), '%', '!%'), '_', '!_')), '%') ESCAPE '!'"
         ),
     }
 }
@@ -453,15 +453,24 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
             .collect::<Result<Vec<_>, _>>()?;
         b.sql.push_str(&format!(" ORDER BY {}", parts.join(", ")));
     }
-    if let Some(limit) = q.limit {
-        b.sql.push_str(&format!(" LIMIT {limit}"));
-    } else if dialect == Dialect::Mysql && q.offset.is_some() {
-        b.sql.push_str(" LIMIT 18446744073709551615");
-    }
-    if let Some(offset) = q.offset {
-        b.sql.push_str(&format!(" OFFSET {offset}"));
-    }
+    b.sql.push_str(&limit_clause(dialect, q.limit, q.offset));
     Ok((b.sql, b.params))
+}
+
+/// `LIMIT` and `OFFSET`; SQLite and MySQL reject an `OFFSET` with no `LIMIT`, so
+/// each gets its own "no limit" value.
+fn limit_clause(dialect: Dialect, limit: Option<u64>, offset: Option<u64>) -> String {
+    let mut clause = String::new();
+    match (limit, offset, dialect) {
+        (Some(limit), _, _) => clause.push_str(&format!(" LIMIT {limit}")),
+        (None, Some(_), Dialect::Mysql) => clause.push_str(" LIMIT 18446744073709551615"),
+        (None, Some(_), Dialect::Sqlite) => clause.push_str(" LIMIT -1"),
+        _ => {}
+    }
+    if let Some(offset) = offset {
+        clause.push_str(&format!(" OFFSET {offset}"));
+    }
+    clause
 }
 
 pub fn compile_insert<V: Clone>(q: &Insert<V>) -> Compiled<V> {
@@ -715,7 +724,7 @@ mod tests {
             sql,
             "SELECT `id`, `title` FROM `posts` WHERE `title` = ? AND ".to_owned()
                 + "LOWER(CAST(`body` AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE(?, "
-                + "'\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+                + "'!', '!!'), '%', '!%'), '_', '!_')), '%') ESCAPE '!'"
         );
         assert_eq!(params, vec![1, 2]);
 
@@ -754,12 +763,27 @@ mod tests {
     }
 
     #[test]
+    fn mysql_contains_does_not_depend_on_backslash_escapes() {
+        let sql = like_escaping("title", "?", Dialect::Mysql);
+        assert!(sql.ends_with("ESCAPE '!'"), "{sql}");
+        assert!(!sql.contains('\\'), "{sql}");
+    }
+
+    #[test]
     fn mysql_offset_without_limit_uses_the_maximum_limit() {
         let mut query = select(vec![]);
         query.offset = Some(4);
         let (sql, params) = compile_select_with(&query, Dialect::Mysql).unwrap();
         assert!(sql.ends_with(" LIMIT 18446744073709551615 OFFSET 4"));
         assert!(params.is_empty());
+    }
+
+    #[test]
+    fn sqlite_offset_without_limit_uses_an_unbounded_limit() {
+        let mut query = select(vec![]);
+        query.offset = Some(4);
+        let (sql, _) = compile_select_with(&query, Dialect::Sqlite).unwrap();
+        assert!(sql.ends_with(" LIMIT -1 OFFSET 4"));
     }
 
     #[test]

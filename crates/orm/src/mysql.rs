@@ -273,8 +273,11 @@ fn params(values: &[Value]) -> Result<Params, DbError> {
             Value::Uuid(value) => Ok(mysql_async::Value::Bytes(value.as_bytes().to_vec())),
             Value::Timestamp(value) => {
                 let value = value.to_offset(time::UtcOffset::UTC);
+                let year = u16::try_from(value.year()).map_err(|_| {
+                    DbError::new(ErrorKind::Type, "timestamp year is outside 0-65535")
+                })?;
                 Ok(mysql_async::Value::Date(
-                    value.year() as u16,
+                    year,
                     u8::from(value.month()),
                     value.day(),
                     value.hour(),
