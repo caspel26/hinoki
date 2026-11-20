@@ -57,16 +57,16 @@ package for the import rules.
 
 ## Break a rule
 
-Make `create_task` public by adding `access=None` to its decorator, then run the
-check again:
+Take `create_task` out of the group's transaction by adding `atomic=False` to its
+decorator, then run the check again:
 
 ```text
-tracker/api.py:29: HNK-ACC-001 [violated] POST /tasks (create_task) declares no access policy
-  fix: add access=<policy> to the action (or list it in except_ when it is public on purpose)
+tracker/api.py:29: HNK-TXN-001 [violated] POST /tasks (create_task) does not declare atomic=True
+  fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
 13 rule(s): 1 violated, 0 unverifiable, 0 waived
 ```
 
-The command exits with status 1. Remove `access=None` to restore the check.
+The command exits with status 1. Remove `atomic=False` to restore the check.
 
 ## Waivers
 

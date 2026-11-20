@@ -38,14 +38,14 @@ class MemberTokens(BearerAuth[Member]):
 member_only = Access(auth=MemberTokens(), permissions=[TrackerPermission.USE])
 ```
 
-Then the actions. A `RouteGroup` states the path prefix, the policy and the
-transaction once:
+Then the actions. A public `health` check stands alone; a `RouteGroup` states
+the path prefix, the policy and the transaction once for the tasks:
 
 ```python
 # tracker/api.py
 from uuid import UUID
 
-from hinoki import Caller, RouteGroup, errors
+from hinoki import Caller, RouteGroup, errors, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 from . import operations
@@ -53,6 +53,12 @@ from .errors import DoneTasksAreKept, TaskAlreadyDone
 from .models import Member
 from .schemas import TaskIn, TaskOut
 from .security import member_only
+
+
+@http.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
 
 tasks = RouteGroup("/tasks", access=member_only, atomic=True)
 

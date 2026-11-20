@@ -117,7 +117,7 @@ Name it in the manifest as `application = "notes.main:create_app"`. A `Hinoki(..
 Only the module named by `project.application` binds the manifest. Anywhere else, `Hinoki()` starts empty, and `include=` says what it serves:
 
 ```python
-# tests/test_billing_routes.py
+# tests/billingroutestest.py
 from hinoki import Hinoki, Mount
 
 from notes.apps.billing.routes import routes

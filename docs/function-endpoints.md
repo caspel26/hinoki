@@ -144,7 +144,7 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 
 ## Group defaults and overrides
 
-An action inherits the group's options and may override them:
+An action inherits the group's options and may override them. `InvoiceSummary` is a `Schema` with one field, `open: int`:
 
 ```python
 # notes/apps/billing/api.py (continued)
@@ -176,15 +176,16 @@ A wrapped function runs in an asyncio task. The [native handler lane](kiso.md#th
 
 ## Test it
 
-A test builds its own application from the same `routes` list, so it needs neither the manifest nor a server. Mount the list at the manifest prefix to check the final paths:
+A test builds its own application from the same `routes` list, so it needs neither the manifest nor a server. Mount the list at the manifest prefix to check the final paths, and pass the project's settings when the test sends requests: `atomic=True` needs the database they declare.
 
 ```python
-# tests/test_billing_routes.py
+# tests/billingroutestest.py
 from hinoki import Hinoki, Mount
 from hinoki.testing import ASGIClient
 
 from notes.apps.billing.routes import routes
 from notes.security import billing_staff
+from notes.settings import ProjectSettings
 
 
 def test_writes_are_staff_only_and_atomic() -> None:
@@ -196,7 +197,7 @@ def test_writes_are_staff_only_and_atomic() -> None:
 
 
 async def test_anonymous_callers_are_refused() -> None:
-    app = Hinoki(include=[Mount("/billing", routes)])
+    app = Hinoki(settings=ProjectSettings, include=[Mount("/billing", routes)])
     async with ASGIClient(app) as client:
         reply = await client.get("/billing/invoices")
     assert reply.status == 401

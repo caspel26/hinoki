@@ -19,7 +19,7 @@ uv run hinoki shell
 >>> await Invoice.filter(paid=False).acount()
 3
 >>> [invoice.reference for invoice in await Invoice.all()]
-['INV-001', 'INV-002', 'INV-003']
+['INV-003', 'INV-002', 'INV-001']
 >>> settings.database.url
 Secret('***')
 ```

@@ -65,7 +65,7 @@ access = CrudAccess(
 )
 ```
 
-Here list and retrieve are public, create and update need `billing_staff`, delete needs `billing_admin`. Unknown action names raise `TypeError`. Generated writes always need a policy: a write left without one fails at declaration unless you pass `public_writes=True` on purpose. The `access=` of `crud(...)` covers generated actions only; a handwritten action in the class form states its own.
+Here list and retrieve are public, create and update need `billing_staff`, delete needs `billing_admin`. Unknown action names raise `TypeError`. Generated writes always need a policy: a write left without one raises `RegistrationError` (when a `@crud` class is declared, or when a `crud(...)` value is included) unless you pass `public_writes=True` on purpose. The `access=` of `crud(...)` covers generated actions only; a handwritten action in the class form states its own.
 
 ## Hooks in the class form
 

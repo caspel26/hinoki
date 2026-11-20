@@ -178,7 +178,7 @@ A class that keeps the stock constructor and sets no `response_headers` is eligi
 ## Test it
 
 ```python
-# tests/test_billing_invoices.py
+# tests/invoicestest.py
 from notes.apps.billing.api import Invoices
 from notes.security import billing_staff
 
@@ -202,4 +202,4 @@ def test_invoice_routes() -> None:
 | `RegistrationError` naming `create` (or `list`, …) | A method named like an action `crud` generates | Rename it, or stop generating that action (`omit=`, no `create=`) |
 | A handwritten action is public | `crud(access=...)` covers generated actions only | Add `access=` to its decorator |
 | A route vanished in a subclass | The method was redefined without a decorator | Re-declare it with its decorator |
-| Old code uses `replaces=Crud.CREATE` | An older way to swap a generated action | Leave `create=` out and name the method freely; `replaces=` still works |
+| Old code uses `replaces=Crud.CREATE` | An older way to swap a generated action | Leave `create=` out and name the method freely; `replaces=` still works while `create=` is given |

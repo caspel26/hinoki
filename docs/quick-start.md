@@ -55,7 +55,6 @@ notes/
 
 ## Test and serve it
 
-<!-- post-G1: today `uv run hinoki dev notes.main:app` -->
 ```sh
 cd ../notes
 uv run pytest
@@ -73,7 +72,6 @@ curl http://127.0.0.1:8000/health
 {"status":"ok"}
 ```
 
-<!-- post-G1: today `uv run hinoki routes notes.main:app` -->
 Open `http://127.0.0.1:8000/docs` for the generated OpenAPI UI, or run
 `uv run hinoki routes` to list every route with its access policy.
 

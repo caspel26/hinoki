@@ -72,7 +72,6 @@ result, is in [Rules](rules.md).
 
 ```sh
 uv run hinoki routes
-uv run hinoki routes --path /billing --method GET
 ```
 
 ```text
@@ -84,7 +83,16 @@ GET     /health                         public                   notes.api.healt
 
 Each row is method, path, access (the provider and its permissions, or `public`)
 and handler, sorted by path. `--path` keeps paths that start with the prefix,
-`--method` one method; no match prints `no routes match` and exits 1.
+`--method` one method; no match prints `no routes match` and exits 1:
+
+```sh
+uv run hinoki routes --path /billing --method GET
+```
+
+```text
+GET     /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.list_invoices
+GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.billing.api.get_invoice
+```
 
 `--lanes` adds, per route, whether [Kiso](kiso.md#the-native-handler-lane) runs
 the handler natively (`native`) or through the Python pipeline (`python`), with
@@ -134,7 +142,8 @@ The default prints `hinoki X.Y.Z`. `--verbose` adds the Python version, platform
 
 ## Errors and edge cases
 
-- A target that does not import prints `error: cannot load TARGET: …` and exits
+- A target that does not import prints an `error:` line with the import failure
+  (`error: cannot load TARGET: …` for `routes` and `openapi`) and exits
   non-zero (2 for `check`, `routes` and `openapi`).
 - Importing the target runs your module-level code and factory; keep import-time
   side effects out of them.

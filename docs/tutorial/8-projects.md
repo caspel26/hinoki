@@ -99,7 +99,6 @@ name; `apply` runs every app in dependency order.
 
 ## Check the project
 
-<!-- post-G1: today `uv run hinoki check notes.main:app` -->
 ```sh
 uv run hinoki check
 uv run pytest

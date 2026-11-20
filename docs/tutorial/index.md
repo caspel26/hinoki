@@ -45,7 +45,6 @@ models.py       tables and relations
 cd examples
 ```
 
-<!-- post-G1: the last sentence is true only after G1 -->
 That directory hosts three applications (Notes, Tracker and Blog) under one
 `hinoki.toml`, so server and check commands name the application, such as
 `tracker.app:create_app`. In your own project they take no target.

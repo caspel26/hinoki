@@ -58,7 +58,7 @@ uv run pytest
 
 ## Write an API
 
-A model, then a group of actions that share a path, an access policy and a transaction:
+A model, then a group of actions that share a path, an access policy and a transaction, beside the generated `health` endpoint:
 
 ```python
 # notes/models.py
@@ -77,11 +77,20 @@ class Note(Model):
 # notes/api.py
 from typing import Annotated
 
-from hinoki import Field, RouteGroup, Schema, derive
+from hinoki import Field, RouteGroup, Schema, derive, http
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 from notes.models import Note
 from notes.security import editors
+
+
+class Health(Schema):
+    status: str
+
+
+@http.get("/health")
+def health() -> Health:
+    return Health(status="ok")
 
 
 class NoteIn(Schema):
