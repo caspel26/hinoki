@@ -261,6 +261,24 @@ class ErrorRegistry:
                     return handler
         return None
 
+    def is_builtin(self, exc: Exception) -> bool:
+        """Whether only synchronous built-in translations can answer ``exc``:
+        no application handler matches it."""
+        handler = self.find(exc)
+        return handler is None or handler in self.defaults.values()
+
+    def translate_builtin(self, exc: Exception) -> APIError | None:
+        """``translate`` for an exception ``is_builtin`` accepted, without a
+        coroutine."""
+        handler = self.find(exc)
+        if handler is None:
+            return None
+        try:
+            result = handler(exc)
+        except Exception:
+            return None
+        return result if isinstance(result, APIError) else None
+
     async def translate(self, exc: Exception) -> APIError | None:
         """The public error for ``exc``, or ``None`` if nothing handles it.
 

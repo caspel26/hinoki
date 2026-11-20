@@ -218,7 +218,7 @@ class NativeLane:
                 self._respond(run, run.ctx.run(timeout_response))
             # Cancelled at shutdown: dropped unanswered, as a cancelled task is.
         elif isinstance(error, Exception):
-            self._track(self._translate(run, error), run.ctx)
+            self._translate_now(run, error)
         else:
             log.error("native handler of %s ended with %r", run.rid, error)
             self.fail(run.request)
@@ -244,6 +244,19 @@ class NativeLane:
             self._broken(run)
             return
         self._respond(run, response)
+
+    def _translate_now(self, run: Run, error: Exception) -> None:
+        """Answer in place when no application error handler can match, else
+        translate in a task."""
+        try:
+            response = run.ctx.run(self.pipeline.native_failure_now, error, run.rid)
+        except Exception:
+            self._broken(run)
+            return
+        if response is None:
+            self._track(self._translate(run, error), run.ctx)
+        else:
+            self._respond(run, response)
 
     async def _translate(self, run: Run, error: Exception) -> None:
         await self._answer(run, self.pipeline.native_failure(error, run.rid))

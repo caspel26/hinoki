@@ -67,6 +67,7 @@ from hinoki.runtime.responses import (
     HTTPError,
     Response,
     error_response,
+    error_response_now,
 )
 from hinoki.runtime.security import headers_for, https_redirect
 from hinoki.schema import Schema, encode
@@ -417,6 +418,36 @@ class Pipeline:
         except Exception as exc:
             response = await self.native_failure(exc, rid)
         return response
+
+    def native_failure_now(self, exc: Exception, rid: str) -> Response | None:
+        """``native_failure`` without a coroutine; ``None`` when an application
+        error handler may need to await. Run it in the request's context."""
+        if isinstance(exc, ExecutorSaturated):
+            return HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ).response
+        return error_response_now(exc, rid, self.app.errors, self.debug)
+
+    def crud_failure_now(
+        self, action: int, rid: str, failure: core.NativeFailure
+    ) -> Response | None:
+        """The answer for a Rust CRUD failure that needs no coroutine, or
+        ``None`` to translate it with ``handle_native_failure``."""
+        if failure[0] == "timeout":
+            return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+        ctx = self.native_context(rid)
+        return ctx.run(self._crud_failure_now, action, rid, failure)
+
+    def _crud_failure_now(
+        self, action: int, rid: str, failure: core.NativeFailure
+    ) -> Response | None:
+        try:
+            exception = self._default_error(
+                self._native_failure_exception(action, failure)
+            )
+        except Exception as exc:
+            exception = exc
+        return error_response_now(exception, rid, self.app.errors, self.debug)
 
     async def native_failure(self, exc: Exception, rid: str) -> Response:
         """The answer for an error a native handler raised."""

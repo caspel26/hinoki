@@ -415,9 +415,57 @@ class KisoWorker:
     def _spawn(self, request: core.PreparedRequest) -> None:
         if self.lane is not None and self.lane.start(request):
             return
-        task = asyncio.create_task(self._serve(request))
+        failure = request._take_native_failure()
+        if failure is not None and self._answer_failure(request, failure):
+            return
+        task = asyncio.create_task(
+            self._serve(request)
+            if failure is None
+            else self._serve_failure(request, failure)
+        )
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
+
+    async def _serve_failure(
+        self, request: core.PreparedRequest, failure: core.NativeFailure
+    ) -> None:
+        """Translate a Rust CRUD failure an application error handler may
+        need a coroutine for."""
+        if request.id_ignored:
+            log.warning("ignored invalid request ID from trusted proxy")
+        try:
+            response = await self._serve_native_failure(request, failure)
+            request.respond_final(response.status, response.headers, response.body)
+        except Exception:
+            log.exception("request %s failed", request.request_id)
+            self._fail(request)
+
+    def _answer_failure(
+        self, request: core.PreparedRequest, failure: core.NativeFailure
+    ) -> bool:
+        """Answer a Rust CRUD failure in place when no application error
+        handler can match; ``False`` leaves it to a task."""
+        action = request.action
+        if action is None:
+            return False
+        try:
+            response = self.pipeline.crud_failure_now(
+                action, request.request_id, failure
+            )
+        except Exception:
+            log.exception("request %s failed", request.request_id)
+            self._fail(request)
+            return True
+        if response is None:
+            return False
+        if request.id_ignored:
+            log.warning("ignored invalid request ID from trusted proxy")
+        try:
+            request.respond_final(response.status, response.headers, response.body)
+        except Exception:
+            log.exception("request %s could not be answered", request.request_id)
+            self._fail(request)
+        return True
 
     def _fail(self, request: core.PreparedRequest) -> None:
         """Answer a request the worker could not serve with the usual 500."""
