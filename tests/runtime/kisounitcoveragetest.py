@@ -493,6 +493,7 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
     worker: Any = _worker()
     worker.pipeline = SimpleNamespace(
         crud_plan_selections=(),
+        bindings=[],
         app=SimpleNamespace(
             runtime=SimpleNamespace(
                 shutdown_timeout=4.0, max_header_bytes=8192, request_timeout=20.0
