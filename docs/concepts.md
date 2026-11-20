@@ -38,11 +38,11 @@ def card_error(error: stripe.CardError) -> errors.APIError:
     return errors.APIError(error.user_message, status=402, code="card_declined")
 ```
 
-`Hinoki(...)` includes the routes listed in `hinoki.toml` and opens nothing, so importing the module is safe. Use a factory (`def create_app(...) -> Hinoki`, named `module:create_app`) only when construction needs runtime values, such as the Tracker's per-test database; inside it, register a handler with `app.error_handler(Kind)(handler)`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
+`Hinoki(...)` includes the routes listed in `hinoki.toml` (`include=manifest_routes()`) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
 
 ## One request
 
-The server hands each request through the Python adapter to the compiled router and binding layer. Hinoki authenticates the caller, checks access, validates inputs, runs the handler, checks the return value against its annotation and renders the response. A transactional action commits after the response is prepared; a failure rolls back before it becomes an HTTP error. The ASGI boundary still crosses Python objects: the runtime is not an all-Rust server. Details: [request lifecycle](request-lifecycle.md).
+The server hands each request to the compiled router and binding layer: Kiso, the default server, does so from Rust and queues matched requests for the Python pipeline; with Granian the request crosses the ASGI adapter first. Hinoki authenticates the caller, checks access, validates inputs, runs the handler, checks the return value against its annotation and renders the response. A transactional action commits after the response is prepared; a failure rolls back before it becomes an HTTP error. Handwritten handlers and hooks run in Python on both servers: the runtime is not an all-Rust server. Details: [request lifecycle](request-lifecycle.md).
 
 ## Worker resources
 

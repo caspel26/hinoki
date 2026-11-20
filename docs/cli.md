@@ -31,7 +31,7 @@ uv run hinoki migrations apply
 | | `hinoki routes` | Every route with its access policy and server lane. | [Inspect](inspect.md#routes) |
 | | `hinoki settings` | Effective settings and their sources, secrets redacted. | [Inspect](inspect.md#settings) |
 | | `hinoki openapi` | Print, write or diff the OpenAPI document. | [Inspect](inspect.md#openapi) |
-| | `hinoki version` | Hinoki, Python, native core and Granian versions. | [Inspect](inspect.md#version) |
+| | `hinoki version` | The Hinoki version; `--verbose` adds Python, platform, native core and Granian. | [Inspect](inspect.md#version) |
 | Data | `hinoki migrations plan\|status\|apply\|sql` | Plan and apply migrations for every registered app. | [below](#migrations) |
 | | `hinoki admin create-superuser\|set-password` | Manage admin users from the terminal. | [below](#admin) |
 | Integrate | `hinoki mcp` | Serve project context to an AI agent over MCP. | [below](#mcp) |
@@ -41,14 +41,13 @@ uv run hinoki migrations apply
 
 ## Targets and short commands
 
-A command that needs the application takes a target, `module:attribute`: an
-application (`notes.main:app`) or a function that returns one
-(`notes.app:create_app`). `hinoki settings` also accepts a settings class.
-Targets are imported from the current directory.
+In a project, `hinoki.toml` names the application (`[project] application`), so
+commands take no target: `hinoki dev`, `hinoki check`, `hinoki routes`.
 
-In a project, `hinoki.toml` names the application (`[project] application`),
-so the target can be left out. Pass a target to use another application or a
-factory with different arguments.
+To use another application, pass a target, `module:attribute`, imported from
+the current directory: `hinoki dev notes.main:app`. A function that returns an
+application (`module:create_app`) is also accepted, and `hinoki settings` also
+accepts a settings class.
 
 When a target does not import, run the command from the project root (where
 `hinoki.toml` is), check that the packages have `__init__.py` files and that the
@@ -60,7 +59,7 @@ attribute name is right. The commands report
 `hinoki --help` lists the commands in groups (Start, Inspect, Data, Integrate); `hinoki COMMAND --help` shows one command's options. A mistyped command or migrations action gets a suggestion:
 
 ```text
-hinoki: error: argument group: invalid choice: 'chek' (choose from ...)
+hinoki: error: argument <command>: invalid choice: 'chek' (choose from 'check', ...)
   did you mean 'check'?
 ```
 
@@ -128,16 +127,17 @@ migration paths:
 
 ```sh
 uv run hinoki migrations plan --check
-uv run hinoki migrations plan --app billing --name add-invoice-index
+uv run hinoki migrations plan billing --name add-invoice-index
 uv run hinoki migrations status
 uv run hinoki migrations apply
-uv run hinoki migrations sql --app billing 0001-initial
+uv run hinoki migrations sql 0001-initial
 ```
 
 `status` and `apply` cover all registered apps in dependency order. Writing a
-`plan` in a multi-app project requires `--app`; read-only `plan --check` and
-`plan --dry-run` without `--app` cover every app in dependency order. `sql`
-likewise requires an app in a multi-app project. `--name` is optional for a
+`plan` in a multi-app project needs the app name (`plan billing`, or
+`--app billing`); read-only `plan --check` and `plan --dry-run` without an app
+cover every app in dependency order. `sql` searches every app; `--app` narrows
+it when two apps share a migration name. `--name` is optional for a
 focused plan: Hinoki derives a stable slug from the first planned schema change
 (for example, `create-table-notes`); pass `--name initial-notes` to override
 it. All-app previews cannot use `--name`. Numbering is automatic. `apply`
@@ -149,7 +149,7 @@ with `--database` or `HINOKI_DATABASE_URL` remain relative to the current
 working directory. Added
 apps have separate migration ledger namespaces, so identical numbered
 filenames do not collide; the scaffolded root app retains its existing
-unprefixed migration keys. `--app billing` includes its declared prerequisite
+unprefixed migration keys. `apply billing` includes its declared prerequisite
 apps for migration application.
 
 `plan --check` fails CI (exit 1) when the models have changes that no migration

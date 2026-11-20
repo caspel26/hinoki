@@ -55,29 +55,104 @@ async def test_invoices_need_a_staff_token() -> None:
 
 ## Use a disposable database
 
-The application reads its database from settings, so point the prefix variable
-at a throwaway database before the application module is imported. A
-`conftest.py` at the project root is imported first:
+The application reads its settings when its module is imported, so point the
+prefix variable at a throwaway database first. A `conftest.py` at the project
+root is imported before any test module:
 
 ```python
 # conftest.py
 import os
 
-os.environ.setdefault("NOTES_DATABASE__URL", "sqlite://./.hinoki/test.sqlite3")
+os.environ["NOTES_DATABASE__URL"] = "sqlite://./.hinoki/test.sqlite3"
 ```
 
 This applies when the settings declare `database: settings.DatabaseSettings`.
-Create the tables once; the migration commands read their own variable:
+Create the tables once, with the same variable:
 
 ```sh
-export HINOKI_DATABASE_URL=sqlite://./.hinoki/test.sqlite3
-uv run hinoki migrations apply
+NOTES_DATABASE__URL=sqlite://./.hinoki/test.sqlite3 uv run hinoki migrations apply
+```
+
+When `settings.toml` sets `engine` and its connection fields, a URL conflicts
+with them (`set either url or engine with its fields, not both`). Override the
+fields instead, and clear the server-only ones SQLite refuses:
+
+```python
+# conftest.py
+import os
+
+os.environ.update(
+    NOTES_DATABASE__ENGINE="sqlite",
+    NOTES_DATABASE__NAME=".hinoki/test.sqlite3",
+    NOTES_DATABASE__HOST="",
+    NOTES_DATABASE__USER="",
+)
+```
+
+Apply the migrations with the same variables, and pass the same keys under
+`"database"` to `overrides=` in the example below.
+
+When one test needs other settings, build a second application from the same
+routes instead of changing the shared one. This example only calls `/health`, so
+its new database needs no tables; to give a test migrated tables, copy them as
+[below](#give-each-test-its-own-database):
+
+```python
+# tests/exportstest.py
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+from hinoki.testing import ASGIClient
+
+from notes.settings import ProjectSettings
+
+
+async def test_health_with_its_own_database() -> None:
+    settings = ProjectSettings.load(
+        overrides={"database": {"url": "sqlite://./.hinoki/other.sqlite3"}}
+    )
+    app = Hinoki(settings=settings, include=manifest_routes())
+    async with ASGIClient(app) as client:
+        assert (await client.get("/health")).status == 200
 ```
 
 Use synthetic rows and credentials, and never point test settings at production
-data. A [factory](settings.md#where-values-come-from)
-that takes the URL as an argument makes this explicit:
-`ASGIClient(create_app(TEST_DATABASE_URL))`.
+data.
+
+### Give each test its own database
+
+The tests above share one file, so rows one test writes are still there in the
+next. To start every test from empty, migrated tables, copy the file you migrated
+above into the test's temporary directory and build the application on the copy:
+
+```python
+# tests/conftest.py
+import shutil
+from collections.abc import AsyncIterator
+from pathlib import Path
+
+import pytest
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+from hinoki.testing import ASGIClient
+
+from notes.settings import ProjectSettings
+
+TEMPLATE = Path(".hinoki/test.sqlite3")  # migrated once with the command above
+
+
+@pytest.fixture
+async def client(tmp_path: Path) -> AsyncIterator[ASGIClient]:
+    copy = tmp_path / "test.sqlite3"
+    shutil.copyfile(TEMPLATE, copy)
+    settings = ProjectSettings.load(overrides={"database": {"url": f"sqlite://{copy}"}})
+    app = Hinoki(settings=settings, include=manifest_routes())
+    async with ASGIClient(app) as client:
+        yield client
+```
+
+A test takes `client` as an argument; whatever it writes is gone in the next
+test, and the template file is never modified. Run `migrations apply` on the
+template again after you add a migration. The copy works for SQLite files only.
 
 ## Catch undeclared errors
 
@@ -85,7 +160,7 @@ that takes the URL as an argument makes this explicit:
 HTTP error that is missing from its `errors=` declaration, so the OpenAPI
 document cannot drift from what the action really does.
 
-Both clients have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and
+`ASGIClient` and `SyncClient` (for synchronous tests, [below](#synchronous-tests-and-time)) both have `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and
 `query` (the HTTP `QUERY` method; its body goes in `json=` or `body=`, while the
 `query=` option of every call is the query string), plus
 `request(method, path, ...)` for any other method.
@@ -139,13 +214,15 @@ From the checkout, the documented gates are:
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy
+uv run --locked complexipy . --failed
 uv run --locked pytest --cov
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+uv run --locked --group docs mkdocs build --strict
 ```
 
-PostgreSQL-dependent Python and Rust tests require `HINOKI_TEST_DATABASE_URL`; without it those tests are skipped. Migration conformance tests for MySQL and MariaDB also require `HINOKI_TEST_MYSQL_URL` and `HINOKI_TEST_MARIADB_URL`, respectively. CI provides disposable real-server services. See [toolchain and CI](toolchain.md) for packaging and docs checks too.
+PostgreSQL-dependent Python and Rust tests require `HINOKI_TEST_DATABASE_URL`; without it those tests are skipped. Migration conformance tests for MySQL and MariaDB also require `HINOKI_TEST_MYSQL_URL` and `HINOKI_TEST_MARIADB_URL`, respectively. CI provides disposable real-server services. See [toolchain and CI](toolchain.md) for the Rust complexity check, the pre-commit hooks and the packaging checks.
 
 ## See also
 

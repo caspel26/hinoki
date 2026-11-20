@@ -79,7 +79,10 @@ notes/
     └── healthtest.py    one test, no database needed
 ```
 
-`hinoki.toml` names the application, so project commands find it on their own:
+`hinoki.toml` names the application, so project commands find it on their own.
+`notes/main.py` binds the routes the manifest lists with
+`include=manifest_routes()`: `project.routes` first, then each app's `routes`
+under its `prefix`.
 
 ```toml
 # hinoki.toml
@@ -109,15 +112,27 @@ on <http://127.0.0.1:8000/health>, with its documentation at `/docs`.
 
 ## Choose a database
 
-`none` declares no database: add one later in `settings.py`. `sqlite` declares
-`database: settings.DatabaseSettings`, which defaults to a local file under
-`.hinoki/`. `postgresql` declares the same field and writes `.env.example` with
-a placeholder URL; copy it to `.env` and fill it in:
+`sqlite` and `postgresql` add one field to `notes/settings.py`:
+
+```python
+class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
+    database: settings.DatabaseSettings
+```
+
+Its value comes from `NOTES_DATABASE__<FIELD>` variables (two underscores
+between the group and the field) in the environment or in `.env`; keep `.env`
+out of git. With no value set it is the SQLite file
+`.hinoki/local.sqlite3`. `postgresql` also writes `.env.example` with a
+placeholder URL; copy it to `.env` and fill it in:
 
 ```sh
 # .env.example
 NOTES_DATABASE__URL=postgresql://user:password@localhost:5432/notes
 ```
+
+`none` declares no field, and a request that queries a model fails with
+`no database is active`. Add the field above when you add models. [Configure a
+database](databases.md) lists the URL forms and the connection fields.
 
 No database is created or contacted. Create the tables with
 [`hinoki migrations apply`](migrations.md) once you have models.

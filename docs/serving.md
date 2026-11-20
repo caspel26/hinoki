@@ -17,9 +17,9 @@ hinoki serve
 
 `hinoki dev` reloads on every change while you work; `hinoki serve` runs without
 reload, with the workers your settings ask for. Both read the application from
-`project.application` in `hinoki.toml`. To run something else, pass a target:
-`module:name`, where `name` is a `Hinoki` application or a function callable
-without arguments that returns one (a factory).
+`project.application` in `hinoki.toml`. To run another application, pass its
+target: `module:app`, such as `hinoki dev notes.main:app`. A function callable
+without arguments that returns an application (a factory) is also accepted.
 
 Each worker imports the target, then opens what the application owns (database
 pool, modules) in its lifespan and closes it on shutdown. Importing your code
@@ -72,13 +72,13 @@ They come from the application's `server` settings group; flags override them:
 | `server.backlog` | `NOTES_SERVER__BACKLOG` | `1024` | |
 | `server.access_log` | `NOTES_SERVER__ACCESS_LOG` | unset | Unset logs in `hinoki dev` only (or whenever `access_log_format` is set); `true` or `false` decides for both |
 | `server.access_log_skip` | `NOTES_SERVER__ACCESS_LOG_SKIP` | unset | Kiso only: comma-separated paths the log leaves out (health checks); exact, or a prefix when the entry ends with `*` |
-| `server.server_timing` | `NOTES_SERVER__SERVER_TIMING` | unset | Kiso only: add a `Server-Timing` header (`kiso;dur=3.2;desc="native"`: milliseconds the server took and the serving lane); unset means `hinoki dev` only |
+| `server.server_timing` | `NOTES_SERVER__SERVER_TIMING` | unset | Kiso only: add a `Server-Timing` header (`kiso;dur=3.2;desc="native"`: milliseconds the server took and the serving lane, with the same values as the access log's [`lane`](kiso.md#limits)); unset means `hinoki dev` only |
 | `server.recent_requests` | `NOTES_SERVER__RECENT_REQUESTS` | unset | Kiso only: file that also receives each request as a JSON line, read by the `recent_requests` tool of [`hinoki mcp`](dev-mcp.md); rotated near 1 MiB |
 | `server.access_log_slow_ms` | `NOTES_SERVER__ACCESS_LOG_SLOW_MS` | unset | Kiso only: keep only answers at least this slow, in milliseconds |
 | `server.access_log_format` | `NOTES_SERVER__ACCESS_LOG_FORMAT` | unset | Kiso only: `pretty`, `plain`, `json` or `logger`. Unset is `pretty` on a colour terminal and `plain` otherwise |
 | `server.server` | `NOTES_SERVER__SERVER` | `kiso` | `--server` |
 
-The connection limits and timeouts (`max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`), `native_dispatch`, the TLS files and `http2`, and `trusted_proxies` are described under [Kiso](kiso.md) and in the [settings table](settings.md#built-in-fields-and-defaults).
+The connection limits and timeouts (`max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`), `native_dispatch`, the TLS files and `http2`, and `trusted_proxies` are described under [Kiso](kiso.md) and in the [settings table](settings.md#built-in-fields-and-defaults). Left unset, they are `None` in `hinoki settings` and Kiso applies its own defaults (for example 10000 connections and a 10-second header timeout), so that Granian can refuse the Kiso-only ones only when you set them.
 
 `dev` always runs one worker with reload. `hinoki settings` shows what is in
 effect ([Inspect an application](inspect.md#settings)).
@@ -114,7 +114,7 @@ ASGI server can run it directly; the `server` settings group is then ignored,
 because only `hinoki serve` applies it:
 
 ```sh
-granian --interface asgi --factory notes.app:create_app
+granian --interface asgi notes.main:app
 ```
 
 ## Metrics and tracing
@@ -150,9 +150,9 @@ class Timing:
             self.record(scope["method"], status, time.monotonic() - started)
 
 
-app = Timing(
-    create_app(), record=my_metrics.observe
-)  # run this with Granian or any ASGI server
+from notes.main import app as notes_app
+
+app = Timing(notes_app, record=my_metrics.observe)  # serve with any ASGI server
 ```
 
 What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do **not** label by `scope["path"]` (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: `logging.include_request_id` adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.
@@ -171,9 +171,9 @@ wrap the application:
 # wsgi.py
 from hinoki.wsgi import WSGIAdapter
 
-from notes.app import create_app
+from notes.main import app
 
-wsgi_app = WSGIAdapter(create_app())
+wsgi_app = WSGIAdapter(app)
 ```
 
 ```sh

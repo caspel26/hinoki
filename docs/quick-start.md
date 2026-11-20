@@ -50,8 +50,10 @@ notes/
 ```
 
 !!! tip "Scripts and CI"
-    `uv run hinoki new notes --no-input` skips the prompts and uses the
-    defaults. All options are in [`hinoki new`](new-project.md).
+    `uv run hinoki new notes --dir .. --no-input --database sqlite --git --install`
+    gives the same answers without prompts. Plain `--no-input` uses the defaults
+    instead: no database, no `git init`, no `uv sync`. All options are in
+    [`hinoki new`](new-project.md).
 
 ## Test and serve it
 
@@ -71,6 +73,12 @@ curl http://127.0.0.1:8000/health
 ```text
 {"status":"ok"}
 ```
+
+At startup `hinoki dev` logs a warning that `allowed_hosts is '*'`: the
+application answers to any `Host` header. It is harmless on your machine. To
+name the hosts you serve, and silence it, add
+`NOTES_ALLOWED_HOSTS=127.0.0.1,localhost` to `.env`; see
+[`allowed_hosts`](web-security.md#allowed_hosts).
 
 Open `http://127.0.0.1:8000/docs` for the generated OpenAPI UI, or run
 `uv run hinoki routes` to list every route with its access policy.
@@ -92,9 +100,58 @@ migrations = "notes.migrations"
 requires = []
 ```
 
-The application in `notes/main.py` lists no routes: it binds the ones the
-manifest names. Commands read the same file, so inside the project they need
-no module paths.
+`notes/main.py` declares the application:
+
+```python
+# notes/main.py
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+
+from notes.rules import project_rules
+from notes.settings import ProjectSettings
+
+app = Hinoki(
+    settings=ProjectSettings,  # NOTES_* variables and .env
+    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
+    title="Notes",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    rules=project_rules,
+)
+```
+
+`manifest_routes()` reads `hinoki.toml`, so the application lists no routes of
+its own. Commands read the same file, so inside the project they need no module
+paths.
+
+## Where the database is configured
+
+Answering `sqlite` added one field to `notes/settings.py`:
+
+```python
+# notes/settings.py
+from hinoki import settings
+
+
+class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
+    database: settings.DatabaseSettings
+```
+
+With no value set, it is the SQLite file `.hinoki/local.sqlite3`. Each field
+of `DatabaseSettings` is a `NOTES_DATABASE__<FIELD>` variable (two underscores
+between the group and the field), read from the environment or from `.env` in
+the project directory. `uv run hinoki settings` lists every variable and where
+its value came from. To use another file:
+
+```sh
+# .env
+NOTES_DATABASE__URL=sqlite://./.hinoki/notes.sqlite3
+```
+
+[Configure a database](databases.md) covers PostgreSQL, MySQL and MariaDB, and
+connection fields instead of a URL. The project has no models yet; the
+[tutorial](tutorial/index.md) and [8. Projects and apps](tutorial/8-projects.md)
+add them.
 
 ## Next
 

@@ -21,7 +21,7 @@ from hinoki.newcli import fill_from_prompts
 from hinoki.prompts import Prompter, tokens
 from hinoki.rules import RuleSet
 from hinoki.scaffold import ScaffoldError, create, files
-from hinoki.terminal import Style
+from hinoki.terminal import ANSI, Style
 from tests.projects.rulesapp import create_app, rules
 
 
@@ -394,6 +394,99 @@ def test_styling_is_used_only_on_a_capable_terminal() -> None:
         assert text.isascii()
     ascii_only = Style(color=True, unicode=False)
     assert "\u2714" not in ascii_only.ok("done")
+
+
+def box_lines(text: str) -> list[str]:
+    return [line for line in ANSI.sub("", text).split("\n") if line.strip()]
+
+
+@pytest.mark.parametrize("columns", [40, 60, 80, 120])
+def test_the_banner_is_a_rounded_box_with_the_wordmark_that_fits_the_terminal(
+    monkeypatch: pytest.MonkeyPatch, columns: int
+) -> None:
+    class Tty:
+        encoding = "utf-8"
+
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setenv("COLUMNS", str(columns))
+    style = Style.detect(Tty(), {"TERM": "xterm-256color"})  # type: ignore[arg-type]
+    lines = box_lines(style.banner("new project", "v1.2.3"))
+
+    assert lines[0].startswith("  \u256d\u2500 \u25e2\u25e4 hinoki \u2500")
+    assert lines[0].endswith("\u256e")
+    assert lines[-1].startswith("  \u2570") and lines[-1].endswith("\u256f")
+    assert {len(line) for line in lines} == {len(lines[0])}
+    assert len(lines[0]) <= min(columns, 62)
+    row = next(line for line in lines if "Python API framework" in line)
+    assert row.startswith("  \u2502") and "v1.2.3" in row
+
+
+def test_the_ascii_banner_box_names_the_command_without_unicode() -> None:
+    style = Style(color=True, unicode=False, width=80)
+    text = style.banner("new project", "v1.2.3")
+    lines = box_lines(text)
+
+    assert text.isascii()
+    assert lines[0].startswith("  +- hinoki -") and lines[-1].startswith("  +--")
+    assert {len(line) for line in lines} == {len(lines[0])}
+    assert "new project" in text and "v1.2.3" in text
+
+
+def test_a_long_detail_moves_to_its_own_row_instead_of_being_cut() -> None:
+    style = Style(color=True, unicode=False, width=40)
+    lines = box_lines(style.banner("interactive shell", "v1.2.3"))
+
+    assert {len(line) for line in lines} == {len(lines[0])} and len(lines[0]) <= 40
+    assert any("interactive shell - v1.2.3" in line for line in lines)
+    assert "\u2026" not in "".join(lines)
+
+
+def test_the_wordmark_keeps_the_terminal_foreground_on_a_light_16_colour_theme() -> (
+    None
+):
+    style = Style(color=True, unicode=True, depth="16", light=True)
+    text = style.banner("new project", "v1.2.3")
+
+    assert "97m" not in text and "\x1b[1;39mh" in text
+
+
+def test_an_image_terminal_shows_the_logo_then_the_tagline_without_a_box() -> None:
+    style = Style(color=True, unicode=True, images="kitty", width=80)
+    text = style.banner("new project", "v1.2.3")
+
+    assert text.startswith("\n  \x1b_Ga=T,f=100")
+    assert "\u256d" not in text and "\u2502" not in text
+    tagline = ANSI.sub("", text.rpartition("\x1b\\")[2]).strip()
+    assert tagline == "Python API framework  v1.2.3"
+
+
+def test_the_plain_banner_stays_one_line() -> None:
+    assert Style().banner("new project", "v1.2.3") == "hinoki v1.2.3 - new project"
+
+
+@pytest.mark.parametrize("images", [None, "iterm"])
+def test_the_shimmer_settles_on_exactly_the_static_banner(
+    monkeypatch: pytest.MonkeyPatch, images: str | None
+) -> None:
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    style = Style(color=True, unicode=True, depth="truecolor", images=images, width=72)
+    out = io.StringIO()
+    style.shimmer("new project", "v1.2.3", out)
+
+    frames = out.getvalue()
+    assert frames.count("\r") > len("Python API framework")
+    assert (
+        re.sub(r"[^\n]*\r", "", frames) == style.banner("new project", "v1.2.3") + "\n"
+    )
+
+
+def test_the_guide_rail_opens_with_the_branded_prefix() -> None:
+    style = Style(color=True, unicode=True)
+    head = ANSI.sub("", style.intro("new project")).strip().split("\n")[0]
+
+    assert head == "\u250c  hinoki \u203a new project  esc to cancel"
 
 
 def test_the_server_choice_is_kiso_unless_the_project_asks_for_granian(

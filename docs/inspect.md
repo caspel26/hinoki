@@ -24,13 +24,13 @@ Each accepts `--format json` for scripts. On a colour terminal the reports use
 
 ```sh
 uv run hinoki doctor
-uv run hinoki doctor notes.main:app --format json
+uv run hinoki doctor --format json
 ```
 
 With no target, `doctor` uses `project.application` from `hinoki.toml`. If there
 is no manifest or default target, it reports environment checks and marks app
-checks as skipped. An explicit `TARGET` can be an app or factory. Loading it
-imports your Python code, so module-level code and the factory may have their
+checks as skipped. An explicit `TARGET` names another app (`module:app`).
+Loading it imports your Python code, so module-level code may have its
 own side effects. Hinoki does not start app or module lifespans, run hooks,
 start a server, run architecture rules, connect to a database, or write files.
 
@@ -96,7 +96,9 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 
 `--lanes` adds, per route, whether [Kiso](kiso.md#the-native-handler-lane) runs
 the handler natively (`native`) or through the Python pipeline (`python`), with
-the reason. JSON always has `method`, `path`, `handler`, `access`, `status`,
+the reason. The access log's `lane` field means something narrower: a request
+for a `native` route here still logs `python` unless Rust runs a generated CRUD
+plan for it. JSON always has `method`, `path`, `handler`, `access`, `status`,
 `lane` and `lane_reason`.
 
 ## Export the OpenAPI document with `openapi` {#openapi}
@@ -129,7 +131,8 @@ The target is an application with typed settings or a settings class
 (`notes.settings:ProjectSettings`). Each value is shown with where it came from;
 `settings.Secret` values are redacted. `--prefix`, `--dotenv` and `--toml`
 replace the sources the class declares. `--example` prints a `.env.example` with
-defaults and types, leaving secrets and required fields blank. See
+defaults and types, leaving required fields blank and commenting out optional
+values with no printable default (secrets, unset values). See
 [Settings](settings.md#see-what-is-in-effect).
 
 ## Report versions with `version` {#version}
@@ -145,8 +148,8 @@ The default prints `hinoki X.Y.Z`. `--verbose` adds the Python version, platform
 - A target that does not import prints an `error:` line with the import failure
   (`error: cannot load TARGET: …` for `routes` and `openapi`) and exits
   non-zero (2 for `check`, `routes` and `openapi`).
-- Importing the target runs your module-level code and factory; keep import-time
-  side effects out of them.
+- Importing the target runs your module-level code; keep import-time
+  side effects out of it.
 - `openapi` options `--output`, `--check` and `--breaking-against` exclude each
   other.
 - `doctor` without `hinoki.toml` still checks the environment and marks the

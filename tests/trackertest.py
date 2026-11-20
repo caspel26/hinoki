@@ -8,8 +8,8 @@ from uuid import uuid4
 
 import pytest
 from tracker import operations
-from tracker.app import create_app
 from tracker.errors import DoneTasksAreKept, TaskAlreadyDone
+from tracker.main import app
 from tracker.models import Member, Task
 from tracker.schemas import TaskIn
 from tracker.settings import TrackerSettings
@@ -75,8 +75,7 @@ async def test_operations_run_without_any_http(members: tuple[Member, Member]) -
 async def test_the_http_layer_maps_operations_to_responses(
     members: tuple[Member, Member], pool: Pool
 ) -> None:
-    assert URL is not None
-    client: Client = await pool.start(create_app(URL))
+    client: Client = await pool.start(app)
     made = await client.request(
         "POST",
         "/tasks",
@@ -118,7 +117,7 @@ def test_the_tracker_keeps_its_layering_promises(
     monkeypatch.delenv("TRACKER_DATABASE__URL", raising=False)
     argv = [
         "check",
-        "tracker.app:create_app",
+        "tracker.main:app",
         "--rules",
         "tracker.rules:tracker_rules",
         "--package",
@@ -128,21 +127,16 @@ def test_the_tracker_keeps_its_layering_promises(
     assert "13 rule(s): 0 violated, 0 unverifiable" in capsys.readouterr().out
 
 
-def test_local_settings_default_to_sqlite_without_opening_a_connection(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("TRACKER_DATABASE__URL", raising=False)
-    app = create_app()
-    assert isinstance(app.settings, TrackerSettings)
-    assert app.settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
+def test_local_settings_default_to_sqlite() -> None:
+    settings = TrackerSettings.load(env={})
+    assert settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
 
 
 @needs_database
 async def test_every_business_error_of_the_tracker_is_declared(
     members: tuple[Member, Member],
 ) -> None:
-    assert URL is not None
-    async with ASGIClient(create_app(URL), strict_errors=True) as client:
+    async with ASGIClient(app, strict_errors=True) as client:
         made = await client.post("/tasks", json={"title": "x"}, token="ann-token")
         path = f"/tasks/{made.body['id']}"
         assert (await client.post(f"{path}/complete", token="ben-token")).status == 404

@@ -200,6 +200,7 @@ def test_invoice_routes() -> None:
 | `RegistrationError` on a `@staticmethod` or `@classmethod` route | Routes are instance methods | Drop the decorator and keep `self` |
 | `RegistrationError: Invoices: a crud(...) class has exactly one base, API` | A mixin or another base | Share a `functools.partial(crud, ...)` or `Access` values |
 | `RegistrationError` naming `create` (or `list`, …) | A method named like an action `crud` generates | Rename it, or stop generating that action (`omit=`, no `create=`) |
+| `RegistrationError: … is declared by two classes (/a and /b)` | Two different classes (often two `crud(...)` values for one model in one module) give an action the same qualified name | Rename one class, or pass `crud(..., name="ArchiveCrud")` |
 | A handwritten action is public | `crud(access=...)` covers generated actions only | Add `access=` to its decorator |
 | A route vanished in a subclass | The method was redefined without a decorator | Re-declare it with its decorator |
 | Old code uses `replaces=Crud.CREATE` | An older way to swap a generated action | Leave `create=` out and name the method freely; `replaces=` still works while `create=` is given |

@@ -496,7 +496,6 @@ def type_name(hint: Any) -> str:  # noqa: PLR0911 - one answer per kind of hint
 
 def example_of(cls: type[Settings], prefix: str, path: str = "") -> str:
     lines: list[str] = []
-    defaults = {f.name: f for f in dataclasses.fields(cls)}
     for name, hint in cls.fields_of().items():
         if name.startswith("_") or typing.get_origin(hint) is typing.ClassVar:
             continue
@@ -504,12 +503,20 @@ def example_of(cls: type[Settings], prefix: str, path: str = "") -> str:
         if isinstance(hint, type) and issubclass(hint, Settings):
             lines.append(example_of(hint, prefix, key + SEPARATOR))
             continue
-        field = defaults[name]
-        required = has_default(cls, name) is False
-        default = "" if required or hint is Secret else describe_default(field)
-        note = type_name(hint) + (", required" if required else "")
-        lines.append(f"# {note}\n{prefix}{key}={default}")
+        lines.append(example_line(cls, name, hint, prefix + key))
     return "\n".join(lines)
+
+
+def example_line(cls: type[Settings], name: str, hint: Any, variable: str) -> str:
+    """One field of a ``.env.example``: a type comment, then the variable."""
+    field = {f.name: f for f in dataclasses.fields(cls)}[name]
+    required = has_default(cls, name) is False
+    default = "" if required or hint is Secret else describe_default(field)
+    note = type_name(hint) + (", required" if required else "")
+    # A blank line would set the empty value; leave an optional one commented
+    # so a copied example keeps the default.
+    comment = "# " if default == "" and not required else ""
+    return f"# {note}\n{comment}{variable}={default}"
 
 
 def describe_default(field: dataclasses.Field[Any]) -> str:  # noqa: PLR0911

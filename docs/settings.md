@@ -69,6 +69,8 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
 | `server` | `server` | `kiso` | `granian` or `kiso`; `--server` overrides it. See [Kiso server](kiso.md) |
 | `server` | `interface` | `asgi` | `asgi` or `wsgi`: what `hinoki serve` calls (a Hinoki application or a WSGI callable); `--interface` overrides it. See [WSGI](serving.md#wsgi) |
+| `pagination` | `page_size` | `20` | Page size an action's `PageNumberPagination()` leaves out; `1` to `max_page_size`. See [Pagination](pagination.md) |
+| `pagination` | `max_page_size` | `100` | Largest `page_size` a client may ask for |
 | `server` | `host` | `127.0.0.1` | Bind address used by `hinoki dev/serve` |
 | `server` | `port` | `8000` | `1` to `65535` |
 | `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
@@ -130,21 +132,25 @@ Name a TOML file on the class with `toml="settings.toml"` (a project created wit
 `--server granian` already does). Tables map to groups: `[database]` with
 `max_size = 12` sets `database.max_size`. TOML cannot hold `settings.Secret`
 values or the database URL; keep those in the environment or `*_FILE` files.
-`load(prefix=..., dotenv=..., toml=...)` overrides what the class declared, and an
-explicitly selected TOML file must exist and parse.
+`load(prefix=..., dotenv=..., toml=...)` overrides what the class declared. A
+TOML file named on the class or passed to `load` must exist and parse (an empty
+file is fine); a missing `.env` is skipped. Relative `.env` and TOML paths
+resolve from the current directory, so start the server from the project root.
 
-A factory loads the class itself when it needs the values first:
+Load the class yourself when module code needs a typed value before the
+application exists:
 
 ```python
-# notes/app.py
+# notes/main.py
 from hinoki import Hinoki
+from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
-
-def create_app() -> Hinoki:
-    app_settings = ProjectSettings.load()
-    return Hinoki(settings=app_settings, title=f"Notes ({app_settings.theme})")
+settings = ProjectSettings.load()
+app = Hinoki(
+    settings=settings, title=f"Notes ({settings.theme})", include=manifest_routes()
+)
 ```
 
 ## Variable names
@@ -168,8 +174,8 @@ A variable that starts with your prefix but names no field is an error (a typo g
 
 ```text
 invalid settings:
-  NOTES_DATABASE__MAX_SIZE: must be an integer
   NOTES_EXECUTION__SYNC_WORKERS: must be an integer
+  NOTES_DATABASE__MAX_SIZE: must be an integer
   NOTES_THEMES: unknown setting
 ```
 
@@ -197,8 +203,10 @@ The second column is where each value came from: `override`, `environment`,
 `.env`, `toml`, `file` or `default`. The command reads the prefix, `.env` and
 TOML file the class declares; `--prefix`, `--dotenv` and `--toml` override them.
 `--format json` prints the same for tools, and `--example` writes a ready
-`.env.example` (every variable with its default and type; secrets and required
-values blank):
+`.env.example`: every variable with its default and type, required values blank
+to fill in, and the optional ones with no printable default (secrets such as the
+database URL, values that default to unset) commented out, so a copied file
+keeps their defaults:
 
 ```sh
 hinoki settings --example > .env.example
@@ -226,23 +234,24 @@ The value may also name a function that returns the mapping. It is applied when 
 
 ## Database connection ownership {#8-database-connection-ownership}
 
-For local development, `DatabaseSettings.url` defaults to `sqlite://./.hinoki/local.sqlite3`. Hinoki creates the hidden directory and database file when the module starts; it does not connect at module import or when models are imported. Configure a server database with one URL or with `engine` and its connection fields (see [configure a database](databases.md#configure-the-application)). Environment, dotenv and constructor values can override the local default. The URL and the password are secrets and cannot be loaded from TOML; TOML can hold the other connection fields and the pool size.
+A `database: settings.DatabaseSettings` field is all it takes: Hinoki installs
+`DatabaseModule` for it (a module declared in `modules=` replaces it). With
+nothing configured, the URL is the local SQLite file
+`sqlite://./.hinoki/local.sqlite3`, and the module creates its hidden directory
+and file when it starts. [Configure a database](databases.md) covers the URL,
+the connection fields, TLS and each backend.
 
-A `database: DatabaseSettings` field is enough: Hinoki installs `DatabaseModule` for it (a module declared in `modules=` or installed in a factory replaces it). The module opens a pool in each worker's startup lifespan, fails startup if the database is unreachable, and closes that worker's pool on shutdown. Each worker owns its own pool, so budget `replicas × workers × max_size` against the server database's connection limit.
+The module opens a pool in each worker's startup lifespan, fails startup if the
+database is unreachable, and closes that worker's pool on shutdown. Nothing
+connects when modules or models are imported. Each worker owns its own pool,
+so budget `replicas × workers × max_size` against the server database's
+connection limit.
 
-PostgreSQL URLs accept `sslmode=disable`, `prefer`, `require`, `verify-ca` or `verify-full`, and `sslrootcert=/path/to/ca.pem`. `prefer` tries TLS first and falls back to plaintext only if the server declines TLS; a certificate or handshake error fails closed. All TLS connections verify the server certificate chain and hostname. `require`, `verify-ca` and `verify-full` require TLS; Hinoki's `verify-ca` also verifies the hostname. Trust uses Mozilla WebPKI roots plus any PEM certificates in `sslrootcert` (maximum file size 1 MiB). `sslmode=require` therefore requires a trusted certificate too. `sslmode=allow` is unsupported. Keep the URL in a secret setting, and mount the CA file where each worker can read it.
-
-SQLite accepts a file URL such as `sqlite:///srv/app/data.sqlite3`; relative paths are relative to the process working directory. In-memory databases are not supported because each pooled connection has an independent database. SQLite uses bundled SQLite 3.35 or newer, a bounded connection pool and a single-writer model. UUID and timestamp columns use text storage; JSON uses JSON text. SQLite `contains` matching is ASCII case-insensitive.
-
-```text
-postgresql://app:password@db.example/app?sslmode=require&sslrootcert=/run/secrets/db-ca.pem
-```
-
-The `database` field of `ProjectSettings` is all it takes: `NOTES_DATABASE__URL`
-(or the connection fields) is loaded with the other settings and each worker
-opens its pool as it starts. Nothing connects at import time.
-
-One-off scripts have a different lifecycle. `examples/blog/seed.py` opens a short-lived `Database` explicitly, applies migrations, inserts synthetic rows and closes the pool in `finally`. It runs outside the HTTP server, so there is no worker lifespan to own that resource. It is a one-time seed for a fresh disposable database, not a repeatable reset:
+One-off scripts have a different lifecycle: they open a short-lived `Database`
+themselves ([use the database from a script](databases.md#use-the-database-from-a-script)).
+`examples/blog/seed.py` does so, applies migrations, inserts synthetic rows and
+closes the pool in `finally`. It is a one-time seed for a fresh disposable
+database, not a repeatable reset:
 
 ```sh
 cd examples

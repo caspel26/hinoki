@@ -5,13 +5,13 @@ from typing import ClassVar
 from uuid import UUID, uuid4
 
 from hinoki import db
-from hinoki.orm import Model, OnDelete, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key, pk
 from hinoki.orm.relations import Related
 from hinoki.utils import utc_now
 
 
 class User(Model, table="blog_users"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     name: str = field(max_length=80)
     token: str = field(unique=True)
     is_editor: bool = False
@@ -22,7 +22,7 @@ class User(Model, table="blog_users"):
 
 @db.indexed("author_id")  # a foreign key is always indexed (HNK-DB-002)
 class Post(Model, table="blog_posts"):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     author_id: UUID = foreign_key(
         User, on_delete=OnDelete.RESTRICT, related_name="posts"
     )

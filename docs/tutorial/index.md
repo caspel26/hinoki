@@ -7,12 +7,13 @@ related:
 
 # Tutorial
 
-Build the Tracker, an API where members keep their own tasks, one layer per
-chapter. The code is the checked-in example in
-[`examples/tracker`](https://github.com/caspel26/hinoki/tree/main/examples/tracker),
-so every step runs as shown.
+Follow the Tracker, an API where members keep their own tasks, one layer per
+chapter. Each chapter walks through files of the checked-in example in
+[`examples/tracker`](https://github.com/caspel26/hinoki/tree/main/examples/tracker)
+and runs its commands, so every step runs as shown. Chapter 8 then adds an app
+to your own project.
 
-| Chapter | You add | You learn |
+| Chapter | It covers | You learn |
 | --- | --- | --- |
 | [1. Models](1-models.md) | tables, an index, a default order | models and migrations |
 | [2. Schemas](2-schemas.md) | what clients send and receive | strict validation, derived schemas |
@@ -23,7 +24,7 @@ so every step runs as shown.
 | [7. Validate input](7-validation.md) | normalizers and checks | field and cross-field errors |
 | [8. Projects and apps](8-projects.md) | an app in your own project | `hinoki app create`, planned migrations |
 
-Chapters 1–6 build the Tracker. Chapter 7 uses standalone examples, and
+Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
 chapter 8 continues the project from the [Quick start](../quick-start.md).
 
 The shape you end with:
@@ -47,4 +48,6 @@ cd examples
 
 That directory hosts three applications (Notes, Tracker and Blog) under one
 `hinoki.toml`, so server and check commands name the application, such as
-`tracker.app:create_app`. In your own project they take no target.
+`uv run hinoki check tracker.main:app`. Without it, `hinoki check` here checks
+the directory's own `project.app:app`, which declares no rules, and reports
+`0 rule(s)`. In your own project the commands take no target.

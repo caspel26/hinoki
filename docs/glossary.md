@@ -26,7 +26,7 @@ One word, one meaning. "Schema" has four meanings in this field, so the docs kee
 | project application | The `Hinoki` object named by `project.application` (`notes.main:app`); the one a server process serves. |
 | app | A package listed under `[[apps]]`: models, migrations and a `routes.py`. Not a second `Hinoki` object. |
 | app prefix | The path an app's routes are mounted under, set only in `hinoki.toml` (`/billing`). |
-| target | `module:attribute` naming an app or a no-argument factory, given to commands such as `hinoki dev notes.main:app`. |
+| target | `module:attribute` naming an app, such as `notes.main:app`. Commands use `project.application` from `hinoki.toml` when it is omitted. |
 
 ## Code
 

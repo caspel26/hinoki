@@ -73,7 +73,8 @@ routes, which open their own short transactions.
 
 Action rules match `fnmatch` patterns against an action's qualified name:
 `module.function` for a function, `module.Class.method` for an API class (named
-after the class it is mounted on). A bare `health` matches nothing; write
+after the class it is mounted on), and `module.<Model>Crud.<action>` for a
+`crud(...)` value, where `module` is the one that calls `crud(...)`. A bare `health` matches nothing; write
 `notes.api.health` or `*.health`. `except_` takes the same patterns and is how
 you say "public on purpose". The Blog example names its exceptions once:
 
@@ -116,7 +117,9 @@ then logged as a warning instead.
 
 ## Read the results
 
-This output comes from a deliberately broken project in Hinoki's own tests:
+`hinoki check` prints one line per finding, with its location and a `fix:` hint.
+This output comes from a deliberately broken project in Hinoki's own tests,
+checked from a clone of the repository:
 
 ```sh
 hinoki check tests.projects.rulesapp:create_app --rules tests.projects.rulesapp:rules
@@ -239,7 +242,7 @@ reason = "liveness probe is public by design"
 owner = "platform-team"
 ```
 
-Without the waiver, `hinoki serve shop.main:app` fails at startup with
+Without the waiver, `hinoki serve` fails at startup with
 `RegistrationError: 1 rule violation(s)`.
 
 At startup:
