@@ -67,20 +67,33 @@ def unique[M: type[Model]](*columns: str, name: str | None = None) -> Callable[[
         known(model, columns, "unique")
         replaced = model.replace_inherited("unique")
         current = () if replaced else model.__unique__
-        names = {} if replaced else dict(model.__unique_names__)
         if columns in current:
             raise RegistrationError(f"{model.__name__}: @unique{columns} twice")
+        names = {} if replaced else dict(model.__unique_names__)
         if name is not None:
-            if name in names.values():
-                raise RegistrationError(
-                    f"{model.__name__}: constraint name {name!r} twice"
-                )
-            names[columns] = name
+            names[columns] = checked_name(model, names, name)
         model.__unique__ = (columns, *current)  # top-to-bottom order
         model.__unique_names__ = names
         return model
 
     return apply
+
+
+def checked_name(
+    model: type[Model], names: dict[tuple[str, ...], str], name: str
+) -> str:
+    """A constraint name the model may declare. Names compare without case,
+    as MySQL and MariaDB do. An abstract model may not name one: every table
+    inheriting it would repeat the name."""
+    if model.__abstract__:
+        raise RegistrationError(
+            f"{model.__name__}: an abstract model cannot name a unique constraint "
+            f"({name!r}); name it on each table model instead"
+        )
+    taken = next((n for n in names.values() if n.casefold() == name.casefold()), None)
+    if taken is not None:
+        raise RegistrationError(f"{model.__name__}: constraint name {taken!r} twice")
+    return name
 
 
 def is_constraint_name(name: object) -> bool:

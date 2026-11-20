@@ -202,17 +202,41 @@ def unique_constraint_sql(group: list[str], spec: State, dialect: str) -> str:
 
 
 def check_constraint_names(tables: State) -> None:
-    """Named unique constraints must not repeat: PostgreSQL keeps them in one
-    namespace per schema, backed by indexes."""
-    owners: dict[str, str] = {}
+    """Named unique constraints must not reuse a name the database already
+    holds: PostgreSQL keeps tables, indexes and unique constraints in one
+    namespace per schema, and MySQL and MariaDB compare names without case. A
+    name is checked against every table, generated index and foreign-key name
+    (for each backend's length limit) and the other constraint names."""
+    taken: dict[str, str] = {}
+    for table, spec in tables.items():
+        for name, owner in generated_names(table, spec):
+            taken.setdefault(name.casefold(), owner)
     for table, spec in tables.items():
         for name in spec.get("unique_names", {}):
-            if name in owners:
+            holder = taken.get(name.casefold())
+            if holder is not None:
                 raise MigrationError(
                     f"{table}: unique constraint name {name!r} is already used by "
-                    f"{owners[name]}; give each table its own name"
+                    f"{holder}; choose another name"
                 )
-            owners[name] = table
+            taken[name.casefold()] = f"a unique constraint of {table}"
+
+
+def generated_names(table: str, spec: State) -> list[tuple[str, str]]:
+    """The table's own name and the index and foreign-key names Hinoki
+    generates for it, with a description of each."""
+    found = [(table, f"table {table}")]
+    for dialect in ("postgres", "mysql"):
+        found.extend(
+            (index_name(table, columns, dialect), f"an index of {table}")
+            for columns in spec.get("indexes", [])
+        )
+        found.extend(
+            (foreign_key_name(table, column, dialect), f"a foreign key of {table}")
+            for column, state in spec["columns"].items()
+            if state["references"] is not None
+        )
+    return found
 
 
 def family(sql_type: str) -> str:
@@ -580,7 +604,8 @@ def _sqlite_rebuild_warnings(old: State, new: State) -> list[str]:
         for name in old["columns"]
         if name not in new["columns"]
     )
-    if unique_changed(old, new):
+    # A rename alone rebuilds the table under the same rules: nothing to reject.
+    if old.get("unique", []) != new.get("unique", []):
         destructive.append(
             "changing composite unique constraints may reject existing rows"
         )

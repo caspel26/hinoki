@@ -16,10 +16,12 @@ from hinoki.orm.migrations import (
     LEGACY_STATE_TYPES,
     Plan,
     State,
+    check_constraint_names,
     family,
     migration_files,
     plan,
     state_of,
+    table_state,
 )
 from hinoki.project import (
     ProjectError,
@@ -89,6 +91,10 @@ def plan_project(
 ) -> Plan:
     app = manifest.app(args.app if app_name is None else app_name)
     models = manifest.all_models()
+    # Constraint names share one database namespace across every app.
+    check_constraint_names(
+        {m.__table__: table_state(m) for group in models.values() for m in group}
+    )
     directories = manifest.migration_directories()
     dependencies = manifest.ordered_apps(app.name)
     external = [
