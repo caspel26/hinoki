@@ -740,6 +740,19 @@ def bridge(call):
         assert_eq!(ran, 1, "the abandoned request ran");
     }
 
+    /// Wait for a state the test depends on instead of guessing how long a
+    /// busy machine takes to reach it.
+    async fn until(mut condition: impl FnMut() -> bool) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        while !condition() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "the state was not reached"
+            );
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }
+
     #[test]
     fn a_full_pool_and_queue_refuse_and_a_slow_call_times_out() {
         let backend = Arc::new(backend(SLOW, 1, 1));
@@ -748,11 +761,14 @@ def bridge(call):
                 let backend = Arc::clone(&backend);
                 async move { backend.deliver(incoming()).await.status() }
             });
+            // The first call must hold the only thread before the second one
+            // queues, or the second finds the queue still occupied.
+            until(|| backend.running() == 1).await;
             let second = tokio::spawn({
                 let backend = Arc::clone(&backend);
                 async move { backend.deliver(incoming()).await.status() }
             });
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            until(|| backend.admission.available_permits() == 0).await;
             assert_eq!(backend.deliver(incoming()).await.status(), 503);
             // The pool is busy past request_timeout: the waiting ones answer 504.
             assert_eq!(first.await.unwrap(), 504);
