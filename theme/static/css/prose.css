@@ -617,8 +617,7 @@ html:not(.js) .prose table {
     min-width: 12rem;
   }
 
-  .prose td:first-child,
-  .prose td:last-child {
+  .prose td:first-child {
     min-width: 0;
   }
 
