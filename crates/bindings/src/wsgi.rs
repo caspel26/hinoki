@@ -291,6 +291,28 @@ fn overloaded() -> Delivery {
     Delivery::Whole(answer)
 }
 
+/// Pass the body on, but reset the stream when the application is silent for
+/// `gap`: a stalled iterable would otherwise hold the connection open for ever.
+/// Dropping the receiving end makes the application's next write report that
+/// nobody is listening.
+fn bounded_gaps(mut pieces: mpsc::Receiver<Chunk>, gap: Duration) -> mpsc::Receiver<Chunk> {
+    let (forward, forwarded) = mpsc::channel(STREAM_DEPTH);
+    tokio::spawn(async move {
+        loop {
+            let piece = match timeout(gap, pieces.recv()).await {
+                Ok(Some(piece)) => piece,
+                Ok(None) => return,
+                Err(_) => Err(Aborted),
+            };
+            let aborted = piece.is_err();
+            if forward.send(piece).await.is_err() || aborted {
+                return;
+            }
+        }
+    });
+    forwarded
+}
+
 /// Whether the decoded path holds a NUL byte or a `.`/`..` segment, which no
 /// application should have to guard against (`%2e%2e` and `%2f` included).
 fn unsafe_path(path: &str) -> bool {
@@ -414,7 +436,7 @@ impl WsgiBackend {
             Ok(Ok(Started { status, headers })) => Delivery::Streamed(Streamed {
                 status,
                 headers,
-                chunks: receiver,
+                chunks: bounded_gaps(receiver, self.limits.request_timeout),
             }),
             Ok(Err(_)) => plain(500, "the application failed\n"),
             Err(_) => plain(504, "the application took too long\n"),
@@ -668,6 +690,29 @@ def bridge(call):
     call.start(200, [])
     call.finish()
 ";
+
+    const STALLS: &std::ffi::CStr = c"
+import time
+def bridge(call):
+    call.start(200, [])
+    call.send(b'one')
+    time.sleep(2)
+    call.send(b'two')
+    call.finish()
+";
+
+    #[test]
+    fn a_producer_silent_past_the_timeout_resets_the_stream() {
+        let backend = backend(STALLS, 1, 1);
+        runtime().block_on(async {
+            let Delivery::Streamed(mut streamed) = backend.deliver(incoming()).await else {
+                panic!("a streamed response")
+            };
+            assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("one"))));
+            let next = timeout(Duration::from_millis(1500), streamed.chunks.recv()).await;
+            assert_eq!(next, Ok(Some(Err(Aborted))));
+        });
+    }
 
     #[test]
     fn a_decoded_path_with_a_nul_or_a_dot_segment_is_refused() {
