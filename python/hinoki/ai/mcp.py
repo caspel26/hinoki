@@ -46,7 +46,7 @@ from hinoki.rules import (
 from hinoki.runtime.recent import DEFAULT_PATH, read_recent
 from hinoki.scenario import ScenarioError, run_scenario
 from hinoki.utils import utc_today
-from hinoki.waivers import NAME, apply_waivers, load_waivers
+from hinoki.waivers import apply_waivers, load_waivers, waiver_path
 
 TOOL_VERSION = 1
 PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -136,7 +136,7 @@ class DevProject:
         self.rules = rules
         self.packages = packages
         self.model_modules = models
-        self.waivers = waivers or Path(NAME)
+        self.waivers = waiver_path(waivers)
         self.today = today
         self.scenarios = scenarios
         self.requests = requests or Path(DEFAULT_PATH)

@@ -23,6 +23,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from hinoki.project import find_manifest_or_none
 from hinoki.rules import Diagnostic, Phase, Severity, Status
 
 NAME = "hinoki-rules.toml"
@@ -112,13 +113,23 @@ def load_waivers(path: Path) -> list[Waiver]:
         raise WaiverError(f"{path}: {exc}") from exc
 
 
+def waiver_path(path: str | Path | None = None) -> Path:
+    """The waiver file: ``path`` when named, else ``hinoki-rules.toml`` at the
+    project root (the directory of the nearest ``hinoki.toml`` from the working
+    directory upwards), else in the working directory."""
+    if path is not None:
+        return Path(path)
+    manifest = find_manifest_or_none()
+    return (manifest.parent if manifest else Path.cwd()) / NAME
+
+
 def read_waivers(path: str | Path | None = None) -> list[Waiver]:
-    """The waivers ``hinoki check`` and application startup apply:
-    ``./hinoki-rules.toml`` by default, where an absent file means none. A file
+    """The waivers ``hinoki check``, ``hinoki mcp`` and application startup
+    apply (see ``waiver_path``). An absent default file means none; a file
     named explicitly must exist."""
     if path is not None and not Path(path).is_file():
         raise WaiverError(f"waiver file {path} does not exist")
-    return load_waivers(Path(path or NAME))
+    return load_waivers(waiver_path(path))
 
 
 def notice(rule: str, message: str, subject: str) -> Diagnostic:
