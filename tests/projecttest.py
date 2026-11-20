@@ -300,17 +300,27 @@ def test_project_migrations_use_the_installed_database_module(
     assert line in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    "module",
+    [
+        "class Storage(Module):\n    name = 'database'\n",
+        "class Storage(DatabaseModule):\n    def __init__(self) -> None:\n"
+        "        pass\n",
+    ],
+    ids=["other-module", "database-module-without-url"],
+)
 def test_project_migrations_stop_when_the_database_module_is_unknown(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    module: str,
 ) -> None:
-    project = create("customdb", tmp_path, database="sqlite")
+    name = f"customdb{uuid4().hex[:10]}"
+    project = create(name, tmp_path, database="sqlite")
     _replace_application(
         project,
-        "customdb",
-        "class Storage(Module):\n    name = 'database'\n\n\n"
-        "app = Hinoki(settings=ProjectSettings, modules=[Storage()])\n",
+        name,
+        f"{module}\n\napp = Hinoki(settings=ProjectSettings, modules=[Storage()])\n",
     )
     monkeypatch.chdir(project)
     monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
