@@ -30,6 +30,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, overload
 
 from hinoki import core
+from hinoki.blocking import run_sync
 from hinoki.core import (
     CheckViolation,
     DatabaseError,
@@ -221,6 +222,25 @@ class AtomicScope:
         self.callback_mark = 0
 
     async def __aenter__(self) -> AtomicScope:
+        await self.open(shared=False)
+        if self.savepoint is None:
+            self.token = current.set(self.state)
+        return self
+
+    def __enter__(self) -> AtomicScope:
+        """The same scope for a sync handler on a worker thread. The calls run
+        on the worker's loop through ``run_sync``, whose tasks get a copy of the
+        thread's context, so the transaction is made current here, on the thread.
+        The thread blocks on every call, so a nested scope may not be opened by
+        another task: it is a savepoint of the open transaction."""
+        run_sync(self.open(shared=True))
+        if self.savepoint is None:
+            self.token = current.set(self.state)
+        return self
+
+    async def open(self, *, shared: bool) -> None:
+        """Begin the transaction, or a savepoint inside the open one. ``shared``
+        lets a scope opened by a different task of a sync handler's thread nest."""
         parent = self.database.active()
         if parent is None:
             native_tx = (
@@ -229,9 +249,8 @@ class AtomicScope:
                 else await self.database.engine.begin()
             )
             self.state = ActiveTransaction(self.database, native_tx)
-            self.token = current.set(self.state)
-            return self
-        if current_owner() is not parent.owner:
+            return
+        if not shared and current_owner() is not parent.owner:
             raise DatabaseError(
                 "nested atomic scopes (savepoints) must be opened by the "
                 "task that owns the transaction"
@@ -242,7 +261,6 @@ class AtomicScope:
         self.savepoint = parent.next_savepoint()
         self.callback_mark = len(parent.commit_callbacks)
         await parent.native.execute(f"SAVEPOINT {self.savepoint}", [])
-        return self
 
     async def __aexit__(
         self,
@@ -250,14 +268,27 @@ class AtomicScope:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
+        if self.token is not None:
+            current.reset(self.token)
+        await self.close(exc)
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        if self.token is not None:
+            current.reset(self.token)
+        run_sync(self.close(exc))
+
+    async def close(self, exc: BaseException | None) -> None:
         state = self.state
         if state is None:
             raise RuntimeError("atomic scope was not entered")
         if self.savepoint is not None:
             await self.leave_savepoint(state, exc is None)
             return
-        if self.token is not None:
-            current.reset(self.token)
         state.finished = True
         if exc is not None:
             await self.rollback(state)
@@ -294,27 +325,29 @@ class AtomicScope:
             log.exception("rollback failed; the connection will be discarded")
 
 
+# The scopes ``db.atomic()`` blocks have open in this task or thread, innermost
+# last. Blocks exit in reverse order of entry, so one module-level stack serves
+# every Atomic object, including one reused by concurrent tasks.
+open_scopes: ContextVar[tuple[AtomicScope, ...]] = ContextVar(
+    "hinoki_atomic_scopes", default=()
+)
+
+
 class Atomic:
     """``db.atomic()``: an atomic scope on the current database, as a block or
     as a decorator.
 
     ``async with db.atomic():`` opens ``current_database().atomic()`` when the
-    block is entered. Decorating an ``async def`` opens a fresh scope for every
+    block is entered; ``with db.atomic():`` does the same in a sync handler.
+    Decorating an ``async def`` or a plain ``def`` opens a fresh scope for every
     call: returning commits, an exception rolls back, and a call made inside an
     already atomic scope becomes a savepoint.
     """
 
-    def __init__(self) -> None:
-        # Per task, so one object reused by concurrent tasks cannot pop
-        # another task's scope.
-        self.scopes: ContextVar[tuple[AtomicScope, ...]] = ContextVar(
-            "hinoki_atomic_scopes", default=()
-        )
-
     async def __aenter__(self) -> AtomicScope:
         scope = current_scope()
         await scope.__aenter__()
-        self.scopes.set((*self.scopes.get(), scope))
+        open_scopes.set((*open_scopes.get(), scope))
         return scope
 
     async def __aexit__(
@@ -323,27 +356,51 @@ class Atomic:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        stack = self.scopes.get()
+        await self.leave().__aexit__(exc_type, exc, tb)
+
+    def __enter__(self) -> AtomicScope:
+        scope = current_scope().__enter__()
+        open_scopes.set((*open_scopes.get(), scope))
+        return scope
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.leave().__exit__(exc_type, exc, tb)
+
+    def leave(self) -> AtomicScope:
+        """Pop this task's innermost open scope."""
+        stack = open_scopes.get()
         if not stack:
             raise RuntimeError("atomic scope was not entered")
-        self.scopes.set(stack[:-1])
-        await stack[-1].__aexit__(exc_type, exc, tb)
+        open_scopes.set(stack[:-1])
+        return stack[-1]
 
+    @overload
     def __call__[**P, R](
         self, func: Callable[P, Coroutine[Any, Any, R]]
-    ) -> Callable[P, Coroutine[Any, Any, R]]:
-        if not inspect.iscoroutinefunction(func):
-            raise TypeError(
-                f"db.atomic wraps coroutine functions only; "
-                f"{getattr(func, '__qualname__', func)!r} is not an async def"
-            )
+    ) -> Callable[P, Coroutine[Any, Any, R]]: ...
+    @overload
+    def __call__[**P, R](self, func: Callable[P, R]) -> Callable[P, R]: ...
+    def __call__(self, func: Callable[..., Any]) -> Callable[..., Any]:
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def atomic_call(*args: Any, **kwargs: Any) -> Any:
+                async with current_scope():
+                    return await func(*args, **kwargs)
+
+            return atomic_call
 
         @functools.wraps(func)
-        async def atomic_call(*args: P.args, **kwargs: P.kwargs) -> R:
-            async with current_scope():
-                return await func(*args, **kwargs)
+        def sync_call(*args: Any, **kwargs: Any) -> Any:
+            with current_scope():
+                return func(*args, **kwargs)
 
-        return atomic_call
+        return sync_call
 
 
 def current_scope() -> AtomicScope:
@@ -360,12 +417,13 @@ def atomic[**P, R](
     func: Callable[P, Coroutine[Any, Any, R]], /
 ) -> Callable[P, Coroutine[Any, Any, R]]: ...
 @overload
+def atomic[**P, R](func: Callable[P, R], /) -> Callable[P, R]: ...
+@overload
 def atomic() -> Atomic: ...
-def atomic[**P, R](
-    func: Callable[P, Coroutine[Any, Any, R]] | None = None, /
-) -> Atomic | Callable[P, Coroutine[Any, Any, R]]:
-    """``async with db.atomic():``, ``@db.atomic`` or ``@db.atomic()``: run a
-    block or a coroutine function atomically on the current database."""
+def atomic(func: Callable[..., Any] | None = None, /) -> Any:
+    """``async with db.atomic():``, ``with db.atomic():``, ``@db.atomic`` or
+    ``@db.atomic()``: run a block or a function, ``async def`` or plain ``def``,
+    atomically on the current database. The sync forms are for sync handlers."""
     if func is None:
         return Atomic()
     return Atomic()(func)
