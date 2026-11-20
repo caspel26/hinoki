@@ -7,13 +7,14 @@ import contextlib
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from hinoki.checkcli import build_app
-from hinoki.db import Database
+from hinoki.db import Database, DatabaseModule
 from hinoki.errors import MigrationError
 from hinoki.orm import Model, migrator
 from hinoki.orm.migrations import (
@@ -43,8 +44,8 @@ UNPARSEABLE = "<unparseable URL>"
 _SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*\Z")
 
 
-class SettingsLoadError(ProjectError):
-    """The project application, and so its database setting, cannot be loaded."""
+class DatabaseResolutionError(ProjectError):
+    """The database a project's migrations target cannot be determined."""
 
 
 @dataclass(frozen=True)
@@ -88,17 +89,18 @@ def migration_database(
     args: argparse.Namespace, manifest: ProjectManifest | None
 ) -> MigrationDatabase:
     """Resolve ``--database``, then ``HINOKI_DATABASE_URL``, then the project
-    application's ``database`` setting, then the local SQLite default.
+    application's database (an installed ``DatabaseModule`` or its ``database``
+    setting), then the local SQLite default.
 
-    Raises ``SettingsLoadError`` when a project's application cannot be loaded,
-    rather than guessing a database.
+    Raises ``DatabaseResolutionError`` when a project's application cannot be
+    loaded or its database cannot be told, rather than guessing a database.
     """
     if getattr(args, "database", None):
         return MigrationDatabase(args.database, "--database")
     environment = os.environ.get(URL_VARIABLE)
     if environment:
         return MigrationDatabase(environment, URL_VARIABLE)
-    configured = _settings_database(manifest) if manifest is not None else None
+    configured = _application_database(manifest) if manifest is not None else None
     url, source = configured or (DatabaseSettings().url.reveal(), DEFAULT_SOURCE)
     return MigrationDatabase(_anchor_sqlite(url, manifest), source)
 
@@ -110,22 +112,45 @@ def migration_database_url(
     return migration_database(args, manifest).url
 
 
-def _settings_database(manifest: ProjectManifest) -> tuple[str, str] | None:
-    """The URL and source of the application's ``database`` setting, if any.
+def _application_database(manifest: ProjectManifest) -> tuple[str, str] | None:
+    """The URL and source of the application's database, if it declares one.
 
     The application is built from the project root, so relative settings files
     such as ``.env`` are the ones the server reads when started there. Building
-    it reads the settings but opens no connection.
+    it reads the settings but opens no connection; its output goes to stderr.
     """
+    app = _load_application(manifest)
+    module = next(
+        (m for m in getattr(app, "modules", ()) if m.name == DatabaseModule.name),
+        None,
+    )
+    if module is None or module is getattr(app, "_automatic_database", None):
+        return _settings_database(app)
+    if isinstance(module, DatabaseModule) and isinstance(module.url, str):
+        return module.url, f"application: {type(module).__name__}"
+    raise DatabaseResolutionError(
+        f"cannot tell which database the application's {type(module).__name__} "
+        f"module uses; choose it with --database or {URL_VARIABLE}"
+    )
+
+
+def _load_application(manifest: ProjectManifest) -> Any:
     add_project_root(manifest)
+    target = manifest.application
     try:
-        with contextlib.chdir(manifest.root):
-            app = build_app(manifest.application)
+        with (
+            contextlib.chdir(manifest.root),
+            contextlib.redirect_stdout(sys.stderr),
+        ):
+            return build_app(target)
     except (Exception, SystemExit) as error:  # never guess another database
-        raise SettingsLoadError(
-            f"cannot load the application's settings ({_reason(error)}); fix "
-            f"them, or choose the database with --database or {URL_VARIABLE}"
+        raise DatabaseResolutionError(
+            f"{_failure(target, error)}; fix it, or choose the database with "
+            f"--database or {URL_VARIABLE}"
         ) from None
+
+
+def _settings_database(app: Any) -> tuple[str, str] | None:
     group = getattr(app.settings, "database", None)
     if not isinstance(group, DatabaseSettings):
         return None
@@ -135,11 +160,15 @@ def _settings_database(manifest: ProjectManifest) -> tuple[str, str] | None:
     return url, f"settings: {type(app.settings).__name__}.database"
 
 
-def _reason(error: BaseException) -> str:
-    # Settings errors name variables but never values; other messages may not.
+def _failure(target: str, error: BaseException) -> str:
+    # Settings errors name variables but never values; other messages may not,
+    # so only the failing module or attribute name is shown.
+    kind = type(error).__name__
     if isinstance(error, SettingsError):
-        return str(error)
-    return type(error).__name__
+        return f"cannot load the application's settings ({error})"
+    if isinstance(error, ImportError | AttributeError) and error.name:
+        return f"cannot import the application {target} ({kind}: {error.name!r})"
+    return f"cannot load the application {target} ({kind})"
 
 
 def _anchor_sqlite(url: str, manifest: ProjectManifest | None) -> str:
@@ -148,8 +177,8 @@ def _anchor_sqlite(url: str, manifest: ProjectManifest | None) -> str:
         return url
     location = url.removeprefix("sqlite://")
     if location.partition("?")[0] == ":memory:":
-        raise MigrationError(
-            "the database setting is an in-memory SQLite database, which "
+        raise DatabaseResolutionError(
+            "the database is an in-memory SQLite database, which "
             "migrations cannot keep; configure a file or server database"
         )
     path = Path(location)

@@ -28,7 +28,7 @@ from hinoki.orm.migrations import Plan, migration_files, models_of, plan
 from hinoki.project import ProjectError, ProjectManifest, resolve_target
 from hinoki.projectmigrations import (
     URL_VARIABLE,
-    SettingsLoadError,
+    DatabaseResolutionError,
     manifest_for,
     migration_database,
     plan_project,
@@ -347,9 +347,9 @@ def run_migrations(args: argparse.Namespace) -> int:
 def run_migrations_with_error_handling(args: argparse.Namespace) -> int:
     try:
         return run_migration_action(args)
-    except SettingsLoadError as error:
+    except DatabaseResolutionError as error:
         print(f"error: {error}", file=sys.stderr)
-        return 1
+        return 2
     except (MigrationError, ProjectError) as error:
         print(f"error: {error}", file=sys.stderr)
         print(

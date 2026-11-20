@@ -21,7 +21,6 @@ from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
 from hinoki.projectmigrations import (
     URL_VARIABLE,
     MigrationDatabase,
-    SettingsLoadError,
     migration_database,
 )
 
@@ -112,7 +111,7 @@ def explain(error: BaseException) -> tuple[str, int]:
         return APPLY_HINT, 1
     if isinstance(error, EOFError | KeyboardInterrupt):
         return "cancelled", 2
-    stops = isinstance(error, SettingsLoadError | MigrationError)
+    stops = isinstance(error, MigrationError)
     return str(error), 1 if stops else 2
 
 
