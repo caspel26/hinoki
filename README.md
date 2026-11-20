@@ -53,7 +53,7 @@ You need [uv](https://docs.astral.sh/uv/) and a stable Rust toolchain; the nativ
 git clone https://github.com/caspel26/hinoki && cd hinoki
 uv sync --locked
 source .venv/bin/activate
-hinoki new notes --dir ..   # asks for the database, the server and the rest
+hinoki new notes --dir ..   # asks for the database, the server, the rest and a first app
 cd ../notes
 hinoki dev                  # API docs at http://127.0.0.1:8000/docs
 ```
@@ -97,7 +97,7 @@ hinoki routes   # list every route with its access policy
 
 ## Write an API
 
-The project package holds no models. Create an app for them, which registers its models, migrations and routes in `hinoki.toml`:
+The project package holds no models. Answer yes to the last question of `hinoki new` (or pass `--app NAME`), or create an app later; it registers its models, migrations and routes in `hinoki.toml`:
 
 ```sh
 hinoki app create notes

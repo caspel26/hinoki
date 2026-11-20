@@ -22,7 +22,7 @@ uv run hinoki migrations apply
 
 | Group | Command | What it does | Guide |
 | --- | --- | --- | --- |
-| Start | `hinoki new [NAME]` | Create a project; asks for what the flags leave out. | [Create a project](new-project.md) |
+| Start | `hinoki new [NAME]` | Create a project; asks for what the flags leave out, ending with "Create an app now?" (`--app NAME`, `--no-app`). | [Create a project](new-project.md) |
 | | `hinoki app create\|add\|list` | Add an app, register an existing package, list the apps. | [below](#app) |
 | | `hinoki dev` / `serve` | Run with reload / run for production, on Kiso or Granian; `--interface wsgi` serves a WSGI callable. | [Serve](serving.md) |
 | | `hinoki shell` | Python shell with the app, its settings and models, top-level `await`. | [Shell](shell.md) |
@@ -79,7 +79,7 @@ On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a 
 
 ## `app` {#app}
 
-The generated `hinoki.toml` registers no app: the project package keeps `main.py`, settings, rules and the health route, and models live in apps. Create each one with:
+The generated `hinoki.toml` registers no app unless `hinoki new` created one (the last question in a terminal, or `--app NAME`): the project package keeps `main.py`, settings, rules and the health route, and models live in apps. Create each one with:
 
 ```sh
 uv run hinoki app create billing
