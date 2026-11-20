@@ -4,30 +4,25 @@
 
 ::: hinoki.app.Hinoki
     options:
-      members: true
       show_if_no_docstring: true
       inherited_members: false
 
 ::: hinoki.api.API
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.routing.RouteGroup
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.routing.Includable
 
 ::: hinoki.routing.Mount
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.routing.Route
     options:
-      members: true
       show_if_no_docstring: true
 
 For model-backed route generation, see [Generate CRUD routes](../crud.md) and
@@ -55,19 +50,16 @@ The types are available from `hinoki.http`, from `hinoki`, or from their modules
 
 ::: hinoki.http.request.Request
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.http.response.Response
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.http.response.set_cookie
 
 ::: hinoki.access.Access
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.errors.APIError
