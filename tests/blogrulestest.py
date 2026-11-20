@@ -1,7 +1,8 @@
 """The blog keeps the promises its rules state (and the rules can fail)."""
 
 import pytest
-from blog.main import create_app
+from blog.main import app
+from blog.routes import routes
 from blog.rules import blog_rules
 from blog.settings import BlogSettings
 
@@ -9,21 +10,14 @@ from hinoki import Actions, Hinoki, Request, http
 from hinoki.__main__ import main
 from hinoki.rules import Project, RuleSet, failing
 
-SECRET = "b" * 40
 CHECK = [
     "check",
-    "blog.main:create_app",
+    "blog.main:app",
     "--rules",
     "blog.rules:blog_rules",
     "--package",
     "blog",
 ]
-
-
-@pytest.fixture(autouse=True)
-def environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("BLOG_DATABASE__URL", raising=False)
-    monkeypatch.setenv("BLOG_ADMIN__SECRET", SECRET)
 
 
 def test_the_blog_passes_its_own_rules_from_the_command_line(
@@ -37,32 +31,26 @@ def test_the_blog_passes_its_own_rules_from_the_command_line(
 
 
 def test_the_blog_app_enforces_them_at_startup() -> None:
-    app = create_app("postgres://unused", SECRET)
-    assert isinstance(app.settings, BlogSettings)
     assert app.rules is blog_rules and app.enforce_rules
-    assert app.settings.database.url.reveal() == "postgres://unused"
     assert app.asgi() is not None  # would raise RegistrationError on a violation
 
 
-def test_local_settings_default_to_sqlite_without_opening_a_connection(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("BLOG_DATABASE__URL", raising=False)
-    app = create_app(secret=SECRET)
-    assert isinstance(app.settings, BlogSettings)
-    assert app.settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
+def test_local_settings_default_to_sqlite() -> None:
+    settings = BlogSettings.load(env={})
+    assert settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
 
 
 def test_a_new_unprotected_write_would_be_caught() -> None:
-    app = create_app("postgres://unused", SECRET)
+    # A second app, so the shared module app is never changed by this test.
+    fresh = Hinoki(settings=BlogSettings.load(), include=routes)
 
     @http.delete("/posts/purge")
     def purge(request: Request) -> None: ...
 
     purge.__module__ = "blog.api"
-    app.include(purge)
+    fresh.include(purge)
     chosen = [r for r in blog_rules.rules if r.id in {"HNK-ACC-001", "HNK-TXN-001"}]
-    found = RuleSet(*chosen).run(Project(app))
+    found = RuleSet(*chosen).run(Project(fresh))
     messages = " ".join(d.message for d in failing(found))
     assert "DELETE /posts/purge" in messages and "atomic=True" in messages
 

@@ -7,10 +7,12 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Any, ClassVar
 
 import pytest
-from blog.main import create_app
+from blog.accounts import build_accounts
 from blog.models import User
+from blog.routes import routes
+from blog.settings import BlogSettings
 
-from hinoki import Caller
+from hinoki import Caller, Hinoki
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
 from hinoki.db import Database
 from hinoki.orm import use_database
@@ -49,8 +51,14 @@ async def database() -> AsyncIterator[Database]:
 
 @pytest.fixture
 async def blog(database: Database, pool: Pool) -> Client:
-    assert URL is not None
-    return await pool.start(create_app(URL, "t" * 40, SECRET))
+    # A second app with login switched on; the module app has no JWT secret.
+    settings = BlogSettings.load(
+        overrides={"database": {"url": URL}, "jwt_secret": SECRET}
+    )
+    app = Hinoki(settings=settings, include=routes)
+    actions, _hasher = build_accounts(SECRET)
+    app.include(*actions)
+    return await pool.start(app)
 
 
 def bearer(token: str) -> dict[str, str]:

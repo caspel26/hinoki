@@ -1,10 +1,14 @@
-"""The notes example end to end (PostgreSQL)."""
+"""The notes example end to end.
+
+``tests/conftest.py`` points ``NOTES_DATABASE__URL`` at the test database before
+this module imports the application (the pattern of docs/testing.md).
+"""
 
 import os
 from collections.abc import AsyncIterator
 
 import pytest
-from notes.app import create_app
+from notes.main import app
 from notes.settings import NotesSettings
 
 from hinoki.db import Database
@@ -15,13 +19,9 @@ pytestmark = pytest.mark.skipif(URL is None, reason="no database")
 JSON = "application/json"
 
 
-def test_the_factory_defaults_to_local_sqlite(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("NOTES_DATABASE__URL", raising=False)
-    app = create_app()
-    assert isinstance(app.settings, NotesSettings)
-    assert app.settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
+def test_settings_default_to_local_sqlite() -> None:
+    settings = NotesSettings.load(env={})
+    assert settings.database.url.reveal() == "sqlite://./.hinoki/local.sqlite3"
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ async def client(pool: Pool) -> AsyncIterator[Client]:
         "CREATE TABLE notes (id uuid PRIMARY KEY, title varchar(80) NOT NULL, "
         "body text NOT NULL)"
     )
-    yield await pool.start(create_app(URL))
+    yield await pool.start(app)
     await db.execute("DROP TABLE IF EXISTS notes")
     db.close()
 

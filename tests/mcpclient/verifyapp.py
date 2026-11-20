@@ -61,8 +61,8 @@ async def main() -> None:
     )
     server = subprocess.Popen(
         [
-            *("uv", "run", "--locked", "granian", "--interface", "asgi", "--factory"),
-            *("--port", str(PORT), "tracker.app:create_app"),
+            *("uv", "run", "--locked", "granian", "--interface", "asgi"),
+            *("--port", str(PORT), "tracker.main:app"),
         ],
         cwd=project,
         env=env,
