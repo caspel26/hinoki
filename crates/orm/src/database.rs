@@ -543,6 +543,22 @@ impl Drop for Flight<'_> {
     }
 }
 
+/// The SQLite counterpart of `Flight`: a statement is already queued on the
+/// database thread, so abandoning it leaves a transaction whose state the caller
+/// can no longer know, and it must not be committed.
+struct SqliteFlight<'a> {
+    poisoned: &'a AtomicBool,
+    armed: bool,
+}
+
+impl Drop for SqliteFlight<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.poisoned.store(true, Ordering::SeqCst);
+        }
+    }
+}
+
 /// A transaction. Dropping it without `commit`/`rollback`, or after a
 /// statement was abandoned mid-flight, discards the connection instead of
 /// returning one in an unknown state to the pool.
@@ -655,13 +671,18 @@ impl Transaction {
         Ok(())
     }
 
-    fn conn(&self) -> Result<&Object, DbError> {
+    fn ensure_not_interrupted(&self) -> Result<(), DbError> {
         if self.poisoned.load(Ordering::SeqCst) {
             return Err(DbError::new(
                 ErrorKind::Other,
                 "transaction was interrupted",
             ));
         }
+        Ok(())
+    }
+
+    fn conn(&self) -> Result<&Object, DbError> {
+        self.ensure_not_interrupted()?;
         match &self.backend {
             TransactionBackend::Postgres {
                 conn: Some(conn), ..
@@ -702,7 +723,13 @@ impl Transaction {
         self.trace.record("fetch", sql, values);
         match &self.backend {
             TransactionBackend::Sqlite { primary, .. } => {
+                self.ensure_not_interrupted()?;
+                let mut flight = SqliteFlight {
+                    poisoned: &self.poisoned,
+                    armed: true,
+                };
                 let outcome = primary.fetch(sql, values).await;
+                flight.armed = false;
                 self.settle(sql, &outcome);
                 outcome
             }
@@ -736,7 +763,13 @@ impl Transaction {
         self.trace.record("execute", sql, values);
         match &self.backend {
             TransactionBackend::Sqlite { primary, .. } => {
+                self.ensure_not_interrupted()?;
+                let mut flight = SqliteFlight {
+                    poisoned: &self.poisoned,
+                    armed: true,
+                };
                 let outcome = primary.execute(sql, values).await;
+                flight.armed = false;
                 self.settle(sql, &outcome);
                 outcome
             }
@@ -769,12 +802,7 @@ impl Transaction {
     /// back and reported as an error: PostgreSQL would silently answer
     /// `COMMIT` with a rollback, which must never look like success.
     pub async fn commit(mut self) -> Result<(), DbError> {
-        if self.poisoned.load(Ordering::SeqCst) {
-            return Err(DbError::new(
-                ErrorKind::Other,
-                "transaction was interrupted",
-            ));
-        }
+        self.ensure_not_interrupted()?;
         if self.failed.load(Ordering::SeqCst) {
             self.finish("ROLLBACK").await?;
             let mut err = DbError::new(
