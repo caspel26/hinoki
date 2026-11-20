@@ -8,6 +8,7 @@
 //! closes the connection (HTTP/1.1) instead of ending the body as if complete.
 
 use std::fmt;
+use std::io::Write as _;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -33,6 +34,20 @@ impl fmt::Display for Aborted {
 }
 
 impl std::error::Error for Aborted {}
+
+/// Write one error line to stderr: the transport could not send an answer as
+/// the backend gave it. A closed or failing stderr is ignored.
+pub fn report(text: &str) {
+    let line = format!("kiso: error: {text}\n");
+    let _ = std::io::stderr().lock().write_all(line.as_bytes());
+}
+
+fn report_length(received: u64, declared: u64, relation: &str) {
+    report(&format!(
+        "the response body has {received} bytes, {relation} than the {declared} its \
+         content-length declares; the connection is closed"
+    ));
+}
 
 /// An answer whose head is known and whose body follows in `chunks`.
 #[derive(Debug)]
@@ -69,14 +84,27 @@ pub struct Live {
     chunks: mpsc::Receiver<Chunk>,
     pending: Bytes,
     finished: bool,
+    /// The `content-length` the head declared, which the body must match.
+    declared: Option<u64>,
+    received: u64,
 }
 
 impl Live {
     pub fn new(chunks: mpsc::Receiver<Chunk>) -> Self {
+        Self::with_length(chunks, None)
+    }
+
+    /// A body whose head declared `content-length: declared`. One that turns
+    /// out shorter or longer ends as [`Aborted`] (the connection is closed or
+    /// the stream reset) instead of leaving the client waiting for bytes that
+    /// never come, or reading the excess as the next response.
+    pub fn with_length(chunks: mpsc::Receiver<Chunk>, declared: Option<u64>) -> Self {
         Self {
             chunks,
             pending: Bytes::new(),
             finished: false,
+            declared,
+            received: 0,
         }
     }
 
@@ -96,16 +124,45 @@ impl Live {
             }
             match self.chunks.poll_recv(cx) {
                 Poll::Pending => return Poll::Pending,
-                Poll::Ready(Some(Ok(bytes))) => self.pending = bytes,
+                Poll::Ready(Some(Ok(bytes))) => {
+                    if let Some(aborted) = self.take(bytes) {
+                        return Poll::Ready(Some(Err(aborted)));
+                    }
+                }
                 Poll::Ready(Some(Err(aborted))) => {
                     self.finished = true;
                     return Poll::Ready(Some(Err(aborted)));
                 }
-                Poll::Ready(None) => {
-                    self.finished = true;
-                    return Poll::Ready(None);
-                }
+                Poll::Ready(None) => return Poll::Ready(self.end()),
             }
+        }
+    }
+
+    /// Queue a piece the producer sent, unless it goes past the declared length.
+    fn take(&mut self, bytes: Bytes) -> Option<Aborted> {
+        self.received += bytes.len() as u64;
+        match self.declared {
+            Some(declared) if self.received > declared => {
+                self.finished = true;
+                report_length(self.received, declared, "more");
+                Some(Aborted)
+            }
+            _ => {
+                self.pending = bytes;
+                None
+            }
+        }
+    }
+
+    /// The producer is done: the end, or an error if the body fell short.
+    fn end(&mut self) -> Option<Result<Bytes, Aborted>> {
+        self.finished = true;
+        match self.declared {
+            Some(declared) if self.received < declared => {
+                report_length(self.received, declared, "fewer");
+                Some(Err(Aborted))
+            }
+            _ => None,
         }
     }
 
@@ -188,5 +245,32 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Chunk>(1);
         drop(Live::new(receiver));
         assert!(sender.send(Ok(Bytes::new())).await.is_err());
+    }
+
+    async fn declared(length: u64, pieces: &[&'static [u8]]) -> Vec<Result<Bytes, Aborted>> {
+        let (sender, receiver) = mpsc::channel(pieces.len().max(1));
+        for piece in pieces {
+            sender.send(Ok(Bytes::from_static(piece))).await.unwrap();
+        }
+        drop(sender);
+        let mut live = Live::with_length(receiver, Some(length));
+        let mut seen = Vec::new();
+        while let Some(piece) = next(&mut live, 8).await {
+            seen.push(piece);
+        }
+        seen
+    }
+
+    #[tokio::test]
+    async fn a_body_held_to_its_declared_length() {
+        let exact = declared(4, &[b"ab", b"cd"]).await;
+        assert_eq!(
+            exact,
+            [Ok(Bytes::from_static(b"ab")), Ok(Bytes::from_static(b"cd"))]
+        );
+        let short = declared(5, &[b"ab"]).await;
+        assert_eq!(short, [Ok(Bytes::from_static(b"ab")), Err(Aborted)]);
+        let long = declared(3, &[b"ab", b"cd"]).await;
+        assert_eq!(long, [Ok(Bytes::from_static(b"ab")), Err(Aborted)]);
     }
 }
