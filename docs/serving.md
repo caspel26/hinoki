@@ -21,6 +21,14 @@ reload, with the workers your settings ask for. Both read the application from
 target: `module:app`, such as `hinoki dev notes.main:app`. A function callable
 without arguments that returns an application (a factory) is also accepted.
 
+On Kiso, when the application sets `docs_url`, `hinoki dev` prints the address of
+the documentation page under the `listening on` line, for example
+`docs: http://127.0.0.1:8000/docs`, with the address in the brand colour on a
+terminal that takes colour (plain text in a pipe, in CI or with `NO_COLOR` set);
+nothing is printed when `docs_url` is unset.
+`hinoki serve` prints it too when it runs a supervisor (more than one worker),
+but not with a single worker, which runs in the command's own process.
+
 Each worker imports the target, then opens what the application owns (database
 pool, modules) in its lifespan and closes it on shutdown. Importing your code
 never opens a connection. See [database connection ownership](settings.md#8-database-connection-ownership).
