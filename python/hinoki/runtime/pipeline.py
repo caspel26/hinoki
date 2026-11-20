@@ -22,6 +22,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 from hinoki import context, core
+from hinoki.auth import Caller
 from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.docsui import CSP, Page
@@ -75,7 +76,6 @@ from hinoki.settings import AppSettings, SecuritySettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
-    from hinoki.auth import Caller
     from hinoki.ratelimit import RateLimitPolicy
 
 log = logging.getLogger("hinoki.runtime")
@@ -96,6 +96,8 @@ class NativeBody(NamedTuple):
     headers: list[tuple[bytes, bytes]]
     query: bytes
     client: tuple[str, int] | None
+    # The caller Rust already authenticated: the `sub` and every string scope.
+    principal: tuple[str, list[str]] | None = None
 
 
 class BodySource(Protocol):
@@ -899,7 +901,10 @@ class Pipeline:
         if input_error is not None and input_error[0] == "bad_path_encoding":
             raise native_input_exception(input_error)
         principal = None
-        if access is not None:
+        if access is not None and native.principal is not None:
+            subject, scopes = native.principal
+            principal = Caller(subject, None, frozenset(scopes))
+        elif access is not None:
             query = parse_query(native.query)
             principal = await authorize(access, core.header_dict(native.headers), query)
         if binding.route.rate_limit is not None:

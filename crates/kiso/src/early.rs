@@ -23,6 +23,12 @@ pub enum Early {
     BadHost,
     DisallowedHost,
     CorsOriginDenied,
+    /// No credentials on a route that needs them.
+    Unauthorized,
+    /// Credentials that do not authenticate.
+    InvalidCredentials,
+    /// An authenticated caller without the route's permissions.
+    Forbidden,
 }
 
 impl Early {
@@ -37,7 +43,8 @@ impl Early {
             Early::NotAcceptable => 406,
             Early::BadHost => 400,
             Early::DisallowedHost => 400,
-            Early::CorsOriginDenied => 403,
+            Early::CorsOriginDenied | Early::Forbidden => 403,
+            Early::Unauthorized | Early::InvalidCredentials => 401,
         }
     }
 

@@ -30,8 +30,9 @@ import logging
 import os
 import signal
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from http import HTTPStatus
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
@@ -44,7 +45,12 @@ from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_da
 from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.recent import RequestRecorder
 from hinoki.runtime.responses import HTTPError, Response
-from hinoki.runtime.servercore import build_server_core
+from hinoki.runtime.servercore import (
+    build_server_core,
+    claims_route_access,
+    route_auth_stale,
+    route_auth_state,
+)
 from hinoki.serve import load_target, settings_of
 from hinoki.settings import RUST_ONLY, ServerSettings
 
@@ -148,6 +154,9 @@ def scope_of(
 
 class KisoWorker:
     """Runs one application on the Rust server inside the current event loop."""
+
+    # The routes Rust authenticates, with what it copied; set at startup.
+    _route_auth: Mapping[int, tuple[Any, tuple[object, ...]]] = MappingProxyType({})
 
     def __init__(  # noqa: PLR0913 - one parameter per native limit
         self,
@@ -276,6 +285,11 @@ class KisoWorker:
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
         self.timer = loop.call_later(HOUSEKEEPING, self._tick)
+        self._route_auth = {
+            action: (access, route_auth_state(access))
+            for action, binding in enumerate(self.pipeline.bindings)
+            if (access := claims_route_access(binding)) is not None
+        }
         self.core.set_ready(True)
         return server.port
 
@@ -357,6 +371,27 @@ class KisoWorker:
             self.pipeline.crud_plan_reasons[action] = "native_plan_stale"
             log.warning("native CRUD plan %s disarmed after staleness check", action)
 
+    def _check_route_auth(self) -> None:
+        """Send a route back to Python once its access policy or provider no
+        longer is what Rust holds (a key, issuer, audience, leeway, scope claim,
+        permission or challenge changed)."""
+        armed = {}
+        for action, held in self._route_auth.items():
+            if self._route_auth_stale(action, held):
+                self.core._disarm_route_auth(action)
+                log.warning("native authentication of route %s disarmed", action)
+            else:
+                armed[action] = held
+        self._route_auth = armed
+
+    def _route_auth_stale(
+        self, action: int, held: tuple[Any, tuple[object, ...]]
+    ) -> bool:
+        try:
+            return route_auth_stale(self.pipeline.bindings[action], *held)
+        except Exception:
+            return True
+
     def _tick(self) -> None:
         """One pass, then the next: a failing pass must not end the chain (it
         also detects a dead supervisor)."""
@@ -379,6 +414,7 @@ class KisoWorker:
                 ignored,
             )
         self._check_crud_snapshots()
+        self._check_route_auth()
         if self.parent is not None and os.getppid() != self.parent:
             log.error("the supervisor is gone; stopping")
             self.stopping.set()
@@ -515,7 +551,11 @@ class KisoWorker:
                 request.native_args,
                 request.native_error,
                 NativeBody(
-                    RustBody(request), request.headers, request.query, request.client
+                    RustBody(request),
+                    request.headers,
+                    request.query,
+                    request.client,
+                    request.native_principal,
                 )
                 if needs_request_data(binding)
                 else None,

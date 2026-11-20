@@ -440,18 +440,21 @@ impl ClaimsAuth {
     /// The `sub` of `Authorization: Bearer <token>` when it is a valid token
     /// whose claims give a non-empty `sub` and every required permission.
     pub(crate) fn subject(&self, authorization: &[u8], now: i64) -> Option<String> {
-        let space = authorization.iter().position(|byte| *byte == b' ')?;
-        let (scheme, token) = (&authorization[..space], &authorization[space + 1..]);
-        // Only a plain token is read here, so Python's whitespace stripping
-        // cannot make the two readings differ.
-        if !scheme.eq_ignore_ascii_case(b"bearer")
-            || token.is_empty()
-            || !token.iter().copied().all(is_token_byte)
-        {
-            return None;
+        match self.admit(Some(authorization), now) {
+            Admission::Admit { subject, .. } => Some(subject),
+            _ => None,
         }
-        let Ok(token) = std::str::from_utf8(token) else {
-            return None;
+    }
+
+    /// What Python's `authorize` decides for one `Authorization` header (absent
+    /// or appearing once). Only outcomes both sides read identically are
+    /// decided: a header that is not a plain bearer token is `Defer`red.
+    pub(crate) fn admit(&self, authorization: Option<&[u8]>, now: i64) -> Admission {
+        let Some(authorization) = authorization else {
+            return Admission::Missing;
+        };
+        let Some(token) = plain_bearer(authorization) else {
+            return Admission::Defer;
         };
         let rules = Rules {
             now,
@@ -461,29 +464,67 @@ impl ClaimsAuth {
             require_exp: self.require_exp,
         };
         let Ok(payload) = decode(token, &self.keys, &rules) else {
-            return None;
+            return Admission::Invalid;
         };
-        let Ok(claims) = object(&payload) else {
-            return None;
-        };
-        self.grants(&claims)
+        match object(&payload) {
+            Ok(claims) => self.grants(&claims),
+            Err(_) => Admission::Invalid,
+        }
     }
 
-    fn grants(&self, claims: &Map<String, Value>) -> Option<String> {
+    fn grants(&self, claims: &Map<String, Value>) -> Admission {
         let subject = match claims.get("sub") {
             Some(Value::String(subject)) if !subject.is_empty() => subject.clone(),
-            _ => return None,
+            _ => return Admission::Invalid,
         };
-        let granted: Vec<&str> = match claims.get(&self.scope_claim) {
+        let scopes: Vec<String> = match claims.get(&self.scope_claim) {
             None => Vec::new(),
-            Some(Value::Array(items)) => items.iter().filter_map(Value::as_str).collect(),
-            Some(_) => return None,
+            Some(Value::Array(items)) => items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect(),
+            Some(_) => return Admission::Invalid,
         };
-        self.required
-            .iter()
-            .all(|permission| granted.contains(&permission.as_str()))
-            .then_some(subject)
+        if self.required.iter().all(|need| scopes.contains(need)) {
+            Admission::Admit { subject, scopes }
+        } else {
+            Admission::Forbidden
+        }
     }
+}
+
+/// The token of `Bearer <token>` when it is plain enough that Python's
+/// whitespace stripping cannot make the two readings differ.
+fn plain_bearer(authorization: &[u8]) -> Option<&str> {
+    let space = authorization.iter().position(|byte| *byte == b' ')?;
+    let (scheme, token) = (&authorization[..space], &authorization[space + 1..]);
+    if !scheme.eq_ignore_ascii_case(b"bearer")
+        || token.is_empty()
+        || !token.iter().copied().all(is_token_byte)
+    {
+        return None;
+    }
+    std::str::from_utf8(token).ok()
+}
+
+/// The verdict of [`ClaimsAuth::admit`].
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Admission {
+    /// Authenticated, with every permission the route requires; `scopes` are all
+    /// the string scopes of the token.
+    Admit {
+        subject: String,
+        scopes: Vec<String>,
+    },
+    /// No credentials: Python answers `401`.
+    Missing,
+    /// Credentials Python would refuse: `401`.
+    Invalid,
+    /// Authenticated without the required permissions: `403`.
+    Forbidden,
+    /// Not read the same way on both sides; Python decides.
+    Defer,
 }
 
 /// Private immutable claims-only authentication settings of one CRUD route.
@@ -871,5 +912,36 @@ mod tests {
         forged.pop();
         forged.push('x');
         assert!(!auth.admits(format!("Bearer {forged}").as_bytes(), 1000));
+    }
+
+    #[test]
+    fn claims_auth_names_the_answer_python_gives() {
+        let auth = claims_auth(&["posts:write"]);
+        let good = r#"{"sub":"u1","exp":2000,"scopes":["posts:write","x",7]}"#;
+        assert_eq!(
+            auth.admit(Some(&bearer(good)), 1000),
+            Admission::Admit {
+                subject: "u1".to_owned(),
+                scopes: vec!["posts:write".to_owned(), "x".to_owned()],
+            }
+        );
+        assert_eq!(auth.admit(None, 1000), Admission::Missing);
+        assert_eq!(auth.admit(Some(&bearer(good)), 2000), Admission::Invalid);
+        assert_eq!(
+            auth.admit(
+                Some(&bearer(r#"{"sub":"u1","exp":2000,"scopes":[]}"#)),
+                1000
+            ),
+            Admission::Forbidden
+        );
+        assert_eq!(
+            auth.admit(
+                Some(&bearer(r#"{"exp":2000,"scopes":["posts:write"]}"#)),
+                1000
+            ),
+            Admission::Invalid
+        );
+        assert_eq!(auth.admit(Some(b"Basic abc"), 1000), Admission::Defer);
+        assert_eq!(auth.admit(Some(b"Bearer "), 1000), Admission::Defer);
     }
 }

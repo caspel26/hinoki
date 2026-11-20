@@ -35,6 +35,7 @@ use tokio::sync::oneshot;
 use crate::completion;
 use crate::crudplan::{CrudPlan, PyCrudPlan};
 use crate::db::PyDatabase;
+use crate::jwt::{Admission, ClaimsAuth, PyClaimsAuth};
 use crate::request;
 use crate::router::{Match, Router};
 use kiso::redirect;
@@ -136,6 +137,7 @@ pub struct PreparedRequest {
     native_handler: bool,
     native_args: NativeArgs,
     native_error: Option<NativeInputError>,
+    native_principal: Option<(String, Vec<String>)>,
     native_policy: Vec<Header>,
     /// The CORS headers for the request's `Origin`, added to a native handler's
     /// answer unless it sets its own `access-control-allow-origin`.
@@ -332,6 +334,12 @@ impl PreparedRequest {
             }
         }
         Ok(args)
+    }
+
+    /// The caller Rust authenticated (`sub` and every string scope), if it did.
+    #[getter]
+    fn native_principal(&self) -> Option<(String, Vec<String>)> {
+        self.native_principal.clone()
     }
 
     #[getter]
@@ -751,6 +759,8 @@ struct NativeInput {
     enabled: bool,
     args: NativeArgs,
     error: Option<NativeInputError>,
+    /// The caller Rust authenticated: the `sub` and every string scope.
+    principal: Option<(String, Vec<String>)>,
 }
 
 impl NativeInput {
@@ -804,6 +814,7 @@ fn prepare_native_inputs(
             enabled: true,
             args,
             error: None,
+            principal: None,
         }
     } else {
         let mut error = native_error("validation_error", "invalid request parameters");
@@ -931,6 +942,9 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "bad_host" => Early::BadHost,
         "disallowed_host" => Early::DisallowedHost,
         "cors_origin_denied" => Early::CorsOriginDenied,
+        "unauthorized" => Early::Unauthorized,
+        "invalid_credentials" => Early::InvalidCredentials,
+        "forbidden" => Early::Forbidden,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown early kind {other:?}"
@@ -980,6 +994,7 @@ pub struct Core {
     proxies: Networks,
     python_paths: Vec<String>,
     static_pages: Vec<StaticPage>,
+    route_auth: HashMap<u32, RouteAuth>,
     startup_probe: Option<StartupProbe>,
 }
 
@@ -1055,6 +1070,17 @@ struct StaticPage {
 /// `(path, headers, body)` of a [`StaticPage`].
 type StaticSpec = (String, Vec<Header>, Vec<u8>);
 
+/// The claims-only authentication of one route, and the `www-authenticate`
+/// challenge Python adds to its `401`.
+struct RouteAuth {
+    auth: Arc<ClaimsAuth>,
+    challenge: Option<Vec<u8>>,
+    armed: AtomicBool,
+}
+
+/// `(action, authentication, challenge)` of a [`RouteAuth`].
+type RouteAuthSpec = (u32, Py<PyClaimsAuth>, Option<Vec<u8>>);
+
 /// The Python handle of a [`Core`].
 #[pyclass(name = "ServerCore", module = "hinoki.core", frozen)]
 pub struct ServerCore {
@@ -1076,7 +1102,7 @@ impl ServerCore {
         request_timeout_ms=30000,
         trust_request_id=false, python_paths=Vec::new(),
         cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new(),
-        hosts=None, redirect_https=false, static_pages=Vec::new()
+        hosts=None, redirect_https=false, static_pages=Vec::new(), route_auth=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1098,6 +1124,7 @@ impl ServerCore {
         hosts: Option<HostsSpec>,
         redirect_https: bool,
         static_pages: Vec<StaticSpec>,
+        route_auth: Vec<RouteAuthSpec>,
     ) -> PyResult<Self> {
         if redirect_https && hosts.is_none() {
             return Err(PyValueError::new_err(
@@ -1178,6 +1205,20 @@ impl ServerCore {
                         body,
                     })
                     .collect(),
+                route_auth: route_auth
+                    .into_iter()
+                    .map(|(action, auth, challenge)| {
+                        let auth = Arc::clone(&auth.get().inner);
+                        (
+                            action,
+                            RouteAuth {
+                                auth,
+                                challenge,
+                                armed: AtomicBool::new(true),
+                            },
+                        )
+                    })
+                    .collect(),
                 startup_probe,
             }),
         })
@@ -1244,6 +1285,14 @@ impl ServerCore {
     #[getter]
     fn _native_in_flight(&self) -> usize {
         self.core.native_jobs.in_flight()
+    }
+
+    /// Stop authenticating a route natively once its provider changed: its
+    /// requests go to Python again.
+    fn _disarm_route_auth(&self, action: u32) {
+        if let Some(route) = self.core.route_auth.get(&action) {
+            route.armed.store(false, Ordering::Release);
+        }
     }
 
     fn _disarm_crud(&self, action: u32) -> bool {
@@ -1544,11 +1593,16 @@ impl Core {
             }
         };
         let native_handler = plan.native_handler;
-        let native_input = if native_handler {
+        let mut native_input = if native_handler {
             prepare_native_inputs(plan, &params, head.query, &head.headers).unwrap_or_default()
         } else {
             NativeInput::default()
         };
+        if let Some((early, extra)) =
+            action.and_then(|n| self.authenticate(n, &head, &mut native_input))
+        {
+            return self.answer(&asked, early, extra);
+        }
         let prepared_path_params =
             (!native_input.enabled).then(|| prepare_python_path_params(&params));
         self.enqueue(
@@ -1559,6 +1613,65 @@ impl Core {
             prepared_path_params,
             (native_input, native_execution),
         )
+    }
+
+    /// Authenticate a native route that uses a claims-only provider, in the order
+    /// the Python pipeline does: after a bad path encoding or malformed query
+    /// string (which Python reports first, so those requests stay queued) and
+    /// before negotiation and validation. `Some` is the refusal to answer; an
+    /// admitted caller is recorded in `input`. Anything Rust and Python might
+    /// read differently is left to Python.
+    fn authenticate(
+        &self,
+        action: u32,
+        head: &Head<'_>,
+        input: &mut NativeInput,
+    ) -> Option<(Early, Vec<Header>)> {
+        let route = self.route_auth.get(&action)?;
+        if !route.armed.load(Ordering::Acquire) {
+            return None;
+        }
+        let reported_first = input.error.as_ref().is_some_and(|error| {
+            matches!(
+                error.code.as_str(),
+                "bad_path_encoding" | "invalid_query" | "internal_error"
+            )
+        });
+        if !input.enabled || reported_first || request::parse_query(head.query, 1000).is_err() {
+            return None;
+        }
+        let mut credentials = head
+            .headers
+            .iter()
+            .filter(|(name, _)| name.eq_ignore_ascii_case(b"authorization"));
+        let first = credentials.next();
+        if credentials.next().is_some() {
+            return None;
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(0));
+        let challenge = || {
+            route
+                .challenge
+                .iter()
+                .map(|value| (b"www-authenticate".to_vec(), value.clone()))
+                .collect()
+        };
+        let refusal = match route
+            .auth
+            .admit(first.map(|(_, value)| value.as_slice()), now)
+        {
+            Admission::Admit { subject, scopes } => {
+                input.principal = Some((subject, scopes));
+                return None;
+            }
+            Admission::Defer => return None,
+            Admission::Missing => (Early::Unauthorized, challenge()),
+            Admission::Invalid => (Early::InvalidCredentials, challenge()),
+            Admission::Forbidden => (Early::Forbidden, Vec::new()),
+        };
+        Some(refusal)
     }
 
     fn policy_response(&self, head: &Head<'_>, asked: &Asked) -> Result<Option<Outcome>, String> {
@@ -1763,6 +1876,7 @@ impl Core {
             native_handler: native_input.enabled,
             native_args: native_input.args,
             native_error: native_input.error,
+            native_principal: native_input.principal,
             native_policy,
             native_cors,
             route_headers,

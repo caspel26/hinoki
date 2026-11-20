@@ -180,7 +180,11 @@ class NativeLane:
         if action not in self.with_data:
             return None
         return NativeBody(
-            self.source(request), request.headers, request.query, request.client
+            self.source(request),
+            request.headers,
+            request.query,
+            request.client,
+            request.native_principal,
         )
 
     def cancel_all(self) -> None:

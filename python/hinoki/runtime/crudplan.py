@@ -486,16 +486,11 @@ CLAIMS_AUTH_METHODS = (
 CLAIMS_AUTH_METHODS_ORIGINAL = static_state(ClaimsJWTAuth, CLAIMS_AUTH_METHODS)
 
 
-def access_is_plain(route: Any, resource: _CrudConfig, action: str) -> bool:
-    """The route's access is the resource's own and is either absent or a
-    claims-only provider Rust can verify without running application code."""
-    declared = resource.access_for(action)
-    if route.access is not declared:
-        return False
-    if declared is None:
-        return True
+def claims_access_is_plain(declared: Any) -> bool:
+    """The access policy's provider is an unmodified claims-only provider Rust
+    can verify without running application code."""
     auth = declared.auth
-    return (
+    return bool(
         type(auth).__mro__.count(ClaimsJWTAuth) == 1
         and not vars(auth)
         and auth.header == "authorization"
@@ -506,6 +501,15 @@ def access_is_plain(route: Any, resource: _CrudConfig, action: str) -> bool:
             ClaimsJWTAuth, CLAIMS_AUTH_METHODS, CLAIMS_AUTH_METHODS_ORIGINAL
         )
     )
+
+
+def access_is_plain(route: Any, resource: _CrudConfig, action: str) -> bool:
+    """The route's access is the resource's own and is either absent or a
+    claims-only provider Rust can verify without running application code."""
+    declared = resource.access_for(action)
+    if route.access is not declared:
+        return False
+    return declared is None or claims_access_is_plain(declared)
 
 
 def auth_snapshot(access: Any) -> tuple[object, ...]:
