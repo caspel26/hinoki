@@ -196,6 +196,7 @@
   gap: var(--sp-7);
   align-items: center;
   min-height: calc(100vh - var(--header-h) - 64px);
+  min-height: calc(100svh - var(--header-h) - 64px);
   padding: var(--sp-8) 0 var(--sp-7);
 }
 
@@ -212,16 +213,26 @@
   mask-image: radial-gradient(70% 80% at 65% 45%, #000 30%, transparent 85%);
 }
 
+/* The glow is a painted radial gradient, not filter: blur(). A large blur
+   re-composited on every animation frame held phones at about 30 fps. The
+   gradient is rasterised once and only its transform animates. */
 .hn-hero__bg b {
+  --orb: transparent;
   position: absolute;
   border-radius: 50%;
-  filter: blur(72px);
+  background: radial-gradient(closest-side, var(--orb), color-mix(in srgb, var(--orb) 55%, transparent) 45%, transparent);
   animation: drift 20s ease-in-out infinite alternate;
 }
 
-.hn-hero__bg b:nth-of-type(1) { width: 460px; height: 460px; left: 42%; top: -8%; background: var(--orb-1); }
-.hn-hero__bg b:nth-of-type(2) { width: 380px; height: 380px; right: -4%; top: 30%; background: var(--orb-2); animation-delay: -7s; }
-.hn-hero__bg b:nth-of-type(3) { width: 320px; height: 320px; left: 28%; bottom: -10%; background: var(--orb-3); animation-delay: -12s; }
+.hn-hero__bg b:nth-of-type(1) { --orb: var(--orb-1); width: 600px; height: 600px; left: calc(42% - 70px); top: calc(-8% - 70px); }
+.hn-hero__bg b:nth-of-type(2) { --orb: var(--orb-2); width: 520px; height: 520px; right: calc(-4% - 70px); top: calc(30% - 70px); animation-delay: -7s; }
+.hn-hero__bg b:nth-of-type(3) { --orb: var(--orb-3); width: 460px; height: 460px; left: calc(28% - 70px); bottom: calc(-10% - 70px); animation-delay: -12s; }
+
+/* Decorative loops stop while their section is off screen or the tab is hidden. */
+.hn-hero.is-idle .hn-hero__bg *,
+.hn-ticker.is-idle .hn-ticker__track {
+  animation-play-state: paused;
+}
 
 @keyframes drift {
   from { transform: translate3d(-24px, 10px, 0) scale(0.94); }
@@ -1523,6 +1534,7 @@
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: clamp(620px, 84vh, 756px);
+  height: clamp(620px, 84svh, 756px);
   border-color: var(--ide-edge);
   background: var(--ide-bg);
   box-shadow: 0 30px 70px -34px rgb(40 20 90 / 0.65), 0 0 0 1px rgb(185 140 255 / 0.06);
@@ -1852,6 +1864,7 @@
 @media (max-width: 640px) {
   .hn-panel.ide {
     height: clamp(500px, 72vh, 620px);
+    height: clamp(500px, 72svh, 620px);
   }
 
   .hn-panel.ide .hn-panel__body {
