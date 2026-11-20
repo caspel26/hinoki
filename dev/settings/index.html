@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:02 UTC">November 20, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -953,8 +953,10 @@ NOTES_THEME                    .env         dark
 <code>.env</code>, <code>toml</code>, <code>file</code> or <code>default</code>. The command reads the prefix, <code>.env</code> and
 TOML file the class declares; <code>--prefix</code>, <code>--dotenv</code> and <code>--toml</code> override them.
 <code>--format json</code> prints the same for tools, and <code>--example</code> writes a ready
-<code>.env.example</code> (every variable with its default and type; secrets and required
-values blank):</p>
+<code>.env.example</code>: every variable with its default and type, required values blank
+to fill in, and the optional ones with no printable default (secrets such as the
+database URL, values that default to unset) commented out, so a copied file
+keeps their defaults:</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>settings<span class="w"> </span>--example<span class="w"> </span>&gt;<span class="w"> </span>.env.example
 </code></pre></div>
 <h2 id="your-own-loggers">Logging and your own loggers<a class="headerlink" href="#your-own-loggers" title="Permanent link">&para;</a></h2>
@@ -1025,7 +1027,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:58:02 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
