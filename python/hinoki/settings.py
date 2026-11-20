@@ -1071,6 +1071,9 @@ class ServerSettings(Settings):
     these; they do nothing when another runner starts the app.
 
     ``server`` picks Kiso, Hinoki's Rust server (the default), or Granian.
+    ``interface`` is how the server calls the target: ``asgi`` (a Hinoki
+    application) or ``wsgi`` (a WSGI callable, such as a ``WSGIAdapter``); the
+    ``--interface`` flag overrides it.
     ``access_log``
     prints one line per request on either server; unset, ``hinoki dev`` logs and
     ``hinoki serve`` does not, and ``True`` or ``False`` decides for both.
@@ -1114,6 +1117,7 @@ class ServerSettings(Settings):
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False
     server: Literal["granian", "kiso"] = "kiso"
+    interface: Literal["asgi", "wsgi"] = "asgi"
     max_connections: int | None = None
     header_read_timeout: float | None = None
     body_read_timeout: float | None = None
