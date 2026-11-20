@@ -347,7 +347,8 @@ class OpenAPIBuilder:
         if known is None:
             self.owners[name] = schema
             self.components[name] = {}  # placeholder: breaks recursion
-            self.components[name] = self.object_schema(schema)
+            # Replaces the placeholder.
+            self.components[name] = self.object_schema(schema)  # NOSONAR
         return ref(name)
 
     def object_schema(self, schema: type[Schema]) -> dict[str, Any]:
