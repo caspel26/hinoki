@@ -88,6 +88,18 @@ def test_new_project_has_manifest_and_default_migration_package(
     assert ".hinoki/" in (project / ".gitignore").read_text()
 
 
+@pytest.mark.parametrize("database", ["none", "sqlite", "postgresql"])
+def test_new_project_ignores_the_dotenv_file_but_not_its_example(
+    tmp_path: Path, database: str
+) -> None:
+    project = create("sample", tmp_path, database=database)
+
+    ignored = (project / ".gitignore").read_text().splitlines()
+
+    assert ".env" in ignored
+    assert not any(line.startswith(".env.") or line == ".env*" for line in ignored)
+
+
 def test_project_migrations_default_to_sqlite_and_initialize_local_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
