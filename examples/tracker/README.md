@@ -1,41 +1,46 @@
 # Tracker
 
-Tracker demonstrates a layered app: typed HTTP routes in `api.py`, reusable
-business operations in `operations.py`, persistence in `models.py`, and
-optional architecture rules in `rules.py`. Its task endpoints scope every
-read/write to the authenticated member. The app also exposes the task listing
-as an authenticated MCP tool.
+A layered app: HTTP routes in `api.py`, business operations in `operations.py`,
+tables in `models.py` and architecture rules in `rules.py`. Every task read and
+write is scoped to the authenticated member, and the task list is also an
+authenticated MCP tool. The [tutorial](https://caspel26.github.io/hinoki/tutorial/)
+builds it chapter by chapter.
 
-## Run locally
+## Run
 
-The checked-in initial and index migrations can be applied to the default local
-SQLite database before starting the app. Run these commands from `examples/` so
-`--project ..` selects the repository's locked Python environment:
+From `examples/`:
 
 ```sh
-cd examples
-uv run --project .. hinoki app list
-uv run --project .. hinoki migrations status
-uv run --project .. hinoki migrations plan --app tracker --dry-run
-uv run --project .. hinoki migrations sql --app tracker 0001-initial
-uv run --project .. hinoki migrations sql --app tracker 0002-indexes
-uv run --project .. hinoki migrations apply --app tracker
-uv run --project .. hinoki dev tracker.app:create_app
+uv run hinoki migrations apply tracker
+uv run hinoki dev tracker.app:create_app
 ```
 
-The local database is `.hinoki/local.sqlite3`. For another backend, set
-`TRACKER_DATABASE__URL`; set `HINOKI_DATABASE_URL` to that same URL for
-migration commands. Open `/docs` for the generated OpenAPI document. Status
-shows all registered apps; `--app tracker` scopes plans and applies to Tracker
-and its declared dependencies.
+The checked-in migrations are in [`migrations/`](migrations/). The database is
+`.hinoki/local.sqlite3`; set `TRACKER_DATABASE__URL` for another one, and
+`HINOKI_DATABASE_URL` to the same URL for the migration commands. Open `/docs`
+for the OpenAPI UI.
 
-Members need a `Member` row with an opaque token to use the API. The API
-provides health, paginated task listing, creation, completion and deletion;
-completed tasks cannot be deleted. The repository tests create synthetic
-members and use a disposable database (PostgreSQL or a throwaway SQLite file in `HINOKI_TEST_DATABASE_URL`).
+The API offers health, a paginated task list, creation, completion and deletion;
+completed tasks cannot be deleted. Callers need a `Member` row with an opaque
+token, sent as a bearer token.
 
-The manifest registers Notes, Tracker and Blog as separate apps, each with its
-own models and migrations. `hinoki migrations apply` initializes all four in
-dependency order.
+## Check
 
-All built-in rules are on in `rules.py`, plus its three import-direction promises (13 in total); see [rules](../../docs/rules.md).
+```sh
+uv run hinoki check tracker.app:create_app
+```
+
+All built-in rules are on, plus three import-direction rules (13 in total); see
+[rules](../../docs/rules.md).
+
+## Test
+
+From the repository root, with a disposable database (PostgreSQL or a
+throwaway SQLite file), which the tests empty first:
+
+```sh
+export HINOKI_TEST_DATABASE_URL=sqlite://./.hinoki/tracker-test.sqlite3
+uv run pytest tests/trackertest.py
+```
+
+The tests create synthetic members; never point them at real data.

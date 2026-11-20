@@ -1,50 +1,121 @@
 ---
 status: implemented
+related:
+  - migrations.md
+  - cli.md
+  - modules.md
 ---
 
-# 8. Create a project and modular app
+# 8. Projects and apps
 
-The Tracker steps above use an existing example with checked-in migrations. For a new project, `hinoki new` creates the `hinoki.toml` manifest and registers its first app. Each additional app owns its model and migration modules.
+An app is a package with its own models, migrations and routes, registered in
+`hinoki.toml`. This chapter adds a `billing` app to the `notes` project from the
+[Quick start](../quick-start.md).
 
-```sh
-uv run --locked hinoki new notes
-cd notes
-uv sync
-```
+## Create the app
 
-The generated manifest registers `notes.models` and `notes.migrations`. The scaffold also includes a health endpoint, typed settings, rules, a test, and agent instructions. The manifest also names the project's list of routes (`routes = "notes.routes:routes"`): `main.py` has no `include=`, because the application that `hinoki.toml` names binds those routes itself. Hinoki does not scan installed packages for apps.
-
-Add an independently organized app:
+From the project root:
 
 ```sh
-uv run hinoki app create billing
+uv run hinoki app create
 ```
 
-This creates `notes/apps/billing/models.py`, `notes/apps/billing/routes.py` (an empty `routes` list) and `notes/apps/billing/migrations/`, then adds the module paths to `hinoki.toml`, including `routes` and `prefix = "/billing"`: whatever you list in `billing/routes.py` is served under `/billing`. If billing references a model from another app, add that app to billing's `requires` list so Hinoki can validate and order migrations.
+| Prompt | Default | Answer |
+| --- | --- | --- |
+| App name | | `billing` |
+| URL prefix | `/billing` | `/billing` |
+| Depends on | | (none) |
 
-Add a model to the generated `notes/apps/billing/models.py` (or the app's declared models module):
+The command writes the package and registers it:
+
+```text
+notes/apps/billing/
+├── models.py      tables of the app
+├── routes.py      endpoints, mounted at the prefix
+└── migrations/    migration history
+```
+
+```toml
+[[apps]]
+name = "billing"
+models = "notes.apps.billing.models"
+migrations = "notes.apps.billing.migrations"
+routes = "notes.apps.billing.routes:routes"
+prefix = "/billing"
+requires = []
+```
+
+Hinoki reads apps only from `hinoki.toml`; it never scans installed packages.
+If billing later references a model of another app, list that app in
+`requires`: migrations then run in dependency order.
+
+## Add a model
 
 ```python
+# notes/apps/billing/models.py
+from datetime import datetime
 from uuid import UUID, uuid4
 
-from hinoki.orm import Model, field
+from hinoki import db
+from hinoki.orm import Model, field, pk
+from hinoki.utils import utc_now
 
 
+@db.ordered_by("-created_at")
 class Invoice(Model):
-    id: UUID = field(primary_key=True, default_factory=uuid4)
+    id: UUID = pk(default_factory=uuid4)
     reference: str = field(max_length=40, unique=True)
+    paid: bool = False
+    created_at: datetime = field(default_factory=utc_now, index=True)
 ```
 
-Plan its migration from the project root. The app name is required when more than one app is registered:
+The table name is derived: `billing_invoices`, the app followed by the plural
+model name. Pin it with `@db.table(...)` only to keep a physical name stable,
+for example when you rename the class.
+
+## Plan and apply the migration
 
 ```sh
-uv run hinoki migrations plan --app billing --dry-run
-uv run hinoki migrations plan --app billing
-uv run hinoki migrations status
-uv run hinoki migrations sql --app billing 0001-create-table-billing-invoices
+uv run hinoki migrations plan billing
 uv run hinoki migrations apply
 ```
 
-Hinoki assigns the next migration number and derives a stable slug from the first schema change, such as `create-table-billing-invoices` (the table is `billing_invoices`: the app, then the model). You can optionally override just the slug with `--name add-invoice-table`. Review the generated SQL and state file before applying it. With no database URL configured, `status` and `apply` initialize the local SQLite database at `.hinoki/local.sqlite3`. Set `HINOKI_DATABASE_URL` to target another supported backend. Migrations are explicit commands and never run automatically when the app starts.
+```text
+create table billing_invoices
+wrote …/notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
+notes: nothing to apply
+billing: 0001-create-table-billing-invoices
+```
 
-See [project migrations](../migrations.md) for dependency ordering, destructive changes and existing projects that still use explicit `--models` and `--dir` targets.
+`plan` compares the models with the recorded migration state and writes the
+next migration; the number and the slug come from the change. Review the
+`.sql` file before you apply it. With more than one app, `plan` needs the app
+name; `apply` runs every app in dependency order.
+
+!!! note "Where the data goes"
+    With no database URL, `apply` creates `.hinoki/local.sqlite3` beside
+    `hinoki.toml`. Set `HINOKI_DATABASE_URL` to target another database.
+    Migrations never run when the application starts.
+
+## Check the project
+
+<!-- post-G1: today `uv run hinoki check notes.main:app` -->
+```sh
+uv run hinoki check
+uv run pytest
+```
+
+```text
+8 rule(s): 0 violated, 0 unverifiable, 0 waived
+```
+
+Endpoints for billing go in the app, and `notes/apps/billing/routes.py` lists
+them: `hinoki.toml` mounts that list at `/billing`, so paths inside the app
+never repeat the prefix. The project's rules require every action to name an
+`Access` policy with permissions; build one as in [chapter 4](4-endpoints.md).
+
+## Recap
+
+- `hinoki app create` writes an app and registers it in `hinoki.toml`.
+- Table names, migration numbers and slugs are derived; you review the SQL.
+- The manifest sets each app's prefix; code never repeats it.

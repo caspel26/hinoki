@@ -1,12 +1,17 @@
 ---
 status: implemented
+related:
+  - rules.md
+  - patterns.md
 ---
 
 # 5. Rules
 
-Rules turn promises into failures with a stable id and a location.
+Rules turn the project's promises into checks. A failure names the rule, the
+file and the line.
 
 ```python
+# tracker/rules.py
 from hinoki import Actions, Imports, Models, Schemas, Transactions
 from hinoki.rules import RuleSet
 
@@ -25,32 +30,54 @@ tracker_rules = RuleSet(
     # Tables are pinned, and a foreign key is always indexed.
     Models.require_explicit_table(match=f"{PKG}.*"),
     Models.require_foreign_key_index(match=f"{PKG}.*"),
-    # api -> operations -> models, never the other way
+    # The direction of dependencies: api -> operations -> models.
     Imports.forbid(source="tracker.models", target="tracker.operations"),
     Imports.forbid(source=f"{PKG}.models", target=f"{PKG}.api"),
     Imports.forbid(source=f"{PKG}.operations", target=f"{PKG}.api"),
 )
 ```
 
-Run them from the command line or let the app enforce them when it starts (`Hinoki(rules=tracker_rules)`):
+The application passes them to `Hinoki(rules=tracker_rules)`, so a worker
+refuses to start while one is violated.
+
+## Run the check
+
+From `examples/`:
 
 ```sh
-cd examples
-uv run --project .. hinoki check tracker.app:create_app \
-    --rules tracker.rules:tracker_rules --package tracker
+uv run hinoki check tracker.app:create_app
 ```
 
 ```text
 13 rule(s): 0 violated, 0 unverifiable, 0 waived
 ```
 
-Break one on purpose (remove `access=` from an action) and the failure names the rule and the line:
+The check reads the rules from the application and scans the `tracker`
+package for the import rules.
+
+## Break a rule
+
+Make `create_task` public by adding `access=None` to its decorator, then run the
+check again:
 
 ```text
-tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy
-tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare atomic=True
+tracker/api.py:29: HNK-ACC-001 [violated] POST /tasks (create_task) declares no access policy
+  fix: add access=<policy> to the action (or list it in except_ when it is public on purpose)
+13 rule(s): 1 violated, 0 unverifiable, 0 waived
 ```
 
-An exception is a **waiver** in `hinoki-rules.toml` with a reason, an owner and a bounded target. The owner writes waivers; tools and agents read them but never edit them to pass a check. See [Rules](../rules.md).
+The command exits with status 1. Remove `access=None` to restore the check.
+
+## Waivers
+
+An accepted exception is a **waiver** in `hinoki-rules.toml`, with a reason, an
+owner and a bounded target. The project owner writes waivers; tools and agents
+read them but never edit them to make a check pass.
+
+## Recap
+
+- Rules are Python values in the project, checked by `hinoki check` and at startup.
+- Each failure has a stable id, a location and a fix.
+- Exceptions are explicit, owned waivers.
 
 Next: [6. Run and test it](6-run.md).

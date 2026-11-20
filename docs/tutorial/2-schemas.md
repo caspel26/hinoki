@@ -1,16 +1,22 @@
 ---
 status: implemented
+related:
+  - schemas.md
+  - model-schemas.md
 ---
 
 # 2. Schemas
 
-A model describes a table; a `Schema` describes what crosses the API. A column reaches a client only when a schema names it.
+A model describes a table; a `Schema` describes what crosses the API. A column
+reaches a client only when a schema names it.
 
 ```python
+# tracker/schemas.py
 from typing import Annotated
 
-from tracker.models import Task
 from hinoki import Field, Schema, derive
+
+from .models import Task
 
 
 class TaskIn(Schema):
@@ -24,37 +30,22 @@ class TaskOut(Schema):
     """Every column of a task except its owner (derived from the model)."""
 ```
 
-* `TaskIn` is strict: no coercion, no unknown keys, every problem reported with its path. Validation runs in Rust before your code does.
-* `TaskOut` takes the columns of `Task`: types and limits come from the model, and `exclude=("owner_id",)` keeps `owner_id` out. Relations are never derived; you name them on purpose.
-* Because the owner is not a field of `TaskIn`, a client cannot choose it. If it were, `Task.acreate(data, owner_id=me)` would still win (server values beat the client's), and a schema can never carry the primary key.
+- `TaskIn` is strict: no coercion, no unknown keys, and every problem is reported
+  with its path. Validation runs in Rust before your code does.
+- `TaskOut` takes its fields from `Task`, with the model's types and limits.
+  `exclude=("owner_id",)` keeps the owner out. Relations are never derived;
+  you name them on purpose.
+- The owner is not a field of `TaskIn`, so a client cannot choose it. Server
+  values passed to `Task.acreate(data, owner_id=...)` always win, and a schema
+  never carries the primary key.
 
-When one property can contain more than one shape, put an explicit tagged union inside a wrapper Schema. Every variant has a required tag with a distinct `one_of` value and the same wire alias:
+Schemas also support aliases, computed fields and tagged unions; see
+[discriminated unions](../schema-collections.md#discriminated-unions).
 
-```python
-from typing import Annotated
+## Recap
 
-from hinoki import Field, Schema
+- Input schemas list what a client may send, nothing more.
+- Output schemas can be derived from a model, minus what must stay private.
+- Ownership comes from the caller, never from the request body.
 
-
-class Cat(Schema):
-    kind: Annotated[str, Field(alias="type", one_of=("cat",))]
-    name: str
-
-
-class Dog(Schema):
-    kind: Annotated[str, Field(alias="type", one_of=("dog",))]
-    walks: int
-
-
-Pet = Annotated[Cat | Dog, Field(discriminator="kind")]
-
-
-class PetRequest(Schema):
-    pet: Pet
-```
-
-`PetRequest.validate({"pet": {"type": "cat", "name": "Mugi"}})` builds a `Cat`; the same tag also produces an OpenAPI `oneOf` with a discriminator mapping. See [discriminated unions](../schemas.md#discriminated-unions) for request errors, lists, nullable fields and limits.
-
-More: [Schemas](../schemas.md), [model-derived schemas](../model-schemas.md).
-
-Next: [3. Operations](3-operations.md). Validation patterns continue in [7. Validate input](7-validation.md).
+Next: [3. Operations](3-operations.md).
