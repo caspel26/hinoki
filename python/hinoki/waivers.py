@@ -5,7 +5,7 @@
     target = "blog.api.health"        # fnmatch on the diagnostic's subject
     reason = "liveness probe is public by design"
     owner = "platform-team"
-    expires = "2027-01-31"            # optional ISO date
+    expires = 2027-01-31              # optional TOML date (unquoted), UTC
 
 A waiver names a rule, a bounded target, a reason and an owner; a bare ``*``
 target is refused. An expired waiver no longer applies and says so. Tools read
