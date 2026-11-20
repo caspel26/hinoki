@@ -345,6 +345,13 @@ def run_migrations(args: argparse.Namespace) -> int:
     return run_migrations_with_error_handling(args)
 
 
+def migration_fix(action: str) -> str:
+    """The next step after a migration error; ``plan`` cannot point at itself."""
+    if action == "plan":
+        return "correct the model or migration state named above, then plan again"
+    return "correct the model or migration state; inspect with `hinoki migrations plan`"
+
+
 def run_migrations_with_error_handling(args: argparse.Namespace) -> int:
     try:
         return run_migration_action(args)
@@ -353,11 +360,7 @@ def run_migrations_with_error_handling(args: argparse.Namespace) -> int:
         return 2
     except (MigrationError, ProjectError) as error:
         print(f"error: {error}", file=sys.stderr)
-        print(
-            "  fix: correct the model or migration state; inspect with "
-            "`hinoki migrations plan`",
-            file=sys.stderr,
-        )
+        print(f"  fix: {migration_fix(args.action)}", file=sys.stderr)
         return 1
     except DatabaseError as error:
         print(f"error: database: {error}", file=sys.stderr)
