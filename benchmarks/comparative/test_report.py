@@ -446,3 +446,43 @@ def test_run_py_offers_a_kiso_mode_that_serves_with_the_rust_server() -> None:
     assert not set(run.KISO_SERVERS) & (
         set(run.DOCUMENTED_SERVERS) | set(run.GRANIAN_SERVERS)
     )
+
+
+def test_a_sample_waits_for_the_load_to_fall_and_records_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import run  # type: ignore[import-not-found]
+
+    loads = iter([2.5, 1.8, 0.9])
+    sleeps: list[float] = []
+    monkeypatch.setattr(run.os, "getloadavg", lambda: (next(loads), 0.0, 0.0))
+    monkeypatch.setattr(run.time, "sleep", sleeps.append)
+    log = tmp_path / "loadavg.txt"
+
+    run.wait_for_quiet(1.0, log, "hinoki-kiso-list-1")
+
+    assert sleeps == [run.QUIET_POLL, run.QUIET_POLL]
+    assert log.read_text() == "hinoki-kiso-list-1 load1=0.90\n"
+
+
+def test_a_host_that_stays_busy_stops_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import run  # type: ignore[import-not-found]
+
+    clock = iter(range(0, 10_000, 600))
+    monkeypatch.setattr(run.os, "getloadavg", lambda: (3.0, 0.0, 0.0))
+    monkeypatch.setattr(run.time, "sleep", lambda _: None)
+    monkeypatch.setattr(run.time, "monotonic", lambda: next(clock))
+
+    with pytest.raises(SystemExit, match="load average stayed above"):
+        run.wait_for_quiet(1.0, tmp_path / "loadavg.txt", "x")
+    assert not (tmp_path / "loadavg.txt").exists()
+
+
+def test_without_a_limit_the_load_is_only_recorded(tmp_path: Path) -> None:
+    import run  # type: ignore[import-not-found]
+
+    run.wait_for_quiet(None, tmp_path / "loadavg.txt", "x")
+
+    assert (tmp_path / "loadavg.txt").read_text().startswith("x load1=")
