@@ -198,8 +198,10 @@ The second column is where each value came from: `override`, `environment`,
 `.env`, `toml`, `file` or `default`. The command reads the prefix, `.env` and
 TOML file the class declares; `--prefix`, `--dotenv` and `--toml` override them.
 `--format json` prints the same for tools, and `--example` writes a ready
-`.env.example` (every variable with its default and type; secrets and required
-values blank):
+`.env.example`: every variable with its default and type, required values blank
+to fill in, and the optional ones with no printable default (secrets such as the
+database URL, values that default to unset) commented out, so a copied file
+keeps their defaults:
 
 ```sh
 hinoki settings --example > .env.example

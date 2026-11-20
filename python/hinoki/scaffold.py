@@ -384,7 +384,7 @@ def files(
         "tests/healthtest.py": TEST.format(**values),
         ".gitignore": (
             ".venv/\n__pycache__/\n*.pyc\n.mypy_cache/\n.ruff_cache/\n.hinoki/\n"
-            ".hinoki-app-create.lock\n"
+            ".hinoki-app-create.lock\n.env\n"
         ),
     }
     contents.update(database_files(name, database, server))

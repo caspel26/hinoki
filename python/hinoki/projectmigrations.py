@@ -126,7 +126,9 @@ def _application_database(manifest: ProjectManifest) -> tuple[str, str] | None:
     )
     if module is None or module is getattr(app, "_automatic_database", None):
         return _settings_database(app)
-    if isinstance(module, DatabaseModule) and isinstance(module.url, str):
+    if isinstance(module, DatabaseModule) and isinstance(
+        getattr(module, "url", None), str
+    ):
         return module.url, f"application: {type(module).__name__}"
     raise DatabaseResolutionError(
         f"cannot tell which database the application's {type(module).__name__} "
