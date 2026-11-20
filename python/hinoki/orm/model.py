@@ -17,7 +17,7 @@ import re
 import sys
 import types
 import typing
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Coroutine, Iterable, Sequence
 from contextlib import AbstractAsyncContextManager
 from decimal import Decimal
 from typing import (
@@ -37,6 +37,7 @@ from uuid import UUID
 
 from hinoki import core
 from hinoki.blocking import run_sync
+from hinoki.db import Database
 from hinoki.errors import (
     ErrorDetail,
     FieldError,
@@ -632,6 +633,26 @@ def foreign_key(
         validators=tuple(validators),
     )
     return dataclasses.field(default=default, metadata={MARK: meta})
+
+
+def run_bulk[T](write: Callable[[], Coroutine[Any, Any, T]]) -> T:
+    """Run a sync bulk method's writes in one transaction from a sync handler's
+    thread. With none open, the scope opens in the task that writes, so a hook
+    may nest its own scope; inside an open one, the savepoint opens on the
+    thread, as ``with db.atomic():`` does, because only the transaction's owner
+    may nest a scope from the loop."""
+    database = current_database()
+    if database.active() is None:
+        return run_sync(atomically(database, write))
+    with database.atomic():
+        return run_sync(write())
+
+
+async def atomically[T](
+    database: Database, write: Callable[[], Coroutine[Any, Any, T]]
+) -> T:
+    async with database.atomic():
+        return await write()
 
 
 MIN_UNIQUE = 2
@@ -1489,19 +1510,38 @@ class Model:
         """Insert many rows in one transaction: all of them or none. Each item is a
         ``Schema`` or a dict of field values; defaults, factories, validation and
         write hooks apply exactly as for ``acreate``. Returns the rows in order."""
-        instances = [
-            cls.from_schema(**item) if isinstance(item, dict) else cls.from_schema(item)
-            for item in items
-        ]
+        instances = cls.bulk_instances(items)
         if not instances:
             return []
         async with current_database().atomic():
-            return [await row.insert(returning=returning) for row in instances]
+            return await cls.insert_all(instances, returning=returning)
+
+    @classmethod
+    def bulk_instances(cls, items: Iterable[Schema | dict[str, Any]]) -> list[Self]:
+        """The unsaved instances ``abulk_create`` inserts, checked before writing."""
+        return [
+            cls.from_schema(**item) if isinstance(item, dict) else cls.from_schema(item)
+            for item in items
+        ]
+
+    @staticmethod
+    async def insert_all[M: Model](instances: list[M], *, returning: bool) -> list[M]:
+        """Insert ``instances`` in the caller's transaction."""
+        return [await row.insert(returning=returning) for row in instances]
 
     @classmethod
     async def abulk_update(cls, instances: Iterable[Self], /) -> list[Self]:
         """Save the changes of many loaded instances in one transaction: all of
         them or none. Unchanged instances write nothing; an unsaved one is refused."""
+        rows = cls.saved_rows(instances)
+        if not rows:
+            return []
+        async with current_database().atomic():
+            return await cls.save_all(rows)
+
+    @classmethod
+    def saved_rows(cls, instances: Iterable[Self]) -> list[Self]:
+        """The instances ``abulk_update`` saves; an unsaved one is refused."""
         rows = list(instances)
         for row in rows:
             if row.is_new:
@@ -1509,10 +1549,12 @@ class Model:
                     f"{cls.__name__}: abulk_update got an unsaved instance; "
                     "use abulk_create"
                 )
-        if not rows:
-            return []
-        async with current_database().atomic():
-            return [await row.asave() for row in rows]
+        return rows
+
+    @staticmethod
+    async def save_all[M: Model](rows: list[M]) -> list[M]:
+        """Save ``rows`` in the caller's transaction."""
+        return [await row.asave() for row in rows]
 
     @classmethod
     async def abulk_delete(cls, items: Iterable[Self | Any], /) -> int:
@@ -1614,18 +1656,28 @@ class Model:
     def bulk_create(
         cls, items: Iterable[Schema | dict[str, Any]], /, *, returning: bool = True
     ) -> list[Self]:
-        """Sync ``abulk_create`` for sync handlers."""
-        return run_sync(cls.abulk_create(items, returning=returning))
+        """Sync ``abulk_create`` for sync handlers; inside an open transaction
+        it is a savepoint of that transaction (see ``run_bulk``)."""
+        instances = cls.bulk_instances(items)
+        if not instances:
+            return []
+        return run_bulk(lambda: cls.insert_all(instances, returning=returning))
 
     @classmethod
     def bulk_update(cls, instances: Iterable[Self], /) -> list[Self]:
-        """Sync ``abulk_update`` for sync handlers."""
-        return run_sync(cls.abulk_update(instances))
+        """Sync ``abulk_update`` for sync handlers; scoped as ``bulk_create``."""
+        rows = cls.saved_rows(instances)
+        if not rows:
+            return []
+        return run_bulk(lambda: cls.save_all(rows))
 
     @classmethod
     def bulk_delete(cls, items: Iterable[Self | Any], /) -> int:
-        """Sync ``abulk_delete`` for sync handlers."""
-        return run_sync(cls.abulk_delete(items))
+        """Sync ``abulk_delete`` for sync handlers; scoped as ``bulk_create``."""
+        keys = [cls.delete_key(item) for item in items]
+        if not keys:
+            return 0
+        return run_bulk(lambda: delete_keys(cls.concrete(), keys))
 
     @classmethod
     def merged_values(
