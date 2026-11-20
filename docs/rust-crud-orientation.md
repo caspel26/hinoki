@@ -1,7 +1,3 @@
----
-status: implemented
----
-
 # Native CRUD phase 1: end-to-end orientation run
 
 This is one host-specific orientation measurement, not a performance claim or a framework ranking.

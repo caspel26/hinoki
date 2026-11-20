@@ -2,12 +2,10 @@
 
 ::: hinoki.admin.Admin
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.admin.ModelAdmin
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.admin.BulkAction

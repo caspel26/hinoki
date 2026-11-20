@@ -61,16 +61,14 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Add an admin](admin.md): staff pages for your models, with a sign-in page, users and per-model permissions.
 - [Customize the admin](admin-customize.md): columns, hooks, bulk actions, templates and themes.
 - [Expose actions over MCP](app-mcp.md): selected actions as tools for a remote MCP client.
-- [Development MCP](dev-mcp.md): a read-only server that describes your app to a coding agent.
+- [Development MCP](dev-mcp.md): a server that describes your app to a coding agent; it can run requests against the app only when you enable `--scenarios`.
 - [Build with a coding agent](ai-workflow.md): a project, rules and tools ready for an agent, and where its authority ends.
 
 ## Operating
 
 - [Sync and async code](sync-async.md): the event loop, the bounded sync pool and which style each surface accepts.
 - [Benchmarks](benchmarks.md): retained measurements with their environment, method and limits.
-- [Generated CRUD on the native path](rust-crud-orientation.md): a workload-specific measurement of generated CRUD.
-- [Troubleshooting](troubleshooting.md): common errors by their message.
-- [Toolchain and CI](toolchain.md): local and CI commands for contributors.
+- [Native CRUD orientation run](rust-crud-orientation.md): a workload-specific measurement of generated CRUD.
 
 ## Concepts and project
 
@@ -82,3 +80,5 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Reference](reference/index.md): public names, signatures and docstrings.
 - [Status](status.md): what works today and what does not yet.
 - [Documentation versions](documentation-versions.md): how `dev` and release docs are published.
+- [Troubleshooting](troubleshooting.md): common errors by their message.
+- [Toolchain and CI](toolchain.md): local and CI commands for contributors.
