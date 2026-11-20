@@ -900,6 +900,7 @@
 .hn-walk--bench {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .hn-walk__tabs {
@@ -911,7 +912,7 @@
 }
 
 .hn-walk--bench .hn-walk__tabs {
-  grid-row: 1 / span 6;
+  grid-row: 1;
   flex-direction: column;
   border-right: 1px solid var(--hn-edge);
   border-bottom: 0;
@@ -975,7 +976,52 @@
 }
 
 .hn-walk--bench .hn-walk__panel {
+  grid-row: 1;
   grid-column: 2;
+}
+
+/* Excerpts stack in the code column and the note fills the side column, so a
+   step with two or three files never scatters them across the grid. The last
+   excerpt stretches to the bottom, so no step leaves an empty gap. */
+@media (min-width: 961px) {
+  .hn-walk--bench .hn-walk__panel {
+    grid-template-rows: repeat(3, auto);
+  }
+
+  .hn-walk--bench .hn-walk__panel > .hn-walk__code {
+    display: flex;
+    flex-direction: column;
+    grid-column: 1;
+  }
+
+  .hn-walk--bench .hn-walk__panel > .hn-walk__code:first-child {
+    grid-row-start: 1;
+  }
+
+  .hn-walk--bench .hn-walk__panel > .hn-walk__code + .hn-walk__code {
+    grid-row-start: 2;
+  }
+
+  .hn-walk--bench .hn-walk__panel > .hn-walk__code + .hn-walk__code + .hn-walk__code {
+    grid-row-start: 3;
+  }
+
+  .hn-walk--bench .hn-walk__panel > .hn-walk__code:not(:has(+ .hn-walk__code)) {
+    grid-row-end: -1;
+  }
+
+  .hn-walk--bench .hn-walk__code > .ide:last-child {
+    flex: 1;
+  }
+
+  .hn-walk--bench .hn-walk__panel > .hn-walk__note {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+
+  .hn-walk--bench .hn-walk__code + .hn-walk__code {
+    border-top: 1px solid var(--ide-edge);
+  }
 }
 
 .hn-walk__panel[hidden] {
