@@ -439,7 +439,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:57:33 UTC">November 20, 2026</span></span>
-            <span>9 min read</span>
+            <span>10 min read</span>
           </p>
           
         </header>
@@ -639,8 +639,9 @@ tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does 
 </code></pre></div>
 <p>Each status means one thing: <strong>violated</strong> (demonstrated), <strong>unverifiable</strong> (the
 check could not decide: a dynamic import, a pattern that matched nothing, a
-return type that does not name its schema, or a rule that crashed) and
-<strong>waived</strong>. Unverifiable fails like a violation; it is never a pass.</p>
+return type that does not name its schema, or a rule that crashed), <strong>waived</strong>
+and <strong>warning</strong> (a notice about the waiver file itself). Unverifiable fails like
+a violation; it is never a pass. A warning never fails.</p>
 <p>The fix line each rule prints:</p>
 <table>
 <thead>
@@ -691,8 +692,12 @@ return type that does not name its schema, or a rule that crashed) and
 <p><code>hinoki check --format json</code> prints the same diagnostics as versioned data
 (<code>schema_version</code>, <code>rules</code>, <code>summary</code>, and per diagnostic <code>rule</code>, <code>severity</code>,
 <code>phase</code>, <code>status</code>, <code>message</code>, <code>location</code>, <code>explanation</code>, <code>subject</code>, <code>waiver</code>,
-<code>fix</code>) for CI, editors and agents. Exit codes: <code>0</code> clean, <code>1</code> failing, <code>2</code> the
-check could not run. The other options are on <a href="../inspect/#check">Inspect an application</a>.</p>
+<code>fix</code>) for CI, editors and agents. <code>summary</code> counts each status (<code>violated</code>,
+<code>unverifiable</code>, <code>waived</code>, <code>warning</code>) and adds <code>failing</code>, the number that sets
+the exit code. <code>schema_version</code> is <code>2</code>: version 1 reported waiver notices as
+<code>violated</code> and had no <code>warning</code> count. Exit codes: <code>0</code> clean, <code>1</code> failing, <code>2</code>
+the check could not run. The other options are on
+<a href="../inspect/#check">Inspect an application</a>.</p>
 <h2 id="accept-an-exception-with-a-waiver">Accept an exception with a waiver<a class="headerlink" href="#accept-an-exception-with-a-waiver" title="Permanent link">&para;</a></h2>
 <p>Prefer <code>except_</code> for things that are public or special <em>by design</em>. A waiver is
 for a known violation the owner accepts for a while. It lives in
@@ -716,7 +721,9 @@ keeps its line and gains the decision:</p>
     waived: liveness probe is public by design (platform-team, until 2027-01-31)
 </code></pre></div>
 <p>An expired waiver stops applying and reports <code>HNK-WVR-002</code>; one that matches
-nothing reports <code>HNK-WVR-001</code> (both warnings). A diagnostic that means "the rule
+nothing reports <code>HNK-WVR-001</code>. Both have status <code>warning</code>: they print as
+<code>[warning]</code>, count under <code>warning(s)</code> in the summary (<code>summary.warning</code> in JSON)
+and never change the exit code. A diagnostic that means "the rule
 could not do its job" cannot be waived. An invalid or unreadable file makes
 <code>hinoki check</code> exit with <code>2</code>.</p>
 <h3 id="which-waiver-file">Which waiver file<a class="headerlink" href="#which-waiver-file" title="Permanent link">&para;</a></h3>

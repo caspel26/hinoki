@@ -438,7 +438,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:43 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:22:50 UTC">November 20, 2026</span></span>
             <span>11 min read</span>
           </p>
           
@@ -583,7 +583,7 @@ hinoki<span class="w"> </span>completion<span class="w"> </span>fish<span class=
 </code></pre></div>
 <p>It completes command, subcommand and option names; it does not complete option values or project-specific names such as apps.</p>
 <h3 id="terminal-output">Terminal output<a class="headerlink" href="#terminal-output" title="Permanent link">&para;</a></h3>
-<p>On a colour terminal, <code>doctor</code>, <code>check</code> and <code>routes</code> print a coloured report: a status glyph per check (<code>✔</code> ok, <code>▲</code> warning, <code>✘</code> failed or violated, <code>–</code> skipped) with the fix on its own line, and routes with coloured methods. When output is piped or redirected, or with <code>NO_COLOR</code> or <code>TERM=dumb</code>, the text is plain and unchanged, and <code>--format json</code> is never styled.</p>
+<p>On a colour terminal, <code>doctor</code>, <code>check</code> and <code>routes</code> print a coloured report: a status glyph per check (<code>✔</code> ok, <code>▲</code> warning, <code>✘</code> failed or violated, <code>?</code> unverifiable, <code>–</code> skipped or waived) with the fix on its own line, and routes with coloured methods. The <code>check</code> summary is green only when the exit code is <code>0</code>. When output is piped or redirected, or with <code>NO_COLOR</code> or <code>TERM=dumb</code>, the text is plain and unchanged, and <code>--format json</code> is never styled.</p>
 <h2 id="app"><code>app</code><a class="headerlink" href="#app" title="Permanent link">&para;</a></h2>
 <p>The generated <code>hinoki.toml</code> registers the default app and its models and migrations. Add modules without moving files by creating another app:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>billing
@@ -758,7 +758,7 @@ its target when you run the command from the <code>examples/</code> project dire
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:43 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:22:50 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
