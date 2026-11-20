@@ -1,34 +1,31 @@
 # Core API: application, routing and HTTP
 
-`from hinoki import Hinoki, RouteGroup, Mount, http, errors`. Guides: [function-based APIs](../function-endpoints.md), [class-based APIs](../class-endpoints.md), [register routes](../routes.md), [errors](../errors.md).
+`from hinoki import Hinoki, RouteGroup, Mount, http, errors` and `from hinoki.project import manifest_routes`. Guides: [function-based APIs](../function-endpoints.md), [class-based APIs](../class-endpoints.md), [register routes](../routes.md), [errors](../errors.md).
 
 ::: hinoki.app.Hinoki
     options:
-      members: true
       show_if_no_docstring: true
       inherited_members: false
 
 ::: hinoki.api.API
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.routing.RouteGroup
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.routing.Includable
 
 ::: hinoki.routing.Mount
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.routing.Route
     options:
-      members: true
       show_if_no_docstring: true
+
+::: hinoki.project.manifest_routes
 
 For model-backed route generation, see [Generate CRUD routes](../crud.md) and
 the [CRUD API reference](crud.md).
@@ -55,19 +52,16 @@ The types are available from `hinoki.http`, from `hinoki`, or from their modules
 
 ::: hinoki.http.request.Request
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.http.response.Response
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.http.response.set_cookie
 
 ::: hinoki.access.Access
     options:
-      members: true
       show_if_no_docstring: true
 
 ::: hinoki.errors.APIError

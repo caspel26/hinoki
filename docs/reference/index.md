@@ -4,7 +4,7 @@ Reference for Hinoki's public Python surface. Public names are imported from `hi
 
 | Area | Package | Reference |
 | --- | --- | --- |
-| Application, routes and HTTP | `hinoki` | [Core API](web.md) |
+| Application, routes and HTTP | `hinoki` / `hinoki.project` | [Core API](web.md) |
 | Generated model-backed routes | `hinoki.resources` | [CRUD](crud.md) |
 | Validation and serialization | `hinoki` | [Schemas](schemas.md) |
 | Models, columns and queries | `hinoki.orm` | [ORM](orm.md) |
