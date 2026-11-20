@@ -441,7 +441,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:58 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:47:16 UTC">November 20, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -544,9 +544,14 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 <td><code>12</code></td>
 <td>Shortest password accepted</td>
 </tr>
+<tr>
+<td><code>admin.theme</code></td>
+<td>none</td>
+<td>Built-in theme (<code>studio</code>, <code>console</code>, <code>paper</code>, <code>bento</code>) for an <code>Admin</code> that sets no <code>theme=</code>; <code>studio</code> when neither is set</td>
+</tr>
 </tbody>
 </table>
-<p><code>Admin(secret=...)</code> overrides the secret for one site. An admin with neither stops the app at startup.</p>
+<p><code>Admin(secret=...)</code> overrides the secret and <code>Admin(theme=...)</code> the theme for one site. An admin with neither stops the app at startup.</p>
 <h2 id="who-may-sign-in">Who may sign in<a class="headerlink" href="#who-may-sign-in" title="Permanent link">&para;</a></h2>
 <p><code>Admin()</code> without <code>access=</code> uses its own users:</p>
 <ul>
@@ -716,7 +721,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:58 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:47:16 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
