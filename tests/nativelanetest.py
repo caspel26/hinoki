@@ -5,7 +5,7 @@ answer every request alike."""
 import asyncio
 import os
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, ClassVar
@@ -190,17 +190,54 @@ async def negotiated() -> str:
     return "<p>hello</p>"
 
 
+class NewNote(Schema):
+    title: str
+    rank: int = 1
+
+
+@http.post("/lane/echo", status=201)
+async def echo(data: NewNote) -> dict[str, Any]:
+    return {
+        "title": data.title,
+        "rank": data.rank,
+        "total": await LaneNote.all().acount(),
+    }
+
+
+@http.put("/lane/note/{id}")
+async def replace(id: int, data: NewNote) -> dict[str, Any]:
+    found = await LaneNote.aget(id=id)
+    return {"id": found.id, "was": found.title, "now": data.title}
+
+
+@http.patch("/lane/guarded/{id}", access=STAFF)
+async def amend(id: int, data: NewNote, who: Caller[str]) -> dict[str, Any]:
+    return {"id": id, "title": data.title, "who": who.id}
+
+
+@http.query("/lane/find")
+async def find(data: NewNote) -> dict[str, Any]:
+    return {"title": data.title, "total": await LaneNote.all().acount()}
+
+
+@http.post("/lane/limited-body", status=201, rate_limit=RefuseAll())
+async def limited_body(data: NewNote) -> dict[str, str]:
+    return {"title": data.title}
+
+
 HANDLERS = (note, notes, count, pure, seen_context, boom, missing, sleeping, plain)
 GUARDED = (guarded, slow_auth, limited, limited_sync, search, negotiated)
+BODIES = (echo, replace, amend, find, limited_body)
 SERVED = {"/lane/note/{id}", "/lane/notes", "/lane/count", "/lane/pure"}
 SERVED |= {"/lane/context", "/lane/boom", "/lane/not-found"}
 SERVED |= {"/lane/guarded/{id}", "/lane/slow-auth", "/lane/limited"}
 SERVED |= {"/lane/limited-sync", "/lane/search", "/lane/negotiated"}
+SERVED |= {"/lane/echo", "/lane/limited-body", "/lane/find"}
 
 
 def make_app(url: str, **runtime: float) -> Hinoki:
     app = Hinoki(runtime=RuntimeConfig(**runtime))  # type: ignore[arg-type]
-    app.include(*HANDLERS, *GUARDED)
+    app.include(*HANDLERS, *GUARDED, *BODIES)
     app.install(DatabaseModule(url), Holder())
     return app
 
@@ -212,8 +249,21 @@ def normalized(received: Received) -> tuple[int, list[tuple[str, str]], bytes]:
     return received.status, headers, pattern.sub(b"<id>", received.body)
 
 
+Sent = str | tuple[str, str] | tuple[str, str, str, bytes]
+
+
+def request_of(sent: Sent) -> tuple[str, str, str, bytes]:
+    """The method, target, extra headers and body of a request to send."""
+    if isinstance(sent, str):
+        return "GET", sent, "", b""
+    if len(sent) == 2:
+        return "GET", sent[0], sent[1], b""
+    method, target, extra, body = sent
+    return method, target, f"{extra}content-length: {len(body)}\r\n", body
+
+
 async def serve_all(
-    url: str, targets: list[str | tuple[str, str]], *, native: bool
+    url: str, targets: Sequence[Sent], *, native: bool
 ) -> tuple[list[Received], list[int]]:
     worker = KisoWorker(make_app(url), "127.0.0.1", 0, native_dispatch=native)
     port = await worker.start()
@@ -228,8 +278,11 @@ async def serve_all(
 
         worker.lane.start = recorded  # type: ignore[method-assign]
     try:
-        pairs = [(t, "") if isinstance(t, str) else t for t in targets]
-        return [await fetch(port, "GET", t, extra) for t, extra in pairs], started
+        sent = [request_of(target) for target in targets]
+        return [
+            await fetch(port, method, target, extra, body=body)
+            for method, target, extra, body in sent
+        ], started
     finally:
         await worker.stop()
 
@@ -271,7 +324,7 @@ def bearer(token: str) -> str:
     return f"authorization: Bearer {token}\r\n"
 
 
-GUARDED_TARGETS: list[str | tuple[str, str]] = [
+GUARDED_TARGETS: list[Sent] = [
     ("/lane/guarded/1", bearer("editor-token")),
     ("/lane/guarded/9", bearer("editor-token")),
     ("/lane/guarded/1", bearer("reader-token")),
@@ -313,6 +366,61 @@ async def test_a_guard_waiting_on_asyncio_does_not_run_the_handler_twice(
         url, [("/lane/slow-auth", bearer("editor-token"))] * 5, native=True
     )
     assert [r.json() for r in served] == [{"who": "u-editor"}] * 5
+
+
+JSON = "content-type: application/json\r\n"
+BODY_TARGETS: list[Sent] = [
+    ("POST", "/lane/echo", JSON, b'{"title":"a"}'),
+    ("POST", "/lane/echo", JSON, b'{"title":"a","rank":4}'),
+    ("POST", "/lane/echo", JSON, b'{"title":5}'),
+    ("POST", "/lane/echo", JSON, b'{"rank":"x"}'),
+    ("POST", "/lane/echo", JSON, b"{nope"),
+    ("POST", "/lane/echo", JSON, b""),
+    ("POST", "/lane/echo", "content-type: text/plain\r\n", b"hello"),
+    ("POST", "/lane/echo", "", b'{"title":"a"}'),
+    ("PUT", "/lane/note/2", JSON, b'{"title":"b"}'),
+    ("PUT", "/lane/note/404", JSON, b'{"title":"b"}'),
+    ("PUT", "/lane/note/2", JSON, b"[]"),
+    ("PATCH", "/lane/guarded/2", JSON + bearer("editor-token"), b'{"title":"c"}'),
+    ("PATCH", "/lane/guarded/2", JSON + bearer("reader-token"), b'{"title":"c"}'),
+    ("PATCH", "/lane/guarded/2", JSON, b'{"title":"c"}'),
+    ("PATCH", "/lane/guarded/2", JSON + bearer("editor-token"), b"{nope"),
+    ("QUERY", "/lane/find", JSON, b'{"title":"q"}'),
+    ("POST", "/lane/limited-body", JSON, b'{"title":"a"}'),
+    ("POST", "/lane/limited-body", JSON, b"{nope"),
+]
+
+
+async def test_body_routes_take_the_lane_like_the_asyncio_path(url: str) -> None:
+    oracle, none = await serve_all(url, BODY_TARGETS, native=False)
+    served, started = await serve_all(url, BODY_TARGETS, native=True)
+    assert none == []
+    assert [normalized(r) for r in served] == [normalized(r) for r in oracle]
+    assert [r.status for r in served] == [
+        201, 201, 422, 422, 400, 400, 415, 415, 200, 404, 422, 200, 403, 401, 400,
+        200, 429, 429,
+    ]  # fmt: skip
+    assert served[1].json() == {"title": "a", "rank": 4, "total": 3}
+    assert started.count(1) == len(BODY_TARGETS)
+
+
+async def test_a_body_above_the_limit_is_refused_like_the_asyncio_path(
+    url: str,
+) -> None:
+    big: Sent = ("POST", "/lane/echo", JSON, b'{"title":"' + b"x" * 600 + b'"}')
+    results = []
+    for native in (False, True):
+        worker = KisoWorker(
+            make_app(url, max_body_bytes=256), "127.0.0.1", 0, native_dispatch=native
+        )
+        port = await worker.start()
+        try:
+            method, target, extra, body = request_of(big)
+            results.append(await fetch(port, method, target, extra, body=body))
+        finally:
+            await worker.stop()
+    assert results[0].status == results[1].status == 413
+    assert normalized(results[0]) == normalized(results[1])
 
 
 async def test_a_driven_handler_runs_in_its_own_request_context(
