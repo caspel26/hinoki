@@ -34,10 +34,49 @@ def _settings_with_url(url: str) -> type:
     return Settings
 
 
+@pytest.mark.parametrize(
+    "failure", [ImportError("no module"), RuntimeError("boom"), SystemExit(3)]
+)
+def test_an_application_that_cannot_load_stops_the_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: BaseException
+) -> None:
+    def fail(_target: str) -> object:
+        raise failure
+
+    monkeypatch.delenv(projectmigrations.URL_VARIABLE, raising=False)
+    monkeypatch.setattr(projectmigrations, "build_app", fail)
+    args = argparse.Namespace(database=None)
+
+    with pytest.raises(projectmigrations.SettingsLoadError, match="--database"):
+        projectmigrations.migration_database(args, _manifest(tmp_path))
+
+
+@pytest.mark.parametrize(
+    ("url", "shown"),
+    [
+        ("postgres://u:pw@h:5432/db", "postgres://***@h:5432/db"),
+        ("postgres://u:p/w@h/db", "postgres://***@h/db"),
+        ("postgres://u:p?w@h/db?sslmode=require", "postgres://***@h/db?..."),
+        ("postgres://u:p#w@h/db", "postgres://***@h/db"),
+        ("postgres://u:p@ss@h/db", "postgres://***@h/db"),
+        ("postgres://h/db", "postgres://h/db"),
+        ("sqlite:///srv/app.sqlite3", "sqlite:///srv/app.sqlite3"),
+        ("u:pw@h/db", "<unparseable URL>"),
+        ("postgres://u:pw@h/db password=pw", "postgres://<unparseable URL>"),
+        ("mysql://u:pw@[::1/db", "mysql://<unparseable URL>"),
+    ],
+)
+def test_redacted_url_never_shows_credentials(url: str, shown: str) -> None:
+    assert projectmigrations.redacted_url(url) == shown
+
+
 def test_migration_database_url_uses_explicit_environment_and_project_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     manifest = _manifest(tmp_path)
+    monkeypatch.setattr(
+        projectmigrations, "build_app", lambda _target: SimpleNamespace(settings=None)
+    )
     args = argparse.Namespace(database="postgres://explicit/db")
     assert projectmigrations.migration_database_url(args, manifest) == args.database
 

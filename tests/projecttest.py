@@ -165,22 +165,79 @@ def test_project_migration_database_override_beats_the_application_settings(
     assert f"database: sqlite://{chosen} (from {label})" in capsys.readouterr().err
 
 
-def test_project_migrations_fall_back_to_local_sqlite_when_settings_fail(
+@pytest.mark.parametrize("action", ["apply", "plan", "status"])
+def test_project_migrations_refuse_to_guess_when_settings_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    action: str,
+) -> None:
+    name = f"broken{action}"
+    project = create(name, tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv(f"{name.upper()}_DATABASE__MAX_SIZE", "0")
+
+    assert main(["migrations", action]) == 1
+
+    err = capsys.readouterr().err
+    assert "cannot load the application's settings" in err
+    assert "--database" in err and "HINOKI_DATABASE_URL" in err
+    assert "database: " not in err
+    assert not (project / ".hinoki/local.sqlite3").exists()
+    assert not list((project / name / "migrations").glob("*.sql"))
+
+
+def test_an_explicit_database_does_not_need_loadable_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = create("brokenexplicit", tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    target = tmp_path / "explicit.sqlite3"
+    monkeypatch.setenv("HINOKI_DATABASE_URL", f"sqlite://{target}")
+    monkeypatch.setenv("BROKENEXPLICIT_DATABASE__MAX_SIZE", "0")
+
+    assert main(["migrations", "apply"]) == 0
+    assert target.is_file()
+
+
+def test_project_settings_dotenv_is_read_from_the_project_root(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    project = create("brokensettings", tmp_path, database="sqlite")
-    monkeypatch.chdir(project)
+    project = create("dotenvdb", tmp_path, database="sqlite")
+    target = tmp_path / "dotenv.sqlite3"
+    (project / ".env").write_text(
+        f"DOTENVDB_DATABASE__URL=sqlite://{target}\n", encoding="utf-8"
+    )
+    monkeypatch.chdir(project / "dotenvdb")
     monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
-    monkeypatch.setenv("BROKENSETTINGS_DATABASE__MAX_SIZE", "0")
+    monkeypatch.delenv("DOTENVDB_DATABASE__URL", raising=False)
 
+    assert main(["migrations", "plan", "--dry-run"]) == 0
+    line = f"database: sqlite://{target} (from settings: ProjectSettings.database)"
+    assert line in capsys.readouterr().err
     assert main(["migrations", "apply"]) == 0
 
-    assert (project / ".hinoki/local.sqlite3").is_file()
-    err = capsys.readouterr().err
-    assert "cannot load the application's settings" in err
-    assert "(from local SQLite default)" in err
+    assert target.is_file()
+    assert not (project / ".hinoki/local.sqlite3").exists()
+
+
+def test_project_settings_in_memory_sqlite_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = create("memorydb", tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv("MEMORYDB_DATABASE__URL", "sqlite://:memory:")
+
+    assert main(["migrations", "apply"]) == 1
+
+    assert "in-memory SQLite" in capsys.readouterr().err
+    assert not (project / ":memory:").exists()
 
 
 def test_project_migration_status_never_prints_the_settings_password(
@@ -199,7 +256,7 @@ def test_project_migration_status_never_prints_the_settings_password(
     assert main(["migrations", "status"]) == 1
 
     err = capsys.readouterr().err
-    assert "database: postgres://owner:***@127.0.0.1:1/none?..." in err
+    assert "database: postgres://***@127.0.0.1:1/none?..." in err
     assert "(from settings: ProjectSettings.database)" in err
     assert "secret-pw" not in err
 

@@ -881,7 +881,7 @@ def test_command_line_reports_a_failed_connection_without_a_traceback(
         assert main([*args, action, "--database", url]) == 1
         captured = capsys.readouterr()
         assert captured.err.startswith(
-            "database: postgres://someone:***@127.0.0.1:1/nowhere?... "
+            "database: postgres://***@127.0.0.1:1/nowhere?... "
             "(from --database)\nerror: database: "
         )
         assert "fix:" in captured.err and "HINOKI_DATABASE_URL" in captured.err
