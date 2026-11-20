@@ -35,6 +35,10 @@ USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, Registration
 WAIVERS_HELP = (
     f"waiver file (default: Hinoki(waivers=...), else {NAME} at the project root)"
 )
+NO_RULES_WARNING = (
+    "warning: no rules were run, so this check proves nothing; declare them with "
+    "Hinoki(rules=RuleSet(...)) or pass --rules module:ruleset"
+)
 
 
 def load_object(spec: str) -> object:
@@ -130,6 +134,8 @@ def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> i
         print(f"error: {exc}", file=sys.stderr)
         return 2
     print(render(found, len(rules.rules), args.format, Style.detect(sys.stdout)))
+    if not rules.rules:
+        print(NO_RULES_WARNING, file=sys.stderr)
     return 1 if failing(found) else 0
 
 
