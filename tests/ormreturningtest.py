@@ -228,6 +228,9 @@ class MySQLDouble:
         self.calls.append(f"fetch {sql}")
         return [self.row]
 
+    def active(self) -> None:
+        return None
+
     @asynccontextmanager
     async def atomic(self) -> AsyncIterator[None]:
         self.calls.append("atomic")
