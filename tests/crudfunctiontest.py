@@ -16,6 +16,7 @@ from hinoki import (
     Caller,
     CrudAccess,
     Hinoki,
+    Mount,
     Schema,
     Unset,
     crud,
@@ -143,6 +144,57 @@ def test_rules_scoped_to_the_declaring_module_see_the_function_form() -> None:
     assert f"{__name__}.NoteCrud.list" in {qualified(r) for r in app.routes}
     found = RuleSet(Actions.require_access(match=f"{__name__}.*")).run(Project(app))
     assert [d.subject for d in found] == [f"{__name__}.NoteCrud.list"]
+
+
+def test_a_helper_called_at_import_names_actions_after_the_feature_module() -> None:
+    from tests.projects import crudnotes  # noqa: PLC0415 - imported here to run its top level
+
+    app = Hinoki(include=[crudnotes.memos], enforce_rules=False)
+    names = {qualified(route) for route in app.routes}
+    assert names == {
+        "tests.projects.crudnotes.MemoCrud.list",
+        "tests.projects.crudnotes.MemoCrud.retrieve",
+    }
+    found = RuleSet(Actions.require_access(match="tests.projects.crudnotes.*"))
+    assert len(found.run(Project(app))) == 2
+
+
+def test_name_sets_the_class_and_optionally_the_module() -> None:
+    options: dict[str, Any] = {"path": "/notes", "read": NoteOut, "access": writer}
+    short = crud(Note, name="ArchiveCrud", **options).api()
+    assert (short.__module__, short.__name__) == (__name__, "ArchiveCrud")
+    full = crud(Note, name="notes.apps.archive.Archive", **options).api()
+    assert (full.__module__, full.__name__) == ("notes.apps.archive", "Archive")
+    for bad in ("", "1Note", "notes..Archive", "notes.Archive-2"):
+        with pytest.raises(RegistrationError, match="name="):
+            crud(Note, name=bad, **options)
+    with pytest.raises(RegistrationError, match="name="):
+
+        @crud(Note, name="Other", **options)
+        class Notes(API):
+            pass
+
+
+def test_two_crud_values_with_one_name_are_refused_at_include() -> None:
+    options: dict[str, Any] = {"read": NoteOut, "access": writer}
+    notes = crud(Note, path="/notes", **options)
+    archive = crud(Note, path="/archive", **options)
+    app = Hinoki(enforce_rules=False)
+    with pytest.raises(RegistrationError, match=r"NoteCrud\.list.*name="):
+        app.include(notes, archive)
+    assert app.routes == ()
+    app.include(notes, crud(Note, path="/archive", name="ArchiveCrud", **options))
+    assert len(app.routes) == 4
+
+
+def test_one_crud_value_mounted_twice_keeps_one_name() -> None:
+    notes = crud(Note, path="/notes", read=NoteOut, access=writer)
+    app = Hinoki(include=[Mount("/a", notes), Mount("/b", notes)], enforce_rules=False)
+    assert len(app.routes) == 4
+    assert {qualified(route) for route in app.routes} == {
+        f"{__name__}.NoteCrud.list",
+        f"{__name__}.NoteCrud.retrieve",
+    }
 
 
 def test_omit_leaves_an_action_to_handwritten_code() -> None:
