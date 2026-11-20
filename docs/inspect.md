@@ -60,7 +60,7 @@ uv run hinoki check --phase static
 | `--rules MODULE:ATTRIBUTE` | the `RuleSet` to run | the application's `rules=` |
 | `--package PACKAGE` | package for the static import checks; repeat for several | the package that contains the target |
 | `--phase startup\|static` | run one phase | both |
-| `--waivers PATH` | waiver file | `hinoki-rules.toml` in the current directory |
+| `--waivers PATH` | waiver file; must exist | the app's `waivers=`, else `hinoki-rules.toml` at the project root ([which file](rules.md#which-waiver-file)) |
 | `--format text\|json` | human or versioned JSON output | `text` |
 | `--allow-effects` | also run checks declared effectful (files, network, database) | off |
 

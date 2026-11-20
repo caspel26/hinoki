@@ -19,6 +19,7 @@ from hinoki.ai.mcp import DevProject, Server, serve
 from hinoki.ai.proposals import ProposalError, propose
 from hinoki.modules import Module, ModuleContext
 from hinoki.orm import Model, field
+from tests.projects import rulesapp
 from tests.projects.rulesapp import create_app, rules
 from tests.providers import TokenAuth
 
@@ -35,11 +36,16 @@ def protected(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
+def no_waivers(tmp_path: Path) -> Path:
+    """An explicit, empty waiver file: a named file must exist."""
+    empty = tmp_path / "none.toml"
+    empty.write_text("")
+    return empty
+
+
 @pytest.fixture
 def server(tmp_path: Path) -> Server:
-    project = DevProject(
-        create_app(), rules, waivers=tmp_path / "none.toml", today=TODAY
-    )
+    project = DevProject(create_app(), rules, waivers=no_waivers(tmp_path), today=TODAY)
     return Server(project)
 
 
@@ -240,6 +246,69 @@ def test_list_rules_reports_waivers_read_only(tmp_path: Path) -> None:
     assert waivers.read_text().count("waiver") == 1  # nothing was written
 
 
+WAIVE_RULESAPP = "".join(
+    f'[[waiver]]\nrule="{rule}"\ntarget="tests.projects.rulesapp.*"\n'
+    'reason="r"\nowner="o"\n'
+    for rule in ("HNK-ACC-001", "HNK-TXN-001")
+)
+
+
+def ruled_app(waivers: Path | None = None) -> Hinoki:
+    app = Hinoki(rules=rules, waivers=waivers)
+    app.include(rulesapp.health, rulesapp.create)
+    return app
+
+
+def test_scenarios_start_the_app_with_the_waivers_check_project_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)  # no hinoki-rules.toml here
+    waivers = tmp_path / "w.toml"
+    waivers.write_text(WAIVE_RULESAPP)
+    project = DevProject(
+        ruled_app(), rules, waivers=waivers, today=TODAY, scenarios="read"
+    )
+    server = Server(project)
+    assert call(server, "check_project")["result"]["structuredContent"]["ok"]
+    ran = call(server, "run_scenario", path="/health")["result"]
+    assert not ran["isError"]
+    assert ran["structuredContent"]["status"] == 200
+
+
+def test_the_app_declared_waiver_file_is_the_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    waivers = tmp_path / "w.toml"
+    waivers.write_text(WAIVE_RULESAPP)
+    server = Server(DevProject(ruled_app(waivers), rules, today=TODAY))
+    assert call(server, "check_project")["result"]["structuredContent"]["ok"]
+    listed = call(server, "list_rules")["result"]["structuredContent"]
+    assert listed["waiver_file"]["path"] == str(waivers.resolve())
+
+
+def test_a_named_waiver_file_that_is_missing_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = tmp_path / "missing.toml"
+    server = Server(DevProject(create_app(), rules, waivers=missing, today=TODAY))
+    result = call(server, "check_project")["result"]
+    assert result["isError"]
+    assert "does not exist" in result["structuredContent"]["error"]
+    monkeypatch.setattr("hinoki.ai.mcp.serve", lambda *_: None)
+    args = argparse.Namespace(
+        target="tests.projects.rulesapp:create_app",
+        rules=None,
+        package=None,
+        models=None,
+        waivers=str(missing),
+        scenarios="off",
+        requests=None,
+    )
+    assert mcp.run_mcp(args) == 2
+    assert "does not exist" in capsys.readouterr().err
+
+
 def test_explain_action_includes_the_rules_that_concern_it(server: Server) -> None:
     data = call(server, "explain_action", action="create")["result"][
         "structuredContent"
@@ -429,7 +498,11 @@ def test_propose_model_generates_source_that_imports_and_registers() -> None:
 
 def scenario_server(tmp_path: Path, mode: str) -> Server:
     project = DevProject(
-        create_app(), rules, waivers=tmp_path / "none.toml", today=TODAY, scenarios=mode
+        create_app(),
+        rules,
+        waivers=no_waivers(tmp_path),
+        today=TODAY,
+        scenarios=mode,
     )
     return Server(project)
 
@@ -489,7 +562,7 @@ def test_a_failing_startup_returns_an_error_without_hanging_or_leaking(
     app = create_app()
     app.install(Failing())
     project = DevProject(
-        app, rules, waivers=tmp_path / "none.toml", today=TODAY, scenarios="read"
+        app, rules, waivers=no_waivers(tmp_path), today=TODAY, scenarios="read"
     )
     result = call(Server(project), "run_scenario", path="/health")["result"]
     assert result["isError"]
@@ -600,7 +673,7 @@ def test_recent_requests_filters_the_recorded_file(tmp_path: Path) -> None:
     ]
     file.write_text("".join(json.dumps(item) + "\n" for item in lines))
     project = DevProject(
-        create_app(), rules, waivers=tmp_path / "none.toml", requests=file
+        create_app(), rules, waivers=no_waivers(tmp_path), requests=file
     )
     tool = Server(project)
     found = call(tool, "recent_requests", status_min=400, path_contains="/b")
@@ -616,7 +689,10 @@ def test_recent_requests_explains_a_missing_file(
     server: Server, tmp_path: Path
 ) -> None:
     project = DevProject(
-        create_app(), rules, waivers=tmp_path / "w.toml", requests=tmp_path / "no.jsonl"
+        create_app(),
+        rules,
+        waivers=no_waivers(tmp_path),
+        requests=tmp_path / "no.jsonl",
     )
     data = call(Server(project), "recent_requests")["result"]["structuredContent"]
     assert data["requests"] == [] and "recent_requests" in data["note"]

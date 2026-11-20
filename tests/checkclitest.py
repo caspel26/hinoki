@@ -92,6 +92,8 @@ def entry(**changes: str) -> str:
         (entry(expires="soon"), "expires"),
         ("[[waiver", "waiver"),
         ('waiver = "x"', "list of tables"),
+        ("waiver = [1]", "list of tables"),
+        ('waiver = ["ab"]', "list of tables"),
     ],
 )
 def test_invalid_waiver_files_fail_instead_of_being_guessed(
@@ -99,6 +101,54 @@ def test_invalid_waiver_files_fail_instead_of_being_guessed(
 ) -> None:
     with pytest.raises(WaiverError, match=message):
         load_waivers(write(tmp_path / "w.toml", text))
+
+
+def test_an_unreadable_waiver_file_is_an_error_not_an_absence(tmp_path: Path) -> None:
+    binary = tmp_path / "binary.toml"
+    binary.write_bytes(b"\xff\xfe")
+    with pytest.raises(WaiverError, match=r"binary\.toml: cannot read"):
+        load_waivers(binary)
+    folder = tmp_path / "folder.toml"
+    folder.mkdir()
+    dangling = tmp_path / "dangling.toml"
+    dangling.symlink_to(tmp_path / "gone.toml")
+    for path in (folder, dangling):
+        with pytest.raises(WaiverError, match="not a regular file"):
+            load_waivers(path)
+
+
+def project_with_waivers(tmp_path: Path, text: str) -> Path:
+    """A project root with ``hinoki.toml`` and ``hinoki-rules.toml``, and a
+    subdirectory holding a stray, invalid ``hinoki-rules.toml``."""
+    write(tmp_path / "hinoki.toml", '[project]\napplication = "shop.main:app"\n')
+    write(tmp_path / "hinoki-rules.toml", text)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    write(sub / "hinoki-rules.toml", "[[waiver")
+    return sub
+
+
+def test_check_reads_the_waivers_of_the_project_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    every = "".join(
+        f'[[waiver]]\nrule="{rule}"\ntarget="tests.projects.rulesapp.*"\n'
+        'reason="r"\nowner="o"\n'
+        for rule in ("HNK-ACC-001", "HNK-TXN-001")
+    )
+    monkeypatch.chdir(project_with_waivers(tmp_path, every))
+    assert main(["check", APP, "--rules", RULES]) == 0
+
+
+def test_check_refuses_a_waiver_path_that_is_not_a_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "hinoki-rules.toml").mkdir()
+    monkeypatch.chdir(tmp_path)
+    assert main(["check", APP, "--rules", RULES]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:") and "not a regular file" in err
+    assert "Traceback" not in err
 
 
 def test_an_absent_waiver_file_means_no_waivers(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@
     target = "blog.api.health"        # fnmatch on the diagnostic's subject
     reason = "liveness probe is public by design"
     owner = "platform-team"
-    expires = "2027-01-31"            # optional ISO date
+    expires = 2027-01-31              # optional TOML date (unquoted), UTC
 
 A waiver names a rule, a bounded target, a reason and an owner; a bare ``*``
 target is refused. An expired waiver no longer applies and says so. Tools read
@@ -18,11 +18,13 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import fnmatch
+import os
 import re
 import tomllib
 from pathlib import Path
 from typing import Any
 
+from hinoki.project import find_manifest_or_none
 from hinoki.rules import Diagnostic, Phase, Severity, Status
 
 NAME = "hinoki-rules.toml"
@@ -96,17 +98,48 @@ def parse_waiver(index: int, raw: dict[str, Any]) -> Waiver:
 
 
 def load_waivers(path: Path) -> list[Waiver]:
-    """The waivers in ``path``; an absent file means none."""
-    if not path.is_file():
+    """The waivers in ``path``; nothing at ``path`` means none. Anything else
+    that cannot be read as a waiver file is a ``WaiverError``."""
+    if not os.path.lexists(path):
         return []
+    if not path.is_file():
+        raise WaiverError(
+            f"{path} is not a regular file (a directory or a broken symbolic link)"
+        )
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise WaiverError(f"{path}: cannot read: {exc}") from exc
+    try:
+        return parse_waivers(tomllib.loads(text))
+    except (TypeError, ValueError) as exc:  # includes WaiverError and TOML errors
         raise WaiverError(f"{path}: {exc}") from exc
+
+
+def parse_waivers(data: dict[str, Any]) -> list[Waiver]:
     entries = data.get("waiver", [])
-    if not isinstance(entries, list):
-        raise WaiverError(f"{path}: [[waiver]] must be a list of tables")
-    return [parse_waiver(i, dict(entry)) for i, entry in enumerate(entries, 1)]
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+        raise WaiverError("[[waiver]] must be a list of tables")
+    return [parse_waiver(i, entry) for i, entry in enumerate(entries, 1)]
+
+
+def waiver_path(path: str | Path | None = None) -> Path:
+    """The waiver file: ``path`` when named, else ``hinoki-rules.toml`` at the
+    project root (the directory of the nearest ``hinoki.toml`` from the working
+    directory upwards), else in the working directory."""
+    if path is not None:
+        return Path(path)
+    manifest = find_manifest_or_none()
+    return (manifest.parent if manifest else Path.cwd()) / NAME
+
+
+def read_waivers(path: str | Path | None = None) -> list[Waiver]:
+    """The waivers ``hinoki check``, ``hinoki mcp`` and application startup
+    apply (see ``waiver_path``). An absent default file means none; a file
+    named explicitly must exist."""
+    if path is not None and not os.path.lexists(path):
+        raise WaiverError(f"waiver file {path} does not exist")
+    return load_waivers(waiver_path(path))
 
 
 def notice(rule: str, message: str, subject: str) -> Diagnostic:

@@ -224,10 +224,10 @@ class Chatty(Rule):
 
 
 def server_for(*rules: Rule, tmp_path: Path) -> Server:
+    waivers = tmp_path / "x.toml"
+    waivers.write_text("", encoding="utf-8")
     return Server(
-        DevProject(
-            plain_app(), RuleSet(*rules), waivers=tmp_path / "x.toml", today=TODAY
-        )
+        DevProject(plain_app(), RuleSet(*rules), waivers=waivers, today=TODAY)
     )
 
 
@@ -280,10 +280,12 @@ def test_ids_and_params_are_checked_strictly(
 def test_explain_finds_inherited_actions_by_class_and_exact_subjects(
     tmp_path: Path,
 ) -> None:
+    waivers = tmp_path / "x.toml"
+    waivers.write_text("", encoding="utf-8")
     project_ = DevProject(
         create_app(),
         RuleSet(Actions.require_access()),
-        waivers=tmp_path / "x.toml",
+        waivers=waivers,
         today=TODAY,
     )
     server = Server(project_)

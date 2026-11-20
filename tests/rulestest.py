@@ -1,5 +1,6 @@
 """Startup rules: typed, deterministic, optional."""
 
+from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
@@ -170,6 +171,89 @@ def test_no_rules_means_nothing_runs() -> None:
     app = Hinoki()
     app.include(health)
     assert app.asgi() is not None
+
+
+def waiver_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str) -> None:
+    (tmp_path / "hinoki-rules.toml").write_text(text, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+
+HEALTH_WAIVER = (
+    '[[waiver]]\nrule = "HNK-ACC-001"\ntarget = "tests.rulestest.health"\n'
+    'reason = "liveness probe"\nowner = "platform"\n'
+)
+
+
+def test_startup_applies_the_waivers_check_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    waiver_file(tmp_path, monkeypatch, HEALTH_WAIVER)
+    app = Hinoki(rules=RuleSet(Actions.require_access()))
+    app.include(health)
+    assert app.asgi() is not None
+
+
+def test_an_expired_waiver_does_not_apply_at_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    waiver_file(tmp_path, monkeypatch, HEALTH_WAIVER + "expires = 2020-01-31\n")
+    app = Hinoki(rules=RuleSet(Actions.require_access()))
+    app.include(health)
+    with pytest.raises(RegistrationError, match="HNK-ACC-001") as raised:
+        app.asgi()
+    assert "HNK-WVR-002" in str(raised.value)
+    assert "expired on 2020-01-31" in str(raised.value)
+
+
+def test_an_invalid_waiver_file_fails_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broken = HEALTH_WAIVER.replace('target = "tests.', 'x = "')
+    waiver_file(tmp_path, monkeypatch, broken)
+    app = Hinoki(rules=RuleSet(Actions.require_access()), enforce_rules=False)
+    app.include(health)
+    with pytest.raises(RegistrationError, match=r"hinoki-rules\.toml.*missing target"):
+        app.asgi()
+
+
+def test_startup_reads_the_waivers_of_the_project_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "hinoki.toml").write_text('[project]\napplication = "shop.main:app"\n')
+    (tmp_path / "hinoki-rules.toml").write_text(HEALTH_WAIVER)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "hinoki-rules.toml").write_text("[[waiver")  # stray: never read
+    monkeypatch.chdir(sub)
+    app = Hinoki(rules=RuleSet(Actions.require_access()))
+    app.include(health)
+    assert app.asgi() is not None
+
+
+def test_an_explicit_waiver_file_wins_and_must_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)  # no hinoki-rules.toml here
+    named = tmp_path / "owner-waivers.toml"
+    named.write_text(HEALTH_WAIVER)
+    app = Hinoki(rules=RuleSet(Actions.require_access()), waivers=str(named))
+    app.include(health)
+    assert app.asgi() is not None
+    missing = Hinoki(rules=RuleSet(Actions.require_access()), waivers=tmp_path / "no")
+    missing.include(health)
+    with pytest.raises(RegistrationError, match="does not exist"):
+        missing.asgi()
+
+
+def test_a_directory_named_like_the_waiver_file_fails_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "hinoki-rules.toml").mkdir()
+    monkeypatch.chdir(tmp_path)
+    app = Hinoki(rules=RuleSet(Actions.require_access()))
+    app.include(health)
+    with pytest.raises(RegistrationError, match="not a regular file"):
+        app.asgi()
 
 
 class Broken(Rule):

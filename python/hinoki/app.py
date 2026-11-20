@@ -9,6 +9,7 @@ import sys
 from collections.abc import Iterator, MutableMapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from functools import partial
+from pathlib import Path
 from types import FrameType, ModuleType
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -60,7 +61,8 @@ from hinoki.settings import (
     DocsSettings,
     Settings,
 )
-from hinoki.utils import Clock, _read_utc, utc_now
+from hinoki.utils import Clock, _read_utc, utc_now, utc_today
+from hinoki.waivers import EXPIRED, WaiverError, apply_waivers, read_waivers
 
 
 def check_startup_url(value: str | None) -> str | None:
@@ -152,6 +154,9 @@ class Hinoki:
     ``startup_url`` optionally reserves a public GET/HEAD endpoint that returns
     ``{"status": "ok"}`` after worker startup. It reports startup completion,
     not application, database, or event-loop health.
+
+    ``waivers`` names the owner's waiver file applied to the startup rules; it
+    must exist. Without it, ``hinoki-rules.toml`` at the project root is used.
     """
 
     def __init__(
@@ -172,6 +177,7 @@ class Hinoki:
         redoc_url: str | Unset | None = UNSET,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
+        waivers: str | Path | None = None,
         parsers: Sequence[Parser] | None = None,
         renderers: Sequence[Renderer] | None = None,
     ) -> None:
@@ -186,6 +192,8 @@ class Hinoki:
         self._configure_runtime(built_in, runtime)
         self._configure_docs(docs, title, version, openapi_url, docs_url, redoc_url)
         self._configure_policy(built_in, rules, enforce_rules, parsers, renderers)
+        # An explicit waiver file wins over the project's ``hinoki-rules.toml``.
+        self.waiver_file: Path | None = None if waivers is None else Path(waivers)
         self._initialize_registries(commands, on_startup, on_shutdown)
         # The declared form: ``Hinoki(include=[...], modules=[...])``.
         declared = [self.module_of(m) for m in modules]
@@ -529,17 +537,31 @@ class Hinoki:
 
     def enforce(self) -> None:
         """Fail with every startup-rule violation when rules are enforced. With
-        ``enforce_rules=False`` the diagnostics are only logged."""
+        ``enforce_rules=False`` the diagnostics are only logged. The owner's
+        waivers apply as in ``hinoki check``: ``waivers=`` when given, else the
+        project's ``hinoki-rules.toml``. An invalid waiver file always fails."""
         if self.rules is None:
             return
-        diagnostics = self.rules.run(Project(self), Phase.STARTUP)
+        try:
+            waivers = read_waivers(self.waiver_file)
+        except WaiverError as exc:
+            raise RegistrationError(f"invalid waivers: {exc}") from exc
+        diagnostics = apply_waivers(
+            self.rules.run(Project(self), Phase.STARTUP), waivers, utc_today()
+        )
+        # Only startup rules ran, so an unused waiver may belong to a static rule.
+        expired = [d for d in diagnostics if d.rule_id == EXPIRED]
         broken = failing(diagnostics)
-        if not broken:
-            return
-        report = "\n".join(d.text() for d in broken)
-        if self.enforce_rules:
+        report = "\n".join(d.text() for d in (*broken, *expired))
+        if self.enforce_rules and broken:
             raise RegistrationError(f"{len(broken)} rule violation(s):\n{report}")
-        log.warning("%d rule violation(s):\n%s", len(broken), report)
+        if report:
+            log.warning(
+                "%d rule violation(s), %d expired waiver(s):\n%s",
+                len(broken),
+                len(expired),
+                report,
+            )
 
     async def __call__(
         self, scope: MutableMapping[str, Any], receive: Any, send: Any
