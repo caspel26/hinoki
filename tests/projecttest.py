@@ -3,14 +3,16 @@
 import argparse
 import importlib
 import json
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
-from hinoki import managementcli, projectcli
+from hinoki import managementcli, projectcli, terminal
 from hinoki.__main__ import main
 from hinoki.db import Database
 from hinoki.orm import migrator
@@ -803,6 +805,59 @@ def _modular_project(tmp_path: Path) -> tuple[Path, str, Path]:
 def _clear_project_model_modules(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delitem(sys.modules, f"{name}.models", raising=False)
     monkeypatch.delitem(sys.modules, f"{name}.apps.billing.models", raising=False)
+
+
+def test_plan_prints_the_written_path_relative_to_the_working_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote {name}/migrations/0001-" in out
+    assert str(tmp_path) not in out
+
+
+def _shown_from(monkeypatch: pytest.MonkeyPatch, here: Path, home: Path) -> None:
+    """Show paths as if the working directory and home were elsewhere, while
+    the project itself is still found from the real working directory."""
+    fake = SimpleNamespace(cwd=lambda: here, home=lambda: home)
+    monkeypatch.setattr(terminal, "Path", fake)
+
+
+def test_plan_keeps_an_absolute_path_outside_the_working_directory_and_home(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+    _shown_from(monkeypatch, tmp_path / "elsewhere", tmp_path / "home")
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote {project / name / 'migrations'}{os.sep}0001-" in out
+
+
+def test_plan_shortens_a_path_under_home_with_a_tilde(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, name, _ = _modular_project(tmp_path)
+    monkeypatch.chdir(project)
+    _clear_project_model_modules(name, monkeypatch)
+    _shown_from(monkeypatch, tmp_path / "elsewhere", tmp_path)
+
+    assert main(["migrations", "plan", "--app", name]) == 0
+    out = capsys.readouterr().out
+    assert f"wrote ~{os.sep}{project.name}{os.sep}{name}{os.sep}migrations" in out
+    assert str(tmp_path) not in out
 
 
 def test_focused_child_plan_requires_recorded_parent_table(
