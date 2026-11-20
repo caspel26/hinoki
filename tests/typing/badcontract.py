@@ -42,5 +42,12 @@ async def misuse_atomic() -> None:
     print(count)
 
 
-@db.atomic  # type: ignore[arg-type]
-def sync_atomic() -> None: ...
+@db.atomic
+def sync_atomic(name: str) -> int:
+    return len(name)
+
+
+def use_sync_atomic() -> None:
+    size: int = sync_atomic("x")
+    wrong: str = sync_atomic("x")  # type: ignore[assignment]
+    print(size, wrong)

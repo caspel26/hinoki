@@ -231,6 +231,19 @@ Server-supplied keywords take precedence over values from a `Schema`. A loaded m
 
 The model constructor is statically typed. Some keyword-based model methods still have broader type-checker signatures; see [typing](typing.md).
 
+### Writing many rows at once
+
+`abulk_create`, `abulk_update` and `abulk_delete` (sync: `bulk_create`, `bulk_update`, `bulk_delete`) each run in one transaction, a savepoint inside an open one, so a failure leaves nothing behind:
+
+```python
+tasks = await Task.abulk_create([TaskIn(title="a"), {"title": "b", "owner_id": me}])
+tasks[0].done = True
+await Task.abulk_update(tasks)  # saves the changed rows
+deleted = await Task.abulk_delete([tasks[0], other_id])  # instances or primary keys
+```
+
+`abulk_create` takes `Schema` objects or dicts of field values and returns the rows in order; defaults, factories, validation and write hooks apply as for `acreate`, and `returning=False` works the same way. `abulk_update` saves each instance's changes as `asave` does, writes nothing for an unchanged one and refuses an unsaved instance. `abulk_delete` returns how many rows existed and deletes in chunks of at most 10 000 keys. These methods run one statement per row (or per chunk for delete), not a single multi-row `INSERT`; they give atomicity, not a batching speed-up. Like `adelete`, `abulk_delete` runs no hooks.
+
 ### Writes that do not read the row back
 
 By default every write returns the row as the database stored it: PostgreSQL and SQLite add `RETURNING` with every column, and MySQL/MariaDB select the row again in the same transaction. When the caller does not need that row, pass `returning=False`; the statement then has no `RETURNING` (and no follow-up `SELECT` on MySQL/MariaDB):
