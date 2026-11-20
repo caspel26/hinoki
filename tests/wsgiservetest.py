@@ -249,6 +249,26 @@ def test_a_plain_callable_has_the_default_limits() -> None:
     assert wsgiworker.app_settings(adapter).execution.sync_workers == 3
 
 
+def test_a_plain_callable_takes_its_limits_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EXECUTION__SYNC_WORKERS", "3")
+    monkeypatch.setenv("SERVER__WORKERS", "2")
+    plain = load_wsgi_target(PLAIN)
+
+    assert wsgiworker.app_settings(plain).execution.sync_workers == 3
+    assert settings_of(plain).workers == 2
+
+
+def test_a_bad_environment_value_is_refused_not_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("EXECUTION__SYNC_WORKERS", "many")
+
+    assert serve.run_wsgi(args(PLAIN, "wsgi"), reload=False) == 2
+    assert "SYNC_WORKERS" in capsys.readouterr().err.upper()
+
+
 def test_the_worker_serves_until_stopped_then_drains(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

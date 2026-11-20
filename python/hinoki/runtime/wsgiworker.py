@@ -42,12 +42,11 @@ LIMITS = (
 
 def app_settings(target: object) -> AppSettings:
     """The settings a ``WSGIAdapter`` brings from its application; a plain
-    callable has the defaults."""
-    if isinstance(target, WSGIAdapter):
-        settings = getattr(target.app, "settings", None)
-        if isinstance(settings, AppSettings):
-            return settings
-    return AppSettings()
+    callable has none of its own, so they come from the environment."""
+    if not isinstance(target, WSGIAdapter):
+        return AppSettings.load()
+    settings = getattr(target.app, "settings", None)
+    return settings if isinstance(settings, AppSettings) else AppSettings()
 
 
 def start_server(
