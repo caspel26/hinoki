@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.9.4,<2"]
+requires = ["maturin>=1.16.0,<2"]
 build-backend = "maturin"
 
 [project]
@@ -30,7 +30,7 @@ Repository = "https://github.com/caspel26/hinoki"
 hinoki = "hinoki.__main__:main"
 
 [project.optional-dependencies]
-server = ["granian[reload]>=2.8,<3"]
+server = ["granian[reload]>=2.8.8,<3"]
 
 [dependency-groups]
 dev = [
@@ -39,12 +39,12 @@ dev = [
     { include-group = "test" },
     "pre-commit>=4.0",
 ]
-lint = ["complexipy==9.0.0", "ruff==0.15.12"]
+lint = ["complexipy==9.0.0", "ruff==0.17.5"]
 docs = [
     "mike==2.2.0",
     "mkdocs-git-revision-date-localized-plugin>=1.7.0",
     "mkdocs-material>=9.6",
-    "mkdocstrings[python]>=0.27",
+    "mkdocstrings[python]>=1.0.8",
 ]
 typecheck = ["mypy>=1.14"]
 test = [
@@ -52,7 +52,7 @@ test = [
     "pytest-asyncio>=1.0",
     "pytest-cov>=6.0",
     "pytest-xdist>=3.6",
-    "granian[reload]>=2.8,<3",
+    "granian[reload]>=2.8.8,<3",
     "openapi-spec-validator>=0.7",
 ]
 
