@@ -27,6 +27,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 from hinoki import core
+from hinoki.db import NATIVE_OWNER, current, current_owner
 from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.nativeproof import native_refusal
 from hinoki.runtime.pipeline import NativeBody
@@ -61,11 +62,21 @@ def timeout_response() -> Response:
     return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
 
 
+def adopt_transaction() -> None:
+    """The transaction a driven handler opened passes to the task now running
+    it, so a savepoint opened after the handover is the owner's, not a stranger's."""
+    active = current.get()
+    if active is not None and active.owner is NATIVE_OWNER:
+        active.owner = current_owner()
+
+
 @types.coroutine
 def resume(coro: Any, yielded: Any) -> Generator[Any, Any, Any]:
     """Continue ``coro`` in an asyncio task after it yielded ``yielded`` (a
     future or bare yield only asyncio can wait for): hand it to the task, and
-    send or throw what comes back into ``coro``."""
+    send or throw what comes back into ``coro``. The task adopts the open
+    transaction."""
+    adopt_transaction()
     while True:
         try:
             sent = yield yielded
