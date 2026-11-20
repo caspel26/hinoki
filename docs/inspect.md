@@ -82,8 +82,11 @@ GET     /health                         public                   notes.api.healt
 ```
 
 Each row is method, path, access (the provider and its permissions, or `public`)
-and handler, sorted by path. `--path` keeps paths that start with the prefix,
-`--method` one method; no match prints `no routes match` and exits 1:
+and handler, sorted by path. The handler is the action's rule subject, the name
+that `except_` and waivers match: an action of an `API` class is named after the
+class it is mounted on, even when it inherits the method. `--path` keeps paths
+that start with the prefix, `--method` one method; no match prints
+`no routes match` and exits 1:
 
 ```sh
 uv run hinoki routes --path /billing --method GET
@@ -96,7 +99,9 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 
 `--lanes` adds, per route, whether [Kiso](kiso.md#the-native-handler-lane) runs
 the handler natively (`native`) or through the Python pipeline (`python`), with
-the reason. JSON always has `method`, `path`, `handler`, `access`, `status`,
+the reason. The access log's `lane` field means something narrower: a request
+for a `native` route here still logs `python` unless Rust runs a generated CRUD
+plan for it. JSON always has `method`, `path`, `handler`, `access`, `status`,
 `lane` and `lane_reason`.
 
 ## Export the OpenAPI document with `openapi` {#openapi}
@@ -129,7 +134,8 @@ The target is an application with typed settings or a settings class
 (`notes.settings:ProjectSettings`). Each value is shown with where it came from;
 `settings.Secret` values are redacted. `--prefix`, `--dotenv` and `--toml`
 replace the sources the class declares. `--example` prints a `.env.example` with
-defaults and types, leaving secrets and required fields blank. See
+defaults and types, leaving required fields blank and commenting out optional
+values with no printable default (secrets, unset values). See
 [Settings](settings.md#see-what-is-in-effect).
 
 ## Report versions with `version` {#version}

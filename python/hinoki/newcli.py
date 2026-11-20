@@ -328,7 +328,7 @@ def next_steps(
 def show_banner(style: Style, title: str = "new project") -> None:
     detail = f"v{__version__}"
     if style.animated and style.unicode:
-        style.shimmer(detail)
+        style.shimmer(title, detail)
     else:
         print(style.banner(title, detail))
     if style.fancy:

@@ -8,7 +8,7 @@ related:
 
 # Give an agent the development MCP
 
-`hinoki mcp` starts an MCP server on stdio that describes your app, its rules and its models to a coding agent. It is read-only: it never writes source code, rules or waivers.
+`hinoki mcp` starts an MCP server on stdio that describes your app, its rules and its models to a coding agent. It never writes source code, rules or waivers. The one exception to reading only is `run_scenario`, which you enable with `--scenarios`: it runs real handlers and can change data ([below](#run-requests-against-the-app)).
 
 ```sh
 hinoki mcp

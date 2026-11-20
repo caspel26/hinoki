@@ -2,13 +2,15 @@
 
 import json
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Request, Response, Schema, http
+from hinoki import Access, Caller, Hinoki, Request, Response, Schema, crud, http
 from hinoki.ai.mcpapp import ExposureError, expose_as_mcp, place, select
 from hinoki.errors import Conflict
+from hinoki.orm import Model, field
+from hinoki.rules import qualified
 from hinoki.testing import ASGIClient
 from tests.providers import TokenAuth
 
@@ -27,6 +29,20 @@ class NoteIn(Schema):
 class NoteOut(Schema):
     title: str
     owner: str
+
+
+class Memo(Model, table="mcp_app_memos"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    title: str = field(max_length=40)
+
+
+class MemoOut(Schema):
+    id: UUID
+    title: str
+
+
+class MemoIn(Schema):
+    title: str
 
 
 @http.get("/notes/{note_id}", access=reader)
@@ -257,6 +273,19 @@ async def test_browser_style_requests_are_refused() -> None:
 def test_mcp_path_arguments_must_be_scalar() -> None:
     with pytest.raises(ValueError, match="takes one value"):
         place("/notes/{note_id}", "note_id", "path", ["a", "b"])
+
+
+def test_module_patterns_select_crud_actions_and_writes_stay_opt_in() -> None:
+    declared = crud(
+        Memo, path="/memos", read=MemoOut, create=MemoIn, delete=True, access=writer
+    )
+    app = Hinoki(include=[declared], enforce_rules=False)
+    reads = {
+        qualified(tool.route) for tool in select(app, [f"{__name__}.*"], False, "/mcp")
+    }
+    assert reads == {f"{__name__}.MemoCrud.list", f"{__name__}.MemoCrud.retrieve"}
+    every = select(app, [f"{__name__}.*"], True, "/mcp")
+    assert {tool.route.method for tool in every} == {"GET", "POST", "DELETE"}
 
 
 async def test_missing_required_tool_body_is_reported_to_the_caller() -> None:

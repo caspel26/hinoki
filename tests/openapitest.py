@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import API, Access, Caller, Hinoki, Schema, http
+from hinoki import API, Access, Caller, Hinoki, Response, Schema, http
 from hinoki.errors import Conflict, Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.schema import Field
@@ -142,6 +142,18 @@ def test_security_scheme_is_described_from_the_provider() -> None:
     assert components["securitySchemes"] == {
         "TokenAuth": {"type": "http", "scheme": "bearer"}
     }
+
+
+def test_a_response_arm_documents_the_typed_result() -> None:
+    @http.get("/maybe")
+    async def maybe() -> AuthorOut | Response:
+        return Response(status=418)
+
+    doc = Hinoki(include=[maybe]).openapi()
+    ok = doc["paths"]["/maybe"]["get"]["responses"]["200"]
+    schema = ok["content"]["application/json"]["schema"]
+    assert schema == {"$ref": "#/components/schemas/AuthorOut"}
+    validate(doc)
 
 
 def test_none_return_has_no_content_and_lists_are_arrays() -> None:

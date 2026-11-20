@@ -60,12 +60,32 @@ Writes run in a transaction. `pagination=` selects the page-number policy of the
 # notes/apps/billing/routes.py (variant)
 from hinoki import CrudAccess
 
+from notes.security import billing_admin, billing_staff
+
 access = CrudAccess(
     default=billing_staff, list=None, retrieve=None, delete=billing_admin
 )
 ```
 
 Here list and retrieve are public, create and update need `billing_staff`, delete needs `billing_admin`. Unknown action names raise `TypeError`. Generated writes always need a policy: a write left without one raises `RegistrationError` (when a `@crud` class is declared, or when a `crud(...)` value is included) unless you pass `public_writes=True` on purpose. The `access=` of `crud(...)` covers generated actions only; a handwritten action in the class form states its own.
+
+Rules see a generated action under the module that declares the `crud(...)` value: the value in `notes/apps/billing/routes.py` produces `notes.apps.billing.routes.InvoiceCrud.list`, `.retrieve`, `.create`, `.update` and `.delete`, and the class form uses its class (`notes.apps.billing.api.Invoices.list`). So the scaffold's `match="notes.*"` rules check them, and a public list goes in `except_` like any other action:
+
+```python
+Actions.require_access(
+    match="notes.*",
+    except_=["notes.api.health", "notes.apps.billing.routes.InvoiceCrud.list"],
+)
+```
+
+The same names select [MCP tools](app-mcp.md#choose-the-tools): `tools=["notes.apps.billing.*"]` also publishes the generated reads, and the writes with `allow_writes=True`.
+
+How the name is chosen:
+
+* A shared helper that wraps `crud(...)` and is called at the top level of a feature module names the actions after that feature module, not after the helper's module.
+* `name="ArchiveCrud"` sets the class name; `name="notes.apps.archive.ArchiveCrud"` sets the module too. Pass it when the value is built deeper (a factory that calls another factory, or a function run from `main.py`), or when one module declares two `crud(...)` values for the same model. `name=` is for the function form only.
+* Two different classes whose actions would share a name raise `RegistrationError` when included, naming both paths, so one `except_` entry, waiver or MCP pattern never covers both by accident.
+* One value mounted twice (`Mount("/a", notes)` and `Mount("/b", notes)`) keeps one name, as any `API` class or function does: an exception for it covers both mounts.
 
 ## Hooks in the class form
 
@@ -162,11 +182,11 @@ hinoki routes --path /billing/invoices
 ```
 
 ```text
-GET     /billing/invoices            StaffTokens[billing:manage] hinoki.resources.list
-POST    /billing/invoices            StaffTokens[billing:manage] hinoki.resources.create
-DELETE  /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.delete
-GET     /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.retrieve
-PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] hinoki.resources.update
+GET     /billing/invoices            StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.list
+POST    /billing/invoices            StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.create
+DELETE  /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.delete
+GET     /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.retrieve
+PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.billing.routes.InvoiceCrud.update
 ```
 
 Generated routes appear in the OpenAPI document with their schemas, access policies, status codes and pagination. See the [CRUD API reference](reference/crud.md). Prefer a handwritten action when a workflow has its own state transitions, errors or side effects beyond one model mutation.
