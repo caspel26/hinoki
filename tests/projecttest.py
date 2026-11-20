@@ -710,6 +710,16 @@ def test_app_command_refuses_duplicates_and_preserves_existing_files(
 
     assert keep.read_text() == "user content"
     assert (project / "hinoki.toml").read_bytes() == before
+    assert not (project / ".hinoki-app-create.lock").exists()
+
+
+def test_app_creation_removes_its_lock_file(tmp_path: Path) -> None:
+    project = create("sample", tmp_path)
+
+    projectcli.create_app("billing", project)
+
+    assert (project / "sample" / "apps" / "billing").is_dir()
+    assert not (project / ".hinoki-app-create.lock").exists()
 
 
 def test_concurrent_app_creation_preserves_both_manifest_entries(
@@ -731,6 +741,7 @@ def test_concurrent_app_creation_preserves_both_manifest_entries(
         "billing",
         "search",
     }
+    assert not (project / ".hinoki-app-create.lock").exists()
 
 
 def test_failed_manifest_replace_removes_only_the_new_app(
