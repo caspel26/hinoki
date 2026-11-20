@@ -29,7 +29,7 @@ def add_arguments(new: argparse.ArgumentParser) -> None:
     new.add_argument(
         "name",
         nargs="?",
-        help="package name: lower-case letters and digits (asked for in a terminal)",
+        help="package name: lower-case letters, digits, single underscores",
     )
     new.add_argument("--dir", default=None, help="parent directory (default: here)")
     new.add_argument(
@@ -173,7 +173,7 @@ def check_name(name: str) -> str | None:
     if name in RESERVED_NAMES:
         return f"'{name}' is taken by hinoki or the standard library"
     if not NAME.fullmatch(name):
-        return "use lower-case letters and digits, starting with a letter"
+        return "use lower-case letters, digits and single underscores, from a letter"
     return None
 
 

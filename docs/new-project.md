@@ -22,7 +22,7 @@ In a terminal, `hinoki new` asks for everything the command line leaves out:
 
 | Question | Answers | Default |
 | --- | --- | --- |
-| Project name | lower-case letters and digits, starting with a letter | none |
+| Project name | lower-case letters and digits, single underscores between words, starting with a letter | none |
 | Parent directory | any path | `.` (here) |
 | Database | `none`; `sqlite` (local file in `.hinoki/`); `postgresql` (also writes `.env.example`) | `none` |
 | Server | `kiso` (Hinoki's own Rust server: native handler lane, access log); `granian` (general-purpose ASGI server: runs any ASGI app) | `kiso` |
@@ -31,7 +31,7 @@ In a terminal, `hinoki new` asks for everything the command line leaves out:
 | Initialize a git repository? | yes / no | yes |
 | Install dependencies (uv sync)? | yes / no | yes |
 | Create an app now? | yes / no | yes |
-| App name (only after yes) | lower-case letters and digits, starting with a letter; an invalid name is asked again | `core` |
+| App name (only after yes) | the same rule as the project name; an invalid name is asked again | `core` |
 
 Each answer collapses into a summary line. When the files are written, the
 command lists the key ones, creates the app you named with the same code as
@@ -167,8 +167,10 @@ Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape
 
 ## Errors and edge cases
 
-- The name must be lower-case letters and digits starting with a letter, and not
-  `hinoki` or a standard-library module such as `json`, which would shadow
+- The name must be lower-case letters and digits, with single underscores between
+  words (`my_shop`, `api_v1`), starting with a letter, and not
+  `hinoki`, a Python keyword or a standard-library module such as `json`, which
+  would shadow
   imports in the project. A refused name is asked again; with `--no-input` the
   command exits 2.
 - An app name follows the same rule. A refused name is asked again; `--app` with a bad

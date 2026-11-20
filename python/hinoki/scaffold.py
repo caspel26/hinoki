@@ -9,14 +9,15 @@ the read-only development MCP, and a test. Nothing is installed or executed.
 from __future__ import annotations
 
 import json
+import keyword
 import re
 import sys
 from pathlib import Path
 
 from hinoki.ai.skills import skill_files
 
-NAME = re.compile(r"[a-z][a-z0-9]*")
-RESERVED_NAMES = sys.stdlib_module_names | {"hinoki"}
+NAME = re.compile(r"[a-z][a-z0-9]*(_[a-z0-9]+)*")
+RESERVED_NAMES = sys.stdlib_module_names | set(keyword.kwlist) | {"hinoki"}
 
 PYPROJECT = """[project]
 name = "{name}"
@@ -406,9 +407,10 @@ def create(
     that exists and is not empty."""
     if not NAME.fullmatch(name) or name in RESERVED_NAMES:
         raise ScaffoldError(
-            "the name must be lower-case letters and digits, starting with a letter "
-            "(no underscores or dashes: it is also the package name), and must not "
-            "shadow Hinoki or a Python standard-library module"
+            "the name must be lower-case letters and digits, with single underscores "
+            "between words, starting with a letter (no dashes: it is also the package "
+            "name), and must not shadow Hinoki, a Python keyword or a "
+            "standard-library module"
         )
     target = parent / name
     if target.exists() and any(target.iterdir()):
