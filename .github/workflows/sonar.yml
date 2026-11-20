@@ -11,8 +11,8 @@ permissions:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    # Pull requests from forks have no access to the token.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # Pull requests from forks and from Dependabot have no access to the token.
+    if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
