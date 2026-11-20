@@ -98,7 +98,7 @@ def test_mysql_dialect_compiles_backticks_and_positional_holders() -> None:
     assert sql == (
         "SELECT `id`, `title` FROM `orm_posts` WHERE `title` = ? AND "
         "LOWER(CAST(`note` AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE(?, "
-        "'\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+        "'!', '!!'), '%', '!%'), '_', '!_')), '%') ESCAPE '!'"
     )
     assert params == ["a", "%_"]
 

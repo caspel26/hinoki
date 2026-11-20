@@ -217,7 +217,7 @@ fn like_escaping(column: &str, holder: &str, dialect: Dialect) -> String {
             "CAST({column} AS TEXT) LIKE '%' || replace(replace(replace({holder}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' ESCAPE '\\'"
         ),
         Dialect::Mysql => format!(
-            "LOWER(CAST({column} AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE({holder}, '\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+            "LOWER(CAST({column} AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE({holder}, '!', '!!'), '%', '!%'), '_', '!_')), '%') ESCAPE '!'"
         ),
     }
 }
@@ -724,7 +724,7 @@ mod tests {
             sql,
             "SELECT `id`, `title` FROM `posts` WHERE `title` = ? AND ".to_owned()
                 + "LOWER(CAST(`body` AS CHAR)) LIKE CONCAT('%', LOWER(REPLACE(REPLACE(REPLACE(?, "
-                + "'\\\\', '\\\\\\\\'), '%', '\\\\%'), '_', '\\\\_')), '%') ESCAPE '\\\\'"
+                + "'!', '!!'), '%', '!%'), '_', '!_')), '%') ESCAPE '!'"
         );
         assert_eq!(params, vec![1, 2]);
 
@@ -760,6 +760,13 @@ mod tests {
         assert!(sql.contains(" OR LOWER(CAST(`body` AS CHAR)) LIKE CONCAT('%', LOWER("));
         assert_eq!(sql.matches('?').count(), 2);
         assert_eq!(params, vec!["needle", "needle"]);
+    }
+
+    #[test]
+    fn mysql_contains_does_not_depend_on_backslash_escapes() {
+        let sql = like_escaping("title", "?", Dialect::Mysql);
+        assert!(sql.ends_with("ESCAPE '!'"), "{sql}");
+        assert!(!sql.contains('\\'), "{sql}");
     }
 
     #[test]
