@@ -732,6 +732,7 @@ def serve(session: Session, project: Path) -> None:
     dev = Scene(["hinoki", "dev"], hold_ms=700, until="listening on", settle_s=2.5)
     session.run(dev, project)
     refuse(session, "Traceback", "WARNING")
+    expect(session, f"docs: http://127.0.0.1:{PORT}/docs")
     curl = Scene(
         [
             "curl",
