@@ -15,6 +15,7 @@ import sys
 from hinoki.app import Hinoki
 from hinoki.errors import RegistrationError
 from hinoki.newcli import add_arguments as add_new_arguments
+from hinoki.project import find_manifest_or_none, load_manifest
 from hinoki.reportui import check_summary, check_text
 from hinoki.rules import (
     SCHEMA_VERSION,
@@ -54,6 +55,19 @@ def default_packages(target: str) -> tuple[str, ...]:
     """The top-level package of the target module: what the import rules scan
     when ``--package`` is not given."""
     return (target.partition(":")[0].split(".")[0],)
+
+
+def import_project_models(target: str) -> None:
+    """Import the models of the project that declares ``target``, so the model
+    rules see them. Another target, or no manifest, imports nothing."""
+    path = find_manifest_or_none()
+    if path is None:
+        return
+    manifest = load_manifest(path)
+    if manifest.application != target:
+        return
+    for app in manifest.ordered_apps():
+        manifest.models(app)
 
 
 def build_rules(spec: str | None, app: Hinoki) -> RuleSet:
@@ -105,6 +119,7 @@ def render(
 def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> int:
     try:
         app = build_app(args.target)
+        import_project_models(args.target)
         rules = build_rules(args.rules, app)
         project = Project(app, tuple(args.package or default_packages(args.target)))
         phase = Phase(args.phase) if args.phase else None
