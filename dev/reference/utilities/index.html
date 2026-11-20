@@ -385,7 +385,8 @@
 
         <p>Update a declared datetime column on each ORM update statement.</p>
 <p>Timestamp columns remain ordinary model fields, visible to type checkers
-and migrations. Declare their creation defaults with <code>utc_now</code>.</p>
+and migrations. Declare their creation defaults with <code>utc_now</code>. The
+decorator is always called: <code>@db.timestamps()</code>.</p>
 
 
     </div>

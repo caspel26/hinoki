@@ -452,16 +452,16 @@ class keywords.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">pk</span><span class="p">,</span> <span class="n">timestamps</span><span class="p">,</span> <span class="n">unique</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">pk</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.customers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Customer</span>
 
 
-<span class="nd">@unique</span><span class="p">(</span><span class="s2">"customer_id"</span><span class="p">,</span> <span class="s2">"reference"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="s2">"customer_id"</span><span class="p">,</span> <span class="s2">"reference"</span><span class="p">)</span>
 <span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"customer_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
 <span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-created_at"</span><span class="p">,</span> <span class="s2">"-id"</span><span class="p">)</span>
-<span class="nd">@timestamps</span><span class="p">()</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">timestamps</span><span class="p">()</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Quote</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Quote"</span><span class="p">,</span> <span class="n">plural</span><span class="o">=</span><span class="s2">"Quotes"</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">customer_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span>
@@ -492,8 +492,8 @@ class keywords.</p>
 </tr>
 <tr>
 <td>composite uniqueness</td>
-<td><code>@unique("a", "b")</code></td>
-<td><code>UNIQUE (a, b)</code>; one column uses <code>field(unique=True)</code></td>
+<td><code>@db.unique("a", "b", name=None)</code></td>
+<td><code>UNIQUE (a, b)</code>, named with <code>name=</code>; one column uses <code>field(unique=True)</code></td>
 </tr>
 <tr>
 <td>default order</td>
@@ -502,7 +502,7 @@ class keywords.</p>
 </tr>
 <tr>
 <td>update timestamp</td>
-<td><code>@timestamps()</code></td>
+<td><code>@db.timestamps()</code></td>
 <td>refreshes <code>updated_at</code> on every ORM update</td>
 </tr>
 <tr>
@@ -522,9 +522,36 @@ class keywords.</p>
 </tr>
 </tbody>
 </table>
-<p><code>unique</code> and <code>timestamps</code> are imported from <code>hinoki.orm</code>; <code>indexed</code>,
-<code>ordered_by</code> and <code>table</code> from <code>hinoki.db</code> (the same objects as in
-<code>hinoki.orm</code>).</p>
+<p>Every option decorator is reached through <code>from hinoki import db</code>. The same
+objects are also importable from <code>hinoki.orm</code>, which keeps older imports such
+as <code>from hinoki.orm import unique, timestamps</code> working.</p>
+<h2 id="composite-uniqueness">Composite uniqueness<a class="headerlink" href="#composite-uniqueness" title="Permanent link">&para;</a></h2>
+<p><code>@db.unique("a", "b")</code> adds <code>UNIQUE (a, b)</code> to the table; it needs two or more
+distinct columns. A single column uses <code>field(unique=True)</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@db</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="s2">"customer_id"</span><span class="p">,</span> <span class="s2">"reference"</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"uq_quotes_customer_reference"</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Quote</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">customer_id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">foreign_key</span><span class="p">(</span><span class="n">Customer</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">)</span>
+    <span class="n">reference</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li>Without <code>name=</code> the backend names the constraint. With it, the migration
+  renders <code>CONSTRAINT "uq_quotes_customer_reference" UNIQUE (...)</code> on
+  PostgreSQL, SQLite, MySQL and MariaDB, so the constraint keeps a stable,
+  chosen name in the database.</li>
+<li>A name is a letter or underscore followed by up to 62 letters, digits or
+  underscores, compared without case (as MySQL and MariaDB do). Planning
+  refuses a name already used by another constraint, a table, or an index or
+  foreign key that Hinoki names, among the planned models and, in a project
+  with <code>hinoki.toml</code>, in every app.</li>
+<li>Only a table model can name a constraint: on an abstract model <code>name=</code>
+  raises <code>RegistrationError</code>, because every table inheriting it would repeat
+  the name. Unnamed constraints are inherited as usual.</li>
+<li>Changing the constraints or their names on an existing table is not planned
+  on PostgreSQL, MySQL or MariaDB (write that migration by hand). SQLite
+  rebuilds the table; a rename alone is not destructive, while changed columns
+  are reported as destructive because existing rows may violate them.</li>
+</ul>
 <h2 id="indexes">Indexes<a class="headerlink" href="#indexes" title="Permanent link">&para;</a></h2>
 <p>Use <code>field(index=True)</code> for one ordinary column and <code>@db.indexed(...)</code> for a
 composite index. A <code>foreign_key</code> has no <code>index=</code> option: index it with
@@ -545,9 +572,11 @@ The optional <code>HNK-DB-002</code> rule (<code>Models.require_foreign_key_inde
 pages included. An explicit <code>order_by</code> replaces it; counts and bulk updates
 ignore it. End with a unique column (<code>"-id"</code>) so pages are stable.</p>
 <h2 id="update-timestamps">Update timestamps<a class="headerlink" href="#update-timestamps" title="Permanent link">&para;</a></h2>
-<p><code>@timestamps()</code> sets a declared, non-nullable <code>updated_at: datetime</code> on every
-ORM update statement. <code>@timestamps("modified_at", clock=my_clock)</code> names another
-column or injects a clock. See <a href="../utilities/#model-update-timestamps">utilities</a>.</p>
+<p><code>@db.timestamps()</code> sets a declared, non-nullable <code>updated_at: datetime</code> on every
+ORM update statement, including <code>asave</code> and <code>abulk_update</code>.
+<code>@db.timestamps("modified_at", clock=my_clock)</code> names another column or injects
+a clock. The parentheses are required: a bare <code>@db.timestamps</code> raises
+<code>RegistrationError</code>. See <a href="../utilities/#model-update-timestamps">utilities</a>.</p>
 <h2 id="names">Names<a class="headerlink" href="#names" title="Permanent link">&para;</a></h2>
 <p>Leave the table name derived for new models. Pin it with <code>@db.table(...)</code> when
 the model has migration history and its class or module may change: a changed
@@ -596,15 +625,15 @@ See <a href="../models/#table-and-display-names">table and display names</a>.</p
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#indexes">Indexes</a></li><li><a href="#default-order">Default order</a></li><li><a href="#update-timestamps">Update timestamps</a></li><li><a href="#names">Names</a></li><li><a href="#rules-for-all-options">Rules for all options</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#composite-uniqueness">Composite uniqueness</a></li><li><a href="#indexes">Indexes</a></li><li><a href="#default-order">Default order</a></li><li><a href="#update-timestamps">Update timestamps</a></li><li><a href="#names">Names</a></li><li><a href="#rules-for-all-options">Rules for all options</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.4</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
-          <div><dt>Reading</dt><dd>3 min</dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:54:47 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Reading</dt><dd>4 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-options.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

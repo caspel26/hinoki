@@ -570,16 +570,13 @@ migration on PostgreSQL, MySQL and MariaDB.</p>
 <h2 id="many-to-many">Many-to-many<a class="headerlink" href="#many-to-many" title="Permanent link">&para;</a></h2>
 <p>There is no implicit join table or <code>through=</code>: declare the association model.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">unique</span>
-
-
 <span class="k">class</span><span class="w"> </span><span class="nc">Tag</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">invoice_links</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="s2">"Related[list[InvoiceTag]]"</span><span class="p">]</span>
 
 
-<span class="nd">@unique</span><span class="p">(</span><span class="s2">"invoice_id"</span><span class="p">,</span> <span class="s2">"tag_id"</span><span class="p">)</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="s2">"invoice_id"</span><span class="p">,</span> <span class="s2">"tag_id"</span><span class="p">)</span>
 <span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"tag_id"</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">InvoiceTag</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
@@ -658,7 +655,7 @@ abstract model. <code>{model}</code> is the only placeholder.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.5</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>3 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/relations.md">Edit on GitHub</a></dd></div>
         </dl>

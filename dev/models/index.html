@@ -527,7 +527,7 @@ never changes the database: create the tables with
   with <code>unique=True</code> or <code>pk()</code>, which are already indexed. A <code>foreign_key</code> has
   no <code>index=</code> option: index it with <code>@db.indexed(...)</code>, or a composite index
   that starts with it, as <code>Invoice</code> does (<a href="../model-options/">model options</a>).</li>
-<li><strong>Composite uniqueness</strong> is <code>@unique("a", "b")</code>; there is no nested
+<li><strong>Composite uniqueness</strong> is <code>@db.unique("a", "b")</code>; there is no nested
   <code>class Meta</code>.</li>
 </ul>
 <h2 id="column-types">Column types<a class="headerlink" href="#column-types" title="Permanent link">&para;</a></h2>
@@ -758,14 +758,11 @@ constraints remain authoritative.</p>
 <p>An abstract model has no table: it is not migrated, cannot be queried and only
 exists to be subclassed.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">timestamps</span>
-
-
 <span class="k">class</span><span class="w"> </span><span class="nc">Keyed</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
 
 
-<span class="nd">@timestamps</span><span class="p">()</span>
+<span class="nd">@db</span><span class="o">.</span><span class="n">timestamps</span><span class="p">()</span>
 <span class="nd">@db</span><span class="o">.</span><span class="n">ordered_by</span><span class="p">(</span><span class="s2">"-updated_at"</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Tracked</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">abstract</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
@@ -781,11 +778,12 @@ exists to be subclassed.</p>
 <ul>
 <li><code>abstract=True</code> is not inherited; an abstract model needs no primary key, a
   table model needs exactly one, its own or inherited.</li>
-<li><strong>Options</strong> from abstract bases are inherited: all <code>@unique</code> and
+<li><strong>Options</strong> from abstract bases are inherited: all <code>@db.unique</code> and
   <code>@db.indexed</code>, and the order and timestamp column of the first base that sets
   one. A decorator on the subclass <em>replaces</em> that kind of option. A
   <code>field(index=True)</code> index belongs to its column and is dropped when a subclass
-  redeclares the column without it.</li>
+  redeclares the column without it. Constraint names are not inherited: an
+  abstract model cannot use <code>@db.unique(..., name=...)</code>.</li>
 <li><strong>Plain mixins</strong> (non-model classes) contribute annotated fields and methods;
   <code>ClassVar</code> annotations are not fields. Type checkers do not see mixin fields
   as constructor arguments: prefer an abstract model.</li>
@@ -836,7 +834,7 @@ exists to be subclassed.</p>
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.3</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:54:47 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>7 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>

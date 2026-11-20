@@ -483,7 +483,7 @@
 </tbody>
 </table>
 <p><code>before_*</code> hooks may change the values about to be written. <code>after_*</code> hooks see
-the stored row (generated keys, database defaults, <code>@timestamps</code>). An update
+the stored row (generated keys, database defaults, <code>@db.timestamps()</code>). An update
 with no changed column after <code>before_save</code> writes nothing and skips
 <code>after_save</code>. To extend an inherited hook, call <code>super()</code>.</p>
 <h2 id="instance-state">Instance state<a class="headerlink" href="#instance-state" title="Permanent link">&para;</a></h2>
@@ -573,7 +573,7 @@ them; an exception in one is logged and does not undo the commit. See
         <dl class="titleblock">
           <div><dt>Sheet</dt><dd>3.7</dd></div>
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:43:17 UTC">November 20, 2026</span></dd></div>
           <div><dt>Reading</dt><dd>2 min</dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-hooks.md">Edit on GitHub</a></dd></div>
         </dl>
