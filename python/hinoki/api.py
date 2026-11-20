@@ -7,7 +7,7 @@ from dataclasses import replace
 from typing import ClassVar
 
 from hinoki.errors import RegistrationError
-from hinoki.routing import Route, route_of
+from hinoki.routing import ROUTE_ATTR, Route, route_of
 
 
 class API:
@@ -75,7 +75,8 @@ class API:
     @classmethod
     def declared_route(cls, name: str, member: object) -> Route | None:
         if isinstance(member, staticmethod | classmethod):
-            if route_of(member.__func__) is not None:
+            declared = hasattr(member, ROUTE_ATTR)  # the decorator sits above it
+            if declared or route_of(member.__func__) is not None:
                 raise RegistrationError(
                     f"{cls.__name__}.{name}: route decorators go on plain methods, "
                     "not staticmethod/classmethod"
