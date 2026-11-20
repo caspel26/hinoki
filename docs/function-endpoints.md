@@ -119,7 +119,7 @@ The Billing app of the Notes project serves invoices. `hinoki app create billing
     class InvoiceOut(Schema): ...
     ```
 
-`billing_staff` is an `Access` policy declared once in `notes/security.py`; see [authentication](authentication.md). `notes/main.py` stays as `hinoki new` wrote it: the application it declares binds every `routes` list named in `hinoki.toml` ([Register routes](routes.md)).
+`billing_staff` is an `Access` policy declared once in `notes/security.py` ([the billing policies](authentication.md#billing-policies)). `notes/main.py` stays as `hinoki new` wrote it: the application it declares binds every `routes` list named in `hinoki.toml` ([Register routes](routes.md)).
 
 The manifest prefix and the group prefix join, and a `"/"` path means the group prefix itself:
 
@@ -159,7 +159,7 @@ async def summary() -> InvoiceSummary:
 | `atomic=` | Applies to `POST`, `PUT`, `PATCH`, `DELETE` | `atomic=True`/`False` decides for this action, any method |
 | `errors=` | Added to every action | Merged with the group's |
 
-A public action must also be listed in `except_` of `Actions.require_access` and `Actions.require_permissions` in `notes/rules.py`, or the application refuses to start (`HNK-ACC-001`). The rule exists so that public endpoints are a written decision.
+A public action must also be listed in `except_` of `Actions.require_access` in `notes/rules.py`, for example `except_=["notes.api.health", "notes.apps.billing.api.summary"]`, or the application refuses to start (`HNK-ACC-001`). The rule exists so that public endpoints are a written decision. `Actions.require_permissions` (`HNK-ACC-002`) only checks actions that have a policy, so it needs no entry.
 
 ## Compose with other decorators
 

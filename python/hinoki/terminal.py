@@ -10,10 +10,11 @@ the palette is used for accents.
 import base64
 import os
 import re
+import shutil
 import sys
 import threading
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TextIO
@@ -31,7 +32,7 @@ ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # from the site tokens: text, text-2/3, brand, mark light/shade, wood, info and
 # the semantic colours.
 PALETTE: dict[str, tuple[str, str, int]] = {
-    "text": ("#eeedf2", "#1d1a24", 97),
+    "text": ("#eeedf2", "#1d1a24", 39),
     "soft": ("#cfcdd8", "#4d4859", 37),
     "dim": ("#9d9ca9", "#5f596a", 90),
     "brand": ("#b9a0e7", "#5f3da5", 35),
@@ -60,6 +61,9 @@ GLYPHS: dict[str, tuple[str, str, str]] = {
 }
 
 CUBE = (0, 95, 135, 175, 215, 255)
+
+# Draws the banner's tagline row, with the glint at a position or without it.
+Row = Callable[[int | None], str]
 
 
 def rgb(hex_color: str) -> tuple[int, int, int]:
@@ -126,6 +130,13 @@ SPINNER_COLORS = ("shade", "brand", "light", "brand")
 TAGLINE = "Python API framework"
 GLINT_FADE = 3
 LABEL_WIDTH = 10
+# The banner box: corners top-left, top-right, bottom-left, bottom-right, then
+# the horizontal and vertical edges.
+BOX_UNICODE = ("\u256d", "\u256e", "\u2570", "\u256f", "\u2500", "\u2502")
+BOX_ASCII = ("+", "+", "+", "+", "-", "|")
+BOX_MIN = 34
+BOX_MAX = 60
+BOX_PAD = 2
 
 
 def inline_logo(protocol: str) -> str:
@@ -171,7 +182,8 @@ def color_depth(env: Mapping[str, str]) -> str:
 class Style:
     """Paints text and chooses symbols for one output stream.
 
-    ``depth`` is ``"truecolor"``, ``"256"`` or ``"16"``.
+    ``depth`` is ``"truecolor"``, ``"256"`` or ``"16"``; ``width`` is the
+    terminal's width in columns.
     """
 
     def __init__(
@@ -183,6 +195,7 @@ class Style:
         images: str | None = None,
         animated: bool = False,
         light: bool = False,
+        width: int = 80,
     ) -> None:
         self.color = color
         self.unicode = unicode
@@ -190,6 +203,7 @@ class Style:
         self.images = images
         self.animated = animated
         self.light = light
+        self.width = width
 
     @classmethod
     def detect(
@@ -208,6 +222,7 @@ class Style:
             images=image_protocol(env) if capable else None,
             animated=capable and not env.get("CI") and env.get("HINOKI_ANIMATE") != "0",
             light=light_background(env),
+            width=shutil.get_terminal_size().columns,
         )
 
     @property
@@ -263,37 +278,105 @@ class Style:
             "\u25e4", "light", bold=True
         )
 
-    def banner_parts(self) -> tuple[str, str]:
-        """What goes above the tagline line, and what starts the tagline line."""
-        if self.images:
-            return f"\n  {inline_logo(self.images)}\n", "  "
-        mark = self.mark()
-        # The logo's wordmark: ivory letters, the i's carrying its violet dots.
-        wordmark = "".join(
+    def wordmark(self) -> str:
+        """The logo as text: the mark, then ivory letters with violet dots on
+        the i's (just the bold name without Unicode)."""
+        if not self.unicode:
+            return self.bold("hinoki")
+        letters = "".join(
             self.paint(letter, "dot", bold=True) if letter == "i" else self.bold(letter)
             for letter in "hinoki"
         )
-        return f"\n  {mark} {wordmark}\n", "     "
+        return f"{self.mark()} {letters}"
+
+    def prefix(self) -> str:
+        """``hinoki`` and an arrow: the brand name that leads the guide rail."""
+        arrow = self.paint(self.symbol(RIGHT_ANGLE, ">"), "shade")
+        return f"{self.paint('hinoki', 'brand', bold=True)} {arrow}"
+
+    def rail_head(self, title: str, hint: str) -> str:
+        """The first line of the guide rail: the prefix, ``title`` and a hint."""
+        head = f"{self.prefix()} {self.bold(title)}  {self.dim(hint)}"
+        return self.line("start", head)
 
     def tagline(self, detail: str, *, glint: int | None = None) -> str:
         text = self.paint(TAGLINE, "brand") if glint is None else self.glint(glint)
         return f"{text}  {self.dim(detail)}" if detail else text
 
+    def box_width(self) -> int:
+        """Outer width of the banner box: it fits the terminal with a spare
+        column, and stays between ``BOX_MIN`` and ``BOX_MAX``."""
+        return max(BOX_MIN, min(BOX_MAX, self.width - BOX_PAD - 1))
+
+    def edge(self, text: str) -> str:
+        return self.paint(text, "shade")
+
+    def box_row(self, inner: int, left: str, right: str = "") -> str:
+        """One row inside the box: ``left`` and ``right`` aligned to its sides."""
+        vertical = self.edge(self.symbol(BOX_UNICODE[5], BOX_ASCII[5]))
+        room = inner - 2 * BOX_PAD
+        gap = max(1, room - visible_width(left) - visible_width(right))
+        body = fit(f"{left}{' ' * gap}{right}", room)
+        fill = " " * (room - visible_width(body))
+        return f"  {vertical}{' ' * BOX_PAD}{body}{fill}{' ' * BOX_PAD}{vertical}"
+
+    def box_top(self, width: int) -> str:
+        corner, end, _, _, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
+        title = self.wordmark()
+        rule = line * (width - visible_width(title) - 5)
+        return f"  {self.edge(corner + line)} {title} {self.edge(rule + end)}"
+
+    def box_bottom(self, width: int) -> str:
+        _, _, corner, end, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
+        if not self.unicode:
+            return f"  {self.edge(corner + line * (width - 2) + end)}"
+        # The faint mark sits in the border, outside any text a user selects.
+        watermark = self.paint("\u25e2", "shade") + self.paint("\u25e4", "dim")
+        rule = self.edge(corner + line * (width - 7))
+        return f"  {rule} {watermark} {self.edge(line + end)}"
+
+    def boxed(self, title: str, detail: str) -> tuple[str, Row, str]:
+        """The banner as a box: what is above the tagline row, the row, and
+        what is below it."""
+        width = self.box_width()
+        inner = width - 2
+        blank = self.box_row(inner, "")
+        right = detail if self.unicode else f"{title} - {detail}"
+        shown = self.dim(right)
+        room = inner - 2 * BOX_PAD - len(TAGLINE) - 2
+        beside = shown if len(right) <= room else ""
+        below = "" if beside else f"{self.box_row(inner, shown)}\n"
+
+        def row(glint: int | None) -> str:
+            text = self.paint(TAGLINE, "brand") if glint is None else self.glint(glint)
+            return self.box_row(inner, text, beside)
+
+        above = f"\n{self.box_top(width)}\n{blank}\n"
+        return above, row, f"\n{below}{blank}\n{self.box_bottom(width)}\n"
+
+    def banner_layout(self, title: str, detail: str) -> tuple[str, Row, str]:
+        """What is above the tagline row, the row itself, and what is below."""
+        if not self.images:
+            return self.boxed(title, detail)
+
+        def row(glint: int | None) -> str:
+            return f"  {self.tagline(detail, glint=glint)}"
+
+        return f"\n  {inline_logo(self.images)}\n", row, "\n"
+
     def banner(self, title: str, detail: str = "") -> str:
-        """The logo (an inline image where the terminal allows) and the tagline."""
+        """The logo (an inline image where the terminal allows, a box with the
+        wordmark otherwise) and the tagline."""
         if not self.color:
             return f"hinoki {detail} - {title}" if detail else f"hinoki - {title}"
-        if not self.unicode:
-            return f"\n  {self.bold('hinoki')}  {self.dim(title)}\n"
-        above, prefix = self.banner_parts()
-        return f"{above}{prefix}{self.tagline(detail)}\n"
+        above, row, below = self.banner_layout(title, detail)
+        return f"{above}{row(None)}{below}"
 
     def intro(self, title: str) -> str:
         """The top of the guide rail, under the banner (empty without it)."""
         if not self.fancy:
             return ""
-        head = f"{self.bold(title)}  {self.dim('esc to cancel')}"
-        return f"\n{self.line('start', head)}\n{self.line('rail')}"
+        return f"{self.rail_head(title, 'esc to cancel')}\n{self.line('rail')}"
 
     def glint(self, centre: int) -> str:
         """The tagline with a highlight around position ``centre``."""
@@ -304,16 +387,16 @@ class Style:
             letters.append(self.paint(letter, name, bold=near <= 1))
         return "".join(letters)
 
-    def shimmer(self, detail: str, out: TextIO | None = None) -> None:
+    def shimmer(self, title: str, detail: str, out: TextIO | None = None) -> None:
         """Draw the banner, sweeping a highlight across the tagline."""
         out = out or sys.stdout
-        above, prefix = self.banner_parts()
+        above, row, below = self.banner_layout(title, detail)
         out.write(above)
         for step in range(len(TAGLINE) + GLINT_FADE + 1):
-            out.write(f"\r{prefix}{self.tagline(detail, glint=step - 2)}")
+            out.write(f"\r{row(step - 2)}")
             out.flush()
             time.sleep(0.02)
-        out.write(f"\r{prefix}{self.tagline(detail)}\n")
+        out.write(f"\r{row(None)}{below}\n")
         out.flush()
 
     def spinner_frame(self, frame: int, label: str, seconds: float) -> str:

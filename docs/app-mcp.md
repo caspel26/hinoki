@@ -66,6 +66,6 @@ The endpoint does not provide MCP resources, prompts, sessions or OAuth discover
 
 ## See also
 
-* [Development MCP](dev-mcp.md): a local, read-only server for coding agents
+* [Development MCP](dev-mcp.md): a local server that describes the project to coding agents
 * [Authentication and access](authentication.md)
 * [Rules](rules.md)
