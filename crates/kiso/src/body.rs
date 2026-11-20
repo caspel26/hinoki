@@ -114,11 +114,12 @@ where
                 .min(FIRST_RESERVE)
         });
         let mut out = Vec::with_capacity(capacity);
-        let deadline = Instant::now() + self.idle * TOTAL_BUDGET_FACTOR;
+        let budget = self.idle.saturating_mul(TOTAL_BUDGET_FACTOR);
+        let deadline = Instant::now().checked_add(budget);
         loop {
-            let wait = self
-                .idle
-                .min(deadline.saturating_duration_since(Instant::now()));
+            let wait = deadline.map_or(self.idle, |at| {
+                self.idle.min(at.saturating_duration_since(Instant::now()))
+            });
             let frame = timeout(wait, self.inner.frame())
                 .await
                 .map_err(|_| BodyError::Timeout)?;
