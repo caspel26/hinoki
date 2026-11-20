@@ -133,7 +133,8 @@ class Lifespan:
         cancelled = await self._finish_close(causes, cancelled)
         if cancelled is not None:
             raise cancelled
-        if causes:
+        # The hooks append to the list.
+        if causes:  # NOSONAR
             raise ShutdownError(causes)
 
     async def _run_shutdown_hooks(
@@ -147,7 +148,8 @@ class Lifespan:
                     causes,
                     label=f"shutdown hook {hook_name(hook)!r}",
                 )
-            except asyncio.CancelledError as exc:
+            # Kept and re-raised once the hooks have run.
+            except asyncio.CancelledError as exc:  # NOSONAR
                 if self._is_external_cancellation(exc):
                     cancelled = exc
                 else:
@@ -164,7 +166,8 @@ class Lifespan:
             try:
                 causes.extend(await asyncio.shield(close_task))
                 return cancelled
-            except asyncio.CancelledError as exc:
+            # Kept and re-raised once the close has finished.
+            except asyncio.CancelledError as exc:  # NOSONAR
                 if cancelled is None:
                     cancelled = exc
 
@@ -217,7 +220,8 @@ class Lifespan:
             try:
                 await asyncio.shield(task)
                 return
-            except asyncio.CancelledError:
+            # The caller of the startup re-raises after the cleanup.
+            except asyncio.CancelledError:  # NOSONAR
                 if task.done():
                     task.result()
                     return
