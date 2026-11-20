@@ -441,7 +441,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:23:33 UTC">November 20, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -710,7 +710,8 @@ with operating-system permissions.</p>
 <p>SQL Server and Oracle are not supported. Any other scheme, such as <code>oracle://</code>
 or <code>mssql://</code>, fails when the pool is created with
 <code>DatabaseError: unsupported database URL scheme</code>; the message does not repeat
-the URL.</p>
+the URL. A supported scheme written without its slashes, such as
+<code>sqlite:./app.db</code>, fails with <code>invalid database URL: the scheme needs ://</code>.</p>
 <h3 id="postgresql-tls">PostgreSQL TLS<a class="headerlink" href="#postgresql-tls" title="Permanent link">&para;</a></h3>
 <p>PostgreSQL URLs accept <code>sslmode=disable</code>, <code>prefer</code>, <code>require</code>, <code>verify-ca</code> or
 <code>verify-full</code>, and <code>sslrootcert=/path/to/ca.pem</code>. <code>prefer</code> tries TLS first and
@@ -822,7 +823,7 @@ per-backend behaviour.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:23:33 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
