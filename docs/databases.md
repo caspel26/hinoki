@@ -199,7 +199,8 @@ output and connection errors.
 SQL Server and Oracle are not supported. Any other scheme, such as `oracle://`
 or `mssql://`, fails when the pool is created with
 `DatabaseError: unsupported database URL scheme`; the message does not repeat
-the URL.
+the URL. A supported scheme written without its slashes, such as
+`sqlite:./app.db`, fails with `invalid database URL: the scheme needs ://`.
 
 ### PostgreSQL TLS
 
