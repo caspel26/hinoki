@@ -195,7 +195,12 @@ impl Chunked {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Bytes>, Aborted>>> {
         match live.poll_piece(cx, CHUNK) {
-            Poll::Pending => Poll::Pending,
+            // hyper asked for a frame, so the peer has window; the wait is on
+            // the producer and must not count as a stalled client.
+            Poll::Pending => {
+                entry.streams.sending().remove(&entry.id);
+                Poll::Pending
+            }
             Poll::Ready(Some(Ok(chunk))) => {
                 entry.streams.touch(entry.id);
                 Poll::Ready(Some(Ok(Frame::data(chunk))))
@@ -277,7 +282,10 @@ pub async fn track(
     entry.done = rest.is_empty() && live.is_none();
     if !rest.is_empty() || live.is_some() {
         entry.sending = true;
-        entry.streams.touch(entry.id);
+        // A live body is timed from its first chunk, not while it is produced.
+        if !rest.is_empty() {
+            entry.streams.touch(entry.id);
+        }
         entry.streams.changed.notify_one();
     }
     Ok(Response::from_parts(parts, Chunked { rest, live, entry }))
