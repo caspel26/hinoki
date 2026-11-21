@@ -9,7 +9,7 @@ import pytest
 
 from hinoki import Field, Invalid, Schema, field_normalize, object_check
 from hinoki import schema as schema_module
-from hinoki.errors import ValidationError
+from hinoki.errors import ErrorDetail, ValidationError
 
 
 class Tiny(Schema):
@@ -266,3 +266,83 @@ def test_normalizers_and_checks_still_apply() -> None:
     with pytest.raises(ValidationError) as caught:
         Even(n=3)
     assert caught.value.details[0].code == "odd"
+
+
+def refuse_negative(instance: Any) -> None:
+    if instance.n < 0:
+        raise ValidationError([ErrorDetail("n", "negative", "must not be negative")])
+
+
+class Guarded(Schema):
+    n: int
+
+    @classmethod
+    def _validate_instance(cls, instance: Schema, **options: Any) -> None:
+        refuse_negative(instance)
+        super()._validate_instance(instance, **options)
+
+
+class GuardedChild(Guarded):
+    n: int
+
+
+class GuardMixin:
+    @classmethod
+    def _validate_instance(cls, instance: Schema, **options: Any) -> None:
+        refuse_negative(instance)
+        super()._validate_instance(instance, **options)  # type: ignore[misc]
+
+
+class MixedIn(GuardMixin, Schema):
+    n: int
+
+
+class Plain(Schema):
+    n: int
+
+
+def test_a_custom_instance_validator_is_never_bypassed() -> None:
+    for cls in (Guarded, GuardedChild, MixedIn):
+        assert cls(n=1).n == 1
+        with pytest.raises(ValidationError) as caught:
+            cls(n=-1)
+        assert caught.value.details[0].code == "negative"
+
+
+def test_an_override_on_a_subclass_of_a_compiled_class_is_honoured() -> None:
+    assert Plain(n=-1).n == -1  # compiles Plain's check
+
+    class Stricter(Plain):
+        @classmethod
+        def _validate_instance(cls, instance: Schema, **options: Any) -> None:
+            refuse_negative(instance)
+            super()._validate_instance(instance, **options)
+
+    with pytest.raises(ValidationError):
+        Stricter(n=-1)
+    assert Plain(n=-1).n == -1
+
+
+def test_a_custom_native_schema_or_specs_is_not_bypassed() -> None:
+    seen: list[str] = []
+
+    class Spied(Schema):
+        n: int
+
+        @classmethod
+        def native_schema(cls) -> Any:
+            seen.append("native_schema")
+            return super().native_schema()
+
+    class Respecced(Schema):
+        n: int
+
+        @classmethod
+        def specs(cls) -> Any:
+            seen.append("specs")
+            return super().specs()
+
+    Spied(n=1)
+    Respecced(n=1)
+    assert "native_schema" in seen
+    assert seen.count("specs") >= 2  # construction itself asks for them
