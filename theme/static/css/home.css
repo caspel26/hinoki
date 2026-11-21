@@ -1776,6 +1776,7 @@
 
   .hn-walk--bench .hn-walk__tabs {
     flex-direction: row;
+    align-items: flex-start;
     border-right: 0;
     border-bottom: 1px solid var(--hn-edge);
   }
@@ -2338,9 +2339,16 @@
 
 .hn-walk--bench .hn-walk__tabs {
   position: relative;
-  --thumb-r: 0;
-  --thumb-bg: var(--hn-brand-tint);
-  --thumb-shadow: inset 2px 0 0 var(--hn-brand);
+  gap: 4px;
+  padding: 10px;
+  --thumb-r: 12px;
+  --thumb-bg: var(--hn-tint-brand);
+  --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
+}
+
+.hn-walk--bench .hn-walk__tabs button {
+  padding: 14px var(--sp-4);
+  border-radius: 12px;
 }
 
 .hn-walk__tabs {
@@ -2376,7 +2384,7 @@
 
 @media (max-width: 960px) {
   .hn-walk--bench .hn-walk__tabs {
-    --thumb-shadow: inset 0 -2px 0 var(--hn-brand);
+    --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
   }
 }
 
