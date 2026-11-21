@@ -631,3 +631,163 @@ def test_without_a_limit_the_load_is_only_recorded(tmp_path: Path) -> None:
     run.wait_for_quiet(None, tmp_path / "loadavg.txt", "x")
 
     assert (tmp_path / "loadavg.txt").read_text().startswith("x load1=")
+
+
+def bombardier_sample(rate: float, p50_us: int = 800, p99_us: int = 2500) -> JSONData:
+    return {
+        "spec": {"numberOfConnections": 100, "numberOfRequests": 100000},
+        "result": {
+            "timeTakenSeconds": 100000 / rate,
+            "req1xx": 0,
+            "req2xx": 100000,
+            "req3xx": 0,
+            "req4xx": 0,
+            "req5xx": 0,
+            "others": 0,
+            "latency": {
+                "mean": 900.0,
+                "percentiles": {
+                    "50": p50_us,
+                    "75": 900,
+                    "90": 1200,
+                    "95": 1500,
+                    "99": p99_us,
+                },
+            },
+            "rps": {"mean": 1.0},
+        },
+    }
+
+
+def write_bombardier_fixture(
+    directory: Path,
+    rates: dict[int, tuple[float, ...]],
+    scenarios: tuple[str, ...] = tuple(report.SCENARIOS),
+) -> None:
+    """``rates`` maps each server start to the rate of every sample in it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "environment.json").write_text(
+        json.dumps(
+            {
+                "date": "2026-11-21 06:00:00 +0100",
+                "cpu": "CPU",
+                "cores": 8,
+                "machine": "Linux",
+                "loadavg_at_start": [0.1, 0.2, 0.3],
+                "postgres": "PostgreSQL 17",
+                "load_tool": "bombardier",
+                "bombardier": "v1.2.6",
+                "host": {"memory_bytes": 17179869184},
+                "settings": {
+                    "server_mode": "documented",
+                    "stacks": ["hinoki"],
+                    "workers": 4,
+                    "server_cpus": "0-3",
+                    "load_cpus": "6-7",
+                    "concurrency": 100,
+                    "requests": 100000,
+                    "restarts": len(rates),
+                    "warmup_s": 10,
+                    "runs": len(next(iter(rates.values()))),
+                },
+            }
+        )
+    )
+    (directory / "hinoki-verify.txt").write_text("OK")
+    for scenario in scenarios:
+        for restart, values in rates.items():
+            for sample_number, rate in enumerate(values, start=1):
+                path = directory / f"hinoki-{scenario}-r{restart}-{sample_number}.json"
+                path.write_text(json.dumps(bombardier_sample(rate)))
+
+
+def test_bombardier_samples_are_pooled_across_starts_without_discarding_any() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        directory = Path(raw)
+        write_bombardier_fixture(
+            directory, {1: (100.0, 102.0, 98.0), 2: (200.0, 202.0, 1.0)}
+        )
+
+        summary = report.run_summary(
+            report.load_runs(directory, "hinoki", "list"), "200"
+        )
+
+    assert summary["runs"] == 6
+    assert summary["starts"] == 2
+    assert summary["median"] == pytest.approx(101.0)
+    assert (summary["low"], summary["high"]) == (
+        pytest.approx(1.0),
+        pytest.approx(202.0),
+    )
+    assert summary["start_medians"] == [pytest.approx(100.0), pytest.approx(200.0)]
+    assert summary["latency_ms"]["p50"]["median"] == pytest.approx(0.8)
+    assert summary["latency_ms"]["p99"]["median"] == pytest.approx(2.5)
+    assert summary["wrong"] == 0
+
+
+def test_bombardier_report_states_conditions_and_the_aggregation_rule() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        directory = Path(raw)
+        write_bombardier_fixture(directory, {1: (100.0, 101.0), 2: (102.0, 99.0)})
+
+        rendered = report.render_mode(directory)
+        conditions = report.conditions_table([directory])
+
+    assert "Samples are pooled" in rendered
+    assert "none is discarded" in rendered
+    assert "aborted by `oha`" not in rendered
+    assert "| Load generator | bombardier v1.2.6 |" in conditions
+    assert "| Connections | 100 |" in conditions
+    assert "| Requests per sample | 100,000 |" in conditions
+    assert "| Memory | 16 GiB |" in conditions
+    assert "| Date | 2026-11-21 06:00:00 +0100 |" in conditions
+    assert "run.py --server-mode documented" in conditions
+    assert "2 server starts" in conditions
+
+
+def test_json_payload_scenarios_are_reported_only_when_their_files_exist() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        directory = Path(raw)
+        write_bombardier_fixture(
+            directory,
+            {1: (100.0, 101.0)},
+            scenarios=(*report.SCENARIOS, "json-1k", "json-10k"),
+        )
+        legacy = Path(raw) / "legacy"
+        write_report_fixture(legacy)
+
+        reported = report.reported_scenarios(directory)[0]
+        legacy_reported = report.reported_scenarios(legacy)[0]
+
+    assert {"json-1k", "json-10k"} <= set(reported)
+    assert not {"json-1k", "json-10k"} & set(legacy_reported)
+
+
+def test_a_gap_under_ten_percent_between_the_top_two_is_a_tie() -> None:
+    close = [("A · x", {"median": 100.0, "low": 95, "high": 105}),
+             ("B · y", {"median": 95.0, "low": 90, "high": 99})]  # fmt: skip
+    far = [("A · x", {"median": 100.0, "low": 95, "high": 105}),
+           ("B · y", {"median": 80.0, "low": 78, "high": 82})]  # fmt: skip
+
+    assert "within 10%" in report.headline(close)
+    assert "within 10%" not in report.headline(far)
+
+
+def test_legacy_oha_results_are_labelled_and_not_mixed_with_bombardier() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        legacy = Path(raw) / "legacy"
+        current = Path(raw) / "current"
+        write_report_fixture(legacy)
+        write_bombardier_fixture(current, {1: (100.0, 101.0)})
+
+        rendered = report.render_mode(legacy)
+        conditions = report.conditions_table([legacy])
+        mixed = report.format_warning([legacy, current])
+        alone = report.format_warning([current])
+
+    assert "sampled with `oha`" in rendered
+    assert "not comparable" in rendered
+    assert "| Load generator | oha 1.17 |" in conditions
+    assert "| Memory | not recorded |" in conditions
+    assert "different load generators" in mixed
+    assert alone == ""
