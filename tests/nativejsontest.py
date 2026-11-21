@@ -1,13 +1,15 @@
 """The Rust JSON, query and header functions behave like the Python they replaced."""
 
+import datetime
 import json
 import math
+import uuid
 from typing import Any
 from urllib.parse import parse_qs
 
 import pytest
 
-from hinoki import core
+from hinoki import Schema, core
 
 
 @pytest.mark.parametrize(
@@ -16,6 +18,8 @@ from hinoki import core
         '{"a": [1, 2.5, -0, 1e3, true, null, "é\\u00e9\\n"], "b": {"c": {}}}',
         "123456789012345678901234567890",
         "-9223372036854775809",
+        "[9223372036854775807, -9223372036854775808, 9223372036854775808, -0, 0, -7]",
+        "[18446744073709551616, 99999999999999999999999, 1e2, -1E-2, 0.5e+3]",
         "18446744073709551615",
         "1.0",
         '{"a": 1, "a": 2}',
@@ -258,3 +262,137 @@ def test_sorting_orders_non_string_keys_by_their_values() -> None:
     )
     with pytest.raises(TypeError):
         core.encode_json({1: 1, "a": 2}, None, True)
+
+
+class _LoudInt(int):
+    def __str__(self) -> str:
+        return "loud"
+
+    __repr__ = __str__
+
+
+class _Color(Schema):
+    name: str
+    level: int
+
+
+def _compact(value: Any, **options: Any) -> bytes:
+    return json.dumps(
+        value, separators=(",", ":"), ensure_ascii=False, **options
+    ).encode()
+
+
+ENCODE_CORPUS: list[Any] = [
+    [0, 1, -1, 9, 10, 99, 100, 12345, -12345, 2**31, -(2**31), 2**53 + 1],
+    [2**63 - 1, -(2**63), 2**63, -(2**63) - 1, 10**30, -(10**30)],
+    [True, False, 1, 0, None, [True], {"t": True, "i": 1}],
+    {"k" * n: n for n in range(0, 40, 7)},
+    {"": "", "é": "ü", "\u2028": "\u2029", 'q"b\\s': "\x00\x1f\x7f/\t\n"},
+    {"emoji": "😀🎉", "cjk": "日本語", "greek": "ελληνικά", "mix": "aé😀z"},
+    ["", "a", "ab" * 100, "\n" * 10],
+    [[], {}, [[]], [{}], {"a": []}, {"a": {}}, ()],
+    (1, (2, (3, ()))),
+    {"a": {"b": {"c": [1, {"d": [2, [3, [4]]]}]}}},
+    {str(i): [i, str(i), {"n": i}] for i in range(300)},
+    {1: "a", None: "c", 2: "d"},
+    {True: "b", False: "x"},
+    "just a string",
+    0,
+    None,
+]
+
+
+@pytest.mark.parametrize("value", ENCODE_CORPUS)
+@pytest.mark.parametrize("sort_keys", [False, True])
+def test_encode_is_byte_identical_to_json_dumps(value: Any, sort_keys: bool) -> None:
+    if (
+        sort_keys
+        and isinstance(value, dict)
+        and any(not isinstance(key, str) for key in value)
+    ):
+        return
+    assert core.encode_json(value, None, sort_keys) == _compact(
+        value, sort_keys=sort_keys
+    )
+
+
+@pytest.mark.parametrize("value", ENCODE_CORPUS)
+def test_encode_indent_is_byte_identical_to_json_dumps(value: Any) -> None:
+    assert (
+        core.encode_json(value, 2)
+        == json.dumps(value, indent=2, ensure_ascii=False).encode()
+    )
+
+
+def test_encode_distinguishes_bool_int_and_int_subclasses() -> None:
+    assert core.encode_json([True, 1, False, 0]) == b"[true,1,false,0]"
+    assert core.encode_json([_LoudInt(7), 7]) == b"[7,7]"
+    assert core.encode_json({_LoudInt(7): 1}) == b'{"7":1}'
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (0.0, b"0.0"),
+        (-0.0, b"-0.0"),
+        (1.0, b"1.0"),
+        (100.0, b"100.0"),
+        (0.1, b"0.1"),
+        (1.5, b"1.5"),
+        (123456789.123, b"123456789.123"),
+        (1e-7, b"1e-7"),
+        (1.5e-7, b"1.5e-7"),
+        (-2.5e-5, b"-0.000025"),
+        (1e15, b"1000000000000000.0"),
+        (1e16, b"1e+16"),
+        (1e21, b"1e+21"),
+        (5e-324, b"5e-324"),
+        (1.7976931348623157e308, b"1.7976931348623157e+308"),
+    ],
+)
+def test_encode_formats_floats_stably(value: float, expected: bytes) -> None:
+    assert core.encode_json(value) == expected
+    assert json.loads(expected) == value
+
+
+def test_encode_handles_list_and_dict_subclasses_and_mutation_free_reads() -> None:
+    class Items(list[Any]):
+        pass
+
+    class Mapping(dict[str, Any]):
+        pass
+
+    assert core.encode_json(Items([1, [2]])) == b"[1,[2]]"
+    assert core.encode_json(Mapping(a=1, b=Items([2]))) == b'{"a":1,"b":[2]}'
+
+
+def test_encode_writes_dates_uuids_schemas_and_default_hooks() -> None:
+    moment = datetime.datetime(2024, 1, 2, 3, 4, 5, 678000, tzinfo=datetime.UTC)
+    ident = uuid.UUID(int=12345)
+
+    class Sub(uuid.UUID):
+        pass
+
+    value = [{"id": ident, "at": moment, "n": 1}, Sub(int=7), _Color(name="é", level=3)]
+    got = json.loads(core.encode_json(value))
+    assert got == [
+        {"id": str(ident), "at": moment.isoformat(), "n": 1},
+        str(Sub(int=7)),
+        {"name": "é", "level": 3},
+    ]
+    assert core.encode_json({"x": ident}, default=str) == _compact({"x": str(ident)})
+    assert core.encode_json({1, 2}, default=sorted) == b"[1,2]"
+
+
+def test_encode_survives_a_hook_that_mutates_the_containers_being_written() -> None:
+    items: list[Any] = [object(), 1]
+    table: dict[str, Any] = {"a": object(), "b": 2}
+
+    def clear_items(_: Any) -> Any:
+        items.clear()
+
+    def clear_table(_: Any) -> Any:
+        table.clear()
+
+    assert core.encode_json(items, default=clear_items) == b"[null]"
+    assert core.encode_json(table, default=clear_table) == b'{"a":null,"b":2}'
