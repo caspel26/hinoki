@@ -251,43 +251,62 @@
   position: relative;
 }
 
-/* A quiet dot grid with one slow scan line, the same motion as `hinoki check`
-   sweeping the code. Only transform animates. */
+/* Two soft glows, no grid and no lines. The first breathes slowly behind the
+   editor so the page is never still; the second follows the pointer. Both are
+   painted radial gradients (no blur filter) and only transform and opacity change. */
 .hn-hero__bg {
   position: absolute !important;
   inset: -40px 0 0;
   overflow: hidden;
   pointer-events: none;
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--hn-brand) 34%, transparent) 1px, transparent 1.4px);
-  background-size: 28px 28px;
-  -webkit-mask-image: radial-gradient(70% 80% at 70% 45%, #000 20%, transparent 80%);
-  mask-image: radial-gradient(70% 80% at 70% 45%, #000 20%, transparent 80%);
+}
+
+.hn-hero__bg b,
+.hn-hero__bg i {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.hn-hero__bg b {
+  inset-inline-end: 24%;
+  top: -12%;
+  inline-size: min(760px, 90vw);
+  aspect-ratio: 1;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--hn-brand) 34%, transparent), color-mix(in srgb, var(--hn-brand) 12%, transparent) 55%, transparent);
+  opacity: 0.8;
 }
 
 .hn-hero__bg i {
-  position: absolute;
-  inset: 0 0 auto;
-  block-size: 100%;
-  background: linear-gradient(to bottom, transparent calc(100% - 140px), color-mix(in srgb, var(--hn-brand) 16%, transparent) calc(100% - 30px), color-mix(in srgb, var(--hn-brand) 45%, transparent));
-  border-bottom: 1px solid color-mix(in srgb, var(--hn-brand) 55%, transparent);
-  transform: translateY(-100%);
+  --mx: 0px;
+  --my: 0px;
+  inset-inline-start: 0;
+  top: 0;
+  inline-size: 520px;
+  aspect-ratio: 1;
+  margin: -260px 0 0 -260px;
+  background: radial-gradient(closest-side, var(--orb-2), transparent);
   opacity: 0;
+  transform: translate3d(var(--mx), var(--my), 0);
+  transition: opacity var(--hn-dur-3) var(--hn-ease);
+}
+
+.hn-hero.has-pointer .hn-hero__bg i {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .hn-hero__bg i {
-    animation: hn-scan 9s var(--hn-ease) 1.2s infinite;
+  .hn-hero__bg b {
+    animation: hn-breathe 14s ease-in-out infinite alternate;
   }
 }
 
-@keyframes hn-scan {
-  0% { transform: translateY(-100%); opacity: 0; }
-  12% { opacity: 1; }
-  60%, 100% { transform: translateY(100%); opacity: 0; }
+@keyframes hn-breathe {
+  from { transform: translate3d(-4%, 3%, 0) scale(0.92); opacity: 0.55; }
+  to { transform: translate3d(4%, -4%, 0) scale(1.08); opacity: 0.95; }
 }
 
 /* Decorative loops stop while their section is off screen or the tab is hidden. */
-.hn-hero.is-idle .hn-hero__bg i,
+.hn-hero.is-idle .hn-hero__bg b,
 .hn-ticker.is-idle .hn-ticker__track {
   animation-play-state: paused;
 }
