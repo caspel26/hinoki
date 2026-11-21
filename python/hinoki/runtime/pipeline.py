@@ -55,6 +55,7 @@ from hinoki.renderers import (
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, RequestData, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
+from hinoki.runtime.inline import RequestDeadline, run_inline
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
 from hinoki.runtime.proxy import (
@@ -590,16 +591,15 @@ class Pipeline:
         # A new object: the answer may belong to a reused exception instance.
         return Response(response.status, response.body, headers)
 
-    async def _respond(  # noqa: PLR0911 - one exit per failure class
+    async def _respond(
         self, scope: Scope, source: BodySource, rid: str, route: MatchedRoute | None
     ) -> Response:
         try:
-            async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                return await self._serve(scope, source, route)
-        except TimeoutError as exc:
-            if limit.expired():
-                return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
-            return await error_response(exc, rid, self.app.errors, self.debug)
+            return await run_inline(
+                self._serve(scope, source, route), self.app.runtime.request_timeout
+            )
+        except RequestDeadline:
+            return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
         except ExecutorSaturated:  # a plain-def hook found the pool full
             return HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
