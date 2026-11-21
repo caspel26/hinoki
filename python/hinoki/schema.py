@@ -50,6 +50,7 @@ from hinoki.fieldtypes import (
     parse_annotation,
 )
 from hinoki.schemaconfig import SchemaConfig, SchemaExtra
+from hinoki.schemafast import instance_accepts
 
 _NO_MODEL = object()
 
@@ -805,11 +806,12 @@ def validate_constructed(
 ) -> None:
     """Validate values and custom checks after construction has completed."""
     cls = type(instance)
-    cls._validate_instance(
-        instance,
-        allow_naive_datetime=from_model,
-        use_aliases=use_aliases,
-    )
+    if not instance_accepts(cls, instance):
+        cls._validate_instance(
+            instance,
+            allow_naive_datetime=from_model,
+            use_aliases=use_aliases,
+        )
     normalize_floats(instance)
     queue = _NORMALIZATION_QUEUE.get()
     if queue is not None:
