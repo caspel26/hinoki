@@ -1,6 +1,7 @@
 """JSON decoding: ``hinoki.core.decode_json`` against ``json.loads``.
 
-Five sizes (about 60 B, 145 B, 740 B, 20 KB and 1 MB), each decoded repeatedly;
+Seven cases (lists of objects at about 60 B, 145 B, 740 B, 20 KB and 1 MB, and
+lists of numbers at about 20 KB and 1 MB), each decoded repeatedly;
 prints the median per call, the coefficient of variation and the min/max over
 the samples. Build the extension in release mode first:
 ``uv run --locked --with maturin maturin develop --release``.
