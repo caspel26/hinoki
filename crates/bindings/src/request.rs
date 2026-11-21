@@ -1261,6 +1261,25 @@ fn float_text(value: f64) -> PyResult<String> {
         .ok_or_else(|| PyValueError::new_err("out of range float values are not JSON compliant"))
 }
 
+/// Append the decimal text of `number`.
+fn push_i64(out: &mut Vec<u8>, number: i64) {
+    let mut digits = [0u8; 20];
+    let mut at = digits.len();
+    let mut rest = number.unsigned_abs();
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (rest % 10) as u8;
+        rest /= 10;
+        if rest == 0 {
+            break;
+        }
+    }
+    if number < 0 {
+        out.push(b'-');
+    }
+    out.extend_from_slice(&digits[at..]);
+}
+
 /// Decimal text of a Python int, immune to a subclass overriding `__str__`.
 fn int_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
     let repr = value.py().get_type::<PyInt>().getattr("__repr__")?;
@@ -1345,6 +1364,19 @@ impl<'py> Encoder<'py> {
         self.out.push(bracket);
     }
 
+    /// An exact `int` that fits `i64` is formatted here; big ints and subclasses
+    /// (which may override `__str__`) take the `int.__repr__` path.
+    fn int(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
+        if value.is_exact_instance_of::<PyInt>() {
+            if let Ok(number) = value.extract::<i64>() {
+                push_i64(&mut self.out, number);
+                return Ok(());
+            }
+        }
+        self.out.extend_from_slice(int_text(value)?.as_bytes());
+        Ok(())
+    }
+
     /// A container at `depth` is the `depth + 1`th around the innermost value.
     fn enter(depth: usize) -> PyResult<()> {
         if depth >= MAX_DEPTH {
@@ -1360,7 +1392,7 @@ impl<'py> Encoder<'py> {
             self.out
                 .extend_from_slice(if flag.is_true() { b"true" } else { b"false" });
         } else if value.is_instance_of::<PyInt>() {
-            self.out.extend_from_slice(int_text(value)?.as_bytes());
+            self.int(value)?;
         } else if let Ok(float) = value.cast::<PyFloat>() {
             self.out
                 .extend_from_slice(float_text(float.value())?.as_bytes());
