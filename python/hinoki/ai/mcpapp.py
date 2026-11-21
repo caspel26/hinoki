@@ -192,6 +192,12 @@ def select(
         if route.method not in SAFE and not allow_writes:
             continue
         key = operation_key(route.method)
+        binding = next((b for b in app.bindings if b.route is route), None)
+        if binding is not None and binding.streams:
+            raise ExposureError(
+                f"{qualified(route)} streams its response; an MCP tool returns "
+                "one complete result, so it cannot be exposed"
+            )
         operation = document["paths"].get(route.path, {}).get(key)
         if operation is None:
             raise ExposureError(f"{qualified(route)} is not in the OpenAPI document")

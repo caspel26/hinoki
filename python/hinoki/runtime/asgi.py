@@ -12,14 +12,25 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from hinoki.errors import ShutdownError, StartupError
+from hinoki.http.stream import EventStream, Sourced
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.requests import Scope, read_body
+from hinoki.runtime.responses import Response, StreamHandle
+from hinoki.runtime.streaming import (
+    Pace,
+    discard,
+    keepalive_of,
+    pump_asgi,
+    reader_for,
+)
 from hinoki.settings import ANY, AppSettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
 
 log = logging.getLogger("hinoki.runtime")
+
+PATHSEND = "http.response.pathsend"
 
 # A lifespan scope key set by in-process drivers (the test clients, the MCP
 # scenario runner): no network Host header reaches them, so the startup warning
@@ -79,6 +90,7 @@ class ASGIAdapter:
             if kind == "lifespan.startup":
                 finished = await self._startup(send, served=served)
             elif kind == "lifespan.shutdown":
+                self.pipeline.streams.stop_events()  # SSE streams end cleanly
                 await self._shutdown(send)
                 finished = True
 
@@ -111,6 +123,57 @@ class ASGIAdapter:
     async def _http(self, scope: Scope, receive: Any, send: Any) -> None:
         response = await self.pipeline.handle(scope, ASGIBody(receive))
         start = {"type": "http.response.start", "status": response.status}
+        if response.stream is not None:
+            await self._stream(scope, receive, send, response, start)
+            return
         await send({**start, "headers": response.headers})
         body = b"" if scope["method"] == "HEAD" else response.body
         await send({"type": "http.response.body", "body": body})
+
+    async def _stream(
+        self,
+        scope: Scope,
+        receive: Any,
+        send: Any,
+        response: Response,
+        start: dict[str, Any],
+    ) -> None:
+        """Send a streamed answer through the ASGI callables (Python objects for
+        every piece). The place it holds is given back once the head is sent."""
+        handle = response.stream
+        if handle is None:
+            raise RuntimeError("not a streamed response")
+        pipeline = self.pipeline
+        try:
+            await send({**start, "headers": response.headers})
+            if scope["method"] == "HEAD":
+                await send({"type": "http.response.body", "body": b""})
+                await discard(handle, pipeline.executor)
+                return
+            handle.release()
+            await self._pump(scope, receive, send, handle)
+        finally:
+            handle.release()
+
+    async def _pump(
+        self, scope: Scope, receive: Any, send: Any, handle: StreamHandle
+    ) -> None:
+        pipeline = self.pipeline
+        answer = handle.answer
+        if handle.location is not None and PATHSEND in scope.get("extensions", {}):
+            await send({"type": PATHSEND, "path": handle.location[0]})
+            return
+        runtime = pipeline.app.runtime
+        events = isinstance(answer, EventStream)
+        await pump_asgi(
+            send,
+            receive,
+            reader_for(handle, pipeline.executor),
+            Pace(
+                answer.preamble if isinstance(answer, Sourced) else b"",
+                None if events else runtime.idle_timeout,
+                keepalive_of(answer, runtime.sse_keepalive),
+                events,
+            ),
+            pipeline.streams,
+        )

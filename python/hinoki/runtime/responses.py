@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import logging
 import traceback
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hinoki import core
 from hinoki.context import request_id
 from hinoki.errors import APIError, ErrorRegistry, InvalidBody, ValidationError
+
+if TYPE_CHECKING:
+    from hinoki.http.stream import Streamed
 
 log = logging.getLogger("hinoki.runtime")
 
@@ -23,11 +27,44 @@ INVALID_BODY_STATUS = {
 }
 
 
+class StreamLease:
+    """One of the worker's ``max_streams`` places; ``release`` is idempotent."""
+
+    __slots__ = ("_free",)
+
+    def __init__(self, free: Callable[[], None]) -> None:
+        self._free: Callable[[], None] | None = free
+
+    def release(self) -> None:
+        free, self._free = self._free, None
+        if free is not None:
+            free()
+
+
+class StreamHandle:
+    """A streamed answer on its way to the transport: the object the handler
+    returned, the place it holds and, for a ``File``, the resolved path and size."""
+
+    __slots__ = ("answer", "lease", "location")
+
+    def __init__(
+        self, answer: Streamed, location: tuple[str, int] | None = None
+    ) -> None:
+        self.answer = answer
+        self.location = location
+        self.lease: StreamLease | None = None
+
+    def release(self) -> None:
+        if self.lease is not None:
+            self.lease.release()
+
+
 @dataclass(slots=True)
 class Response:
     status: int
     body: bytes = b""
     headers: Headers = field(default_factory=list)
+    stream: StreamHandle | None = None
 
     @classmethod
     def rendered(

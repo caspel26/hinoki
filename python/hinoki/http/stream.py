@@ -60,6 +60,10 @@ class Streamed(Response):
         chosen = content_type or (None if declared else default_type)
         super().__init__(status, b"", items, chosen)
 
+    def same_body(self, other: Streamed) -> bool:
+        """Whether ``other`` sends the same body: a ``with_header`` copy does."""
+        raise NotImplementedError
+
 
 class Sourced(Streamed):
     """A streamed answer whose body comes from an iterable of pieces."""
@@ -90,6 +94,9 @@ class Sourced(Streamed):
         self.source = source
         self.length = length
         self.keepalive: float | EllipsisType | None = None
+
+    def same_body(self, other: Streamed) -> bool:
+        return isinstance(other, Sourced) and other.source is self.source
 
     @property
     def preamble(self) -> bytes:
@@ -250,6 +257,12 @@ class File(Streamed):
         )
         self.path = os.fspath(path)
         self.root = None if root is None else os.fspath(root)
+
+    def same_body(self, other: Streamed) -> bool:
+        return isinstance(other, File) and (other.path, other.root) == (
+            self.path,
+            self.root,
+        )
 
     def resolve(self) -> str | None:
         """The real path of the regular file to send, or ``None`` when there is
