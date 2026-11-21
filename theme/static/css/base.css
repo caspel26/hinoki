@@ -138,14 +138,14 @@ kbd {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   height: 40px;
   text-decoration: none;
 }
 
 .brand__mark {
-  width: 17px;
-  height: 24px;
+  width: 24px;
+  height: 34px;
   transition: transform var(--hn-dur-2) var(--hn-ease);
 }
 
@@ -154,8 +154,8 @@ kbd {
 }
 
 .brand__word {
-  width: 64px;
-  height: 18px;
+  width: 90px;
+  height: 25px;
   color: var(--hn-text);
 }
 
@@ -1458,8 +1458,8 @@ body.menu-open .overlay {
 
   .brand__word {
     display: block;
-    width: 56px;
-    height: 16px;
+    width: 72px;
+    height: 20px;
   }
 }
 
