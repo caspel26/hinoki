@@ -21,6 +21,7 @@ mod rows;
 mod schema;
 mod server;
 mod sink;
+mod streamlimit;
 mod wsgi;
 mod xml;
 
@@ -96,6 +97,8 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     kiso::register(m)?;
     wsgi::register(m)?;
     m.add_class::<sink::ResponseSink>()?;
+    m.add_class::<streamlimit::StreamLimit>()?;
+    m.add_class::<streamlimit::StreamPermit>()?;
     m.add_function(wrap_pyfunction!(sink::sse_frame, m)?)?;
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;

@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Hinoki, Schema, http
+from hinoki import Hinoki, Schema, core, http
 from hinoki.ai.mcpapp import ExposureError, select
 from hinoki.db import DatabaseModule
 from hinoki.errors import Conflict, RegistrationError
@@ -408,6 +408,18 @@ async def test_head_closes_the_source_without_reading_it() -> None:
         assert reply.status == 200
         assert not reply.body
         assert closed == ["head"]
+
+
+def test_a_stream_place_is_counted_in_core_and_given_back_when_dropped() -> None:
+    places = core.StreamLimit(1)
+    permit = places.acquire()
+    assert permit is not None
+    assert places.acquire() is None
+    assert places.open == 1
+    del permit
+    assert places.open == 0
+    with pytest.raises(ValueError, match="at least 1"):
+        core.StreamLimit(0)
 
 
 class Inline:

@@ -416,6 +416,27 @@ class ResponseSink:
     def abort(self) -> None:
         """End the body as truncated (HTTP/1.1 closes, HTTP/2 resets)."""
 
+class StreamLimit:
+    """The places a worker has for open streamed responses, counted in Rust."""
+
+    def __init__(self, limit: int) -> None:
+        """Raises `ValueError` for a limit below 1."""
+
+    @property
+    def open(self) -> int:
+        """The streams that hold a place now."""
+
+    @property
+    def limit(self) -> int: ...
+    def acquire(self) -> StreamPermit | None:
+        """Take a place, or `None` when the worker is full."""
+
+class StreamPermit:
+    """One place of a `StreamLimit`; a dropped permit gives it back too."""
+
+    def release(self) -> None:
+        """Give the place back. Idempotent."""
+
 def sse_frame(
     data: str | None = ...,
     event: str | None = ...,

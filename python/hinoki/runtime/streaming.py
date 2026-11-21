@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 from hinoki import core
 from hinoki.http.stream import EventStream, File, Sourced, Streamed
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
-from hinoki.runtime.responses import StreamHandle, StreamLease
+from hinoki.runtime.responses import StreamHandle
 
 log = logging.getLogger("hinoki.runtime")
 
@@ -212,19 +212,13 @@ class Streams:
     shutdown ends cleanly."""
 
     def __init__(self, limit: int) -> None:
-        self.limit = limit
-        self.open = 0
+        self.places = core.StreamLimit(limit)
         self.closing = False
         self.events: set[Guard] = set()
 
-    def lease(self) -> StreamLease | None:
-        if self.open >= self.limit:
-            return None
-        self.open += 1
-        return StreamLease(self._free)
-
-    def _free(self) -> None:
-        self.open -= 1
+    def lease(self) -> core.StreamPermit | None:
+        """A place for one more stream, or ``None`` when the worker is full."""
+        return self.places.acquire()
 
     def enroll(self, guard: Guard) -> None:
         """Track an event stream; one that starts during shutdown ends at once."""

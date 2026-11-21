@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import traceback
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
@@ -27,20 +26,6 @@ INVALID_BODY_STATUS = {
 }
 
 
-class StreamLease:
-    """One of the worker's ``max_streams`` places; ``release`` is idempotent."""
-
-    __slots__ = ("_free",)
-
-    def __init__(self, free: Callable[[], None]) -> None:
-        self._free: Callable[[], None] | None = free
-
-    def release(self) -> None:
-        free, self._free = self._free, None
-        if free is not None:
-            free()
-
-
 class StreamHandle:
     """A streamed answer on its way to the transport: the object the handler
     returned, the place it holds and, for a ``File``, the resolved path and size."""
@@ -52,7 +37,7 @@ class StreamHandle:
     ) -> None:
         self.answer = answer
         self.location = location
-        self.lease: StreamLease | None = None
+        self.lease: core.StreamPermit | None = None
 
     def release(self) -> None:
         if self.lease is not None:
