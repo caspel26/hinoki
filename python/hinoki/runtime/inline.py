@@ -14,8 +14,8 @@ from __future__ import annotations
 import asyncio
 import time
 import types
-from collections.abc import Coroutine, Generator
-from typing import Any
+from collections.abc import Callable, Coroutine, Generator
+from typing import Any, cast
 
 
 class RequestDeadline(Exception):
@@ -29,6 +29,7 @@ def continue_coroutine(
     """Await ``coro`` from the task that now owns it, after it yielded
     ``yielded`` to the event loop: forward what the loop sends or throws."""
     while True:
+        step: Callable[[Any], Any]
         try:
             sent = yield yielded
         except GeneratorExit:
@@ -46,18 +47,18 @@ def continue_coroutine(
             return stop.value
 
 
-async def run_inline(coro: Coroutine[Any, Any, Any], timeout: float) -> Any:
+async def run_inline[T](coro: Coroutine[Any, Any, T], timeout: float) -> T:
     """The result of ``coro``; it raises ``RequestDeadline`` when ``timeout``
     seconds (counted from this call) pass before it finishes."""
     started = time.monotonic()
     try:
         yielded = coro.send(None)
     except StopIteration as stop:
-        return stop.value
+        return cast(T, stop.value)
     limit = asyncio.timeout(max(timeout - (time.monotonic() - started), 0.0))
     try:
         async with limit:
-            return await continue_coroutine(coro, yielded)
+            return cast(T, await continue_coroutine(coro, yielded))
     except TimeoutError as exc:
         if limit.expired():
             raise RequestDeadline from exc
