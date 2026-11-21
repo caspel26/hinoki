@@ -113,6 +113,6 @@ test gate.
 | Editable install (first time) | `uv sync --locked` | maturin builds a debug extension into the project |
 | Rebuild after changing Rust | `uv sync --locked` (or any `uv run`) | `tool.uv.cache-keys` watches `crates/**/*.rs` and `Cargo.toml`; uv reinstalls when they change. Observed: touching `router.rs` made `uv run` rebuild |
 | Force a rebuild | `uv sync --locked --reinstall-package hinoki` | use if in doubt; syncing Python deps alone does not prove the extension is current |
-| Release-profile editable build | `uv run --locked maturin develop --release` | needs `maturin` on PATH (`uvx maturin` works) |
+| Release-profile editable build | `uv run --locked maturin develop --release` | needs `maturin` on PATH (`uvx maturin` works); the release profile uses fat LTO and one codegen unit, so a clean release build takes about 60 s instead of 35 s (measured on one Apple-silicon laptop) |
 | Wheel | `uv build --wheel` | abi3 (`cp312-abi3`) wheel in `dist/`; built and import-tested by the `wheel` CI job |
 | Rust workspace tests | `cargo test --workspace` with the PyO3 environment above | PyO3 unit tests link to the selected Python interpreter; PostgreSQL tests require `HINOKI_TEST_DATABASE_URL` |
