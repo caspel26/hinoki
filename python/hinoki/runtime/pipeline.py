@@ -1032,7 +1032,7 @@ class Pipeline:
     async def _invoke_streaming(
         self,
         binding: Binding,
-        request: Request,
+        request: Request | None,
         renderer: Renderer,
         kwargs: dict[str, object],
     ) -> Response:
