@@ -107,6 +107,7 @@ nav:
           - Generate CRUD routes: crud.md
           - Errors: errors.md
           - Stream a response: streaming.md
+          - Compress responses: compression.md
           - Middleware: middleware.md
           - Pagination: pagination.md
           - Parsers and renderers: codecs.md

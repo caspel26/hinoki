@@ -172,7 +172,7 @@ application.
 
 ## Streamed responses
 
-Actions that return `Stream`, `EventStream` or `File` work on both servers. Kiso sends them from its own queue, with its idle timeout, keep-alive comments and disconnect check, and sends a `File` without the bytes entering Python. Granian receives each piece as an ASGI message, and a `File` through `http.response.pathsend` when the server offers it; there Hinoki's own pump handles the idle timeout, the keep-alive and the disconnect. `execution.max_streams`, `execution.stream_idle_timeout` and `execution.sse_keepalive` apply to both ([settings](settings.md)). Details and measured behavior: [stream a response](streaming.md).
+Actions that return `Stream`, `EventStream` or `File` work on both servers. Kiso sends them from its own queue, with its idle timeout, keep-alive comments and disconnect check, and sends a `File` without the bytes entering Python. Granian receives each piece as an ASGI message, and a `File` through `http.response.pathsend` when the server offers it; there Hinoki's own pump handles the idle timeout, the keep-alive and the disconnect. `execution.max_streams`, `execution.stream_idle_timeout` and `execution.sse_keepalive` apply to both ([settings](settings.md)). Details and measured behavior: [stream a response](streaming.md). Response compression exists on Kiso only; `compression.enabled` with `--server granian` is refused ([compress responses](compression.md)).
 
 ## WSGI
 
