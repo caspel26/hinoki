@@ -241,9 +241,17 @@ async def test_an_error_after_the_head_leaves_the_response_incomplete() -> None:
     try:
         wire = await Wire.open(port, "/broken")
         assert wire.status == 200
-        assert await wire.chunk() == b"ok;"
+        # The abort may discard "ok;" before it is flushed, so it is optional;
+        # what must hold is that the body never ends with a clean terminator.
+        received: list[bytes | None] = []
+
+        async def drain() -> None:
+            while True:
+                received.append(await wire.chunk())
+
         with pytest.raises((asyncio.IncompleteReadError, ConnectionError)):
-            await wire.chunk()
+            await drain()
+        assert received in ([], [b"ok;"])
         wire.close()
     finally:
         await worker.stop()
