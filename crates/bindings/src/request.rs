@@ -6,6 +6,7 @@
 //! ASGI scope itself is still a Python object, so this removes the parsing and
 //! serialising work from Python, not the crossing.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -1139,25 +1140,79 @@ fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
     serde_json::to_writer(out, text).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
+/// The bytes of a Python `str`: UTF-8, or with `surrogatepass` when it holds
+/// lone surrogates. That form sorts like code points.
+fn string_bytes<'a>(text: &'a Bound<'_, PyString>) -> PyResult<Cow<'a, [u8]>> {
+    match text.to_str() {
+        Ok(valid) => Ok(Cow::Borrowed(valid.as_bytes())),
+        Err(_) => text
+            .call_method1("encode", ("utf-8", "surrogatepass"))?
+            .extract::<Vec<u8>>()
+            .map(Cow::Owned),
+    }
+}
+
+/// Write [`string_bytes`] output as a JSON string; each lone surrogate becomes
+/// `\udXXX`, as `json.dumps` writes it.
+fn write_text(out: &mut Vec<u8>, bytes: &[u8]) -> PyResult<()> {
+    let first = match std::str::from_utf8(bytes) {
+        Ok(valid) => return write_string(out, valid),
+        Err(error) => error,
+    };
+    out.push(b'"');
+    let mut rest = bytes;
+    let mut error = Some(first);
+    while let Some(found) = error {
+        let (valid, tail) = rest.split_at(found.valid_up_to());
+        write_body(out, valid)?;
+        let [a, b, c, tail @ ..] = tail else {
+            return Err(PyValueError::new_err("invalid surrogate encoding"));
+        };
+        let unit = (u32::from(a & 0x0f) << 12) | (u32::from(b & 0x3f) << 6) | u32::from(c & 0x3f);
+        out.extend_from_slice(format!("\\u{unit:04x}").as_bytes());
+        rest = tail;
+        error = std::str::from_utf8(rest).err();
+    }
+    write_body(out, rest)?;
+    out.push(b'"');
+    Ok(())
+}
+
+/// The escaped contents of a valid UTF-8 run, without the quotes.
+fn write_body(out: &mut Vec<u8>, valid: &[u8]) -> PyResult<()> {
+    let text = std::str::from_utf8(valid).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let mut quoted = Vec::with_capacity(valid.len() + 2);
+    write_string(&mut quoted, text)?;
+    out.extend_from_slice(&quoted[1..quoted.len() - 1]);
+    Ok(())
+}
+
+fn float_text(value: f64) -> PyResult<String> {
+    serde_json::Number::from_f64(value)
+        .map(|number| number.to_string())
+        .ok_or_else(|| PyValueError::new_err("out of range float values are not JSON compliant"))
+}
+
 /// Decimal text of a Python int, immune to a subclass overriding `__str__`.
 fn int_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
     let repr = value.py().get_type::<PyInt>().getattr("__repr__")?;
     repr.call1((value,))?.extract()
 }
 
-/// The text a dict key is written as; `sort_keys` orders by it, like `json.dumps`.
-fn key_text(key: &Bound<'_, PyAny>) -> PyResult<String> {
+/// The bytes a dict key is written as; `sort_keys` on string keys orders by
+/// them, which is the code point order `json.dumps` uses.
+fn key_text(key: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
     if let Ok(text) = key.cast::<PyString>() {
-        return Ok(text.to_str()?.to_owned());
+        return Ok(string_bytes(text)?.into_owned());
     }
     if key.is_instance_of::<PyBool>() {
-        return Ok(if key.is_truthy()? { "true" } else { "false" }.to_owned());
+        return Ok(if key.is_truthy()? { "true" } else { "false" }.into());
     }
     if key.is_instance_of::<PyInt>() {
-        return int_text(key);
+        return Ok(int_text(key)?.into_bytes());
     }
     if key.is_none() {
-        return Ok("null".to_owned());
+        return Ok(b"null".to_vec());
     }
     Err(PyTypeError::new_err("keys must be str, int, bool or None"))
 }
@@ -1234,12 +1289,10 @@ impl<'py> Encoder<'py> {
         } else if value.is_instance_of::<PyInt>() {
             self.out.extend_from_slice(int_text(value)?.as_bytes());
         } else if let Ok(float) = value.cast::<PyFloat>() {
-            let number = serde_json::Number::from_f64(float.value()).ok_or_else(|| {
-                PyValueError::new_err("out of range float values are not JSON compliant")
-            })?;
-            self.out.extend_from_slice(number.to_string().as_bytes());
+            self.out
+                .extend_from_slice(float_text(float.value())?.as_bytes());
         } else if let Ok(text) = value.cast::<PyString>() {
-            write_string(&mut self.out, text.to_str()?)?;
+            write_text(&mut self.out, &string_bytes(text)?)?;
         } else if let Ok(dict) = value.cast::<PyDict>() {
             self.mapping(dict, depth)?;
         } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
@@ -1250,14 +1303,53 @@ impl<'py> Encoder<'py> {
         Ok(())
     }
 
-    fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
-        let mut items: Vec<(String, Bound<'py, PyAny>)> = Vec::with_capacity(dict.len());
-        for (key, item) in dict.iter() {
-            items.push((key_text(&key)?, item));
-        }
-        if self.sort_keys {
+    /// Entries in key order for `sort_keys`: string keys by code point, any other
+    /// keys by Python comparison of the keys themselves, so `{10: 1, 2: 1}` puts
+    /// `2` first and mixed key types raise `TypeError`, as in `json.dumps`.
+    fn sorted_entries(
+        &self,
+        mut items: Vec<(Vec<u8>, Bound<'py, PyAny>, Bound<'py, PyAny>)>,
+    ) -> PyResult<Vec<(Vec<u8>, Bound<'py, PyAny>)>> {
+        if items
+            .iter()
+            .all(|entry| entry.1.is_instance_of::<PyString>())
+        {
             items.sort_by(|a, b| a.0.cmp(&b.0));
+        } else if let Some(py) = items.first().map(|entry| entry.1.py()) {
+            let tagged = PyList::empty(py);
+            for (at, entry) in items.iter().enumerate() {
+                tagged.append((&entry.1, at))?;
+            }
+            tagged.sort()?;
+            let mut order = Vec::with_capacity(items.len());
+            for tag in tagged.iter() {
+                order.push(tag.get_item(1)?.extract::<usize>()?);
+            }
+            let mut slots: Vec<_> = items.into_iter().map(Some).collect();
+            items = order
+                .into_iter()
+                .filter_map(|at| slots[at].take())
+                .collect();
         }
+        Ok(items
+            .into_iter()
+            .map(|(text, _, item)| (text, item))
+            .collect())
+    }
+
+    fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
+        let mut items = Vec::with_capacity(dict.len());
+        for (key, item) in dict.iter() {
+            items.push((key_text(&key)?, key, item));
+        }
+        let items = if self.sort_keys {
+            self.sorted_entries(items)?
+        } else {
+            items
+                .into_iter()
+                .map(|(text, _, item)| (text, item))
+                .collect()
+        };
         self.open(b'{');
         let empty = items.is_empty();
         for (index, (key, item)) in items.into_iter().enumerate() {
@@ -1265,7 +1357,7 @@ impl<'py> Encoder<'py> {
                 self.out.push(b',');
             }
             self.newline(depth + 1);
-            write_string(&mut self.out, &key)?;
+            write_text(&mut self.out, &key)?;
             self.colon();
             self.write(&item, depth + 1)?;
         }
