@@ -75,11 +75,12 @@
 }
 
 .prose .bench-card {
+  position: relative;
   display: grid;
   align-content: start;
   gap: var(--sp-1);
   min-width: 0;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) var(--sp-5) var(--sp-3) var(--sp-4);
   border: 1px solid var(--hn-edge);
   border-radius: var(--hn-radius-m);
   background: var(--hn-surface-1);
@@ -88,15 +89,34 @@
   text-decoration: none;
   transition:
     border-color var(--hn-dur-2) var(--hn-ease),
+    box-shadow var(--hn-dur-2) var(--hn-ease),
     transform var(--hn-dur-2) var(--hn-ease);
 }
 
-.prose .bench-card:hover {
-  border-color: var(--hn-edge-2);
+.prose .bench-card::after {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  color: var(--hn-text-3);
+  content: "\2193";
+  font: 600 var(--fs-s)/1 var(--hn-font-mono);
+  transition:
+    color var(--hn-dur-2) var(--hn-ease),
+    transform var(--hn-dur-2) var(--hn-ease);
+}
+
+.prose .bench-card:hover,
+.prose .bench-card:focus-visible {
+  border-color: color-mix(in srgb, var(--hn-brand) 55%, var(--hn-edge-2));
   color: var(--hn-text-2);
   transform: translateY(-2px);
 }
 
+.prose .bench-card:hover::after,
+.prose .bench-card:focus-visible::after {
+  color: var(--hn-brand);
+  transform: translateY(2px);
+}
 .prose .bench-card:focus-visible {
   outline: 2px solid var(--hn-brand);
   outline-offset: 2px;
@@ -141,6 +161,24 @@
 
 .bench-card.is-withheld .bench-card__kind {
   color: var(--hn-amber);
+}
+
+.bench-card.is-withheld .bench-card__kind::before,
+.bench-withheld::before {
+  display: inline-grid;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-right: 0.45rem;
+  border: 1.5px solid var(--hn-amber);
+  border-radius: 50%;
+  background: linear-gradient(var(--hn-amber), var(--hn-amber)) center / 55% 1.5px no-repeat;
+  content: "";
+  vertical-align: -0.2em;
+}
+
+.bench-card.is-withheld .bench-card__lead {
+  font-size: var(--fs-l);
+  letter-spacing: -0.02em;
 }
 
 /* Scenario panels */
@@ -194,14 +232,68 @@
 /* Bar chart */
 
 .bench-chart {
+  --bench-cols: var(--bench-name-w) minmax(0, 1fr) var(--bench-value-w) var(--bench-ratio-w);
+  --bench-axis-h: 1rem;
+  --bench-grid: color-mix(in srgb, var(--hn-text-3) 34%, transparent);
+
+  position: relative;
   display: grid;
   gap: var(--sp-3);
   margin-top: var(--sp-5);
 }
 
+.bench-chart[data-stacks="1"] {
+  --bench-cols: var(--bench-name-w) minmax(0, 1fr) var(--bench-value-w);
+}
+
+/* Gridlines and axis share the row grid so they line up with the track column. */
+.bench-gridlines,
+.bench-axis {
+  display: grid;
+  grid-template-columns: var(--bench-cols);
+  column-gap: var(--sp-3);
+  pointer-events: none;
+}
+
+.bench-gridlines {
+  position: absolute;
+  inset: 0 0 calc(var(--bench-axis-h) + var(--sp-3));
+  z-index: 1;
+}
+
+.bench-gridlines > span {
+  grid-column: 2;
+  background:
+    linear-gradient(var(--bench-grid), var(--bench-grid)) left / 1px 100% no-repeat,
+    linear-gradient(var(--bench-grid), var(--bench-grid)) center / 1px 100% no-repeat,
+    linear-gradient(var(--bench-grid), var(--bench-grid)) right / 1px 100% no-repeat;
+}
+
+.bench-axis {
+  height: var(--bench-axis-h);
+  color: var(--hn-text-3);
+  font: 500 var(--fs-xs)/var(--bench-axis-h) var(--hn-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.bench-axis > span {
+  position: relative;
+  grid-column: 2;
+}
+
+.bench-axis > span > span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.bench-axis > span > span:nth-child(1) { left: 0; }
+.bench-axis > span > span:nth-child(2) { left: 50%; transform: translateX(-50%); }
+.bench-axis > span > span:nth-child(3) { right: 0; }
+
 .bench-row {
   display: grid;
-  grid-template-columns: var(--bench-name-w) minmax(0, 1fr) var(--bench-value-w) var(--bench-ratio-w);
+  grid-template-columns: var(--bench-cols);
   grid-template-areas: "name track value ratio";
   align-items: center;
   gap: var(--sp-3);
@@ -210,7 +302,6 @@
 }
 
 .bench-chart[data-stacks="1"] .bench-row {
-  grid-template-columns: var(--bench-name-w) minmax(0, 1fr) var(--bench-value-w);
   grid-template-areas: "name track value";
 }
 
@@ -253,7 +344,7 @@
   inset: 0 auto 0 0;
   min-width: 3px;
   border-radius: var(--hn-radius-s);
-  background: var(--bench-other);
+  background: var(--bench-color, var(--bench-other));
   transform-origin: left center;
 }
 
@@ -282,8 +373,19 @@
   white-space: nowrap;
 }
 
-.bench-row.is-hinoki .bench-bar {
-  background: var(--bench-hinoki);
+.bench-row[data-stack="hinoki"] { --bench-color: var(--bench-hinoki); }
+.bench-row[data-stack="fastapi"] { --bench-color: var(--hn-green); }
+.bench-row[data-stack="django-ninja"] { --bench-color: var(--hn-info); }
+.bench-row[data-stack="django-bolt"] { --bench-color: var(--hn-amber); }
+
+.bench-name b::before {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.45rem;
+  border-radius: 2px;
+  background: var(--bench-color, var(--bench-other));
+  content: "";
 }
 
 .bench-row.is-hinoki .bench-name b,
@@ -383,9 +485,27 @@
 /* Withheld scenarios */
 
 .bench-withheld {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--sp-4);
+  align-items: start;
   border-style: dashed;
   border-color: var(--hn-edge-2);
   background: var(--hn-tint-warning);
+}
+
+.bench-withheld > * {
+  grid-column: 2;
+}
+
+.bench-withheld::before {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  border-width: 2px;
+  background-size: 50% 2px;
 }
 
 .bench-withheld .bench-scenario__kind {
@@ -421,9 +541,9 @@
     animation: bench-grow 700ms var(--hn-ease) both;
   }
 
-  .bench-row:nth-child(2) .bench-bar { animation-delay: 60ms; }
-  .bench-row:nth-child(3) .bench-bar { animation-delay: 120ms; }
-  .bench-row:nth-child(n + 4) .bench-bar { animation-delay: 180ms; }
+  .bench-row:nth-of-type(2) .bench-bar { animation-delay: 60ms; }
+  .bench-row:nth-of-type(3) .bench-bar { animation-delay: 120ms; }
+  .bench-row:nth-of-type(n + 4) .bench-bar { animation-delay: 180ms; }
 
   .bench-ratio,
   .bench-value {
@@ -494,6 +614,11 @@
 
   .bench-track {
     height: 0.875rem;
+  }
+
+  .bench-gridlines,
+  .bench-axis {
+    display: none;
   }
 }
 
