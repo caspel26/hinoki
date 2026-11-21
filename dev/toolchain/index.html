@@ -242,7 +242,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 00:05:24 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 00:31:49 UTC">November 21, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -366,7 +366,7 @@ test gate.</p>
 <li>Each <code>Python X</code> job sets <code>UV_PYTHON</code> to its matrix version and asserts the interpreter before testing. Without it <code>uv run</code> follows <code>.python-version</code> and every job would test 3.13. Locally, run another version with <code>uv run --locked --python 3.14 pytest</code> (use <code>UV_PROJECT_ENVIRONMENT</code> to keep its environment apart).</li>
 <li><code>ci.yml</code> checks out with <code>persist-credentials: false</code>: no CI job pushes. <code>deploy-docs.yml</code> keeps the token because it pushes to <code>gh-pages</code>.</li>
 <li>The <code>audit</code> job checks <code>Cargo.lock</code> (<code>cargo audit</code>, <code>cargo deny check</code>) and <code>uv.lock</code> (<code>uv export</code> of every group and extra, then <code>pip-audit --require-hashes --disable-pip</code>). Locally: <code>uv export --locked --all-groups --all-extras --no-emit-project --format requirements-txt -o /tmp/requirements.txt &amp;&amp; uvx pip-audit==2.10.1 --require-hashes --disable-pip -r /tmp/requirements.txt</code>.</li>
-<li>A pull request that only changes <code>docs/</code>, <code>theme/</code>, <code>assets/</code>, <code>mkdocs.yml</code>, <code>LICENSE</code> or Markdown files in the repository root skips the work of the <code>Python X</code>, <code>rust</code> and <code>wheel</code> jobs: the <code>changes</code> job lists the files through the API and, on any doubt, runs everything. The skipped jobs still report success, so the required checks need no change. <code>docs</code>, <code>audit</code> and <code>pre-commit</code> always run. CodeQL and SonarCloud do not start for such a pull request.</li>
+<li>A pull request that only changes <code>docs/</code>, <code>theme/</code>, <code>assets/</code>, <code>mkdocs.yml</code>, <code>LICENSE</code> or Markdown files in the repository root skips the work of the <code>Python X</code>, <code>rust</code>, <code>wheel</code> and <code>audit</code> jobs: the <code>changes</code> job lists the files through the API and, on any doubt, runs everything. The skipped jobs still report success, so the required checks need no change. <code>pre-commit</code> checks only the files of such a pull request and <code>docs</code> always runs. CodeQL and SonarCloud do not start for such a pull request.</li>
 </ul>
 <h2 id="native-extension-editable-install-rebuild-wheel">Native extension: editable install, rebuild, wheel<a class="headerlink" href="#native-extension-editable-install-rebuild-wheel" title="Permanent link">&para;</a></h2>
 <table>
@@ -439,7 +439,7 @@ test gate.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 00:05:24 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 00:31:49 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
