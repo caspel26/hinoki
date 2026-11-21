@@ -14,6 +14,7 @@ For user-facing code changes, include a minimal example that shows how to use th
 
 - [ ] Updated the relevant guide/reference and checked-in example for user-facing changes.
 - [ ] Not applicable (explain why):
+- [ ] Added a line under `## [Unreleased]` in `CHANGELOG.md` for user-facing changes, or not applicable (explain why):
 
 ## Validation
 
