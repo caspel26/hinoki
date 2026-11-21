@@ -1,0 +1,49 @@
+.cl { margin-block: 1.5rem; }
+.cl__bar {
+  position: sticky; top: 0; z-index: 5; display: grid; gap: .6rem;
+  padding: .75rem 0; background: color-mix(in srgb, var(--hn-bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+.cl__versions, .cl__kinds { display: flex; flex-wrap: wrap; gap: .4rem; }
+.cl__ver, .cl__kind {
+  font: 500 .8rem/1 var(--hn-mono, ui-monospace, monospace);
+  padding: .5rem .8rem; border-radius: 999px; cursor: pointer;
+  color: var(--hn-text-2); background: var(--hn-surface-1);
+  border: 1px solid var(--hn-edge); text-decoration: none;
+}
+.cl__ver:hover, .cl__kind:hover { border-color: var(--hn-edge-2); color: var(--hn-text); }
+.cl__ver[aria-current="true"], .cl__kind[aria-pressed="true"] {
+  color: var(--hn-brand); background: var(--hn-brand-tint);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
+}
+.cl__ver:focus-visible, .cl__kind:focus-visible { outline: 2px solid var(--hn-brand); outline-offset: 2px; }
+.cl__cards { display: grid; gap: 1.25rem; margin-top: 1rem; }
+.cl__card {
+  background: var(--hn-surface-1); border: 1px solid var(--hn-edge);
+  border-radius: 14px; padding: 1.25rem 1.5rem; box-shadow: var(--hn-raise);
+  scroll-margin-top: 7rem;
+}
+.cl__card[hidden], .cl__sec[hidden] { display: none; }
+.cl__head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: .5rem; }
+.cl__head h2 { margin: 0; font-size: 1.35rem; border: 0; padding: 0; }
+.cl__head time { color: var(--hn-text-3); font-size: .85rem; }
+.cl__link { margin-left: auto; font-size: .85rem; }
+.cl__chip {
+  font: 600 .7rem/1 var(--hn-mono, ui-monospace, monospace); text-transform: uppercase;
+  letter-spacing: .06em; padding: .3rem .5rem; border-radius: 6px;
+  color: var(--hn-green); background: var(--hn-tint-success);
+}
+.cl__chip--next { color: var(--hn-amber); background: var(--hn-tint-warning); }
+.cl__sec { margin-top: 1.25rem; }
+.cl__sec h3 { margin: 0 0 .5rem; font-size: 1.05rem; }
+.cl__sec h4 { margin: 1rem 0 .25rem; font-size: .95rem; }
+.cl__sec blockquote {
+  margin: .25rem 0 .5rem; padding: .35rem .75rem; font-size: .82rem;
+  color: var(--hn-text-3); border-left: 3px solid var(--hn-edge-2); background: var(--hn-sunken);
+  border-radius: 0 8px 8px 0;
+}
+.cl__empty { color: var(--hn-text-3); }
+@media (max-width: 640px) {
+  .cl__card { padding: 1rem; }
+  .cl__link { margin-left: 0; }
+}

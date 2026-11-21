@@ -1,14 +1,27 @@
 """Page data for the Hinoki theme: reading time, related pages and the rule
 catalogue behind the `HNK-…` popovers."""
 
+import importlib.util
 import inspect
 import re
+import sys
+from pathlib import Path
 
 from mkdocs.config import Config
 from mkdocs.structure.files import Files
 from mkdocs.structure.pages import Page
 
 from hinoki import rules, waivers
+
+# mkdocs loads this file by path, so its sibling module is loaded the same way.
+_spec = importlib.util.spec_from_file_location(
+    "docsite_changelog", Path(__file__).with_name("changelog.py")
+)
+if _spec is None or _spec.loader is None:
+    raise ImportError("cannot load docsite/changelog.py")
+changelog = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = changelog
+_spec.loader.exec_module(changelog)
 
 RULE_NAMESPACES = (
     rules.Actions,
@@ -75,9 +88,15 @@ def resolve_related(page: Page, files: Files) -> list[dict[str, str]]:
     return found
 
 
-def on_page_markdown(markdown: str, page: Page, config: Config, files: Files) -> str:  # noqa: ARG001
+def on_page_markdown(markdown: str, page: Page, config: Config, files: Files) -> str:
     """Attach related pages to the page metadata."""
     page.meta["related_pages"] = resolve_related(page, files)
+    if changelog.PLACEHOLDER in markdown:
+        source = (Path(config["docs_dir"]).parent / "CHANGELOG.md").read_text("utf-8")
+        page.meta["changelog"] = True
+        return markdown.replace(
+            changelog.PLACEHOLDER, changelog.render(source, config["repo_url"])
+        )
     return markdown
 
 

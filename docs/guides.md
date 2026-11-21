@@ -68,6 +68,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 
 - [Sync and async code](sync-async.md): the event loop, the bounded sync pool and which style each surface accepts.
 - [Benchmarks](benchmarks.md): retained measurements with their environment, method and limits.
+- [Changelog](changelog.md): every user-facing change, explorable by version and type.
 - [Native CRUD orientation run](rust-crud-orientation.md): a workload-specific measurement of generated CRUD.
 
 ## Concepts and project
