@@ -1205,7 +1205,7 @@ class Pipeline:
             args = owner
         try:
             if binding.is_async:
-                handler = cast(Callable[..., Awaitable[object]], route.handler)
+                handler = cast("Callable[..., Awaitable[object]]", route.handler)
                 return await handler(*args, **kwargs)
             result = await self.executor.run(route.handler, *args, **kwargs)
             if inspect.isawaitable(result):
