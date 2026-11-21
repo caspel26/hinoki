@@ -1120,6 +1120,7 @@ class Schema:
     __declared_forms__: ClassVar[tuple[tuple[str, FieldInfo], ...] | None] = None
     __float_fields__: ClassVar[tuple[tuple[str, FieldType], ...] | None] = None
     __graph_normalizers__: ClassVar[bool | None] = None
+    __graph_checks__: ClassVar[bool | None] = None
     __graph_before__: ClassVar[bool | None] = None
     __source__: ClassVar[dict[str, Any]] = {}
     __derivation__: ClassVar[tuple[Any, ...] | None] = None
@@ -1766,6 +1767,9 @@ def refuse_hooked_union(ftype: FieldType) -> None:
 
 def graph_has_checks(cls: type[Schema], seen: set[type] | None = None) -> bool:
     """Whether this schema graph declares a check; recursive-safe lookup."""
+    cached = cls.__dict__.get("__graph_checks__")
+    if cached is not None:
+        return bool(cached)
     pending = [cls]
     visited: set[type] = set() if seen is None else set(seen)
     while pending:
@@ -1773,13 +1777,29 @@ def graph_has_checks(cls: type[Schema], seen: set[type] | None = None) -> bool:
         if current in visited:
             continue
         visited.add(current)
-        if current.__dict__.get("__graph_checks__") is True:
+        known = current.__dict__.get("__graph_checks__")
+        if known is True:
             return True
+        if known is False:
+            continue
         if current.__checks__:
-            cls.__graph_checks__ = True  # type: ignore[attr-defined]
+            cls.__graph_checks__ = True
             return True
         pending.extend(nested_schemas(current))
+    if seen is None:
+        remember_graph_without(visited, "__graph_checks__")
     return False
+
+
+def remember_graph_without(visited: set[type], marker: str) -> None:
+    """Cache a negative walk. Sound because a finished walk resolved every
+    reachable schema's specs (which are never rebuilt) and ``__checks__`` /
+    ``__normalizers__`` are fixed when a class is created, so a graph that
+    held none cannot gain one; every visited class reaches only visited ones.
+    A walk that started from a partial ``seen`` set proves nothing and is not
+    cached."""
+    for member in visited:
+        setattr(member, marker, False)
 
 
 def graph_has_normalizers(cls: type[Schema], seen: set[type] | None = None) -> bool:
@@ -1787,7 +1807,11 @@ def graph_has_normalizers(cls: type[Schema], seen: set[type] | None = None) -> b
     # Recursive schema graphs make recursive memoization unsafe: a node first
     # reached through the active cycle can appear to have no normalizers even
     # though a later field in that same graph contains one. An iterative walk
-    # visits each class once and caches only positive answers.
+    # visits each class once; a negative answer is cached only after the whole
+    # walk finished (see remember_graph_without).
+    cached = cls.__dict__.get("__graph_normalizers__")
+    if cached is not None:
+        return bool(cached)
     pending = [cls]
     visited: set[type] = set() if seen is None else set(seen)
     while pending:
@@ -1795,12 +1819,17 @@ def graph_has_normalizers(cls: type[Schema], seen: set[type] | None = None) -> b
         if current in visited:
             continue
         visited.add(current)
-        if current.__dict__.get("__graph_normalizers__") is True:
+        known = current.__dict__.get("__graph_normalizers__")
+        if known is True:
             return True
+        if known is False:
+            continue
         if current.__normalizers__:
             cls.__graph_normalizers__ = True
             return True
         pending.extend(nested_schemas(current))
+    if seen is None:
+        remember_graph_without(visited, "__graph_normalizers__")
     return False
 
 

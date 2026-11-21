@@ -10,6 +10,7 @@ from uuid import UUID
 import pytest
 
 from hinoki import Field, Hinoki, Invalid, Schema, field_check, http, object_check
+from hinoki import schema as schema_module
 from hinoki.errors import ValidationError
 from hinoki.testing import ASGIClient
 
@@ -257,3 +258,46 @@ async def test_invalid_body_is_rejected_before_sync_or_async_handler() -> None:
             )
             assert response.status == 200
             assert calls[-1] == path[1:]
+
+
+class Plain(Schema):
+    label: str
+
+
+class PlainHolder(Schema):
+    plain: Plain
+
+
+class Node(Schema):
+    name: str
+    parent: Node | None = None
+
+
+def test_graph_without_checks_is_walked_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    walked: list[str] = []
+    original = schema_module.nested_schemas
+
+    def counting(cls: type[Schema]) -> list[type[Schema]]:
+        walked.append(cls.__name__)
+        return original(cls)
+
+    monkeypatch.setattr(schema_module, "nested_schemas", counting)
+    for _ in range(3):
+        PlainHolder(plain=Plain(label="a"))
+        Node(name="n", parent=Node(name="p"))
+    assert sorted(walked) == ["Node", "Plain", "PlainHolder"]
+    assert schema_module.graph_has_checks(PlainHolder) is False
+    assert schema_module.graph_has_normalizers(PlainHolder) is False
+
+
+def test_graph_check_added_in_a_subclass_is_not_hidden_by_the_cache() -> None:
+    class Strict(Plain):
+        @field_check("label")
+        def not_blank(self, value: str) -> None:
+            if not value:
+                raise Invalid("blank", "label is blank")
+
+    assert schema_module.graph_has_checks(Plain) is False
+    assert schema_module.graph_has_checks(Strict) is True
+    with pytest.raises(ValidationError):
+        Strict(label="")

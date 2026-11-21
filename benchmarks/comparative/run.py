@@ -3,22 +3,31 @@
     uv run python run.py --framework hinoki --out results/2026-11-14
     uv run python run.py --framework all --smoke        # correctness only
 
-Per framework: reset the database to the seed, start the server pinned to its CPU
-set, verify behaviour and query counts (verify.py), warm up, then measure every
-scenario ``--runs`` times with ``oha`` and keep each raw JSON result.
+Per framework, ``--restarts`` times (default 2): reset the database to the seed,
+refuse to start if the port is already taken, start the server pinned to its CPU
+set, wait for a 200, verify behaviour and query counts (verify.py), then for every
+scenario warm up and take ``--runs`` samples of ``--requests`` requests each with
+``bombardier`` (100 connections) and keep each raw JSON result. The server is
+stopped (SIGTERM, then SIGKILL after a grace period) and the port must be free
+again before the next start, so a previous server is never measured by mistake.
 """
 
 import argparse
+import contextlib
 import json
 import os
 import platform
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
+
+import loadtool
 
 HERE = Path(__file__).parent
 DB = os.environ.get(
@@ -33,7 +42,11 @@ LOAD_CPUS = "6-7"
 PINNED = sys.platform == "linux" and shutil.which("taskset") is not None
 WORKERS = 4
 POOL = 10
-OHA = os.environ.get("OHA", shutil.which("oha") or "oha")
+BOMBARDIER = (
+    os.environ.get("BOMBARDIER")
+    or shutil.which("bombardier")
+    or str(Path.home() / "go" / "bin" / "bombardier")
+)
 
 DOCUMENTED_SERVERS = {
     "hinoki": (
@@ -94,13 +107,18 @@ LABELS = {
     "fastapi-granian": "FastAPI · Granian",
     "ninja-granian": "Django Ninja · Granian",
 }
-CONCURRENCY = 64
+CONCURRENCY = 100
+REQUESTS = 100_000
+RESTARTS = 2
 WARMUP = 10
-DURATION = 20
+STOP_GRACE = 15
+PORT_WAIT = 10
 QUIET_POLL = 10
 QUIET_TIMEOUT = 1800
 SCENARIOS = {
     "health": ("GET", "/health", None),
+    "json-1k": ("GET", "/json-1k", None),
+    "json-10k": ("GET", "/json-10k", None),
     "list": ("GET", "/posts?page=1&page_size=20", None),
     "detail": ("GET", "/posts/{post}", None),
     "create": ("POST", "/posts", "create.json"),
@@ -119,15 +137,57 @@ def reset_db() -> None:
     sh([sys.executable, str(HERE / "seed.py"), DB])
 
 
-def wait_ready(timeout: float = 60) -> None:
+def http_status(url: str) -> int:
+    try:
+        return urllib.request.urlopen(url, timeout=2).status
+    except urllib.error.HTTPError as error:
+        return error.code
+    except OSError:
+        return 0
+
+
+def wait_ready(
+    process: subprocess.Popen, port: int = PORT, timeout: float = 60
+) -> None:
+    """Return once ``/health`` answers 200; fail at once if the server has died."""
     end = time.monotonic() + timeout
     while time.monotonic() < end:
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=2).read()
+        if process.poll() is not None:
+            raise SystemExit(
+                f"server exited before becoming ready ({process.returncode})"
+            )
+        if http_status(f"http://127.0.0.1:{port}/health") == 200:
             return
-        except Exception:
-            time.sleep(0.3)
-    raise SystemExit("server did not become ready")
+        time.sleep(0.3)
+    raise SystemExit(f"server did not answer 200 on /health within {timeout:g} s")
+
+
+def port_is_free(port: int = PORT) -> bool:
+    with socket.socket() as probe:
+        probe.settimeout(1)
+        return probe.connect_ex(("127.0.0.1", port)) != 0
+
+
+def require_free_port(port: int = PORT) -> None:
+    if not port_is_free(port):
+        raise SystemExit(
+            f"port {port} is already in use; refusing to measure a foreign or stale server"
+        )
+
+
+def group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def signal_group(pgid: int, number: signal.Signals) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(pgid, number)
 
 
 def start(name: str, log: Path) -> subprocess.Popen:
@@ -157,26 +217,70 @@ def start(name: str, log: Path) -> subprocess.Popen:
     )
 
 
-def stop(process: subprocess.Popen) -> None:
-    os.killpg(process.pid, signal.SIGTERM)
-    try:
-        process.wait(timeout=15)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
+def stop(
+    process: subprocess.Popen,
+    grace: float = STOP_GRACE,
+    port: int | None = PORT,
+    port_wait: float = PORT_WAIT,
+) -> None:
+    """End the whole server group: SIGTERM, wait ``grace`` s, then SIGKILL.
+
+    A draining worker from the previous server can still answer on the shared
+    port, so this returns only once the group is gone and ``port`` is free.
+    """
+    signal_group(process.pid, signal.SIGTERM)
+    end = time.monotonic() + grace
+    while group_alive(process.pid) and time.monotonic() < end:
+        process.poll()
+        time.sleep(0.1)
+    if group_alive(process.pid):
+        signal_group(process.pid, signal.SIGKILL)
+    process.wait()
+    while group_alive(process.pid):
+        time.sleep(0.1)
+    if port is not None:
+        wait_port_released(port, port_wait)
 
 
-def oha(
-    url: str, method: str, body: Path | None, seconds: int, out: Path | None
+def wait_port_released(port: int, timeout: float) -> None:
+    end = time.monotonic() + timeout
+    while not port_is_free(port):
+        if time.monotonic() > end:
+            raise SystemExit(
+                f"a listener still holds port {port} after the server stopped"
+            )
+        time.sleep(0.25)
+
+
+def bombardier(
+    url: str,
+    method: str,
+    body: Path | None,
+    *,
+    requests: int | None = None,
+    seconds: int | None = None,
+    out: Path | None = None,
 ) -> dict:
-    cmd = [*pin(LOAD_CPUS), OHA, "-z", f"{seconds}s", "-c", str(CONCURRENCY),
-           "--no-tui", "--output-format", "json", "-m", method]  # fmt: skip
-    if body:
-        cmd += ["-H", "content-type: application/json", "-D", str(body)]
-    cmd.append(url)
-    result = sh(cmd).stdout
+    cmd = [
+        *pin(LOAD_CPUS),
+        *loadtool.command(
+            BOMBARDIER,
+            url,
+            method,
+            body,
+            CONCURRENCY,
+            requests=requests,
+            seconds=seconds,
+        ),
+    ]
+    text = sh(cmd, timeout=3600).stdout
+    try:
+        document = loadtool.parse(text)
+    except ValueError as error:
+        raise SystemExit(f"{url}: {error}") from None
     if out:
-        out.write_text(result.rstrip("\n") + "\n")
-    return json.loads(result)
+        out.write_text(text.rstrip("\n") + "\n")
+    return document
 
 
 def command_output(command: list[str]) -> str:
@@ -204,9 +308,30 @@ def cpu_model() -> str:
     )
 
 
+def memory_bytes() -> int | None:
+    meminfo = Path("/proc/meminfo")
+    if not meminfo.exists():
+        return None
+    for line in meminfo.read_text().splitlines():
+        if line.startswith("MemTotal:"):
+            return int(line.split()[1]) * 1024
+    return None
+
+
+def bombardier_version() -> str:
+    """The Go module version (the binary's own ``--version`` reports none)."""
+    for line in command_output(["go", "version", "-m", BOMBARDIER]).splitlines():
+        parts = line.split()
+        if parts[:2] == ["mod", "github.com/codesenberg/bombardier"] and len(parts) > 2:
+            return parts[2]
+    return command_output([BOMBARDIER, "--version"]) or "unknown"
+
+
 def host_details() -> dict:
     """Extra host facts that explain a run; macOS-only fields are best effort."""
     details: dict = {"pinning": "taskset" if PINNED else "none (OS scheduler)"}
+    if sys.platform == "linux":
+        details["memory_bytes"] = memory_bytes()
     if sys.platform == "darwin":
         details.update(
             performance_cores=command_output(
@@ -251,15 +376,17 @@ def environment(args: argparse.Namespace) -> dict:
         "postgres": sh(
             ["docker", "exec", POSTGRES_CONTAINER, "postgres", "--version"]
         ).stdout.strip(),
-        "oha": sh([OHA, "--version"]).stdout.strip(),
+        "load_tool": "bombardier",
+        "bombardier": bombardier_version(),
         "settings": {
             "server_mode": args.server_mode,
             "stacks": args.selected_stacks,
             "workers": WORKERS,
             "pool_per_worker": POOL,
             "concurrency": CONCURRENCY,
+            "requests": args.requests,
+            "restarts": args.restarts,
             "warmup_s": args.warmup,
-            "duration_s": args.duration,
             "max_load": args.max_load,
             "runs": args.runs,
             "run_offset": args.run_offset,
@@ -277,11 +404,21 @@ def arguments() -> argparse.Namespace:
         "--server-mode", choices=tuple(SERVER_MODES), default="documented"
     )
     parser.add_argument("--out", type=Path, default=HERE / "results" / "scratch")
-    parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument(
+        "--runs", type=int, default=5, help="samples per scenario and start"
+    )
+    parser.add_argument(
+        "--restarts",
+        type=int,
+        default=RESTARTS,
+        help="server starts per framework; every sample of every start is kept",
+    )
     parser.add_argument("--run-offset", type=int, default=0)
     parser.add_argument("--scenario", choices=tuple(SCENARIOS), nargs="+")
     parser.add_argument("--smoke", action="store_true")
-    parser.add_argument("--duration", type=int, default=DURATION)
+    parser.add_argument(
+        "--requests", type=int, default=REQUESTS, help="requests per measured sample"
+    )
     parser.add_argument(
         "--max-load",
         type=float,
@@ -303,7 +440,7 @@ def selected_stacks(args: argparse.Namespace) -> list[str]:
     return names
 
 
-def verify_stack(name: str, output: Path) -> None:
+def verify_stack(name: str, output: Path, restart: int = 1) -> None:
     verified = subprocess.run(
         check=False,
         args=[
@@ -316,7 +453,10 @@ def verify_stack(name: str, output: Path) -> None:
         text=True,
         cwd=HERE,
     )
-    (output / f"{name}-verify.txt").write_text(verified.stdout + verified.stderr)
+    path = output / f"{name}-verify.txt"
+    text = f"# start {restart}\n{verified.stdout}{verified.stderr}"
+    with path.open("w" if restart == 1 else "a") as handle:
+        handle.write(text)
     print(verified.stdout, verified.stderr[-1500:])
     if verified.returncode != 0:
         raise SystemExit(f"{name} failed verification; no measurement taken")
@@ -369,40 +509,50 @@ def wait_for_quiet(max_load: float | None, log: Path, label: str) -> None:
         handle.write(f"{label} load1={load:.2f}\n")
 
 
-def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) -> None:
+def measure_scenario(
+    name: str,
+    scenario: str,
+    args: argparse.Namespace,
+    body: Path,
+    post: str,
+    restart: int,
+) -> None:
+    method, path, payload = SCENARIOS[scenario]
+    url = f"http://127.0.0.1:{PORT}" + path.format(post=post)
+    data = body if payload else None
+    bombardier(url, method, data, seconds=args.warmup)
+    for run in range(1, args.runs + 1):
+        sample = run + args.run_offset
+        label = f"{name}-{scenario}-r{restart}-{sample}"
+        wait_for_quiet(args.max_load, args.out / "loadavg.txt", label)
+        bombardier(
+            url, method, data, requests=args.requests, out=args.out / f"{label}.json"
+        )
+    if scenario == "create":
+        reset_benchmark_rows()
+
+
+def measure_start(
+    name: str, args: argparse.Namespace, body: Path, post: str, restart: int
+) -> None:
+    require_free_port()
     reset_db()
-    process = start(name, args.out / f"{name}-server.log")
+    process = start(name, args.out / f"{name}-server-r{restart}.log")
     try:
-        wait_ready()
-        verify_stack(name, args.out)
+        wait_ready(process)
+        verify_stack(name, args.out, restart)
         if args.smoke:
             return
-        scenarios = args.scenario or list(SCENARIOS)
-        for scenario in scenarios:
-            method, path, payload = SCENARIOS[scenario]
-            url = f"http://127.0.0.1:{PORT}" + path.format(post=post)
-            data = body if payload else None
-            oha(url, method, data, args.warmup, None)
-            for run in range(1, args.runs + 1):
-                sample = run + args.run_offset
-                wait_for_quiet(
-                    args.max_load,
-                    args.out / "loadavg.txt",
-                    f"{name}-{scenario}-{sample}",
-                )
-                oha(
-                    url,
-                    method,
-                    data,
-                    args.duration,
-                    args.out / f"{name}-{scenario}-{sample}.json",
-                )
-            if scenario == "create":
-                reset_benchmark_rows()
-        record_worker_cpu(process, args.out / f"{name}-workers.txt")
+        for scenario in args.scenario or list(SCENARIOS):
+            measure_scenario(name, scenario, args, body, post, restart)
+        record_worker_cpu(process, args.out / f"{name}-workers-r{restart}.txt")
     finally:
         stop(process)
-        time.sleep(2)
+
+
+def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) -> None:
+    for restart in range(1, 2 if args.smoke else args.restarts + 1):
+        measure_start(name, args, body, post, restart)
 
 
 def main() -> None:
