@@ -14,7 +14,12 @@ from hinoki import Hinoki, core, http
 from hinoki.http import Event, EventStream, File, Response, Stream
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.serve import choose_server, compresses
-from hinoki.settings import AppSettings, CompressionSettings, ServerSettings
+from hinoki.settings import (
+    MAX_BROTLI_QUALITY,
+    AppSettings,
+    CompressionSettings,
+    ServerSettings,
+)
 from hinoki.wsgi import WSGIAdapter
 
 state: dict[str, object] = {}
@@ -226,6 +231,13 @@ def test_the_default_types_match_the_native_policy() -> None:
     assert found == CompressionSettings().types
 
 
+def test_the_brotli_quality_limit_matches_the_native_policy() -> None:
+    source = Path(__file__).parents[1] / "crates" / "kiso" / "src" / "encode.rs"
+    found = re.search(r"MAX_BROTLI_QUALITY: u32 = (\d+);", source.read_text())
+    assert found is not None
+    assert int(found.group(1)) == MAX_BROTLI_QUALITY
+
+
 @pytest.mark.parametrize(
     "bad",
     [
@@ -235,7 +247,7 @@ def test_the_default_types_match_the_native_policy() -> None:
         {"min_size": -1},
         {"types": ("json",)},
         {"gzip_level": 0},
-        {"brotli_quality": 12},
+        {"brotli_quality": 10},
         {"max_concurrent": 0},
     ],
 )

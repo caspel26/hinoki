@@ -80,7 +80,7 @@ COMPRESSION_TYPES = (
 MAX_COMPRESSION_MIN_SIZE = 16 << 20
 MAX_COMPRESSION_SLOTS = 65536
 MAX_GZIP_LEVEL = 9
-MAX_BROTLI_QUALITY = 11
+MAX_BROTLI_QUALITY = 9
 MEDIA_RULE = re.compile(
     r"(?:\*/\*\+[a-z0-9.+-]+|[a-z0-9!#$&^_.+-]+/(?:\*|[a-z0-9!#$&^_.+-]+))",
     re.ASCII | re.IGNORECASE,
@@ -1406,7 +1406,7 @@ class CompressionSettings(Settings):
     ``*/*+suffix``) and responses with ``cache-control: no-transform`` are sent
     as they are. ``event_streams`` also compresses ``text/event-stream`` and
     ``files`` compresses file responses. ``gzip_level`` is 1 to 9,
-    ``brotli_quality`` 0 to 11, and ``max_concurrent`` bounds the compressions
+    ``brotli_quality`` 0 to 9, and ``max_concurrent`` bounds the compressions
     in progress in one worker: past it, answers go out uncompressed.
     """
 
@@ -1434,7 +1434,7 @@ class CompressionSettings(Settings):
         if not 1 <= self.gzip_level <= MAX_GZIP_LEVEL:
             raise ValueError("gzip_level must be 1 to 9")
         if not 0 <= self.brotli_quality <= MAX_BROTLI_QUALITY:
-            raise ValueError("brotli_quality must be 0 to 11")
+            raise ValueError("brotli_quality must be 0 to 9")
         if not 1 <= self.max_concurrent <= MAX_COMPRESSION_SLOTS:
             raise ValueError(f"max_concurrent must be 1 to {MAX_COMPRESSION_SLOTS}")
 
