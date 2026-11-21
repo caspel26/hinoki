@@ -70,7 +70,15 @@ def any_arm(checks: list[Check]) -> Check:
     used as it is, without a wrapper call per response."""
     if len(checks) == 1:
         return checks[0]
-    return lambda value: any(check(value) for check in checks)
+    arms = tuple(checks)
+
+    def any_check(value: object) -> bool:
+        for check in arms:  # noqa: SIM110 - a plain loop avoids a generator per response
+            if check(value):
+                return True
+        return False
+
+    return any_check
 
 
 def union_arms(annotation: object) -> list[object]:
