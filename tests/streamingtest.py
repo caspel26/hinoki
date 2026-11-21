@@ -420,6 +420,21 @@ async def test_head_closes_the_source_without_reading_it() -> None:
         assert closed == ["head"]
 
 
+@pytest.mark.parametrize("name", ["", "a/b", "a\nb"])
+def test_a_download_name_with_a_slash_or_a_control_character_is_refused(
+    name: str,
+) -> None:
+    with pytest.raises(ValueError, match="filename"):
+        File("x", filename=name)
+
+
+def test_a_download_name_keeps_its_exact_utf8_form() -> None:
+    headers = dict(File("x", filename="résumé.pdf").headers)
+    assert headers[b"content-disposition"] == (
+        b"attachment; filename=\"r_sum_.pdf\"; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf"
+    )
+
+
 def test_a_stream_place_is_counted_in_core_and_given_back_when_dropped() -> None:
     places = core.StreamLimit(1)
     permit = places.acquire()

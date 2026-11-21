@@ -426,6 +426,13 @@ def locate_file(
     there is no such file. The lookup runs on a blocking thread.
     """
 
+def content_disposition(filename: str) -> str:
+    """The `content-disposition: attachment` value for a download.
+
+    The name gets an ASCII fallback, and the exact UTF-8 name when they differ.
+    Raises `ValueError` for an empty name or one with `/` or a control character.
+    """
+
 class Tally:
     """Holds a streamed body to the `content-length` its head declared."""
 

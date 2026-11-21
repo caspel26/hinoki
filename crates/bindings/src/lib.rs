@@ -7,6 +7,7 @@ mod completion;
 mod crudplan;
 mod crypto;
 mod db;
+mod disposition;
 mod driver;
 mod filelocate;
 mod jwt;
@@ -100,6 +101,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     wsgi::register(m)?;
     m.add_class::<sink::ResponseSink>()?;
     m.add_function(wrap_pyfunction!(filelocate::locate_file, m)?)?;
+    m.add_function(wrap_pyfunction!(disposition::content_disposition, m)?)?;
     m.add_class::<tally::Tally>()?;
     m.add_class::<streamlimit::StreamLimit>()?;
     m.add_class::<streamlimit::StreamPermit>()?;

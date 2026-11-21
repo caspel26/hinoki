@@ -21,17 +21,14 @@ from __future__ import annotations
 
 import mimetypes
 import os
-import re
 from collections.abc import AsyncIterable, Iterable
 from types import EllipsisType
-from urllib.parse import quote
 
 from hinoki import core
-from hinoki.http.response import CONTROL, Headers, Response
+from hinoki.http.response import Headers, Response
 from hinoki.runtime.responses import BODYLESS
 
 Source = AsyncIterable[object] | Iterable[object]
-UNSAFE_FILENAME = re.compile(r'[^\x20-\x7e]|["\\]')
 EVENT_STREAM_HEADERS = (
     ("cache-control", "no-store"),
     ("x-accel-buffering", "no"),
@@ -248,7 +245,7 @@ class File(Streamed):
     ) -> None:
         extra = [("accept-ranges", "none")]
         if filename is not None:
-            extra.append(("content-disposition", disposition(filename)))
+            extra.append(("content-disposition", core.content_disposition(filename)))
         super().__init__(
             status,
             [*_items(headers), *extra],
@@ -267,20 +264,6 @@ class File(Streamed):
 
 def _items(headers: Headers) -> list[tuple[str, str]]:
     return list(headers.items() if hasattr(headers, "items") else headers)
-
-
-def disposition(filename: str) -> str:
-    """A ``content-disposition: attachment`` value for ``filename``, with an
-    ASCII fallback and the exact UTF-8 name when they differ."""
-    if not filename or CONTROL.search(filename) or "/" in filename:
-        raise ValueError(
-            "filename must be a non-empty name without '/' or control characters"
-        )
-    fallback = UNSAFE_FILENAME.sub("_", filename)
-    value = f'attachment; filename="{fallback}"'
-    if fallback != filename:
-        value += f"; filename*=UTF-8''{quote(filename, safe='')}"
-    return value
 
 
 __all__ = ["Event", "EventStream", "File", "Stream", "Streamed"]
