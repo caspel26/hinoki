@@ -1,0 +1,6 @@
+pid pgid cputime command
+ 293434  293434 00:00:00 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+ 293448  293434 00:08:14 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+ 293449  293434 00:08:14 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+ 293450  293434 00:08:12 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+ 293451  293434 00:08:12 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
