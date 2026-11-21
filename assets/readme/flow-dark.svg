@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 992 262" width="992" height="262" role="img" aria-label="Request flow: the server accepts the request, Hinoki routes and binds it, validates the input, checks access, opens a transaction, calls the handler, renders the response and commits. On an error an open transaction rolls back first, and the error response carries a request ID.">
+  <style>
+  text { font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .node { fill: #1e1e24; stroke: #3a3a44; stroke-width: 1; }
+  .num { fill: #b9a0e7; font-size: 12px; }
+  .title { fill: #eeedf2; font-size: 15px; font-weight: 500; }
+  .detail { fill: #9d9ca9; font-size: 12px; }
+  .group { fill: #9d9ca9; font-size: 12px; letter-spacing: 0.06em;
+    text-transform: uppercase; }
+  .rule { stroke: #3a3a44; stroke-width: 1; }
+  .track { stroke: #3a3a44; stroke-width: 2; }
+  .tick { fill: #3a3a44; }
+  .fail { fill: none; stroke: #e0bc7d; stroke-width: 1; stroke-dasharray: 4 4;
+    opacity: 0.7; }
+  .failtext { fill: #e0bc7d; font-size: 12px; }
+  .dot { fill: #b9a0e7; }
+  .halo { fill: #b9a0e7; opacity: 0.25; }
+  .runner { opacity: 0; }
+  @keyframes lit {
+    0% { fill: #1e1e24; stroke: #3a3a44; }
+    1%, 8% { fill: #2a2734; stroke: #b9a0e7; }
+    10%, 100% { fill: #1e1e24; stroke: #3a3a44; }
+  }
+  @keyframes travel {
+    0% { opacity: 0; transform: translateX(0); }
+    1% { opacity: 1; transform: translateX(0); }
+    80% { opacity: 1; transform: translateX(840px); }
+    83%, 100% { opacity: 0; transform: translateX(840px); }
+  }
+  .node { animation: lit 10.0s linear infinite; }
+  .runner { animation: travel 10.0s linear infinite; animation-delay: 0.4s; }
+.n0 { animation-delay: 0.000s; }
+.n1 { animation-delay: 1.143s; }
+.n2 { animation-delay: 2.286s; }
+.n3 { animation-delay: 3.429s; }
+.n4 { animation-delay: 4.571s; }
+.n5 { animation-delay: 5.714s; }
+.n6 { animation-delay: 6.857s; }
+.n7 { animation-delay: 8.000s; }
+  @media (prefers-reduced-motion: reduce) {
+    .node, .runner { animation: none; }
+    .runner { opacity: 0; }
+  }
+</style>
+  <rect x="0.5" y="0.5" width="991" height="261" rx="16" fill="#131317" stroke="#2c2c34"/>
+  <line class="rule" x1="24" y1="46" x2="128" y2="46"/>
+  <text class="group" x="76.0" y="34" text-anchor="middle">Server</text>
+  <line class="rule" x1="144" y1="46" x2="368" y2="46"/>
+  <text class="group" x="256.0" y="34" text-anchor="middle">Rust extension</text>
+  <line class="rule" x1="384" y1="46" x2="608" y2="46"/>
+  <text class="group" x="496.0" y="34" text-anchor="middle">Hinoki</text>
+  <line class="rule" x1="624" y1="46" x2="728" y2="46"/>
+  <text class="group" x="676.0" y="34" text-anchor="middle">Your code</text>
+  <line class="rule" x1="744" y1="46" x2="968" y2="46"/>
+  <text class="group" x="856.0" y="34" text-anchor="middle">Hinoki</text>
+  <rect class="node n0" x="24" y="64" width="104" height="76" rx="12"/><text class="num" x="76.0" y="84" text-anchor="middle">01</text><text class="title" x="76.0" y="106" text-anchor="middle">Accept</text><text class="detail" x="76.0" y="126" text-anchor="middle">Kiso, Granian</text>
+  <rect class="node n1" x="144" y="64" width="104" height="76" rx="12"/><text class="num" x="196.0" y="84" text-anchor="middle">02</text><text class="title" x="196.0" y="106" text-anchor="middle">Route</text><text class="detail" x="196.0" y="126" text-anchor="middle">match, bind</text>
+  <rect class="node n2" x="264" y="64" width="104" height="76" rx="12"/><text class="num" x="316.0" y="84" text-anchor="middle">03</text><text class="title" x="316.0" y="106" text-anchor="middle">Validate</text><text class="detail" x="316.0" y="126" text-anchor="middle">input Schema</text>
+  <rect class="node n3" x="384" y="64" width="104" height="76" rx="12"/><text class="num" x="436.0" y="84" text-anchor="middle">04</text><text class="title" x="436.0" y="106" text-anchor="middle">Access</text><text class="detail" x="436.0" y="126" text-anchor="middle">caller, policy</text>
+  <rect class="node n4" x="504" y="64" width="104" height="76" rx="12"/><text class="num" x="556.0" y="84" text-anchor="middle">05</text><text class="title" x="556.0" y="106" text-anchor="middle">Begin</text><text class="detail" x="556.0" y="126" text-anchor="middle">atomic writes</text>
+  <rect class="node n5" x="624" y="64" width="104" height="76" rx="12"/><text class="num" x="676.0" y="84" text-anchor="middle">06</text><text class="title" x="676.0" y="106" text-anchor="middle">Handler</text><text class="detail" x="676.0" y="126" text-anchor="middle">your function</text>
+  <rect class="node n6" x="744" y="64" width="104" height="76" rx="12"/><text class="num" x="796.0" y="84" text-anchor="middle">07</text><text class="title" x="796.0" y="106" text-anchor="middle">Respond</text><text class="detail" x="796.0" y="126" text-anchor="middle">render</text>
+  <rect class="node n7" x="864" y="64" width="104" height="76" rx="12"/><text class="num" x="916.0" y="84" text-anchor="middle">08</text><text class="title" x="916.0" y="106" text-anchor="middle">Commit</text><text class="detail" x="916.0" y="126" text-anchor="middle">or roll back</text>
+  <line class="track" x1="76.0" y1="168" x2="916.0" y2="168"/><circle class="tick" cx="76.0" cy="168" r="4"/><circle class="tick" cx="196.0" cy="168" r="4"/><circle class="tick" cx="316.0" cy="168" r="4"/><circle class="tick" cx="436.0" cy="168" r="4"/><circle class="tick" cx="556.0" cy="168" r="4"/><circle class="tick" cx="676.0" cy="168" r="4"/><circle class="tick" cx="796.0" cy="168" r="4"/><circle class="tick" cx="916.0" cy="168" r="4"/><g class="runner"><circle class="halo" cx="76.0" cy="168" r="11"/><circle class="dot" cx="76.0" cy="168" r="6"/></g>
+  <rect class="fail" x="264" y="198" width="704" height="40" rx="10"/><text class="failtext" x="616.0" y="222" text-anchor="middle">On an error, an open transaction rolls back first; the error response carries a request ID.</text>
+</svg>
