@@ -156,6 +156,8 @@
             {% for i in items %}
               {% if i.children %}
                 <li class="side__group"><span>{{ m.icon(m.section_icon(i.title)) }}{{ i.title }}</span>{{ render(i.children, leaf_list, secn) }}</li>
+              {% elif i.is_link %}
+                <li><a class="side__link side__link--external" href="{{ i.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ i.title }} (opens in a new tab)"><span>{{ i.title }}</span>{{ m.icon("external-link") }}</a></li>
               {% elif i.url %}
                 <li><a class="side__link{% if i.active %} is-active{% endif %}" href="{{ i.url | url }}"{% if i.active %} aria-current="page"{% endif %}><span>{{ i.title }}</span></a></li>
               {% endif %}

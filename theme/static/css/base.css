@@ -522,6 +522,11 @@ body.menu-open .menu-icon-close {
   color: var(--hn-text-3);
 }
 
+.side__link--external .i {
+  inline-size: 13px;
+  block-size: 13px;
+}
+
 .side__link:hover .i,
 .side__link.is-active .i {
   color: var(--hn-icon);
