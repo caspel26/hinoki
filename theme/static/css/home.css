@@ -2328,9 +2328,25 @@
 }
 
 .hn-walk:not(.hn-walk--bench) .hn-walk__tabs {
-  --thumb-r: 0;
-  --thumb-bg: var(--hn-brand-tint);
-  --thumb-shadow: inset 0 -2px 0 var(--hn-brand);
+  gap: 4px;
+  padding: 8px;
+  background: var(--hn-sunken);
+  --thumb-r: 10px;
+  --thumb-bg: var(--hn-tint-brand);
+  --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
+}
+
+.hn-walk:not(.hn-walk--bench) .hn-walk__tabs button {
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font: 500 14px/1.2 var(--hn-font-sans);
+  white-space: nowrap;
+}
+
+.hn-walk:not(.hn-walk--bench) .hn-walk__tabs button[aria-selected="true"] {
+  color: var(--hn-brand);
 }
 
 .ide__termbar b,
