@@ -271,14 +271,19 @@ kbd {
   color: var(--hn-brand);
 }
 
-.top__link.is-active::after {
+.top__link.is-active,
+.top__link.is-active:hover {
+  isolation: isolate;
+  background: transparent;
+}
+
+.top__link.is-active::before {
   position: absolute;
-  right: 12px;
-  bottom: -2px;
-  left: 12px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--hn-brand);
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--hn-brand-tint);
+  view-transition-name: nav-tab;
   content: "";
 }
 
@@ -522,10 +527,66 @@ body.menu-open .menu-icon-close {
   color: var(--hn-icon);
 }
 
-.side__link.is-active {
+.side__link.is-active,
+.side__link.is-active:hover {
   border-radius: 0 6px 6px 0;
+  background: transparent;
+}
+
+.side__link.is-active::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
   background: var(--hn-brand-tint);
   box-shadow: inset 2px 0 0 var(--hn-brand);
+  view-transition-name: nav-side;
+  content: "";
+}
+
+/* Cross-document view transitions: the page swaps instantly while the active
+   pills slide between their old and new positions. */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-group(nav-tab),
+::view-transition-group(nav-side) {
+  animation-duration: var(--hn-dur-3);
+  animation-timing-function: var(--hn-ease);
+}
+
+::view-transition-old(root) {
+  display: none;
+}
+
+::view-transition-new(root) {
+  animation: none;
+}
+
+:root:active-view-transition-type(section) .side__scroll {
+  view-transition-name: nav-section;
+}
+
+::view-transition-old(nav-section) {
+  display: none;
+}
+
+::view-transition-new(nav-section) {
+  animation: hn-section-in var(--hn-dur-3) var(--hn-ease) both;
+}
+
+@keyframes hn-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
 }
 
 .main {

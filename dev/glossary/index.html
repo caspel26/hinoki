@@ -27,6 +27,12 @@
       }
       document.documentElement.dataset.theme = t;
       document.documentElement.classList.add("js");
+      addEventListener("pagereveal", function (e) {
+        try {
+          if (e.viewTransition && sessionStorage.getItem("hn-section")) e.viewTransition.types.add("section");
+          sessionStorage.removeItem("hn-section");
+        } catch (err) {}
+      });
     })();
   </script>
   <link rel="preload" href="../static/fonts/plex-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
@@ -232,7 +238,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 23:59:48 UTC">November 20, 2026</span></span>
             <span>1 min read</span>
           </p>
           
@@ -263,6 +269,25 @@
 <tr>
 <td>JSON Schema</td>
 <td>The standard the OpenAPI document uses to describe bodies, always by its name.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="names">Names<a class="headerlink" href="#names" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hinoki</td>
+<td>檜, the Japanese cypress of temples: fragrant, durable wood.</td>
+</tr>
+<tr>
+<td>Kiso</td>
+<td>Hinoki's Rust server, named after the Kiso Valley (Nagano, Japan), known for its hinoki forests such as Akasawa.</td>
 </tr>
 </tbody>
 </table>
@@ -350,12 +375,12 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#the-four-schemas">The four schemas</a></li><li><a href="#projects-and-apps">Projects and apps</a></li><li><a href="#code">Code</a></li></ul>
+            <ul><li><a href="#the-four-schemas">The four schemas</a></li><li><a href="#names">Names</a></li><li><a href="#projects-and-apps">Projects and apps</a></li><li><a href="#code">Code</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 23:59:48 UTC">November 20, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/glossary.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
