@@ -135,6 +135,7 @@ nav:
       - Operating:
           - Sync and async code: sync-async.md
           - Benchmarks: benchmarks.md
+          - Changelog: changelog.md
           - Native CRUD orientation run: rust-crud-orientation.md
   - Concepts:
       - Concepts: concepts.md
