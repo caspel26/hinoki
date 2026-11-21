@@ -283,7 +283,9 @@ def throughput_panel(
         f'<p class="bench-headline">{headline(rows)}</p>'
         f'<p id="{chart_id}-desc" class="bench-sr">{html.escape(chart_description)}.</p>'
         f'<div class="bench-chart" data-stacks="{len(rows)}" role="img" aria-labelledby="{chart_id}-kind {chart_id}-title" '
-        f'aria-describedby="{chart_id}-desc">{tracks}</div>'
+        f'aria-describedby="{chart_id}-desc">'
+        '<span class="bench-gridlines" aria-hidden="true"><span></span></span>'
+        f"{tracks}{value_axis(axis_max)}</div>"
         '<p class="bench-scenario__note">Bars show median requests per second and start at zero; '
         f"longer means more requests served.{multiplier_note} {runs_note(rows)}</p>"
         '<details class="bench-details"><summary>Exact numbers: latency, lowest and highest run, CV</summary>'
@@ -298,17 +300,27 @@ def runs_note(rows: Rows) -> str:
     return "Run counts differ per stack; see the table."
 
 
+def value_axis(axis_max: float) -> str:
+    ticks = "".join(f"<span>{rps(axis_max * share)}</span>" for share in (0, 0.5, 1))
+    return f'<span class="bench-axis" aria-hidden="true"><span>{ticks}</span></span>'
+
+
+def stack_key(label: str) -> str:
+    return label.partition(" · ")[0].strip().lower().replace(" ", "-")
+
+
 def bar_row(label: str, row: JSONData, axis_max: float, slowest: float | None) -> str:
     name, _, server = label.partition(" · ")
     server_html = f"<small>{html.escape(server)}</small>" if server else ""
     row_class = "bench-row is-hinoki" if is_hinoki(label) else "bench-row"
+    stack = html.escape(stack_key(label), quote=True)
     ratio_html = (
         f'<span class="bench-ratio">{ratio(row["median"], slowest)}</span>'
         if slowest
         else ""
     )
     return (
-        f'<div class="{row_class}">'
+        f'<div class="{row_class}" data-stack="{stack}">'
         f'<span class="bench-name"><b>{html.escape(name)}</b>{server_html}</span>'
         '<span class="bench-track" aria-hidden="true">'
         f'<span class="bench-bar" style="width:{row["median"] / axis_max * 100:.2f}%"></span>'
@@ -452,19 +464,19 @@ STACK_ROWS = (
 )
 SLICE_TITLES = {
     "documented": (
-        "Each stack on its own server",
+        "Documented servers",
         "Each framework runs on the server it documents: Hinoki on Granian, FastAPI and Django Ninja on Uvicorn, Django Bolt on its own Actix server. "
         "A difference here can come from the server as well as from the framework.",
         "compare each stack on its documented server",
     ),
     "same-granian": (
-        "Same server for the ASGI stacks",
+        "Same server (ASGI)",
         "Hinoki, FastAPI and Django Ninja run on one Granian version and configuration, which takes the server out of the comparison. "
         "Django Bolt is not in this slice because it does not expose ASGI.",
         "compare the three ASGI stacks on Granian",
     ),
     "kiso": (
-        "Hinoki on its Rust server",
+        "Hinoki on Kiso",
         "Only Hinoki, served by Kiso (`hinoki serve --server kiso`, 4 workers) instead of Granian. Kiso is not an ASGI server, so the other stacks have no counterpart here. "
         "This was a separate session from the other two views, so read it next to them with that in mind; it is not a ranking.",
         "see Hinoki on its own Rust server (Kiso)",
