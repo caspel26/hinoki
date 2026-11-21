@@ -195,23 +195,23 @@
         </div>
         <div class="hn-explorer__grid">
           <ul class="hn-explorer__list">
-            <li><button type="button" data-rule="acc" data-phase="startup" aria-pressed="true"><code>HNK-ACC-001</code><span class="hn-chip">startup</span><b>Every matching action names an <code>Access</code> policy.</b></button></li>
-            <li><button type="button" data-rule="acc2" data-phase="startup" aria-pressed="false"><code>HNK-ACC-002</code><span class="hn-chip">startup</span><b>An action with an <code>Access</code> policy names at least one permission.</b></button></li>
-            <li><button type="button" data-rule="txn" data-phase="startup" aria-pressed="false"><code>HNK-TXN-001</code><span class="hn-chip">startup</span><b>State-changing actions use <code>atomic=True</code>.</b></button></li>
-            <li><button type="button" data-rule="api" data-phase="startup" aria-pressed="false"><code>HNK-API-001</code><span class="hn-chip">startup</span><b>No action returns a <code>Model</code>; responses are <code>Schema</code> classes.</b></button></li>
-            <li><button type="button" data-rule="api2" data-phase="startup" aria-pressed="false"><code>HNK-API-002</code><span class="hn-chip">startup</span><b>Every action annotates a concrete return type.</b></button></li>
-            <li><button type="button" data-rule="api3" data-phase="startup" aria-pressed="false"><code>HNK-API-003</code><span class="hn-chip">startup</span><b>A <code>GET</code> action returns a <code>Page</code>, never a plain list.</b></button></li>
-            <li><button type="button" data-rule="sch" data-phase="startup" aria-pressed="false"><code>HNK-SCH-001</code><span class="hn-chip">startup</span><b>Named fields never appear in a response <code>Schema</code>.</b></button></li>
-            <li><button type="button" data-rule="sch2" data-phase="startup" aria-pressed="false"><code>HNK-SCH-002</code><span class="hn-chip">startup</span><b>Text fields of a request <code>Schema</code> have a length limit.</b></button></li>
-            <li><button type="button" data-rule="db1" data-phase="startup" aria-pressed="false"><code>HNK-DB-001</code><span class="hn-chip">startup</span><b>Models pin their table name explicitly.</b></button></li>
-            <li><button type="button" data-rule="db2" data-phase="startup" aria-pressed="false"><code>HNK-DB-002</code><span class="hn-chip">startup</span><b>Every foreign-key column is indexed.</b></button></li>
+            <li><button type="button" data-rule="acc" data-phase="startup" aria-pressed="true"><code>HNK-ACC-001</code><b>Every matching action names an <code>Access</code> policy.</b></button></li>
+            <li><button type="button" data-rule="acc2" data-phase="startup" aria-pressed="false"><code>HNK-ACC-002</code><b>An action with an <code>Access</code> policy names at least one permission.</b></button></li>
+            <li><button type="button" data-rule="txn" data-phase="startup" aria-pressed="false"><code>HNK-TXN-001</code><b>State-changing actions use <code>atomic=True</code>.</b></button></li>
+            <li><button type="button" data-rule="api" data-phase="startup" aria-pressed="false"><code>HNK-API-001</code><b>No action returns a <code>Model</code>; responses are <code>Schema</code> classes.</b></button></li>
+            <li><button type="button" data-rule="api2" data-phase="startup" aria-pressed="false"><code>HNK-API-002</code><b>Every action annotates a concrete return type.</b></button></li>
+            <li><button type="button" data-rule="api3" data-phase="startup" aria-pressed="false"><code>HNK-API-003</code><b>A <code>GET</code> action returns a <code>Page</code>, never a plain list.</b></button></li>
+            <li><button type="button" data-rule="sch" data-phase="startup" aria-pressed="false"><code>HNK-SCH-001</code><b>Named fields never appear in a response <code>Schema</code>.</b></button></li>
+            <li><button type="button" data-rule="sch2" data-phase="startup" aria-pressed="false"><code>HNK-SCH-002</code><b>Text fields of a request <code>Schema</code> have a length limit.</b></button></li>
+            <li><button type="button" data-rule="db1" data-phase="startup" aria-pressed="false"><code>HNK-DB-001</code><b>Models pin their table name explicitly.</b></button></li>
+            <li><button type="button" data-rule="db2" data-phase="startup" aria-pressed="false"><code>HNK-DB-002</code><b>Every foreign-key column is indexed.</b></button></li>
             <li><button type="button" data-rule="imp" data-phase="static" aria-pressed="false"><code>HNK-IMP-001</code><span class="hn-chip">static</span><b>Modules under a source never import a target.</b></button></li>
           </ul>
           <div class="hn-explorer__detail" aria-live="polite" tabindex="0" role="region" aria-label="Rule detail">
             <div data-detail="acc">
               <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">require_access</span>(match, except_)</code></pre>
-              <p class="hn-file">violated</p><pre><code>tests/projects/rulesapp.py:7: <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> GET /health (health) declares no access policy</code></pre>
-              <p class="hn-file">waived</p><pre><code>tests/projects/rulesapp.py:7: <span class="hn-id">HNK-ACC-001</span> <span class="hn-wvd">[waived]</span> GET /health (health) declares no access policy
+              <p class="hn-file">violated</p><pre class="hn-pre hn-pre--bad"><code>tests/projects/rulesapp.py:7: <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> GET /health (health) declares no access policy</code></pre>
+              <p class="hn-file">waived</p><pre class="hn-pre hn-pre--wvd"><code>tests/projects/rulesapp.py:7: <span class="hn-id">HNK-ACC-001</span> <span class="hn-wvd">[waived]</span> GET /health (health) declares no access policy
     waived: liveness probe is public by design (platform-team, until 2027-01-31)</code></pre>
             </div>
             <div data-detail="acc2" hidden>
@@ -220,7 +220,7 @@
             </div>
             <div data-detail="txn" hidden>
               <p class="hn-file">declaration</p><pre><code>Transactions.<span class="f">require_atomic</span>(methods)</code></pre>
-              <p class="hn-file">violated</p><pre><code>tests/projects/rulesapp.py:12: <span class="hn-id">HNK-TXN-001</span> <span class="hn-bad">[violated]</span> POST /items (create) does not declare atomic=True</code></pre>
+              <p class="hn-file">violated</p><pre class="hn-pre hn-pre--bad"><code>tests/projects/rulesapp.py:12: <span class="hn-id">HNK-TXN-001</span> <span class="hn-bad">[violated]</span> POST /items (create) does not declare atomic=True</code></pre>
             </div>
             <div data-detail="api" hidden>
               <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">forbid_model_responses</span>(match, except_)</code></pre>
@@ -304,10 +304,10 @@
           <div class="hn-cmdblock ide ide--flat"><pre><code><span class="hn-ln"><span class="gp">$</span> cd examples</span><span class="hn-ln"><span class="gp">$</span> uv run hinoki check tracker.main:app</span></code></pre><button type="button" class="hn-copy" data-hn-copy>Copy</button></div></div>
       </div>
       <ol class="hn-paths">
-        <li><a href="{{ 'quick-start/' | url }}"><b>Quick start</b><span>Create a project, run its tests and serve it.</span><i aria-hidden="true">→</i></a></li>
-        <li><a href="{{ 'tutorial/' | url }}"><b>Tutorial</b><span>Build a task tracker from its models through access checks and tests.</span><i aria-hidden="true">→</i></a></li>
-        <li><a href="{{ 'guides/' | url }}"><b>Guides</b><span>Focused guidance on each part of an application.</span><i aria-hidden="true">→</i></a></li>
-        <li><a href="{{ 'reference/' | url }}"><b>Reference</b><span>Public Python symbols, signatures and docstrings.</span><i aria-hidden="true">→</i></a></li>
+        <li><a href="{{ 'quick-start/' | url }}"><span class="hn-paths__icon"><span class="i i--m i--rocket" aria-hidden="true"></span></span><b>Quick start</b><span class="hn-paths__text">Create a project, run its tests and serve it.</span><i aria-hidden="true">→</i></a></li>
+        <li><a href="{{ 'tutorial/' | url }}"><span class="hn-paths__icon"><span class="i i--m i--graduation-cap" aria-hidden="true"></span></span><b>Tutorial</b><span class="hn-paths__text">Build a task tracker from its models through access checks and tests.</span><i aria-hidden="true">→</i></a></li>
+        <li><a href="{{ 'guides/' | url }}"><span class="hn-paths__icon"><span class="i i--m i--book-open" aria-hidden="true"></span></span><b>Guides</b><span class="hn-paths__text">Focused guidance on each part of an application.</span><i aria-hidden="true">→</i></a></li>
+        <li><a href="{{ 'reference/' | url }}"><span class="hn-paths__icon"><span class="i i--m i--braces" aria-hidden="true"></span></span><b>Reference</b><span class="hn-paths__text">Public Python symbols, signatures and docstrings.</span><i aria-hidden="true">→</i></a></li>
       </ol>
     </section>
 
