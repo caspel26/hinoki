@@ -90,6 +90,12 @@ The measured phase 1 path is documented in the [native CRUD orientation run](rus
 * A WSGI callable (`--interface wsgi`) runs in Python threads behind this listener, not on the native lane: see [WSGI on Kiso](serving.md#wsgi-on-kiso) for what applies to it.
 * An answer Kiso cannot send as given (an informational status, a header name or value HTTP does not allow, an unreadable `content-length`) becomes a bare `500`, and the reason is written to stderr, for example `kiso: error: the response cannot be sent (invalid header "x-evil"); answering 500 instead`. The access log records the `500`. A streamed body that is shorter or longer than its `content-length` is cut off with an error line on stderr and the connection is closed (HTTP/1.1) or the stream reset (HTTP/2), so the client never mistakes it for a complete answer. The access log keeps the status of the head here, because it is written when the head is decided.
 
+## Streamed responses
+
+An action that returns `Stream`, `EventStream` or `File` is never served by the native handler lane (`lane_reason` `streamed response`): its handler and its iterator run in Python, and each piece crosses to Rust as a Python `bytes`. After that the server frames the body (`transfer-encoding: chunked` on HTTP/1.1), keeps a bounded queue of 8 pieces so a slow client slows the iterator down, applies `execution.stream_idle_timeout` to a `Stream`, sends a keep-alive comment to an event stream every `execution.sse_keepalive` seconds, and ends an event stream normally on shutdown. A `File` is opened and sent by the server, and its bytes never enter Python.
+
+A client that leaves is noticed when the server next writes to it, so a stream that keeps producing is closed at once, while a silent one is closed at its next keep-alive or idle timeout. A body that fails after the head is cut instead of ending as complete, and the access log keeps the status of the head. See [stream a response](streaming.md).
+
 ## Workers, signals and restarts
 
 With one worker `hinoki serve` runs the server in its own process. With several workers (and always under `hinoki dev`) it starts a supervisor that opens the listening socket once (honouring `backlog`), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.

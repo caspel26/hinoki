@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🌊 Streaming responses
+> `python/hinoki/http/stream.py`, `python/hinoki/runtime/streaming.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/runtime/asgi.py`, `python/hinoki/testing.py`, `crates/kiso`, `crates/bindings`
+
+An action annotated `-> Stream`, `-> EventStream` or `-> File` is sent while it is produced, on Kiso and on Granian: `Stream` for bytes or text from an async or plain iterable, `EventStream` and `Event` for server-sent events, and `File` for a file that Kiso sends without its bytes entering Python. A slow client slows the producer down, a client that leaves closes the source, and a stream that fails after the head is cut instead of ending as complete. New settings `execution.max_streams` (64), `execution.stream_idle_timeout` and `execution.sse_keepalive` (15 s). `atomic=True`, a generator handler and status `204`/`304` are refused at registration; `WSGIAdapter` refuses an application with a streamed action when it starts, and the application MCP endpoint will not expose one. `ASGIClient.stream()` and `SyncClient.stream()` read the pieces as they are sent, and `client.get()` stops with `BodyTooLarge` on a body that does not end. See [stream a response](docs/streaming.md).
+
 #### 🧭 Create an app at the end of `hinoki new`
 > `python/hinoki/newcli.py`, `python/hinoki/appprompts.py`, `python/hinoki/scaffold.py` (#405, #408, #410)
 
