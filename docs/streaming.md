@@ -53,7 +53,9 @@ saying so answers `500`, and the stream is closed.
 * The default `content-type` is `application/octet-stream`.
 * Without `length` the body is sent with chunked framing on HTTP/1.1. With
   `length` the answer carries that `content-length`, and a body that does not
-  match it is cut off instead of ending as complete.
+  match it is cut off instead of ending as complete, on Kiso and under an ASGI
+  server alike: a body that is too long is cut at the length, and one that is too
+  short is aborted.
 * A piece that is neither `bytes` nor `str` ends the stream like an exception.
 * An async generator cannot be the handler itself: write
   `return Stream(rows())` instead. Hinoki refuses the declaration when the
@@ -127,7 +129,9 @@ headers=())`.
   the exact UTF-8 name when they differ. A name with `/` or a control character
   raises `ValueError`.
 * The `content-type` is guessed from the name unless you give it, and the answer
-  has the file size as `content-length` and `accept-ranges: none`. Range
+  has the file size as `content-length` and `accept-ranges: none`. When the
+  server does not send the file itself, no more than that size is read, so a
+  file that grows meanwhile is cut at the size the head declared. Range
   requests are not supported.
 * Resolve and check the path from trusted data; a `root` is what keeps a
   client-supplied name inside a directory.
@@ -147,7 +151,8 @@ naming the action):
 ([serving](serving.md#wsgi)); the application's [MCP endpoint](app-mcp.md)
 refuses to expose it; the [OpenAPI document](openapi.md) describes `Stream` and
 `File` as `application/octet-stream` (`string`, `binary`) and `EventStream` as
-`text/event-stream` (`string`).
+`text/event-stream` (`string`); the arms of a union that are not streamed are
+documented next to them.
 
 ## Errors and what the client sees
 
@@ -158,7 +163,7 @@ refuses to expose it; the [OpenAPI document](openapi.md) describes `Stream` and
 | `execution.max_streams` streams already open on the worker | `503` with `Retry-After: 1`; the handler does not run |
 | The source raises after the head | The error is logged by `hinoki.runtime` with the request id and the response is cut: the client never sees it end as complete |
 | A `Stream` is silent for `execution.stream_idle_timeout` | The response is cut and the source is closed |
-| The client goes away | The source is closed (`aclose()` of an async iterator, `close()` of a plain one) |
+| The client goes away | The source is closed (`aclose()` of an async iterator, `close()` of a plain one). A plain iterator whose `next()` is blocked on a worker thread cannot be interrupted: the stream keeps its `max_streams` place until that call returns, and the source is closed then |
 | Server shutdown | Open event streams end normally; other streams are cut when the shutdown timeout ends |
 
 `stream_idle_timeout` defaults to `request_timeout`; it applies to `Stream`

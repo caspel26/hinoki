@@ -90,7 +90,7 @@ See [Collections and unions: discriminated unions](schema-collections.md#discrim
 
 For file binding syntax, limits and the in-memory boundary, see [upload files](endpoints.md#upload-files).
 
-An action annotated `-> Stream` or `-> File` documents its `200` response as `application/octet-stream` with `{"type": "string", "format": "binary"}`, and `-> EventStream` as `text/event-stream` with `{"type": "string"}`. The media type a `Stream` sends is chosen by the handler at run time, so the document does not list it. See [stream a response](streaming.md).
+An action annotated `-> Stream` or `-> File` documents its `200` response as `application/octet-stream` with `{"type": "string", "format": "binary"}`, and `-> EventStream` as `text/event-stream` with `{"type": "string"}`. The media type a `Stream` sends is chosen by the handler at run time, so the document does not list it. An annotation such as `-> Stream | NoteOut` also documents the plain arm, under the media types of the route's renderers, next to the streamed one. See [stream a response](streaming.md).
 
 Add a useful docstring to each handler because it is the source for operation text:
 
