@@ -109,7 +109,7 @@ def matrix_cell(cell: Cell | None, row_max: float) -> str:
     )
     width = cell.median / row_max * 100 if row_max else 0
     return (
-        f'<td class="{f"bench-cell {state}".strip()}" data-stack="{esc(cell.family)}">'
+        f'<td class="{f"bench-cell {state}".strip()}" data-stack="{esc(cell.family)}" data-label="{esc(cell.label)}">'
         f'{sr}<b class="bench-num">{rps(cell.median)}</b>{badge}'
         f'<span class="bench-meter" aria-hidden="true"><span style="width:{width:.1f}%"></span></span></td>'
     )
