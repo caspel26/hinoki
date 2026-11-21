@@ -416,6 +416,9 @@ class ResponseSink:
     def abort(self) -> None:
         """End the body as truncated (HTTP/1.1 closes, HTTP/2 resets)."""
 
+class FileLookupBusy(Exception):
+    """Every place for a file lookup is taken (`locate_file` fails at once)."""
+
 def locate_file(
     path: str | os.PathLike[str], root: str | os.PathLike[str] | None = ...
 ) -> Awaitable[tuple[str, int] | None]:
@@ -423,7 +426,8 @@ def locate_file(
 
     Symbolic links are followed; with `root` (a relative `path` is taken from
     it) the real path must lie inside the real `root`. Resolves `None` when
-    there is no such file. The lookup runs on a blocking thread.
+    there is no such file. The lookup runs on a blocking thread; at most 32 run
+    at once in the process and the next one raises `FileLookupBusy`.
     """
 
 def content_disposition(filename: str) -> str:

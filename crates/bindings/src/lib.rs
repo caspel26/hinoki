@@ -101,6 +101,10 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     wsgi::register(m)?;
     m.add_class::<sink::ResponseSink>()?;
     m.add_function(wrap_pyfunction!(filelocate::locate_file, m)?)?;
+    m.add(
+        "FileLookupBusy",
+        m.py().get_type::<filelocate::FileLookupBusy>(),
+    )?;
     m.add_function(wrap_pyfunction!(disposition::content_disposition, m)?)?;
     m.add_class::<tally::Tally>()?;
     m.add_class::<streamlimit::StreamLimit>()?;

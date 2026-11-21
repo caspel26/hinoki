@@ -412,6 +412,37 @@ async def test_locate_file_follows_links_inside_the_root_and_reports_the_size(
     assert await core.locate_file("link.txt", str(files)) is None
 
 
+async def test_a_name_that_is_not_utf8_is_found_where_the_file_system_allows_it(
+    files: Path,
+) -> None:
+    name = b"raw\xff.txt"
+    try:
+        (files / os.fsdecode(name)).write_bytes(b"x")
+    except (OSError, ValueError):
+        pytest.skip("the file system refuses names that are not UTF-8")
+    found = await core.locate_file(os.fsdecode(name), str(files))
+    assert found is not None
+    assert found[1] == 1
+
+
+async def test_a_full_set_of_file_lookups_answers_503_and_retry_after(
+    files: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def busy(*_: object) -> None:
+        raise core.FileLookupBusy("full")
+
+    monkeypatch.setattr(core, "locate_file", busy)
+
+    @http.get("/f")
+    async def f() -> File:
+        return File("a.txt", root=files)
+
+    async with ASGIClient(_app(f)) as client:
+        response = await client.get("/f")
+    assert response.status == 503
+    assert response.headers["retry-after"] == "1"
+
+
 async def test_head_closes_the_source_without_reading_it() -> None:
     async with ASGIClient(build()) as client:
         reply = await client.request("HEAD", "/head")

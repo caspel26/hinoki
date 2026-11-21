@@ -1035,7 +1035,10 @@ class Pipeline:
     async def _stream_response(self, answer: Streamed) -> Response:
         location = None
         if isinstance(answer, File):
-            location = await core.locate_file(answer.path, answer.root)
+            try:
+                location = await core.locate_file(answer.path, answer.root)
+            except core.FileLookupBusy as exc:
+                raise ExecutorSaturated("every file lookup place is taken") from exc
             if location is None:
                 raise HTTPError(HTTPStatus.NOT_FOUND, "not_found")
         return Response(
