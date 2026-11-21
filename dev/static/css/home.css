@@ -1668,36 +1668,31 @@
 .hn-who__col {
   --tone: var(--hn-green);
   padding: var(--sp-5);
-  border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--hn-edge));
-  border-radius: 16px;
-  background:
-    linear-gradient(to bottom, color-mix(in srgb, var(--tone) 9%, transparent), transparent 72px),
-    color-mix(in srgb, var(--hn-tint-success) 55%, var(--hn-sunken));
+  border: 1px solid var(--hn-edge);
+  border-radius: var(--radius-card);
+  background: var(--hn-surface-1);
 }
 
 .hn-who__col--no {
   --tone: var(--hn-amber);
-  background:
-    linear-gradient(to bottom, color-mix(in srgb, var(--tone) 9%, transparent), transparent 72px),
-    color-mix(in srgb, var(--hn-tint-warning) 55%, var(--hn-sunken));
 }
 
 .hn-who h3 {
   display: flex;
-  align-items: center;
-  gap: 9px;
+  align-items: baseline;
+  gap: 8px;
   margin: 0 0 var(--sp-3);
-  font: 500 13px/1.4 var(--hn-font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font: 600 16px/1.4 var(--hn-font-sans);
 }
 
-.hn-who h3::before {
-  content: "";
-  inline-size: 8px;
-  block-size: 8px;
-  border-radius: 50%;
-  background: var(--tone);
+.hn-who__col--yes h3::before {
+  content: "✓";
+  color: var(--tone);
+}
+
+.hn-who__col--no h3::before {
+  content: "–";
+  color: var(--tone);
 }
 
 .hn-who ul {
@@ -1709,7 +1704,7 @@
 }
 
 .hn-who li::marker {
-  color: var(--tone);
+  color: var(--hn-text-3, var(--hn-text-2));
 }
 
 /* Closing band */
