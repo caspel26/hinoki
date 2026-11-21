@@ -43,6 +43,7 @@
   <link rel="stylesheet" href="{{ 'static/css/prose.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/icons.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/benchmarks.css' | url }}">
+  <link rel="stylesheet" href="{{ 'static/css/changelog.css' | url }}">
   {% block styles %}{% endblock %}
 </head>
 {% import "macros.html" as m %}
@@ -278,5 +279,6 @@
   <script>window.HN = { base: "{{ base_url }}", repo: "{{ config.repo_url }}", site: "{{ config.site_url }}"{% if page and page.content and 'HNK-' in page.content %}, rules: {{ config.extra.hn_rules | tojson }}{% endif %} };</script>
   <script src="{{ 'static/js/hinoki.js' | url }}" defer></script>
   {% block scripts %}{% endblock %}
+  {% if page and page.meta and page.meta.changelog %}<script src="{{ 'static/js/changelog.js' | url }}" defer></script>{% endif %}
 </body>
 </html>
