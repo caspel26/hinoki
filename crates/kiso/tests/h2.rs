@@ -1132,3 +1132,30 @@ async fn cookie_crumbs_do_not_hide_too_many_distinct_headers() {
     assert_eq!(parts.status, 431);
     running.stop.send(true).unwrap();
 }
+
+#[tokio::test]
+async fn a_compressed_answer_over_h2_is_streamed_without_a_length() {
+    let compression = kiso::Compression::new(kiso::CompressionConfig::default()).unwrap();
+    let config = ServerConfig {
+        compression: Some(Arc::new(compression)),
+        ..quick()
+    };
+    let running = start(config, true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let get = request("GET", "/big")
+        .header("accept-encoding", "gzip")
+        .body(())
+        .unwrap();
+    let (parts, body) = call(&send, get, None).await;
+    assert_eq!(parts.headers["content-encoding"], "gzip");
+    assert_eq!(parts.headers["vary"], "accept-encoding");
+    assert!(!parts.headers.contains_key("content-length"));
+    let mut plain = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(&body[..]), &mut plain).unwrap();
+    assert_eq!(plain, vec![b'x'; 5 * MEBIBYTE]);
+    let plain = request("GET", "/big").body(()).unwrap();
+    let (parts, body) = call(&send, plain, None).await;
+    assert!(!parts.headers.contains_key("content-encoding"));
+    assert_eq!(body.len(), 5 * MEBIBYTE);
+    running.stop.send(true).unwrap();
+}

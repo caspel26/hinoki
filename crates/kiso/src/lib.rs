@@ -35,6 +35,8 @@ pub mod streams;
 pub mod tls;
 
 #[cfg(test)]
+mod compress_tests;
+#[cfg(test)]
 mod jobs_tests;
 #[cfg(test)]
 mod plan_slot_tests;
