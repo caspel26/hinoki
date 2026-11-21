@@ -251,60 +251,45 @@
   position: relative;
 }
 
+/* A quiet dot grid with one slow scan line, the same motion as `hinoki check`
+   sweeping the code. Only transform animates. */
 .hn-hero__bg {
   position: absolute !important;
-  inset: -40px -24px 0;
+  inset: -40px 0 0;
   overflow: hidden;
   pointer-events: none;
-  -webkit-mask-image: radial-gradient(70% 80% at 65% 45%, #000 30%, transparent 85%);
-  mask-image: radial-gradient(70% 80% at 65% 45%, #000 30%, transparent 85%);
-}
-
-/* The glow is a painted radial gradient, not filter: blur(). A large blur
-   re-composited on every animation frame held phones at about 30 fps. The
-   gradient is rasterised once and only its transform animates. */
-.hn-hero__bg b {
-  --orb: transparent;
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, var(--orb), color-mix(in srgb, var(--orb) 55%, transparent) 45%, transparent);
-  animation: drift 20s ease-in-out infinite alternate;
-}
-
-.hn-hero__bg b:nth-of-type(1) { --orb: var(--orb-1); width: 600px; height: 600px; left: calc(42% - 70px); top: calc(-8% - 70px); }
-.hn-hero__bg b:nth-of-type(2) { --orb: var(--orb-2); width: 520px; height: 520px; right: calc(-4% - 70px); top: calc(30% - 70px); animation-delay: -7s; }
-.hn-hero__bg b:nth-of-type(3) { --orb: var(--orb-3); width: 460px; height: 460px; left: calc(28% - 70px); bottom: calc(-10% - 70px); animation-delay: -12s; }
-
-/* Decorative loops stop while their section is off screen or the tab is hidden. */
-.hn-hero.is-idle .hn-hero__bg *,
-.hn-ticker.is-idle .hn-ticker__track {
-  animation-play-state: paused;
-}
-
-@keyframes drift {
-  from { transform: translate3d(-24px, 10px, 0) scale(0.94); }
-  to { transform: translate3d(34px, -22px, 0) scale(1.08); }
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--hn-brand) 34%, transparent) 1px, transparent 1.4px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(70% 80% at 70% 45%, #000 20%, transparent 80%);
+  mask-image: radial-gradient(70% 80% at 70% 45%, #000 20%, transparent 80%);
 }
 
 .hn-hero__bg i {
   position: absolute;
-  top: 48%;
-  left: 66%;
-  border: 1px solid var(--ring);
-  border-radius: 30%;
-  transform: translate(-50%, -50%);
-  animation: breathe 11s ease-in-out infinite;
-  animation-delay: calc(var(--n) * -2.2s);
+  inset: 0 0 auto;
+  block-size: 100%;
+  background: linear-gradient(to bottom, transparent calc(100% - 140px), color-mix(in srgb, var(--hn-brand) 16%, transparent) calc(100% - 30px), color-mix(in srgb, var(--hn-brand) 45%, transparent));
+  border-bottom: 1px solid color-mix(in srgb, var(--hn-brand) 55%, transparent);
+  transform: translateY(-100%);
+  opacity: 0;
 }
 
-.hn-hero__bg i:nth-of-type(1) { --n: 1; width: 420px; height: 420px; }
-.hn-hero__bg i:nth-of-type(2) { --n: 2; width: 600px; height: 600px; border-color: var(--ring-wood); }
-.hn-hero__bg i:nth-of-type(3) { --n: 3; width: 780px; height: 780px; border-style: dashed; }
-.hn-hero__bg i:nth-of-type(4) { --n: 4; width: 960px; height: 960px; }
+@media (prefers-reduced-motion: no-preference) {
+  .hn-hero__bg i {
+    animation: hn-scan 9s var(--hn-ease) 1.2s infinite;
+  }
+}
 
-@keyframes breathe {
-  0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
-  50% { transform: translate(-50%, -50%) scale(1.05) rotate(3deg); opacity: 0.4; }
+@keyframes hn-scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  12% { opacity: 1; }
+  60%, 100% { transform: translateY(100%); opacity: 0; }
+}
+
+/* Decorative loops stop while their section is off screen or the tab is hidden. */
+.hn-hero.is-idle .hn-hero__bg i,
+.hn-ticker.is-idle .hn-ticker__track {
+  animation-play-state: paused;
 }
 
 .hn-kicker {
@@ -328,7 +313,7 @@
 .hn-hero__title {
   max-width: 13ch;
   margin: 0;
-  font-size: clamp(38px, 3.2vw + 20px, 80px);
+  font-size: clamp(36px, 2.6vw + 20px, 64px);
   font-weight: 700;
   line-height: 1.02;
   letter-spacing: -0.042em;
@@ -1801,10 +1786,6 @@
     min-height: 0;
   }
 
-  .hn-hero__bg i {
-    left: 50%;
-  }
-
   .hn-index {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1929,7 +1910,6 @@
     display: none;
   }
 
-  .hn-hero__bg i,
   .hn-ticker__track {
     animation: none;
   }
@@ -2270,18 +2250,6 @@
 
 .home {
   overflow-x: clip;
-}
-
-.hn-hero__bg {
-  inset: -40px 0 0 !important;
-}
-
-/* On phones the glow and hairlines run to the screen edge instead of stopping
-   at the page gutter. */
-@media (max-width: 960px) {
-  .hn-hero__bg {
-    inset: -40px calc(50% - 50vw) 0 !important;
-  }
 }
 
 @media (max-width: 640px) {
