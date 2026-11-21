@@ -25,7 +25,8 @@ use std::time::{Duration, Instant};
 use bytes::Bytes;
 use kiso::headers::Header;
 use kiso::{
-    serve, Aborted, Answer, Backend, BodyError, Chunk, Closed, Delivery, Incoming, Lane, Streamed,
+    serve, Aborted, Answer, Backend, BodyError, Chunk, Closed, Delivery, FileAnswer, Incoming,
+    Lane, Pace, Streamed,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -437,6 +438,7 @@ impl WsgiBackend {
                 status,
                 headers,
                 chunks: bounded_gaps(receiver, self.limits.request_timeout),
+                pace: Pace::default(),
             }),
             Ok(Err(_)) => plain(500, "the application failed\n"),
             Err(_) => plain(504, "the application took too long\n"),
@@ -449,9 +451,14 @@ impl Backend for WsgiBackend {
         match self.deliver(request).await {
             Delivery::Whole(answer) => answer,
             // Callers that cannot stream get the status and an empty body.
-            Delivery::Streamed(streamed) => Answer {
-                status: streamed.status,
-                headers: streamed.headers,
+            Delivery::Streamed(Streamed {
+                status, headers, ..
+            })
+            | Delivery::File(FileAnswer {
+                status, headers, ..
+            }) => Answer {
+                status,
+                headers,
                 body: Vec::new(),
             },
         }

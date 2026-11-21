@@ -20,6 +20,7 @@ mod router;
 mod rows;
 mod schema;
 mod server;
+mod sink;
 mod wsgi;
 mod xml;
 
@@ -94,6 +95,8 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     server::register(m)?;
     kiso::register(m)?;
     wsgi::register(m)?;
+    m.add_class::<sink::ResponseSink>()?;
+    m.add_function(wrap_pyfunction!(sink::sse_frame, m)?)?;
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
     m.add_function(wrap_pyfunction!(xml::parse_xml_body, m)?)?;
