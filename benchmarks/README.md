@@ -116,6 +116,16 @@ Recorded 2026-11-14 for the change that parses the query string once per protect
 
 The ranges do not overlap, and the difference is about 2 µs (4 %) of an in-process request that does no I/O. It is a regression check, not a throughput claim: the end-to-end effect has not been measured (that needs the quiet-machine comparative run).
 
+## `compressionbench.py` — Kiso response compression over loopback
+
+Question: what do the compressed bodies weigh, and what does one request cost with compression off, with gzip and with brotli? The Rust server runs in the process; a blocking client in a thread sends sequential requests on one keep-alive connection; modes alternate every round. Two scenarios: a JSON body of 12,980 bytes (compressed eagerly) and a stream of sixteen distinct pieces of about 70 KB (compressed as it is read).
+
+```sh
+uv run --locked python benchmarks/compressionbench.py --rounds 5 --requests 300
+```
+
+Recorded 2026-11-21, Apple M4 Pro, Python 3.13, debug-profile extension, five rounds of 300 requests (CV across rounds 0.3–3.2 %). Body bytes identity / gzip / brotli: 12,980 / 1,911 / 733 and, with chunk framing, 1,161,929 / 150,933 / 40,374. Median per request, off / gzip / brotli: 0.145 / 0.175 / 0.194 ms (small) and 0.426 / 4.36 / 3.33 ms (stream). The client shares the host and the body is synthetic: this is a cost for that body here, not a rate and not a comparison with another server. The whole-response path with compression off is checked with `protectedgetbench.py` below; compression is not on that path.
+
 ## `schemabench.py` — schema validation, Rust vs the pure-Python oracle
 
 Question: how much does validating a typical nested body cost with the Rust `CompiledSchema` compared with the previous pure-Python engine (kept in `tests/oracle/validation.py`)? One post with a UUID, a datetime, a pattern-constrained slug, 800 characters of body and ten nested tags (each with length and range constraints); 7 samples × 5 000 calls, schema compiled once outside the timing.
