@@ -299,6 +299,10 @@
               
             
               
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
                 <li><a class="side__link is-active" href="./" aria-current="page"><span>Middleware</span></a></li>
               
             
@@ -456,7 +460,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -518,6 +522,7 @@ rolled back, so a middleware that reads the database after <code>call_next()</co
 the state after the rollback. Call <code>call_next()</code> at most once (a second call is
 a <code>500</code>). A middleware that raises is translated like an action error; one that
 returns anything but a <code>Response</code> is a <code>500</code>.</p>
+<p>For an action that returns <code>Stream</code>, <code>EventStream</code> or <code>File</code>, <code>call_next()</code> returns that object with an empty <code>body</code>: a middleware never sees the pieces, and <code>with_header</code> keeps the class and the source. A middleware that answers with another <code>Response</code> instead of the stream does not serve it, and Hinoki closes its source. See <a href="../streaming/#middleware">stream a response</a>.</p>
 <p>Security, CORS and request-id headers are added after the middleware returns.</p>
 <h2 id="order-and-what-stays-outside">Order and what stays outside<a class="headerlink" href="#order-and-what-stays-outside" title="Permanent link">&para;</a></h2>
 <ol>
@@ -561,7 +566,7 @@ change the lane.</p>
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../errors/"><small>Previous</small><span>Errors</span></a>
+        <a class="pager__link pager__link--prev" href="../streaming/"><small>Previous</small><span>Stream a response</span></a>
         <a class="pager__link pager__link--next" href="../pagination/"><small>Next</small><span>Pagination</span></a>
       </nav>
     </main>
@@ -579,7 +584,7 @@ change the lane.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 18:12:43 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/middleware.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

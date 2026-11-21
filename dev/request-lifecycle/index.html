@@ -240,8 +240,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -287,9 +287,16 @@
 <td>32 KiB, names and values combined</td>
 <td><code>431 headers_too_large</code></td>
 </tr>
+<tr>
+<td><code>execution.max_streams</code></td>
+<td>64 open streams per worker</td>
+<td><code>503</code> with <code>Retry-After: 1</code>, before the handler runs</td>
+</tr>
 </tbody>
 </table>
 <p>The size checks run before routing. A sync handler already running when the timeout expires cannot be stopped: it keeps its executor slot until it returns, and its result is discarded. Let the proxy or ASGI server enforce its own request-line and header limits too.</p>
+<h2 id="streamed-responses">Streamed responses<a class="headerlink" href="#streamed-responses" title="Permanent link">&para;</a></h2>
+<p>For an action that returns <code>Stream</code>, <code>EventStream</code> or <code>File</code>, everything up to the moment the handler returns the object (access, rate limit, binding, validation, the handler, middleware and <code>request_timeout</code>) works as for any action, and an error there is the usual JSON answer. Before the handler runs, the worker takes one of its <code>execution.max_streams</code> places, or answers <code>503</code> with <code>Retry-After: 1</code>. The head is then sent, and the body is produced and sent piece by piece: the pieces are not checked against an annotation, a failure can only cut the connection, and the place is given back when the body ends. See <a href="../streaming/">stream a response</a>.</p>
 <h2 id="request-ids">Request IDs<a class="headerlink" href="#request-ids" title="Permanent link">&para;</a></h2>
 <p>Each response carries a request ID in <code>server.request_id_header</code> (<code>x-request-id</code>), and built-in error JSON repeats it as <code>request_id</code>. Hinoki generates it; with <code>server.trust_request_id=True</code> it accepts a validated inbound ID, only from a trusted proxy.</p>
 <h2 id="startup-and-shutdown">Startup and shutdown<a class="headerlink" href="#startup-and-shutdown" title="Permanent link">&para;</a></h2>
@@ -324,12 +331,12 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#limits">Limits</a></li><li><a href="#request-ids">Request IDs</a></li><li><a href="#startup-and-shutdown">Startup and shutdown</a></li><li><a href="#where-rust-runs">Where Rust runs</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#limits">Limits</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#request-ids">Request IDs</a></li><li><a href="#startup-and-shutdown">Startup and shutdown</a></li><li><a href="#where-rust-runs">Where Rust runs</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/request-lifecycle.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

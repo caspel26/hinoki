@@ -280,8 +280,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:06 UTC">November 20, 2026</span></span>
-            <span>19 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>22 min read</span>
           </p>
           
         </header>
@@ -2901,7 +2901,8 @@ framing or server header, a bad name or a CR/LF in a value raise
 
     <div class="doc doc-contents ">
 
-        <p>A copy with one more header.</p>
+        <p>A copy with one more header. It keeps the class and, for a streamed
+answer, the source of the body.</p>
 
 
     </div>
@@ -2942,6 +2943,420 @@ framing or server header, a bad name or a CR/LF in a value raise
 must be a token and the value cookie-safe (no space, quote, comma,
 semicolon or backslash); encode richer data yourself.</p>
 
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.Stream" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.Stream</span>
+
+
+<a href="#hinoki.http.Stream" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Stream</span><span class="p">(</span>
+    <span class="n">body</span><span class="p">:</span> <span class="n">Source</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="hinoki.http.stream.Sourced">Sourced</span></code></p>
+
+
+
+        <p>A body of <code>bytes</code> or <code>str</code> pieces (a <code>str</code> is sent as UTF-8).</p>
+<p><code>body</code> is an iterable or an async iterable; a plain iterable is advanced
+in the bounded sync executor. <code>length</code> declares the exact size when it is
+known, which gives the answer a <code>content-length</code>; without it the body is
+sent with chunked framing (HTTP/1.1) or until the stream ends (HTTP/2).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.EventStream" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.EventStream</span>
+
+
+<a href="#hinoki.http.EventStream" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">EventStream</span><span class="p">(</span>
+    <span class="n">events</span><span class="p">:</span> <span class="n">AsyncIterable</span><span class="p">[</span><span class="n">Event</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span>
+    <span class="o">|</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Event</span> <span class="o">|</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">keepalive</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">EllipsisType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span>
+    <span class="n">retry</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="hinoki.http.stream.Sourced">Sourced</span></code></p>
+
+
+
+        <p>Server-sent events (<code>text/event-stream</code>) from an iterable of <code>Event</code>
+or <code>str</code> (a <code>str</code> is the <code>data</code> of one event). <code>retry</code> is the
+reconnection delay in milliseconds sent to the client first.
+<code>keepalive</code> is the seconds of silence after which a comment is sent: the
+default is <code>execution.sse_keepalive</code>, <code>None</code> turns it off. The answer
+has <code>cache-control: no-store</code> and <code>x-accel-buffering: no</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.EventStream.retry_frame" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">retry_frame</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.EventStream.retry_frame" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">retry_frame</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="kc">None</span> <span class="k">if</span> <span class="n">retry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">Event</span><span class="p">(</span><span class="n">retry</span><span class="o">=</span><span class="n">retry</span><span class="p">)</span><span class="o">.</span><span class="n">wire</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.EventStream.keepalive" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">keepalive</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.EventStream.keepalive" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">keepalive</span> <span class="o">=</span> <span class="n">keepalive</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.EventStream.preamble" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">preamble</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.http.EventStream.preamble" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">preamble</span><span class="p">:</span> <span class="nb">bytes</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.EventStream.encode" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">encode</span>
+
+
+<a href="#hinoki.http.EventStream.encode" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">encode</span><span class="p">(</span><span class="n">piece</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.Event" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.Event</span>
+
+
+<a href="#hinoki.http.Event" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Event</span><span class="p">(</span>
+    <span class="n">data</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">event</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">retry</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">comment</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>One server-sent event. <code>data</code> that is not a <code>str</code> (a <code>Schema</code>, a
+<code>dict</code>, a <code>list</code> or a scalar) is sent as JSON; <code>None</code> sends no <code>data</code>
+field. Line breaks in <code>data</code> and <code>comment</code> become separate lines;
+<code>event</code> and <code>id</code> with CR, LF or NUL raise <code>ValueError</code> here.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.Event.wire" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">wire</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.Event.wire" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">wire</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">sse_frame</span><span class="p">(</span>
+    <span class="n">text</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> <span class="n">retry</span><span class="p">,</span> <span class="n">comment</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.File" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.File</span>
+
+
+<a href="#hinoki.http.File" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">File</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">PathLike</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">PathLike</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="hinoki.http.stream.Streamed">Streamed</span></code></p>
+
+
+
+        <p>A file sent by the server: <code>File("reports/q3.pdf", root=REPORTS)</code>.</p>
+<p>A relative <code>path</code> is taken from <code>root</code>. With <code>root</code> the file must be
+inside it once symbolic links are resolved; a missing file, a directory or
+a path that leaves <code>root</code> answers <code>404</code>. <code>filename</code> adds a
+<code>content-disposition: attachment</code> header. The <code>content-type</code> is guessed
+from the name unless given. The whole file is sent with its size as
+<code>content-length</code> (ranges are not supported: <code>accept-ranges: none</code>).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.File.path" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">path</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.File.path" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">fspath</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.File.root" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">root</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.File.root" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">root</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">root</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">os</span><span class="o">.</span><span class="n">fspath</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.File.same_body" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">same_body</span>
+
+
+<a href="#hinoki.http.File.same_body" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">same_body</span><span class="p">(</span><span class="n">other</span><span class="p">:</span> <span class="n">Streamed</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
 
     </div>
 
@@ -3797,7 +4212,13 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
             <ul><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.http.response.Response">Response</a>
             <ul><li><a href="#hinoki.http.response.Response.status">status</a></li><li><a href="#hinoki.http.response.Response.body">body</a></li><li><a href="#hinoki.http.response.Response.headers">headers</a></li><li><a href="#hinoki.http.response.Response.raw">raw</a></li><li><a href="#hinoki.http.response.Response.with_header">with_header</a></li></ul>
-          </li><li><a href="#hinoki.http.response.set_cookie">set_cookie</a></li><li><a href="#hinoki.access.Access">Access</a>
+          </li><li><a href="#hinoki.http.response.set_cookie">set_cookie</a></li><li><a href="#hinoki.http.Stream">Stream</a></li><li><a href="#hinoki.http.EventStream">EventStream</a>
+            <ul><li><a href="#hinoki.http.EventStream.retry_frame">retry_frame</a></li><li><a href="#hinoki.http.EventStream.keepalive">keepalive</a></li><li><a href="#hinoki.http.EventStream.preamble">preamble</a></li><li><a href="#hinoki.http.EventStream.encode">encode</a></li></ul>
+          </li><li><a href="#hinoki.http.Event">Event</a>
+            <ul><li><a href="#hinoki.http.Event.wire">wire</a></li></ul>
+          </li><li><a href="#hinoki.http.File">File</a>
+            <ul><li><a href="#hinoki.http.File.path">path</a></li><li><a href="#hinoki.http.File.root">root</a></li><li><a href="#hinoki.http.File.same_body">same_body</a></li></ul>
+          </li><li><a href="#hinoki.access.Access">Access</a>
             <ul><li><a href="#hinoki.access.Access.auth">auth</a></li><li><a href="#hinoki.access.Access.permissions">permissions</a></li></ul>
           </li><li><a href="#hinoki.errors.APIError">APIError</a></li><li><a href="#hinoki.errors.BadRequest">BadRequest</a></li><li><a href="#hinoki.errors.Unauthorized">Unauthorized</a></li><li><a href="#hinoki.errors.Forbidden">Forbidden</a></li><li><a href="#hinoki.errors.NotFound">NotFound</a></li><li><a href="#hinoki.errors.Conflict">Conflict</a></li><li><a href="#hinoki.errors.TooManyRequests">TooManyRequests</a></li><li><a href="#hinoki.errors.UniqueConflict">UniqueConflict</a></li><li><a href="#hinoki.errors.ObjectNotFound">ObjectNotFound</a></li><li><a href="#hinoki.errors.ErrorRegistry">ErrorRegistry</a>
             <ul><li><a href="#hinoki.errors.ErrorRegistry.is_builtin">is_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate_builtin">translate_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate">translate</a></li></ul>
@@ -3808,7 +4229,7 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:06 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

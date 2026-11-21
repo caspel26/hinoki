@@ -299,6 +299,10 @@
               
             
               
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -456,7 +460,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:20:19 UTC">November 21, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -519,6 +523,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 </code></pre></div>
 <p>See <a href="../schema-collections/#discriminated-unions">Collections and unions: discriminated unions</a> for the Python declarations and validation behavior.</p>
 <p>For file binding syntax, limits and the in-memory boundary, see <a href="../endpoints/#upload-files">upload files</a>.</p>
+<p>An action annotated <code>-&gt; Stream</code> or <code>-&gt; File</code> documents its <code>200</code> response as <code>application/octet-stream</code> with <code>{"type": "string", "format": "binary"}</code>, and <code>-&gt; EventStream</code> as <code>text/event-stream</code> with <code>{"type": "string"}</code>. The media type a <code>Stream</code> sends is chosen by the handler at run time, so the document does not list it. An annotation such as <code>-&gt; Stream | NoteOut</code> also documents the plain arm, under the media types of the route's renderers, next to the streamed one. See <a href="../streaming/">stream a response</a>.</p>
 <p>Add a useful docstring to each handler because it is the source for operation text:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/tasks/</span><span class="si">{task_id}</span><span class="s2">"</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_task</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskOutput</span><span class="p">:</span>
@@ -557,7 +562,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:20:19 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

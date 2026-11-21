@@ -299,6 +299,10 @@
               
             
               
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -457,13 +461,18 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>2 min read</span>
+            <span>3 min read</span>
           </p>
           
         </header>
         
 <p>Every user-facing change to Hinoki, newest first. Hinoki is pre-alpha: any release may change the API and the migration format, and no release has been tagged yet, so everything is listed under <strong>Unreleased</strong>. The same text lives in <a href="https://github.com/caspel26/hinoki/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>.</p>
-<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🧭 Create an app at the end of <code>hinoki new</code></h4>
+<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🌊 Streaming responses</h4>
+<blockquote>
+<p><code>python/hinoki/http/stream.py</code>, <code>python/hinoki/runtime/streaming.py</code>, <code>crates/bindings/src/streamlimit.rs</code>, <code>crates/bindings/src/filelocate.rs</code>, <code>crates/bindings/src/tally.rs</code>, <code>crates/bindings/src/disposition.rs</code>, <code>python/hinoki/runtime/kiso.py</code>, <code>python/hinoki/runtime/asgi.py</code>, <code>python/hinoki/testing.py</code>, <code>crates/kiso</code>, <code>crates/bindings</code></p>
+</blockquote>
+<p>An action annotated <code>-&gt; Stream</code>, <code>-&gt; EventStream</code> or <code>-&gt; File</code> is sent while it is produced, on Kiso and on Granian: <code>Stream</code> for bytes or text from an async or plain iterable, <code>EventStream</code> and <code>Event</code> for server-sent events, and <code>File</code> for a file that Kiso sends without its bytes entering Python. A slow client slows the producer down, a client that leaves closes the source, and a stream that fails after the head is cut instead of ending as complete. New settings <code>execution.max_streams</code> (64), <code>execution.stream_idle_timeout</code> and <code>execution.sse_keepalive</code> (15 s). <code>atomic=True</code>, a generator handler and status <code>204</code>/<code>304</code> are refused at registration; <code>WSGIAdapter</code> refuses an application with a streamed action when it starts, and the application MCP endpoint will not expose one. <code>ASGIClient.stream()</code> and <code>SyncClient.stream()</code> read the pieces as they are sent, and <code>client.get()</code> stops with <code>BodyTooLarge</code> on a body that does not end. See <a href="docs/streaming.md">stream a response</a>.</p>
+<h4>🧭 Create an app at the end of <code>hinoki new</code></h4>
 <blockquote>
 <p><code>python/hinoki/newcli.py</code>, <code>python/hinoki/appprompts.py</code>, <code>python/hinoki/scaffold.py</code> (#405, #408, #410)</p>
 </blockquote>

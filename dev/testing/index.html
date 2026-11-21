@@ -299,6 +299,10 @@
               
             
               
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -456,8 +460,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -597,7 +601,7 @@ document cannot drift from what the action really does.</p>
     <span class="p">)</span>
     <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">201</span>
 </code></pre></div>
-<p>Each file tuple is <code>(field_name, filename, content_bytes, content_type)</code>. Form data may be a mapping or an ordered sequence of <code>(name, text)</code> pairs; sequences retain repeated names. Do not pass <code>json=</code> or raw <code>body=</code> together with <code>data=</code>/<code>files=</code>; the helper owns the multipart content type and boundary. The application enforces its configured complete-body and per-part limits. This helper sends complete in-memory bodies and does not model streaming uploads.</p>
+<p>Each file tuple is <code>(field_name, filename, content_bytes, content_type)</code>. Form data may be a mapping or an ordered sequence of <code>(name, text)</code> pairs; sequences retain repeated names. Do not pass <code>json=</code> or raw <code>body=</code> together with <code>data=</code>/<code>files=</code>; the helper owns the multipart content type and boundary. The application enforces its configured complete-body and per-part limits. This helper sends complete in-memory bodies and does not model streaming uploads. For streamed responses see <a href="#test-streams">test streams</a>.</p>
 <h2 id="headers-and-hosts">Headers and hosts<a class="headerlink" href="#headers-and-hosts" title="Permanent link">&para;</a></h2>
 <p><code>headers=</code> accepts a mapping or a sequence of <code>(name, value)</code> pairs. Use pairs to send a repeated header; Hinoki's request header mapping joins repeated values with <code>", "</code>. A client can add a default <code>Host</code> header to each request:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/headerstest.py</span>
@@ -607,6 +611,22 @@ document cannot drift from what the action really does.</p>
     <span class="p">)</span>
 </code></pre></div>
 <p>The default remains no <code>Host</code> header. Set <code>headers={"host": "other.example.com"}</code> on a call to override the client's host. Because the clients run in-process, they do not log the startup warning about the default <code>allowed_hosts = *</code> that a served worker logs (<a href="../web-security/#allowed_hosts">Hosts, CORS and HTTPS</a>).</p>
+<h2 id="test-streams">Test streams<a class="headerlink" href="#test-streams" title="Permanent link">&para;</a></h2>
+<p><code>client.get()</code> waits for the end of a streamed response and returns the whole body. To see the head and the pieces as they are sent, use <code>client.stream()</code>; leaving the block tells the application that the client disconnected, so the source of the stream is closed:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/eventstest.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ASGIClient</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.main</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_events_arrive_one_by_one</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">app</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">client</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="s2">"GET"</span><span class="p">,</span> <span class="s2">"/notes/events"</span><span class="p">)</span> <span class="k">as</span> <span class="n">reply</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">reply</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">200</span>
+            <span class="k">assert</span> <span class="n">reply</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">"content-type"</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"text/event-stream"</span><span class="p">)</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="k">await</span> <span class="n">anext</span><span class="p">(</span><span class="n">reply</span><span class="o">.</span><span class="n">chunks</span><span class="p">())</span>
+</code></pre></div>
+<p><code>reply.chunks()</code> yields each piece as the application sent it, and raises the error that cut the response, if one did. <code>reply.read()</code> collects the rest. <code>SyncClient.stream()</code> is the same with <code>with</code> and a plain iterator. A stream that never ends makes <code>client.get()</code> fail with <code>BodyTooLarge</code> once the body passes <code>max_bytes</code> (10 MiB; pass <code>max_bytes=</code> to change it), so a test cannot hang on it. The in-process client runs the ASGI pump, not Kiso's: it shows what the client receives and when the source is closed, not the server's queue, timeouts or keep-alive.</p>
 <h2 id="synchronous-tests-and-time">Synchronous tests and time<a class="headerlink" href="#synchronous-tests-and-time" title="Permanent link">&para;</a></h2>
 <p><code>SyncClient</code> is available for synchronous test functions. It runs the app's lifespan and refuses unsafe nested use from a running event loop.</p>
 <p>For deterministic time, <code>ManualClock</code> is a thread-safe callable clock. It accepts and returns timezone-aware instants normalized to UTC; <code>advance(seconds=...)</code> and <code>set(datetime)</code> control its value. A naive datetime raises <code>ValueError</code>. Pass it to <code>app.now(clock)</code> or other code that accepts a <code>Clock</code>.</p>
@@ -655,12 +675,12 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
           
             <ul><li><a href="#test-protected-actions">Test protected actions</a></li><li><a href="#use-a-disposable-database">Use a disposable database</a>
             <ul><li><a href="#give-each-test-its-own-database">Give each test its own database</a></li></ul>
-          </li><li><a href="#catch-undeclared-errors">Catch undeclared errors</a></li><li><a href="#test-file-uploads">Test file uploads</a></li><li><a href="#headers-and-hosts">Headers and hosts</a></li><li><a href="#synchronous-tests-and-time">Synchronous tests and time</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li><li><a href="#see-also">See also</a></li></ul>
+          </li><li><a href="#catch-undeclared-errors">Catch undeclared errors</a></li><li><a href="#test-file-uploads">Test file uploads</a></li><li><a href="#headers-and-hosts">Headers and hosts</a></li><li><a href="#test-streams">Test streams</a></li><li><a href="#synchronous-tests-and-time">Synchronous tests and time</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

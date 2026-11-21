@@ -299,6 +299,10 @@
               
             
               
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -456,7 +460,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -523,6 +527,10 @@
 <td><code>ExposureError</code> naming it</td>
 </tr>
 <tr>
+<td>An action that returns <code>Stream</code>, <code>EventStream</code> or <code>File</code> matches <code>tools</code></td>
+<td><code>ExposureError</code> naming it: a tool returns one complete result, so a <a href="../streaming/">streamed response</a> cannot be exposed</td>
+</tr>
+<tr>
 <td><code>Transactions.require_atomic()</code> is enabled</td>
 <td>The MCP endpoint is a <code>POST</code> without a transaction of its own; exclude it with <code>except_=["hinoki.ai.mcpapp.*"]</code>. Each tool call still runs the action's own transaction.</td>
 </tr>
@@ -562,7 +570,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/app-mcp.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

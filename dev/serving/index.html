@@ -299,6 +299,10 @@
               
             
               
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -456,8 +460,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:48:01 UTC">November 20, 2026</span></span>
-            <span>12 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>13 min read</span>
           </p>
           
         </header>
@@ -705,6 +709,8 @@ because only <code>hinoki serve</code> applies it:</p>
 instrumentation seam today. Use the server's own limits and access log and the
 request log of your proxy, or serve with Granian when you need to wrap the
 application.</p>
+<h2 id="streamed-responses">Streamed responses<a class="headerlink" href="#streamed-responses" title="Permanent link">&para;</a></h2>
+<p>Actions that return <code>Stream</code>, <code>EventStream</code> or <code>File</code> work on both servers. Kiso sends them from its own queue, with its idle timeout, keep-alive comments and disconnect check, and sends a <code>File</code> without the bytes entering Python. Granian receives each piece as an ASGI message, and a <code>File</code> through <code>http.response.pathsend</code> when the server offers it; there Hinoki's own pump handles the idle timeout, the keep-alive and the disconnect. <code>execution.max_streams</code>, <code>execution.stream_idle_timeout</code> and <code>execution.sse_keepalive</code> apply to both (<a href="../settings/">settings</a>). Details and measured behavior: <a href="../streaming/">stream a response</a>.</p>
 <h2 id="wsgi">WSGI<a class="headerlink" href="#wsgi" title="Permanent link">&para;</a></h2>
 <p>ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI,
 wrap the application:</p>
@@ -750,7 +756,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
 <li><strong>Startup is lazy</strong> under Granian (Kiso starts them with the worker). Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers <code>503</code> with <code>not_ready</code> and the error is logged.</li>
 <li><strong>Shutdown</strong> runs on <code>WSGIAdapter.close()</code> or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any <code>atexit</code> hook.</li>
 <li><strong>Async handlers</strong> run on the adapter's loop and <strong>sync handlers</strong> on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.</li>
-<li><strong>Bodies are buffered.</strong> Request bodies are read up to <code>max_body_bytes</code> plus one byte, so an oversized upload still answers <code>413</code>. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.</li>
+<li><strong>Bodies are buffered.</strong> Request bodies are read up to <code>max_body_bytes</code> plus one byte, so an oversized upload still answers <code>413</code>. Responses are complete before they are sent: an application with an action that returns <code>Stream</code>, <code>EventStream</code> or <code>File</code> is refused when the adapter starts (<code>WSGIStartupError</code> naming the actions; serve it with ASGI or Kiso, see <a href="../streaming/">streaming</a>), and a client disconnect is not reported to the handler.</li>
 <li><strong>Paths.</strong> The server decodes the path once and the adapter passes it on without decoding again, so a client's <code>%2520</code> reaches the handler as <code>%20</code>, as under ASGI. A percent-encoded slash (<code>%2F</code>) cannot be told apart from a real one in WSGI and is not available inside a path parameter. A bad <code>Content-Length</code> answers <code>400</code>.</li>
 <li><strong>One protocol per process.</strong> Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.</li>
 </ul>
@@ -793,14 +799,14 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#choose-a-server">Choose a server</a></li><li><a href="#set-host-port-and-workers">Set host, port and workers</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#optional-startup-probe">Optional startup probe</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#metrics-and-tracing">Metrics and tracing</a></li><li><a href="#wsgi">WSGI</a>
+            <ul><li><a href="#choose-a-server">Choose a server</a></li><li><a href="#set-host-port-and-workers">Set host, port and workers</a></li><li><a href="#settings-that-apply-to-one-server-only">Settings that apply to one server only</a></li><li><a href="#optional-startup-probe">Optional startup probe</a></li><li><a href="#other-runners">Other runners</a></li><li><a href="#metrics-and-tracing">Metrics and tracing</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#wsgi">WSGI</a>
             <ul><li><a href="#wsgi-on-kiso">WSGI on Kiso</a></li></ul>
           </li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:48:01 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

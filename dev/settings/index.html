@@ -299,6 +299,10 @@
               
             
               
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -456,7 +460,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
             <span>11 min read</span>
           </p>
           
@@ -539,6 +543,24 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>max_header_bytes</code></td>
 <td><code>32768</code> (32 KiB)</td>
 <td><code>1</code> to <code>1048576</code> combined header bytes; larger headers return <code>431</code></td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>max_streams</code></td>
+<td><code>64</code></td>
+<td><code>1</code> or greater; streams open at once per worker, more answer <code>503</code> with <code>Retry-After: 1</code> before the handler runs</td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>stream_idle_timeout</code></td>
+<td><code>None</code> (uses <code>request_timeout</code>)</td>
+<td>Must be positive; seconds a <code>Stream</code> may stay silent before it is cut</td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>sse_keepalive</code></td>
+<td><code>15.0</code> seconds</td>
+<td>Must be positive; quiet seconds before an <code>EventStream</code> sends a comment (<code>keepalive=None</code> on the stream turns it off)</td>
 </tr>
 <tr>
 <td><code>lifecycle</code></td>
@@ -1077,7 +1099,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

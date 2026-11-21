@@ -281,7 +281,7 @@
           <p class="page-meta" data-search-exclude>
             
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -935,6 +935,9 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
     <span class="n">max_body_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">,</span>
     <span class="n">max_query_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8192</span><span class="p">,</span>
     <span class="n">max_header_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32768</span><span class="p">,</span>
+    <span class="n">max_streams</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
+    <span class="n">stream_idle_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">sse_keepalive</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">15.0</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -959,6 +962,30 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.runtime.config.RuntimeConfig.idle_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">idle_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.runtime.config.RuntimeConfig.idle_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">idle_timeout</span><span class="p">:</span> <span class="nb">float</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Seconds a stream's producer may stay silent.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -1142,7 +1169,9 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
             <ul><li><a href="#hinoki.management.Command.name">name</a></li><li><a href="#hinoki.management.Command.help">help</a></li><li><a href="#hinoki.management.Command.requires">requires</a></li><li><a href="#hinoki.management.Command.add_arguments">add_arguments</a></li><li><a href="#hinoki.management.Command.handle">handle</a></li></ul>
           </li><li><a href="#hinoki.management.CommandContext">CommandContext</a>
             <ul><li><a href="#hinoki.management.CommandContext.settings">settings</a></li><li><a href="#hinoki.management.CommandContext.get">get</a></li><li><a href="#hinoki.management.CommandContext.find">find</a></li></ul>
-          </li><li><a href="#hinoki.management.CommandError">CommandError</a></li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a></li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
+          </li><li><a href="#hinoki.management.CommandError">CommandError</a></li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a>
+            <ul><li><a href="#hinoki.runtime.config.RuntimeConfig.idle_timeout">idle_timeout</a></li></ul>
+          </li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
             <ul><li><a href="#hinoki.wsgi.WSGIAdapter.start">start</a></li><li><a href="#hinoki.wsgi.WSGIAdapter.close">close</a></li></ul>
           </li></ul>
           

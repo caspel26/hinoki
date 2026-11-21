@@ -355,12 +355,49 @@
     <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">headers</span><span class="p">:</span> <span class="n">HeaderInput</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">MAX_BYTES</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>One request, including JSON or multipart test payloads.</p>
+        <p>One request, including JSON or multipart test payloads. The whole
+response is collected; past <code>max_bytes</code> of body (<code>None</code>: no limit)
+the client disconnects and raises <code>BodyTooLarge</code>, so an endless
+stream cannot hang a test (read one with <code>client.stream()</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.testing.ASGIClient.stream" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">stream</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.testing.ASGIClient.stream" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">stream</span><span class="p">(</span>
+    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="n">StreamReply</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A response read as it is produced. The head is available on entry;
+leaving the block disconnects the client, which ends the stream:</p>
+<div class="language-text highlight"><pre><span></span><code>async with client.stream("GET", "/events") as reply:
+    async for piece in reply.chunks():
+        ...
+</code></pre></div>
+<p>A server that runs ahead of the test waits for it (at most
+<code>STREAM_PIECES</code> pieces are buffered).</p>
 
 
     </div>
@@ -477,6 +514,30 @@ connection.</p>
 
 
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.testing.SyncClient.stream" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">stream</span>
+
+
+<a href="#hinoki.testing.SyncClient.stream" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">stream</span><span class="p">(</span>
+    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">SyncStreamReply</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>ASGIClient.stream</code> for tests without <code>async</code>:</p>
+<p>with client.stream("GET", "/events") as reply:
+    first = next(reply.chunks())</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -589,8 +650,10 @@ connection.</p>
           
           
             <ul><li><a href="#hinoki.testing.ASGIClient">ASGIClient</a>
-            <ul><li><a href="#hinoki.testing.ASGIClient.request">request</a></li><li><a href="#hinoki.testing.ASGIClient.check_declared">check_declared</a></li><li><a href="#hinoki.testing.ASGIClient.query">query</a></li></ul>
-          </li><li><a href="#hinoki.testing.SyncClient">SyncClient</a></li><li><a href="#hinoki.testing.ManualClock">ManualClock</a>
+            <ul><li><a href="#hinoki.testing.ASGIClient.request">request</a></li><li><a href="#hinoki.testing.ASGIClient.stream">stream</a></li><li><a href="#hinoki.testing.ASGIClient.check_declared">check_declared</a></li><li><a href="#hinoki.testing.ASGIClient.query">query</a></li></ul>
+          </li><li><a href="#hinoki.testing.SyncClient">SyncClient</a>
+            <ul><li><a href="#hinoki.testing.SyncClient.stream">stream</a></li></ul>
+          </li><li><a href="#hinoki.testing.ManualClock">ManualClock</a>
             <ul><li><a href="#hinoki.testing.ManualClock.set">set</a></li><li><a href="#hinoki.testing.ManualClock.advance">advance</a></li></ul>
           </li></ul>
           
