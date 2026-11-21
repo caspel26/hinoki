@@ -34,6 +34,12 @@ use pyo3::types::PyDict;
 
 use router::{Match, RouteError, Router};
 
+/// Requests are built on Tokio threads and released on the event-loop thread;
+/// mimalloc frees memory allocated by another thread without contending for
+/// the allocating thread's arena.
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn to_py_err(err: RouteError) -> PyErr {
     PyValueError::new_err(err.to_string())
 }
