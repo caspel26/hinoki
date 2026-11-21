@@ -1,6 +1,0 @@
-pid pgid cputime command
-4074143 4074143 00:00:00 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -m granian --interface asgi --workers 4 --port 8801 --no-log hinoki_app:app
-4074144 4074143 00:00:53 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -m granian --interface asgi --workers 4 --port 8801 --no-log hinoki_app:app
-4074146 4074143 00:00:51 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -m granian --interface asgi --workers 4 --port 8801 --no-log hinoki_app:app
-4074148 4074143 00:00:51 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -m granian --interface asgi --workers 4 --port 8801 --no-log hinoki_app:app
-4074150 4074143 00:00:50 /tmp/hinoki-final-bench/benchmarks/comparative/.venv/bin/python -m granian --interface asgi --workers 4 --port 8801 --no-log hinoki_app:app
