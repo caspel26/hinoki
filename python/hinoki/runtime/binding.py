@@ -231,9 +231,6 @@ class Binding:
     has_files: bool = field(init=False, repr=False, compare=False)
     takes_text: bool = field(init=False, repr=False, compare=False)
     needs_request: bool = field(init=False, repr=False, compare=False)
-    owner_headers: tuple[tuple[str, str], ...] = field(
-        init=False, repr=False, compare=False
-    )
 
     def __post_init__(self) -> None:
         """Freeze handler execution shape with the request binding plan."""
@@ -268,11 +265,6 @@ class Binding:
             "needs_request",
             self.takes_request or self.needs_body or has_files or not self.default_json,
         )
-        object.__setattr__(
-            self,
-            "owner_headers",
-            tuple(getattr(self.route.owner, "response_headers", ())),
-        )
         bodies = [p for p in self.params if p.source == "body"]
         only_body = len(bodies) == 1 and not has_files
         object.__setattr__(self, "body_param", bodies[0] if only_body else None)
@@ -300,6 +292,12 @@ class Binding:
             name: supplied[name] if name in supplied else defaults[name]
             for name in self.native_input_names
         }
+
+    @property
+    def owner_headers(self) -> tuple[tuple[str, str], ...]:
+        """The owner's response headers, read per request: they may change
+        after startup."""
+        return tuple(getattr(self.route.owner, "response_headers", ()))
 
     @property
     def query_param(self) -> Param | None:
