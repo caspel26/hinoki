@@ -889,10 +889,15 @@ impl<'a, B: Builder> Parser<'a, B> {
         }
     }
 
-    fn value(&mut self, depth: usize) -> Parsed<B::Value> {
-        if depth > MAX_PARSE_DEPTH {
+    /// A container at `depth` is the `depth + 1`th around the innermost value.
+    fn enter(&self, depth: usize) -> Parsed<()> {
+        if depth >= MAX_PARSE_DEPTH {
             return self.fail("nesting too deep");
         }
+        Ok(())
+    }
+
+    fn value(&mut self, depth: usize) -> Parsed<B::Value> {
         self.skip_space();
         match self.peek() {
             Some(b'{') => self.object(depth),
@@ -910,6 +915,7 @@ impl<'a, B: Builder> Parser<'a, B> {
     }
 
     fn object(&mut self, depth: usize) -> Parsed<B::Value> {
+        self.enter(depth)?;
         self.at += 1;
         let mut object = self.builder.object();
         self.skip_space();
@@ -943,6 +949,7 @@ impl<'a, B: Builder> Parser<'a, B> {
     }
 
     fn array(&mut self, depth: usize) -> Parsed<B::Value> {
+        self.enter(depth)?;
         self.at += 1;
         let mut array = self.builder.array();
         self.skip_space();
@@ -1127,7 +1134,7 @@ pub(crate) fn decode_json_document(raw: &[u8]) -> Result<JsonDocument, String> {
 
 /// Parse a JSON document into Python objects. Raises `JsonDecodeError` (a
 /// `ValueError`) for syntax errors, invalid UTF-8, `NaN`/`Infinity`, unpaired
-/// surrogates and nesting deeper than 128 levels, and a plain `ValueError`
+/// surrogates and more than 128 nested arrays or objects, and a plain `ValueError`
 /// when Python refuses a value (an integer over its digit limit).
 #[pyfunction]
 pub fn decode_json<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Bound<'py, PyAny>> {
@@ -1277,10 +1284,15 @@ impl<'py> Encoder<'py> {
         self.out.push(bracket);
     }
 
-    fn write(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
-        if depth > MAX_DEPTH {
+    /// A container at `depth` is the `depth + 1`th around the innermost value.
+    fn enter(depth: usize) -> PyResult<()> {
+        if depth >= MAX_DEPTH {
             return Err(PyValueError::new_err("value is nested too deeply"));
         }
+        Ok(())
+    }
+
+    fn write(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         if value.is_none() {
             self.out.extend_from_slice(b"null");
         } else if let Ok(flag) = value.cast::<PyBool>() {
@@ -1338,6 +1350,7 @@ impl<'py> Encoder<'py> {
     }
 
     fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
+        Self::enter(depth)?;
         let mut items = Vec::with_capacity(dict.len());
         for (key, item) in dict.iter() {
             items.push((key_text(&key)?, key, item));
@@ -1366,6 +1379,7 @@ impl<'py> Encoder<'py> {
     }
 
     fn sequence(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        Self::enter(depth)?;
         self.open(b'[');
         let mut empty = true;
         for (index, item) in value.try_iter()?.enumerate() {
@@ -1489,6 +1503,7 @@ impl<'py> Encoder<'py> {
         unset: &Py<PyAny>,
         depth: usize,
     ) -> PyResult<()> {
+        Self::enter(depth)?;
         let mut present = Vec::new();
         for (name, wire_name) in names {
             let item = value.getattr(name.as_str())?;
@@ -1833,9 +1848,9 @@ mod tests {
             for text in REFUSED {
                 assert!(!same_decoding(py, text.as_bytes()), "{text} is refused");
             }
-            let deep = "[".repeat(129) + &"]".repeat(129);
+            let deep = "[".repeat(128) + &"]".repeat(128);
             assert!(same_decoding(py, deep.as_bytes()));
-            let deeper = "[".repeat(130) + &"]".repeat(130);
+            let deeper = "[".repeat(129) + &"]".repeat(129);
             assert!(!same_decoding(py, deeper.as_bytes()));
             assert!(!same_decoding(py, b"\"\xff\""));
             assert!(!same_decoding(py, b"{\"\xc3\x28\": 1}"));
