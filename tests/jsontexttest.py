@@ -1,6 +1,7 @@
 """``hinoki.jsontext``: the text helpers that replaced the standard library codec."""
 
 import json
+import logging
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from hinoki.orm.migrations import latest_state
 from hinoki.projectcli import _app_block
 from hinoki.projectmigrations import _migration_history
 from hinoki.scaffold import git_source
+from hinoki.settings import JsonFormatter
 
 AWKWARD = 'é😀\x7f\x01\t"\\ end'
 
@@ -77,3 +79,10 @@ def test_a_corrupt_migration_state_is_a_migration_error(tmp_path: Path) -> None:
     (tmp_path / "0001-init.state.json").write_bytes(b"\xff{")
     with pytest.raises(MigrationError, match="not valid JSON"):
         _migration_history("app", tmp_path)
+
+
+def test_json_formatter_keeps_a_record_with_a_lone_surrogate() -> None:
+    record = logging.LogRecord("t", logging.INFO, "f", 1, "got %s", ("a\ud800b",), None)
+    line = JsonFormatter().format(record)
+    assert "\n" not in line
+    assert json.loads(line)["message"] == "got a\ud800b"
