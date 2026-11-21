@@ -130,8 +130,44 @@
     });
   };
 
+  /* ---------- Diagram pulses ---------- */
+  /* A dot travels along each wide-diagram arrow. Skipped for reduced motion. */
+  const addPulses = (figure) => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const svg = $(".hn-dg--wide", figure);
+    if (!svg) return;
+    const ns = "http://www.w3.org/2000/svg";
+    $$(".hn-dg-arrow", svg).forEach((path) => {
+      const i = Number.parseInt(path.style.getPropertyValue("--i"), 10);
+      const dur = path.classList.contains("hn-dg-lane-arrow") ? 1.6 : 3.2;
+      const begin = `${((i * 0.37) % dur).toFixed(2)}s`;
+      const dot = document.createElementNS(ns, "circle");
+      dot.setAttribute("class", "hn-dg-pulse");
+      dot.setAttribute("data-i", String(i));
+      dot.setAttribute("r", "3");
+      const motion = document.createElementNS(ns, "animateMotion");
+      motion.setAttribute("path", path.getAttribute("d"));
+      motion.setAttribute("dur", `${dur}s`);
+      motion.setAttribute("begin", begin);
+      motion.setAttribute("repeatCount", "indefinite");
+      motion.setAttribute("calcMode", "spline");
+      motion.setAttribute("keyTimes", "0;1");
+      motion.setAttribute("keySplines", "0.4 0 0.2 1");
+      const fade = document.createElementNS(ns, "animate");
+      fade.setAttribute("attributeName", "r");
+      fade.setAttribute("values", "0;3;3;0");
+      fade.setAttribute("keyTimes", "0;0.12;0.88;1");
+      fade.setAttribute("dur", `${dur}s`);
+      fade.setAttribute("begin", begin);
+      fade.setAttribute("repeatCount", "indefinite");
+      dot.append(motion, fade);
+      svg.append(dot);
+    });
+  };
+
   /* ---------- Diagram tips ---------- */
   const setupDiagram = (figure) => {
+    addPulses(figure);
     const tip = document.createElement("div");
     tip.className = "popover";
     tip.hidden = true;
