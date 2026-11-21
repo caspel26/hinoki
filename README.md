@@ -38,7 +38,7 @@
     <img src="assets/readme/demo.apng" alt="In a terminal window, hinoki new shows the Hinoki banner and asks for a project name, a database, a server and the rest; its last question, Create an app now?, is answered yes and the app is named posts. hinoki check reports no violated rules, hinoki dev starts the Kiso server and prints its address and its docs URL, a curl request to POST /posts returns 201 Created with the new post, and a request to the docs URL, http://localhost:8000/docs, returns 200." width="840">
   </picture>
 </p>
-<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the posts app's source files and migrations are written off screen. The banner is the logo image that Hinoki prints in terminals with inline-image support (kitty, Ghostty, iTerm2, WezTerm); other terminals show a text banner instead.</sub></p>
+<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the posts app's source files and migrations are written off screen.</sub></p>
 
 > [!WARNING]
 > **Pre-alpha, not released.** The API and the migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project: install Hinoki from this repository and use disposable data.
