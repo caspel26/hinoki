@@ -366,6 +366,23 @@ def test_encode_handles_list_and_dict_subclasses_and_mutation_free_reads() -> No
     assert core.encode_json(Mapping(a=1, b=Items([2]))) == b'{"a":1,"b":[2]}'
 
 
+def test_encode_honours_an_overridden_iter_on_list_and_tuple_subclasses() -> None:
+    class Items(list[Any]):
+        def __iter__(self) -> Any:
+            return iter([99])
+
+    class Pair(tuple[Any, ...]):
+        def __iter__(self) -> Any:
+            return iter([7, 8])
+
+    assert core.encode_json(Items([1, 2])) == b"[99]"
+    assert core.encode_json(Pair((1, 2))) == b"[7,8]"
+    assert (
+        core.encode_json({"k": Items([1, 2])})
+        == json.dumps({"k": Items([1, 2])}, separators=(",", ":")).encode()
+    )
+
+
 def test_encode_writes_dates_uuids_schemas_and_default_hooks() -> None:
     moment = datetime.datetime(2024, 1, 2, 3, 4, 5, 678000, tzinfo=datetime.UTC)
     ident = uuid.UUID(int=12345)

@@ -1607,23 +1607,37 @@ impl<'py> Encoder<'py> {
     fn sequence(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         Self::enter(depth)?;
         self.open(b'[');
-        let mut index = 0;
-        loop {
-            let item = if let Ok(list) = value.cast::<PyList>() {
-                list.get_item(index).ok()
-            } else {
-                value.cast::<PyTuple>()?.get_item(index).ok()
-            };
-            let Some(item) = item else { break };
-            if index > 0 {
-                self.out.push(b',');
+        let mut count = 0;
+        if value.is_exact_instance_of::<PyList>() {
+            // Read by position: a hook that mutates the list cannot invalidate it.
+            let list = value.cast::<PyList>()?;
+            while let Ok(item) = list.get_item(count) {
+                self.element(&item, count, depth)?;
+                count += 1;
             }
-            self.newline(depth + 1);
-            self.write(&item, depth + 1)?;
-            index += 1;
+        } else if value.is_exact_instance_of::<PyTuple>() {
+            let tuple = value.cast::<PyTuple>()?;
+            while let Ok(item) = tuple.get_item(count) {
+                self.element(&item, count, depth)?;
+                count += 1;
+            }
+        } else {
+            // Subclasses keep their own `__iter__`, as `json.dumps` does.
+            for item in value.try_iter()? {
+                self.element(&item?, count, depth)?;
+                count += 1;
+            }
         }
-        self.close(b']', depth, index == 0);
+        self.close(b']', depth, count == 0);
         Ok(())
+    }
+
+    fn element(&mut self, item: &Bound<'py, PyAny>, index: usize, depth: usize) -> PyResult<()> {
+        if index > 0 {
+            self.out.push(b',');
+        }
+        self.newline(depth + 1);
+        self.write(item, depth + 1)
     }
 
     /// Write what `dump()` or the `default` hook returned in place of a value: at
