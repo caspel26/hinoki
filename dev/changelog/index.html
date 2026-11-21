@@ -464,7 +464,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>4 min read</span>
+            <span>5 min read</span>
           </p>
           
         </header>
@@ -499,7 +499,12 @@
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>🔒 Hardened HTTP and WSGI edges</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>⚡ Less work per request</h4>
+<blockquote>
+<p><code>python/hinoki/schemafast.py</code>, <code>python/hinoki/schema.py</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/binding.py</code></p>
+</blockquote>
+<p>A request now does less Python work with the same behaviour: a coroutine that finishes without suspending runs inline with no task and no timer, the <code>Request</code> object is built only when the action, a renderer or a body needs it, response header shapes are computed once per route shape, and a <code>Schema</code> whose fields hold exactly the declared types is accepted by a compiled per-class check instead of the full validation. A <code>Schema</code> that overrides <code>_validate_instance</code>, <code>native_schema</code> or <code>specs</code> keeps the full validation. Indicative single-core runs on a loaded host gave about +40% to +70% on a minimal action and +28% on a one-row read; the official comparative numbers are not yet re-measured.</p>
+<h4>🔒 Hardened HTTP and WSGI edges</h4>
 <blockquote>
 <p><code>crates/kiso/src/conn.rs</code>, <code>crates/kiso/src/stream.rs</code>, <code>crates/bindings/src/wsgi.rs</code> (#389, #401, #402)</p>
 </blockquote>
