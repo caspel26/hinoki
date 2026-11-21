@@ -27,6 +27,43 @@ def test_decode_matches_the_standard_library(text: str) -> None:
     assert core.decode_json(text.encode()) == json.loads(text)
 
 
+def _key_corpus() -> list[Any]:
+    long_key = "k" * 33
+    rows = [
+        {
+            "id": index,
+            "name": f"n{index}",
+            "": "",
+            "é\u00e9": "ünï",
+            "a\nb": 'q"uo\\te\u0000',
+            long_key: [long_key, {long_key: None}],
+            "k" * 32: index,
+            "😀": "\U0001f600",
+        }
+        for index in range(40)
+    ]
+    wide = {f"key-{index}": index for index in range(500)}
+    return [rows, wide, [wide, wide], {"a": {"a": {"a": ""}}}, ["", "", {"": ""}]]
+
+
+@pytest.mark.parametrize("value", _key_corpus())
+@pytest.mark.parametrize("ensure_ascii", [True, False])
+def test_decode_matches_the_standard_library_on_repeated_and_long_keys(
+    value: Any, ensure_ascii: bool
+) -> None:
+    text = json.dumps(value, ensure_ascii=ensure_ascii)
+    assert core.decode_json(text.encode()) == json.loads(text)
+
+
+def test_decode_shares_nothing_between_equal_keys_but_their_objects() -> None:
+    rows = core.decode_json(
+        json.dumps([{"k" + str(i % 3): i} for i in range(60)]).encode()
+    )
+    assert [next(iter(row)) for row in rows] == [f"k{i % 3}" for i in range(60)]
+    rows[0]["extra"] = 1
+    assert "extra" not in rows[1]
+
+
 def test_decode_pairs_surrogates_and_reads_a_marker_looking_key_as_a_key() -> None:
     assert core.decode_json(b'"\\ud83d\\ude00"') == "\U0001f600"
     odd = b'{"$serde_json::private::Number": "1"}'
