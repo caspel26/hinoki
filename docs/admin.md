@@ -91,7 +91,7 @@ To use your own identity instead (single sign-on, an existing user table), pass 
 
 ## The sign-in page
 
-`login` shows a card titled **Sign in** with a username and a password field. Every page of the admin redirects there (`303`) when the browser has no valid session.
+`login` shows a centred card with the site name, the title **Sign in**, a username field, a password field and a full-width button, in the active theme's colours and in its light or dark mode. Every page of the admin redirects there (`303`) when the browser has no valid session.
 
 | Request | Answer |
 | --- | --- |
