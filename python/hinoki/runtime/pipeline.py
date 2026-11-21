@@ -93,6 +93,8 @@ log = logging.getLogger("hinoki.runtime")
 # `None` is the private marker for a path decoding error, deferred until after
 # the pipeline's early host/CORS/redirect/docs policies.
 MatchedRoute = tuple[int, dict[str, str] | None]
+MAX_HEADER_SHAPES = 256
+"""Distinct response header shapes kept; more are computed per request."""
 
 
 class NativeBody(NamedTuple):
@@ -206,6 +208,9 @@ class Pipeline:
         self.trust_request_id = settings.server.trust_request_id if settings else False
         # Fixed for the worker's life: computed once, not for every request.
         self.request_id_name = self.request_id_header.encode("ascii")
+        self.header_shapes: dict[
+            object, tuple[tuple[tuple[bytes, bytes], ...], bool]
+        ] = {}
         self.request_ids = itertools.count()
         self.request_id_prefix = secrets.token_hex(8)
         self.policy = {
@@ -579,16 +584,39 @@ class Pipeline:
         prefix and a counter), without a system call per request."""
         return f"{self.request_id_prefix}{next(self.request_ids):016x}"
 
+    def shaped_headers(
+        self, response: Response, https: bool
+    ) -> tuple[tuple[tuple[bytes, bytes], ...], bool]:
+        """The final headers but the request id, and whether the answer set its
+        own ``allow_origin``. Fixed by the answer's own headers, the policy and
+        the route's headers, so each distinct shape is computed once; a shape
+        beyond the bound (headers that carry per-request values) is not kept."""
+        route_headers = context.route_headers.get()
+        try:
+            key: object = (https, route_headers, tuple(response.headers))
+            shape = self.header_shapes.get(key)
+        except TypeError:  # an unhashable header entry
+            key, shape = None, None
+        if shape is None:
+            headers, has_allow_origin = core.response_headers(
+                response.headers,
+                self.policy[https],
+                route_headers,
+                self.request_id_name,
+                b"",
+                ALLOW_ORIGIN,
+            )
+            shape = (tuple(headers[:-1]), has_allow_origin)
+            if key is not None and len(self.header_shapes) < MAX_HEADER_SHAPES:
+                self.header_shapes[key] = shape
+        return shape
+
     def with_headers(self, response: Response, scope: Scope, rid: str) -> Response:
         """Replace the answer's headers with the final ones."""
-        headers, has_allow_origin = core.response_headers(
-            response.headers,
-            self.policy[scope.get("scheme", "") == "https"],
-            context.route_headers.get(),
-            self.request_id_name,
-            rid.encode("ascii"),
-            ALLOW_ORIGIN,
+        shaped, has_allow_origin = self.shaped_headers(
+            response, scope.get("scheme", "") == "https"
         )
+        headers = [*shaped, (self.request_id_name, rid.encode("ascii"))]
         if self.cors is not None and not has_allow_origin:
             # An answer that sets its own CORS headers keeps them.
             headers.extend(self.cors.headers(origin_of(scope)))
