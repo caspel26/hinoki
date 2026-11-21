@@ -235,6 +235,7 @@ class Site:
             "sidebar",
             home=self.url(),
             site=admin.site,
+            logo=admin.logo_mark,
             tagline=admin.tagline,
             nav=await self.nav(active),
             extra=self.extra_links(),

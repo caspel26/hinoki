@@ -56,6 +56,7 @@ def page(  # noqa: PLR0913 - one value per part of the page
         theme=admin.theme.name,
         title=title,
         site=admin.site,
+        logo=admin.logo_mark,
         stylesheet=f"{admin.base}/static/admin.css?v={admin.digests['admin.css']}",
         sprite=t.sprite,
         notice=admin.parts.notice("error", problem) if problem else Raw(""),
