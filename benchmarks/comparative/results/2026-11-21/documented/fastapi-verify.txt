@@ -1,0 +1,26 @@
+# start 1
+== fastapi
+json-1k: 939 bytes, 0 statements
+json-10k: 10238 bytes, 0 statements
+list:
+  1x SELECT count(*) AS count_1 FROM posts WHERE posts.published IS true
+  1x SELECT posts.id, posts.author_id, posts.title, posts.body, posts.published, posts.created_at, authors_1.id AS id_1, authors_1.name FROM posts LEFT OUT
+detail:
+  1x SELECT posts.id, posts.author_id, posts.title, posts.body, posts.published, posts.created_at, authors_1.id AS id_1, authors_1.name FROM posts LEFT OUT
+create:
+  1x INSERT INTO posts (id, author_id, title, body, published, created_at) VALUES ($1::UUID, $2::UUID, $3::VARCHAR, $4::VARCHAR, $5::BOOLEAN, $6::TIMESTAMP
+  1x SELECT authors.id, authors.name FROM authors WHERE authors.id = $1::UUID
+OK: behaviour and statement counts match the oracle
+# start 2
+== fastapi
+json-1k: 939 bytes, 0 statements
+json-10k: 10238 bytes, 0 statements
+list:
+  1x SELECT count(*) AS count_1 FROM posts WHERE posts.published IS true
+  1x SELECT posts.id, posts.author_id, posts.title, posts.body, posts.published, posts.created_at, authors_1.id AS id_1, authors_1.name FROM posts LEFT OUT
+detail:
+  1x SELECT posts.id, posts.author_id, posts.title, posts.body, posts.published, posts.created_at, authors_1.id AS id_1, authors_1.name FROM posts LEFT OUT
+create:
+  1x INSERT INTO posts (id, author_id, title, body, published, created_at) VALUES ($1::UUID, $2::UUID, $3::VARCHAR, $4::VARCHAR, $5::BOOLEAN, $6::TIMESTAMP
+  1x SELECT authors.id, authors.name FROM authors WHERE authors.id = $1::UUID
+OK: behaviour and statement counts match the oracle

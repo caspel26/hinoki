@@ -35,8 +35,8 @@ DB = os.environ.get(
 )
 POSTGRES_CONTAINER = os.environ.get("BENCH_POSTGRES_CONTAINER", "hinoki-bench-pg")
 PORT = 8801
-SERVER_CPUS = "0-3"
-LOAD_CPUS = "6-7"
+SERVER_CPUS = os.environ.get("BENCH_SERVER_CPUS", "0,1,4,5")
+LOAD_CPUS = os.environ.get("BENCH_LOAD_CPUS", "2,3,6,7")
 # CPU pinning needs Linux `taskset`; elsewhere (macOS has no hard affinity) the
 # processes are left to the OS scheduler and the metadata records that.
 PINNED = sys.platform == "linux" and shutil.which("taskset") is not None

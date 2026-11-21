@@ -72,15 +72,26 @@ impl StreamLimit {
 
     /// Take a place, or `None` when the worker is full.
     fn acquire(&self) -> Option<StreamPermit> {
-        let taken = self
-            .open
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |open| {
-                (open < self.limit).then_some(open + 1)
-            });
-        taken.ok().map(|_| StreamPermit {
-            open: Arc::clone(&self.open),
-            held: AtomicBool::new(true),
-        })
+        let mut open = self.open.load(Ordering::Acquire);
+        loop {
+            if open >= self.limit {
+                return None;
+            }
+            match self.open.compare_exchange_weak(
+                open,
+                open + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Some(StreamPermit {
+                        open: Arc::clone(&self.open),
+                        held: AtomicBool::new(true),
+                    })
+                }
+                Err(seen) => open = seen,
+            }
+        }
     }
 }
 

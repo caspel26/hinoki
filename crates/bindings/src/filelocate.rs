@@ -50,12 +50,21 @@ impl Places {
     }
 
     fn take(&self) -> Option<Place> {
-        self.used
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
-                (used < self.limit).then_some(used + 1)
-            })
-            .ok()
-            .map(|_| Place(Arc::clone(&self.used)))
+        let mut used = self.used.load(Ordering::Acquire);
+        loop {
+            if used >= self.limit {
+                return None;
+            }
+            match self.used.compare_exchange_weak(
+                used,
+                used + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Some(Place(Arc::clone(&self.used))),
+                Err(seen) => used = seen,
+            }
+        }
     }
 }
 

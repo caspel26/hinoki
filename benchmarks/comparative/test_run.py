@@ -103,6 +103,28 @@ def sleeper(ignore_term: bool) -> subprocess.Popen:
     return process
 
 
+def cpu_numbers(spec: str) -> set[int]:
+    numbers: set[int] = set()
+    for part in spec.split(","):
+        low, _, high = part.partition("-")
+        numbers.update(range(int(low), int(high or low) + 1))
+    return numbers
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="needs Linux CPU topology")
+def test_server_and_load_generator_never_share_a_physical_core() -> None:
+    def core(cpu: int) -> str:
+        path = Path(f"/sys/devices/system/cpu/cpu{cpu}/topology/thread_siblings_list")
+        if not path.exists():
+            pytest.skip(f"cpu{cpu} is not present on this host")
+        return path.read_text().strip()
+
+    server = {core(cpu) for cpu in cpu_numbers(run.SERVER_CPUS)}
+    load = {core(cpu) for cpu in cpu_numbers(run.LOAD_CPUS)}
+
+    assert server.isdisjoint(load)
+
+
 def test_stop_ends_the_whole_group_on_sigterm() -> None:
     process = sleeper(ignore_term=False)
 
