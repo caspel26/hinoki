@@ -117,6 +117,44 @@ def test_encode_limits_nesting() -> None:
         core.encode_json(deep)
 
 
+STDLIB_TEXT: Any = {
+    "é": 'ü😀\x7f\x1f"\\\n',
+    "a b": [],
+    "a!": {},
+    "a": [1, 2.5, None, True, {"k": []}],
+    "": 3,
+}
+
+
+@pytest.mark.parametrize("indent", [None, 2])
+def test_encode_ensure_ascii_and_sorting_match_json_dumps(indent: int | None) -> None:
+    separators = (",", ":") if indent is None else None
+    for sort_keys in (False, True):
+        expected = json.dumps(
+            STDLIB_TEXT,
+            indent=indent,
+            sort_keys=sort_keys,
+            separators=separators,
+        )
+        got = core.encode_json(STDLIB_TEXT, indent, sort_keys, None, True)
+        assert got == expected.encode()
+
+
+def test_sorting_keys_puts_a_key_before_the_keys_it_prefixes() -> None:
+    assert core.encode_json({"a!": 1, "a": 2, "a b": 3}, None, True) == (
+        b'{"a":2,"a b":3,"a!":1}'
+    )
+
+
+def test_decode_reports_syntax_apart_from_python_refusing_a_value() -> None:
+    for raw in (b"{", b"\xff", b"NaN", b'"\\ud800"'):
+        with pytest.raises(core.JsonDecodeError):
+            core.decode_json(raw)
+    with pytest.raises(ValueError, match="limit") as refused:
+        core.decode_json(b"1" * 5000)
+    assert not isinstance(refused.value, core.JsonDecodeError)
+
+
 def test_query_strings_match_parse_qs_for_valid_input() -> None:
     raw = "a=1&b&c=&a=x%20y+z&&d=%zz&e=%41"
     expected = parse_qs(raw, keep_blank_values=True, errors="strict")
