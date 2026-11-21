@@ -168,7 +168,11 @@ pub enum Shape {
 impl Shape {
     pub fn of(delivery: &Delivery) -> Self {
         match delivery {
-            Delivery::Whole(answer) => Self::Whole(answer.body.len() as u64),
+            // A backend answering HEAD sends no body but declares its length.
+            Delivery::Whole(answer) => Self::Whole(match answer.body.len() as u64 {
+                0 => declared_length(&answer.headers).ok().flatten().unwrap_or(0),
+                size => size,
+            }),
             Delivery::Streamed(streamed) => {
                 Self::Live(declared_length(&streamed.headers).ok().flatten())
             }
