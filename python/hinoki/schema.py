@@ -404,19 +404,33 @@ def schema_instance_values(
             if passes and value is not UNSET:
                 values[key] = value
                 continue
-            checked = instance_value(
-                ftype,
-                value,
-                use_aliases=use_aliases,
-                active=active,
-                depth=depth + 1,
-                path=f"{path}.{key}" if path else key,
+            add_instance_value(
+                values, key, ftype, value, (use_aliases, active, depth), path
             )
-            if checked is not _INSTANCE_MISSING:
-                values[key] = checked
         return values
     finally:
         active.remove(id(instance))
+
+
+def add_instance_value(
+    values: dict[str, Any],
+    key: str,
+    ftype: FieldType,
+    value: Any,
+    walk: tuple[bool, set[int], int],
+    path: str,
+) -> None:
+    use_aliases, active, depth = walk
+    checked = instance_value(
+        ftype,
+        value,
+        use_aliases=use_aliases,
+        active=active,
+        depth=depth + 1,
+        path=f"{path}.{key}" if path else key,
+    )
+    if checked is not _INSTANCE_MISSING:
+        values[key] = checked
 
 
 def instance_value(
