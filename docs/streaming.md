@@ -209,7 +209,8 @@ call the application's code or live in the event loop.
   (`core.StreamLimit`: an atomic counter whose places give themselves back when
   released or dropped), the file lookup of a `File` (`core.locate_file`: real
   path, `root` check, regular file and size, on a blocking thread and not in the
-  sync executor), the declared-length arithmetic of the ASGI pump
+  sync executor; at most 32 lookups run at once in the process and one more
+  answers `503` with `Retry-After: 1` instead of queueing), the declared-length arithmetic of the ASGI pump
   (`core.Tally`), the `content-disposition` value (`core.content_disposition`)
   and the SSE frames. A WSGI stream's idle timeout is the connection's own timer,
   as on Kiso.
