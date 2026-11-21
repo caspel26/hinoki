@@ -8,6 +8,16 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🗜️ Response compression on Kiso
+> `crates/kiso/src/compress.rs`, `crates/kiso/src/encode.rs`, `crates/bindings/src/compression.rs`, `python/hinoki/settings.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/serve.py`
+
+Kiso can compress response bodies with brotli or gzip. It is off by default and Kiso only: `hinoki serve --server granian` refuses `compression.enabled`. A new `compression` settings group (`enabled`, `encodings`, `min_size`, `types`, `event_streams`, `files`, `gzip_level`, `brotli_quality` (0 to 9), `max_concurrent`) controls it. Kiso negotiates `accept-encoding`, adds `Vary`, skips small bodies, other content types and answers with `cache-control: no-transform`, flushes a stream whenever its producer pauses, and sends an answer uncompressed when `max_concurrent` compressions are already running. The release wheel grows with the two new Rust crates (flate2 and brotli). See [compress responses](docs/compression.md).
+
+#### 🌊 Streaming responses
+> `python/hinoki/http/stream.py`, `python/hinoki/runtime/streaming.py`, `crates/bindings/src/streamlimit.rs`, `crates/bindings/src/filelocate.rs`, `crates/bindings/src/tally.rs`, `crates/bindings/src/disposition.rs`, `python/hinoki/runtime/kiso.py`, `python/hinoki/runtime/asgi.py`, `python/hinoki/testing.py`, `crates/kiso`, `crates/bindings`
+
+An action annotated `-> Stream`, `-> EventStream` or `-> File` is sent while it is produced, on Kiso and on Granian: `Stream` for bytes or text from an async or plain iterable, `EventStream` and `Event` for server-sent events, and `File` for a file that Kiso sends without its bytes entering Python. A slow client slows the producer down, a client that leaves closes the source, and a stream that fails after the head is cut instead of ending as complete. New settings `execution.max_streams` (64), `execution.stream_idle_timeout` and `execution.sse_keepalive` (15 s). `atomic=True`, a generator handler and status `204`/`304` are refused at registration; `WSGIAdapter` refuses an application with a streamed action when it starts, and the application MCP endpoint will not expose one. `ASGIClient.stream()` and `SyncClient.stream()` read the pieces as they are sent, and `client.get()` stops with `BodyTooLarge` on a body that does not end. See [stream a response](docs/streaming.md).
+
 #### 🧭 Create an app at the end of `hinoki new`
 > `python/hinoki/newcli.py`, `python/hinoki/appprompts.py`, `python/hinoki/scaffold.py` (#405, #408, #410)
 
@@ -42,10 +52,21 @@ Middleware, raw responses and the WSGI path are stricter: a path with a NUL byte
 
 The database pool defaults to the settings size of 10, and a URL scheme that lacks its slashes is named in the error.
 
+#### 🧮 JSON is read and written by the Rust core
+> `python/hinoki/jsontext.py`, `crates/bindings/src/request.rs`, `crates/bindings/src/modelrows.rs`
+
+The command line, the migration state files, the JSON log format, the MCP server and the test client no longer use Python's `json` module. Output is the same data with compact separators (`{"a":1}`) where it was not indented, and floats such as `1e-07` print as `1e-7`. Command-line, log, MCP and migration-state output stays ASCII. What changes for callers:
+
+- `NaN` and infinities are refused when written or read.
+- Reading refuses nesting deeper than 128 levels (the standard library allowed about 1000); this applies to MCP input and to the test client.
+- The test client's `json=` also accepts `datetime` and `UUID` values.
+- A JSON column whose bytes start with a UTF-8 byte order mark raises `FieldError`.
+
 ---
 
 ### 🐛 Fixes
 
+- **Manifests and scaffolds:** names and paths with characters above the Basic Multilingual Plane (for example emoji) are written as valid TOML; they used to be written as surrogate-pair escapes, which TOML rejects (`python/hinoki/projectcli.py`, `python/hinoki/scaffold.py`).
 - **`hinoki check`:** it imports the manifest's models before running the rules and warns when it ran no rules (`python/hinoki/checkcli.py`, #391, #393).
 - **Migrations:** a plan error no longer suggests running `migrations plan` (#392).
 - **Model validation:** text length errors count characters, not items (`python/hinoki/orm/model.py`, #396).

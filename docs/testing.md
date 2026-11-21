@@ -180,7 +180,7 @@ async with ASGIClient(app) as client:
     assert response.status == 201
 ```
 
-Each file tuple is `(field_name, filename, content_bytes, content_type)`. Form data may be a mapping or an ordered sequence of `(name, text)` pairs; sequences retain repeated names. Do not pass `json=` or raw `body=` together with `data=`/`files=`; the helper owns the multipart content type and boundary. The application enforces its configured complete-body and per-part limits. This helper sends complete in-memory bodies and does not model streaming uploads.
+Each file tuple is `(field_name, filename, content_bytes, content_type)`. Form data may be a mapping or an ordered sequence of `(name, text)` pairs; sequences retain repeated names. Do not pass `json=` or raw `body=` together with `data=`/`files=`; the helper owns the multipart content type and boundary. The application enforces its configured complete-body and per-part limits. This helper sends complete in-memory bodies and does not model streaming uploads. For streamed responses see [test streams](#test-streams).
 
 ## Headers and hosts
 
@@ -195,6 +195,27 @@ async with ASGIClient(app, host="api.example.com") as client:
 ```
 
 The default remains no `Host` header. Set `headers={"host": "other.example.com"}` on a call to override the client's host. Because the clients run in-process, they do not log the startup warning about the default `allowed_hosts = *` that a served worker logs ([Hosts, CORS and HTTPS](web-security.md#allowed_hosts)).
+
+## Test streams
+
+`client.get()` waits for the end of a streamed response and returns the whole body. To see the head and the pieces as they are sent, use `client.stream()`; leaving the block tells the application that the client disconnected, so the source of the stream is closed:
+
+```python
+# tests/eventstest.py
+from hinoki.testing import ASGIClient
+
+from notes.main import app
+
+
+async def test_events_arrive_one_by_one() -> None:
+    async with ASGIClient(app) as client:
+        async with client.stream("GET", "/notes/events") as reply:
+            assert reply.status == 200
+            assert reply.headers["content-type"].startswith("text/event-stream")
+            first = await anext(reply.chunks())
+```
+
+`reply.chunks()` yields each piece as the application sent it, and raises the error that cut the response, if one did. `reply.read()` collects the rest. `SyncClient.stream()` is the same with `with` and a plain iterator. A stream that never ends makes `client.get()` fail with `BodyTooLarge` once the body passes `max_bytes` (10 MiB; pass `max_bytes=` to change it), so a test cannot hang on it. The in-process client runs the ASGI pump, not Kiso's: it shows what the client receives and when the source is closed, not the server's queue, timeouts or keep-alive.
 
 ## Synchronous tests and time
 

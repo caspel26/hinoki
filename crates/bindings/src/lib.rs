@@ -4,10 +4,13 @@
 //! decoding / JSON (see `request.rs`).
 
 mod completion;
+mod compression;
 mod crudplan;
 mod crypto;
 mod db;
+mod disposition;
 mod driver;
+mod filelocate;
 mod jwt;
 mod kiso;
 mod modelrows;
@@ -20,6 +23,9 @@ mod router;
 mod rows;
 mod schema;
 mod server;
+mod sink;
+mod streamlimit;
+mod tally;
 mod wsgi;
 mod xml;
 
@@ -94,6 +100,17 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     server::register(m)?;
     kiso::register(m)?;
     wsgi::register(m)?;
+    m.add_class::<sink::ResponseSink>()?;
+    m.add_function(wrap_pyfunction!(filelocate::locate_file, m)?)?;
+    m.add(
+        "FileLookupBusy",
+        m.py().get_type::<filelocate::FileLookupBusy>(),
+    )?;
+    m.add_function(wrap_pyfunction!(disposition::content_disposition, m)?)?;
+    m.add_class::<tally::Tally>()?;
+    m.add_class::<streamlimit::StreamLimit>()?;
+    m.add_class::<streamlimit::StreamPermit>()?;
+    m.add_function(wrap_pyfunction!(sink::sse_frame, m)?)?;
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
     m.add_function(wrap_pyfunction!(xml::parse_xml_body, m)?)?;
@@ -107,6 +124,10 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.py().get_type::<request::MultipartLimitError>(),
     )?;
     m.add_function(wrap_pyfunction!(request::negotiate_media, m)?)?;
+    m.add(
+        "JsonDecodeError",
+        m.py().get_type::<request::JsonDecodeError>(),
+    )?;
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
     m.add_class::<schema::Compiled>()?;
     m.add_function(wrap_pyfunction!(schema::compile_schemas, m)?)?;

@@ -117,6 +117,44 @@ def test_encode_limits_nesting() -> None:
         core.encode_json(deep)
 
 
+STDLIB_TEXT: Any = {
+    "é": 'ü😀\x7f\x1f"\\\n',
+    "a b": [],
+    "a!": {},
+    "a": [1, 2.5, None, True, {"k": []}],
+    "": 3,
+}
+
+
+@pytest.mark.parametrize("indent", [None, 2])
+def test_encode_ensure_ascii_and_sorting_match_json_dumps(indent: int | None) -> None:
+    separators = (",", ":") if indent is None else None
+    for sort_keys in (False, True):
+        expected = json.dumps(
+            STDLIB_TEXT,
+            indent=indent,
+            sort_keys=sort_keys,
+            separators=separators,
+        )
+        got = core.encode_json(STDLIB_TEXT, indent, sort_keys, None, True)
+        assert got == expected.encode()
+
+
+def test_sorting_keys_puts_a_key_before_the_keys_it_prefixes() -> None:
+    assert core.encode_json({"a!": 1, "a": 2, "a b": 3}, None, True) == (
+        b'{"a":2,"a b":3,"a!":1}'
+    )
+
+
+def test_decode_reports_syntax_apart_from_python_refusing_a_value() -> None:
+    for raw in (b"{", b"\xff", b"NaN", b'"\\ud800"'):
+        with pytest.raises(core.JsonDecodeError):
+            core.decode_json(raw)
+    with pytest.raises(ValueError, match="limit") as refused:
+        core.decode_json(b"1" * 5000)
+    assert not isinstance(refused.value, core.JsonDecodeError)
+
+
 def test_query_strings_match_parse_qs_for_valid_input() -> None:
     raw = "a=1&b&c=&a=x%20y+z&&d=%zz&e=%41"
     expected = parse_qs(raw, keep_blank_values=True, errors="strict")
@@ -132,3 +170,32 @@ def test_query_strings_reject_non_ascii_and_bad_utf8() -> None:
 def test_header_dict_lowers_names_and_joins_repeats() -> None:
     found = core.header_dict([(b"X-A", b"1"), (b"x-b", b"\xe9"), (b"x-a", b"3")])
     assert found == {"x-a": "1, 3", "x-b": "é"}
+
+
+@pytest.mark.parametrize(
+    ("value", "sort_keys"),
+    [
+        ({"a\ud800": ["\udfff", "x\ud83d", "é"], "\ud800b": 2}, False),
+        ({"b\ud800": 1, "a": 2, "\udfff": 3}, True),
+    ],
+)
+def test_encode_writes_lone_surrogates_like_json_dumps(
+    value: Any, sort_keys: bool
+) -> None:
+    expected = json.dumps(value, sort_keys=sort_keys, separators=(",", ":"))
+    assert core.encode_json(value, None, sort_keys, None, True) == expected.encode()
+
+
+def test_encode_escapes_lone_surrogates_in_utf8_output() -> None:
+    raw = core.encode_json({"k\ud800": "é\udfff"})
+    assert raw == b'{"k\\ud800":"\xc3\xa9\\udfff"}'
+
+
+def test_sorting_orders_non_string_keys_by_their_values() -> None:
+    assert core.encode_json({10: 1, 2: 1, True: 0}, None, True) == (
+        json.dumps(
+            {10: 1, 2: 1, True: 0}, sort_keys=True, separators=(",", ":")
+        ).encode()
+    )
+    with pytest.raises(TypeError):
+        core.encode_json({1: 1, "a": 2}, None, True)

@@ -60,6 +60,22 @@ The types are available from `hinoki.http`, from `hinoki`, or from their modules
 
 ::: hinoki.http.response.set_cookie
 
+::: hinoki.http.Stream
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.http.EventStream
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.http.Event
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.http.File
+    options:
+      show_if_no_docstring: true
+
 ::: hinoki.access.Access
     options:
       show_if_no_docstring: true

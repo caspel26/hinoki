@@ -28,10 +28,11 @@ use hyper::{Method, Request, Response, StatusCode, Version};
 
 use crate::accesslog::{self, AccessLog, Lane, LogFilter, Sink, Trace};
 use crate::body::BodyReader;
+use crate::compress::{Compression, Offer, Shape};
 use crate::early::Early;
 use crate::framing::Signals;
 use crate::headers::Header;
-use crate::stream::{self, Delivery, Live, Reply, Streamed};
+use crate::stream::{self, Delivery, FileAnswer, Live, Reply, Streamed};
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
@@ -143,37 +144,82 @@ fn incoming_of(
     }
 }
 
+/// The status, headers and body of a delivery. A HEAD answer sends no body and
+/// drops a stream's receiver (or closes a file), which tells the producer to
+/// stop. A file's head must declare exactly the file's length.
+fn parts_of(delivery: Delivery, head_only: bool) -> Result<(u16, Vec<Header>, Reply), String> {
+    let nothing = || Reply::Whole(Full::new(Bytes::new()));
+    Ok(match delivery {
+        Delivery::Whole(answer) => {
+            let body = if head_only {
+                Bytes::new()
+            } else {
+                Bytes::from(answer.body)
+            };
+            (answer.status, answer.headers, Reply::Whole(Full::new(body)))
+        }
+        Delivery::Streamed(Streamed {
+            status,
+            headers,
+            chunks,
+            pace,
+        }) => {
+            let body = if head_only {
+                nothing()
+            } else {
+                Reply::Live(Live::with_length(chunks, declared_length(&headers)?).paced(pace))
+            };
+            (status, headers, body)
+        }
+        Delivery::File(FileAnswer {
+            status,
+            headers,
+            file,
+        }) => {
+            if declared_length(&headers)? != Some(file.len()) {
+                return Err("the file's content-length does not match its size".to_owned());
+            }
+            (
+                status,
+                headers,
+                if head_only {
+                    nothing()
+                } else {
+                    Reply::File(file)
+                },
+            )
+        }
+    })
+}
+
+/// [`parts_of`], then the compression policy, when there is one, applied to the
+/// head and body.
+fn compressed_parts(
+    delivery: Delivery,
+    head_only: bool,
+    offer: Option<&Offer>,
+) -> Result<(u16, Vec<Header>, Reply), String> {
+    let shape = Shape::of(&delivery);
+    let (status, mut headers, body) = parts_of(delivery, head_only)?;
+    let body = match offer {
+        Some(offer) => offer.apply(status, &mut headers, body, shape, head_only),
+        None => body,
+    };
+    Ok((status, headers, body))
+}
+
 /// Build the hyper response, or say why the answer cannot be sent as given (a
 /// status or header hyper rejects, an unreadable `content-length`); the caller
 /// then answers a bare 500. So does an informational status: `101` would hand
 /// the connection to hyper's upgrade path (and h2 has no 101), and the server
 /// serves no protocol that switches. A streamed body is held to the
 /// `content-length` its head declares.
-fn response_of(delivery: Delivery, head_only: bool) -> Result<Response<Reply>, String> {
-    let (status, headers, body) = match delivery {
-        Delivery::Whole(answer) => (
-            answer.status,
-            answer.headers,
-            Reply::Whole(Full::new(if head_only {
-                Bytes::new()
-            } else {
-                Bytes::from(answer.body)
-            })),
-        ),
-        // A HEAD answer drops the receiver, which tells the producer to stop.
-        Delivery::Streamed(Streamed {
-            status,
-            headers,
-            chunks,
-        }) => {
-            let body = if head_only {
-                Reply::Whole(Full::new(Bytes::new()))
-            } else {
-                Reply::Live(Live::with_length(chunks, declared_length(&headers)?))
-            };
-            (status, headers, body)
-        }
-    };
+fn response_of(
+    delivery: Delivery,
+    head_only: bool,
+    offer: Option<&Offer>,
+) -> Result<Response<Reply>, String> {
+    let (status, headers, body) = compressed_parts(delivery, head_only, offer)?;
     let status = StatusCode::from_u16(status)
         .ok()
         .filter(|status| !status.is_informational())
@@ -191,7 +237,7 @@ fn response_of(delivery: Delivery, head_only: bool) -> Result<Response<Reply>, S
 
 /// The `content-length` a head declares: `None` without one, an error when
 /// it is not a number or repeated with different values.
-fn declared_length(headers: &[Header]) -> Result<Option<u64>, String> {
+pub(crate) fn declared_length(headers: &[Header]) -> Result<Option<u64>, String> {
     let mut declared = None;
     for (_, value) in headers
         .iter()
@@ -227,6 +273,8 @@ pub struct Transport {
     pub log_filter: Arc<LogFilter>,
     /// Add a `Server-Timing` header with the time taken and the serving lane.
     pub server_timing: bool,
+    /// Compress answers by this policy; `None` sends them as they are.
+    pub compression: Option<Arc<Compression>>,
 }
 
 /// The parts of a request an access-log line needs, kept past the handoff.
@@ -303,8 +351,12 @@ pub async fn respond<B: Backend>(
         .access_log
         .map(|style| (style, incoming.clone_head()));
     let timed = transport.server_timing.then(|| Arc::clone(&incoming.trace));
+    let offer = transport
+        .compression
+        .as_ref()
+        .map(|policy| policy.offer(&incoming.headers));
     let delivery = backend.deliver(incoming).await;
-    let mut response = response_of(delivery, head_only).unwrap_or_else(|reason| {
+    let mut response = response_of(delivery, head_only, offer.as_ref()).unwrap_or_else(|reason| {
         stream::report(&format!(
             "the response cannot be sent ({reason}); answering 500 instead"
         ));
@@ -358,7 +410,7 @@ mod tests {
     #[test]
     fn head_keeps_the_declared_length_and_drops_the_body() {
         let headers = vec![(b"content-length".to_vec(), b"5".to_vec())];
-        let response = response_of(whole(200, headers, b"hello"), true).unwrap();
+        let response = response_of(whole(200, headers, b"hello"), true, None).unwrap();
         assert_eq!(response.headers()["content-length"], "5");
         assert!(response.body().is_end_stream());
     }
@@ -369,13 +421,13 @@ mod tests {
             (b"set-cookie".to_vec(), b"a=1".to_vec()),
             (b"set-cookie".to_vec(), b"b=2".to_vec()),
         ];
-        let response = response_of(whole(200, headers, b""), false).unwrap();
+        let response = response_of(whole(200, headers, b""), false, None).unwrap();
         assert_eq!(response.headers().get_all("set-cookie").iter().count(), 2);
     }
 
     #[test]
     fn unrepresentable_answers_are_refused_with_a_reason() {
-        let reason = |delivery| match response_of(delivery, false) {
+        let reason = |delivery| match response_of(delivery, false, None) {
             Err(reason) => reason,
             Ok(_) => panic!("the answer was accepted"),
         };

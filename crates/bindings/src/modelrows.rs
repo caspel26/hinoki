@@ -6,9 +6,10 @@ use std::sync::Arc;
 
 use hinoki_orm::{DbError, ErrorKind, Value};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyDict, PyList};
+use pyo3::types::{PyAny, PyDict, PyList};
 
 use crate::db::{db_error, from_value};
+use crate::request::{decode_json, JsonDecodeError};
 
 pub(crate) struct ModelRows {
     cls: Py<PyAny>,
@@ -74,27 +75,16 @@ fn json_cell<'py>(
     column: &str,
     value: &Value,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let loads = py.import("json")?.getattr("loads")?;
     let decoded = match value {
-        Value::Text(text) => loads.call1((text,)),
-        Value::Bytes(bytes) => loads.call1((PyBytes::new(py, bytes),)),
+        Value::Text(text) => decode_json(py, text.as_bytes()),
+        Value::Bytes(bytes) => decode_json(py, bytes),
         other => return Ok(from_value(py, other)?.into_bound(py)),
     };
     match decoded {
         Ok(found) => Ok(found),
-        Err(err) if is_decode_error(py, &err)? => Err(field_error(py, plan, column)),
+        Err(err) if err.is_instance_of::<JsonDecodeError>(py) => Err(field_error(py, plan, column)),
         Err(err) => Err(err),
     }
-}
-
-/// The two errors `Model._json_values` reports as `FieldError`; any other
-/// `ValueError` (for example an oversized integer) propagates unchanged.
-fn is_decode_error(py: Python<'_>, err: &PyErr) -> PyResult<bool> {
-    let json_error = py.import("json")?.getattr("JSONDecodeError")?;
-    Ok(
-        err.is_instance_of::<pyo3::exceptions::PyUnicodeDecodeError>(py)
-            || err.matches(py, json_error)?,
-    )
 }
 
 fn is_scalar(value: &Bound<'_, PyAny>) -> bool {

@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import json
 import sys
 
+from hinoki import jsontext
 from hinoki.app import Hinoki
 from hinoki.errors import RegistrationError
 from hinoki.newcli import add_arguments as add_new_arguments
@@ -100,7 +100,7 @@ def render(
 ) -> str:
     totals = summary(diagnostics)
     if fmt == "json":
-        return json.dumps(
+        return jsontext.dumps(
             {
                 "schema_version": SCHEMA_VERSION,
                 "rules": rule_count,

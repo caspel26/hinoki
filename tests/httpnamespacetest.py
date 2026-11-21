@@ -11,7 +11,17 @@ import hinoki
 from hinoki import http
 
 VERBS = {"delete", "get", "patch", "post", "put", "query"}
-HTTP_TYPES = {"Request", "Response", "Middleware", "MiddlewareRequest", "Next"}
+HTTP_TYPES = {
+    "Request",
+    "Response",
+    "Middleware",
+    "MiddlewareRequest",
+    "Next",
+    "Stream",
+    "EventStream",
+    "Event",
+    "File",
+}
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("python", "tests", "examples", "benchmarks")
 

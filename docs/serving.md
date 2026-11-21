@@ -170,6 +170,10 @@ instrumentation seam today. Use the server's own limits and access log and the
 request log of your proxy, or serve with Granian when you need to wrap the
 application.
 
+## Streamed responses
+
+Actions that return `Stream`, `EventStream` or `File` work on both servers. Kiso sends them from its own queue, with its idle timeout, keep-alive comments and disconnect check, and sends a `File` without the bytes entering Python. Granian receives each piece as an ASGI message, and a `File` through `http.response.pathsend` when the server offers it; there Hinoki's own pump handles the idle timeout, the keep-alive and the disconnect. `execution.max_streams`, `execution.stream_idle_timeout` and `execution.sse_keepalive` apply to both ([settings](settings.md)). Details and measured behavior: [stream a response](streaming.md). Response compression exists on Kiso only; `compression.enabled` with `--server granian` is refused ([compress responses](compression.md)).
+
 ## WSGI
 
 ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI,
@@ -224,7 +228,7 @@ The adapter drives the same ASGI callable on a background event loop that it own
 * **Startup is lazy** under Granian (Kiso starts them with the worker). Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers `503` with `not_ready` and the error is logged.
 * **Shutdown** runs on `WSGIAdapter.close()` or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any `atexit` hook.
 * **Async handlers** run on the adapter's loop and **sync handlers** on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.
-* **Bodies are buffered.** Request bodies are read up to `max_body_bytes` plus one byte, so an oversized upload still answers `413`. Responses are complete before they are sent; streaming responses are not available, and a client disconnect is not reported to the handler.
+* **Bodies are buffered.** Request bodies are read up to `max_body_bytes` plus one byte, so an oversized upload still answers `413`. Responses are complete before they are sent: an application with an action that returns `Stream`, `EventStream` or `File` is refused when the adapter starts (`WSGIStartupError` naming the actions; serve it with ASGI or Kiso, see [streaming](streaming.md)), and a client disconnect is not reported to the handler.
 * **Paths.** The server decodes the path once and the adapter passes it on without decoding again, so a client's `%2520` reaches the handler as `%20`, as under ASGI. A percent-encoded slash (`%2F`) cannot be told apart from a real one in WSGI and is not available inside a path parameter. A bad `Content-Length` answers `400`.
 * **One protocol per process.** Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.
 

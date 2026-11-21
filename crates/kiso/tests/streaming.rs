@@ -3,14 +3,15 @@
 //! is never mistaken for a complete body.
 
 use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
 use kiso::{
-    serve, Aborted, AccessLog, Answer, Backend, Delivery, Incoming, LogFilter, ServerConfig, Sink,
-    Streamed,
+    serve, Aborted, AccessLog, Answer, Backend, Delivery, FileAnswer, FileBody, Incoming,
+    LogFilter, Pace, ServerConfig, Sink, Streamed,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -30,11 +31,23 @@ impl Backend for Producer {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
+        if request.path.starts_with("/file") {
+            return file(&request.path).await;
+        }
         let (sender, chunks) = mpsc::channel(1);
         let mut headers = vec![(b"content-type".to_vec(), b"text/plain".to_vec())];
+        let mut pace = Pace::default();
         match request.path.as_str() {
             "/two" => self.two(sender),
             "/forever" => self.forever(sender),
+            "/idle" => {
+                pace.idle = Some(Duration::from_millis(200));
+                Self::silent_after_a(sender);
+            }
+            "/beat" => {
+                pace.keepalive = Some(Duration::from_millis(60));
+                Self::late_event(sender);
+            }
             "/short" | "/long" => {
                 let declared: &[u8] = if request.path == "/short" {
                     b"100"
@@ -54,11 +67,55 @@ impl Backend for Producer {
             status: 200,
             headers,
             chunks,
+            pace,
         })
     }
 }
 
+/// `/file` is the whole test file, `/file-short` a head that declares more
+/// bytes than the file has.
+async fn file(path: &str) -> Delivery {
+    let body = FileBody::open(&sample()).await.unwrap();
+    let declared = if path == "/file-short" {
+        body.len() + 10
+    } else {
+        body.len()
+    };
+    Delivery::File(FileAnswer {
+        status: 200,
+        headers: vec![(
+            b"content-length".to_vec(),
+            declared.to_string().into_bytes(),
+        )],
+        file: body,
+    })
+}
+
+const SAMPLE: &[u8] = b"0123456789abcdefghij";
+
+fn sample() -> PathBuf {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join("streaming-sample.txt");
+    std::fs::write(&path, SAMPLE).unwrap();
+    path
+}
+
 impl Producer {
+    /// One piece, then silence for as long as the receiver lives.
+    fn silent_after_a(sender: mpsc::Sender<kiso::Chunk>) {
+        tokio::spawn(async move {
+            let _ = sender.send(Ok(Bytes::from_static(b"a"))).await;
+            sender.closed().await;
+        });
+    }
+
+    /// Silence for 330 ms, then one event and the end.
+    fn late_event(sender: mpsc::Sender<kiso::Chunk>) {
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(330)).await;
+            let _ = sender.send(Ok(Bytes::from_static(b"data: x\n\n"))).await;
+        });
+    }
+
     fn hi(sender: mpsc::Sender<kiso::Chunk>) {
         tokio::spawn(async move {
             let _ = sender.send(Ok(Bytes::from_static(b"hi"))).await;
@@ -135,7 +192,7 @@ async fn everything(addr: SocketAddr, path: &str) -> String {
 
 async fn request(addr: SocketAddr, method: &str, path: &str) -> TcpStream {
     let mut stream = TcpStream::connect(addr).await.unwrap();
-    let text = format!("{method} {path} HTTP/1.1\r\nhost: x\r\n\r\n");
+    let text = format!("{method} {path} HTTP/1.1\r\nhost: x\r\nconnection: close\r\n\r\n");
     stream.write_all(text.as_bytes()).await.unwrap();
     stream
 }
@@ -231,4 +288,102 @@ async fn a_head_the_transport_refuses_is_logged_as_the_500_it_became() {
     assert!(!text.contains("x-evil"), "{text}");
     let record = records.recv_timeout(WAIT).expect("an access record");
     assert!(record.contains("\"status\":500"), "{record}");
+}
+
+#[tokio::test]
+async fn a_silent_producer_is_cut_after_the_idle_timeout() {
+    let (addr, _stop) = start(Arc::new(Producer::default())).await;
+    let text = everything(addr, "/idle").await;
+    assert!(text.starts_with("HTTP/1.1 200"), "{text}");
+    assert!(text.contains("\r\na\r\n"), "{text}");
+    assert!(!text.ends_with("0\r\n\r\n"), "{text}");
+}
+
+#[tokio::test]
+async fn keep_alive_comments_fill_the_silence_and_the_body_still_ends_cleanly() {
+    let (addr, _stop) = start(Arc::new(Producer::default())).await;
+    let text = everything(addr, "/beat").await;
+    let beats = text.matches(": \n\n").count();
+    assert!((3..=6).contains(&beats), "{beats} keep-alives in {text:?}");
+    assert!(text.contains("data: x\n\n"), "{text:?}");
+    assert!(text.ends_with("0\r\n\r\n"), "{text:?}");
+}
+
+#[tokio::test]
+async fn a_file_is_sent_with_its_length_and_head_sends_no_body() {
+    let (addr, _stop) = start(Arc::new(Producer::default())).await;
+    let text = everything(addr, "/file").await;
+    let (head, body) = text.split_once("\r\n\r\n").expect("a head");
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+    assert!(
+        head.to_ascii_lowercase().contains("content-length: 20"),
+        "{head}"
+    );
+    assert!(
+        !head.to_ascii_lowercase().contains("transfer-encoding"),
+        "{head}"
+    );
+    assert_eq!(body.as_bytes(), SAMPLE);
+    let mut stream = request(addr, "HEAD", "/file").await;
+    let head = read_until(&mut stream, b"\r\n\r\n").await;
+    let text = String::from_utf8_lossy(&head).to_ascii_lowercase();
+    assert!(text.contains("content-length: 20"), "{text}");
+    let mut rest = Vec::new();
+    let _ = timeout(Duration::from_millis(300), stream.read_to_end(&mut rest)).await;
+    assert!(rest.is_empty(), "{rest:?}");
+}
+
+#[tokio::test]
+async fn a_file_head_that_misstates_the_size_is_refused() {
+    let (addr, _stop) = start(Arc::new(Producer::default())).await;
+    let text = everything(addr, "/file-short").await;
+    assert!(text.starts_with("HTTP/1.1 500"), "{text}");
+}
+
+#[tokio::test]
+async fn a_file_that_shrinks_while_it_is_sent_ends_as_aborted() {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join("streaming-shrinks.bin");
+    std::fs::write(&path, vec![7u8; 150_000]).unwrap();
+    let mut file = FileBody::open(&path).await.unwrap();
+    assert_eq!(file.len(), 150_000);
+    let first = std::future::poll_fn(|cx| file.poll_piece(cx, usize::MAX)).await;
+    assert_eq!(first.unwrap().unwrap().len(), 64 * 1024);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_len(70_000)
+        .unwrap();
+    let mut total = 64 * 1024;
+    let failure = loop {
+        match std::future::poll_fn(|cx| file.poll_piece(cx, usize::MAX)).await {
+            Some(Ok(piece)) => total += piece.len(),
+            Some(Err(aborted)) => break aborted,
+            None => panic!("a shortened file ended as complete"),
+        }
+    };
+    assert_eq!((total, failure), (70_000, Aborted));
+    assert!(file.is_done());
+}
+
+#[tokio::test]
+async fn a_file_that_grows_is_cut_at_the_length_it_had() {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join("streaming-grows.bin");
+    std::fs::write(&path, vec![1u8; 10]).unwrap();
+    let mut file = FileBody::open(&path).await.unwrap();
+    std::fs::write(&path, vec![1u8; 100]).unwrap();
+    let piece = std::future::poll_fn(|cx| file.poll_piece(cx, usize::MAX)).await;
+    assert_eq!(piece.unwrap().unwrap().len(), 10);
+    assert!(std::future::poll_fn(|cx| file.poll_piece(cx, usize::MAX))
+        .await
+        .is_none());
+}
+
+#[tokio::test]
+async fn only_a_regular_file_can_be_opened() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let directory = FileBody::open(dir).await.unwrap_err().kind();
+    assert_eq!(directory, std::io::ErrorKind::InvalidInput);
+    let missing = FileBody::open(&dir.join("missing.bin")).await;
+    assert_eq!(missing.unwrap_err().kind(), std::io::ErrorKind::NotFound);
 }

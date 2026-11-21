@@ -12,9 +12,11 @@
 pub mod accept;
 pub mod accesslog;
 pub mod body;
+pub mod compress;
 pub mod conn;
 pub mod cors;
 pub mod early;
+pub mod encode;
 pub mod framing;
 pub mod headers;
 pub mod hosts;
@@ -26,11 +28,14 @@ pub mod proxy;
 pub mod queue;
 pub mod redirect;
 pub mod requestid;
+pub mod sse;
 pub mod stall;
 pub mod stream;
 pub mod streams;
 pub mod tls;
 
+#[cfg(test)]
+mod compress_tests;
 #[cfg(test)]
 mod jobs_tests;
 #[cfg(test)]
@@ -41,12 +46,14 @@ mod policy_tests;
 pub use accept::{serve, Closed, ServerConfig, Stop};
 pub use accesslog::{AccessLog, Lane, LogFilter, Sink, Trace};
 pub use body::{BodyError, BodyReader};
+pub use compress::{Compression, Config as CompressionConfig};
 pub use conn::{Answer, Backend, Incoming};
 pub use early::{Early, EarlyBodies};
+pub use encode::{Coding, Levels};
 pub use inputs::{convert, Converted, InputValue};
 pub use jobs::NativeJobs;
 pub use limits::Limits;
 pub use plan::{CrudPlanSlot, InputKind, InputParam, Plan, PlanError, RoutePlan};
 pub use proxy::Networks;
 pub use queue::{InFlight, Permit, Queue};
-pub use stream::{Aborted, Chunk, Delivery, Streamed};
+pub use stream::{Aborted, Chunk, Delivery, FileAnswer, FileBody, Live, Pace, Streamed};

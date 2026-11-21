@@ -14,7 +14,6 @@ import dataclasses
 import enum
 import hashlib
 import inspect
-import json
 import re
 import types
 from datetime import date, datetime, time, timedelta
@@ -25,6 +24,7 @@ from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
 from uuid import UUID
 
+from hinoki import jsontext
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
@@ -749,7 +749,7 @@ def latest_state(directory: Path) -> State:
     path = files[-1].with_suffix(".state.json")
     if not path.is_file():
         raise MigrationError(f"{path.name} is missing; restore it from version control")
-    state: State = json.loads(path.read_text(encoding="utf-8"))
+    state: State = jsontext.loads(path.read_bytes())
     for table in state.get("tables", {}).values():
         for column in table.get("columns", {}).values():
             column["type"] = LEGACY_STATE_TYPES.get(
@@ -809,7 +809,7 @@ def plan(
     path = directory / f"{title}.sql"
     path.write_text(render(title, operations), encoding="utf-8")
     path.with_suffix(".state.json").write_text(
-        json.dumps(new, indent=2) + "\n", encoding="utf-8"
+        jsontext.dumps(new, indent=2) + "\n", encoding="utf-8"
     )
     return Plan(tuple(operations), new, path)
 

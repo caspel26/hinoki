@@ -169,11 +169,8 @@ pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
         return Ok(value);
     }
     if obj.is_instance_of::<PyDict>() || obj.is_instance_of::<PyList>() {
-        let text: String = py
-            .import("json")?
-            .call_method1("dumps", (obj,))?
-            .extract()?;
-        return serde_json::from_str(&text)
+        let text = crate::request::encode_json(py, obj, None, false, None, false)?;
+        return serde_json::from_slice(text.as_bytes())
             .map(Value::Json)
             .map_err(|e| PyValueError::new_err(e.to_string()));
     }
@@ -205,10 +202,7 @@ pub(crate) fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
                 db_error(py, &DbError::new(ErrorKind::Type, message))
             })?
             .unbind(),
-        Value::Json(v) => py
-            .import("json")?
-            .call_method1("loads", (v.to_string(),))?
-            .unbind(),
+        Value::Json(v) => crate::request::decode_json(py, v.to_string().as_bytes())?.unbind(),
     })
 }
 

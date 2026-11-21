@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 import os
 import signal
@@ -39,20 +38,22 @@ from urllib.parse import unquote
 from hinoki import context, core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
+from hinoki.http.stream import EventStream, Sourced
 from hinoki.runtime import banner
 from hinoki.runtime.listener import inherited_address, open_listener
 from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_data
 from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.recent import RequestRecorder
-from hinoki.runtime.responses import HTTPError, Response
+from hinoki.runtime.responses import HTTPError, Response, StreamHandle
 from hinoki.runtime.servercore import (
     build_server_core,
     claims_route_access,
     route_auth_stale,
     route_auth_state,
 )
+from hinoki.runtime.streaming import SourceReader, keepalive_of, pump_sink
 from hinoki.serve import load_target, settings_of
-from hinoki.settings import RUST_ONLY, ServerSettings
+from hinoki.settings import RUST_ONLY, AppSettings, ServerSettings
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
@@ -66,7 +67,7 @@ def log_access(batch: Sequence[str]) -> None:
     from Kiso's logging thread, a batch at a time). Each record carries its
     fields as ``record.access`` for handlers and formatters that want them."""
     for text in batch:
-        fields = json.loads(text)
+        fields = core.decode_json(text.encode())
         access_logger.info(
             "%s %s %s %s %.1fms",
             fields["peer"],
@@ -180,6 +181,7 @@ class KisoWorker:
         access_log_slow_ms: float | None = None,
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
+        compression: dict[str, object] | None = None,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -199,6 +201,7 @@ class KisoWorker:
         self.access_log_slow_ms = access_log_slow_ms
         self.access_log_sink = access_log_sink
         self.server_timing = server_timing
+        self.compression = compression
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -276,6 +279,7 @@ class KisoWorker:
                 self.access_log_slow_ms,
                 self.access_log_sink,
                 self.server_timing,
+                self.compression,
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -589,7 +593,9 @@ class KisoWorker:
             log.warning("ignored invalid request ID from trusted proxy")
         try:
             response, native_final = await self._pipeline_response(request)
-            if native_final:
+            if response.stream is not None:
+                await self._send_stream(request, response, response.stream)
+            elif native_final:
                 request.respond_final(response.status, response.headers, response.body)
             else:
                 # Set by the pipeline in this task's context while it answered.
@@ -604,6 +610,52 @@ class KisoWorker:
             # The route's own headers may be what failed; the 500 must not reuse them.
             context.route_headers.set(())
             self._fail(request)
+
+    async def _send_stream(
+        self, request: core.PreparedRequest, response: Response, handle: StreamHandle
+    ) -> None:
+        """Send a streamed answer: the head, then the body. The place the answer
+        holds is given back when the body ends (a file is sent by the server alone, so
+        its place is given back at once)."""
+        route_headers = context.route_headers.get()
+        try:
+            if handle.location is not None:
+                request.respond_file(
+                    response.status, response.headers, route_headers, handle.location[0]
+                )
+                return
+            await self._send_sourced(request, response, handle, route_headers)
+        finally:
+            handle.release()
+
+    async def _send_sourced(
+        self,
+        request: core.PreparedRequest,
+        response: Response,
+        handle: StreamHandle,
+        route_headers: tuple[tuple[str, str], ...],
+    ) -> None:
+        answer = handle.answer
+        if not isinstance(answer, Sourced):
+            raise RuntimeError("only a sourced answer reaches the sink pump")
+        events = isinstance(answer, EventStream)
+        sink = request.respond_stream(
+            response.status,
+            response.headers,
+            route_headers,
+            None if events else self.pipeline.app.runtime.idle_timeout,
+            keepalive_of(answer, self.pipeline.app.runtime.sse_keepalive),
+            answer.length,
+        )
+        reader = SourceReader(answer, self.pipeline.executor)
+        if sink is None or request.method == "HEAD":
+            if sink is not None:
+                sink.finish()
+            await reader.close()
+            return
+        await pump_sink(
+            sink, reader, answer.preamble, self.pipeline.streams if events else None
+        )
 
     async def stop(self) -> int:
         """Stop accepting, let running requests finish (up to the shutdown
@@ -621,6 +673,7 @@ class KisoWorker:
         except Exception:
             log.exception("housekeeping failed")
         drain_interrupted = False
+        self.pipeline.streams.stop_events()  # SSE streams end with a normal close
         try:
             aborted = await server.shutdown()
         finally:
@@ -740,6 +793,7 @@ def build_worker(
         for name in RUST_ONLY
         if getattr(settings, name) is not None
     }
+    app_settings = getattr(app, "settings", None)
     return KisoWorker(
         app,
         host,
@@ -755,6 +809,11 @@ def build_worker(
         access_log_slow_ms=settings.access_log_slow_ms,
         access_log_sink=access_sink(settings, dev),
         server_timing=dev if settings.server_timing is None else settings.server_timing,
+        compression=(
+            app_settings.compression.native_options()
+            if isinstance(app_settings, AppSettings)
+            else None
+        ),
         **limits,
     )
 

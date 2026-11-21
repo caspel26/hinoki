@@ -16,10 +16,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use kiso::{
-    serve, AccessLog, Answer, Backend, Closed, Early, Incoming, Lane, LogFilter, ServerConfig, Sink,
+    serve, AccessLog, Answer, Backend, Closed, Compression, Delivery, Early, FileAnswer, FileBody,
+    Incoming, Lane, LogFilter, ServerConfig, Sink,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use socket2::{Socket, Type};
 use tokio::net::TcpListener;
 use tokio::sync::{watch, Semaphore};
@@ -28,7 +30,8 @@ use tokio::task::{AbortHandle, JoinHandle};
 use crate::crudplan::CrudPlan;
 use crate::nativecrud::{NativeRead, NativeWrite};
 use crate::server::{
-    Asked, Core, Head, NativeFailure, NativeRows, Outcome, PreparedRequest, Reply, ServerCore,
+    Asked, Core, FileReply, Head, NativeFailure, NativeRows, Outcome, PreparedRequest, Sent,
+    ServerCore,
 };
 use hinoki_orm::{Database, DbError, ErrorKind as DbErrorKind};
 
@@ -58,6 +61,102 @@ impl CoreBackend {
         let _ = wake.write(&[1]);
     }
 
+    fn not_ready(&self, asked: &Asked) -> Answer {
+        self.core
+            .early_reply(asked, Early::NotReady, Vec::new())
+            .unwrap_or_else(|_| internal_error())
+    }
+
+    /// The outcome as the delivery the connection sends: a queued request may
+    /// answer with a stream or a file, every other outcome is whole.
+    async fn delivery_of(&self, outcome: Outcome) -> Delivery {
+        let Outcome::Queued {
+            wake,
+            receiver,
+            asked,
+        } = outcome
+        else {
+            return Delivery::Whole(self.reply_of(outcome).await);
+        };
+        if wake {
+            self.ring();
+        }
+        match receiver.await {
+            Ok(Sent::Whole(reply)) => Delivery::Whole(reply),
+            Ok(Sent::Streamed(streamed)) => Delivery::Streamed(streamed),
+            Ok(Sent::File(file)) => self.file_delivery(&asked, file).await,
+            Err(_) => Delivery::Whole(self.not_ready(&asked)),
+        }
+    }
+
+    /// Open the file here, on the tokio side, and state its size as the length.
+    /// A file that is missing or is not a regular file answers 404.
+    async fn file_delivery(&self, asked: &Asked, reply: FileReply) -> Delivery {
+        let FileReply {
+            status,
+            mut headers,
+            path,
+        } = reply;
+        match FileBody::open(&path).await {
+            Ok(file) => {
+                headers.push((
+                    b"content-length".to_vec(),
+                    file.len().to_string().into_bytes(),
+                ));
+                Delivery::File(FileAnswer {
+                    status,
+                    headers,
+                    file,
+                })
+            }
+            Err(error) => Delivery::Whole(match error.kind() {
+                ErrorKind::NotFound | ErrorKind::InvalidInput => self
+                    .core
+                    .early_reply(asked, Early::NotFound, Vec::new())
+                    .unwrap_or_else(|_| internal_error()),
+                _ => internal_error(),
+            }),
+        }
+    }
+
+    /// Classify a request head; `None` is an internal inconsistency.
+    fn classify_request(&self, request: Incoming) -> Option<Outcome> {
+        let Incoming {
+            method,
+            path,
+            query,
+            headers,
+            peer,
+            secure,
+            http_version,
+            refusal,
+            body,
+            trace,
+        } = request;
+        let (trusted, forwarded) = self.core.peer_view(peer, &headers);
+        // A trusted proxy's scheme wins, like the Python resolution does.
+        let https = forwarded.unwrap_or(secure);
+        let head = Head {
+            method: &method,
+            path: &path,
+            query: &query,
+            headers,
+            trusted,
+            https,
+            http_version,
+            peer: Some(peer),
+            refusal,
+            body,
+        };
+        let outcome = self.core.classify(head, true, &trace).ok()?;
+        trace.set(match outcome {
+            Outcome::Early(_) => Lane::Early,
+            Outcome::Queued { .. } => Lane::Python,
+            Outcome::NativeCrud { .. } => Lane::Native,
+        });
+        Some(outcome)
+    }
+
     async fn reply_of(&self, outcome: Outcome) -> Answer {
         match outcome {
             Outcome::Early(reply) => reply,
@@ -70,13 +169,10 @@ impl CoreBackend {
                     self.ring();
                 }
                 match receiver.await {
-                    Ok(reply) => reply,
+                    Ok(sent) => whole(sent),
                     // Dropped unanswered (shutdown cancelled the task): the
                     // server is going away, so say so.
-                    Err(_) => self
-                        .core
-                        .early_reply(&asked, Early::NotReady, Vec::new())
-                        .unwrap_or_else(|_| internal_error()),
+                    Err(_) => self.not_ready(&asked),
                 }
             }
             Outcome::NativeCrud {
@@ -98,7 +194,7 @@ impl CoreBackend {
     async fn native_crud_reply(
         &self,
         request: PreparedRequest,
-        receiver: tokio::sync::oneshot::Receiver<Reply>,
+        receiver: tokio::sync::oneshot::Receiver<Sent>,
         asked: Asked,
         plan: Arc<CrudPlan>,
         database: Database,
@@ -108,11 +204,9 @@ impl CoreBackend {
         let Ok(mut job_wake) = self.wake.try_clone() else {
             let mut wake = &self.wake;
             requeue_native(&self.core, &mut wake, request, asked.clone());
-            return receiver.await.unwrap_or_else(|_| {
-                self.core
-                    .early_reply(&asked, Early::NotReady, Vec::new())
-                    .unwrap_or_else(|_| internal_error())
-            });
+            return receiver
+                .await
+                .map_or_else(|_| self.not_ready(&asked), whole);
         };
         let pending = Arc::new(Mutex::new(Some((request, asked.clone()))));
         let job_pending = Arc::clone(&pending);
@@ -168,12 +262,9 @@ impl CoreBackend {
                 } else {
                     None
                 };
-                let reply = receiver.await.unwrap_or_else(|_| {
-                    self.core
-                        .early_reply(&asked, Early::NotReady, Vec::new())
-                        .unwrap_or_else(|_| internal_error())
-                });
-                reply
+                receiver
+                    .await
+                    .map_or_else(|_| self.not_ready(&asked), whole)
             }
             Err(job) => {
                 drop(job);
@@ -185,11 +276,9 @@ impl CoreBackend {
                     let mut wake = &self.wake;
                     requeue_native(&self.core, &mut wake, request, asked);
                 }
-                receiver.await.unwrap_or_else(|_| {
-                    self.core
-                        .early_reply(&asked, Early::NotReady, Vec::new())
-                        .unwrap_or_else(|_| internal_error())
-                })
+                receiver
+                    .await
+                    .map_or_else(|_| self.not_ready(&asked), whole)
             }
         }
     }
@@ -347,44 +436,26 @@ fn requeue_native(core: &Core, wake: &mut impl Write, request: PreparedRequest, 
 
 impl Backend for CoreBackend {
     async fn handle(&self, request: Incoming) -> Answer {
-        let Incoming {
-            method,
-            path,
-            query,
-            headers,
-            peer,
-            secure,
-            http_version,
-            refusal,
-            body,
-            trace,
-        } = request;
-        let (trusted, forwarded) = self.core.peer_view(peer, &headers);
-        // A trusted proxy's scheme wins, like the Python resolution does.
-        let https = forwarded.unwrap_or(secure);
-        let head = Head {
-            method: &method,
-            path: &path,
-            query: &query,
-            headers,
-            trusted,
-            https,
-            http_version,
-            peer: Some(peer),
-            refusal,
-            body,
-        };
-        match self.core.classify(head, true, &trace) {
-            Ok(outcome) => {
-                trace.set(match outcome {
-                    Outcome::Early(_) => Lane::Early,
-                    Outcome::Queued { .. } => Lane::Python,
-                    Outcome::NativeCrud { .. } => Lane::Native,
-                });
-                self.reply_of(outcome).await
-            }
-            Err(_) => internal_error(),
+        match self.classify_request(request) {
+            Some(outcome) => self.reply_of(outcome).await,
+            None => internal_error(),
         }
+    }
+
+    async fn deliver(&self, request: Incoming) -> Delivery {
+        match self.classify_request(request) {
+            Some(outcome) => self.delivery_of(outcome).await,
+            None => Delivery::Whole(internal_error()),
+        }
+    }
+}
+
+/// An answer that must be whole: a stream or a file only comes from the Python
+/// pipeline, so anything else asking for one is an internal inconsistency.
+fn whole(sent: Sent) -> Answer {
+    match sent {
+        Sent::Whole(reply) => reply,
+        Sent::Streamed(_) | Sent::File(_) => internal_error(),
     }
 }
 
@@ -511,6 +582,7 @@ impl Shared {
         (tls_cert, tls_key, http2): TlsArgs,
         (access_log, access_log_skip, access_log_slow_ms, access_log_sink): LogArgs,
         server_timing: bool,
+        compression: Option<Arc<Compression>>,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -533,6 +605,7 @@ impl Shared {
             shutdown_timeout: seconds("shutdown_timeout", shutdown_timeout)?,
             max_header_bytes,
             server_timing,
+            compression,
             access_log: style,
             log_filter: Arc::new(LogFilter {
                 skip: access_log_skip.unwrap_or_default(),
@@ -597,7 +670,7 @@ impl KisoServer {
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
         access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false
+        access_log_sink=None, server_timing=false, compression=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -619,7 +692,9 @@ impl KisoServer {
         access_log_slow_ms: Option<f64>,
         access_log_sink: Option<Py<PyAny>>,
         server_timing: bool,
+        compression: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        let compression = crate::compression::parse(compression)?;
         let Shared {
             config,
             tls,
@@ -643,6 +718,7 @@ impl KisoServer {
                 access_log_sink,
             ),
             server_timing,
+            compression,
         )?;
         let (reader, writer) = UnixStream::pair().map_err(io_error)?;
         reader.set_nonblocking(true).map_err(io_error)?;

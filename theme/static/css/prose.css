@@ -492,18 +492,11 @@
 .admonition,
 details {
   --callout: var(--hn-info);
-  --callout-tint: var(--hn-tint-info);
   margin: var(--sp-5) 0;
-  padding: 14px 18px 16px;
-  border: 1px solid color-mix(in srgb, var(--callout) 22%, var(--hn-edge));
-  border-radius: 10px;
-  background:
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--callout) 9%, transparent),
-      transparent 56px
-    ),
-    color-mix(in srgb, var(--callout-tint) 55%, var(--hn-sunken));
+  padding: 14px 16px;
+  border: 1px solid var(--hn-edge);
+  border-radius: var(--radius-card);
+  background: var(--hn-surface-1);
   color: var(--hn-text-2);
   font-size: 15px;
   line-height: 1.65;
@@ -521,10 +514,8 @@ details > summary {
   gap: 9px;
   margin: 0 0 8px !important;
   padding: 0;
-  color: var(--hn-text);
-  font: 500 12px/1.4 var(--hn-font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: color-mix(in srgb, var(--callout) 75%, var(--hn-text));
+  font: 600 14px/1.4 var(--hn-font-sans, inherit);
   cursor: default;
 }
 
@@ -561,16 +552,38 @@ details:not([open]) > summary {
   margin-bottom: 0 !important;
 }
 
+/* Drop-down: the body grows and fades in on open and back out on close. Browsers without ::details-content open instantly. */
+@media (prefers-reduced-motion: no-preference) {
+  details {
+    interpolate-size: allow-keywords;
+  }
+
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+    transition:
+      block-size var(--hn-dur-3) var(--hn-ease),
+      opacity var(--hn-dur-2) var(--hn-ease),
+      content-visibility var(--hn-dur-3) allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
 .admonition > :last-child,
 details > :last-child {
   margin-bottom: 0;
 }
 
-:is(.admonition, details):is(.tip, .success, .hint) { --callout: var(--hn-green); --callout-tint: var(--hn-tint-success); }
-:is(.admonition, details):is(.warning, .caution, .attention) { --callout: var(--hn-amber); --callout-tint: var(--hn-tint-warning); }
-:is(.admonition, details):is(.danger, .failure, .bug, .error) { --callout: var(--hn-red); --callout-tint: var(--hn-tint-error); }
-:is(.admonition, details):is(.example, .quote) { --callout: var(--hn-wood); --callout-tint: var(--hn-tint-wood); }
-:is(.admonition, details):is(.abstract, .question) { --callout: var(--hn-brand); --callout-tint: var(--hn-tint-brand); }
+:is(.admonition, details):is(.tip, .success, .hint) { --callout: var(--hn-green); }
+:is(.admonition, details):is(.warning, .caution, .attention) { --callout: var(--hn-amber); }
+:is(.admonition, details):is(.danger, .failure, .bug, .error) { --callout: var(--hn-red); }
+:is(.admonition, details):is(.example, .quote) { --callout: var(--hn-wood); }
+:is(.admonition, details):is(.abstract, .question) { --callout: var(--hn-brand); }
 
 /* ---------- Tables ---------- */
 

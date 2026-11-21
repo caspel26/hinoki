@@ -60,6 +60,7 @@ app.include(*mcp)  # POST /mcp
 | `tools=[]` | `ExposureError` at the call |
 | `access=None` without `public=True` | `ExposureError` |
 | A pattern matches no included action, or the action is not in the OpenAPI document | `ExposureError` naming it |
+| An action that returns `Stream`, `EventStream` or `File` matches `tools` | `ExposureError` naming it: a tool returns one complete result, so a [streamed response](streaming.md) cannot be exposed |
 | `Transactions.require_atomic()` is enabled | The MCP endpoint is a `POST` without a transaction of its own; exclude it with `except_=["hinoki.ai.mcpapp.*"]`. Each tool call still runs the action's own transaction. |
 
 The endpoint does not provide MCP resources, prompts, sessions or OAuth discovery.

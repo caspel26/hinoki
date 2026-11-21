@@ -20,6 +20,7 @@ use tokio::time::{sleep, timeout};
 use tokio_rustls::TlsAcceptor;
 
 use crate::accesslog::{AccessLog, LogFilter};
+use crate::compress::Compression;
 use crate::conn::{respond, Backend, Transport};
 use crate::framing::{Framing, Guarded, Signals};
 use crate::stall::StallGuard;
@@ -81,6 +82,8 @@ pub struct ServerConfig {
     pub log_filter: Arc<LogFilter>,
     /// Add a `Server-Timing` header to every answer.
     pub server_timing: bool,
+    /// Compress answers by this policy; `None` sends them as they are.
+    pub compression: Option<Arc<Compression>>,
 }
 
 impl Default for ServerConfig {
@@ -96,6 +99,7 @@ impl Default for ServerConfig {
             access_log: None,
             log_filter: Arc::default(),
             server_timing: false,
+            compression: None,
         }
     }
 }
@@ -172,6 +176,7 @@ async fn serve_h1<S, B>(
         access_log: config.access_log,
         log_filter: Arc::clone(&config.log_filter),
         server_timing: config.server_timing,
+        compression: config.compression.clone(),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
@@ -226,6 +231,7 @@ async fn serve_h2<S, B>(
         access_log: config.access_log,
         log_filter: Arc::clone(&config.log_filter),
         server_timing: config.server_timing,
+        compression: config.compression.clone(),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
     };

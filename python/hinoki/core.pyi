@@ -1,3 +1,4 @@
+import os
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import datetime
 from typing import Any
@@ -198,11 +199,15 @@ class _JWTVerifier:
     ) -> bytes: ...
 
 def decode_json(raw: bytes) -> Any: ...
+
+class JsonDecodeError(ValueError): ...
+
 def encode_json(
     value: Any,
     indent: int | None = None,
     sort_keys: bool = False,
     default: Callable[[Any], Any] | None = None,
+    ensure_ascii: bool = False,
 ) -> bytes: ...
 
 class Router:
@@ -351,6 +356,140 @@ class PreparedRequest:
         body: bytes,
         route_headers: Sequence[tuple[str, str]],
     ) -> bool: ...
+    def respond_stream(
+        self,
+        status: int,
+        headers: list[tuple[bytes, bytes]],
+        route_headers: Sequence[tuple[str, str]],
+        idle_timeout: float | None = ...,
+        keepalive: float | None = ...,
+        length: int | None = ...,
+    ) -> ResponseSink | None:
+        """Answer with the head now and the body from the returned sink.
+
+        `None` when the request was already answered or nobody is waiting.
+        Without `length` the body is chunked (HTTP/1.1) or ends with the stream
+        (HTTP/2); with it the body must be exactly that long. Raises
+        `ValueError` for a bodyless status (204, 304) or a timer that is not a
+        positive number. `idle_timeout` and `keepalive` (seconds) are enforced
+        by the Rust connection task: the first cuts the response when the
+        producer sends nothing for that long, the second sends an SSE comment
+        after that much silence.
+        """
+
+    def respond_file(
+        self,
+        status: int,
+        headers: list[tuple[bytes, bytes]],
+        route_headers: Sequence[tuple[str, str]],
+        path: str | os.PathLike[str],
+    ) -> bool:
+        """Answer with the file at `path`; its size is the `content-length`.
+
+        The connection opens and reads the file in Rust. A missing or
+        non-regular file answers 404, any other failure 500. Raises
+        `ValueError` for a bodyless status.
+        """
+
+class ResponseSink:
+    """The producer's end of a streamed response.
+
+    A piece is accepted only while the channel has room, so a producer sees
+    backpressure as `False`. The Rust side does the framing, the idle and
+    keep-alive timers and the writes; the producer that calls this is Python.
+    """
+
+    def try_send(self, data: bytes) -> bool:
+        """Queue `data`; `False` when full or the response is closed. Never blocks."""
+
+    def ready(self) -> Awaitable[bool]:
+        """`True` once `try_send` can take a piece, `False` if closed."""
+
+    def closed(self) -> Awaitable[bool]:
+        """Wait for the end of the response.
+
+        Resolves `True` when the client went away. It resolves `False` when
+        `finish` or `abort` closed the response first, so `False` does not mean
+        the client is gone. It does not resolve while the client is connected
+        and the response open.
+        """
+
+    def finish(self) -> None:
+        """End the body as complete. Idempotent."""
+
+    def abort(self) -> None:
+        """End the body as truncated (HTTP/1.1 closes, HTTP/2 resets)."""
+
+class FileLookupBusy(Exception):
+    """Every place for a file lookup is taken (`locate_file` fails at once)."""
+
+def locate_file(
+    path: str | os.PathLike[str], root: str | os.PathLike[str] | None = ...
+) -> Awaitable[tuple[str, int] | None]:
+    """The real path and size of the regular file `path` names.
+
+    Symbolic links are followed; with `root` (a relative `path` is taken from
+    it) the real path must lie inside the real `root`. Resolves `None` when
+    there is no such file. The lookup runs on a blocking thread; at most 32 run
+    at once in the process and the next one raises `FileLookupBusy`.
+    """
+
+def content_disposition(filename: str) -> str:
+    """The `content-disposition: attachment` value for a download.
+
+    The name gets an ASCII fallback, and the exact UTF-8 name when they differ.
+    Raises `ValueError` for an empty name or one with `/` or a control character.
+    """
+
+class Tally:
+    """Holds a streamed body to the `content-length` its head declared."""
+
+    def __init__(self, length: int | None = ...) -> None: ...
+    def fit(self, piece: bytes) -> bytes:
+        """The part of `piece` that fits in the declared length (all of it
+        without a length); `over` turns `True` when some did not."""
+
+    @property
+    def over(self) -> bool:
+        """A piece went past the declared length."""
+
+    @property
+    def short(self) -> bool:
+        """Fewer bytes than declared were sent; `False` without a length."""
+
+class StreamLimit:
+    """The places a worker has for open streamed responses, counted in Rust."""
+
+    def __init__(self, limit: int) -> None:
+        """Raises `ValueError` for a limit below 1."""
+
+    @property
+    def open(self) -> int:
+        """The streams that hold a place now."""
+
+    @property
+    def limit(self) -> int: ...
+    def acquire(self) -> StreamPermit | None:
+        """Take a place, or `None` when the worker is full."""
+
+class StreamPermit:
+    """One place of a `StreamLimit`; a dropped permit gives it back too."""
+
+    def release(self) -> None:
+        """Give the place back. Idempotent."""
+
+def sse_frame(
+    data: str | None = ...,
+    event: str | None = ...,
+    id: str | None = ...,
+    retry: int | None = ...,
+    comment: str | None = ...,
+) -> bytes:
+    """One server-sent event as wire bytes.
+
+    Raises `ValueError` for an `event` or `id` with CR, LF or NUL, or when no
+    field is set. Line breaks in `data` and `comment` become separate lines.
+    """
 
 class BodyReadError(Exception): ...
 
@@ -445,6 +584,7 @@ class KisoServer:
         access_log_slow_ms: float | None = None,
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
+        compression: dict[str, object] | None = None,
     ) -> KisoServer: ...
     @property
     def port(self) -> int: ...
@@ -500,6 +640,7 @@ class WsgiServer:
         access_log_slow_ms: float | None = None,
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
+        compression: dict[str, object] | None = None,
     ) -> WsgiServer: ...
     @property
     def port(self) -> int: ...

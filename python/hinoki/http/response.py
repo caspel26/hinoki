@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
+from copy import copy
 
 from hinoki.runtime.responses import BODYLESS
 
@@ -86,12 +87,12 @@ class Response:
         return response
 
     def with_header(self, name: str, value: str) -> Response:
-        """A copy with one more header."""
-        copy = Response.__new__(Response)
-        copy.status = self.status
-        copy.body = self.body
-        copy.headers = [*self.headers, encode_header(name, value)]
-        return copy
+        """A copy with one more header. It keeps the class and, for a streamed
+        answer, the source of the body."""
+        header = encode_header(name, value)
+        duplicate = copy(self)
+        duplicate.headers = [*self.headers, header]
+        return duplicate
 
 
 def set_cookie(

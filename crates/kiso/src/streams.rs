@@ -46,7 +46,7 @@ use hyper::Response;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
-use crate::stream::{Aborted, Live, Reply};
+use crate::stream::{Aborted, Produced, Reply};
 
 /// Size of the DATA frames a response is cut into.
 const CHUNK: usize = 16 * 1024;
@@ -182,7 +182,7 @@ impl Drop for Entry {
 pub struct Chunked {
     rest: Bytes,
     /// A body still being produced; `rest` is empty while this is set.
-    live: Option<Live>,
+    live: Option<Produced>,
     entry: Entry,
 }
 
@@ -190,7 +190,7 @@ impl Chunked {
     /// A frame of a body the backend is still producing. A producer that
     /// failed is not a client reset, so the entry is complete either way.
     fn poll_live(
-        live: &mut Live,
+        live: &mut Produced,
         entry: &mut Entry,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Bytes>, Aborted>>> {
@@ -277,7 +277,9 @@ pub async fn track(
             let Ok(collected) = full.collect().await;
             (collected.to_bytes(), None)
         }
-        Reply::Live(live) => (Bytes::new(), Some(live)),
+        Reply::Live(live) => (Bytes::new(), Some(Produced::Live(live))),
+        Reply::File(file) => (Bytes::new(), Some(Produced::File(file))),
+        Reply::Encoded(encoded) => (Bytes::new(), Some(Produced::Encoded(encoded))),
     };
     entry.done = rest.is_empty() && live.is_none();
     if !rest.is_empty() || live.is_some() {
