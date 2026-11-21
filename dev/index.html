@@ -408,7 +408,7 @@
             <li><button type="button" data-rule="db2" data-phase="startup" aria-pressed="false"><code>HNK-DB-002</code><span class="hn-chip">startup</span><b>Every foreign-key column is indexed.</b></button></li>
             <li><button type="button" data-rule="imp" data-phase="static" aria-pressed="false"><code>HNK-IMP-001</code><span class="hn-chip">static</span><b>Modules under a source never import a target.</b></button></li>
           </ul>
-          <div class="hn-explorer__detail" aria-live="polite">
+          <div class="hn-explorer__detail" aria-live="polite" tabindex="0" role="region" aria-label="Rule detail">
             <div data-detail="acc">
               <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">require_access</span>(match, except_)</code></pre>
               <p class="hn-file">violated</p><pre><code>tests/projects/rulesapp.py:7: <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> GET /health (health) declares no access policy</code></pre>

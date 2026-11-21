@@ -1503,20 +1503,24 @@
   animation: rise-in 320ms var(--hn-ease);
 }
 
-/* On wide screens the detail follows the list while it scrolls past. The grid
-   clips instead of hiding overflow, so it is not a scroll container and the
-   sticky offset is measured against the page. */
-@media (min-width: 961px) {
-  @supports (overflow: clip) {
-    .hn-explorer__grid {
-      overflow: clip;
-    }
+/* The card has a fixed height: the list and the detail scroll on their own, so
+   a long list never leaves the detail pane mostly empty. */
+.hn-explorer__grid {
+  grid-template-rows: minmax(0, 1fr);
+  height: clamp(420px, 72vh, 600px);
+}
 
-    .hn-explorer__detail > div {
-      position: sticky;
-      top: calc(var(--header-h) + var(--sp-5));
-    }
-  }
+.hn-explorer__list,
+.hn-explorer__detail {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hn-edge) transparent;
+}
+
+.hn-explorer__detail:focus-visible {
+  outline: 2px solid var(--hn-brand);
+  outline-offset: -2px;
 }
 
 .hn-explorer__detail [hidden] {
@@ -1784,6 +1788,11 @@
   .hn-explorer__list {
     border-right: 0;
     border-bottom: 1px solid var(--hn-edge);
+  }
+
+  .hn-explorer__grid {
+    grid-template-rows: minmax(0, 11fr) minmax(0, 9fr);
+    height: min(680px, 85vh);
   }
 
   .hn-dg--wide {
