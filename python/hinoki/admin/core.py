@@ -9,7 +9,7 @@ from datetime import UTC, tzinfo
 from typing import Any, overload
 
 from hinoki.access import Access
-from hinoki.admin.components import Components
+from hinoki.admin.components import Components, logo_fragment
 from hinoki.admin.csrf import COOKIE as CSRF_COOKIE
 from hinoki.admin.csrf import Csrf
 from hinoki.admin.modeladmin import ModelAdmin
@@ -95,6 +95,7 @@ class Admin:
         activity: Callable[[Caller[Any]], Awaitable[list[Event]]] | None = None,
         dashboard: tuple[str, ...] = (),
         secure_cookies: bool | None = None,
+        logo: str = "",
     ) -> None:
         if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
             raise ValueError("prefix must start with '/' and not end with '/'")
@@ -116,6 +117,7 @@ class Admin:
         self._served: str | None = None  # the prefix of the routes, once built
         self.mount = ""  # set when the admin is included under a ``Mount``
         self.site = site
+        self.logo_mark = logo_fragment(logo)
         self.tagline = tagline
         self.workspace = workspace
         self.links = links
