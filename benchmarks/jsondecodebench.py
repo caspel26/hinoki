@@ -52,6 +52,12 @@ def _mixed(items: int) -> Any:
     ]
 
 
+def _numbers(n: int) -> Any:
+    return [
+        [i, -i * 1_000_003, i / 3.0, i * 1.5e-7, 123456789012 + i] for i in range(n)
+    ]
+
+
 def _cases() -> list[tuple[str, bytes]]:
     def dump(value: Any) -> bytes:
         return json.dumps(value, separators=(",", ":")).encode()
@@ -62,6 +68,8 @@ def _cases() -> list[tuple[str, bytes]]:
         ("~740 B list of objects", dump(_mixed(6))),
         ("~20 KB list of objects", dump(_mixed(160))),
         ("~1 MB list of objects", dump(_mixed(8200))),
+        ("~20 KB list of numbers", dump(_numbers(500))),
+        ("~1 MB list of numbers", dump(_numbers(26000))),
     ]
 
 
