@@ -415,6 +415,17 @@ def test_the_stdio_loop_answers_each_line_and_survives_bad_input(
     assert answers[1]["error"]["code"] == -32700
 
 
+def test_stdio_framing_is_one_ascii_line_per_message(server: Server) -> None:
+    ids = ["é😀", "a\nb", "\u2028"]
+    lines = [json.dumps({"jsonrpc": "2.0", "id": i, "method": "ping"}) for i in ids]
+    out = io.StringIO()
+    serve(server, io.StringIO("\n".join(lines) + "\n"), out)
+    written = out.getvalue().splitlines()
+    assert len(written) == len(ids)
+    assert all(line.isascii() for line in written)
+    assert [json.loads(line)["id"] for line in written] == ids
+
+
 def test_the_command_serves_over_real_pipes(tmp_path: Path) -> None:
     request = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     done = subprocess.run(

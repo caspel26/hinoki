@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata
-import json
 import platform
 import sys
 from dataclasses import asdict, dataclass
@@ -12,6 +11,7 @@ from typing import Literal
 
 import hinoki
 import hinoki.core as native_core
+from hinoki import jsontext
 from hinoki.checkcli import build_app
 from hinoki.project import (
     ProjectError,
@@ -218,7 +218,7 @@ NOTE = (
 def render(checks: list[Check], fmt: str, style: Style | None = None) -> str:
     if fmt == "json":
         return (
-            json.dumps(
+            jsontext.dumps(
                 {"schema_version": 1, "checks": [asdict(check) for check in checks]},
                 indent=2,
             )

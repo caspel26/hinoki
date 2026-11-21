@@ -2,6 +2,7 @@
 a 500, and an annotation that cannot be checked stops the app at startup."""
 
 import logging
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
@@ -288,3 +289,34 @@ def test_annotated_return_types_are_unwrapped() -> None:
 
     assert check(note())
     assert not check({"id": 1, "title": "x"})
+
+
+def test_a_single_arm_is_checked_directly_and_a_union_by_any_arm() -> None:
+    single = compile_response_check("action", NoteOut)
+    assert single.__qualname__.startswith("class_check")
+    assert single(note())
+    assert not single(None)
+
+    union = compile_response_check("action", NoteOut | None)
+    assert union(note())
+    assert union(None)
+    assert not union(3)
+
+
+def test_a_union_check_creates_no_generator_per_response() -> None:
+    union = compile_response_check("action", NoteOut | None)
+    created: list[str] = []
+
+    def watch(frame: Any, event: str, _arg: object) -> None:
+        if event == "call":
+            created.append(frame.f_code.co_name)
+
+    sys.setprofile(watch)
+    try:
+        assert union(note())
+        assert union(None)
+        assert not union(3)
+    finally:
+        sys.setprofile(None)
+
+    assert "<genexpr>" not in created

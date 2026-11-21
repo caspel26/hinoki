@@ -85,6 +85,19 @@ def body_value(request: Request, text: bool) -> object:
     return request.data
 
 
+def plain_data(
+    scope: Scope,
+    path: dict[str, str],
+    principal: Caller[Any] | None,
+    query: dict[str, list[str]] | None = None,
+) -> RequestData:
+    """What the parameters of an action bind when it never reads the request
+    object (``Binding.needs_request`` is false): no body, no files."""
+    if query is None:
+        query = parse_query(scope.get("query_string", b""))
+    return RequestData(path, query, MISSING, principal, {})
+
+
 def build_request(
     scope: Scope,
     binding: Binding,

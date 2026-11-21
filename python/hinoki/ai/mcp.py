@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import inspect
-import json
 import sys
 import typing
 from collections.abc import Callable
@@ -24,6 +23,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 import hinoki
+from hinoki import jsontext
 from hinoki.ai.errorcatalog import CATALOG, explain
 from hinoki.ai.proposals import ProposalError, propose
 from hinoki.app import Hinoki
@@ -572,9 +572,9 @@ class Server:
             print(f"hinoki mcp: {name} failed: {exc!r}", file=sys.stderr)
             message = f"{type(exc).__name__} (details on the server's stderr)"
             data, error = {"tool_version": TOOL_VERSION, "error": message}, True
-        data = json.loads(json.dumps(data, default=str))  # always plain JSON
+        data = jsontext.loads(jsontext.dumps(data, default=str))  # always plain JSON
         return {
-            "content": [{"type": "text", "text": json.dumps(data, indent=2)}],
+            "content": [{"type": "text", "text": jsontext.dumps(data, indent=2)}],
             "structuredContent": data,
             "isError": error,
         }
@@ -583,7 +583,7 @@ class Server:
 def answer_line(server: Server, line: str) -> dict[str, Any] | None:
     """The response for one input line; no input can make this raise."""
     try:
-        message = json.loads(line)
+        message = jsontext.loads(line)
     except (ValueError, RecursionError):
         return failure(None, PARSE_ERROR, "invalid JSON")
     try:
@@ -601,7 +601,7 @@ def serve(server: Server, source: TextIO, sink: TextIO) -> None:
             continue
         answer = answer_line(server, line)
         if answer is not None:
-            sink.write(json.dumps(answer) + "\n")
+            sink.write(jsontext.dumps(answer) + "\n")
             sink.flush()
 
 

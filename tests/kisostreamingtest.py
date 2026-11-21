@@ -93,8 +93,14 @@ async def slow_route() -> Stream:
 
 @http.get("/broken")
 async def broken_route() -> Stream:
+    gate = state["gate"]
+    assert isinstance(gate, asyncio.Event)
+
     async def source() -> AsyncIterator[str]:
         yield "ok;"
+        # Failing only once the client holds the head and the chunk keeps the
+        # abort from racing the flush of either.
+        await gate.wait()
         raise RuntimeError("boom")
 
     return Stream(source())
@@ -242,6 +248,9 @@ async def test_an_error_after_the_head_leaves_the_response_incomplete() -> None:
         wire = await Wire.open(port, "/broken")
         assert wire.status == 200
         assert await wire.chunk() == b"ok;"
+        gate = state["gate"]
+        assert isinstance(gate, asyncio.Event)
+        gate.set()
         with pytest.raises((asyncio.IncompleteReadError, ConnectionError)):
             await wire.chunk()
         wire.close()

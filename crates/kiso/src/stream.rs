@@ -29,6 +29,7 @@ use tokio::sync::mpsc;
 use tokio::time::{Instant, Sleep};
 
 use crate::conn::Answer;
+use crate::encode::Encoded;
 use crate::headers::Header;
 
 /// One piece of a streamed body, or the producer's failure.
@@ -107,11 +108,13 @@ impl Delivery {
     }
 }
 
-/// The body hyper sends: all of it at once, as the producer makes it, or a file.
+/// The body hyper sends: all of it at once, as the producer makes it, a file, or
+/// the compressed form of one of them.
 pub enum Reply {
     Whole(Full<Bytes>),
     Live(Live),
     File(FileBody),
+    Encoded(Box<Encoded>),
 }
 
 /// A restartable wait on the runtime's clock.
@@ -402,6 +405,7 @@ impl FileBody {
 pub enum Produced {
     Live(Live),
     File(FileBody),
+    Encoded(Box<Encoded>),
 }
 
 impl Produced {
@@ -413,6 +417,7 @@ impl Produced {
         match self {
             Self::Live(live) => live.poll_piece(cx, limit),
             Self::File(file) => file.poll_piece(cx, limit),
+            Self::Encoded(encoded) => encoded.poll_piece(cx, limit),
         }
     }
 
@@ -420,6 +425,7 @@ impl Produced {
         match self {
             Self::Live(live) => live.is_done(),
             Self::File(file) => file.is_done(),
+            Self::Encoded(encoded) => encoded.is_done(),
         }
     }
 }
@@ -442,6 +448,9 @@ impl Body for Reply {
             Self::File(file) => file
                 .poll_piece(cx, usize::MAX)
                 .map(|piece| piece.map(|result| result.map(Frame::data))),
+            Self::Encoded(encoded) => encoded
+                .poll_piece(cx, usize::MAX)
+                .map(|piece| piece.map(|result| result.map(Frame::data))),
         }
     }
 
@@ -450,13 +459,14 @@ impl Body for Reply {
             Self::Whole(full) => full.is_end_stream(),
             Self::Live(live) => live.is_done(),
             Self::File(file) => file.is_done(),
+            Self::Encoded(encoded) => encoded.is_done(),
         }
     }
 
     fn size_hint(&self) -> SizeHint {
         match self {
             Self::Whole(full) => full.size_hint(),
-            Self::Live(_) => SizeHint::default(),
+            Self::Live(_) | Self::Encoded(_) => SizeHint::default(),
             Self::File(file) => SizeHint::with_exact(file.remaining()),
         }
     }

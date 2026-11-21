@@ -16,11 +16,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use kiso::{
-    serve, AccessLog, Answer, Backend, Closed, Delivery, Early, FileAnswer, FileBody, Incoming,
-    Lane, LogFilter, ServerConfig, Sink,
+    serve, AccessLog, Answer, Backend, Closed, Compression, Delivery, Early, FileAnswer, FileBody,
+    Incoming, Lane, LogFilter, ServerConfig, Sink,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use socket2::{Socket, Type};
 use tokio::net::TcpListener;
 use tokio::sync::{watch, Semaphore};
@@ -581,6 +582,7 @@ impl Shared {
         (tls_cert, tls_key, http2): TlsArgs,
         (access_log, access_log_skip, access_log_slow_ms, access_log_sink): LogArgs,
         server_timing: bool,
+        compression: Option<Arc<Compression>>,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -603,6 +605,7 @@ impl Shared {
             shutdown_timeout: seconds("shutdown_timeout", shutdown_timeout)?,
             max_header_bytes,
             server_timing,
+            compression,
             access_log: style,
             log_filter: Arc::new(LogFilter {
                 skip: access_log_skip.unwrap_or_default(),
@@ -667,7 +670,7 @@ impl KisoServer {
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
         access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false
+        access_log_sink=None, server_timing=false, compression=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -690,7 +693,9 @@ impl KisoServer {
         access_log_slow_ms: Option<f64>,
         access_log_sink: Option<Py<PyAny>>,
         server_timing: bool,
+        compression: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        let compression = crate::compression::parse(compression)?;
         let Shared {
             config,
             tls,
@@ -714,6 +719,7 @@ impl KisoServer {
                 access_log_sink,
             ),
             server_timing,
+            compression,
         )?;
         let (reader, writer) = UnixStream::pair().map_err(io_error)?;
         reader.set_nonblocking(true).map_err(io_error)?;

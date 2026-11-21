@@ -56,6 +56,7 @@ from hinoki.renderers import (
 from hinoki.routing import MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, RequestData, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
+from hinoki.runtime.inline import RequestDeadline, run_inline
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
 from hinoki.runtime.proxy import (
@@ -63,7 +64,13 @@ from hinoki.runtime.proxy import (
     effective_scope,
     inbound_request_id,
 )
-from hinoki.runtime.requests import Scope, authorize, build_request, decode_params
+from hinoki.runtime.requests import (
+    Scope,
+    authorize,
+    build_request,
+    decode_params,
+    plain_data,
+)
 from hinoki.runtime.responsecheck import ResponseContractError
 from hinoki.runtime.responses import (
     BODYLESS,
@@ -94,6 +101,8 @@ log = logging.getLogger("hinoki.runtime")
 # `None` is the private marker for a path decoding error, deferred until after
 # the pipeline's early host/CORS/redirect/docs policies.
 MatchedRoute = tuple[int, dict[str, str] | None]
+MAX_HEADER_SHAPES = 256
+"""Distinct response header shapes kept; more are computed per request."""
 
 
 class NativeBody(NamedTuple):
@@ -207,6 +216,9 @@ class Pipeline:
         self.trust_request_id = settings.server.trust_request_id if settings else False
         # Fixed for the worker's life: computed once, not for every request.
         self.request_id_name = self.request_id_header.encode("ascii")
+        self.header_shapes: dict[
+            object, tuple[tuple[tuple[bytes, bytes], ...], bool]
+        ] = {}
         self.request_ids = itertools.count()
         self.request_id_prefix = secrets.token_hex(8)
         self.policy = {
@@ -581,16 +593,39 @@ class Pipeline:
         prefix and a counter), without a system call per request."""
         return f"{self.request_id_prefix}{next(self.request_ids):016x}"
 
+    def shaped_headers(
+        self, response: Response, https: bool
+    ) -> tuple[tuple[tuple[bytes, bytes], ...], bool]:
+        """The final headers but the request id, and whether the answer set its
+        own ``allow_origin``. Fixed by the answer's own headers, the policy and
+        the route's headers, so each distinct shape is computed once; a shape
+        beyond the bound (headers that carry per-request values) is not kept."""
+        route_headers = context.route_headers.get()
+        try:
+            key: object = (https, route_headers, tuple(response.headers))
+            shape = self.header_shapes.get(key)
+        except TypeError:  # an unhashable header entry
+            key, shape = None, None
+        if shape is None:
+            headers, has_allow_origin = core.response_headers(
+                response.headers,
+                self.policy[https],
+                route_headers,
+                self.request_id_name,
+                b"",
+                ALLOW_ORIGIN,
+            )
+            shape = (tuple(headers[:-1]), has_allow_origin)
+            if key is not None and len(self.header_shapes) < MAX_HEADER_SHAPES:
+                self.header_shapes[key] = shape
+        return shape
+
     def with_headers(self, response: Response, scope: Scope, rid: str) -> Response:
         """Replace the answer's headers with the final ones."""
-        headers, has_allow_origin = core.response_headers(
-            response.headers,
-            self.policy[scope.get("scheme", "") == "https"],
-            context.route_headers.get(),
-            self.request_id_name,
-            rid.encode("ascii"),
-            ALLOW_ORIGIN,
+        shaped, has_allow_origin = self.shaped_headers(
+            response, scope.get("scheme", "") == "https"
         )
+        headers = [*shaped, (self.request_id_name, rid.encode("ascii"))]
         if self.cors is not None and not has_allow_origin:
             # An answer that sets its own CORS headers keeps them.
             headers.extend(self.cors.headers(origin_of(scope)))
@@ -604,16 +639,15 @@ class Pipeline:
         # A new object: the answer may belong to a reused exception instance.
         return Response(response.status, response.body, headers, stream)
 
-    async def _respond(  # noqa: PLR0911 - one exit per failure class
+    async def _respond(
         self, scope: Scope, source: BodySource, rid: str, route: MatchedRoute | None
     ) -> Response:
         try:
-            async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
-                return await self._serve(scope, source, route)
-        except TimeoutError as exc:
-            if limit.expired():
-                return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
-            return await error_response(exc, rid, self.app.errors, self.debug)
+            return await run_inline(
+                self._serve(scope, source, route), self.app.runtime.request_timeout
+            )
+        except RequestDeadline:
+            return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
         except ExecutorSaturated:  # a plain-def hook found the pool full
             return HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
@@ -841,8 +875,7 @@ class Pipeline:
             if route[1] is None:
                 raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding")
             binding, path_params = self.bindings[route[0]], route[1]
-        owner = binding.route.owner
-        context.route_headers.set(getattr(owner, "response_headers", ()))
+        context.route_headers.set(binding.owner_headers)
         return binding, path_params
 
     async def _dispatch_request(
@@ -873,9 +906,13 @@ class Pipeline:
             if binding.route.method in BODY_METHODS
             else b""
         )
-        request, data = build_request(
-            scope, binding, path_params, headers, raw_body, principal, query
-        )
+        request: Request | None = None
+        if binding.needs_request:
+            request, data = build_request(
+                scope, binding, path_params, headers, raw_body, principal, query
+            )
+        else:
+            data = plain_data(scope, path_params, principal, query)
         return await self._invoke(binding, request, renderer, binding.collect(data))
 
     async def _rate_limit(
@@ -978,7 +1015,7 @@ class Pipeline:
     async def _invoke(
         self,
         binding: Binding,
-        request: Request,
+        request: Request | None,
         renderer: Renderer,
         kwargs: dict[str, object],
     ) -> Response:
@@ -995,7 +1032,7 @@ class Pipeline:
     async def _invoke_streaming(
         self,
         binding: Binding,
-        request: Request,
+        request: Request | None,
         renderer: Renderer,
         kwargs: dict[str, object],
     ) -> Response:
@@ -1048,14 +1085,15 @@ class Pipeline:
     async def _call(
         self,
         binding: Binding,
-        request: Request,
+        request: Request | None,
         renderer: Renderer,
         kwargs: dict[str, object],
     ) -> Response:
         route = binding.route
         row_wire = (
             binding.row_wire
-            if binding.row_wire is not None and is_default_json_renderer(renderer)
+            if binding.row_wire is not None
+            and (binding.default_json or is_default_json_renderer(renderer))
             else None
         )
         result = await self._handler_result(binding, request, kwargs, row_wire)
@@ -1067,7 +1105,10 @@ class Pipeline:
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
             shown = result if renderer.consumes_objects else encode(result)
-            body = renderer.render(shown, request)
+            if request is None:  # only the stock JSON renderer runs without one
+                body = core.encode_json(shown, None, False, None)
+            else:
+                body = renderer.render(shown, request)
             many = len(route.renderers) > 1
             return Response.rendered(route.status, body, renderer.media_type, many)
         no_content = route.status == HTTPStatus.OK
@@ -1288,7 +1329,7 @@ class Pipeline:
             args = owner
         try:
             if binding.is_async:
-                handler = cast(Callable[..., Awaitable[object]], route.handler)
+                handler = cast("Callable[..., Awaitable[object]]", route.handler)
                 return await handler(*args, **kwargs)
             result = await self.executor.run(route.handler, *args, **kwargs)
             if inspect.isawaitable(result):

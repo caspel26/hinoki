@@ -14,7 +14,6 @@ is JSON, else text.
 from __future__ import annotations
 
 import asyncio
-import json
 import secrets
 import threading
 from collections.abc import AsyncIterator, Coroutine, Iterator, Mapping, Sequence
@@ -24,6 +23,7 @@ from datetime import datetime, timedelta
 from types import TracebackType
 from typing import Any, TypeVar
 
+from hinoki import core
 from hinoki.app import Hinoki
 from hinoki.runtime.asgi import IN_PROCESS
 from hinoki.utils import _read_utc
@@ -390,11 +390,11 @@ class _StreamRun:
 
 
 def _dumps(value: Any) -> bytes:
-    return json.dumps(value).encode()
+    return core.encode_json(value)
 
 
 def _loads(raw: bytes) -> Any:
-    return json.loads(raw)
+    return core.decode_json(raw)
 
 
 def _request_body(

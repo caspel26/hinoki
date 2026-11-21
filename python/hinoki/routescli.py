@@ -12,9 +12,9 @@ database is opened; the application is built the way ``hinoki check`` builds it.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 
+from hinoki import jsontext
 from hinoki.access import Access
 from hinoki.app import Hinoki
 from hinoki.checkcli import USAGE_ERRORS, build_app
@@ -104,7 +104,7 @@ def run_routes(args: argparse.Namespace) -> int:
     unknown = ("python", "not_generated_crud_action")
     if args.format == "json":
         print(
-            json.dumps(
+            jsontext.dumps(
                 [
                     {
                         "method": route.method,

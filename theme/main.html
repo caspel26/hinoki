@@ -129,7 +129,6 @@
   {% set leaf_list = (leaves(sec.active.children) if sec.active and sec.active.children else '').split('|') %}
 
   <div class="shell">
-    <svg class="shell__watermark" viewBox="0 0 276 394" aria-hidden="true"><use href="{{ 'static/hinoki-logo.svg' | url }}#mark"/></svg>
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -280,6 +279,7 @@
   <script>window.HN = { base: "{{ base_url }}", repo: "{{ config.repo_url }}", site: "{{ config.site_url }}"{% if page and page.content and 'HNK-' in page.content %}, rules: {{ config.extra.hn_rules | tojson }}{% endif %} };</script>
   <script src="{{ 'static/js/hinoki.js' | url }}" defer></script>
   {% block scripts %}{% endblock %}
+  {% if page and page.content and 'data-bench-explorer' in page.content %}<script src="{{ 'static/js/benchmarks.js' | url }}" defer></script>{% endif %}
   {% if page and page.meta and page.meta.changelog %}<script src="{{ 'static/js/changelog.js' | url }}" defer></script>{% endif %}
 </body>
 </html>

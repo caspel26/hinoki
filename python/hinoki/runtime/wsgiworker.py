@@ -88,6 +88,7 @@ def start_server(
         access_log_slow_ms=settings.access_log_slow_ms,
         access_log_sink=access_sink(settings, dev),
         server_timing=dev if settings.server_timing is None else settings.server_timing,
+        compression=app.compression.native_options(),
         **limits,
     )
 
