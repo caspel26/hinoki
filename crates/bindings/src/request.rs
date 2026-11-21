@@ -1122,18 +1122,8 @@ impl<'a, B: Builder> Parser<'a, B> {
         Ok(value)
     }
 
-    fn number(&mut self) -> Parsed<B::Value> {
-        let start = self.at;
-        let negative = self.peek() == Some(b'-');
-        if negative {
-            self.at += 1;
-        }
-        let magnitude = if self.peek() == Some(b'0') {
-            self.at += 1;
-            Some(0)
-        } else {
-            self.digits()?
-        };
+    /// The `.fraction` and `e±exponent` parts; true when either is present.
+    fn fraction_and_exponent(&mut self) -> Parsed<bool> {
         let mut real = false;
         if self.peek() == Some(b'.') {
             real = true;
@@ -1148,6 +1138,22 @@ impl<'a, B: Builder> Parser<'a, B> {
             }
             self.digits()?;
         }
+        Ok(real)
+    }
+
+    fn number(&mut self) -> Parsed<B::Value> {
+        let start = self.at;
+        let negative = self.peek() == Some(b'-');
+        if negative {
+            self.at += 1;
+        }
+        let magnitude = if self.peek() == Some(b'0') {
+            self.at += 1;
+            Some(0)
+        } else {
+            self.digits()?
+        };
+        let real = self.fraction_and_exponent()?;
         if !real {
             let signed = magnitude.map(|m| {
                 if negative {
