@@ -161,9 +161,9 @@ Checkout paths and Git source values are escaped as TOML strings.
 
 ## How it looks in a terminal
 
-On a colour, UTF-8 terminal (macOS and Linux) the prompts sit on a guide rail and answer to keys: type a name (backspace edits, Ctrl-U clears), move through the database and server lists with ↑/↓ or pick one by number, and switch yes/no with ←/→ or `y`/`n`; Enter confirms. Each answered prompt collapses into one summary line. The run then lists the key files it created, times `git init` and `uv sync` (with a spinner while they run) and ends with the next commands. Ghostty, kitty, iTerm2 and WezTerm show the Hinoki logo as an inline image; other terminals show a text wordmark. Elsewhere the prompts are numbered lists and `[Y/n]` questions answered with Enter.
+On a colour, UTF-8 terminal (macOS and Linux) the prompts sit on a guide rail and answer to keys: type a name (backspace edits, Ctrl-U clears), move through the database and server lists with ↑/↓ or pick one by number, and switch yes/no with ←/→ or `y`/`n`; Enter confirms. Each answered prompt collapses into one summary line. The run then lists the key files it created, times `git init` and `uv sync` (with a spinner while they run) and ends with the next commands. Every colour terminal shows the same banner: a rounded box titled `Hinoki` with the tagline and the version. Elsewhere the prompts are numbered lists and `[Y/n]` questions answered with Enter.
 
-Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape sequences. `HINOKI_ANIMATE=0` (or `CI`) turns off the tagline animation and the spinner; `HINOKI_IMAGES=0` (or running inside tmux/screen) uses the text wordmark. When the terminal reports a light background through `COLORFGBG`, darker shades of the same colours are used. Ctrl-C or Esc cancels before anything is written (exit status 130); so does the end of input.
+Output that is piped, `NO_COLOR` and `TERM=dumb` give plain ASCII with no escape sequences. `HINOKI_ANIMATE=0` (or `CI`) turns off the tagline animation and the spinner. When the terminal reports a light background through `COLORFGBG`, darker shades of the same colours are used. Ctrl-C or Esc cancels before anything is written (exit status 130); so does the end of input.
 
 ## Errors and edge cases
 

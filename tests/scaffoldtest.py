@@ -487,26 +487,36 @@ def test_the_wordmark_keeps_the_terminal_foreground_on_a_light_16_colour_theme()
     assert "97m" not in text and "\x1b[1;39mH" in text
 
 
-def test_an_image_terminal_shows_the_logo_then_the_tagline_without_a_box() -> None:
-    style = Style(color=True, unicode=True, images="kitty", width=80)
-    text = style.banner("new project", "v1.2.3")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"TERM_PROGRAM": "ghostty", "TERM": "xterm-256color"},
+        {"TERM_PROGRAM": "iTerm.app", "TERM": "xterm-256color"},
+        {"KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"},
+    ],
+)
+def test_image_terminals_get_the_same_box_as_any_other(env: dict[str, str]) -> None:
+    class Tty(io.StringIO):
+        encoding = "utf-8"
 
-    assert text.startswith("\n  \x1b_Ga=T,f=100")
-    assert "\u256d" not in text and "\u2502" not in text
-    tagline = ANSI.sub("", text.rpartition("\x1b\\")[2]).strip()
-    assert tagline == "Python API framework  v1.2.3"
+        def isatty(self) -> bool:
+            return True
+
+    text = Style.detect(Tty(), env).banner("new project", "v1.2.3")
+
+    assert "\u256d" in text and "\x1b_G" not in text and "\x1b]1337" not in text
+    assert not hasattr(Style(), "images")
 
 
 def test_the_plain_banner_stays_one_line() -> None:
     assert Style().banner("new project", "v1.2.3") == "hinoki v1.2.3 - new project"
 
 
-@pytest.mark.parametrize("images", [None, "iterm"])
 def test_the_shimmer_settles_on_exactly_the_static_banner(
-    monkeypatch: pytest.MonkeyPatch, images: str | None
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
-    style = Style(color=True, unicode=True, depth="truecolor", images=images, width=72)
+    style = Style(color=True, unicode=True, depth="truecolor", width=72)
     out = io.StringIO()
     style.shimmer("new project", "v1.2.3", out)
 
