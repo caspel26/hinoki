@@ -18,6 +18,13 @@ One word, one meaning. "Schema" has four meanings in this field, so the docs kee
 | OpenAPI document | The generated `/openapi.json`. Its `components.schemas` entries are "OpenAPI schema objects". |
 | JSON Schema | The standard the OpenAPI document uses to describe bodies, always by its name. |
 
+## Names
+
+| Name | Origin |
+| --- | --- |
+| Hinoki | 檜, the Japanese cypress of temples: fragrant, durable wood. |
+| Kiso | Hinoki's Rust server, named after the Kiso Valley (Nagano, Japan), known for its hinoki forests such as Akasawa. |
+
 ## Projects and apps
 
 | Term | Meaning |
