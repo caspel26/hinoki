@@ -52,11 +52,10 @@
 
 .hn-label::after {
   content: "";
-  flex: none;
-  width: 36px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--hn-wood), transparent);
+  flex: 1;
+  height: 1px;
+  transform-origin: left;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--hn-brand) 55%, transparent), transparent);
 }
 
 .hn-sub {
@@ -104,10 +103,22 @@
   from { opacity: 0.35; transform: translate3d(0, 14px, 0); }
 }
 
+@keyframes rule-draw {
+  from { transform: scaleX(0); }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .js .reveal:not(.is-in) {
     opacity: 0.35;
     transform: translate3d(0, 14px, 0);
+  }
+
+  .js .hn-label.reveal:not(.is-in)::after {
+    transform: scaleX(0);
+  }
+
+  .js .hn-label.reveal.is-in::after {
+    animation: rule-draw 900ms var(--hn-ease) 160ms backwards;
   }
 
   .js .reveal.is-in {
@@ -1242,6 +1253,103 @@
   fill: var(--hn-sunken);
 }
 
+/* One colour per owner, as in the README request flow: declarations you write
+   (green), Rust (wood), Hinoki (brand), generated outputs (info), explicit
+   steps (amber). */
+.hn-dg-node:is(
+  [data-tip-title="Model"],
+  [data-tip-title="Schema"],
+  [data-tip-title="Endpoint"]
+) { --dg: var(--hn-green); }
+
+.hn-dg-node:is(
+  [data-tip-title="Routing"],
+  [data-tip-title="Validation"]
+) { --dg: var(--hn-wood); }
+
+.hn-dg-node:is(
+  [data-tip-title="Access and transactions"],
+  [data-tip-title="One declared contract"]
+) { --dg: var(--hn-brand); }
+
+.hn-dg-node:is(
+  [data-tip-title="OpenAPI document"],
+  [data-tip-title="Development MCP"],
+  [data-tip-title="Database"]
+) { --dg: var(--hn-info); }
+
+.hn-dg-node:is(
+  [data-tip-title="hinoki check rules"],
+  [data-tip-title="migrations plan"],
+  [data-tip-title="reviewed SQL file"],
+  [data-tip-title="explicit apply"]
+) { --dg: var(--hn-amber); }
+
+.hn-dg-node[data-tip-title] rect {
+  stroke: color-mix(in srgb, var(--dg) 55%, var(--hn-edge-2));
+  fill: color-mix(in srgb, var(--dg) 7%, var(--hn-surface-2));
+}
+
+.hn-dg-node[data-tip-title]:hover rect,
+.hn-dg-node[data-tip-title]:focus-visible rect {
+  stroke: var(--dg);
+  fill: color-mix(in srgb, var(--dg) 16%, var(--hn-surface-2));
+}
+
+.hn-dg-node.hn-dg-core rect {
+  stroke: var(--hn-brand);
+  stroke-width: 1.5;
+  fill: color-mix(in srgb, var(--hn-brand) 14%, var(--hn-surface-2));
+}
+
+.hn-dg--wide .hn-dg-arrow {
+  stroke: var(--dg, currentColor);
+  stroke-opacity: 0.8;
+}
+
+.hn-dg--wide .hn-dg-arrow:is(
+  [style="--i:0"], [style="--i:1"], [style="--i:2"]
+) { --dg: var(--hn-green); }
+.hn-dg--wide .hn-dg-arrow:is([style="--i:3"], [style="--i:4"]) { --dg: var(--hn-wood); }
+.hn-dg--wide .hn-dg-arrow[style="--i:5"] { --dg: var(--hn-brand); }
+.hn-dg--wide .hn-dg-arrow:is([style="--i:6"], [style="--i:8"]) { --dg: var(--hn-info); }
+.hn-dg--wide .hn-dg-arrow[style="--i:7"] { --dg: var(--hn-amber); }
+.hn-dg--wide .hn-dg-lane-arrow { --dg: var(--hn-amber); }
+
+.hn-dg marker path { fill: context-stroke; }
+
+.hn-dg-lane { fill: var(--hn-amber); }
+
+/* Dots that travel along the arrows once the diagram is in view. */
+.hn-dg-pulse {
+  fill: var(--dg, var(--hn-brand));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hn-dg-pulse[data-i="0"], .hn-dg-pulse[data-i="1"], .hn-dg-pulse[data-i="2"] { --dg: var(--hn-green); }
+.hn-dg-pulse:is([data-i="3"], [data-i="4"]) { --dg: var(--hn-wood); }
+.hn-dg-pulse[data-i="5"] { --dg: var(--hn-brand); }
+.hn-dg-pulse:is([data-i="6"], [data-i="8"]) { --dg: var(--hn-info); }
+.hn-dg-pulse[data-i="7"] { --dg: var(--hn-amber); }
+.hn-dg-pulse:is([data-i="10"], [data-i="11"], [data-i="12"], [data-i="13"]) { --dg: var(--hn-amber); }
+
+.js [data-hn-diagram].is-in .hn-dg-pulse {
+  opacity: 1;
+  transition: opacity 600ms var(--hn-ease) 1800ms;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js [data-hn-diagram].is-in .hn-dg-core rect {
+    animation: hn-dg-breathe 4s ease-in-out 1.6s infinite;
+  }
+}
+
+@keyframes hn-dg-breathe {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--hn-brand) 55%, transparent)); }
+}
+
 .hn-dg-t { fill: var(--hn-text); font: 650 15px var(--hn-font-sans); pointer-events: none; }
 .hn-dg-s { fill: var(--hn-text-3); font: 400 12px var(--hn-font-mono); pointer-events: none; }
 .hn-dg-lane { fill: var(--hn-wood); font: 500 12.5px var(--hn-font-mono); }
@@ -2231,9 +2339,25 @@
 }
 
 .hn-walk:not(.hn-walk--bench) .hn-walk__tabs {
-  --thumb-r: 0;
-  --thumb-bg: var(--hn-brand-tint);
-  --thumb-shadow: inset 0 -2px 0 var(--hn-brand);
+  gap: 4px;
+  padding: 8px;
+  background: var(--hn-sunken);
+  --thumb-r: 10px;
+  --thumb-bg: var(--hn-tint-brand);
+  --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
+}
+
+.hn-walk:not(.hn-walk--bench) .hn-walk__tabs button {
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font: 500 14px/1.2 var(--hn-font-sans);
+  white-space: nowrap;
+}
+
+.hn-walk:not(.hn-walk--bench) .hn-walk__tabs button[aria-selected="true"] {
+  color: var(--hn-brand);
 }
 
 .ide__termbar b,
