@@ -1205,7 +1205,47 @@ pub fn decode_json<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Bound<'py, PyAn
 }
 
 fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
-    serde_json::to_writer(out, text).map_err(|e| PyValueError::new_err(e.to_string()))
+    out.push(b'"');
+    push_escaped(out, text);
+    out.push(b'"');
+    Ok(())
+}
+
+/// The JSON-escaped contents of `text`, without quotes: `"`, `\`, and control
+/// characters are escaped (`\n`-style where JSON has one, `\u00xx` otherwise);
+/// everything else, DEL and `/` included, is copied as is.
+fn push_escaped(out: &mut Vec<u8>, text: &str) {
+    let bytes = text.as_bytes();
+    let mut start = 0;
+    for (at, &byte) in bytes.iter().enumerate() {
+        if byte >= 0x20 && byte != b'"' && byte != b'\\' {
+            continue;
+        }
+        out.extend_from_slice(&bytes[start..at]);
+        push_escape(out, byte);
+        start = at + 1;
+    }
+    out.extend_from_slice(&bytes[start..]);
+}
+
+fn push_escape(out: &mut Vec<u8>, byte: u8) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let short = match byte {
+        b'"' => b'"',
+        b'\\' => b'\\',
+        0x08 => b'b',
+        0x0c => b'f',
+        b'\n' => b'n',
+        b'\r' => b'r',
+        b'\t' => b't',
+        _ => {
+            out.extend_from_slice(b"\\u00");
+            out.push(HEX[usize::from(byte >> 4)]);
+            out.push(HEX[usize::from(byte & 0x0f)]);
+            return;
+        }
+    };
+    out.extend_from_slice(&[b'\\', short]);
 }
 
 /// The bytes of a Python `str`: UTF-8, or with `surrogatepass` when it holds
@@ -1249,10 +1289,17 @@ fn write_text(out: &mut Vec<u8>, bytes: &[u8]) -> PyResult<()> {
 /// The escaped contents of a valid UTF-8 run, without the quotes.
 fn write_body(out: &mut Vec<u8>, valid: &[u8]) -> PyResult<()> {
     let text = std::str::from_utf8(valid).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let mut quoted = Vec::with_capacity(valid.len() + 2);
-    write_string(&mut quoted, text)?;
-    out.extend_from_slice(&quoted[1..quoted.len() - 1]);
+    push_escaped(out, text);
     Ok(())
+}
+
+/// A Python `str` as a JSON string. A valid one is written from the borrowed
+/// UTF-8; one with lone surrogates takes the `surrogatepass` path.
+fn write_pystring(out: &mut Vec<u8>, text: &Bound<'_, PyString>) -> PyResult<()> {
+    match text.to_str() {
+        Ok(valid) => write_string(out, valid),
+        Err(_) => write_text(out, &string_bytes(text)?),
+    }
 }
 
 fn float_text(value: f64) -> PyResult<String> {
@@ -1338,6 +1385,8 @@ struct Encoder<'py> {
     /// Schema instances being written: only inside one do `date`, `time`,
     /// `timedelta`, `Decimal` and `bytes` values have a wire form.
     schemas: usize,
+    /// Dict entries being written, one slice per open dict.
+    pairs: Vec<(Bound<'py, PyAny>, Bound<'py, PyAny>)>,
 }
 
 impl<'py> Encoder<'py> {
@@ -1397,7 +1446,7 @@ impl<'py> Encoder<'py> {
             self.out
                 .extend_from_slice(float_text(float.value())?.as_bytes());
         } else if let Ok(text) = value.cast::<PyString>() {
-            write_text(&mut self.out, &string_bytes(text)?)?;
+            write_pystring(&mut self.out, text)?;
         } else if let Ok(dict) = value.cast::<PyDict>() {
             self.mapping(dict, depth)?;
         } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
@@ -1444,18 +1493,43 @@ impl<'py> Encoder<'py> {
 
     fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
         Self::enter(depth)?;
+        if self.sort_keys {
+            return self.sorted_mapping(dict, depth);
+        }
+        // Entries go on a shared stack first: writing a value may run Python
+        // code (`default`, `dump()`) that mutates the dict being walked.
+        let start = self.pairs.len();
+        self.pairs.extend(dict.iter());
+        let end = self.pairs.len();
+        self.open(b'{');
+        for at in start..end {
+            let (key, item) = self.pairs[at].clone();
+            if at > start {
+                self.out.push(b',');
+            }
+            self.newline(depth + 1);
+            self.write_key(&key)?;
+            self.colon();
+            self.write(&item, depth + 1)?;
+        }
+        self.pairs.truncate(start);
+        self.close(b'}', depth, start == end);
+        Ok(())
+    }
+
+    fn write_key(&mut self, key: &Bound<'py, PyAny>) -> PyResult<()> {
+        match key.cast::<PyString>() {
+            Ok(text) => write_pystring(&mut self.out, text),
+            Err(_) => write_text(&mut self.out, &key_text(key)?),
+        }
+    }
+
+    fn sorted_mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
         let mut items = Vec::with_capacity(dict.len());
         for (key, item) in dict.iter() {
             items.push((key_text(&key)?, key, item));
         }
-        let items = if self.sort_keys {
-            self.sorted_entries(items)?
-        } else {
-            items
-                .into_iter()
-                .map(|(text, _, item)| (text, item))
-                .collect()
-        };
+        let items = self.sorted_entries(items)?;
         self.open(b'{');
         let empty = items.is_empty();
         for (index, (key, item)) in items.into_iter().enumerate() {
@@ -1471,19 +1545,27 @@ impl<'py> Encoder<'py> {
         Ok(())
     }
 
+    /// A list or tuple, read by position; a list's length is re-read on every
+    /// step, so a hook that resizes it cannot make the walk run out of bounds.
     fn sequence(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         Self::enter(depth)?;
         self.open(b'[');
-        let mut empty = true;
-        for (index, item) in value.try_iter()?.enumerate() {
-            empty = false;
+        let mut index = 0;
+        loop {
+            let item = if let Ok(list) = value.cast::<PyList>() {
+                list.get_item(index).ok()
+            } else {
+                value.cast::<PyTuple>()?.get_item(index).ok()
+            };
+            let Some(item) = item else { break };
             if index > 0 {
                 self.out.push(b',');
             }
             self.newline(depth + 1);
-            self.write(&item?, depth + 1)?;
+            self.write(&item, depth + 1)?;
+            index += 1;
         }
-        self.close(b']', depth, empty);
+        self.close(b']', depth, index == 0);
         Ok(())
     }
 
@@ -1650,12 +1732,13 @@ pub fn encode_json<'py>(
         )));
     }
     let mut encoder = Encoder {
-        out: Vec::with_capacity(128),
+        out: Vec::with_capacity(512),
         indent,
         sort_keys,
         default,
         hops: 0,
         schemas: 0,
+        pairs: Vec::new(),
     };
     encoder.write(value, 0)?;
     if ensure_ascii {
