@@ -156,8 +156,11 @@ def refuse(message: str) -> int:
 
 
 def compresses(app: object) -> bool:
-    """Whether the application's ``compression.enabled`` is on (the application
-    a ``WSGIAdapter`` wraps, for one)."""
+    """Whether ``compression.enabled`` is on: in the application (the one a
+    ``WSGIAdapter`` wraps, for one), or in the environment for a plain WSGI
+    callable, which has no settings of its own."""
+    if not isinstance(app, WSGIAdapter | Hinoki):
+        return AppSettings.load().compression.enabled
     if isinstance(app, WSGIAdapter):
         app = app.app
     settings = getattr(app, "settings", None)

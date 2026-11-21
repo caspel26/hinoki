@@ -13,8 +13,9 @@ import pytest
 from hinoki import Hinoki, core, http
 from hinoki.http import Event, EventStream, File, Response, Stream
 from hinoki.runtime.kiso import KisoWorker
-from hinoki.serve import choose_server
+from hinoki.serve import choose_server, compresses
 from hinoki.settings import AppSettings, CompressionSettings, ServerSettings
+from hinoki.wsgi import WSGIAdapter
 
 state: dict[str, object] = {}
 ROWS = [{"id": number, "name": f"item {number}"} for number in range(400)]
@@ -257,6 +258,18 @@ def test_the_native_server_refuses_an_invalid_policy() -> None:
             0,
             compression={"gzip_level": 12},
         )
+
+
+def test_a_plain_wsgi_callable_takes_compression_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def plain(environ: dict[str, object], start_response: object) -> list[bytes]:
+        return []
+
+    assert compresses(plain) is False
+    monkeypatch.setenv("COMPRESSION__ENABLED", "true")
+    assert compresses(plain) is True
+    assert compresses(WSGIAdapter(Hinoki())) is False
 
 
 def test_granian_refuses_enabled_compression() -> None:
