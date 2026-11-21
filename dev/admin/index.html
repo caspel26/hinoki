@@ -450,7 +450,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 01:06:42 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 01:14:44 UTC">November 21, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -609,6 +609,12 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 </table>
 <p>Usernames are stored in lower case: 1 to 150 letters, digits and <code>. _ @ + -</code>, starting with a letter or digit. An unknown username costs the same hashing work as a wrong password and gets the same answer.</p>
 <p><code>password</code> changes the signed-in user's password. The form asks for the current password, a new one (at least <code>admin.min_password_length</code> characters) and the new one again. A wrong current password, two different new ones or a password that breaks the length rule answer <code>422</code> with the reason on the form; an expired form answers <code>403</code>. Success ends every other session of the user and redirects (<code>303</code>) to the admin root (<code>?done=password</code>) with a new session.</p>
+<h3 id="the-logo">The logo<a class="headerlink" href="#the-logo" title="Permanent link">&para;</a></h3>
+<p>The sidebar and the sign-in card show a bookmark icon by default. <code>logo=</code> replaces it with another built-in icon or with an image you serve yourself:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span> <span class="n">logo</span><span class="o">=</span><span class="s2">"layers"</span><span class="p">)</span>  <span class="c1"># a built-in icon</span>
+<span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span> <span class="n">logo</span><span class="o">=</span><span class="s2">"/static/logo.svg"</span><span class="p">)</span>  <span class="c1"># an image from your app</span>
+</code></pre></div>
+<p>An image path must start with a single <code>/</code>: the admin's content security policy only allows same-origin images, so an <code>https://</code> URL or <code>//host/...</code> is refused with a <code>ValueError</code> when the <code>Admin</code> is built, as is an unknown icon name. The built-in icons are the <code>i-*</code> symbols of the admin sprite (<code>bookmark</code>, <code>layers</code>, <code>folder</code>, <code>users</code>, <code>tag</code>, <code>image</code>, ...).</p>
 <h3 id="sessions-and-cookies">Sessions and cookies<a class="headerlink" href="#sessions-and-cookies" title="Permanent link">&para;</a></h3>
 <ul>
 <li>The session is a random token in the <code>hinoki_admin_session</code> cookie: <code>HttpOnly</code>, <code>SameSite=Lax</code>, scoped to the admin's path. The database stores only its SHA-256, so a copy of the table cannot be replayed.</li>
@@ -724,13 +730,13 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
           
           
             <ul><li><a href="#create-the-admins-tables">Create the admin's tables</a></li><li><a href="#set-the-signing-secret">Set the signing secret</a></li><li><a href="#who-may-sign-in">Who may sign in</a></li><li><a href="#the-sign-in-page">The sign-in page</a>
-            <ul><li><a href="#sessions-and-cookies">Sessions and cookies</a></li></ul>
+            <ul><li><a href="#the-logo">The logo</a></li><li><a href="#sessions-and-cookies">Sessions and cookies</a></li></ul>
           </li><li><a href="#manage-users">Manage users</a></li><li><a href="#limit-sign-in-attempts">Limit sign-in attempts</a></li><li><a href="#serve-it-under-another-path">Serve it under another path</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 01:06:42 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 01:14:44 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
