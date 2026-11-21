@@ -47,10 +47,16 @@ Middleware, raw responses and the WSGI path are stricter: a path with a NUL byte
 
 The database pool defaults to the settings size of 10, and a URL scheme that lacks its slashes is named in the error.
 
+#### 🧮 JSON is read and written by the Rust core
+> `python/hinoki/jsontext.py`, `crates/bindings/src/request.rs`, `crates/bindings/src/modelrows.rs`
+
+The command line, the migration state files, the JSON log format, the MCP server and the test client no longer use Python's `json` module. Output is the same data with compact separators (`{"a":1}`) where it was not indented, and floats such as `1e-07` print as `1e-7`. `NaN` and infinities are refused instead of written or read.
+
 ---
 
 ### 🐛 Fixes
 
+- **Manifests and scaffolds:** names and paths with characters above the Basic Multilingual Plane (for example emoji) or DEL are written as valid TOML (`python/hinoki/projectcli.py`, `python/hinoki/scaffold.py`).
 - **`hinoki check`:** it imports the manifest's models before running the rules and warns when it ran no rules (`python/hinoki/checkcli.py`, #391, #393).
 - **Migrations:** a plan error no longer suggests running `migrations plan` (#392).
 - **Model validation:** text length errors count characters, not items (`python/hinoki/orm/model.py`, #396).
