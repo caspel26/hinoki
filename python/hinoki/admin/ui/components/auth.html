@@ -10,8 +10,11 @@
 <body class="hn-auth">
 {{{ sprite }}}
 <main class="hn-auth-card" id="main">
+<header class="hn-auth-head">
+<span class="hn-auth-mark"><svg class="hn-icon" aria-hidden="true"><use href="#i-bookmark"/></svg></span>
 <h1>{{ site }}</h1>
 <p class="hn-auth-title">{{ title }}</p>
+</header>
 {{{ notice }}}
 <form class="hn-form" method="post" action="{{ action }}" novalidate>
 <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -19,8 +22,8 @@
 {{{ fields }}}
 </div>
 <footer class="hn-form-foot">
-{{{ links }}}
 <button class="hn-btn hn-primary" type="submit">{{ submit }}</button>
+{{{ links }}}
 </footer>
 </form>
 </main>
