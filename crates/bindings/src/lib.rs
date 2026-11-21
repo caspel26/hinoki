@@ -23,6 +23,7 @@ mod schema;
 mod server;
 mod sink;
 mod streamlimit;
+mod tally;
 mod wsgi;
 mod xml;
 
@@ -99,6 +100,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     wsgi::register(m)?;
     m.add_class::<sink::ResponseSink>()?;
     m.add_function(wrap_pyfunction!(filelocate::locate_file, m)?)?;
+    m.add_class::<tally::Tally>()?;
     m.add_class::<streamlimit::StreamLimit>()?;
     m.add_class::<streamlimit::StreamPermit>()?;
     m.add_function(wrap_pyfunction!(sink::sse_frame, m)?)?;

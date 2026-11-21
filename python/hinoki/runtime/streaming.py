@@ -316,32 +316,6 @@ class Pace(NamedTuple):
     length: int | None = None
 
 
-class Tally:
-    """Holds a body to the ``content-length`` its head declared."""
-
-    __slots__ = ("length", "over", "total")
-
-    def __init__(self, length: int | None) -> None:
-        self.length = length
-        self.total = 0
-        self.over = False
-
-    def fit(self, piece: bytes) -> bytes:
-        """The part of a piece that fits in the declared length."""
-        if self.length is None:
-            return piece
-        room = self.length - self.total
-        if len(piece) > room:
-            self.over = True
-            piece = piece[:room]
-        self.total += len(piece)
-        return piece
-
-    @property
-    def short(self) -> bool:
-        return self.length is not None and self.total < self.length
-
-
 async def next_piece(
     send: Callable[[dict[str, Any]], Awaitable[None]], reader: Reader, pace: Pace
 ) -> bytes | None:
@@ -353,7 +327,7 @@ async def next_piece(
 async def feed_asgi(
     send: Callable[[dict[str, Any]], Awaitable[None]], reader: Reader, pace: Pace
 ) -> None:
-    tally = Tally(pace.length)
+    tally = core.Tally(pace.length)
     if pace.preamble:
         await send(body_message(tally.fit(pace.preamble)))
     while (piece := await next_piece(send, reader, pace)) is not None:

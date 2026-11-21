@@ -426,6 +426,22 @@ def locate_file(
     there is no such file. The lookup runs on a blocking thread.
     """
 
+class Tally:
+    """Holds a streamed body to the `content-length` its head declared."""
+
+    def __init__(self, length: int | None = ...) -> None: ...
+    def fit(self, piece: bytes) -> bytes:
+        """The part of `piece` that fits in the declared length (all of it
+        without a length); `over` turns `True` when some did not."""
+
+    @property
+    def over(self) -> bool:
+        """A piece went past the declared length."""
+
+    @property
+    def short(self) -> bool:
+        """Fewer bytes than declared were sent; `False` without a length."""
+
 class StreamLimit:
     """The places a worker has for open streamed responses, counted in Rust."""
 
