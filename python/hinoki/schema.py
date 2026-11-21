@@ -352,6 +352,33 @@ def instance_error(path: str) -> ValidationError:
     return ValidationError([ErrorDetail(path, "depth", "input is nested too deeply")])
 
 
+_PASSTHROUGH_KINDS = frozenset({"str", "int", "float", "bool"})
+
+
+def instance_plan(
+    cls: type[Schema],
+) -> tuple[tuple[str, str, FieldType, bool], ...]:
+    """Per class: ``(name, wire name, type, passes through)`` for each field.
+
+    A plain ``str``/``int``/``float``/``bool`` field reaches the validator as
+    it is, so it needs neither a path nor the typed conversion walk."""
+    cached = cls.__dict__.get("__instance_plan__")
+    if cached is None:
+        cached = tuple(
+            (
+                name,
+                spec.wire_name,
+                spec.ftype,
+                spec.ftype.kind in _PASSTHROUGH_KINDS
+                and spec.ftype.schema is None
+                and spec.ftype.enum_class is None,
+            )
+            for name, spec in cls.specs().items()
+        )
+        cls.__instance_plan__ = cached
+    return cached
+
+
 def schema_instance_values(
     cls: type[Schema],
     instance: Schema,
@@ -368,19 +395,21 @@ def schema_instance_values(
     active.add(id(instance))
     try:
         values: dict[str, Any] = {}
-        for name, spec in cls.specs().items():
+        for name, wire_name, ftype, passes in instance_plan(cls):
             value = getattr(instance, name, _INSTANCE_MISSING)
             if value is _INSTANCE_MISSING:
                 continue
-            key = spec.wire_name if use_aliases else name
-            field_path = f"{path}.{key}" if path else key
+            key = wire_name if use_aliases else name
+            if passes and value is not UNSET:
+                values[key] = value
+                continue
             checked = instance_value(
-                spec.ftype,
+                ftype,
                 value,
                 use_aliases=use_aliases,
                 active=active,
                 depth=depth + 1,
-                path=field_path,
+                path=f"{path}.{key}" if path else key,
             )
             if checked is not _INSTANCE_MISSING:
                 values[key] = checked
@@ -1119,6 +1148,9 @@ class Schema:
     __before__: ClassVar[tuple[str, ...]] = ()
     __declared_forms__: ClassVar[tuple[tuple[str, FieldInfo], ...] | None] = None
     __float_fields__: ClassVar[tuple[tuple[str, FieldType], ...] | None] = None
+    __instance_plan__: ClassVar[tuple[tuple[str, str, FieldType, bool], ...] | None] = (
+        None
+    )
     __graph_normalizers__: ClassVar[bool | None] = None
     __graph_checks__: ClassVar[bool | None] = None
     __graph_before__: ClassVar[bool | None] = None
