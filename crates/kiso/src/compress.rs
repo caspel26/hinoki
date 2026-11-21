@@ -22,8 +22,10 @@
 //! with its new `content-length` (or as it was when the result is not shorter);
 //! anything longer, and every stream and file, is encoded piece by piece and
 //! sent without a `content-length`. A HEAD answer carries the headers its GET
-//! would, minus `content-length`, and encodes nothing. A strong `etag` becomes
-//! weak, since the representation changes.
+//! would, minus `content-length`, and encodes nothing. It takes no slot, so it
+//! does not depend on the load; the GET may still go out as it is (a body of
+//! at most [`EAGER_LIMIT`] bytes that does not get shorter, or no free slot).
+//! A strong `etag` becomes weak, since the representation changes.
 
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};

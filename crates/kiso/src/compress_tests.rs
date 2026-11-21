@@ -440,6 +440,20 @@ async fn a_busy_policy_sends_the_answer_as_it_was() {
     );
 }
 
+#[tokio::test]
+async fn head_does_not_need_a_free_slot() {
+    let compression = policy(|config| config.max_concurrent = 1);
+    let (_first, held, _) = live_reply(&compression, "gzip", json(), None, Pace::default());
+    assert!(matches!(held, Some(Reply::Encoded(_))));
+    let (out, _) = through(&compression, "gzip", json(), &text(5000), true);
+    assert_eq!(value(&out, "content-encoding"), Some("gzip"));
+    assert_eq!(
+        compression.busy(),
+        0,
+        "a HEAD takes no slot and counts none"
+    );
+}
+
 #[test]
 fn an_unusable_policy_is_refused() {
     let refused = |change: fn(&mut Config)| {
