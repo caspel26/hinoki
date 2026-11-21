@@ -52,11 +52,10 @@
 
 .hn-label::after {
   content: "";
-  flex: none;
-  width: 36px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--hn-wood), transparent);
+  flex: 1;
+  height: 1px;
+  transform-origin: left;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--hn-brand) 55%, transparent), transparent);
 }
 
 .hn-sub {
@@ -104,10 +103,22 @@
   from { opacity: 0.35; transform: translate3d(0, 14px, 0); }
 }
 
+@keyframes rule-draw {
+  from { transform: scaleX(0); }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .js .reveal:not(.is-in) {
     opacity: 0.35;
     transform: translate3d(0, 14px, 0);
+  }
+
+  .js .hn-label.reveal:not(.is-in)::after {
+    transform: scaleX(0);
+  }
+
+  .js .hn-label.reveal.is-in::after {
+    animation: rule-draw 900ms var(--hn-ease) 160ms backwards;
   }
 
   .js .reveal.is-in {
