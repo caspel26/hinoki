@@ -674,6 +674,7 @@ impl KisoServer {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
+        py: Python<'_>,
         core: &ServerCore,
         host: &str,
         port: u16,
@@ -734,6 +735,10 @@ impl KisoServer {
         let listener = TcpListener::from_std(listener).map_err(io_error)?;
         let (stop, receiver) = watch::channel(false);
         let task = runtime.spawn(serve(listener, backend, config, tls, receiver));
+        // Responses the loop sends go to the connections once per iteration.
+        if let Ok(event_loop) = py.import("asyncio")?.call_method0("get_running_loop") {
+            crate::handoff::per_iteration(&event_loop);
+        }
         Ok(Self {
             addr,
             reader,

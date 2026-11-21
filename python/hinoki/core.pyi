@@ -1,3 +1,4 @@
+import asyncio
 import os
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import datetime
@@ -70,13 +71,16 @@ def _native_wait(millis: int, value: Any, fail: bool) -> _NativeWait: ...
 class _NativeRun:
     def cancel(self) -> None: ...
 
+class _NativeSteps:
+    def __init__(self, loop: asyncio.AbstractEventLoop) -> None: ...
+
 def run_native(
     coro: Any,
     on_done: Callable[[Any, BaseException | None, str | None], None],
     on_foreign: Callable[[Any, Any, Any, float | None, str | None], None],
     ctx: Any = None,
     deadline_ms: int | None = None,
-    scheduler: Callable[[Any], Any] | None = None,
+    scheduler: Callable[[Any], Any] | _NativeSteps | None = None,
 ) -> _NativeRun: ...
 
 class _ClaimsAuth:
