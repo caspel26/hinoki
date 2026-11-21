@@ -136,6 +136,23 @@ def test_report_has_sorted_median_bars_and_a_semantic_table_per_scenario() -> No
         in rendered
     )
     assert rendered.count('<details class="bench-details">') == 4
+    assert rendered.count('<span class="bench-axis" aria-hidden="true">') == 4
+    assert rendered.count('<span class="bench-gridlines" aria-hidden="true">') == 4
+    assert 'class="bench-row is-hinoki" data-stack="hinoki"' in rendered
+
+
+def test_value_axis_labels_zero_midpoint_and_maximum() -> None:
+    axis = report.value_axis(12000.0)
+
+    assert axis.count("<span>") == 4
+    assert "<span>0</span><span>6,000</span><span>12,000</span>" in axis
+    assert 'aria-hidden="true"' in axis
+
+
+def test_stack_key_ignores_the_server_and_normalises_the_name() -> None:
+    assert report.stack_key("Django Ninja · Uvicorn") == "django-ninja"
+    assert report.stack_key("FastAPI · Uvicorn") == "fastapi"
+    assert report.stack_key("Hinoki") == "hinoki"
 
 
 def test_unstable_scenario_is_withheld_and_stable_ones_are_reported() -> None:
@@ -427,8 +444,8 @@ def test_each_scenario_states_a_headline_and_a_multiplier_over_the_slowest() -> 
     ) in rendered
     assert '<span class="bench-ratio">1.58&times;</span>' in rendered
     assert '<span class="bench-ratio">1.00&times;</span>' in rendered
-    assert rendered.count('<div class="bench-row is-hinoki">') == 4
-    assert rendered.count('<div class="bench-row">') == 4
+    assert rendered.count('<div class="bench-row is-hinoki" data-stack="hinoki">') == 4
+    assert rendered.count('<div class="bench-row" data-stack="fastapi">') == 4
     assert "overlap" not in rendered
 
 
@@ -558,7 +575,7 @@ def test_page_has_the_sections_a_reader_needs_in_order() -> None:
     positions = [page.index(heading) for heading in headings]
     assert positions == sorted(positions)
     assert "hinoki 0.0.1" in page
-    assert '=== "Each stack on its own server"' in page
+    assert '=== "Documented servers"' in page
     assert '!!! warning "Read this first"' in page
     assert page.index("FIELD NOTE") < page.index("# Benchmarks")
 
@@ -576,7 +593,7 @@ def test_kiso_view_is_its_own_tab_with_a_single_stack() -> None:
             report.main([directory])
         page = buffer.getvalue()
 
-    assert '=== "Hinoki on its Rust server"' in page
+    assert '=== "Hinoki on Kiso"' in page
     assert "Hinoki · Kiso" in page
 
 
