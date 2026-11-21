@@ -6,11 +6,14 @@ import logging
 import traceback
 from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hinoki import core
 from hinoki.context import request_id
 from hinoki.errors import APIError, ErrorRegistry, InvalidBody, ValidationError
+
+if TYPE_CHECKING:
+    from hinoki.http.stream import Streamed
 
 log = logging.getLogger("hinoki.runtime")
 
@@ -23,11 +26,30 @@ INVALID_BODY_STATUS = {
 }
 
 
+class StreamHandle:
+    """A streamed answer on its way to the transport: the object the handler
+    returned, the place it holds and, for a ``File``, the resolved path and size."""
+
+    __slots__ = ("answer", "lease", "location")
+
+    def __init__(
+        self, answer: Streamed, location: tuple[str, int] | None = None
+    ) -> None:
+        self.answer = answer
+        self.location = location
+        self.lease: core.StreamPermit | None = None
+
+    def release(self) -> None:
+        if self.lease is not None:
+            self.lease.release()
+
+
 @dataclass(slots=True)
 class Response:
     status: int
     body: bytes = b""
     headers: Headers = field(default_factory=list)
+    stream: StreamHandle | None = None
 
     @classmethod
     def rendered(

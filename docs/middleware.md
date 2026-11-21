@@ -79,6 +79,8 @@ the state after the rollback. Call `call_next()` at most once (a second call is
 a `500`). A middleware that raises is translated like an action error; one that
 returns anything but a `Response` is a `500`.
 
+For an action that returns `Stream`, `EventStream` or `File`, `call_next()` returns that object with an empty `body`: a middleware never sees the pieces, and `with_header` keeps the class and the source. A middleware that answers with another `Response` instead of the stream does not serve it, and Hinoki closes its source. See [stream a response](streaming.md#middleware).
+
 Security, CORS and request-id headers are added after the middleware returns.
 
 ## Order and what stays outside

@@ -18,6 +18,7 @@ from hinoki.errors import MAX_RETRY_AFTER, APIError, RegistrationError, TooManyR
 from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
 from hinoki.http.response import Response
+from hinoki.http.stream import EventStream, Streamed
 from hinoki.pagination import MAX_NUMBER, Page, PageNumberPagination
 from hinoki.runtime.binding import Binding, Param
 from hinoki.runtime.responsecheck import union_arms
@@ -287,7 +288,12 @@ class OpenAPIBuilder:
         empty = annotation in {None, type(None)} or route.status in BODYLESS_STATUSES
         status = 204 if empty and route.status == HTTPStatus.OK else route.status
         success: dict[str, Any] = {"description": "Successful response"}
-        if not empty:
+        if binding.streams:
+            success["content"] = {
+                **streamed_content(annotation),
+                **self.plain_content(binding, annotation),
+            }
+        elif not empty:
             schema = self.annotation(annotation)
             success["content"] = {
                 renderer.media_type: {"schema": schema} for renderer in route.renderers
@@ -300,6 +306,23 @@ class OpenAPIBuilder:
                 "content": {"application/json": {"schema": ref(VALIDATION_ERROR)}},
             }
         return responses
+
+    def plain_content(self, binding: Binding, annotation: object) -> dict[str, Any]:
+        """The bodies of the arms that are not streamed (``Stream | NoteOut``),
+        under the media types of the route's renderers."""
+        schemas = [
+            self.annotation(arm)
+            for arm in union_arms(annotation)
+            if arm not in {Response, None, type(None)}
+            and not (isinstance(arm, type) and issubclass(arm, Streamed))
+        ]
+        if not schemas:
+            return {}
+        schema = schemas[0] if len(schemas) == 1 else {"anyOf": schemas}
+        return {
+            renderer.media_type: {"schema": schema}
+            for renderer in binding.route.renderers
+        }
 
     def annotation(self, annotation: object) -> dict[str, Any]:
         """JSON schema of a handler return annotation."""
@@ -461,6 +484,22 @@ class OpenAPIBuilder:
                 # JSON Schema patterns are unanchored; the runtime matches fully.
                 base["pattern"] = f"^(?:{value})$"
         return base
+
+
+def streamed_content(annotation: object) -> dict[str, Any]:
+    """The response content of an action that returns a ``Stream``,
+    ``EventStream`` or ``File``: the media type is known only for an event
+    stream; the others document the bytes of the body."""
+    arms = [
+        arm
+        for arm in union_arms(annotation)
+        if isinstance(arm, type) and issubclass(arm, Streamed)
+    ]
+    if arms and all(issubclass(arm, EventStream) for arm in arms):
+        return {"text/event-stream": {"schema": {"type": "string"}}}
+    return {
+        "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+    }
 
 
 def document_value(value: object) -> object:

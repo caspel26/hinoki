@@ -32,11 +32,18 @@ from hinoki.errors import (
 )
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
+from hinoki.http.stream import Streamed
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import MultiPartParser, Parser, UploadedFile, XMLParser
 from hinoki.renderers import is_default_json_renderer
 from hinoki.routing import Route
-from hinoki.runtime.responsecheck import NO_ANNOTATION, Check, compile_response_check
+from hinoki.runtime.responsecheck import (
+    NO_ANNOTATION,
+    Check,
+    compile_response_check,
+    union_arms,
+)
+from hinoki.runtime.responses import BODYLESS
 from hinoki.schema import Schema
 from hinoki.sources import TextSource
 
@@ -220,6 +227,7 @@ class Binding:
     response_check: Check | None = field(default=None, repr=False, compare=False)
     response_annotation: str = field(default="", repr=False, compare=False)
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
+    streams: bool = False  # the return annotation names Stream, EventStream or File
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
     body_param: Param | None = field(init=False, repr=False, compare=False)
@@ -650,6 +658,7 @@ def bind(route: Route) -> Binding:
         )
     needs_body = any(p.source in {"body", "file"} for p in params)
     response = hints.get("return")
+    streams = check_streaming(route, response)
     response_schema = (
         response
         if isinstance(response, type)
@@ -670,4 +679,32 @@ def bind(route: Route) -> Binding:
         response_schema,
         response_check,
         describe_annotation(hints.get("return", NO_ANNOTATION)),
+        streams=streams,
     )
+
+
+def check_streaming(route: Route, annotation: object) -> bool:
+    """Whether the action streams (its annotation names ``Stream``,
+    ``EventStream`` or ``File``); ``RegistrationError`` for a declaration that
+    cannot work with a stream."""
+    handler = route.handler
+    if inspect.isasyncgenfunction(handler) or inspect.isgeneratorfunction(handler):
+        raise RegistrationError(
+            f"{route.name}: a generator function cannot be the handler; "
+            "return Stream(...) or EventStream(...) built from the generator, "
+            "and annotate the action with it"
+        )
+    streams = any(
+        isinstance(arm, type) and issubclass(arm, Streamed)
+        for arm in union_arms(annotation)
+    )
+    if streams and route.atomic:
+        raise RegistrationError(
+            f"{route.name}: atomic=True cannot be combined with a streamed "
+            "response; the transaction would stay open for the whole stream"
+        )
+    if streams and route.status in BODYLESS:
+        raise RegistrationError(
+            f"{route.name}: status {route.status} cannot have a body"
+        )
+    return streams

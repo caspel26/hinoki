@@ -46,6 +46,7 @@ class WSGIAdapter:
     def start(self) -> None:
         """Start the loop and the application's startup; safe to call twice."""
         with self._lock:
+            self._refuse_streams()
             if self._loop is not None:
                 if self._failure is not None:
                     raise WSGIStartupError(self._failure)
@@ -62,6 +63,20 @@ class WSGIAdapter:
                 self._failure = str(exc) or type(exc).__name__
                 raise
             atexit.register(self.close)
+
+    def _refuse_streams(self) -> None:
+        """Stream, EventStream and File answers need a transport that can send a
+        body as it is produced; WSGI here collects the whole answer."""
+        names = [
+            binding.route.name
+            for binding in getattr(self.app, "bindings", ())
+            if binding.streams
+        ]
+        if names:
+            raise WSGIStartupError(
+                "WSGIAdapter cannot serve streamed responses (Stream, "
+                f"EventStream, File); serve with ASGI or Kiso: {', '.join(names)}"
+            )
 
     async def _startup(self) -> None:
         self._inbox = asyncio.Queue()

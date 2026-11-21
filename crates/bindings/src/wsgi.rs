@@ -25,7 +25,8 @@ use std::time::{Duration, Instant};
 use bytes::Bytes;
 use kiso::headers::Header;
 use kiso::{
-    serve, Aborted, Answer, Backend, BodyError, Chunk, Closed, Delivery, Incoming, Lane, Streamed,
+    serve, Aborted, Answer, Backend, BodyError, Chunk, Closed, Delivery, FileAnswer, Incoming,
+    Lane, Pace, Streamed,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -291,28 +292,6 @@ fn overloaded() -> Delivery {
     Delivery::Whole(answer)
 }
 
-/// Pass the body on, but reset the stream when the application is silent for
-/// `gap`: a stalled iterable would otherwise hold the connection open for ever.
-/// Dropping the receiving end makes the application's next write report that
-/// nobody is listening.
-fn bounded_gaps(mut pieces: mpsc::Receiver<Chunk>, gap: Duration) -> mpsc::Receiver<Chunk> {
-    let (forward, forwarded) = mpsc::channel(STREAM_DEPTH);
-    tokio::spawn(async move {
-        loop {
-            let piece = match timeout(gap, pieces.recv()).await {
-                Ok(Some(piece)) => piece,
-                Ok(None) => return,
-                Err(_) => Err(Aborted),
-            };
-            let aborted = piece.is_err();
-            if forward.send(piece).await.is_err() || aborted {
-                return;
-            }
-        }
-    });
-    forwarded
-}
-
 /// Whether the decoded path holds a NUL byte or a `.`/`..` segment, which no
 /// application should have to guard against (`%2e%2e` and `%2f` included).
 fn unsafe_path(path: &str) -> bool {
@@ -436,7 +415,14 @@ impl WsgiBackend {
             Ok(Ok(Started { status, headers })) => Delivery::Streamed(Streamed {
                 status,
                 headers,
-                chunks: bounded_gaps(receiver, self.limits.request_timeout),
+                chunks: receiver,
+                // A stalled iterable would hold the connection open for ever:
+                // the connection resets the stream after a silent gap, and the
+                // application's next write then reports nobody is listening.
+                pace: Pace {
+                    idle: Some(self.limits.request_timeout),
+                    keepalive: None,
+                },
             }),
             Ok(Err(_)) => plain(500, "the application failed\n"),
             Err(_) => plain(504, "the application took too long\n"),
@@ -449,9 +435,14 @@ impl Backend for WsgiBackend {
         match self.deliver(request).await {
             Delivery::Whole(answer) => answer,
             // Callers that cannot stream get the status and an empty body.
-            Delivery::Streamed(streamed) => Answer {
-                status: streamed.status,
-                headers: streamed.headers,
+            Delivery::Streamed(Streamed {
+                status, headers, ..
+            })
+            | Delivery::File(FileAnswer {
+                status, headers, ..
+            }) => Answer {
+                status,
+                headers,
                 body: Vec::new(),
             },
         }
@@ -701,16 +692,25 @@ def bridge(call):
     call.finish()
 ";
 
+    async fn next_piece(live: &mut kiso::Live) -> Option<Chunk> {
+        std::future::poll_fn(|cx| live.poll_piece(cx, usize::MAX)).await
+    }
+
     #[test]
     fn a_producer_silent_past_the_timeout_resets_the_stream() {
         let backend = backend(STALLS, 1, 1);
         runtime().block_on(async {
-            let Delivery::Streamed(mut streamed) = backend.deliver(incoming()).await else {
+            let Delivery::Streamed(streamed) = backend.deliver(incoming()).await else {
                 panic!("a streamed response")
             };
-            assert_eq!(streamed.chunks.recv().await, Some(Ok(Bytes::from("one"))));
-            let next = timeout(Duration::from_millis(1500), streamed.chunks.recv()).await;
-            assert_eq!(next, Ok(Some(Err(Aborted))));
+            assert!(
+                streamed.pace.idle.is_some(),
+                "the timer is the connection's"
+            );
+            let mut live = kiso::Live::new(streamed.chunks).paced(streamed.pace);
+            assert_eq!(next_piece(&mut live).await, Some(Ok(Bytes::from("one"))));
+            let silent = timeout(Duration::from_millis(1500), next_piece(&mut live)).await;
+            assert_eq!(silent, Ok(Some(Err(Aborted))));
         });
     }
 
