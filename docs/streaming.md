@@ -190,19 +190,50 @@ An action that streams is always served by Python and never takes
 
 ## What runs where
 
+Rust does what is a computation or a timer on its own; Python does what has to
+call the application's code or live in the event loop.
+
 * **Kiso.** The application's iterator runs in Python and every piece it
   produces crosses to Rust as a Python `bytes`. From there, framing, the bounded
   queue (a slow client slows the iterator down), the idle timeout, the
-  keep-alive comments and the disconnect check run in the server. SSE framing is
-  done by `core.sse_frame`. A `File` is opened and sent by the server: the bytes
-  of the file never enter Python.
+  keep-alive comments, the declared-length check and the disconnect check run in
+  the server. SSE framing is done by `core.sse_frame`. A `File` is opened and
+  sent by the server: the bytes of the file never enter Python.
 * **Granian (ASGI).** Each piece is an ASGI `http.response.body` message built
-  in Python; the idle timeout, the keep-alive and the disconnect watcher run in
-  Python. A client that leaves is noticed through `receive()`. A `File` is sent
-  with the ASGI `http.response.pathsend` extension when the server offers it,
-  and read in chunks on the sync executor otherwise.
+  in Python, so this path has no native part for the body. The idle timeout, the
+  keep-alive and the disconnect watcher run in Python, and a client that leaves
+  is noticed through `receive()`. A `File` is sent with the ASGI
+  `http.response.pathsend` extension when the server offers it, and read in
+  chunks on the sync executor otherwise.
+* **Both paths, in Rust.** The count behind `execution.max_streams`
+  (`core.StreamLimit`: an atomic counter whose places give themselves back when
+  released or dropped), the file lookup of a `File` (`core.locate_file`: real
+  path, `root` check, regular file and size, on a blocking thread and not in the
+  sync executor), the declared-length arithmetic of the ASGI pump
+  (`core.Tally`), the `content-disposition` value (`core.content_disposition`)
+  and the SSE frames. A WSGI stream's idle timeout is the connection's own timer,
+  as on Kiso.
 
 Neither path is called native: the application's iterator is Python on both.
+
+What stays in Python, and why:
+
+* **The source.** The iterator is user code, and a plain one has to run on a
+  worker thread; Rust cannot call it from a runtime thread without moving a
+  Python object there.
+* **Taking the place and the `503`.** The place is taken in the pipeline right
+  before the handler runs, because the answer to a full worker is a normal
+  Hinoki error (`Retry-After: 1`, the application's error format, middleware)
+  that is built in Python. The count itself is Rust.
+* **The ASGI timers and the watcher.** The idle timeout and the keep-alive
+  wrap an `await` on the application's iterator and the watcher is a task on
+  `receive()`; both are asyncio objects of the server's loop. A Rust state
+  machine would only compute a deadline that Python must still schedule, so
+  they stay as they are.
+* **Registration rules, the annotation check, middleware and `HEAD`.** They
+  inspect Python annotations and `Response` objects.
+* **The `content-type` of a `File`.** It is guessed from the name with the
+  standard library's `mimetypes`; Hinoki does not carry a second table.
 
 ### Measured behavior
 
