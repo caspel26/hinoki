@@ -96,6 +96,10 @@ An action that returns `Stream`, `EventStream` or `File` is never served by the 
 
 A client that leaves is noticed when the server next writes to it, so a stream that keeps producing is closed at once, while a silent one is closed at its next keep-alive or idle timeout. A body that fails after the head is cut instead of ending as complete, and the access log keeps the status of the head. See [stream a response](streaming.md).
 
+## Response compression
+
+With `compression.enabled` Kiso compresses eligible bodies with brotli or gzip after the application has answered, on HTTP/1.1 and HTTP/2, for whole answers, streams, event streams and files. It negotiates `accept-encoding`, adds `Vary`, skips small or non-text bodies and answers with `cache-control: no-transform`, flushes a stream whenever its producer pauses, and sends an answer uncompressed when `compression.max_concurrent` compressions are already running. It is a Kiso feature: Granian does not compress. See [compress responses](compression.md).
+
 ## Workers, signals and restarts
 
 With one worker `hinoki serve` runs the server in its own process. With several workers (and always under `hinoki dev`) it starts a supervisor that opens the listening socket once (honouring `backlog`), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.

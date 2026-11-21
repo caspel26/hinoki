@@ -4,6 +4,7 @@
 //! decoding / JSON (see `request.rs`).
 
 mod completion;
+mod compression;
 mod crudplan;
 mod crypto;
 mod db;
