@@ -14,7 +14,8 @@ use h2::client::{self, SendRequest};
 use http::Request;
 use kiso::tls::acceptor;
 use kiso::{
-    serve, Answer, Backend, Closed, Delivery, Incoming, NativeJobs, ServerConfig, Streamed,
+    serve, Aborted, Answer, Backend, Closed, Delivery, FileAnswer, FileBody, Incoming, NativeJobs,
+    Pace, ServerConfig, Streamed,
 };
 use rustls::crypto::ring::default_provider;
 use rustls::pki_types::pem::PemObject;
@@ -40,6 +41,7 @@ struct Fake {
     native_started: Arc<Notify>,
     native_release: Arc<Notify>,
     native_handler_cancelled: Arc<Notify>,
+    producer_gone: Arc<Notify>,
 }
 
 impl Default for Fake {
@@ -51,6 +53,7 @@ impl Default for Fake {
             native_started: Arc::new(Notify::new()),
             native_release: Arc::new(Notify::new()),
             native_handler_cancelled: Arc::new(Notify::new()),
+            producer_gone: Arc::new(Notify::new()),
         }
     }
 }
@@ -155,21 +158,98 @@ impl Backend for Fake {
     }
 
     async fn deliver(&self, request: Incoming) -> Delivery {
-        if request.path != "/live" {
-            return Delivery::Whole(self.handle(request).await);
+        match request.path.as_str() {
+            "/live" => Self::live(),
+            "/sse" => Self::sse(),
+            "/abort" => Self::abort(),
+            "/gone" => self.gone(),
+            "/file" => Self::file().await,
+            _ => Delivery::Whole(self.handle(request).await),
         }
+    }
+}
+
+impl Fake {
+    fn streamed(chunks: tokio::sync::mpsc::Receiver<kiso::Chunk>, pace: Pace) -> Delivery {
+        Delivery::Streamed(Streamed {
+            status: 200,
+            headers: Vec::new(),
+            chunks,
+            pace,
+        })
+    }
+
+    fn live() -> Delivery {
         let (sender, chunks) = tokio::sync::mpsc::channel(1);
         tokio::spawn(async move {
             sender.send(Ok(Bytes::from_static(b"one "))).await.ok();
             sleep(Duration::from_millis(1500)).await;
             sender.send(Ok(Bytes::from_static(b"two"))).await.ok();
         });
-        Delivery::Streamed(Streamed {
+        Self::streamed(chunks, Pace::default())
+    }
+
+    /// Silent for 400 ms with a 100 ms keep-alive, then one event and the end.
+    fn sse() -> Delivery {
+        let (sender, chunks) = tokio::sync::mpsc::channel(1);
+        tokio::spawn(async move {
+            sleep(Duration::from_millis(400)).await;
+            sender
+                .send(Ok(Bytes::from_static(b"data: x\n\n")))
+                .await
+                .ok();
+        });
+        let pace = Pace {
+            keepalive: Some(Duration::from_millis(100)),
+            ..Pace::default()
+        };
+        Self::streamed(chunks, pace)
+    }
+
+    fn abort() -> Delivery {
+        let (sender, chunks) = tokio::sync::mpsc::channel(2);
+        tokio::spawn(async move {
+            sender.send(Ok(Bytes::from_static(b"partial"))).await.ok();
+            sender.send(Err(Aborted)).await.ok();
+        });
+        Self::streamed(chunks, Pace::default())
+    }
+
+    /// A producer that never ends and says when its receiver is dropped.
+    fn gone(&self) -> Delivery {
+        let (sender, chunks) = tokio::sync::mpsc::channel(1);
+        let gone = Arc::clone(&self.producer_gone);
+        tokio::spawn(async move {
+            sender.send(Ok(Bytes::from_static(b"first"))).await.ok();
+            sender.closed().await;
+            gone.notify_one();
+        });
+        Self::streamed(chunks, Pace::default())
+    }
+
+    async fn file() -> Delivery {
+        let file = FileBody::open(&big_file()).await.unwrap();
+        let headers = vec![(
+            b"content-length".to_vec(),
+            file.len().to_string().into_bytes(),
+        )];
+        Delivery::File(FileAnswer {
             status: 200,
-            headers: Vec::new(),
-            chunks,
+            headers,
+            file,
         })
     }
+}
+
+const BIG_FILE_LEN: usize = 200_000;
+
+/// A file larger than several HTTP/2 frames and file pieces, with bytes that
+/// differ along it so a reordered or repeated piece is noticed.
+fn big_file() -> PathBuf {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join("h2-big-file.bin");
+    let bytes: Vec<u8> = (0..BIG_FILE_LEN).map(|n| (n % 251) as u8).collect();
+    std::fs::write(&path, bytes).unwrap();
+    path
 }
 
 fn fixture(name: &str) -> PathBuf {
@@ -882,6 +962,80 @@ async fn a_slow_producer_is_not_a_stalled_client() {
     let (parts, body) = call(&send, request("GET", "/live").body(()).unwrap(), None).await;
     assert_eq!(parts.status, 200);
     assert_eq!(body, b"one two");
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn an_event_stream_keeps_alive_while_the_producer_is_silent() {
+    let running = start(quick(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let (parts, body) = call(&send, request("GET", "/sse").body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 200);
+    let text = String::from_utf8(body).unwrap();
+    assert!(text.ends_with("data: x\n\n"), "{text:?}");
+    let beats = text.matches(": \n\n").count();
+    assert!((2..=4).contains(&beats), "{beats} keep-alives in {text:?}");
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn an_aborted_producer_resets_the_stream_and_leaves_the_connection() {
+    let running = start(quick(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let mut ready = send.clone().ready().await.unwrap();
+    let (response, _) = ready
+        .send_request(request("GET", "/abort").body(()).unwrap(), true)
+        .unwrap();
+    let (_, mut body) = timeout(WAIT, response).await.unwrap().unwrap().into_parts();
+    let mut seen = Vec::new();
+    let failure = loop {
+        match timeout(WAIT, body.data()).await.unwrap() {
+            Some(Ok(chunk)) => seen.extend_from_slice(&chunk),
+            Some(Err(error)) => break Some(error),
+            None => break None,
+        }
+    };
+    // The client may drop data it had not read yet when the reset arrives.
+    assert!(b"partial".starts_with(&seen), "{seen:?}");
+    assert!(
+        failure.is_some_and(|error| error.is_reset()),
+        "no RST_STREAM"
+    );
+    let (parts, body) = call(&send, request("GET", "/").body(()).unwrap(), None).await;
+    assert_eq!(
+        (parts.status.as_u16(), body.as_slice()),
+        (200, &b"hello"[..])
+    );
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_client_reset_closes_the_producers_channel() {
+    let running = start(quick(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let mut ready = send.clone().ready().await.unwrap();
+    let (response, mut stream) = ready
+        .send_request(request("GET", "/gone").body(()).unwrap(), true)
+        .unwrap();
+    let (_, mut body) = timeout(WAIT, response).await.unwrap().unwrap().into_parts();
+    let first = timeout(WAIT, body.data()).await.unwrap().unwrap().unwrap();
+    assert_eq!(first, "first");
+    stream.send_reset(h2::Reason::CANCEL);
+    timeout(WAIT, running.backend.producer_gone.notified())
+        .await
+        .expect("the producer learned the client was gone");
+    running.stop.send(true).unwrap();
+}
+
+#[tokio::test]
+async fn a_file_is_sent_whole_in_frames() {
+    let running = start(quick(), true).await;
+    let (send, _driver) = h2_client(&running).await;
+    let (parts, body) = call(&send, request("GET", "/file").body(()).unwrap(), None).await;
+    assert_eq!(parts.status, 200);
+    assert_eq!(parts.headers["content-length"], BIG_FILE_LEN.to_string());
+    let expected: Vec<u8> = (0..BIG_FILE_LEN).map(|n| (n % 251) as u8).collect();
+    assert_eq!(body, expected);
     running.stop.send(true).unwrap();
 }
 
