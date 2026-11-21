@@ -30,7 +30,7 @@ use kiso::{
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyDict};
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, oneshot, watch, Semaphore};
 use tokio::task::JoinHandle;
@@ -488,7 +488,7 @@ impl WsgiServer {
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
         access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false
+        access_log_sink=None, server_timing=false, compression=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -514,7 +514,9 @@ impl WsgiServer {
         access_log_slow_ms: Option<f64>,
         access_log_sink: Option<Py<PyAny>>,
         server_timing: bool,
+        compression: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        let compression = crate::compression::parse(compression)?;
         let limits = WsgiLimits {
             threads: positive("threads", threads)?,
             queue: positive("queue", queue)?,
@@ -547,6 +549,7 @@ impl WsgiServer {
                 access_log_sink,
             ),
             server_timing,
+            compression,
         )?;
         let drain = config.shutdown_timeout;
         let backend = Arc::new(
