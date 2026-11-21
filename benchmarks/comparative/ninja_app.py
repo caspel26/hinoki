@@ -6,7 +6,9 @@ import uuid
 from datetime import datetime
 
 import django
+import payloads
 from django.core.asgi import get_asgi_application
+from django.http import HttpResponse
 from django.urls import path
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dj_settings")
@@ -56,6 +58,16 @@ api = NinjaAPI(openapi_url=None, docs_url=None)
 @api.get("/health")
 async def health(request):
     return {"status": "ok"}
+
+
+@api.get("/json-1k")
+async def json_1k(request):
+    return HttpResponse(payloads.BODY_1K, content_type="application/json")
+
+
+@api.get("/json-10k")
+async def json_10k(request):
+    return HttpResponse(payloads.BODY_10K, content_type="application/json")
 
 
 @api.get("/posts", response=PageOut)

@@ -5,9 +5,11 @@ import uuid
 from datetime import datetime
 
 import msgspec
+import payloads
 from django.utils import timezone
 from django_bolt import BoltAPI
 from django_bolt.exceptions import HTTPException
+from django_bolt.responses import Response
 
 from benchapp.models import Author, Post
 from benchapp.phase1 import register_phase1
@@ -57,6 +59,16 @@ def out(p: Post) -> PostOut:
 @api.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@api.get("/json-1k")
+async def json_1k() -> Response:
+    return Response(payloads.BODY_1K, media_type="application/json")
+
+
+@api.get("/json-10k")
+async def json_10k() -> Response:
+    return Response(payloads.BODY_10K, media_type="application/json")
 
 
 @api.get("/posts")

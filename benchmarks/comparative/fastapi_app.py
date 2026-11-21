@@ -7,7 +7,8 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+import payloads
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import DateTime, ForeignKey, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -98,6 +99,16 @@ Db = Annotated[AsyncSession, Depends(session)]
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/json-1k")
+async def json_1k() -> Response:
+    return Response(payloads.BODY_1K, media_type="application/json")
+
+
+@app.get("/json-10k")
+async def json_10k() -> Response:
+    return Response(payloads.BODY_10K, media_type="application/json")
 
 
 @app.get("/posts")

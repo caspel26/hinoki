@@ -101,6 +101,8 @@ QUIET_POLL = 10
 QUIET_TIMEOUT = 1800
 SCENARIOS = {
     "health": ("GET", "/health", None),
+    "json-1k": ("GET", "/json-1k", None),
+    "json-10k": ("GET", "/json-10k", None),
     "list": ("GET", "/posts?page=1&page_size=20", None),
     "detail": ("GET", "/posts/{post}", None),
     "create": ("POST", "/posts", "create.json"),
