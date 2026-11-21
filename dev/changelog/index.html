@@ -465,7 +465,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>3 min read</span>
+            <span>4 min read</span>
           </p>
           
         </header>
@@ -509,7 +509,19 @@
 <blockquote>
 <p><code>python/hinoki/db.py</code>, <code>crates/orm/src/database.rs</code> (#395, #397)</p>
 </blockquote>
-<p>The database pool defaults to the settings size of 10, and a URL scheme that lacks its slashes is named in the error.</p></section><section class="cl__sec" data-kind="fixes"><h3>🐛 Fixes</h3><ul>
+<p>The database pool defaults to the settings size of 10, and a URL scheme that lacks its slashes is named in the error.</p>
+<h4>🧮 JSON is read and written by the Rust core</h4>
+<blockquote>
+<p><code>python/hinoki/jsontext.py</code>, <code>crates/bindings/src/request.rs</code>, <code>crates/bindings/src/modelrows.rs</code></p>
+</blockquote>
+<p>The command line, the migration state files, the JSON log format, the MCP server and the test client no longer use Python's <code>json</code> module. Output is the same data with compact separators (<code>{"a":1}</code>) where it was not indented, and floats such as <code>1e-07</code> print as <code>1e-7</code>. Command-line, log, MCP and migration-state output stays ASCII. What changes for callers:</p>
+<ul>
+<li><code>NaN</code> and infinities are refused when written or read.</li>
+<li>Reading refuses nesting deeper than 128 levels (the standard library allowed about 1000); this applies to MCP input and to the test client.</li>
+<li>The test client's <code>json=</code> also accepts <code>datetime</code> and <code>UUID</code> values.</li>
+<li>A JSON column whose bytes start with a UTF-8 byte order mark raises <code>FieldError</code>.</li>
+</ul></section><section class="cl__sec" data-kind="fixes"><h3>🐛 Fixes</h3><ul>
+<li><strong>Manifests and scaffolds:</strong> names and paths with characters above the Basic Multilingual Plane (for example emoji) are written as valid TOML; they used to be written as surrogate-pair escapes, which TOML rejects (<code>python/hinoki/projectcli.py</code>, <code>python/hinoki/scaffold.py</code>).</li>
 <li><strong><code>hinoki check</code>:</strong> it imports the manifest's models before running the rules and warns when it ran no rules (<code>python/hinoki/checkcli.py</code>, #391, #393).</li>
 <li><strong>Migrations:</strong> a plan error no longer suggests running <code>migrations plan</code> (#392).</li>
 <li><strong>Model validation:</strong> text length errors count characters, not items (<code>python/hinoki/orm/model.py</code>, #396).</li>
