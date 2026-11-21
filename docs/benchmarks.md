@@ -111,4 +111,3 @@ For the reader who wants the server taken into account: the same request types, 
     ```
 
     Raw `bombardier` JSON, environment records, server logs, per-worker CPU time and verification output are kept in `benchmarks/comparative/results/2026-11-21/`. Setup details, the database container and the rules for repeating an unstable scenario are in `benchmarks/comparative/README.md`.
-
