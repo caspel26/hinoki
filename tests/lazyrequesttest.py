@@ -1,14 +1,17 @@
 """The request object is built only for an action that can read it."""
 
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
 
 from hinoki import Hinoki, Schema, http
+from hinoki.http import Stream
 from hinoki.http.request import Request
 from hinoki.renderers import JSONRenderer
 from hinoki.runtime import requests as request_module
+from hinoki.testing import ASGIClient
 from tests.harness import Client, Pool
 
 
@@ -34,6 +37,21 @@ async def pretty() -> dict[str, int]:
 @http.post("/notes", status=201)
 async def make(data: Note) -> dict[str, str]:
     return {"text": data.text}
+
+
+async def chunks() -> AsyncIterator[str]:
+    yield "a;"
+    yield "b;"
+
+
+@http.get("/stream")
+async def streams() -> Stream:
+    return Stream(chunks(), content_type="text/plain")
+
+
+@http.get("/stream-reads")
+async def streams_reading(request: Request) -> Stream:
+    return Stream(chunks(), content_type=request.method.lower())
 
 
 @pytest.fixture
@@ -81,3 +99,19 @@ async def test_an_action_that_may_read_it_gets_one(
     )
     assert reply.status in {200, 201}
     assert len(built) == 1
+
+
+async def test_a_streaming_action_builds_a_request_only_when_it_reads_one(
+    built: list[Request],
+) -> None:
+    app = Hinoki()
+    app.include(streams, streams_reading)
+    async with ASGIClient(app) as client:
+        plain_reply = await client.get("/stream")
+        assert (plain_reply.status, plain_reply.body) == (200, "a;b;")
+        assert built == []
+
+        reading = await client.get("/stream-reads")
+        assert reading.status == 200
+        assert reading.headers["content-type"] == "get"
+        assert len(built) == 1
