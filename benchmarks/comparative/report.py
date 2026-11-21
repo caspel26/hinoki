@@ -874,7 +874,7 @@ def main(directories: list[Path]) -> None:
         details_section(directories),
         method_section(directories, first_env),
     ]
-    print("\n".join(part for part in parts if part))
+    print("\n".join(part for part in parts if part).rstrip("\n"))
 
 
 if __name__ == "__main__":
