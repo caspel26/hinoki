@@ -289,7 +289,10 @@ class OpenAPIBuilder:
         status = 204 if empty and route.status == HTTPStatus.OK else route.status
         success: dict[str, Any] = {"description": "Successful response"}
         if binding.streams:
-            success["content"] = streamed_content(annotation)
+            success["content"] = {
+                **streamed_content(annotation),
+                **self.plain_content(binding, annotation),
+            }
         elif not empty:
             schema = self.annotation(annotation)
             success["content"] = {
@@ -303,6 +306,23 @@ class OpenAPIBuilder:
                 "content": {"application/json": {"schema": ref(VALIDATION_ERROR)}},
             }
         return responses
+
+    def plain_content(self, binding: Binding, annotation: object) -> dict[str, Any]:
+        """The bodies of the arms that are not streamed (``Stream | NoteOut``),
+        under the media types of the route's renderers."""
+        schemas = [
+            self.annotation(arm)
+            for arm in union_arms(annotation)
+            if arm not in {Response, None, type(None)}
+            and not (isinstance(arm, type) and issubclass(arm, Streamed))
+        ]
+        if not schemas:
+            return {}
+        schema = schemas[0] if len(schemas) == 1 else {"anyOf": schemas}
+        return {
+            renderer.media_type: {"schema": schema}
+            for renderer in binding.route.renderers
+        }
 
     def annotation(self, annotation: object) -> dict[str, Any]:
         """JSON schema of a handler return annotation."""

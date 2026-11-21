@@ -2,8 +2,9 @@
 
 import asyncio
 import os
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,6 +23,13 @@ from hinoki.http import (
     Stream,
 )
 from hinoki.runtime.nativelane import lane_refusal
+from hinoki.runtime.streaming import (
+    FileReader,
+    Pace,
+    SourceReader,
+    StreamAborted,
+    feed_asgi,
+)
 from hinoki.settings import AppSettings, ExecutionSettings
 from hinoki.testing import ASGIClient, BodyTooLarge, SyncClient
 from hinoki.wsgi import WSGIAdapter, WSGIStartupError
@@ -339,6 +347,12 @@ def test_the_openapi_document_describes_the_bodies(tmp_path: Path) -> None:
     )
 
 
+def test_the_openapi_document_keeps_the_plain_arms_of_a_union() -> None:
+    content = build().openapi()["paths"]["/union"]["get"]["responses"]["200"]["content"]
+    assert set(content) == {"application/octet-stream", "application/json"}
+    assert content["application/json"]["schema"]["type"] == "object"
+
+
 def test_the_application_mcp_refuses_a_streamed_action() -> None:
     with pytest.raises(ExposureError, match="streams its response"):
         select(build(), ["*"], False, "/mcp")
@@ -394,6 +408,52 @@ async def test_head_closes_the_source_without_reading_it() -> None:
         assert reply.status == 200
         assert not reply.body
         assert closed == ["head"]
+
+
+class Inline:
+    """An executor that runs the call at once."""
+
+    async def run(self, fn: Callable[..., Any], *args: Any) -> Any:
+        return fn(*args)
+
+
+async def test_a_body_longer_than_its_length_is_cut_at_the_length() -> None:
+    sent: list[bytes] = []
+    with pytest.raises(StreamAborted):
+        await _feed(b"abcdefgh", 5, sent)
+    assert b"".join(sent) == b"abcde"
+
+
+async def test_a_body_shorter_than_its_length_is_aborted_not_completed() -> None:
+    sent: list[bytes] = []
+    with pytest.raises(StreamAborted):
+        await _feed(b"ab", 5, sent)
+    assert sent == [b"ab"]
+
+
+async def test_a_body_of_exactly_its_length_ends_complete() -> None:
+    sent: list[bytes] = []
+    await _feed(b"abcde", 5, sent)
+    assert sent == [b"abcde", b""]
+
+
+async def test_a_file_reader_never_reads_past_the_size_it_saw(tmp_path: Path) -> None:
+    path = tmp_path / "grown.bin"
+    path.write_bytes(b"0123456789")
+    reader = FileReader(str(path), 4, Inline())  # type: ignore[arg-type]
+    body = b""
+    while (piece := await reader.next()) is not None:
+        body += piece
+    await reader.close()
+    assert body == b"0123"
+
+
+async def _feed(source: bytes, length: int, sent: list[bytes]) -> None:
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message["body"])
+
+    reader = SourceReader(Stream(iter([source]), length=length), Inline())  # type: ignore[arg-type]
+    await feed_asgi(send, reader, Pace(b"", None, None, False, length))
 
 
 def _app(*handlers: object) -> Hinoki:

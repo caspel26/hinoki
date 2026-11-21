@@ -18,6 +18,7 @@ from hinoki.runtime.requests import Scope, read_body
 from hinoki.runtime.responses import Response, StreamHandle
 from hinoki.runtime.streaming import (
     Pace,
+    declared_length,
     discard,
     keepalive_of,
     pump_asgi,
@@ -173,6 +174,7 @@ class ASGIAdapter:
                 None if events else runtime.idle_timeout,
                 keepalive_of(answer, runtime.sse_keepalive),
                 events,
+                declared_length(handle),
             ),
             pipeline.streams,
         )

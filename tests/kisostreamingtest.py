@@ -105,6 +105,22 @@ def sync_route() -> Stream:
     return Stream(threads(), content_type="text/plain")
 
 
+def blocking() -> Iterator[str]:
+    try:
+        yield "first"
+        release = state["release"]
+        assert isinstance(release, threading.Event)
+        release.wait(10)
+        yield "second"
+    finally:
+        state["closed"] = True
+
+
+@http.get("/blocking")
+def blocking_route() -> EventStream:
+    return EventStream(blocking(), keepalive=0.1)
+
+
 @http.get("/silent")
 async def silent_route() -> Stream:
     async def source() -> AsyncIterator[str]:
@@ -148,6 +164,7 @@ def app(**execution: object) -> Hinoki:
     built.include(
         gated_route,
         slow_route,
+        blocking_route,
         broken_route,
         sync_route,
         silent_route,
@@ -162,6 +179,7 @@ def app(**execution: object) -> Hinoki:
 def reset(tmp_path: Path) -> None:
     state.clear()
     state["gate"] = asyncio.Event()
+    state["release"] = threading.Event()
     payload = tmp_path / "data.bin"
     payload.write_bytes(b"abc" * 1000)
     state["file"] = payload
@@ -334,4 +352,32 @@ async def test_head_answers_the_head_and_no_body() -> None:
         assert wire.status == 200
         wire.close()
     finally:
+        await worker.stop()
+
+
+async def test_a_blocked_sync_source_keeps_its_place_until_it_returns() -> None:
+    worker, port = await serve(max_streams=1)
+    release = state["release"]
+    assert isinstance(release, threading.Event)
+    try:
+        wire = await Wire.open(port, "/blocking")
+        assert await wire.chunk() == b"data: first\n\n"
+        wire.close()
+        await asyncio.sleep(0.3)
+        refused = await Wire.open(port, "/blocking")
+        assert refused.status == 503
+        refused.close()
+        assert state.get("closed") is None
+        release.set()
+        for _ in range(100):
+            if state.get("closed"):
+                break
+            await asyncio.sleep(0.05)
+        assert state.get("closed") is True
+        await asyncio.sleep(0.1)
+        again = await Wire.open(port, "/blocking")
+        assert again.status == 200
+        again.close()
+    finally:
+        release.set()
         await worker.stop()

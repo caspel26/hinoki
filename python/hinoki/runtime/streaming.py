@@ -18,7 +18,7 @@ from typing import Any, NamedTuple
 
 from hinoki import core
 from hinoki.http.stream import EventStream, File, Sourced, Streamed
-from hinoki.runtime.executor import SyncExecutor
+from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.responses import StreamHandle, StreamLease
 
 log = logging.getLogger("hinoki.runtime")
@@ -59,12 +59,13 @@ class SourceReader:
     """Advances the application's iterable, one piece at a time: an async
     iterable on the event loop, a plain one on the sync executor."""
 
-    __slots__ = ("answer", "executor", "iterator", "sync")
+    __slots__ = ("answer", "executor", "iterator", "pending", "sync")
 
     def __init__(self, answer: Sourced, executor: SyncExecutor) -> None:
         self.answer = answer
         self.executor = executor
         self.iterator: Any = None
+        self.pending: asyncio.Future[Any] | None = None
         self.sync = not hasattr(answer.source, "__aiter__")
 
     async def next(self) -> bytes | None:
@@ -73,7 +74,7 @@ class SourceReader:
             source: Any = self.answer.source
             self.iterator = iter(source) if self.sync else source.__aiter__()
         if self.sync:
-            piece = await self.executor.run(next, self.iterator, END)
+            piece = await self._advance()
         else:
             try:
                 piece = await anext(self.iterator)
@@ -81,8 +82,23 @@ class SourceReader:
                 return None
         return None if piece is END else self.answer.encode(piece)
 
+    async def _advance(self) -> Any:
+        """One ``next()`` on the executor. A cancellation does not stop the
+        thread, so the call stays in ``pending`` for ``close`` to wait for."""
+        pending = asyncio.ensure_future(self.executor.run(next, self.iterator, END))
+        self.pending = pending
+        pending.add_done_callback(lambda f: f.cancelled() or f.exception())
+        piece = await asyncio.shield(pending)
+        self.pending = None
+        return piece
+
     async def close(self) -> None:
-        """Close the iterator (or the source, if it was never advanced)."""
+        """Close the iterator (or the source, if it was never advanced). A
+        ``next()`` still running on a worker thread cannot be interrupted: the
+        close waits for it to return, so the caller keeps its place until then."""
+        if self.pending is not None:
+            await asyncio.gather(self.pending, return_exceptions=True)
+            self.pending = None
         target = self.iterator if self.iterator is not None else self.answer.source
         closer = getattr(target, "aclose", None)
         if closer is not None:
@@ -92,30 +108,42 @@ class SourceReader:
         if sync_close is not None:
             try:
                 await self.executor.run(sync_close)
-            except ValueError:  # still running on a worker thread
+            except ValueError:  # a generator that is still executing
                 log.debug("a stream source was still running when it was closed")
+            except ExecutorSaturated:
+                log.warning("a stream source was not closed: the executor is full")
 
 
 class FileReader:
     """Reads a file in chunks on the sync executor (when the server cannot
     send the file itself)."""
 
-    __slots__ = ("executor", "file", "path")
+    __slots__ = ("executor", "file", "path", "remaining")
 
-    def __init__(self, path: str, executor: SyncExecutor) -> None:
+    def __init__(self, path: str, size: int, executor: SyncExecutor) -> None:
         self.path = path
+        self.remaining = size  # the size seen by ``stat``: never read past it
         self.executor = executor
         self.file: Any = None
 
     async def next(self) -> bytes | None:
+        if self.remaining <= 0:
+            return None
         if self.file is None:
             self.file = await self.executor.run(open, self.path, "rb")
-        chunk: bytes = await self.executor.run(self.file.read, CHUNK)
+        chunk: bytes = await self.executor.run(
+            self.file.read, min(CHUNK, self.remaining)
+        )
+        self.remaining -= len(chunk)
         return chunk or None
 
     async def close(self) -> None:
-        if self.file is not None:
+        if self.file is None:
+            return
+        try:
             await self.executor.run(self.file.close)
+        except ExecutorSaturated:
+            log.warning("a file was not closed: the executor is full")
 
 
 Reader = SourceReader | FileReader
@@ -127,7 +155,7 @@ def reader_for(handle: StreamHandle, executor: SyncExecutor) -> Reader:
         return SourceReader(answer, executor)
     if handle.location is None:
         raise RuntimeError("a File must be located before it is sent")
-    return FileReader(handle.location[0], executor)
+    return FileReader(handle.location[0], handle.location[1], executor)
 
 
 async def discard(handle: StreamHandle, executor: SyncExecutor) -> None:
@@ -303,25 +331,60 @@ class Pace(NamedTuple):
     idle: float | None
     keepalive: float | None
     events: bool
+    length: int | None = None
+
+
+class Tally:
+    """Holds a body to the ``content-length`` its head declared."""
+
+    __slots__ = ("length", "over", "total")
+
+    def __init__(self, length: int | None) -> None:
+        self.length = length
+        self.total = 0
+        self.over = False
+
+    def fit(self, piece: bytes) -> bytes:
+        """The part of a piece that fits in the declared length."""
+        if self.length is None:
+            return piece
+        room = self.length - self.total
+        if len(piece) > room:
+            self.over = True
+            piece = piece[:room]
+        self.total += len(piece)
+        return piece
+
+    @property
+    def short(self) -> bool:
+        return self.length is not None and self.total < self.length
+
+
+async def next_piece(
+    send: Callable[[dict[str, Any]], Awaitable[None]], reader: Reader, pace: Pace
+) -> bytes | None:
+    if pace.keepalive is None:
+        return await within(pace.idle, reader)
+    return await keeping_alive(reader, pace.keepalive, send)
 
 
 async def feed_asgi(
     send: Callable[[dict[str, Any]], Awaitable[None]], reader: Reader, pace: Pace
 ) -> None:
+    tally = Tally(pace.length)
     if pace.preamble:
-        await send(body_message(pace.preamble))
-    while True:
-        if pace.keepalive is None:
-            piece = await within(pace.idle, reader)
-        else:
-            piece = await keeping_alive(reader, pace.keepalive, send)
-        if piece is None:
-            break
-        if piece:
-            await send(body_message(piece))
+        await send(body_message(tally.fit(pace.preamble)))
+    while (piece := await next_piece(send, reader, pace)) is not None:
+        allowed = tally.fit(piece)
+        if allowed:
+            await send(body_message(allowed))
             await asyncio.sleep(
                 0
             )  # a send that never waits must not starve the watcher
+        if tally.over:
+            raise StreamAborted("a stream sent more than its declared length")
+    if tally.short:
+        raise StreamAborted("a stream ended before its declared length")
     await send(body_message(b"", more=False))
 
 
