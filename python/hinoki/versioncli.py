@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata
-import json
 import platform
 
 import hinoki
 import hinoki.core as native_core
+from hinoki import jsontext
 
 
 def add_arguments(
@@ -42,7 +42,7 @@ def version_info(verbose: bool) -> dict[str, str]:
 
 def render(info: dict[str, str], fmt: str) -> str:
     if fmt == "json":
-        return json.dumps(info, indent=2, sort_keys=True) + "\n"
+        return jsontext.dumps(info, indent=2, sort_keys=True) + "\n"
     lines = [f"hinoki {info['hinoki']}"]
     for key in ("python", "platform", "core", "granian"):
         if key in info:

@@ -11,7 +11,6 @@ policies, validation, limits and transactions apply exactly as for any client.
 from __future__ import annotations
 
 import fnmatch
-import json
 from collections.abc import Callable, Iterable
 from typing import Any
 from urllib.parse import quote, unquote, urlencode
@@ -30,7 +29,7 @@ from hinoki.ai.mcp import (
     reply,
 )
 from hinoki.app import Hinoki
-from hinoki.core import decode_json
+from hinoki.core import decode_json, encode_json
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.openapi import operation_key
@@ -168,7 +167,7 @@ class Tool:
             elif parameter.get("required"):
                 raise ValueError(f"missing argument {name!r}")
         if "body" in arguments:
-            return path, urlencode(query), json.dumps(arguments["body"]).encode()
+            return path, urlencode(query), encode_json(arguments["body"])
         if self.body_required:
             raise ValueError("missing argument 'body'")
         return path, urlencode(query), b""
@@ -272,7 +271,7 @@ def refuse(request: Request, origins: frozenset[str]) -> Response | None:
 
 
 def json_reply(payload: dict[str, Any]) -> Response:
-    return Response(200, json.dumps(payload), content_type="application/json")
+    return Response(200, encode_json(payload), content_type="application/json")
 
 
 def initialize(params: dict[str, Any], app: Hinoki) -> dict[str, Any]:

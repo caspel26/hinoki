@@ -17,7 +17,6 @@ import difflib
 import functools
 import hmac
 import ipaddress
-import json
 import logging
 import logging.config
 import math
@@ -34,6 +33,7 @@ from typing import Any, ClassVar, Literal, Self, dataclass_transform
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from hinoki import jsontext
 from hinoki.context import request_id
 from hinoki.runtime.config import MAX_REQUEST_INPUT_BYTES, RuntimeConfig
 from hinoki.target import load_target
@@ -886,7 +886,7 @@ class JsonFormatter(logging.Formatter):
             rid = getattr(record, "hinoki_request_id", None)
             if rid is not None:
                 entry["request_id"] = rid
-        return json.dumps(entry, default=str)
+        return jsontext.dumps(entry, default=str)
 
 
 class _RequestIdFilter(logging.Filter):

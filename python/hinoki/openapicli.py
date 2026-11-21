@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Any
 
+from hinoki import jsontext
 from hinoki.ai.openapidiff import breaking_changes
 from hinoki.checkcli import USAGE_ERRORS, build_app
 
@@ -50,11 +50,11 @@ def write_document(path: Path, rendered: str) -> int:
 
 def check_document(path: Path, target: str, generated: dict[str, Any]) -> int:
     try:
-        existing = json.loads(path.read_text(encoding="utf-8"))
+        existing = jsontext.loads(path.read_bytes())
     except FileNotFoundError:
         print(f"error: OpenAPI file {path} does not exist", file=sys.stderr)
         return 2
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"error: cannot read JSON from {path}: {exc}", file=sys.stderr)
         return 2
     if existing != generated:
@@ -69,11 +69,11 @@ def check_document(path: Path, target: str, generated: dict[str, Any]) -> int:
 
 def load_json(path: Path) -> dict[str, Any] | None:
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
+        loaded = jsontext.loads(path.read_bytes())
     except FileNotFoundError:
         print(f"error: OpenAPI file {path} does not exist", file=sys.stderr)
         return None
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"error: cannot read JSON from {path}: {exc}", file=sys.stderr)
         return None
     if not isinstance(loaded, dict):
@@ -93,7 +93,7 @@ def check_breaking(path: Path, generated: dict[str, Any]) -> int:
 
 
 def emit(args: argparse.Namespace, generated: dict[str, Any]) -> int:
-    rendered = json.dumps(generated, indent=2, sort_keys=True) + "\n"
+    rendered = jsontext.dumps(generated, indent=2, sort_keys=True) + "\n"
     if args.output is not None:
         return write_document(args.output, rendered)
     if args.check is not None:

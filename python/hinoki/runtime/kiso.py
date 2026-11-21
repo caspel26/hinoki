@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 import os
 import signal
@@ -68,7 +67,7 @@ def log_access(batch: Sequence[str]) -> None:
     from Kiso's logging thread, a batch at a time). Each record carries its
     fields as ``record.access`` for handlers and formatters that want them."""
     for text in batch:
-        fields = json.loads(text)
+        fields = core.decode_json(text.encode())
         access_logger.info(
             "%s %s %s %s %.1fms",
             fields["peer"],

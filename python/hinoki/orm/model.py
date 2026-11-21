@@ -12,7 +12,6 @@ import copy
 import dataclasses
 import datetime
 import inspect
-import json
 import re
 import sys
 import types
@@ -1174,9 +1173,10 @@ class Model:
             value = row.get(name)
             if not isinstance(value, (str, bytes, bytearray)):
                 continue
+            raw = value.encode() if isinstance(value, str) else bytes(value)
             try:
-                decoded[name] = json.loads(value)
-            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                decoded[name] = core.decode_json(raw)
+            except core.JsonDecodeError as error:
                 raise FieldError(
                     f"{cls.__name__}.{name}: database value is not valid JSON"
                 ) from error

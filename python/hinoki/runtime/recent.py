@@ -4,11 +4,12 @@ same file, so it is a debugging aid and not an audit log."""
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+
+from hinoki import core
 
 DEFAULT_PATH = ".hinoki/requests.jsonl"
 # One generation is kept next to the live file, so history is at most twice this.
@@ -38,7 +39,7 @@ def read_recent(path: Path, limit: int) -> list[dict[str, Any]]:
             continue
         for line in file.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
-                found = json.loads(line)
+                found = core.decode_json(line.encode())
             except ValueError:
                 continue
             if isinstance(found, dict):

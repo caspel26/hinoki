@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import json
 import os
 import re
 import sys
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from hinoki import jsontext
 from hinoki.checkcli import build_app
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import MigrationError
@@ -281,13 +281,13 @@ def _migration_history(app_name: str, directory: Path) -> list[State]:
     for migration in migration_files(directory):
         state_path = migration.with_suffix(".state.json")
         try:
-            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state = jsontext.loads(state_path.read_bytes())
         except OSError as error:
             raise MigrationError(
                 f"app {app_name!r}: cannot read {state_path.name}; restore it "
                 "from version control"
             ) from error
-        except (UnicodeError, json.JSONDecodeError) as error:
+        except ValueError as error:
             raise MigrationError(
                 f"app {app_name!r}: {state_path.name} is not valid JSON"
             ) from error

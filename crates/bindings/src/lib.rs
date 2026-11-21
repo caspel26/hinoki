@@ -124,6 +124,10 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.py().get_type::<request::MultipartLimitError>(),
     )?;
     m.add_function(wrap_pyfunction!(request::negotiate_media, m)?)?;
+    m.add(
+        "JsonDecodeError",
+        m.py().get_type::<request::JsonDecodeError>(),
+    )?;
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
     m.add_class::<schema::Compiled>()?;
     m.add_function(wrap_pyfunction!(schema::compile_schemas, m)?)?;

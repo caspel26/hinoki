@@ -12,9 +12,9 @@ variable names and reasons but never values, and exits 1.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 
+from hinoki import jsontext
 from hinoki.checkcli import USAGE_ERRORS, build_app
 from hinoki.settings import Settings, SettingsError
 from hinoki.target import load_target
@@ -76,7 +76,7 @@ def run_settings(args: argparse.Namespace) -> int:
         return 1
     if args.format == "json":
         print(
-            json.dumps(
+            jsontext.dumps(
                 [{"key": r.key, "value": r.value, "origin": r.origin} for r in rows]
             )
         )
