@@ -288,3 +288,15 @@ def test_annotated_return_types_are_unwrapped() -> None:
 
     assert check(note())
     assert not check({"id": 1, "title": "x"})
+
+
+def test_a_single_arm_is_checked_directly_and_a_union_by_any_arm() -> None:
+    single = compile_response_check("action", NoteOut)
+    assert single.__qualname__.startswith("class_check")
+    assert single(note())
+    assert not single(None)
+
+    union = compile_response_check("action", NoteOut | None)
+    assert union(note())
+    assert union(None)
+    assert not union(3)
