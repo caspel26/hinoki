@@ -139,6 +139,7 @@ class NativeLane:
         self.runs: set[Run] = set()
         self.unwinding: set[asyncio.Task[None]] = set()
         self.loop = asyncio.get_running_loop()
+        self.steps = core._NativeSteps(self.loop)
         self.thread = threading.get_ident()
 
     def start(self, request: core.PreparedRequest) -> bool:
@@ -168,7 +169,7 @@ class NativeLane:
                 lambda *handover: self._foreign(run, *handover),
                 run.ctx,
                 deadline,
-                self.loop.call_soon_threadsafe,
+                self.steps,
             )
         except BaseException:
             self.runs.discard(run)
