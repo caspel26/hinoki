@@ -53,7 +53,7 @@ from hinoki.renderers import (
     is_default_json_renderer,
     negotiate,
 )
-from hinoki.routing import MethodNotAllowed
+from hinoki.routing import Found, MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, RequestData, parse_query
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.inline import RequestDeadline, run_inline
@@ -204,6 +204,11 @@ class Pipeline:
         self.debug = isinstance(app.settings, AppSettings) and app.settings.debug
         self.hosts = HostPolicy.of(app.settings)
         self.cors = CorsPolicy.of(app.settings)
+        self.route_cors = [
+            None if b.route.cors is None else CorsPolicy.from_cors(b.route.cors)
+            for b in self.bindings
+        ]
+        self.has_route_cors = any(policy is not None for policy in self.route_cors)
         settings = app.settings if isinstance(app.settings, AppSettings) else None
         self.security = settings.security if settings else SecuritySettings()
         self.trusted_proxies = tuple(
@@ -435,6 +440,7 @@ class Pipeline:
     ) -> Response:
         token = request_id.set(rid)
         context.route_headers.set(())
+        context.route_cors.set(None)
         runner_token = context.sync_runner.set(self.executor.run)
         db_token = database_var.set(self.ctx.find(Database))
         try:
@@ -514,6 +520,7 @@ class Pipeline:
     def _set_request_context(self, rid: str) -> None:
         request_id.set(rid)
         context.route_headers.set(())
+        context.route_cors.set(None)
         context.sync_runner.set(self.executor.run)
         database_var.set(self.ctx.find(Database))
 
@@ -626,9 +633,10 @@ class Pipeline:
             response, scope.get("scheme", "") == "https"
         )
         headers = [*shaped, (self.request_id_name, rid.encode("ascii"))]
-        if self.cors is not None and not has_allow_origin:
+        policy = context.route_cors.get() or self.cors
+        if policy is not None and not has_allow_origin:
             # An answer that sets its own CORS headers keeps them.
-            headers.extend(self.cors.headers(origin_of(scope)))
+            headers.extend(policy.headers(origin_of(scope)))
         stream = response.stream
         if stream is not None:
             length = declared_length(stream)
@@ -807,9 +815,10 @@ class Pipeline:
         if (
             self.hosts is not None
             or self.cors is not None
+            or self.has_route_cors
             or self.security.redirect_https
         ):
-            preflight = self._guard(scope["method"], headers)
+            preflight = self._guard(scope, headers)
             if preflight is not None:
                 return preflight
             redirect = https_redirect(
@@ -870,12 +879,14 @@ class Pipeline:
         """Match a route (unless the transport did) and establish its
         response-header context."""
         if route is None:
-            binding, path_params = self._route(scope)
+            action, path_params = self._route(scope)
         else:
             if route[1] is None:
                 raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding")
-            binding, path_params = self.bindings[route[0]], route[1]
+            action, path_params = route[0], route[1]
+        binding = self.bindings[action]
         context.route_headers.set(binding.owner_headers)
+        context.route_cors.set(self.route_cors[action])
         return binding, path_params
 
     async def _dispatch_request(
@@ -978,20 +989,50 @@ class Pipeline:
                 HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, "headers_too_large"
             )
 
-    def _guard(self, method: str, headers: dict[str, str]) -> Response | None:
+    def _guard(self, scope: Scope, headers: dict[str, str]) -> Response | None:
         """Refuse a host that is not allowed; answer a CORS preflight."""
         if self.hosts is not None:
             self.hosts.check(headers.get("host", ""))
-        if self.cors is not None:
-            return self.cors.answer(method, headers)
-        return None
+        policy = self._preflight_policy(scope, headers)
+        if policy is None:
+            return None
+        if policy is self.cors:
+            return policy.answer(scope["method"], headers)
+        try:
+            response = policy.answer(scope["method"], headers)
+        except HTTPError:
+            # A refusal carries this route's policy.
+            context.route_cors.set(policy)
+            raise
+        if response is not None:
+            context.route_cors.set(policy)
+        return response
+
+    def _preflight_policy(
+        self, scope: Scope, headers: dict[str, str]
+    ) -> CorsPolicy | None:
+        """The policy that answers a preflight: the one of the route the browser
+        asks about (the method in ``Access-Control-Request-Method`` on this path)
+        when it declares its own, else the application's."""
+        asked = headers.get("access-control-request-method")
+        if not self.has_route_cors or scope["method"] != "OPTIONS" or not asked:
+            return self.cors
+        raw_path = scope.get("raw_path")
+        try:
+            path = scope["path"] if raw_path is None else self._raw_target(raw_path)
+        except HTTPError:
+            return self.cors
+        found = self.app.lookup(asked, path)
+        if isinstance(found, Found):
+            return self.route_cors[found.action] or self.cors
+        return self.cors
 
     def _is_document_request(self, scope: Scope) -> bool:
         return bool(
             scope["method"] in {"GET", "HEAD"} and scope["path"] == self.app.openapi_url
         )
 
-    def _route(self, scope: Scope) -> tuple[Binding, dict[str, str]]:
+    def _route(self, scope: Scope) -> tuple[int, dict[str, str]]:
         raw_path = scope.get("raw_path")
         path = scope["path"] if raw_path is None else self._raw_target(raw_path)
         found = self.app.lookup(scope["method"], path)
@@ -1003,7 +1044,7 @@ class Pipeline:
                 HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed", [(b"allow", allow)]
             )
         params = found.params if raw_path is None else decode_params(found.params)
-        return self.bindings[found.action], params
+        return found.action, params
 
     @staticmethod
     def _raw_target(raw_path: bytes) -> str:

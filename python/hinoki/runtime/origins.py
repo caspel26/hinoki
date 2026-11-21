@@ -91,6 +91,11 @@ class CorsPolicy:
         cors = settings.cors if isinstance(settings, AppSettings) else None
         if cors is None or not cors.origins:
             return None
+        return cls.from_cors(cors)
+
+    @classmethod
+    def from_cors(cls, cors: CorsSettings) -> CorsPolicy:
+        """The policy of one set of CORS fields: the application's or a route's."""
         return cls(
             # Browsers send origins in lower case; the comparison is exact.
             frozenset(origin.lower() for origin in cors.origins),
