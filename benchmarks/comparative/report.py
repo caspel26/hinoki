@@ -1,4 +1,10 @@
-"""Generate the benchmark plots and tables from retained raw JSON.
+"""Generate the benchmark page from retained raw JSON.
+
+Every number on the page is computed here from the raw samples of the results
+directories given on the command line; none is written by hand. The first
+directories (any mode except ``same-granian``) feed the overview, where every
+stack sits on one scale; ``documented`` and ``same-granian`` directories are
+also shown as expert views.
 
 New results are ``bombardier`` documents (``{stack}-{scenario}-r{start}-{n}.json``);
 older retained results are ``oha`` documents (``{stack}-{scenario}-{n}.json``, one
@@ -12,26 +18,41 @@ import json
 import re
 import statistics
 import sys
+from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import loadtool
 import payloads
+import report_html
+from report_html import Cell, Scenario, Stack, rps
 
 JSONData = dict[str, Any]
 
-FRAMEWORKS = {
-    "hinoki": "Hinoki · Granian",
-    "fastapi": "FastAPI · Uvicorn",
-    "ninja": "Django Ninja · Uvicorn",
-    "bolt": "Django Bolt · Actix",
-    "hinoki-granian": "Hinoki · Granian",
-    "hinoki-kiso": "Hinoki · Kiso",
-    "fastapi-granian": "FastAPI · Granian",
-    "ninja-granian": "Django Ninja · Granian",
+
+class StackInfo(NamedTuple):
+    family: str
+    framework: str
+    server: str
+
+
+STACKS = {
+    "hinoki": StackInfo("hinoki", "Hinoki", "Granian"),
+    "hinoki-granian": StackInfo("hinoki", "Hinoki", "Granian"),
+    "hinoki-kiso": StackInfo("hinoki-kiso", "Hinoki", "Kiso, native server"),
+    "fastapi": StackInfo("fastapi", "FastAPI", "Uvicorn"),
+    "fastapi-granian": StackInfo("fastapi", "FastAPI", "Granian"),
+    "ninja": StackInfo("ninja", "Django Ninja", "Uvicorn"),
+    "ninja-granian": StackInfo("ninja", "Django Ninja", "Granian"),
+    "bolt": StackInfo("bolt", "Django Bolt", "Actix, native server"),
 }
+STACK_ORDER = list(STACKS)
+GRANIAN_KEYS = ("hinoki", "hinoki-granian")
+KISO_KEY = "hinoki-kiso"
 SCENARIOS = ["list", "detail", "health", "create"]
 OPTIONAL_SCENARIOS = ["json-1k", "json-10k"]
+# Requests that touch no database come first, then the database-backed ones.
+SCENARIO_ORDER = ["health", "json-1k", "json-10k", "list", "detail", "create"]
 EXPECTED = {
     "health": "200",
     "list": "200",
@@ -41,6 +62,22 @@ EXPECTED = {
     "json-10k": "200",
 }
 START = re.compile(r"-r(\d+)-\d+\.json$")
+STABLE_CV = 15
+TIE_PCT = 10
+NUMBER_WORDS = {2: "two", 3: "three", 4: "four"}
+
+
+def stack_label(stack: str) -> str:
+    info = STACKS[stack]
+    return f"{info.framework} ({info.server})"
+
+
+def stack_family(stack: str) -> str:
+    return STACKS[stack].family
+
+
+def stack_rank(stack: str) -> int:
+    return STACK_ORDER.index(stack)
 
 
 def load_runs(directory: Path, stack: str, scenario: str) -> list[JSONData]:
@@ -98,16 +135,17 @@ def run_summary(runs: list[JSONData], expected_status: str) -> JSONData:
     server start's own median so a start-to-start shift stays visible.
     """
     samples = [normalize(run, expected_status) for run in runs]
-    rps = [sample["rps"] for sample in samples]
-    mean_rps = statistics.mean(rps)
+    rates = [sample["rps"] for sample in samples]
+    mean_rps = statistics.mean(rates)
     starts = sorted({sample["start"] for sample in samples})
     return {
         "runs": len(samples),
         "starts": len(starts),
-        "median": statistics.median(rps),
-        "low": min(rps),
-        "high": max(rps),
-        "cv_pct": statistics.stdev(rps) / mean_rps * 100 if len(rps) > 1 else None,
+        "median": statistics.median(rates),
+        "low": min(rates),
+        "high": max(rates),
+        "samples": rates,
+        "cv_pct": statistics.stdev(rates) / mean_rps * 100 if len(rates) > 1 else None,
         "start_medians": [
             statistics.median(s["rps"] for s in samples if s["start"] == start)
             for start in starts
@@ -120,40 +158,61 @@ def run_summary(runs: list[JSONData], expected_status: str) -> JSONData:
     }
 
 
-def fmt_ms(value: float) -> str:
-    return f"{value:,.0f}" if value >= 100 else f"{value:.1f}"
+def is_tie(higher: float, lower: float) -> bool:
+    """A gap under TIE_PCT of the higher median is a tie, not a ranking."""
+    return higher > 0 and (higher - lower) / higher * 100 < TIE_PCT
 
 
-def machine_lines(env: JSONData) -> list[str]:
-    settings = env["settings"]
-    host = env.get("host", {})
-    lines = [
-        f"Run on {env['date']}. {env['cpu']}; {env['cores']} logical CPUs; {env['machine']}.",
-    ]
-    if host.get("performance_cores"):
-        lines.append(
-            f"{host['performance_cores']} performance and {host['efficiency_cores']} efficiency cores; "
-            f"power: {host.get('power', 'unknown').splitlines()[0]}. PostgreSQL ran in a Docker Desktop virtual machine "
-            f"({host.get('docker_vm', 'size not recorded')}), so every query crossed the VM boundary."
-        )
-    lines.append(
-        f"Load average at start: {', '.join(f'{value:.2f}' for value in env['loadavg_at_start'])}."
+def instability(row: JSONData) -> str | None:
+    """Why a result is unstable (CV above STABLE_CV), or None when it is stable."""
+    cv = row["cv_pct"]
+    if not cv or cv <= STABLE_CV:
+        return None
+    text = (
+        f"The coefficient of variation (CV) of its requests per second is {cv:.1f}%, above {STABLE_CV}%: "
+        f"the samples range from {rps(row['low'])} to {rps(row['high'])}."
     )
-    if settings.get("server_cpus"):
-        placement = (
-            f"{settings['workers']} server processes on CPUs {settings['server_cpus']}; "
-            f"load generator on CPUs {settings['load_cpus']}"
-        )
-    else:
-        placement = (
-            f"{settings['workers']} server processes; no CPU pinning "
-            "(the operating system scheduled the servers and the load generator)"
-        )
-    lines.append(
-        f"{placement}; {settings['concurrency']} concurrent connections; {settings['warmup_s']} s warm-up; "
-        f"{sampling_text(settings)}; {env['postgres']}; {tool_label(env)}."
+    starts = row["start_medians"]
+    if len(starts) > 1 and not is_tie(max(starts), min(starts)):
+        word = NUMBER_WORDS.get(len(starts), str(len(starts)))
+        shown = " and ".join(rps(value) for value in starts)
+        text += f" The {word} server starts gave medians of {shown}."
+    return text + " The median is shown but not used for the highest or tied marks."
+
+
+def compare(first: JSONData, second: JSONData) -> str:
+    """How `first` stands against `second`: higher, lower, tie or unsettled.
+
+    A gap under TIE_PCT is a tie; a larger gap counts only when the sample
+    ranges do not overlap and neither result is unstable.
+    """
+    if instability(first) or instability(second):
+        return "unsettled"
+    top, bottom = (
+        (first, second) if first["median"] >= second["median"] else (second, first)
     )
-    return [" ".join(lines[:1]), *lines[1:], ""]
+    if is_tie(top["median"], bottom["median"]):
+        return "tie"
+    if top["low"] <= bottom["high"]:
+        return "unsettled"
+    return "higher" if top is first else "lower"
+
+
+def best_stacks(rows: dict[str, JSONData]) -> tuple[str | None, set[str]]:
+    """The stable stack with the highest median and the stable stacks tied with it."""
+    stable = {key: row for key, row in rows.items() if not instability(row)}
+    if not stable:
+        return None, set()
+    best = max(stable, key=lambda key: stable[key]["median"])
+    top = stable[best]["median"]
+    tied = {
+        key for key, row in stable.items() if key != best and is_tie(top, row["median"])
+    }
+    return best, tied
+
+
+def machine_text(env: JSONData) -> str:
+    return f"{env['cpu']}, {env['cores']} logical CPUs, {env['machine']}"
 
 
 def tool_name(env: JSONData) -> str:
@@ -179,12 +238,12 @@ def sampling_text(settings: JSONData) -> str:
 
 def stack_names(directory: Path, settings: JSONData) -> list[str]:
     stacks = settings.get("stacks") or [
-        name for name in FRAMEWORKS if any(directory.glob(f"{name}-health-*.json"))
+        name for name in STACKS if any(directory.glob(f"{name}-health-*.json"))
     ]
     if not stacks:
         raise ValueError(f"no benchmark stacks listed or found in {directory}")
     for stack in stacks:
-        if stack not in FRAMEWORKS:
+        if stack not in STACKS:
             raise ValueError(f"unknown stack {stack!r} in {directory}")
         if not (directory / f"{stack}-verify.txt").exists():
             raise ValueError(f"missing verification output for {stack} in {directory}")
@@ -192,7 +251,7 @@ def stack_names(directory: Path, settings: JSONData) -> list[str]:
 
 
 def cpu_seconds(text: str) -> float:
-    """Parse `ps` CPU time: `mm:ss.ss` (macOS) or `[dd-]hh:mm:ss` (Linux)."""
+    """Parse `ps` CPU time: `mm:ss.ss` or `[dd-]hh:mm:ss`."""
     days, _, clock = text.rpartition("-")
     *larger, seconds = clock.split(":")
     total = float(seconds)
@@ -228,83 +287,17 @@ def single_process_stacks(
     return [stack for stack, share in shares.items() if share and share > 0.8]
 
 
-STABLE_CV = 15
-TIE_PCT = 10
+def server_mode(directory: Path) -> str:
+    settings = json.loads((directory / "environment.json").read_text())["settings"]
+    return str(settings.get("server_mode", "documented"))
 
 
-def is_tie(higher: float, lower: float) -> bool:
-    """A gap under TIE_PCT of the higher median is a tie, not a ranking."""
-    return higher > 0 and (higher - lower) / higher * 100 < TIE_PCT
-
-
-def slug(directory: Path) -> str:
-    return "-".join(directory.parts[-2:]).lower().replace("_", "-")
-
-
-def unstable(summaries: list[tuple[str, JSONData]]) -> bool:
-    return any(row["cv_pct"] and row["cv_pct"] > STABLE_CV for _, row in summaries)
-
-
-Rows = list[tuple[str, JSONData]]
-
-
-def is_hinoki(label: str) -> bool:
-    return label.startswith("Hinoki")
-
-
-def rps(value: float) -> str:
-    return f"{value:,.0f}"
-
-
-def ratio(value: float, slowest: float) -> str:
-    return f"{value / slowest:.2f}&times;" if slowest > 0 else "n/a"
-
-
-def hinoki_position(rows: Rows) -> str:
-    """Hinoki's own line when it is not the stack with the highest median."""
-    slowest = rows[-1][1]["median"]
-    for position, (label, row) in enumerate(rows[1:], start=2):
-        if is_hinoki(label):
-            return (
-                f" <b>{html.escape(label)}</b>: {rps(row['median'])} requests/s, "
-                f"{ratio(row['median'], slowest)} the slowest, position {position} of {len(rows)} by median."
-            )
-    return ""
-
-
-def headline(rows: Rows) -> str:
-    """One plain sentence per scenario, derived only from the sorted medians and run ranges."""
-    label, top = rows[0]
-    if len(rows) == 1:
-        return (
-            f"Median: <b>{html.escape(label)}</b> at {rps(top['median'])} requests/s."
-        )
-    slow_label, slow = rows[-1]
-    text = (
-        f"Highest median: <b>{html.escape(label)}</b> at {rps(top['median'])} requests/s, "
-        f"{ratio(top['median'], slow['median'])} the slowest stack ({html.escape(slow_label)})."
-    )
-    if rows[1][1]["high"] >= top["low"]:
-        text += " The run ranges of the top two stacks overlap, so their order is not settled."
-    if is_tie(top["median"], rows[1][1]["median"]):
-        text += f" The top two medians are within {TIE_PCT}% of each other, which is treated as a tie."
-    return text + hinoki_position(rows)
-
-
-def sorted_rows(rows: Rows) -> Rows:
-    return sorted(rows, key=lambda item: item[1]["median"], reverse=True)
-
-
-def result_row(label: str, row: JSONData, lead: str = "") -> str:
-    latency = row["latency_ms"]
-    cv = "n/a" if row["cv_pct"] is None else f"{row['cv_pct']:.1f}%"
-    starts = " / ".join(rps(value) for value in row["start_medians"])
-    return (
-        f'<tr>{lead}<th scope="row">{html.escape(label)}</th>'
-        f'<td>{row["median"]:,.0f}<span class="range">{row["low"]:,.0f}&ndash;{row["high"]:,.0f}</span></td>'
-        f"<td>{fmt_ms(latency['p50']['median'])}</td><td>{fmt_ms(latency['p99']['median'])}</td>"
-        f"<td>{cv}</td><td>{starts}</td><td>{row['wrong']}</td><td>{row['runs']}</td></tr>"
-    )
+def read_environment(directory: Path) -> JSONData:
+    env_path = directory / "environment.json"
+    if not env_path.exists():
+        raise ValueError(f"missing environment metadata in {directory}")
+    env: JSONData = json.loads(env_path.read_text())
+    return env
 
 
 def present_optional(directory: Path, stacks: list[str]) -> list[str]:
@@ -316,197 +309,153 @@ def present_optional(directory: Path, stacks: list[str]) -> list[str]:
     ]
 
 
-def reported_scenarios(
+def scenario_rows(
     directory: Path,
-) -> tuple[dict[str, list[tuple[str, JSONData]]], list[str], list[str]]:
-    env_path = directory / "environment.json"
-    if not env_path.exists():
-        raise ValueError(f"missing environment metadata in {directory}")
-    settings = json.loads(env_path.read_text())["settings"]
+) -> tuple[dict[str, dict[str, JSONData]], list[str]]:
+    """Summaries per scenario and stack, and the stacks left out for worker imbalance."""
+    settings = read_environment(directory)["settings"]
     stacks = stack_names(directory, settings)
     excluded = single_process_stacks(directory, stacks, settings["workers"])
     stacks = [stack for stack in stacks if stack not in excluded]
-    reported = {}
-    withheld = []
-    for scenario in [*SCENARIOS, *present_optional(directory, stacks)]:
-        summaries = [
-            (
-                FRAMEWORKS[stack],
-                run_summary(load_runs(directory, stack, scenario), EXPECTED[scenario]),
+    rows = {
+        scenario: {
+            stack: run_summary(
+                load_runs(directory, stack, scenario), EXPECTED[scenario]
             )
             for stack in stacks
-        ]
-        if unstable(summaries):
-            withheld.append(scenario)
-        else:
-            reported[scenario] = summaries
-    return reported, withheld, excluded
+        }
+        for scenario in [*SCENARIOS, *present_optional(directory, stacks)]
+    }
+    return rows, excluded
 
 
-def throughput_panel(
-    scenario: str,
-    request: str,
-    description: str,
-    rows: Rows,
-    chart_id: str,
-) -> str:
-    rows = sorted_rows(rows)
-    axis_max = rows[0][1]["median"] or 1.0
-    slowest = rows[-1][1]["median"] or 1.0
-    compared = len(rows) > 1
-    chart_description = "; ".join(
-        f"{label}: median {rps(row['median'])} requests per second, "
-        f"range {rps(row['low'])} to {rps(row['high'])}"
-        + (f", {row['median'] / slowest:.2f} times the slowest" if compared else "")
-        for label, row in rows
-    )
-    tracks = "".join(
-        bar_row(label, row, axis_max, slowest if compared else None)
-        for label, row in rows
-    )
-    multiplier_note = (
-        " The multiplier compares each stack with the slowest one in this chart."
-        if compared
-        else ""
-    )
+Rows = dict[str, dict[str, JSONData]]
+
+
+def collect(directories: list[Path]) -> tuple[Rows, list[str]]:
+    """Merge the directories into one stack table per scenario; the first stack seen wins."""
+    merged: Rows = {}
+    notes: list[str] = []
+    for directory in directories:
+        rows, excluded = scenario_rows(directory)
+        workers = read_environment(directory)["settings"]["workers"]
+        notes.extend(exclusion_note(stack, workers) for stack in excluded)
+        for scenario, stacks in rows.items():
+            slot = merged.setdefault(scenario, {})
+            for stack, summary in stacks.items():
+                slot.setdefault(stack, summary)
+    return merged, notes
+
+
+def exclusion_note(stack: str, workers: int) -> str:
     return (
-        f'<section class="bench-scenario" id="{chart_id}" aria-labelledby="{chart_id}-title">'
-        '<header class="bench-scenario__head">'
-        f'<p class="bench-scenario__kind" id="{chart_id}-kind">{html.escape(scenario.upper())}</p>'
-        f'<h3 id="{chart_id}-title">{html.escape(request)}</h3>'
-        f"<p>{html.escape(description)}</p></header>"
-        f'<p class="bench-headline">{headline(rows)}</p>'
-        f'<p id="{chart_id}-desc" class="bench-sr">{html.escape(chart_description)}.</p>'
-        f'<div class="bench-chart" data-stacks="{len(rows)}" role="img" aria-labelledby="{chart_id}-kind {chart_id}-title" '
-        f'aria-describedby="{chart_id}-desc">'
-        '<span class="bench-gridlines" aria-hidden="true"><span></span></span>'
-        f"{tracks}{value_axis(axis_max)}</div>"
-        '<p class="bench-scenario__note">Bars show median requests per second and start at zero; '
-        f"longer means more requests served.{multiplier_note} {runs_note(rows)}</p>"
-        '<details class="bench-details"><summary>Exact numbers: latency, lowest and highest run, CV</summary>'
-        f"{results_table(scenario, rows)}</details></section>"
+        f"{stack_label(stack)} is not reported: it was started with {workers} processes, "
+        "but its per-process CPU time shows one process did nearly all the work, "
+        "so it is not a comparable result. Its raw samples are retained."
     )
 
 
-def runs_note(rows: Rows) -> str:
-    counts = sorted({(row["runs"], row["starts"]) for _, row in rows})
-    if len(counts) == 1:
-        runs, starts = counts[0]
-        if starts > 1:
-            return f"{runs} samples per stack from {starts} server starts, all kept."
-        return f"{runs} measured runs per stack."
-    return "Sample counts differ per stack; see the table."
-
-
-def value_axis(axis_max: float) -> str:
-    ticks = "".join(f"<span>{rps(axis_max * share)}</span>" for share in (0, 0.5, 1))
-    return f'<span class="bench-axis" aria-hidden="true"><span>{ticks}</span></span>'
-
-
-def stack_key(label: str) -> str:
-    return label.partition(" · ")[0].strip().lower().replace(" ", "-")
-
-
-def bar_row(label: str, row: JSONData, axis_max: float, slowest: float | None) -> str:
-    name, _, server = label.partition(" · ")
-    server_html = f"<small>{html.escape(server)}</small>" if server else ""
-    row_class = "bench-row is-hinoki" if is_hinoki(label) else "bench-row"
-    stack = html.escape(stack_key(label), quote=True)
-    ratio_html = (
-        f'<span class="bench-ratio">{ratio(row["median"], slowest)}</span>'
-        if slowest
-        else ""
-    )
-    return (
-        f'<div class="{row_class}" data-stack="{stack}">'
-        f'<span class="bench-name"><b>{html.escape(name)}</b>{server_html}</span>'
-        '<span class="bench-track" aria-hidden="true">'
-        f'<span class="bench-bar" style="width:{row["median"] / axis_max * 100:.2f}%"></span>'
-        "</span>"
-        f'<span class="bench-value">{rps(row["median"])}<small> req/s</small></span>'
-        f"{ratio_html}</div>"
-    )
-
-
-def summary_card(scenario: str, rows: Rows, chart_id: str) -> str:
-    rows = sorted_rows(rows)
-    label, top = rows[0]
-    if len(rows) == 1:
-        note = f"Median of {top['runs']} runs"
-    elif is_hinoki(label):
-        note = f"{ratio(top['median'], rows[-1][1]['median'])} the slowest"
-    else:
-        note = hinoki_summary_line(rows)
-    return (
-        f'<a class="bench-card" href="#{chart_id}-{scenario}">'
-        f'<span class="bench-card__kind">{html.escape(scenario.upper())}</span>'
-        f'<span class="bench-card__caption">{"Median" if len(rows) == 1 else "Highest median"}</span>'
-        f'<span class="bench-card__lead">{html.escape(label)}</span>'
-        f'<span class="bench-card__value">{rps(top["median"])}<small> req/s</small></span>'
-        f'<span class="bench-card__note">{note}</span></a>'
-    )
-
-
-def hinoki_summary_line(rows: Rows) -> str:
-    slowest = rows[-1][1]["median"]
-    for label, row in rows:
-        if is_hinoki(label):
-            return (
-                f"{html.escape(label.partition(' · ')[0])}: {rps(row['median'])} req/s, "
-                f"{ratio(row['median'], slowest)} the slowest"
+def make_cells(rows: dict[str, JSONData]) -> tuple[Cell, ...]:
+    best, tied = best_stacks(rows)
+    cells = []
+    for key in sorted(rows, key=stack_rank):
+        row = rows[key]
+        cells.append(
+            Cell(
+                key=key,
+                family=stack_family(key),
+                label=stack_label(key),
+                median=row["median"],
+                low=row["low"],
+                high=row["high"],
+                p50_ms=row["latency_ms"]["p50"]["median"],
+                p99_ms=row["latency_ms"]["p99"]["median"],
+                cv_pct=row["cv_pct"],
+                samples=tuple(row["samples"]),
+                wrong=row["wrong"],
+                mark="best" if key == best else "tie" if key in tied else "",
+                reason=instability(row),
             )
-    return f"{len(rows)} stacks compared"
+        )
+    return tuple(cells)
 
 
-def summary_cards(reported: dict[str, Rows], withheld: list[str], chart_id: str) -> str:
-    cards = [
-        summary_card(scenario, reported[scenario], chart_id)
-        for scenario, _, _ in SERVICE_ROWS
-        if reported.get(scenario)
+def versus_keys(rows: Rows) -> tuple[str, str] | None:
+    """The Hinoki-on-Kiso and Hinoki-on-Granian stacks, when the rows hold both."""
+    present = set().union(*(set(stacks) for stacks in rows.values())) if rows else set()
+    granian = next((key for key in GRANIAN_KEYS if key in present), None)
+    return (KISO_KEY, granian) if granian and KISO_KEY in present else None
+
+
+def versus_text(first: str, second: str, rows: dict[str, JSONData]) -> str:
+    one, two = rows[first], rows[second]
+    names = f"{stack_label(first)} and {stack_label(second)}"
+    verdict = compare(one, two)
+    gap = abs(one["median"] - two["median"]) / two["median"] * 100
+    return {
+        "higher": f"{stack_label(first)} served {gap:.0f}% more requests per second than {stack_label(second)}; the sample ranges do not overlap.",
+        "lower": f"{stack_label(first)} served {gap:.0f}% fewer requests per second than {stack_label(second)}; the sample ranges do not overlap.",
+        "tie": f"{names} are within {TIE_PCT}% of each other: a tie.",
+        "unsettled": f"{names}: not settled, the sample ranges overlap or a result is unstable.",
+    }[verdict]
+
+
+def make_scenarios(rows: Rows) -> list[Scenario]:
+    meta = {name: (request, what) for name, request, what in SERVICE_ROWS}
+    pair = versus_keys(rows)
+    scenarios = []
+    for key in sorted(rows, key=SCENARIO_ORDER.index):
+        stacks = rows[key]
+        request, what = meta[key]
+        versus = ""
+        if pair and set(pair) <= set(stacks):
+            versus = versus_text(pair[0], pair[1], stacks)
+        scenarios.append(
+            Scenario(
+                key=key,
+                name=scenario_name(key),
+                request=request,
+                description=what,
+                cells=make_cells(stacks),
+                versus=versus,
+            )
+        )
+    return scenarios
+
+
+def stacks_of(scenarios: list[Scenario]) -> list[Stack]:
+    seen = {}
+    for scenario in scenarios:
+        for cell in scenario.cells:
+            seen.setdefault(cell.family, (stack_rank(cell.key), cell.label))
+    return [
+        Stack(family, label)
+        for family, (_, label) in sorted(seen.items(), key=lambda item: item[1][0])
     ]
-    cards.extend(
-        f'<a class="bench-card is-withheld" href="#{chart_id}-withheld">'
-        f'<span class="bench-card__kind">{html.escape(scenario.upper())}</span>'
-        '<span class="bench-card__caption">Withheld</span>'
-        '<span class="bench-card__lead">Not compared</span>'
-        f'<span class="bench-card__note">Requests-per-second CV above {STABLE_CV}%</span></a>'
-        for scenario in withheld
-    )
-    if not cards:
+
+
+def lead_finding(rows: Rows) -> str:
+    pair = versus_keys(rows)
+    if not pair:
         return ""
-    return f'<nav class="bench-cards" aria-label="Summary of each workload">{"".join(cards)}</nav>'
-
-
-def throughput_chart(
-    reported: dict[str, Rows],
-    chart_id: str,
-) -> str:
-    rows = []
-    for scenario, request, description in SERVICE_ROWS:
-        if reported.get(scenario):
-            rows.append(
-                throughput_panel(
-                    scenario,
-                    request,
-                    description,
-                    reported[scenario],
-                    f"{chart_id}-{scenario}",
-                )
-            )
-    return f'<div class="bench-results">{"".join(rows)}</div>'
-
-
-def results_table(scenario: str, rows: list[tuple[str, JSONData]]) -> str:
-    rows_html = "".join(result_row(label, row) for label, row in rows)
-    return (
-        '<div class="benchmark-table-wrap"><table class="benchmark-table">'
-        f"<caption>{scenario_name(scenario)} results: medians and range over all samples for requests per second</caption>"
-        '<thead><tr><th scope="col">Stack</th><th scope="col">Requests/s</th>'
-        '<th scope="col">p50 ms</th><th scope="col">p99 ms</th><th scope="col">CV</th>'
-        '<th scope="col">Median per start</th>'
-        '<th scope="col">Unexpected</th><th scope="col">Samples</th></tr></thead>'
-        f"<tbody>{rows_html}</tbody></table></div>"
+    kiso, granian = pair
+    verdicts = Counter(
+        compare(stacks[kiso], stacks[granian])
+        for stacks in rows.values()
+        if {kiso, granian} <= set(stacks)
     )
+    text = (
+        f"{stack_label(kiso)} against {stack_label(granian)}: ahead in {verdicts['higher']} "
+        f"of {sum(verdicts.values())} request types, tied (within {TIE_PCT}%) in {verdicts['tie']}, "
+        f"behind in {verdicts['lower']}"
+    )
+    if verdicts["unsettled"]:
+        text += f", not settled in {verdicts['unsettled']} (overlapping ranges or an unstable result)"
+    return text + "."
+
+
+def total_samples(settings: JSONData) -> int:
+    return int(settings["runs"]) * int(settings.get("restarts", 1))
 
 
 def scenario_name(scenario: str) -> str:
@@ -516,16 +465,6 @@ def scenario_name(scenario: str) -> str:
 
 
 SERVICE_ROWS = (
-    (
-        "list",
-        "GET /posts?page=1&page_size=20",
-        "Published posts with their author, newest first, in a page envelope with the total: one COUNT and one joined SELECT.",
-    ),
-    (
-        "detail",
-        "GET /posts/{id}",
-        "One published post with its author: one joined SELECT.",
-    ),
     (
         "health",
         "GET /health",
@@ -540,6 +479,16 @@ SERVICE_ROWS = (
         "json-10k",
         "GET /json-10k",
         f"A fixed JSON body of about 10 KB ({len(payloads.BODY_10K):,} bytes), identical bytes in every stack, no database.",
+    ),
+    (
+        "list",
+        "GET /posts?page=1&page_size=20",
+        "Published posts with their author, newest first, in a page envelope with the total: one COUNT and one joined SELECT.",
+    ),
+    (
+        "detail",
+        "GET /posts/{id}",
+        "One published post with its author: one joined SELECT.",
     ),
     (
         "create",
@@ -577,46 +526,29 @@ STACK_ROWS = (
         ("django-bolt",),
     ),
 )
-SLICE_TITLES = {
+DETAIL_VIEWS = {
     "documented": (
-        "Documented servers",
+        "Each stack on its own server",
         "Each framework runs on the server it documents: Hinoki on Granian, FastAPI and Django Ninja on Uvicorn, Django Bolt on its own Actix server. "
         "A difference here can come from the server as well as from the framework.",
-        "compare each stack on its documented server",
     ),
     "same-granian": (
-        "Same server (ASGI)",
+        "All on the same server (Granian)",
         "Hinoki, FastAPI and Django Ninja run on one Granian version and configuration, which takes the server out of the comparison. "
-        "Django Bolt is not in this slice because it does not expose ASGI.",
-        "compare the three ASGI stacks on Granian",
-    ),
-    "kiso": (
-        "Hinoki on Kiso",
-        "Only Hinoki, served by Kiso (`hinoki serve --server kiso`, 4 workers) instead of Granian. Kiso is not an ASGI server, so the other stacks have no counterpart here. "
-        "This was a separate session from the other two views, so read it next to them with that in mind; it is not a ranking.",
-        "see Hinoki on its own Rust server (Kiso)",
+        "Django Bolt is not in this view because it does not expose ASGI.",
     ),
 }
-SETUP_COUNTS = {1: "One server setup", 2: "Two server setups", 3: "Three server setups"}
-HOW_TO_READ = (
-    '!!! tip "How to read this"\n'
-    "    Each card and chart is one request type. Longer bars mean more requests per second on that workload; "
-    "the number is the median of the measured runs. The multiplier (for example 2.00&times;) compares a stack with the slowest stack "
-    "in the same chart, and Hinoki rows are drawn in the brand colour and bold type. "
-    'Open "Exact numbers" under a chart for latency, the lowest and highest run and the run-to-run variation (CV).\n'
-)
 READING_NOTES = (
     "**Requests per second and latency are one measurement.** Every sample keeps the stated number of connections busy, so higher latency means fewer requests per second; the two do not confirm each other.",
-    "**Each chart starts at 0 and shows the median requests per second.** Bars are sorted from highest to lowest within a workload and server setup. Each panel has its own scale; use the tables for exact values and the lowest-to-highest range.",
-    "**The multiplier is one median divided by the slowest median in the same chart.** It is a ratio of medians and carries their run-to-run spread; it does not compare charts with each other.",
-    "**Samples are pooled, none is discarded.** A stack is started several times; the median, the range and the CV are computed over every sample of every start, and the table also lists each start's own median.",
+    "**Bars start at 0 and show the median requests per second.** Within a request type every stack shares one scale, and stacks keep a fixed order, so the page is not sorted into a ranking. The thin line on a bar is the lowest to highest sample.",
+    "**Samples are pooled, none is discarded.** A stack is started several times; the median, the range and the CV are computed over every sample of every start, and an unstable result lists them all.",
     "**p50 and p99 are medians of per-sample percentiles**, not percentiles of all requests pooled together. A range is descriptive, not a confidence interval.",
-    f"**A gap under {TIE_PCT}% between two medians is a tie.** Differences that small are inside what this setup resolves, so no order is claimed.",
-    f"**CV is the coefficient of variation of requests per second across samples.** Above {STABLE_CV}% for any stack, the scenario is not reported: the samples are too unstable to compare, and the raw files are kept.",
-    "**What this does not cover:** TLS, proxies, authentication, compression, cold data, larger tables or other hardware. Pool sizes are equal per process, but each library schedules work differently.",
+    f"**A gap under {TIE_PCT}% between two medians is a tie.** Differences that small are inside what this setup resolves, so no order is claimed. A larger gap is called a difference only when the sample ranges do not overlap.",
+    f"**CV is the coefficient of variation of requests per second across samples.** Above {STABLE_CV}% the result is labelled Unstable: its median and samples stay on the page, but it is not given the highest or tied mark and no comparison with it is claimed.",
+    "**What this does not cover:** TLS, proxies, authentication, compression, cold data, larger tables or other hardware. Pool sizes are equal per process, but each library schedules work differently. It is not a ranking and not a production claim.",
 )
 LEGACY_NOTE = (
-    "This view was sampled with `oha` for a fixed duration with 64 connections and one server start, "
+    "A view was sampled with `oha` for a fixed duration with 64 connections and one server start, "
     "so its format and method differ from the `bombardier` fixed-request runs (100 connections, several starts). "
     "The two formats are not comparable and must not be mixed in one comparison."
 )
@@ -637,8 +569,18 @@ def memory_text(env: JSONData) -> str:
     return f"{int(size) // 2**30} GiB" if size else "not recorded"
 
 
+def placement_text(settings: JSONData) -> str:
+    if settings.get("server_cpus"):
+        return f"server processes on CPUs {settings['server_cpus']}; load generator on CPUs {settings['load_cpus']}"
+    return "no CPU pinning (the operating system scheduled the servers and the load generator)"
+
+
+def unique_text(values: list[str]) -> str:
+    return "; ".join(dict.fromkeys(values))
+
+
 def conditions_table(directories: list[Path]) -> str:
-    envs = [json.loads((d / "environment.json").read_text()) for d in directories]
+    envs = [read_environment(d) for d in directories]
     first = envs[0]
     settings = first["settings"]
     rows = [
@@ -656,6 +598,12 @@ def conditions_table(directories: list[Path]) -> str:
         ),
         ("Samples", sampling_text(settings)),
         ("Warm-up", f"{settings['warmup_s']} s per scenario and start"),
+        ("Server processes", f"{settings['workers']} per stack"),
+        ("CPU placement", unique_text([placement_text(e["settings"]) for e in envs])),
+        (
+            "Load average at start",
+            unique_text([", ".join(f"{v:.2f}" for v in e["loadavg_at_start"]) for e in envs]),
+        ),
         ("Database", str(first["postgres"])),
         *[
             ("Command" if len(directories) == 1 else f"Command ({server_mode(d)})",
@@ -668,10 +616,7 @@ def conditions_table(directories: list[Path]) -> str:
 
 
 def format_warning(directories: list[Path]) -> str:
-    tools = {
-        tool_label(json.loads((d / "environment.json").read_text()))
-        for d in directories
-    }
+    tools = {tool_label(read_environment(d)) for d in directories}
     if len(tools) < 2:
         return ""
     return (
@@ -720,63 +665,6 @@ def sample_end_note(env: JSONData) -> str:
     )
 
 
-def render_mode(directory: Path) -> str:
-    env_path = directory / "environment.json"
-    if not env_path.exists():
-        raise ValueError(f"missing environment metadata in {directory}")
-    env = json.loads(env_path.read_text())
-    settings = env["settings"]
-    reported, withheld, excluded = reported_scenarios(directory)
-    lines: list[str] = []
-    for stack in excluded:
-        lines.extend(
-            [
-                f"{FRAMEWORKS[stack]} is not reported here: it was started with {settings['workers']} processes, "
-                f"but its per-process CPU time (`{stack}-workers.txt`) shows one process did nearly all the work, "
-                "so it is not a comparable result. Its raw samples are retained.",
-                "",
-            ]
-        )
-    chart_id = f"bench-{slug(directory)}"
-    lines.extend(
-        [
-            summary_cards(reported, withheld, chart_id),
-            "",
-            throughput_chart(reported, chart_id),
-            "",
-        ]
-    )
-    if withheld:
-        lines.extend(
-            [
-                f'<aside class="bench-withheld" id="{chart_id}-withheld">'
-                '<p class="bench-scenario__kind">WITHHELD</p>'
-                f"<h3>{', '.join(name.title() for name in withheld)} — not compared</h3>"
-                f"<p>Not compared: requests-per-second CV exceeded {STABLE_CV}% for at least one stack. "
-                "The samples remain in the retained results.</p>"
-                f"<code>benchmarks/comparative/results/{html.escape(directory.parent.name)}/</code>"
-                "</aside>",
-                "",
-            ]
-        )
-    lines.extend(
-        [
-            "All listed stacks passed the response and SQL statement-count verifier before measurement. "
-            + sample_end_note(env),
-            "",
-            *([LEGACY_NOTE, ""] if tool_name(env) == "oha" else []),
-            '??? info "Run environment"',
-            "",
-            *(indented(line) for line in machine_lines(env)),
-        ]
-    )
-    return "\n".join(lines)
-
-
-def total_samples(settings: JSONData) -> int:
-    return int(settings["runs"]) * int(settings.get("restarts", 1))
-
-
 def service_table(directories: list[Path]) -> str:
     optional = {
         scenario
@@ -794,42 +682,18 @@ def service_table(directories: list[Path]) -> str:
     )
 
 
-def stacks_table(env: JSONData, modes: list[str]) -> str:
+def stacks_table(env: JSONData, kiso: bool) -> str:
     versions = package_versions(env)
     rows = []
     for key, label, orm, server, packages in STACK_ROWS:
         shown = ", ".join(
             f"{name} {versions[name]}" for name in packages if name in versions
         )
-        if key == "hinoki" and "kiso" in modes:
-            shown_server = f"{server}; Kiso in its own view"
-        else:
-            shown_server = server
-        rows.append(f"| {label} | {orm} | {shown_server} | {shown} |")
+        extra = "; or Kiso, Hinoki's own server" if key == "hinoki" and kiso else ""
+        rows.append(f"| {label} | {orm} | {server}{extra} | {shown} |")
     return (
         "| Stack | ORM and driver | Server | Versions |\n| --- | --- | --- | --- |\n"
         + "\n".join(rows)
-    )
-
-
-def server_mode(directory: Path) -> str:
-    settings = json.loads((directory / "environment.json").read_text())["settings"]
-    return str(settings.get("server_mode", "documented"))
-
-
-def results_intro(modes: list[str]) -> str:
-    phrases = [SLICE_TITLES[mode][2] for mode in modes]
-    if len(phrases) == 1:
-        switch = ""
-    elif len(phrases) == 2:
-        switch = f"Switch the server setup to {phrases[0]} or {phrases[1]}. "
-    else:
-        switch = (
-            f"Switch the server setup to {', '.join(phrases[:-1])}, or {phrases[-1]}. "
-        )
-    return (
-        switch
-        + "Each chart starts at zero and uses its own scale; exact values and run ranges are under each chart.\n"
     )
 
 
@@ -837,62 +701,180 @@ def collapsed(title: str, body: str) -> str:
     return f'??? info "{title}"\n\n{indented(body)}\n'
 
 
-def main(directories: list[Path]) -> None:
-    first_env = json.loads((directories[0] / "environment.json").read_text())
-    measured_at = html.escape(first_env["date"])
-    machine = html.escape(first_env["machine"])
-    cpu = html.escape(first_env["cpu"])
-    cores = first_env["cores"]
-    concurrency = first_env["settings"]["concurrency"]
-    run_count = total_samples(first_env["settings"])
-    modes = [server_mode(directory) for directory in directories]
-    parts = [
-        f'<p class="bench-eyebrow">FIELD NOTE · {measured_at} · {machine}</p>\n',
-        "# Benchmarks\n",
-        f"## One API. {SETUP_COUNTS.get(len(modes), f'{len(modes)} server setups')}.\n",
-        "Four framework stacks served the same small API and PostgreSQL data. These measurements describe "
-        "one machine and one benchmark session; they do not rank frameworks or predict production performance.\n",
-        f'<div class="bench-run-strip"><span><b>01</b>{cpu}</span><span><b>02</b>{cores} logical CPUs</span>'
-        f"<span><b>03</b>{concurrency} concurrent connections</span><span><b>04</b>{run_count} samples per scenario</span></div>\n",
-        '!!! warning "Read this first"\n'
-        "    Hinoki is pre-alpha. The run used one host, warm data and loopback networking. It is not a framework ranking or a production claim. Unstable samples stay visible as withheld results.\n",
-        format_warning(directories) + "\n" if format_warning(directories) else "",
-        "## Results\n",
-        HOW_TO_READ,
-        results_intro(modes),
-    ]
-    for directory, mode in zip(directories, modes, strict=True):
-        title, intro, _ = SLICE_TITLES[mode]
-        parts.append(f'=== "{title}"\n')
-        parts.append(indented(intro + "\n\n" + render_mode(directory)) + "\n")
+def session_note(directories: list[Path]) -> str:
+    """Which stacks were measured in which run, when the runs differ."""
+    runs: dict[str, list[str]] = {}
+    for directory in directories:
+        env = read_environment(directory)
+        labels = [stack_label(s) for s in stack_names(directory, env["settings"])]
+        runs.setdefault(str(env["date"])[:16], []).extend(labels)
+    if len(runs) < 2:
+        return ""
+    parts = "; ".join(f"{when}: {', '.join(labels)}" for when, labels in runs.items())
+    return (
+        f"The stacks were measured in {len(runs)} separate runs on the same machine ({parts}). "
+        "The host load was not controlled between runs, so read a difference between stacks from different runs with that in mind."
+    )
+
+
+def lead(directories: list[Path], rows: Rows) -> str:
+    first = read_environment(directories[0])
+    envs = [read_environment(d) for d in directories]
+    dates = " and ".join(dict.fromkeys(str(env["date"])[:10] for env in envs))
+    stacks = {stack for stacks in rows.values() for stack in stacks}
+    finding = lead_finding(rows)
+    settings = first["settings"]
+    return (
+        '<div class="bench-lead">'
+        f'<p class="bench-lead__what"><b>Measured:</b> requests per second and latency of {len(stacks)} stack setups '
+        f"on {len(rows)} request types of one small API backed by PostgreSQL. "
+        f"<b>Where:</b> {html.escape(machine_text(first))}, {dates}, "
+        f"{settings['concurrency']} concurrent connections, median of {total_samples(settings)} samples per cell.</p>"
+        + (
+            f'<p class="bench-lead__finding">{html.escape(finding)}</p>'
+            if finding
+            else ""
+        )
+        + '<p class="bench-lead__caveat">Pre-alpha software, one host, warm data, loopback network: '
+        "this is not a ranking and not a production claim.</p></div>"
+    )
+
+
+READING = (
+    '<p class="bench-reading">Each cell is the median requests per second; higher is better. '
+    "The bar is relative to the highest cell in its row. "
+    f"The highest stable result is highlighted, results within {TIE_PCT}% of it are tied, "
+    f"and a result whose run-to-run variation (CV) is above {STABLE_CV}% is labelled Unstable: "
+    "it stays on the page with its samples but is never highlighted.</p>"
+)
+KISO_NOTE = (
+    "Granian is a third-party ASGI server; Kiso is Hinoki's own Rust server "
+    "(started with hinoki serve --server kiso). Both rows serve the same Hinoki application."
+)
+
+
+def overview_section(directories: list[Path], rows: Rows, notes: list[str]) -> str:
+    scenarios = make_scenarios(rows)
+    stacks = stacks_of(scenarios)
+    kiso = versus_keys(rows) is not None
+    extra = [session_note(directories), *notes, KISO_NOTE if kiso else ""]
+    return "\n".join(
+        [
+            "## Results at a glance\n",
+            report_html.legend(stacks) + "\n",
+            report_html.matrix("bench-overview", stacks, scenarios, filterable=True)
+            + "\n",
+            READING + "\n",
+            *[
+                f'<p class="bench-reading">{html.escape(text)}</p>\n'
+                for text in extra
+                if text
+            ],
+            "## One request type at a time\n",
+            "Pick a request type for its chart, exact numbers and, when a result is unstable, its samples. "
+            "Selecting a stack in the legend above hides or shows it here too.\n",
+            report_html.explorer(scenarios) + "\n",
+        ]
+    )
+
+
+def detail_tab(directory: Path) -> str:
+    mode = server_mode(directory)
+    title, intro = DETAIL_VIEWS[mode]
+    rows, excluded = scenario_rows(directory)
+    workers = read_environment(directory)["settings"]["workers"]
+    scenarios = make_scenarios(rows)
+    tables = "".join(report_html.exact_table(s) for s in scenarios)
+    body = "\n\n".join(
+        [
+            f"<p>{html.escape(intro)}</p>",
+            *[f"<p>{html.escape(exclusion_note(s, workers))}</p>" for s in excluded],
+            report_html.matrix(f"bench-detail-{mode}", stacks_of(scenarios), scenarios),
+            '<details class="bench-details"><summary>Exact numbers for every request type</summary>'
+            + tables
+            + "</details>",
+        ]
+    )
+    return f'=== "{title}"\n\n{indented(body)}\n'
+
+
+def details_section(directories: list[Path]) -> str:
+    tabs = [detail_tab(d) for d in directories if server_mode(d) in DETAIL_VIEWS]
+    if not tabs:
+        return ""
+    return "\n".join(
+        [
+            "## Server setups in detail\n",
+            "For the reader who wants the server taken into account: the same request types, each stack on its own server, then all on one server.\n",
+            *tabs,
+        ]
+    )
+
+
+def method_section(directories: list[Path], first_env: JSONData) -> str:
+    modes = [server_mode(d) for d in directories]
     locations = ", ".join(
         sorted(
             {f"`benchmarks/comparative/results/{d.parent.name}/`" for d in directories}
         )
     )
-    parts.extend(
+    kiso = any(
+        KISO_KEY in stack_names(d, read_environment(d)["settings"]) for d in directories
+    )
+    legacy = any(tool_name(read_environment(d)) == "oha" for d in directories)
+    warning = format_warning(directories)
+    verified = (
+        "All listed stacks passed the response and SQL statement-count verifier before measurement. "
+        + sample_end_note(first_env)
+    )
+    return "\n".join(
         [
-            "## Conditions\n",
-            conditions_table(directories) + "\n",
-            "## What was measured\n",
-            "One service, two tables and deterministic seed data: 100 authors and 10,000 posts, 80% published. Every stack had to match a PostgreSQL oracle and the same SQL statement count per request before measurement. "
-            "The stacks differ in ORM, database driver and server, as listed below.\n",
+            "## Method and limits\n",
+            collapsed(
+                "Conditions",
+                conditions_table(directories)
+                + ("\n\n" + warning if warning else "")
+                + ("\n\n" + LEGACY_NOTE if legacy else ""),
+            ),
             collapsed(
                 "Workloads, stacks and versions",
-                service_table(directories) + "\n\n" + stacks_table(first_env, modes),
+                "One service, two tables and deterministic seed data: 100 authors and 10,000 posts, 80% published. "
+                "Every stack had to match a PostgreSQL oracle and the same SQL statement count per request before measurement. "
+                "The stacks differ in ORM, database driver and server, as listed below.\n\n"
+                + service_table(directories)
+                + "\n\n"
+                + stacks_table(first_env, kiso),
             ),
-            "## How to read the numbers\n",
             collapsed(
-                "Measurement notes and limits",
-                "\n".join(f"- {note}" for note in READING_NOTES),
+                "How the numbers are computed",
+                verified + "\n\n" + "\n".join(f"- {note}" for note in READING_NOTES),
             ),
-            "## Reproduce\n",
-            reproduce(modes, tool_name(first_env)) + "\n",
-            f"Raw `{tool_name(first_env)}` JSON, environment records, server logs, per-worker CPU time and verification output are kept in {locations}. "
-            "Setup details, the database container and the rules for repeating an unstable scenario are in `benchmarks/comparative/README.md`.",
+            collapsed(
+                "Reproduce",
+                reproduce(modes, tool_name(first_env))
+                + "\n\n"
+                + f"Raw `{tool_name(first_env)}` JSON, environment records, server logs, per-worker CPU time and verification output are kept in {locations}. "
+                "Setup details, the database container and the rules for repeating an unstable scenario are in `benchmarks/comparative/README.md`.",
+            ),
         ]
     )
-    print("\n".join(parts))
+
+
+def main(directories: list[Path]) -> None:
+    first_env = read_environment(directories[0])
+    overview = [
+        d for d in directories if server_mode(d) != "same-granian"
+    ] or directories
+    rows, notes = collect(overview)
+    parts = [
+        f'<p class="bench-eyebrow">FIELD NOTE · {html.escape(str(first_env["date"]))} · {html.escape(first_env["machine"])}</p>\n',
+        "# Benchmarks\n",
+        lead(overview, rows) + "\n",
+        overview_section(overview, rows, notes),
+        details_section(directories),
+        method_section(directories, first_env),
+    ]
+    print("\n".join(part for part in parts if part))
 
 
 if __name__ == "__main__":
