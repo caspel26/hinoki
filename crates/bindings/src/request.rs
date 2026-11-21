@@ -584,7 +584,7 @@ trait Builder {
 
     fn null(&mut self) -> Self::Value;
     fn boolean(&mut self, value: bool) -> Self::Value;
-    fn string(&mut self, text: String) -> Self::Value;
+    fn string(&mut self, text: &str) -> Self::Value;
     fn integer(&mut self, value: i64) -> Self::Value;
     /// An integer outside `i64`, as its decimal JSON text.
     fn big_integer(&mut self, text: &str) -> Parsed<Self::Value>;
@@ -592,16 +592,61 @@ trait Builder {
     fn object(&mut self) -> Self::Object;
     /// Store `key`; a repeated key keeps its first position and takes the
     /// last value (Python `dict` semantics).
-    fn insert(&mut self, object: &mut Self::Object, key: String, value: Self::Value) -> Parsed<()>;
+    fn insert(&mut self, object: &mut Self::Object, key: &str, value: Self::Value) -> Parsed<()>;
     fn close_object(&mut self, object: Self::Object) -> Self::Value;
     fn array(&mut self) -> Self::Array;
     fn push(&mut self, array: &mut Self::Array, value: Self::Value) -> Parsed<()>;
     fn close_array(&mut self, array: Self::Array) -> Self::Value;
 }
 
-/// Builds Python objects (`decode_json`).
+/// Slots in the per-call key cache. A fixed size bounds its memory.
+const KEY_CACHE_SLOTS: usize = 128;
+/// Longer keys are rarely repeated, so they are never cached.
+const KEY_CACHE_MAX_LEN: usize = 32;
+/// Keys seen before the cache starts, so a tiny document pays nothing for it.
+const KEY_CACHE_AFTER: usize = 16;
+
+/// Builds Python objects (`decode_json`). Like `json.loads`, it reuses one
+/// `str` object for a key repeated within a call. The cache is direct-mapped
+/// by a hash of the key (a colliding key replaces the older one) and dies
+/// with the call, so it is not an intern table and holds at most
+/// `KEY_CACHE_SLOTS` short keys.
 struct PyBuilder<'py> {
     py: Python<'py>,
+    keys: Vec<Option<(Box<str>, Bound<'py, PyString>)>>,
+    seen: usize,
+}
+
+impl<'py> PyBuilder<'py> {
+    fn new(py: Python<'py>) -> Self {
+        Self {
+            py,
+            keys: Vec::new(),
+            seen: 0,
+        }
+    }
+
+    fn key(&mut self, key: &str) -> Bound<'py, PyString> {
+        self.seen += 1;
+        if key.len() > KEY_CACHE_MAX_LEN || self.seen <= KEY_CACHE_AFTER {
+            return PyString::new(self.py, key);
+        }
+        if self.keys.is_empty() {
+            self.keys.resize_with(KEY_CACHE_SLOTS, || None);
+        }
+        let hash = key.bytes().fold(0xcbf2_9ce4_u32, |h, b| {
+            (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
+        });
+        let slot = &mut self.keys[hash as usize % KEY_CACHE_SLOTS];
+        if let Some((cached, object)) = slot {
+            if &**cached == key {
+                return object.clone();
+            }
+        }
+        let object = PyString::new(self.py, key);
+        *slot = Some((key.into(), object.clone()));
+        object
+    }
 }
 
 impl<'py> Builder for PyBuilder<'py> {
@@ -617,8 +662,8 @@ impl<'py> Builder for PyBuilder<'py> {
         PyBool::new(self.py, value).to_owned().into_any()
     }
 
-    fn string(&mut self, text: String) -> Self::Value {
-        PyString::new(self.py, &text).into_any()
+    fn string(&mut self, text: &str) -> Self::Value {
+        PyString::new(self.py, text).into_any()
     }
 
     fn integer(&mut self, value: i64) -> Self::Value {
@@ -640,9 +685,9 @@ impl<'py> Builder for PyBuilder<'py> {
         PyDict::new(self.py)
     }
 
-    fn insert(&mut self, object: &mut Self::Object, key: String, value: Self::Value) -> Parsed<()> {
+    fn insert(&mut self, object: &mut Self::Object, key: &str, value: Self::Value) -> Parsed<()> {
         object
-            .set_item(key, value)
+            .set_item(self.key(key), value)
             .map_err(|e| ParseError::python(&e))
     }
 
@@ -722,14 +767,14 @@ impl JsonObject {
 /// The Python object `decode_json` builds for the same document.
 #[cfg(test)]
 pub(crate) fn json_to_python<'py>(py: Python<'py>, value: &Json) -> PyResult<Bound<'py, PyAny>> {
-    let mut builder = PyBuilder { py };
+    let mut builder = PyBuilder::new(py);
     Ok(match value {
         Json::Null => builder.null(),
         Json::Bool(flag) => builder.boolean(*flag),
         Json::Int(int) => builder.integer(*int),
         Json::BigInt(text) => builder.big_integer(text).map_err(ParseError::into_py)?,
         Json::Float(float) => builder.float(*float),
-        Json::Str(text) => builder.string(text.clone()),
+        Json::Str(text) => builder.string(text),
         Json::List(items) => {
             let list = builder.array();
             for item in items {
@@ -776,8 +821,8 @@ impl Builder for DomBuilder {
         Json::Bool(value)
     }
 
-    fn string(&mut self, text: String) -> Json {
-        Json::Str(text)
+    fn string(&mut self, text: &str) -> Json {
+        Json::Str(text.to_owned())
     }
 
     fn integer(&mut self, value: i64) -> Json {
@@ -797,8 +842,8 @@ impl Builder for DomBuilder {
         JsonObject::default()
     }
 
-    fn insert(&mut self, object: &mut JsonObject, key: String, value: Json) -> Parsed<()> {
-        object.insert(key, value);
+    fn insert(&mut self, object: &mut JsonObject, key: &str, value: Json) -> Parsed<()> {
+        object.insert(key.to_owned(), value);
         Ok(())
     }
 
@@ -904,7 +949,7 @@ impl<'a, B: Builder> Parser<'a, B> {
             Some(b'[') => self.array(depth),
             Some(b'"') => {
                 let text = self.string()?;
-                Ok(self.builder.string(text))
+                Ok(self.builder.string(&text))
             }
             Some(b't') => self.expect(b"true").map(|()| self.builder.boolean(true)),
             Some(b'f') => self.expect(b"false").map(|()| self.builder.boolean(false)),
@@ -935,7 +980,7 @@ impl<'a, B: Builder> Parser<'a, B> {
             }
             self.at += 1;
             let item = self.value(depth + 1)?;
-            self.builder.insert(&mut object, key, item)?;
+            self.builder.insert(&mut object, &key, item)?;
             self.skip_space();
             match self.peek() {
                 Some(b',') => self.at += 1,
@@ -1021,20 +1066,35 @@ impl<'a, B: Builder> Parser<'a, B> {
         Ok(())
     }
 
-    fn string(&mut self) -> Parsed<String> {
-        self.at += 1;
-        let mut out = String::new();
-        loop {
-            let start = self.at;
-            while let Some(byte) = self.peek() {
-                if byte == b'"' || byte == b'\\' || byte < 0x20 {
-                    break;
-                }
-                self.at += 1;
+    /// The next run of plain string bytes, validated as UTF-8.
+    fn plain_run(&mut self) -> Parsed<&'a str> {
+        let input = self.input;
+        let start = self.at;
+        while let Some(&byte) = input.get(self.at) {
+            if byte == b'"' || byte == b'\\' || byte < 0x20 {
+                break;
             }
-            out.push_str(
-                std::str::from_utf8(&self.input[start..self.at]).map_err(|_| "invalid UTF-8")?,
-            );
+            self.at += 1;
+        }
+        std::str::from_utf8(&input[start..self.at]).map_err(|_| "invalid UTF-8".into())
+    }
+
+    /// A string without escapes borrows the input; one with escapes is copied.
+    fn string(&mut self) -> Parsed<Cow<'a, str>> {
+        self.at += 1;
+        let run = self.plain_run()?;
+        match self.peek() {
+            Some(b'"') => {
+                self.at += 1;
+                Ok(Cow::Borrowed(run))
+            }
+            _ => self.escaped_string(run).map(Cow::Owned),
+        }
+    }
+
+    fn escaped_string(&mut self, first: &str) -> Parsed<String> {
+        let mut out = String::from(first);
+        loop {
             match self.peek() {
                 Some(b'"') => {
                     self.at += 1;
@@ -1047,6 +1107,7 @@ impl<'a, B: Builder> Parser<'a, B> {
                 Some(_) => return self.fail("control character in string"),
                 None => return self.fail("unterminated string"),
             }
+            out.push_str(self.plain_run()?);
         }
     }
 
@@ -1138,7 +1199,7 @@ pub(crate) fn decode_json_document(raw: &[u8]) -> Result<JsonDocument, String> {
 /// when Python refuses a value (an integer over its digit limit).
 #[pyfunction]
 pub fn decode_json<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Bound<'py, PyAny>> {
-    parse_document(PyBuilder { py }, raw)
+    parse_document(PyBuilder::new(py), raw)
         .map(|(value, _)| value)
         .map_err(ParseError::into_py)
 }
@@ -1803,7 +1864,7 @@ mod tests {
         r#"{"é": "\u00e9", "": ""}"#,
     ];
 
-    const REFUSED: [&str; 32] = [
+    const REFUSED: [&str; 34] = [
         "",
         " ",
         "nul",
@@ -1831,6 +1892,8 @@ mod tests {
         "\"\\u12\"",
         "\"\\u12g4\"",
         "\"abc",
+        "\"a\\n",
+        "\"a\\nb\u{1}\"",
         "\"a\u{1}b\"",
         "\u{feff}{}",
         "{} {}",
