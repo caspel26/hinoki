@@ -58,7 +58,7 @@ kbd {
   border-radius: 8px;
   background: var(--hn-surface-2);
   color: var(--hn-text-3);
-  font: 500 11px/1.5 var(--hn-font-mono);
+  font: 500 12px/1.5 var(--hn-font-mono);
   text-align: center;
 }
 
@@ -165,7 +165,7 @@ kbd {
   border-radius: 999px;
   background: var(--hn-tint-brand);
   color: var(--hn-brand);
-  font: 600 11px/1.5 var(--hn-font-sans);
+  font: 600 12px/1.5 var(--hn-font-sans);
 }
 
 .docs-version {
@@ -231,7 +231,7 @@ kbd {
 
 .docs-version__link small {
   color: var(--hn-text-3);
-  font: 500 10px/1.3 var(--hn-font-mono);
+  font: 500 12px/1.3 var(--hn-font-mono);
 }
 
 .top__nav {
@@ -684,7 +684,7 @@ body.menu-open .menu-icon-close {
 
 .titleblock dt {
   color: var(--hn-text-3);
-  font: 500 11px/1.4 var(--hn-font-mono);
+  font: 500 12px/1.4 var(--hn-font-mono);
 }
 
 .titleblock dd {
@@ -889,7 +889,7 @@ body.menu-open .menu-icon-close {
 }
 
 .foot__bottom .chip {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 @media (max-width: 640px) {
@@ -980,7 +980,7 @@ body.menu-open .overlay {
 .palette__group {
   padding: var(--sp-3) var(--sp-3) var(--sp-1);
   color: var(--hn-text-3);
-  font: 500 11px/1.4 var(--hn-font-mono);
+  font: 500 12px/1.4 var(--hn-font-mono);
 }
 
 .palette__item {
