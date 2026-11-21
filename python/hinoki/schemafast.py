@@ -16,6 +16,7 @@ holds now, not by what it held when it was created."""
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -30,6 +31,18 @@ _MISSING = object()
 ONE_MINUTE = dt.timedelta(minutes=1)
 _MAX_NESTING = 64
 """Static schema nesting the check covers; deeper graphs use the full validation."""
+_OVERRIDABLE = ("_validate_instance", "native_schema", "specs")
+"""Hooks a class may redefine to change validation; the check cannot see them."""
+
+
+def is_stock_validation(cls: type[Schema]) -> bool:
+    """Whether neither the class nor a mixin redefines a validation hook."""
+    from hinoki.schema import Schema  # noqa: PLC0415 - circular with schema.py
+
+    return all(
+        inspect.getattr_static(cls, name) is inspect.getattr_static(Schema, name)
+        for name in _OVERRIDABLE
+    )
 
 
 def instance_accepts(cls: type[Schema], instance: Schema) -> bool:
@@ -45,7 +58,7 @@ def instance_accepts(cls: type[Schema], instance: Schema) -> bool:
 def build_instance_check(cls: type[Schema], building: tuple[type, ...]) -> Check | None:
     """The check of one class, or ``None`` when a field is not covered or the
     schema graph is recursive or too deep."""
-    if cls in building or len(building) >= _MAX_NESTING:
+    if cls in building or len(building) >= _MAX_NESTING or not is_stock_validation(cls):
         return None
     inside = (*building, cls)
     fields: list[tuple[str, Check]] = []
