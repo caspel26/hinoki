@@ -1,11 +1,22 @@
-"""Generate the benchmark plots and tables from retained oha JSON."""
+"""Generate the benchmark plots and tables from retained raw JSON.
+
+New results are ``bombardier`` documents (``{stack}-{scenario}-r{start}-{n}.json``);
+older retained results are ``oha`` documents (``{stack}-{scenario}-{n}.json``, one
+start). Both are normalized for the tables, but the two formats measured
+differently (fixed duration versus fixed requests, 64 versus 100 connections) and
+the report says so instead of mixing them.
+"""
 
 import html
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
 from typing import Any
+
+import loadtool
+import payloads
 
 JSONData = dict[str, Any]
 
@@ -20,14 +31,29 @@ FRAMEWORKS = {
     "ninja-granian": "Django Ninja · Granian",
 }
 SCENARIOS = ["list", "detail", "health", "create"]
-EXPECTED = {"health": "200", "list": "200", "detail": "200", "create": "201"}
+OPTIONAL_SCENARIOS = ["json-1k", "json-10k"]
+EXPECTED = {
+    "health": "200",
+    "list": "200",
+    "detail": "200",
+    "create": "201",
+    "json-1k": "200",
+    "json-10k": "200",
+}
+START = re.compile(r"-r(\d+)-\d+\.json$")
 
 
 def load_runs(directory: Path, stack: str, scenario: str) -> list[JSONData]:
     files = sorted(directory.glob(f"{stack}-{scenario}-*.json"))
     if not files:
         raise ValueError(f"missing raw results for {stack} / {scenario} in {directory}")
-    return [json.loads(path.read_text()) for path in files]
+    runs = []
+    for path in files:
+        found = START.search(path.name)
+        runs.append(
+            {**json.loads(path.read_text()), "_start": int(found[1]) if found else 1}
+        )
+    return runs
 
 
 PERCENTILES = ("p50", "p95", "p99")
@@ -41,32 +67,56 @@ def spread(values: list[float], scale: float = 1.0) -> JSONData:
     }
 
 
-def run_summary(runs: list[JSONData], expected_status: str) -> JSONData:
-    """Aggregate per-run results: medians of the per-run values plus min-max."""
-    rps = [float(run["summary"]["requestsPerSec"]) for run in runs]
-    mean_rps = statistics.mean(rps)
+def normalize(run: JSONData, expected_status: str) -> JSONData:
+    """Rate, latency percentiles in ms and unexpected count of one raw sample."""
+    if "result" in run:
+        summary = loadtool.summarize(run)
+        return {**summary, "start": run.get("_start", 1)}
     wrong = sum(
         count
-        for run in runs
         for code, count in run["statusCodeDistribution"].items()
         if code != expected_status
     ) + sum(
         count
-        for run in runs
         for kind, count in run["errorDistribution"].items()
         if kind != "aborted due to deadline"
     )
     return {
-        "runs": len(runs),
+        "rps": float(run["summary"]["requestsPerSec"]),
+        "latency_ms": {
+            name: run["latencyPercentiles"][name] * 1000 for name in PERCENTILES
+        },
+        "wrong": wrong,
+        "start": run.get("_start", 1),
+    }
+
+
+def run_summary(runs: list[JSONData], expected_status: str) -> JSONData:
+    """Aggregate every sample of every start: medians plus min-max, none discarded.
+
+    The median, range and CV pool all samples; ``start_medians`` shows each
+    server start's own median so a start-to-start shift stays visible.
+    """
+    samples = [normalize(run, expected_status) for run in runs]
+    rps = [sample["rps"] for sample in samples]
+    mean_rps = statistics.mean(rps)
+    starts = sorted({sample["start"] for sample in samples})
+    return {
+        "runs": len(samples),
+        "starts": len(starts),
         "median": statistics.median(rps),
         "low": min(rps),
         "high": max(rps),
         "cv_pct": statistics.stdev(rps) / mean_rps * 100 if len(rps) > 1 else None,
+        "start_medians": [
+            statistics.median(s["rps"] for s in samples if s["start"] == start)
+            for start in starts
+        ],
         "latency_ms": {
-            name: spread([run["latencyPercentiles"][name] for run in runs], 1000)
+            name: spread([sample["latency_ms"][name] for sample in samples])
             for name in PERCENTILES
         },
-        "wrong": wrong,
+        "wrong": sum(sample["wrong"] for sample in samples),
     }
 
 
@@ -101,9 +151,30 @@ def machine_lines(env: JSONData) -> list[str]:
         )
     lines.append(
         f"{placement}; {settings['concurrency']} concurrent connections; {settings['warmup_s']} s warm-up; "
-        f"{settings['runs']} measured runs of {settings['duration_s']} s; {env['postgres']}; {env['oha']}."
+        f"{sampling_text(settings)}; {env['postgres']}; {tool_label(env)}."
     )
     return [" ".join(lines[:1]), *lines[1:], ""]
+
+
+def tool_name(env: JSONData) -> str:
+    return str(env.get("load_tool", "oha"))
+
+
+def tool_label(env: JSONData) -> str:
+    if tool_name(env) == "oha":  # the recorded value is `oha --version` output
+        return str(env.get("oha", "oha (version not recorded)"))
+    return f"{tool_name(env)} {env.get(tool_name(env), 'version not recorded')}"
+
+
+def sampling_text(settings: JSONData) -> str:
+    runs = settings["runs"]
+    starts = settings.get("restarts", 1)
+    if "requests" in settings:
+        return (
+            f"{starts} server starts, each with {runs} samples of "
+            f"{settings['requests']:,} requests per scenario"
+        )
+    return f"{runs} measured runs of {settings['duration_s']} s"
 
 
 def stack_names(directory: Path, settings: JSONData) -> list[str]:
@@ -130,17 +201,23 @@ def cpu_seconds(text: str) -> float:
     return total + (int(days) * 86400 if days else 0)
 
 
-def busy_share(directory: Path, stack: str, workers: int) -> float | None:
-    """Share of CPU time held by the busiest of the `workers` busiest processes."""
-    path = directory / f"{stack}-workers.txt"
-    if not path.exists():
-        return None
+def file_share(path: Path, workers: int) -> float | None:
     times = sorted(
         (cpu_seconds(line.split()[2]) for line in path.read_text().splitlines()[1:]),
         reverse=True,
     )[:workers]
     total = sum(times)
     return times[0] / total if workers > 1 and len(times) > 1 and total else None
+
+
+def busy_share(directory: Path, stack: str, workers: int) -> float | None:
+    """Largest share of CPU time held by one of the `workers` busiest processes of any start."""
+    shares = [
+        share
+        for path in sorted(directory.glob(f"{stack}-workers*.txt"))
+        if (share := file_share(path, workers)) is not None
+    ]
+    return max(shares, default=None)
 
 
 def single_process_stacks(
@@ -152,6 +229,12 @@ def single_process_stacks(
 
 
 STABLE_CV = 15
+TIE_PCT = 10
+
+
+def is_tie(higher: float, lower: float) -> bool:
+    """A gap under TIE_PCT of the higher median is a tie, not a ranking."""
+    return higher > 0 and (higher - lower) / higher * 100 < TIE_PCT
 
 
 def slug(directory: Path) -> str:
@@ -203,6 +286,8 @@ def headline(rows: Rows) -> str:
     )
     if rows[1][1]["high"] >= top["low"]:
         text += " The run ranges of the top two stacks overlap, so their order is not settled."
+    if is_tie(top["median"], rows[1][1]["median"]):
+        text += f" The top two medians are within {TIE_PCT}% of each other, which is treated as a tie."
     return text + hinoki_position(rows)
 
 
@@ -213,12 +298,22 @@ def sorted_rows(rows: Rows) -> Rows:
 def result_row(label: str, row: JSONData, lead: str = "") -> str:
     latency = row["latency_ms"]
     cv = "n/a" if row["cv_pct"] is None else f"{row['cv_pct']:.1f}%"
+    starts = " / ".join(rps(value) for value in row["start_medians"])
     return (
         f'<tr>{lead}<th scope="row">{html.escape(label)}</th>'
         f'<td>{row["median"]:,.0f}<span class="range">{row["low"]:,.0f}&ndash;{row["high"]:,.0f}</span></td>'
         f"<td>{fmt_ms(latency['p50']['median'])}</td><td>{fmt_ms(latency['p99']['median'])}</td>"
-        f"<td>{cv}</td><td>{row['wrong']}</td><td>{row['runs']}</td></tr>"
+        f"<td>{cv}</td><td>{starts}</td><td>{row['wrong']}</td><td>{row['runs']}</td></tr>"
     )
+
+
+def present_optional(directory: Path, stacks: list[str]) -> list[str]:
+    """Optional scenarios with raw files; every stack must have them or loading fails."""
+    return [
+        scenario
+        for scenario in OPTIONAL_SCENARIOS
+        if any(any(directory.glob(f"{stack}-{scenario}-*.json")) for stack in stacks)
+    ]
 
 
 def reported_scenarios(
@@ -233,7 +328,7 @@ def reported_scenarios(
     stacks = [stack for stack in stacks if stack not in excluded]
     reported = {}
     withheld = []
-    for scenario in SCENARIOS:
+    for scenario in [*SCENARIOS, *present_optional(directory, stacks)]:
         summaries = [
             (
                 FRAMEWORKS[stack],
@@ -292,10 +387,13 @@ def throughput_panel(
 
 
 def runs_note(rows: Rows) -> str:
-    counts = sorted({row["runs"] for _, row in rows})
+    counts = sorted({(row["runs"], row["starts"]) for _, row in rows})
     if len(counts) == 1:
-        return f"{counts[0]} measured runs per stack."
-    return "Run counts differ per stack; see the table."
+        runs, starts = counts[0]
+        if starts > 1:
+            return f"{runs} samples per stack from {starts} server starts, all kept."
+        return f"{runs} measured runs per stack."
+    return "Sample counts differ per stack; see the table."
 
 
 def bar_row(label: str, row: JSONData, axis_max: float, slowest: float | None) -> str:
@@ -390,11 +488,18 @@ def results_table(scenario: str, rows: list[tuple[str, JSONData]]) -> str:
     rows_html = "".join(result_row(label, row) for label, row in rows)
     return (
         '<div class="benchmark-table-wrap"><table class="benchmark-table">'
-        f"<caption>{scenario.title()} results: medians and per-run range for requests per second</caption>"
+        f"<caption>{scenario_name(scenario)} results: medians and range over all samples for requests per second</caption>"
         '<thead><tr><th scope="col">Stack</th><th scope="col">Requests/s</th>'
         '<th scope="col">p50 ms</th><th scope="col">p99 ms</th><th scope="col">CV</th>'
-        '<th scope="col">Unexpected</th><th scope="col">Runs</th></tr></thead>'
+        '<th scope="col">Median per start</th>'
+        '<th scope="col">Unexpected</th><th scope="col">Samples</th></tr></thead>'
         f"<tbody>{rows_html}</tbody></table></div>"
+    )
+
+
+def scenario_name(scenario: str) -> str:
+    return {"json-1k": "JSON 1 KB", "json-10k": "JSON 10 KB"}.get(
+        scenario, scenario.title()
     )
 
 
@@ -413,6 +518,16 @@ SERVICE_ROWS = (
         "health",
         "GET /health",
         "Static JSON, no database: a diagnostic of the framework and server path.",
+    ),
+    (
+        "json-1k",
+        "GET /json-1k",
+        f"A fixed JSON body of about 1 KB ({len(payloads.BODY_1K):,} bytes), identical bytes in every stack, no database.",
+    ),
+    (
+        "json-10k",
+        "GET /json-10k",
+        f"A fixed JSON body of about 10 KB ({len(payloads.BODY_10K):,} bytes), identical bytes in every stack, no database.",
     ),
     (
         "create",
@@ -479,23 +594,94 @@ HOW_TO_READ = (
     'Open "Exact numbers" under a chart for latency, the lowest and highest run and the run-to-run variation (CV).\n'
 )
 READING_NOTES = (
-    "**Requests per second and latency are one measurement.** Every run keeps 64 connections busy, so higher latency means fewer requests per second; the two do not confirm each other.",
-    "**Each chart starts at 0 and shows the median requests per second.** Bars are sorted from highest to lowest within a workload and server setup. Each panel has its own scale; use the tables for exact values and the lowest-to-highest run range.",
+    "**Requests per second and latency are one measurement.** Every sample keeps the stated number of connections busy, so higher latency means fewer requests per second; the two do not confirm each other.",
+    "**Each chart starts at 0 and shows the median requests per second.** Bars are sorted from highest to lowest within a workload and server setup. Each panel has its own scale; use the tables for exact values and the lowest-to-highest range.",
     "**The multiplier is one median divided by the slowest median in the same chart.** It is a ratio of medians and carries their run-to-run spread; it does not compare charts with each other.",
-    "**p50 and p99 are medians of per-run percentiles**, not percentiles of all requests pooled together. A range is descriptive, not a confidence interval.",
-    f"**CV is the coefficient of variation of requests per second across runs.** Above {STABLE_CV}% for any stack, the scenario is not reported: the samples are too unstable to compare, and the raw files are kept.",
-    "**What this does not cover:** TLS, proxies, authentication, compression, memory, cold data, larger tables or other hardware. Pool sizes are equal per process, but each library schedules work differently.",
+    "**Samples are pooled, none is discarded.** A stack is started several times; the median, the range and the CV are computed over every sample of every start, and the table also lists each start's own median.",
+    "**p50 and p99 are medians of per-sample percentiles**, not percentiles of all requests pooled together. A range is descriptive, not a confidence interval.",
+    f"**A gap under {TIE_PCT}% between two medians is a tie.** Differences that small are inside what this setup resolves, so no order is claimed.",
+    f"**CV is the coefficient of variation of requests per second across samples.** Above {STABLE_CV}% for any stack, the scenario is not reported: the samples are too unstable to compare, and the raw files are kept.",
+    "**What this does not cover:** TLS, proxies, authentication, compression, cold data, larger tables or other hardware. Pool sizes are equal per process, but each library schedules work differently.",
+)
+LEGACY_NOTE = (
+    "This view was sampled with `oha` for a fixed duration with 64 connections and one server start, "
+    "so its format and method differ from the `bombardier` fixed-request runs (100 connections, several starts). "
+    "The two formats are not comparable and must not be mixed in one comparison."
 )
 
 
-def reproduce(modes: list[str]) -> str:
+def run_command(directory: Path, settings: JSONData) -> str:
+    base = f"uv run --locked python run.py --server-mode {server_mode(directory)}"
+    if "requests" not in settings:
+        return f"{base} --out results/YYYY-MM-DD/{server_mode(directory)} (script of the `oha` era, see git history)"
+    return (
+        f"{base} --restarts {settings['restarts']} --runs {settings['runs']} "
+        f"--requests {settings['requests']} --out results/YYYY-MM-DD/{server_mode(directory)}"
+    )
+
+
+def memory_text(env: JSONData) -> str:
+    size = env.get("host", {}).get("memory_bytes")
+    return f"{int(size) // 2**30} GiB" if size else "not recorded"
+
+
+def conditions_table(directories: list[Path]) -> str:
+    envs = [json.loads((d / "environment.json").read_text()) for d in directories]
+    first = envs[0]
+    settings = first["settings"]
+    rows = [
+        ("Date", ", ".join(str(env["date"]) for env in envs)),
+        ("CPU", f"{first['cpu']} ({first['cores']} logical CPUs)"),
+        ("Memory", memory_text(first)),
+        ("Operating system", str(first["machine"])),
+        ("Load generator", tool_label(first)),
+        ("Connections", str(settings["concurrency"])),
+        (
+            "Requests per sample",
+            f"{settings['requests']:,}"
+            if "requests" in settings
+            else f"not fixed: {settings.get('duration_s')} s per sample",
+        ),
+        ("Samples", sampling_text(settings)),
+        ("Warm-up", f"{settings['warmup_s']} s per scenario and start"),
+        ("Database", str(first["postgres"])),
+        *[
+            ("Command" if len(directories) == 1 else f"Command ({server_mode(d)})",
+             f"`{run_command(d, e['settings'])}`")
+            for d, e in zip(directories, envs, strict=True)
+        ],
+    ]  # fmt: skip
+    body = "\n".join(f"| {name} | {value} |" for name, value in rows)
+    return f"| Condition | Value |\n| --- | --- |\n{body}"
+
+
+def format_warning(directories: list[Path]) -> str:
+    tools = {
+        tool_label(json.loads((d / "environment.json").read_text()))
+        for d in directories
+    }
+    if len(tools) < 2:
+        return ""
+    return (
+        '!!! warning "Different load generators"\n'
+        "    These views were sampled with different load generators "
+        f"({', '.join(sorted(tools))}); their numbers are not comparable across views."
+    )
+
+
+def reproduce(modes: list[str], tool: str = "bombardier") -> str:
     runs = "\n".join(
         f"uv run --locked python run.py --server-mode {mode} --out results/YYYY-MM-DD/{mode}"
         for mode in modes
     )
     outputs = " ".join(f"results/YYYY-MM-DD/{mode}" for mode in modes)
+    install = (
+        "go install github.com/codesenberg/bombardier@latest\n"
+        if tool == "bombardier"
+        else ""
+    )
     return (
-        "```sh\ncd benchmarks/comparative\nuv sync --locked\n"
+        f"```sh\n{install}cd benchmarks/comparative\nuv sync --locked\n"
         "VIRTUAL_ENV=$PWD/.venv uvx maturin develop --release --uv --manifest-path ../../crates/bindings/Cargo.toml\n"
         f"{runs}\nuv run --locked python report.py {outputs} > ../../docs/benchmarks.md\n```"
     )
@@ -511,6 +697,15 @@ def package_versions(env: JSONData) -> dict[str, str]:
 def indented(text: str, spaces: int = 4) -> str:
     pad = " " * spaces
     return "\n".join(pad + line if line else line for line in text.split("\n"))
+
+
+def sample_end_note(env: JSONData) -> str:
+    if tool_name(env) == "oha":
+        return "Requests in flight at the end of a sample were aborted by `oha`; they are not counted as unexpected responses."
+    return (
+        "Samples are pooled across server starts and none is discarded. Each sample is a fixed number of requests; "
+        "`bombardier` counts non-2xx responses and failed requests as unexpected."
+    )
 
 
 def render_mode(directory: Path) -> str:
@@ -555,8 +750,9 @@ def render_mode(directory: Path) -> str:
     lines.extend(
         [
             "All listed stacks passed the response and SQL statement-count verifier before measurement. "
-            "Requests in flight at the end of a sample were aborted by `oha`; they are not counted as unexpected responses.",
+            + sample_end_note(env),
             "",
+            *([LEGACY_NOTE, ""] if tool_name(env) == "oha" else []),
             '??? info "Run environment"',
             "",
             *(indented(line) for line in machine_lines(env)),
@@ -565,9 +761,21 @@ def render_mode(directory: Path) -> str:
     return "\n".join(lines)
 
 
-def service_table() -> str:
+def total_samples(settings: JSONData) -> int:
+    return int(settings["runs"]) * int(settings.get("restarts", 1))
+
+
+def service_table(directories: list[Path]) -> str:
+    optional = {
+        scenario
+        for directory in directories
+        for scenario in OPTIONAL_SCENARIOS
+        if any(directory.glob(f"*-{scenario}-*.json"))
+    }
     rows = "\n".join(
-        f"| `{name}` | `{request}` | {what} |" for name, request, what in SERVICE_ROWS
+        f"| `{name}` | `{request}` | {what} |"
+        for name, request, what in SERVICE_ROWS
+        if name not in OPTIONAL_SCENARIOS or name in optional
     )
     return (
         "| Scenario | Request | What the service does |\n| --- | --- | --- |\n" + rows
@@ -624,7 +832,7 @@ def main(directories: list[Path]) -> None:
     cpu = html.escape(first_env["cpu"])
     cores = first_env["cores"]
     concurrency = first_env["settings"]["concurrency"]
-    run_count = first_env["settings"]["runs"]
+    run_count = total_samples(first_env["settings"])
     modes = [server_mode(directory) for directory in directories]
     parts = [
         f'<p class="bench-eyebrow">FIELD NOTE · {measured_at} · {machine}</p>\n',
@@ -633,9 +841,10 @@ def main(directories: list[Path]) -> None:
         "Four framework stacks served the same small API and PostgreSQL data. These measurements describe "
         "one machine and one benchmark session; they do not rank frameworks or predict production performance.\n",
         f'<div class="bench-run-strip"><span><b>01</b>{cpu}</span><span><b>02</b>{cores} logical CPUs</span>'
-        f"<span><b>03</b>{concurrency} concurrent requests</span><span><b>04</b>{run_count} measured runs</span></div>\n",
+        f"<span><b>03</b>{concurrency} concurrent connections</span><span><b>04</b>{run_count} samples per scenario</span></div>\n",
         '!!! warning "Read this first"\n'
         "    Hinoki is pre-alpha. The run used one host, warm data and loopback networking. It is not a framework ranking or a production claim. Unstable samples stay visible as withheld results.\n",
+        format_warning(directories) + "\n" if format_warning(directories) else "",
         "## Results\n",
         HOW_TO_READ,
         results_intro(modes),
@@ -651,12 +860,14 @@ def main(directories: list[Path]) -> None:
     )
     parts.extend(
         [
+            "## Conditions\n",
+            conditions_table(directories) + "\n",
             "## What was measured\n",
             "One service, two tables and deterministic seed data: 100 authors and 10,000 posts, 80% published. Every stack had to match a PostgreSQL oracle and the same SQL statement count per request before measurement. "
             "The stacks differ in ORM, database driver and server, as listed below.\n",
             collapsed(
                 "Workloads, stacks and versions",
-                service_table() + "\n\n" + stacks_table(first_env, modes),
+                service_table(directories) + "\n\n" + stacks_table(first_env, modes),
             ),
             "## How to read the numbers\n",
             collapsed(
@@ -664,8 +875,8 @@ def main(directories: list[Path]) -> None:
                 "\n".join(f"- {note}" for note in READING_NOTES),
             ),
             "## Reproduce\n",
-            reproduce(modes) + "\n",
-            f"Raw `oha` JSON, environment records, server logs, per-worker CPU time and verification output are kept in {locations}. "
+            reproduce(modes, tool_name(first_env)) + "\n",
+            f"Raw `{tool_name(first_env)}` JSON, environment records, server logs, per-worker CPU time and verification output are kept in {locations}. "
             "Setup details, the database container and the rules for repeating an unstable scenario are in `benchmarks/comparative/README.md`.",
         ]
     )

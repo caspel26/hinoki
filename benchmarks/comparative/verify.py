@@ -5,7 +5,8 @@
 For the same requests, every service must return the same status and the same data
 (compared after parsing, so ``Z`` versus ``+00:00`` does not matter) as the rows
 read straight from PostgreSQL, and must issue the same number of SQL statements
-(counted with pg_stat_statements, transaction control excluded). A service that
+(counted with pg_stat_statements, transaction control excluded). The ``json-1k`` and
+``json-10k`` bodies must be byte-identical to ``payloads.py`` and issue no SQL. A service that
 fails any check makes the run stop: a speed number for a different behaviour would
 be meaningless.
 """
@@ -22,6 +23,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
+import payloads
 import psycopg
 from seed import author_id, post_id
 
@@ -41,6 +43,45 @@ def call(base: str, method: str, path: str, body: object = None) -> tuple[int, o
             return reply.status, json.loads(reply.read() or b"null")
     except urllib.error.HTTPError as error:
         return error.code, None
+
+
+def fetch_raw(base: str, path: str) -> tuple[int, str, bytes]:
+    """Status, content type and the exact body bytes."""
+    try:
+        with urllib.request.urlopen(base + path, timeout=10) as reply:
+            return reply.status, reply.headers.get("content-type", ""), reply.read()
+    except urllib.error.HTTPError as error:
+        return error.code, "", b""
+
+
+def verify_payload(
+    conn: psycopg.Connection, base: str, scenario: str
+) -> tuple[list[str], list[str]]:
+    """Problems and report lines for one fixed JSON body: same bytes, no SQL."""
+    path = "/" + scenario
+    for _ in range(60):
+        fetch_raw(base, path)
+    conn.execute("SELECT pg_stat_statements_reset()")
+    status, content_type, body = fetch_raw(base, path)
+    sql = statements(conn)
+    problems = []
+    if status != 200:
+        problems.append(f"{scenario} status {status}")
+    if not content_type.startswith("application/json"):
+        problems.append(f"{scenario} content type {content_type!r}")
+    if body != payloads.BODIES[scenario]:
+        problems.append(
+            f"{scenario} body is not the {len(payloads.BODIES[scenario])} expected bytes"
+        )
+    elif json.loads(body) != payloads.ITEMS[scenario]:
+        problems.append(f"{scenario} data differs")
+    if sql:
+        problems.append(
+            f"{scenario} issued {sum(c for _, c in sql)} statements, expected 0"
+        )
+    return problems, [
+        f"{scenario}: {len(body)} bytes, {sum(c for _, c in sql)} statements"
+    ]
 
 
 def warm_database_connections(base: str) -> None:
@@ -112,6 +153,10 @@ def main(name: str, base: str) -> None:
 
         check(call(base, "GET", "/health") == (200, {"status": "ok"}), "health")
         warm_database_connections(base)
+        for scenario in payloads.BODIES:
+            found, lines = verify_payload(conn, base, scenario)
+            problems += found
+            report += lines
 
         status, data, sql = counted("GET", "/posts?page=2&page_size=5")
         expected = oracle(

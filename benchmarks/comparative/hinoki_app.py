@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Annotated, ClassVar
 from uuid import UUID, uuid4
 
+import payloads
+
 from hinoki import Field, Hinoki, Schema, http, settings
 from hinoki.db import DatabaseModule
 from hinoki.orm import Model, OnDelete, field, foreign_key
@@ -77,6 +79,16 @@ async def health() -> Health:
     return Health(status="ok")
 
 
+@http.get("/json-1k")
+async def json_1k() -> http.Response:
+    return http.Response(200, payloads.BODY_1K, content_type="application/json")
+
+
+@http.get("/json-10k")
+async def json_10k() -> http.Response:
+    return http.Response(200, payloads.BODY_10K, content_type="application/json")
+
+
 @http.get("/posts", pagination=PageNumberPagination(page_size=20, max_page_size=100))
 async def listing(page: PageParams) -> Page[PostOut]:
     found = (
@@ -104,7 +116,7 @@ async def create(data: PostIn) -> PostOut:
 
 app = Hinoki(
     settings=BenchSettings,
-    include=[health, listing, one, create],
+    include=[health, json_1k, json_10k, listing, one, create],
     modules=[DatabaseModule],
     openapi_url=None,
     docs_url=None,
