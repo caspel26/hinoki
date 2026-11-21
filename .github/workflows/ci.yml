@@ -410,9 +410,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # A documentation-only pull request checks just its own files, which
-          # needs the base commit.
-          fetch-depth: ${{ needs.changes.outputs.code == 'false' && 0 || 1 }}
+          # The base commit is needed to check only the files of a pull request.
+          fetch-depth: 0
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
