@@ -3,6 +3,13 @@ name: SonarCloud
 # Main is analysed by the coverage job in ci.yml, which has the coverage report.
 on:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "theme/**"
+      - "assets/**"
+      - "*.md"
+      - "mkdocs.yml"
+      - LICENSE
 
 concurrency:
   group: sonar-${{ github.event.pull_request.number || github.ref }}
