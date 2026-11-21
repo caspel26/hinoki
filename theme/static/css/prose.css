@@ -561,6 +561,28 @@ details:not([open]) > summary {
   margin-bottom: 0 !important;
 }
 
+/* Drop-down: the body grows and fades in on open and back out on close. Browsers without ::details-content open instantly. */
+@media (prefers-reduced-motion: no-preference) {
+  details {
+    interpolate-size: allow-keywords;
+  }
+
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+    transition:
+      block-size var(--hn-dur-3) var(--hn-ease),
+      opacity var(--hn-dur-2) var(--hn-ease),
+      content-visibility var(--hn-dur-3) allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
 .admonition > :last-child,
 details > :last-child {
   margin-bottom: 0;
