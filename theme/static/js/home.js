@@ -1,6 +1,6 @@
 /* Homepage behaviour: scenario switcher, workbench tabs, rule explorer,
-   contents index, copy buttons and diagram tips. Nothing changes without user
-   input. */
+   contents index, copy buttons, diagram tips and the hero glow that follows
+   the pointer. Nothing changes content without user input. */
 (() => {
   "use strict";
 
@@ -52,6 +52,33 @@
       diag.addEventListener("focus", () => link(diag, true));
       diag.addEventListener("blur", () => link(diag, false));
     });
+  };
+
+  /* ---------- Hero glow follows the pointer ---------- */
+  /* Fine pointers only. The glow eases toward the pointer on animation frames
+     and fades out when the pointer leaves the hero. */
+  const setupGlow = (hero) => {
+    const glow = $(".hn-hero__bg i", hero);
+    const fine = matchMedia("(pointer: fine) and (prefers-reduced-motion: no-preference)");
+    if (!glow || !fine.matches) return;
+    let target = { x: 0, y: 0 };
+    let now = { x: 0, y: 0 };
+    let frame = 0;
+    const step = () => {
+      now = { x: now.x + (target.x - now.x) * 0.12, y: now.y + (target.y - now.y) * 0.12 };
+      glow.style.setProperty("--mx", `${now.x.toFixed(1)}px`);
+      glow.style.setProperty("--my", `${now.y.toFixed(1)}px`);
+      const settled = Math.abs(target.x - now.x) < 0.5 && Math.abs(target.y - now.y) < 0.5;
+      frame = settled ? 0 : requestAnimationFrame(step);
+    };
+    hero.addEventListener("pointermove", (event) => {
+      const box = hero.getBoundingClientRect();
+      target = { x: event.clientX - box.left, y: event.clientY - box.top + 40 };
+      if (!hero.classList.contains("has-pointer")) now = target;
+      hero.classList.add("has-pointer");
+      if (!frame) frame = requestAnimationFrame(step);
+    });
+    hero.addEventListener("pointerleave", () => hero.classList.remove("has-pointer"));
   };
 
   /* ---------- Tabs (workbench and commands) ---------- */
@@ -244,6 +271,7 @@
     setupIdle($$(".hn-hero, .hn-ticker"));
     $$("[data-hn-index]").forEach(setupIndex);
     $$("[data-hn-panel]").forEach(setupPanel);
+    $$(".hn-hero").forEach(setupGlow);
     $$("[data-hn-tabs]").forEach(setupTabs);
     $$("[data-hn-explorer]").forEach(setupExplorer);
     $$("[data-hn-copy]").forEach(setupCopy);
