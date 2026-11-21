@@ -12,6 +12,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -19,18 +20,19 @@ use std::time::Duration;
 use hinoki_orm::{Database, Value};
 use kiso::cors::{Cors, PreflightError};
 use kiso::early::TemplateError;
-use kiso::headers::{final_headers, Header};
+use kiso::headers::{final_headers, head_headers, is_bodyless, Header};
 use kiso::hosts::Hosts;
 use kiso::queue::Push;
 use kiso::{
     convert, proxy, requestid, Converted, Early, EarlyBodies, InFlight, InputKind, InputParam,
-    InputValue, Limits, NativeJobs, Networks, Permit, Plan, Queue, RoutePlan, Trace,
+    InputValue, Limits, NativeJobs, Networks, Pace, Permit, Plan, Queue, RoutePlan, Streamed,
+    Trace,
 };
 use kiso::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::completion;
 use crate::crudplan::{CrudPlan, PyCrudPlan};
@@ -38,6 +40,7 @@ use crate::db::PyDatabase;
 use crate::jwt::{Admission, ClaimsAuth, PyClaimsAuth};
 use crate::request;
 use crate::router::{Match, Router};
+use crate::sink::{ResponseSink, CHANNEL_SLOTS};
 use kiso::redirect;
 
 // `args[0]` is `too_large`, `disconnected` or `timeout`.
@@ -46,6 +49,22 @@ pyo3::create_exception!(core, BodyReadError, PyException);
 const ALLOW_ORIGIN: &[u8] = b"access-control-allow-origin";
 
 pub type Reply = Answer;
+
+/// What a request is finally answered with: the whole answer, or a head whose
+/// body follows from a `ResponseSink`, or a file the connection opens itself.
+pub(crate) enum Sent {
+    Whole(Reply),
+    Streamed(Streamed),
+    File(FileReply),
+}
+
+/// A file answer before the file is opened. The head carries no
+/// `content-length`: the connection task sets it from the opened file.
+pub(crate) struct FileReply {
+    pub(crate) status: u16,
+    pub(crate) headers: Vec<Header>,
+    pub(crate) path: PathBuf,
+}
 type NativeArgs = Vec<(String, InputValue)>;
 type NativeDetails = Vec<(String, String, String)>;
 type NativeErrorData = (String, String, Option<String>, NativeDetails);
@@ -57,12 +76,25 @@ enum PreparedPathParams {
     InvalidEncoding,
 }
 
-fn reply_to_py<'py>(py: Python<'py>, reply: &Reply) -> PyResult<Bound<'py, PyAny>> {
+fn reply_to_py<'py>(py: Python<'py>, sent: &Sent) -> PyResult<Bound<'py, PyAny>> {
+    match sent {
+        Sent::Whole(reply) => answer_to_py(py, reply.status, &reply.headers, &reply.body),
+        Sent::Streamed(stream) => answer_to_py(py, stream.status, &stream.headers, &[]),
+        Sent::File(file) => answer_to_py(py, file.status, &file.headers, &[]),
+    }
+}
+
+fn answer_to_py<'py>(
+    py: Python<'py>,
+    status: u16,
+    head: &[Header],
+    body: &[u8],
+) -> PyResult<Bound<'py, PyAny>> {
     let headers = PyList::empty(py);
-    for (name, value) in &reply.headers {
+    for (name, value) in head {
         headers.append((PyBytes::new(py, name), PyBytes::new(py, value)))?;
     }
-    Ok((reply.status, headers, PyBytes::new(py, &reply.body))
+    Ok((status, headers, PyBytes::new(py, body))
         .into_pyobject(py)?
         .into_any())
 }
@@ -150,7 +182,7 @@ pub struct PreparedRequest {
     prepared_path_params: Option<PreparedPathParams>,
     client: Option<(String, u16)>,
     http_version: &'static str,
-    reply: Mutex<Option<oneshot::Sender<Reply>>>,
+    reply: Mutex<Option<oneshot::Sender<Sent>>>,
     permit: Mutex<Option<Permit>>,
     body: Mutex<BodyState>,
     native_body_consumed: Arc<AtomicBool>,
@@ -560,24 +592,80 @@ impl PreparedRequest {
         headers: Vec<(Vec<u8>, Vec<u8>)>,
         body: &[u8],
     ) -> bool {
-        // The slot is free as soon as the answer is given, not when Python lets
-        // go of this object. So is an unread body: hyper cannot finish a
-        // connection while the body is still held.
-        if let Ok(mut permit) = self.permit.lock() {
-            permit.take();
-        }
-        if let Ok(mut state) = self.body.lock() {
-            *state = BodyState::Taken;
-        }
-        let sender = self.reply.lock().ok().and_then(|mut slot| slot.take());
+        let sender = self.release();
         sender.is_some_and(|tx| {
-            tx.send(Reply {
+            tx.send(Sent::Whole(Reply {
                 status,
                 headers,
                 body: body.to_vec(),
-            })
+            }))
             .is_ok()
         })
+    }
+
+    /// Answer with a head now and the body as it is produced. The returned
+    /// sink feeds the body; `None` when the request was already answered or
+    /// nobody is waiting. With `length` the body must be exactly that long,
+    /// otherwise it ends chunked (HTTP/1.1) or by the end of the stream
+    /// (HTTP/2). `idle_timeout` cuts the response when the producer sends
+    /// nothing for that many seconds; `keepalive` sends an SSE comment after
+    /// that many seconds of silence. Both timers run in Rust.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (status, headers, route_headers, idle_timeout=None, keepalive=None, length=None))]
+    pub(crate) fn respond_stream(
+        &self,
+        py: Python<'_>,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        route_headers: Vec<(String, String)>,
+        idle_timeout: Option<f64>,
+        keepalive: Option<f64>,
+        length: Option<u64>,
+    ) -> PyResult<Option<Py<ResponseSink>>> {
+        refuse_bodyless(status)?;
+        let pace = Pace {
+            idle: seconds("idle_timeout", idle_timeout)?,
+            keepalive: seconds("keepalive", keepalive)?,
+        };
+        let mut head = self.head_of(&headers, &route_headers);
+        if let Some(length) = length {
+            head.push((b"content-length".to_vec(), length.to_string().into_bytes()));
+        }
+        let Some(tx) = self.release() else {
+            return Ok(None);
+        };
+        let (sender, chunks) = mpsc::channel(CHANNEL_SLOTS);
+        let streamed = Streamed {
+            status,
+            headers: head,
+            chunks,
+            pace,
+        };
+        if tx.send(Sent::Streamed(streamed)).is_err() {
+            return Ok(None);
+        }
+        Py::new(py, ResponseSink::new(sender)).map(Some)
+    }
+
+    /// Answer with the file at `path`, whose size becomes the `content-length`.
+    /// The connection opens it: a missing or non-regular file answers 404 and
+    /// any other failure 500. Returns `False` when the request was already
+    /// answered or nobody is waiting.
+    pub(crate) fn respond_file(
+        &self,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        route_headers: Vec<(String, String)>,
+        path: PathBuf,
+    ) -> PyResult<bool> {
+        refuse_bodyless(status)?;
+        let head = self.head_of(&headers, &route_headers);
+        let sent = Sent::File(FileReply {
+            status,
+            headers: head,
+            path,
+        });
+        Ok(self.release().is_some_and(|tx| tx.send(sent).is_ok()))
     }
 
     /// Finalize an automatically eligible handler response with the route's
@@ -609,14 +697,8 @@ impl PreparedRequest {
 }
 
 impl PreparedRequest {
-    fn finish(
-        &self,
-        status: u16,
-        own: Vec<(Vec<u8>, Vec<u8>)>,
-        body: &[u8],
-        route_headers: &[(String, String)],
-    ) -> bool {
-        // An answer that sets its own CORS headers keeps them.
+    /// The CORS headers to add: none when the answer or the route sets its own.
+    fn cors_for(&self, own: &[Header], route_headers: &[(String, String)]) -> &[Header] {
         let sets_origin = own
             .iter()
             .chain(&self.native_policy)
@@ -624,36 +706,92 @@ impl PreparedRequest {
             || route_headers
                 .iter()
                 .any(|(name, _)| name.eq_ignore_ascii_case("access-control-allow-origin"));
-        let cors: &[Header] = if sets_origin { &[] } else { &self.native_cors };
-        let mut final_headers = final_headers(
-            &own,
+        if sets_origin {
+            &[]
+        } else {
+            &self.native_cors
+        }
+    }
+
+    /// A head without `content-length`, for a body whose size the connection or
+    /// the producer decides.
+    fn head_of(&self, own: &[Header], route_headers: &[(String, String)]) -> Vec<Header> {
+        head_headers(
+            own,
             &self.native_policy,
             route_headers,
             (&self.request_id_name, self.request_id.as_bytes()),
-            cors,
-            status,
-            body.len(),
-        );
-        let mut final_body = body.to_vec();
-        if self.method == "HEAD" {
-            final_body.clear();
-        }
+            self.cors_for(own, route_headers),
+        )
+    }
+
+    /// Give up the in-flight slot and the unread body, and take the reply
+    /// sender. The slot is free as soon as the answer is given, not when Python
+    /// lets go of this object, and so is an unread body: hyper cannot finish a
+    /// connection while the body is still held.
+    fn release(&self) -> Option<oneshot::Sender<Sent>> {
         if let Ok(mut permit) = self.permit.lock() {
             permit.take();
         }
         if let Ok(mut state) = self.body.lock() {
             *state = BodyState::Taken;
         }
-        let sender = self.reply.lock().ok().and_then(|mut slot| slot.take());
+        self.reply.lock().ok().and_then(|mut slot| slot.take())
+    }
+
+    fn finish(
+        &self,
+        status: u16,
+        own: Vec<(Vec<u8>, Vec<u8>)>,
+        body: &[u8],
+        route_headers: &[(String, String)],
+    ) -> bool {
+        let final_headers = final_headers(
+            &own,
+            &self.native_policy,
+            route_headers,
+            (&self.request_id_name, self.request_id.as_bytes()),
+            self.cors_for(&own, route_headers),
+            status,
+            body.len(),
+        );
+        let final_body = if self.method == "HEAD" {
+            Vec::new()
+        } else {
+            body.to_vec()
+        };
+        let sender = self.release();
         sender.is_some_and(|tx| {
-            tx.send(Reply {
+            tx.send(Sent::Whole(Reply {
                 status,
-                headers: std::mem::take(&mut final_headers),
+                headers: final_headers,
                 body: final_body,
-            })
+            }))
             .is_ok()
         })
     }
+}
+
+/// Bodyless statuses (204, 304) cannot carry a streamed or file body.
+fn refuse_bodyless(status: u16) -> PyResult<()> {
+    if is_bodyless(status) {
+        return Err(PyValueError::new_err(format!(
+            "status {status} cannot have a body"
+        )));
+    }
+    Ok(())
+}
+
+/// A positive finite number of seconds, or `None` for no timer.
+fn seconds(name: &str, value: Option<f64>) -> PyResult<Option<Duration>> {
+    value
+        .map(|secs| {
+            Duration::try_from_secs_f64(secs)
+                .ok()
+                .filter(|period| !period.is_zero())
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be a positive number")))
+        })
+        .transpose()
 }
 
 /// What `ServerCore.submit` returns: an immediate answer, or a queued request.
@@ -661,8 +799,8 @@ impl PreparedRequest {
 pub struct Submission {
     early: Option<Reply>,
     wake: bool,
-    receiver: Mutex<Option<oneshot::Receiver<Reply>>>,
-    delivered: Mutex<Option<Reply>>,
+    receiver: Mutex<Option<oneshot::Receiver<Sent>>>,
+    delivered: Mutex<Option<Sent>>,
 }
 
 #[pymethods]
@@ -670,7 +808,10 @@ impl Submission {
     /// `(status, headers, body)` when the answer needed no Python.
     #[getter]
     fn early<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        self.early.as_ref().map(|r| reply_to_py(py, r)).transpose()
+        self.early
+            .as_ref()
+            .map(|r| answer_to_py(py, r.status, &r.headers, &r.body))
+            .transpose()
     }
 
     /// Whether the queue went from empty to non-empty (the consumer needs a wake).
@@ -1448,13 +1589,13 @@ pub(crate) enum Outcome {
     /// answer natively if the request is dropped without a reply.
     Queued {
         wake: bool,
-        receiver: oneshot::Receiver<Reply>,
+        receiver: oneshot::Receiver<Sent>,
         asked: Asked,
     },
     /// Eligible read request whose database work runs on the Rust worker.
     NativeCrud {
         request: Box<PreparedRequest>,
-        receiver: oneshot::Receiver<Reply>,
+        receiver: oneshot::Receiver<Sent>,
         asked: Asked,
         plan: Arc<CrudPlan>,
         database: Database,

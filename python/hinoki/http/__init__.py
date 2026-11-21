@@ -13,14 +13,19 @@ package is the public surface for the verbs and HTTP request/response types.
 from hinoki.http.middleware import Middleware, MiddlewareRequest, Next
 from hinoki.http.request import Request
 from hinoki.http.response import Response
+from hinoki.http.stream import Event, EventStream, File, Stream
 from hinoki.routing import delete, get, patch, post, put, query
 
 __all__ = [
+    "Event",
+    "EventStream",
+    "File",
     "Middleware",
     "MiddlewareRequest",
     "Next",
     "Request",
     "Response",
+    "Stream",
     "delete",
     "get",
     "patch",

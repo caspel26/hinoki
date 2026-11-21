@@ -31,7 +31,7 @@ use crate::body::BodyReader;
 use crate::early::Early;
 use crate::framing::Signals;
 use crate::headers::Header;
-use crate::stream::{self, Delivery, Live, Reply, Streamed};
+use crate::stream::{self, Delivery, FileAnswer, Live, Reply, Streamed};
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
@@ -143,6 +143,54 @@ fn incoming_of(
     }
 }
 
+/// The status, headers and body of a delivery. A HEAD answer sends no body and
+/// drops a stream's receiver (or closes a file), which tells the producer to
+/// stop. A file's head must declare exactly the file's length.
+fn parts_of(delivery: Delivery, head_only: bool) -> Result<(u16, Vec<Header>, Reply), String> {
+    let nothing = || Reply::Whole(Full::new(Bytes::new()));
+    Ok(match delivery {
+        Delivery::Whole(answer) => {
+            let body = if head_only {
+                Bytes::new()
+            } else {
+                Bytes::from(answer.body)
+            };
+            (answer.status, answer.headers, Reply::Whole(Full::new(body)))
+        }
+        Delivery::Streamed(Streamed {
+            status,
+            headers,
+            chunks,
+            pace,
+        }) => {
+            let body = if head_only {
+                nothing()
+            } else {
+                Reply::Live(Live::with_length(chunks, declared_length(&headers)?).paced(pace))
+            };
+            (status, headers, body)
+        }
+        Delivery::File(FileAnswer {
+            status,
+            headers,
+            file,
+        }) => {
+            if declared_length(&headers)? != Some(file.len()) {
+                return Err("the file's content-length does not match its size".to_owned());
+            }
+            (
+                status,
+                headers,
+                if head_only {
+                    nothing()
+                } else {
+                    Reply::File(file)
+                },
+            )
+        }
+    })
+}
+
 /// Build the hyper response, or say why the answer cannot be sent as given (a
 /// status or header hyper rejects, an unreadable `content-length`); the caller
 /// then answers a bare 500. So does an informational status: `101` would hand
@@ -150,30 +198,7 @@ fn incoming_of(
 /// serves no protocol that switches. A streamed body is held to the
 /// `content-length` its head declares.
 fn response_of(delivery: Delivery, head_only: bool) -> Result<Response<Reply>, String> {
-    let (status, headers, body) = match delivery {
-        Delivery::Whole(answer) => (
-            answer.status,
-            answer.headers,
-            Reply::Whole(Full::new(if head_only {
-                Bytes::new()
-            } else {
-                Bytes::from(answer.body)
-            })),
-        ),
-        // A HEAD answer drops the receiver, which tells the producer to stop.
-        Delivery::Streamed(Streamed {
-            status,
-            headers,
-            chunks,
-        }) => {
-            let body = if head_only {
-                Reply::Whole(Full::new(Bytes::new()))
-            } else {
-                Reply::Live(Live::with_length(chunks, declared_length(&headers)?))
-            };
-            (status, headers, body)
-        }
-    };
+    let (status, headers, body) = parts_of(delivery, head_only)?;
     let status = StatusCode::from_u16(status)
         .ok()
         .filter(|status| !status.is_informational())

@@ -324,7 +324,7 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     worker: Any = _worker()
-    response = SimpleNamespace(status=200, headers=[], body=b"answer")
+    response = SimpleNamespace(status=200, headers=[], body=b"answer", stream=None)
     worker.pipeline.handle_unfinished = lambda *_args: asyncio.sleep(0, result=response)
     worker.pipeline.handle_native = lambda *_args: asyncio.sleep(0, result=response)
     failed: list[Any] = []
@@ -397,7 +397,8 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
         _detach_database=lambda: None,
     )
     worker.pipeline = SimpleNamespace(
-        app=SimpleNamespace(runtime=SimpleNamespace(shutdown_timeout=1.0))
+        app=SimpleNamespace(runtime=SimpleNamespace(shutdown_timeout=1.0)),
+        streams=SimpleNamespace(stop_events=lambda: events.append("streams")),
     )
     drain_results = [(2, False), (0, True)]
     monkeypatch.setattr(
@@ -416,7 +417,7 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     loop = SimpleNamespace(remove_reader=lambda fd: events.append(f"reader:{fd}"))
     monkeypatch.setattr("hinoki.runtime.kiso.asyncio.get_running_loop", lambda: loop)
     assert await worker.stop() == 2
-    assert events == ["ready:False", "timer", "reader:9"]
+    assert events == ["ready:False", "timer", "streams", "reader:9"]
     assert "aborted 2 native CRUD jobs" in caplog.text
 
     worker.server = cast(Any, Server())

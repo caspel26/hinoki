@@ -28,8 +28,13 @@ An unhandled exception never becomes a successful response, and a failed commit 
 | `execution.max_body_bytes` | 1 MiB (also each multipart part) | `413 payload_too_large` |
 | `execution.max_query_bytes` | 8 KiB | `414 uri_too_long` |
 | `execution.max_header_bytes` | 32 KiB, names and values combined | `431 headers_too_large` |
+| `execution.max_streams` | 64 open streams per worker | `503` with `Retry-After: 1`, before the handler runs |
 
 The size checks run before routing. A sync handler already running when the timeout expires cannot be stopped: it keeps its executor slot until it returns, and its result is discarded. Let the proxy or ASGI server enforce its own request-line and header limits too.
+
+## Streamed responses
+
+For an action that returns `Stream`, `EventStream` or `File`, everything up to the moment the handler returns the object (access, rate limit, binding, validation, the handler, middleware and `request_timeout`) works as for any action, and an error there is the usual JSON answer. Before the handler runs, the worker takes one of its `execution.max_streams` places, or answers `503` with `Retry-After: 1`. The head is then sent, and the body is produced and sent piece by piece: the pieces are not checked against an annotation, a failure can only cut the connection, and the place is given back when the body ends. See [stream a response](streaming.md).
 
 ## Request IDs
 

@@ -808,12 +808,16 @@ class ExecutionSettings(Settings):
     max_body_bytes: int = 1024 * 1024
     max_query_bytes: int = 8192
     max_header_bytes: int = 32768
+    max_streams: int = 64
+    stream_idle_timeout: float | None = None
+    sse_keepalive: float = 15.0
 
     def validate(self) -> None:
         if self.sync_workers < 1 or self.sync_queue < 0:
             raise ValueError("sync_workers must be >= 1 and sync_queue >= 0")
         if self.request_timeout <= 0:
             raise ValueError("request_timeout must be positive")
+        self._validate_streams()
         if not 1 <= self.max_body_bytes <= MAX_BODY_LIMIT:
             raise ValueError(f"max_body_bytes must be 1 to {MAX_BODY_LIMIT}")
         if not 1 <= self.max_query_bytes <= MAX_REQUEST_INPUT_BYTES:
@@ -822,6 +826,15 @@ class ExecutionSettings(Settings):
             raise ValueError(f"max_header_bytes must be 1 to {MAX_REQUEST_INPUT_BYTES}")
         if self.sync_workers > MAX_SYNC_WORKERS:
             raise ValueError(f"sync_workers must be at most {MAX_SYNC_WORKERS}")
+
+    def _validate_streams(self) -> None:
+        if self.max_streams < 1:
+            raise ValueError("max_streams must be at least 1")
+        for value in (self.stream_idle_timeout, self.sse_keepalive):
+            if value is not None and (not math.isfinite(value) or value <= 0):
+                raise ValueError(
+                    "stream_idle_timeout and sse_keepalive must be positive and finite"
+                )
 
 
 class LifecycleSettings(Settings):
@@ -1410,4 +1423,7 @@ class AppSettings(Settings):
             max_body_bytes=self.execution.max_body_bytes,
             max_query_bytes=self.execution.max_query_bytes,
             max_header_bytes=self.execution.max_header_bytes,
+            max_streams=self.execution.max_streams,
+            stream_idle_timeout=self.execution.stream_idle_timeout,
+            sse_keepalive=self.execution.sse_keepalive,
         )

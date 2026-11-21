@@ -17,11 +17,12 @@ import asyncio
 import json
 import secrets
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Coroutine, Iterator, Mapping, Sequence
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from types import TracebackType
-from typing import Any
+from typing import Any, TypeVar
 
 from hinoki.app import Hinoki
 from hinoki.runtime.asgi import IN_PROCESS
@@ -32,6 +33,10 @@ FormInput = Mapping[str, str] | Sequence[tuple[str, str]]
 FileInput = Sequence[tuple[str, str, bytes, str]]
 
 ERROR_STATUS = 400
+MAX_BYTES = 10 * 1024 * 1024  # what ``client.get()`` and friends collect, by default
+STREAM_PIECES = 8  # pieces a stream may run ahead of the test that reads it
+STREAM_CLOSE_TIMEOUT = 5.0
+T = TypeVar("T")
 # What the framework itself answers, whatever an action declares.
 FRAMEWORK_CODES = frozenset(
     {
@@ -90,11 +95,50 @@ class ManualClock:
 
 
 class Feed:
+    """The ASGI ``receive`` of one request: the body once, then (like a server)
+    nothing until the client disconnects."""
+
     def __init__(self, body: bytes) -> None:
         self.body = body
+        self.delivered = False
+        self.gone = asyncio.Event()
 
     async def __call__(self) -> dict[str, Any]:
-        return {"type": "http.request", "body": self.body, "more_body": False}
+        if not self.delivered:
+            self.delivered = True
+            return {"type": "http.request", "body": self.body, "more_body": False}
+        await self.gone.wait()
+        return {"type": "http.disconnect"}
+
+
+class BodyTooLarge(RuntimeError):
+    """A response passed the ``max_bytes`` a test client collects; read a
+    streamed response with ``client.stream()``."""
+
+
+class StreamReply:
+    """The head of a streamed response and its body, piece by piece."""
+
+    def __init__(
+        self, status: int, headers: dict[str, str], pieces: AsyncIterator[bytes]
+    ) -> None:
+        self.status = status
+        self.headers = headers
+        self._pieces = pieces
+
+    def chunks(self) -> AsyncIterator[bytes]:
+        """The body pieces as the server sent them; the iterator raises the
+        error that cut the response, if one did."""
+        return self._pieces
+
+    async def read(self, max_bytes: int | None = MAX_BYTES) -> bytes:
+        """The rest of the body (``BodyTooLarge`` past ``max_bytes``)."""
+        received = bytearray()
+        async for piece in self._pieces:
+            received += piece
+            if max_bytes is not None and len(received) > max_bytes:
+                raise BodyTooLarge(f"the body passed {max_bytes} bytes")
+        return bytes(received)
 
 
 class ASGIClient:
@@ -135,7 +179,7 @@ class ASGIClient:
             await self.outbox.get()
             await self.lifespan
 
-    async def request(  # noqa: PLR0913 - request inputs are named public options
+    def _build(  # noqa: PLR0913 - request inputs are named public options
         self,
         method: str,
         path: str,
@@ -147,8 +191,8 @@ class ASGIClient:
         query: str = "",
         headers: HeaderInput | None = None,
         token: str | None = None,
-    ) -> Response:
-        """One request, including JSON or multipart test payloads."""
+    ) -> tuple[dict[str, Any], bytes]:
+        """The ASGI scope and the body of one test request."""
         sent = _header_items(headers)
         if token is not None:
             sent = [(name, value) for name, value in sent if name != "authorization"]
@@ -163,12 +207,55 @@ class ASGIClient:
             "query_string": query.encode(),
             "headers": [(k.encode(), v.encode()) for k, v in sent],
         }
+        return scope, body
+
+    async def request(  # noqa: PLR0913 - request inputs are named public options
+        self,
+        method: str,
+        path: str,
+        *,
+        json: Any = None,
+        body: bytes = b"",
+        data: FormInput | None = None,
+        files: FileInput | None = None,
+        query: str = "",
+        headers: HeaderInput | None = None,
+        token: str | None = None,
+        max_bytes: int | None = MAX_BYTES,
+    ) -> Response:
+        """One request, including JSON or multipart test payloads. The whole
+        response is collected; past ``max_bytes`` of body (``None``: no limit)
+        the client disconnects and raises ``BodyTooLarge``, so an endless
+        stream cannot hang a test (read one with ``client.stream()``)."""
+        scope, payload = self._build(
+            method,
+            path,
+            json=json,
+            body=body,
+            data=data,
+            files=files,
+            query=query,
+            headers=headers,
+            token=token,
+        )
+        feed = Feed(payload)
         sink: list[dict[str, Any]] = []
+        total = 0
 
         async def send(message: dict[str, Any]) -> None:
+            nonlocal total
             sink.append(message)
+            total += len(message.get("body", b""))
+            if max_bytes is not None and total > max_bytes:
+                feed.gone.set()
+                await asyncio.sleep(0.001)  # lets the server see the disconnect
 
-        await self.adapter(scope, Feed(body), send)
+        await self.adapter(scope, feed, send)
+        if max_bytes is not None and total > max_bytes:
+            raise BodyTooLarge(
+                f"{method} {path} sent more than {max_bytes} bytes; "
+                "read a streamed response with client.stream()"
+            )
         start = next(m for m in sink if m["type"] == "http.response.start")
         raw = b"".join(m.get("body", b"") for m in sink if m["type"].endswith("body"))
         reply_headers = {k.decode(): v.decode() for k, v in start["headers"]}
@@ -179,6 +266,26 @@ class ASGIClient:
         if self.strict_errors:
             self.check_declared(method, path, reply)
         return reply
+
+    @asynccontextmanager
+    async def stream(
+        self, method: str, path: str, **options: Any
+    ) -> AsyncIterator[StreamReply]:
+        """A response read as it is produced. The head is available on entry;
+        leaving the block disconnects the client, which ends the stream:
+
+            async with client.stream("GET", "/events") as reply:
+                async for piece in reply.chunks():
+                    ...
+
+        A server that runs ahead of the test waits for it (at most
+        ``STREAM_PIECES`` pieces are buffered)."""
+        scope, payload = self._build(method, path, **options)
+        run = _StreamRun(self.adapter, scope, Feed(payload))
+        try:
+            yield await run.head()
+        finally:
+            await run.close()
 
     def check_declared(self, method: str, path: str, reply: Response) -> None:
         """With ``strict_errors=True``: an error answer whose code the action did
@@ -223,6 +330,63 @@ class ASGIClient:
         """An HTTP QUERY request (``json=`` is its body; the ``query=`` option
         is still the query string)."""
         return await self.request("QUERY", path, **options)
+
+
+class _StreamRun:
+    """One request whose response is read as the application produces it: the
+    messages wait in a queue the reader empties, and the application waits
+    when it runs ``STREAM_PIECES`` ahead."""
+
+    def __init__(self, adapter: Any, scope: dict[str, Any], feed: Feed) -> None:
+        self.feed = feed
+        self.messages: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+        self.slots = asyncio.Semaphore(STREAM_PIECES)
+        self.closing = False
+        self.failure: Exception | None = None
+        self.task = asyncio.create_task(self._run(adapter, scope))
+
+    async def _run(self, adapter: Any, scope: dict[str, Any]) -> None:
+        try:
+            await adapter(scope, self.feed, self._send)
+        except Exception as exc:
+            self.failure = exc
+        finally:
+            self.messages.put_nowait(None)
+
+    async def _send(self, message: dict[str, Any]) -> None:
+        if not self.closing:
+            await self.slots.acquire()
+        self.messages.put_nowait(message)
+
+    async def head(self) -> StreamReply:
+        message = await self.messages.get()
+        if message is None or message["type"] != "http.response.start":
+            raise self.failure or RuntimeError("the application sent no response")
+        self.slots.release()
+        headers = {k.decode(): v.decode() for k, v in message["headers"]}
+        return StreamReply(message["status"], headers, self._pieces())
+
+    async def _pieces(self) -> AsyncIterator[bytes]:
+        while True:
+            message = await self.messages.get()
+            if message is None:
+                if self.failure is not None:
+                    raise self.failure  # the response was cut
+                return
+            self.slots.release()
+            if piece := message.get("body", b""):
+                yield piece
+            if not message.get("more_body", False):
+                return
+
+    async def close(self) -> None:
+        """Disconnect the client and wait for the application to wind down."""
+        self.closing = True
+        self.feed.gone.set()
+        done, _ = await asyncio.wait({self.task}, timeout=STREAM_CLOSE_TIMEOUT)
+        if not done:
+            self.task.cancel()
+            await asyncio.gather(self.task, return_exceptions=True)
 
 
 def _dumps(value: Any) -> bytes:
@@ -320,6 +484,32 @@ def _header_items(headers: HeaderInput | None) -> list[tuple[str, str]]:
     return [(name.lower(), value) for name, value in items]
 
 
+class SyncStreamReply:
+    """``StreamReply`` for ``SyncClient``: the pieces are read on the calling
+    thread while the application runs on the client's loop."""
+
+    def __init__(self, reply: StreamReply, owner: SyncClient) -> None:
+        self.status = reply.status
+        self.headers = reply.headers
+        self._reply = reply
+        self._owner = owner
+
+    def chunks(self) -> Iterator[bytes]:
+        pieces = self._reply.chunks()
+
+        async def step() -> bytes | None:
+            try:
+                return await anext(pieces)
+            except StopAsyncIteration:
+                return None
+
+        while (piece := self._owner._call(step())) is not None:
+            yield piece
+
+    def read(self, max_bytes: int | None = MAX_BYTES) -> bytes:
+        return self._owner._call(self._reply.read(max_bytes))
+
+
 class SyncClient:
     """The same client for tests written without ``async``: the application runs
     on its own event loop in a background thread and every call blocks until the
@@ -381,12 +571,29 @@ class SyncClient:
             self.loop.close()
 
     def request(self, method: str, path: str, **options: Any) -> Response:
+        return self._call(self.inner.request(method, path, **options))
+
+    def _call(self, work: Coroutine[Any, Any, T]) -> T:
         if self.state != "open":
+            work.close()
             raise RuntimeError("use the SyncClient inside its `with` block")
-        future = asyncio.run_coroutine_threadsafe(
-            self.inner.request(method, path, **options), self.loop
-        )
-        return future.result(self.timeout)
+        return asyncio.run_coroutine_threadsafe(work, self.loop).result(self.timeout)
+
+    @contextmanager
+    def stream(
+        self, method: str, path: str, **options: Any
+    ) -> Iterator[SyncStreamReply]:
+        """``ASGIClient.stream`` for tests without ``async``:
+
+        with client.stream("GET", "/events") as reply:
+            first = next(reply.chunks())
+        """
+        opened = self.inner.stream(method, path, **options)
+        reply = self._call(opened.__aenter__())
+        try:
+            yield SyncStreamReply(reply, self)
+        finally:
+            self._call(opened.__aexit__(None, None, None))
 
     def get(self, path: str, **options: Any) -> Response:
         return self.request("GET", path, **options)

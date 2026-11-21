@@ -56,6 +56,9 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `execution` | `max_body_bytes` | `1048576` (1 MiB) | `1` to `1073741824` bytes; larger request bodies return `413` |
 | `execution` | `max_query_bytes` | `8192` (8 KiB) | `1` to `1048576` raw query-string bytes; larger queries return `414` |
 | `execution` | `max_header_bytes` | `32768` (32 KiB) | `1` to `1048576` combined header bytes; larger headers return `431` |
+| `execution` | `max_streams` | `64` | `1` or greater; streams open at once per worker, more answer `503` with `Retry-After: 1` before the handler runs |
+| `execution` | `stream_idle_timeout` | `None` (uses `request_timeout`) | Must be positive; seconds a `Stream` may stay silent before it is cut |
+| `execution` | `sse_keepalive` | `15.0` seconds | Must be positive; quiet seconds before an `EventStream` sends a comment (`keepalive=None` on the stream turns it off) |
 | `lifecycle` | `startup_timeout` | `30.0` seconds | Must be positive |
 | `lifecycle` | `shutdown_timeout` | `10.0` seconds | Must be positive |
 | `logging` | `level` | `info` | `debug`, `info`, `warning`, `error` or `critical` |

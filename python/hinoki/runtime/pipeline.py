@@ -40,6 +40,7 @@ from hinoki.errors import (
 from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
+from hinoki.http.stream import File, Streamed
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
@@ -69,10 +70,17 @@ from hinoki.runtime.responses import (
     RETRY_LATER,
     HTTPError,
     Response,
+    StreamHandle,
     error_response,
     error_response_now,
 )
 from hinoki.runtime.security import headers_for, https_redirect
+from hinoki.runtime.streaming import (
+    Streams,
+    declared_length,
+    discard,
+    discard_answer,
+)
 from hinoki.schema import Schema, encode
 from hinoki.settings import AppSettings, SecuritySettings
 
@@ -206,6 +214,7 @@ class Pipeline:
             for secure in (True, False)
         }
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
+        self.streams = Streams(app.runtime.max_streams)
         needs_database = any(b.route.atomic for b in self.bindings)
         self.lifespan = Lifespan(
             app.modules,
@@ -585,10 +594,15 @@ class Pipeline:
         if self.cors is not None and not has_allow_origin:
             # An answer that sets its own CORS headers keeps them.
             headers.extend(self.cors.headers(origin_of(scope)))
-        if response.status not in BODYLESS:
+        stream = response.stream
+        if stream is not None:
+            length = declared_length(stream)
+            if length is not None:
+                headers.append((b"content-length", str(length).encode()))
+        elif response.status not in BODYLESS:
             headers.append((b"content-length", str(len(response.body)).encode()))
         # A new object: the answer may belong to a reused exception instance.
-        return Response(response.status, response.body, headers)
+        return Response(response.status, response.body, headers, stream)
 
     async def _respond(  # noqa: PLR0911 - one exit per failure class
         self, scope: Scope, source: BodySource, rid: str, route: MatchedRoute | None
@@ -663,6 +677,7 @@ class Pipeline:
             request_id=rid,
         )
         chain = binding.route.middleware
+        produced: list[StreamHandle] = []
 
         async def action() -> HandlerResponse:
             try:
@@ -671,6 +686,9 @@ class Pipeline:
                 )
             except Exception as exc:
                 response = await self._translated(exc, rid)
+            if response.stream is not None:
+                produced.append(response.stream)
+                return response.stream.answer
             return HandlerResponse.raw(response.status, response.body, response.headers)
 
         async def call(index: int) -> HandlerResponse:
@@ -693,8 +711,50 @@ class Pipeline:
                 )
             return answer
 
-        final = await call(0)
-        return Response(final.status, final.body, list(final.headers))
+        try:
+            final = await call(0)
+        except BaseException:
+            await self._drop(produced)
+            raise
+        return await self._settle(final, produced)
+
+    async def _drop(self, produced: list[StreamHandle]) -> None:
+        """Close the streams a middleware chain left unsent."""
+        for handle in produced:
+            await discard(handle, self.executor)
+        produced.clear()
+
+    async def _settle(
+        self, final: HandlerResponse, produced: list[StreamHandle]
+    ) -> Response:
+        """The answer after the middleware chain: the handler's stream when the
+        chain kept its body (a header added, for instance), a new stream the
+        chain built, or a complete response (the handler's stream is then
+        closed without being sent)."""
+        if not isinstance(final, Streamed):
+            await self._drop(produced)
+            return Response(final.status, final.body, list(final.headers))
+        if produced and produced[0].answer.same_body(final):
+            handle = produced[0]
+            handle.answer = final
+            return Response(final.status, b"", list(final.headers), handle)
+        await self._drop(produced)
+        return await self._new_stream(final)
+
+    async def _new_stream(self, answer: Streamed) -> Response:
+        """A stream that a middleware created, with its own place."""
+        lease = self.streams.lease()
+        if lease is None:
+            await discard_answer(answer, self.executor)
+            raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER)
+        try:
+            response = await self._stream_response(answer)
+        except BaseException:
+            lease.release()
+            raise
+        if response.stream is not None:
+            response.stream.lease = lease
+        return response
 
     async def _translated(self, exc: Exception, rid: str) -> Response:
         """The answer for an error raised while serving a request."""
@@ -925,10 +985,65 @@ class Pipeline:
         """Run the handler; with ``atomic=True`` inside a transaction that
         commits only after the output is encoded, and rolls back on any error
         before it becomes an HTTP response."""
+        if binding.streams:
+            return await self._invoke_streaming(binding, request, renderer, kwargs)
         if not binding.route.atomic:
             return await self._call(binding, request, renderer, kwargs)
         async with self.ctx.get(Database).atomic():
             return await self._call(binding, request, renderer, kwargs)
+
+    async def _invoke_streaming(
+        self,
+        binding: Binding,
+        request: Request,
+        renderer: Renderer,
+        kwargs: dict[str, object],
+    ) -> Response:
+        """Run an action that streams: one of the worker's ``max_streams``
+        places is taken before the handler runs (a full worker answers 503 and
+        the handler does not run), and kept until the head is sent."""
+        lease = self.streams.lease()
+        if lease is None:
+            raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER)
+        try:
+            response = await self._call(binding, request, renderer, kwargs)
+        except BaseException:
+            lease.release()
+            raise
+        if response.stream is None:
+            lease.release()
+        else:
+            response.stream.lease = lease
+        return response
+
+    async def _streamed(self, binding: Binding, answer: Streamed) -> Response:
+        """The answer for a ``Stream``, ``EventStream`` or ``File`` a handler
+        returned; its body is closed unsent when the answer is refused."""
+        try:
+            if not binding.streams:
+                raise ResponseContractError(
+                    f"{binding.route.name} returned a {type(answer).__name__} "
+                    "but its return annotation does not name it; annotate the "
+                    f"action with -> {type(answer).__name__}"
+                )
+            enforce_response(binding, answer)
+            return await self._stream_response(answer)
+        except BaseException:
+            await discard_answer(answer, self.executor)
+            raise
+
+    async def _stream_response(self, answer: Streamed) -> Response:
+        location = None
+        if isinstance(answer, File):
+            try:
+                location = await core.locate_file(answer.path, answer.root)
+            except core.FileLookupBusy as exc:
+                raise ExecutorSaturated("every file lookup place is taken") from exc
+            if location is None:
+                raise HTTPError(HTTPStatus.NOT_FOUND, "not_found")
+        return Response(
+            answer.status, b"", list(answer.headers), StreamHandle(answer, location)
+        )
 
     async def _call(
         self,
@@ -944,6 +1059,8 @@ class Pipeline:
             else None
         )
         result = await self._handler_result(binding, request, kwargs, row_wire)
+        if isinstance(result, Streamed):
+            return await self._streamed(binding, result)
         if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
         enforce_response(binding, result)
@@ -1111,7 +1228,7 @@ class Pipeline:
             binding, None, binding.complete_native_args(args)
         )
         if isinstance(result, HandlerResponse):
-            return Response(result.status, result.body, result.headers)
+            return await self._plain_response(binding, result)
         enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
@@ -1119,6 +1236,13 @@ class Pipeline:
         if route.status == HTTPStatus.OK:
             return Response(HTTPStatus.NO_CONTENT)
         return Response(route.status)
+
+    async def _plain_response(
+        self, binding: Binding, result: HandlerResponse
+    ) -> Response:
+        if isinstance(result, Streamed):  # a native handler is never annotated
+            return await self._streamed(binding, result)
+        return Response(result.status, result.body, result.headers)
 
     def _native_rendered(
         self, binding: Binding, result: object, native: NativeBody | None

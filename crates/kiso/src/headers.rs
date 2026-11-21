@@ -28,10 +28,29 @@ pub fn final_headers(
     own: &[Header],
     policy: &[Header],
     route: &[(String, String)],
-    (request_id_name, request_id): (&[u8], &[u8]),
+    id: (&[u8], &[u8]),
     extra: &[Header],
     status: u16,
     body_len: usize,
+) -> Vec<Header> {
+    let mut out = head_headers(own, policy, route, id, extra);
+    if !is_bodyless(status) {
+        out.push((
+            b"content-length".to_vec(),
+            body_len.to_string().into_bytes(),
+        ));
+    }
+    out
+}
+
+/// [`final_headers`] without the `content-length`, for a body whose length
+/// the caller states itself or leaves open.
+pub fn head_headers(
+    own: &[Header],
+    policy: &[Header],
+    route: &[(String, String)],
+    (request_id_name, request_id): (&[u8], &[u8]),
+    extra: &[Header],
 ) -> Vec<Header> {
     let mut present: Vec<Vec<u8>> = Vec::with_capacity(own.len() + policy.len());
     let mut out: Vec<Header> = Vec::with_capacity(own.len() + policy.len() + route.len() + 2);
@@ -58,12 +77,6 @@ pub fn final_headers(
     }
     out.push((request_id_name.to_vec(), request_id.to_vec()));
     out.extend(extra.iter().cloned());
-    if !is_bodyless(status) {
-        out.push((
-            b"content-length".to_vec(),
-            body_len.to_string().into_bytes(),
-        ));
-    }
     out
 }
 

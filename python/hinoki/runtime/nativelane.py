@@ -51,7 +51,9 @@ def lane_refusal(binding: Binding) -> str | None:
     """Why the native lane does not serve this route, or ``None`` when it does."""
     route = binding.route
     reason = None
-    if not binding.is_async:
+    if binding.streams:
+        reason = "streamed response"
+    elif not binding.is_async:
         reason = "not an async def handler"
     elif not native_handler_eligible(binding):
         reason = "not natively eligible"
