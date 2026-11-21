@@ -17,9 +17,10 @@ env:
 
 jobs:
   # A pull request that only touches documentation, the docsite theme, assets or
-  # root Markdown skips the Python, Rust and wheel work. The required checks keep
-  # their names and finish green; docs, audit and pre-commit always run. Any
-  # doubt (a push, an API error) runs everything.
+  # root Markdown skips the Python, Rust, wheel and audit work, and pre-commit
+  # checks only the files of the pull request. The required checks keep their
+  # names and finish green; docs always runs. Any doubt (a push, an API error)
+  # runs everything.
   changes:
     runs-on: ubuntu-latest
     permissions:
@@ -308,6 +309,8 @@ jobs:
         run: cargo test --locked -p hinoki-orm --test mysql
 
   audit:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -401,14 +404,27 @@ jobs:
           PY
 
   pre-commit:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The base commit is needed to check only the files of a pull request.
+          fetch-depth: 0
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: rustfmt
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - run: uv sync --locked
-      - run: uv run --locked pre-commit run --all-files
+      - name: Run the hooks
+        env:
+          CODE: ${{ needs.changes.outputs.code }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$CODE" = false ]; then
+            uv run --locked pre-commit run --from-ref "$BASE" --to-ref HEAD
+          else
+            uv run --locked pre-commit run --all-files
+          fi
