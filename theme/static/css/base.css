@@ -393,29 +393,6 @@ body.menu-open .menu-icon-close {
   margin: 0 auto;
 }
 
-/* Decorative, fixed brand mark behind the page; desktop only. */
-.shell__watermark {
-  --hn-mark-shade: var(--hn-watermark);
-  --hn-mark-light: var(--hn-watermark);
-  --hn-mark-dot: var(--hn-watermark);
-
-  position: fixed;
-  right: 32px;
-  bottom: 24px;
-  z-index: -1;
-  inline-size: 196px;
-  block-size: 280px;
-  color: var(--hn-watermark);
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-@media (max-width: 960px), print {
-  .shell__watermark {
-    display: none;
-  }
-}
-
 .side,
 .margin {
   position: sticky;
