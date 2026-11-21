@@ -1440,6 +1440,23 @@ impl<'py> Encoder<'py> {
     }
 
     fn write(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        if let Ok(text) = value.cast::<PyString>() {
+            write_pystring(&mut self.out, text)
+        } else if value.is_exact_instance_of::<PyInt>() {
+            self.int(value)
+        } else if value.is_exact_instance_of::<PyFloat>() {
+            push_float(&mut self.out, value.cast::<PyFloat>()?.value())
+        } else if let Ok(dict) = value.cast::<PyDict>() {
+            self.mapping(dict, depth)
+        } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
+            self.sequence(value, depth)
+        } else {
+            self.scalar(value, depth)
+        }
+    }
+
+    /// `None`, `bool`, `int` and `float`, then anything else through [`Self::object`].
+    fn scalar(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         if value.is_none() {
             self.out.extend_from_slice(b"null");
         } else if let Ok(flag) = value.cast::<PyBool>() {
@@ -1449,12 +1466,6 @@ impl<'py> Encoder<'py> {
             self.int(value)?;
         } else if let Ok(float) = value.cast::<PyFloat>() {
             push_float(&mut self.out, float.value())?;
-        } else if let Ok(text) = value.cast::<PyString>() {
-            write_pystring(&mut self.out, text)?;
-        } else if let Ok(dict) = value.cast::<PyDict>() {
-            self.mapping(dict, depth)?;
-        } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
-            self.sequence(value, depth)?;
         } else {
             self.object(value, depth)?;
         }
@@ -1604,9 +1615,9 @@ impl<'py> Encoder<'py> {
         }
         if let Some((names, unset, _)) = crate::schema::instance_fields(value, true, true, true)? {
             self.schema_object(value, names, &unset, depth)?;
-        } else if is_instance_of_named(value, "uuid", "UUID")? {
+        } else if value.is_instance(crate::pytypes::uuid_class(value.py())?)? {
             write_string(&mut self.out, &value.str()?.to_string())?;
-        } else if is_instance_of_named(value, "datetime", "datetime")? {
+        } else if value.is_instance(crate::pytypes::datetime_class(value.py())?)? {
             write_string(
                 &mut self.out,
                 &value.call_method0("isoformat")?.str()?.to_string(),
@@ -1707,11 +1718,6 @@ impl<'py> Encoder<'py> {
         self.close(b'}', depth, empty);
         Ok(())
     }
-}
-
-fn is_instance_of_named(value: &Bound<'_, PyAny>, module: &str, class: &str) -> PyResult<bool> {
-    let wanted = value.py().import(module)?.getattr(class)?;
-    value.is_instance(&wanted)
 }
 
 /// Serialise plain Python values (`dict`, `list`, `tuple`, `str`, `int`,
