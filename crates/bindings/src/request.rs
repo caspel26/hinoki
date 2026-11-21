@@ -1111,27 +1111,34 @@ impl<'a, B: Builder> Parser<'a, B> {
         }
     }
 
-    fn digits(&mut self) -> Parsed<()> {
+    /// Digits to the end of the run, with their value when it fits `u64`.
+    fn digits(&mut self) -> Parsed<Option<u64>> {
         let start = self.at;
-        while matches!(self.peek(), Some(b'0'..=b'9')) {
+        let mut value = Some(0u64);
+        while let Some(digit @ b'0'..=b'9') = self.peek() {
+            value = value
+                .and_then(|so_far| so_far.checked_mul(10))
+                .and_then(|so_far| so_far.checked_add(u64::from(digit - b'0')));
             self.at += 1;
         }
         if self.at == start {
             return self.fail("expected digits");
         }
-        Ok(())
+        Ok(value)
     }
 
     fn number(&mut self) -> Parsed<B::Value> {
         let start = self.at;
-        if self.peek() == Some(b'-') {
+        let negative = self.peek() == Some(b'-');
+        if negative {
             self.at += 1;
         }
-        if self.peek() == Some(b'0') {
+        let magnitude = if self.peek() == Some(b'0') {
             self.at += 1;
+            Some(0)
         } else {
-            self.digits()?;
-        }
+            self.digits()?
+        };
         let mut real = false;
         if self.peek() == Some(b'.') {
             real = true;
@@ -1146,6 +1153,18 @@ impl<'a, B: Builder> Parser<'a, B> {
             }
             self.digits()?;
         }
+        if !real {
+            let signed = magnitude.map(|m| {
+                if negative {
+                    -i128::from(m)
+                } else {
+                    i128::from(m)
+                }
+            });
+            if let Some(int) = signed.and_then(|n| i64::try_from(n).ok()) {
+                return Ok(self.builder.integer(int));
+            }
+        }
         let text =
             std::str::from_utf8(&self.input[start..self.at]).map_err(|_| "invalid number")?;
         if real {
@@ -1154,9 +1173,6 @@ impl<'a, B: Builder> Parser<'a, B> {
                 return self.fail("number out of range");
             }
             return Ok(self.builder.float(float));
-        }
-        if let Ok(int) = text.parse::<i64>() {
-            return Ok(self.builder.integer(int));
         }
         self.builder.big_integer(text)
     }
