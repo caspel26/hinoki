@@ -394,23 +394,24 @@ body.menu-open .menu-icon-close {
 }
 
 /* Decorative, fixed brand mark behind the page; desktop only. */
-.shell::before {
+.shell__watermark {
+  --hn-mark-shade: var(--hn-watermark);
+  --hn-mark-light: var(--hn-watermark);
+  --hn-mark-dot: var(--hn-watermark);
+
   position: fixed;
   right: 32px;
   bottom: 24px;
   z-index: -1;
   inline-size: 196px;
   block-size: 280px;
-  background: var(--hn-watermark);
-  content: "";
+  color: var(--hn-watermark);
   opacity: 0.6;
   pointer-events: none;
-  -webkit-mask: url("../favicon.svg") center / contain no-repeat;
-  mask: url("../favicon.svg") center / contain no-repeat;
 }
 
 @media (max-width: 960px), print {
-  .shell::before {
+  .shell__watermark {
     display: none;
   }
 }
