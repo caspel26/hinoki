@@ -763,6 +763,9 @@ async def test_mutated_checks_fall_back_before_count_and_wire_fetch(
     original_checks = WireRecordOut.__checks__
     WireRecordOut.observed_check = CheckObserver(checks)  # type: ignore[attr-defined]
     WireRecordOut.__checks__ = (("object", (), "observed_check"),)
+    # The negative graph-check cache assumes checks never change after class
+    # creation; this test mutates them on purpose, so drop the cached answer.
+    WireRecordOut.__graph_checks__ = None
     counts: list[str] = []
     selects: list[str] = []
     wire_calls: list[str] = []
