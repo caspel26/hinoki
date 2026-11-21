@@ -13,7 +13,10 @@ related:
 
 ```python
 # notes/main.py
-from hinoki import Hinoki
+import json
+
+from hinoki import Hinoki, http
+from hinoki.http import Response
 from hinoki.settings import AppSettings, CompressionSettings
 
 app = Hinoki(
@@ -22,20 +25,32 @@ app = Hinoki(
         compression=CompressionSettings(enabled=True),
     )
 )
+
+NOTES = [{"id": number, "title": f"note {number}"} for number in range(1, 301)]
+
+
+@http.get("/notes")
+async def notes() -> Response:
+    return Response(
+        200, headers={"content-type": "application/json"}, body=json.dumps(NOTES)
+    )
+
+
+app.include(notes)
 ```
 
-With a JSON action that answers about 6.5 KB, `hinoki serve main:app` and `curl` show what the client asked for:
+`hinoki serve main:app` and `curl` show what the client asked for (headers other than the ones below are left out):
 
 ```text
 $ curl -s -D - -o /dev/null -H "accept-encoding: br" http://127.0.0.1:8000/notes
 HTTP/1.1 200 OK
 content-type: application/json
-content-length: 429
+content-length: 557
 vary: accept-encoding
 content-encoding: br
 ```
 
-`gzip` gives `content-encoding: gzip` with `content-length: 991` for the same body, and a request without `accept-encoding` gets the 6580 bytes unchanged. `curl --compressed` decodes the answer. These figures were produced by that example; they describe this body, not a general ratio.
+For `gzip` the same request answers `content-encoding: gzip` with `content-length: 1477`, and a request without `accept-encoding` gets the 9984 bytes unchanged. `curl --compressed` decodes the answer. These figures were produced by running this example; they describe this body, not a general ratio.
 
 ## What is compressed
 
@@ -58,16 +73,31 @@ When Kiso considers an answer, it adds `Vary: accept-encoding`, even if the clie
 * A larger body, a `Stream`, an `EventStream` and a `File` are compressed as they are read, 64 KiB at a time. They have no `content-length`: HTTP/1.1 uses `transfer-encoding: chunked` and HTTP/2 uses data frames. A `File` is still read by the server, so its bytes do not enter Python.
 * When the producer of a stream pauses, Kiso flushes what it has compressed so far, so a client receives each piece when the producer yields it and not at the end. An event stream's keep-alive comments are flushed too.
 * A stream that fails after the head is cut, as without compression: the compressed body is never ended as if it were complete.
-* `HEAD` receives the head the matching `GET` would get, with `content-encoding` and `vary` and without `content-length`.
+* `HEAD` receives the head its `GET` would get when the `GET` is compressed, with `content-encoding` and `vary` and without `content-length`. It takes no compression slot, so it does not depend on the load, and it is not a promise: the `GET` can still go out as it is when a body of at most 64 KiB does not get smaller or when every slot is taken, and then the `HEAD` named an encoding (and a weak `etag`) that the `GET` did not use.
 
 ## Limits
 
 Compression runs on Kiso's runtime threads, without spawning blocking tasks, one piece of at most 64 KiB per step, and an encoder gives the thread back after four steps. Two settings bound the work:
 
 * `compression.max_concurrent` (64) is the number of compressions in progress in one worker. An answer that arrives when all are taken is sent uncompressed at once; it never waits. The count of answers sent that way is kept by the server (`Compression::busy` in the Rust crate); no setting or log line reports it yet.
-* `gzip_level` (1 to 9, default 5) and `brotli_quality` (0 to 11, default 4) trade CPU for size. The brotli window is fixed at 2^18 bytes.
+* `gzip_level` (1 to 9, default 5) and `brotli_quality` (0 to 9, default 4) trade CPU for size. Brotli qualities 10 and 11 are refused because one 64 KiB piece would hold a runtime thread for tens of milliseconds. The brotli window is fixed at 2^18 bytes.
 
-Measured while this was built, on an Apple M4 Pro with 4 MiB of generated JSON flushed every 64 KiB, with the `flate2` (pure Rust backend) and `brotli` crates: gzip level 5 took about 0.54 ms per 64 KiB and held about 0.36 MB per encoder; brotli quality 4 with that window took about 0.43 ms per 64 KiB and held about 2.1 MB per encoder. Brotli quality 11 took about 48 ms per 64 KiB, which is why it is not the default. These numbers come from a synthetic sample on one machine, are not a throughput claim, and your content and hardware will differ; the memory figure is why the default limit is 64 and not larger.
+Each compression in progress holds an encoder, which is why `max_concurrent` exists and is 64. The repository has no measurement of the memory of one encoder or of the CPU time per piece, so none is claimed here. `benchmarks/compressionbench.py` measures what a client sees over loopback, with compression off, with gzip and with brotli, and prints the body bytes and the median time per request over alternating rounds:
+
+```sh
+uv run --locked python benchmarks/compressionbench.py --rounds 5 --requests 300
+```
+
+One run on a development machine (Apple M4 Pro, Python 3.13, debug-profile extension as built by `uv sync`, one synthetic JSON body of 12,980 bytes and a stream of sixteen distinct pieces of about 70 KB, five rounds of 300 sequential requests on one connection) gave these bodies and times:
+
+| Scenario | Identity | gzip | brotli |
+| --- | --- | --- | --- |
+| `small`, bytes | 12,980 | 1,911 | 733 |
+| `small`, median per request | 0.145 ms | 0.175 ms | 0.194 ms |
+| `stream`, bytes (with chunk framing) | 1,161,929 | 150,933 | 40,374 |
+| `stream`, median per request | 0.426 ms | 4.36 ms | 3.33 ms |
+
+The coefficient of variation across rounds was 0.3% to 3.2%. These are loopback numbers for one machine and one body, with the client sharing the host; they say what this body costs here, not a rate, and your content and hardware will differ.
 
 ## Settings
 
@@ -80,10 +110,10 @@ Measured while this was built, on an Apple M4 Pro with 4 MiB of generated JSON f
 | `compression.event_streams` | `false` | Also compress `text/event-stream` |
 | `compression.files` | `true` | Also compress a `File` |
 | `compression.gzip_level` | `5` | `1` to `9` |
-| `compression.brotli_quality` | `4` | `0` to `11` |
+| `compression.brotli_quality` | `4` | `0` to `9` |
 | `compression.max_concurrent` | `64` | `1` to `65536` compressions at once per worker |
 
-A value outside its range stops the application at startup with the usual settings error. The settings are declared and validated in Python; the negotiation, the rules above and the encoding run in Rust.
+A value outside its range stops the application at startup with the usual settings error. A plain WSGI callable (`--interface wsgi` without `WSGIAdapter`) has no settings of its own, so its `compression` group comes from the environment (`COMPRESSION__ENABLED=true`), and Granian refuses it the same way. The settings are declared and validated in Python; the negotiation, the rules above and the encoding run in Rust.
 
 ## What stays in Python
 
@@ -95,5 +125,5 @@ Only the declaration and validation of `CompressionSettings`, the refusal under 
 * Other codings (`deflate`, `zstd`), and precompressed files kept next to a `File`.
 * A per-route option other than `cache-control: no-transform`.
 * Compression of request bodies.
-* A compression ratio, throughput or latency figure beyond the measurement above.
+* A compression ratio, throughput or latency figure beyond the benchmark above.
 * A test of a WSGI callable hosted on Kiso with compression on: the same policy is passed to that server, but it has not been exercised.
