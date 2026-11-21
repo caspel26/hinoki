@@ -519,3 +519,130 @@ pub fn run_native(
     }
     NativeRun { stop }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::driver::NativeWait;
+    use pyo3::types::PyList;
+    use std::sync::atomic::Ordering;
+
+    const HELPERS: &std::ffi::CStr = c"
+import asyncio, threading
+
+async def handler(wait):
+    return await wait
+
+def recorder(out):
+    def on_done(value, error, reason):
+        out.append((value, None if error is None else type(error).__name__,
+                    threading.get_ident()))
+    return on_done
+
+def refuse(*args):
+    raise AssertionError('no foreign await expected')
+";
+
+    fn ready_wait(py: Python<'_>, value: i64) -> Py<NativeWait> {
+        let wait = NativeWait::new(
+            async move { Ok::<i64, ()>(value) },
+            |py, value| Ok(value.into_pyobject(py)?.into_any().unbind()),
+            |_, ()| PyRuntimeError::new_err("unreachable"),
+        );
+        Py::new(py, wait).unwrap()
+    }
+
+    /// Start `count` drives whose only wait is already finished, and wait,
+    /// with the GIL released, until all their steps are queued.
+    fn start_drives<'py>(
+        py: Python<'py>,
+        helpers: &Bound<'py, PyModule>,
+        steps: &Bound<'py, NativeSteps>,
+        count: i64,
+    ) -> Bound<'py, PyList> {
+        let done = PyList::empty(py);
+        let on_done = helpers.call_method1("recorder", (&done,)).unwrap();
+        let refuse = helpers.getattr("refuse").unwrap();
+        for n in 0..count {
+            let coro = helpers
+                .call_method1("handler", (ready_wait(py, n),))
+                .unwrap();
+            run_native(
+                py,
+                coro.unbind(),
+                on_done.clone().unbind(),
+                refuse.clone().unbind(),
+                None,
+                None,
+                Some(steps.clone().into_any()),
+            );
+        }
+        let queued = Arc::clone(&steps.get().steps);
+        py.detach(|| {
+            let started = Instant::now();
+            while queued.jobs().as_ref().map_or(0, Vec::len) < count as usize {
+                assert!(started.elapsed() < Duration::from_secs(5), "steps queued");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        });
+        done
+    }
+
+    #[test]
+    fn queued_steps_wake_the_loop_once_and_run_on_its_thread() {
+        Python::initialize();
+        Python::attach(|py| {
+            let helpers =
+                PyModule::from_code(py, HELPERS, c"steps_helpers.py", c"steps_helpers").unwrap();
+            let asyncio = py.import("asyncio").unwrap();
+            let event_loop = asyncio.call_method0("new_event_loop").unwrap();
+            let steps = Bound::new(py, NativeSteps::new(py, &event_loop).unwrap()).unwrap();
+            let done = start_drives(py, &helpers, &steps, 5);
+            assert_eq!(steps.get().steps.wakes.load(Ordering::SeqCst), 1);
+            assert_eq!(done.len(), 0, "no step runs before the loop does");
+            let pause = asyncio.call_method1("sleep", (0.05,)).unwrap();
+            event_loop
+                .call_method1("run_until_complete", (pause,))
+                .unwrap();
+            let me: u64 = py
+                .import("threading")
+                .unwrap()
+                .call_method0("get_ident")
+                .unwrap()
+                .extract()
+                .unwrap();
+            let mut values: Vec<i64> = Vec::new();
+            for entry in done.iter() {
+                let (value, error, thread): (i64, Option<String>, u64) = entry.extract().unwrap();
+                assert_eq!((error, thread), (None, me));
+                values.push(value);
+            }
+            values.sort_unstable();
+            assert_eq!(values, vec![0, 1, 2, 3, 4]);
+            event_loop.call_method0("close").unwrap();
+        });
+    }
+
+    #[test]
+    fn a_closed_loop_answers_the_steps_it_never_ran() {
+        Python::initialize();
+        Python::attach(|py| {
+            let helpers =
+                PyModule::from_code(py, HELPERS, c"steps_helpers.py", c"steps_helpers").unwrap();
+            let event_loop = py
+                .import("asyncio")
+                .unwrap()
+                .call_method0("new_event_loop")
+                .unwrap();
+            let steps = Bound::new(py, NativeSteps::new(py, &event_loop).unwrap()).unwrap();
+            let done = start_drives(py, &helpers, &steps, 2);
+            event_loop.call_method0("close").unwrap();
+            py.import("gc").unwrap().call_method0("collect").unwrap();
+            assert_eq!(done.len(), 2);
+            for entry in done.iter() {
+                let (_, error, _): (Option<i64>, Option<String>, u64) = entry.extract().unwrap();
+                assert_eq!(error.as_deref(), Some("RuntimeError"));
+            }
+        });
+    }
+}

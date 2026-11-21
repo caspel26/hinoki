@@ -289,3 +289,239 @@ fn hand_over(items: Vec<Deferred>) {
         None => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::Reply;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    fn answer(status: u16) -> Sent {
+        Sent::Whole(Reply {
+            status,
+            headers: Vec::new(),
+            body: Vec::new(),
+        })
+    }
+
+    fn handoffs() -> usize {
+        HANDOFFS.with(std::cell::Cell::get)
+    }
+
+    fn status_of(sent: Sent) -> u16 {
+        match sent {
+            Sent::Whole(reply) => reply.status,
+            _ => 0,
+        }
+    }
+
+    #[test]
+    fn a_batch_hands_every_reply_over_with_one_wake() {
+        let before = handoffs();
+        let (senders, receivers): (Vec<_>, Vec<_>) = (0..5).map(|_| oneshot::channel()).unzip();
+        let mut receivers = receivers;
+        batch(|| {
+            for (n, sender) in senders.into_iter().enumerate() {
+                assert!(reply(sender, answer(200 + n as u16)));
+            }
+            assert!(receivers.iter_mut().all(|rx| rx.try_recv().is_err()));
+        });
+        assert_eq!(handoffs() - before, 1);
+        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let statuses: Vec<u16> = runtime.block_on(async move {
+            let mut out = Vec::new();
+            for rx in receivers {
+                out.push(status_of(rx.await.unwrap()));
+            }
+            out
+        });
+        assert_eq!(statuses, vec![200, 201, 202, 203, 204]);
+    }
+
+    #[test]
+    fn outside_a_batch_a_reply_goes_at_once() {
+        let before = handoffs();
+        let (sender, mut receiver) = oneshot::channel();
+        assert!(reply(sender, answer(204)));
+        assert_eq!(status_of(receiver.try_recv().unwrap()), 204);
+        assert_eq!(handoffs(), before);
+    }
+
+    #[test]
+    fn a_reply_nobody_waits_for_reports_false() {
+        let (sender, receiver) = oneshot::channel();
+        drop(receiver);
+        assert!(!batch(|| reply(sender, answer(200))));
+    }
+
+    #[test]
+    fn nested_batches_and_spawns_share_one_handoff() {
+        let before = handoffs();
+        let ran = Arc::new(AtomicUsize::new(0));
+        let (done, finished) = std::sync::mpsc::channel();
+        batch(|| {
+            for _ in 0..3 {
+                let ran = ran.clone();
+                let done = done.clone();
+                batch(|| {
+                    spawn(async move {
+                        ran.fetch_add(1, Ordering::SeqCst);
+                        let _ = done.send(());
+                    });
+                });
+            }
+            assert_eq!(ran.load(Ordering::SeqCst), 0);
+        });
+        assert_eq!(handoffs() - before, 1);
+        for _ in 0..3 {
+            finished
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+        }
+        assert_eq!(ran.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn a_batch_that_panics_still_hands_its_replies_over() {
+        let (sender, mut receiver) = oneshot::channel();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            batch(|| {
+                reply(sender, answer(500));
+                panic!("handler bug");
+            })
+        }));
+        assert!(outcome.is_err());
+        assert_eq!(status_of(receiver.try_recv().unwrap()), 500);
+    }
+
+    /// A fresh event loop whose iterations batch this thread's hand-offs.
+    fn iterating_loop(py: Python<'_>) -> Bound<'_, PyAny> {
+        let event_loop = py
+            .import("asyncio")
+            .unwrap()
+            .call_method0("new_event_loop")
+            .unwrap();
+        per_iteration(&event_loop);
+        event_loop
+    }
+
+    /// Run `body` as a callback of `event_loop`, then let the loop go on until
+    /// `asyncio.sleep(0)` completes (or the loop is stopped).
+    fn in_loop(
+        py: Python<'_>,
+        event_loop: &Bound<'_, PyAny>,
+        body: impl FnOnce() + Send + 'static,
+    ) -> PyResult<Py<PyAny>> {
+        let body = Mutex::new(Some(body));
+        let callback = pyo3::types::PyCFunction::new_closure(py, None, None, move |_, _| {
+            if let Some(body) = body.lock().unwrap().take() {
+                body();
+            }
+        })
+        .unwrap();
+        event_loop.call_method1("call_soon", (callback,)).unwrap();
+        let sleep = py.import("asyncio")?.call_method1("sleep", (0,))?;
+        event_loop
+            .call_method1("run_until_complete", (sleep,))
+            .map(Bound::unbind)
+    }
+
+    type Receivers = Arc<Mutex<Vec<oneshot::Receiver<Sent>>>>;
+
+    /// Reply to `count` waiting receivers, all still empty when the callback
+    /// ends.
+    fn reply_to(count: usize, status: u16, receivers: &Receivers) -> impl FnOnce() + Send {
+        let receivers = Arc::clone(receivers);
+        move || {
+            let mut receivers = receivers.lock().unwrap();
+            for _ in 0..count {
+                let (sender, receiver) = oneshot::channel();
+                assert!(reply(sender, answer(status)));
+                receivers.push(receiver);
+            }
+            assert!(receivers.iter_mut().all(|rx| rx.try_recv().is_err()));
+        }
+    }
+
+    #[test]
+    fn replies_of_one_loop_iteration_go_over_together() {
+        Python::initialize();
+        Python::attach(|py| {
+            let event_loop = iterating_loop(py);
+            let before = handoffs();
+            let receivers = Receivers::default();
+            in_loop(py, &event_loop, reply_to(3, 200, &receivers)).unwrap();
+            assert_eq!(handoffs() - before, 1);
+            let receivers = std::mem::take(&mut *receivers.lock().unwrap());
+            let runtime = pyo3_async_runtimes::tokio::get_runtime();
+            py.detach(|| {
+                runtime.block_on(async move {
+                    for rx in receivers {
+                        assert_eq!(status_of(rx.await.unwrap()), 200);
+                    }
+                });
+            });
+            event_loop.call_method0("close").unwrap();
+        });
+    }
+
+    #[test]
+    fn a_loop_closed_before_its_iteration_ended_still_hands_replies_over() {
+        Python::initialize();
+        Python::attach(|py| {
+            let event_loop = iterating_loop(py);
+            let receivers = Receivers::default();
+            let stop = event_loop.getattr("stop").unwrap().unbind();
+            let answer_one = reply_to(1, 200, &receivers);
+            let stopped = in_loop(py, &event_loop, move || {
+                answer_one();
+                Python::attach(|py| stop.call0(py).unwrap());
+            });
+            assert!(stopped.is_err(), "the loop stopped before sleep(0) ended");
+            let mut receiver = receivers.lock().unwrap().pop().unwrap();
+            assert!(receiver.try_recv().is_err());
+            event_loop.call_method0("close").unwrap();
+            assert_eq!(status_of(receiver.try_recv().unwrap()), 200);
+            let (sender, mut receiver) = oneshot::channel();
+            assert!(reply(sender, answer(204)));
+            assert_eq!(status_of(receiver.try_recv().unwrap()), 204);
+            assert!(ITERATION.with(|slot| slot.borrow().is_none()));
+        });
+    }
+
+    #[test]
+    fn an_aborted_task_is_dropped_queued_or_running() {
+        struct Dropped(std::sync::mpsc::Sender<&'static str>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                let _ = self.0.send("dropped");
+            }
+        }
+        let (events, seen) = std::sync::mpsc::channel();
+        let queued = batch(|| {
+            let events = events.clone();
+            let abort = spawn_abortable(async move {
+                let _ = events.send("ran");
+            });
+            abort.abort();
+            abort
+        });
+        drop(queued);
+        let (started, running) = oneshot::channel::<()>();
+        let guard = Dropped(events);
+        let abort = spawn_abortable(async move {
+            let _guard = guard;
+            let _ = started.send(());
+            std::future::pending::<()>().await;
+        });
+        pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(running)
+            .unwrap();
+        abort.abort();
+        let timeout = std::time::Duration::from_secs(5);
+        assert_eq!(seen.recv_timeout(timeout).unwrap(), "dropped");
+        let quiet = std::time::Duration::from_millis(50);
+        assert!(seen.recv_timeout(quiet).is_err());
+    }
+}
