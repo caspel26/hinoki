@@ -155,10 +155,27 @@ def refuse(message: str) -> int:
     return 2
 
 
-def choose_server(args: argparse.Namespace, settings: ServerSettings) -> str | int:
+def compresses(app: object) -> bool:
+    """Whether the application's ``compression.enabled`` is on (the application
+    a ``WSGIAdapter`` wraps, for one)."""
+    if isinstance(app, WSGIAdapter):
+        app = app.app
+    settings = getattr(app, "settings", None)
+    return isinstance(settings, AppSettings) and settings.compression.enabled
+
+
+def choose_server(
+    args: argparse.Namespace, settings: ServerSettings, compression: bool = False
+) -> str | int:
     """The server to run, or the exit status of a refusal: an unknown value, a
-    setting the server cannot honour, or a Kiso that is not available."""
+    setting the server cannot honour, or a Kiso that is not available.
+    ``compression`` says whether ``compression.enabled`` is on."""
     chosen = args.server or settings.server
+    if compression and chosen != "kiso":
+        return refuse(
+            f"compression.enabled is not supported by the {chosen} server "
+            "(compression is Kiso only); unset it or choose --server kiso"
+        )
     conflicts = settings.conflicts(chosen)
     if conflicts:
         return refuse(
@@ -385,7 +402,7 @@ def run_wsgi(args: argparse.Namespace, reload: bool) -> int:
         settings = settings_of(target)
     except SettingsError as error:
         return refuse(str(error))
-    chosen = choose_server(args, settings)
+    chosen = choose_server(args, settings, compresses(target))
     if isinstance(chosen, int):
         return chosen
     if chosen == "kiso":
@@ -423,7 +440,7 @@ def run_asgi(args: argparse.Namespace, reload: bool) -> int:
             "server.interface is wsgi, but TARGET is a Hinoki application (ASGI); "
             "name a WSGI callable such as WSGIAdapter(app), or pass --interface asgi"
         )
-    chosen = choose_server(args, settings)
+    chosen = choose_server(args, settings, compresses(app))
     if isinstance(chosen, int):
         return chosen
     if chosen == "kiso":
