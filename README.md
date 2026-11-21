@@ -214,7 +214,11 @@ With `docs_url="/docs"` (set by `hinoki new`), the app serves interactive API do
 
 ## Admin
 
-The optional admin is mounted explicitly. By default it has its own users, a sign-in page and per-model permissions; it can use your application's access policy instead. It has four themes, each with light and dark modes. See the [admin guide](docs/admin.md).
+The optional admin is mounted explicitly, and installing or importing it never touches a database. See the [admin guide](docs/admin.md).
+
+* **Access:** its own users, a sign-in page and per-model permissions by default; it can use your application's access policy instead.
+* **Look:** four themes, each with light and dark modes.
+* **Overview:** stat cards and recent records, as in the [Blog example](examples/blog).
 
 <p align="center">
   <picture>
@@ -222,8 +226,8 @@ The optional admin is mounted explicitly. By default it has its own users, a sig
     <img src="assets/readme/admin-login-light.png" alt="The admin sign-in page" width="32%">
   </picture>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-users-dark.png">
-    <img src="assets/readme/admin-users-light.png" alt="The Users section of the admin" width="63%">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-overview-dark.png">
+    <img src="assets/readme/admin-overview-light.png" alt="The admin overview with stat cards and recent posts" width="63%">
   </picture>
 </p>
 
