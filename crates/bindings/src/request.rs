@@ -1302,10 +1302,15 @@ fn write_pystring(out: &mut Vec<u8>, text: &Bound<'_, PyString>) -> PyResult<()>
     }
 }
 
-fn float_text(value: f64) -> PyResult<String> {
-    serde_json::Number::from_f64(value)
-        .map(|number| number.to_string())
-        .ok_or_else(|| PyValueError::new_err("out of range float values are not JSON compliant"))
+/// Append a finite float in the same text `serde_json` gives a `Number`
+/// (shortest round-trip digits, `1e+21`-style exponents, `1.0` for whole values).
+fn push_float(out: &mut Vec<u8>, value: f64) -> PyResult<()> {
+    if !value.is_finite() {
+        return Err(PyValueError::new_err(
+            "out of range float values are not JSON compliant",
+        ));
+    }
+    serde_json::to_writer(out, &value).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Append the decimal text of `number`.
@@ -1443,8 +1448,7 @@ impl<'py> Encoder<'py> {
         } else if value.is_instance_of::<PyInt>() {
             self.int(value)?;
         } else if let Ok(float) = value.cast::<PyFloat>() {
-            self.out
-                .extend_from_slice(float_text(float.value())?.as_bytes());
+            push_float(&mut self.out, float.value())?;
         } else if let Ok(text) = value.cast::<PyString>() {
             write_pystring(&mut self.out, text)?;
         } else if let Ok(dict) = value.cast::<PyDict>() {
