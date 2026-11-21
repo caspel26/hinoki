@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 from typing import Any
 
+from hinoki import core
 from hinoki.app import Hinoki
 from hinoki.runtime.asgi import IN_PROCESS
 
@@ -163,12 +163,12 @@ def run_scenario(app: Hinoki, args: dict[str, Any], mode: str) -> dict[str, Any]
     headers = dict(args.get("headers") or {})
     body = b""
     if json_body is not None:
-        body = json.dumps(json_body).encode()
+        body = core.encode_json(json_body)
         if not any(k.lower() == "content-type" for k in headers):
             scope["headers"].append((b"content-type", b"application/json"))
     result = asyncio.run(drive_with_timeout(app, scope, body))
     kind = result["headers"].get("content-type", "")
     if kind.endswith("json") and not result["truncated"]:
         with contextlib.suppress(ValueError):
-            result["json"] = json.loads(result["body"])
+            result["json"] = core.decode_json(result["body"].encode())
     return result

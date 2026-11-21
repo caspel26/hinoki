@@ -15,6 +15,7 @@ use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyT
 const MAX_DEPTH: usize = 200;
 
 pyo3::create_exception!(core, MultipartLimitError, PyValueError);
+pyo3::create_exception!(core, JsonDecodeError, PyValueError);
 
 fn hex(byte: u8) -> Option<u8> {
     match byte {
@@ -627,7 +628,7 @@ impl<'py> Builder for PyBuilder<'py> {
         self.py
             .get_type::<PyInt>()
             .call1((text,))
-            .map_err(|e| e.to_string())
+            .map_err(|e| ParseError::python(&e))
     }
 
     fn float(&mut self, value: f64) -> Self::Value {
@@ -639,7 +640,9 @@ impl<'py> Builder for PyBuilder<'py> {
     }
 
     fn insert(&mut self, object: &mut Self::Object, key: String, value: Self::Value) -> Parsed<()> {
-        object.set_item(key, value).map_err(|e| e.to_string())
+        object
+            .set_item(key, value)
+            .map_err(|e| ParseError::python(&e))
     }
 
     fn close_object(&mut self, object: Self::Object) -> Self::Value {
@@ -651,7 +654,7 @@ impl<'py> Builder for PyBuilder<'py> {
     }
 
     fn push(&mut self, array: &mut Self::Array, value: Self::Value) -> Parsed<()> {
-        array.append(value).map_err(|e| e.to_string())
+        array.append(value).map_err(|e| ParseError::python(&e))
     }
 
     fn close_array(&mut self, array: Self::Array) -> Self::Value {
@@ -723,7 +726,7 @@ pub(crate) fn json_to_python<'py>(py: Python<'py>, value: &Json) -> PyResult<Bou
         Json::Null => builder.null(),
         Json::Bool(flag) => builder.boolean(*flag),
         Json::Int(int) => builder.integer(*int),
-        Json::BigInt(text) => builder.big_integer(text).map_err(PyValueError::new_err)?,
+        Json::BigInt(text) => builder.big_integer(text).map_err(ParseError::into_py)?,
         Json::Float(float) => builder.float(*float),
         Json::Str(text) => builder.string(text.clone()),
         Json::List(items) => {
@@ -825,11 +828,45 @@ struct Parser<'a, B> {
     at: usize,
 }
 
-type Parsed<T> = Result<T, String>;
+/// Why a document was refused. `syntax` is false when Python itself rejected a
+/// value (an integer over its digit limit): that error is not the document's fault.
+#[derive(Debug)]
+pub(crate) struct ParseError {
+    message: String,
+    syntax: bool,
+}
+
+impl<S: Into<String>> From<S> for ParseError {
+    fn from(message: S) -> Self {
+        Self {
+            message: message.into(),
+            syntax: true,
+        }
+    }
+}
+
+impl ParseError {
+    fn into_py(self) -> PyErr {
+        if self.syntax {
+            JsonDecodeError::new_err(self.message)
+        } else {
+            PyValueError::new_err(self.message)
+        }
+    }
+
+    fn python(error: &PyErr) -> Self {
+        Self {
+            message: error.to_string(),
+            syntax: false,
+        }
+    }
+}
+
+type Parsed<T> = Result<T, ParseError>;
 
 impl<'a, B: Builder> Parser<'a, B> {
     fn fail<T>(&self, what: &str) -> Parsed<T> {
-        Err(format!("{what} at byte {}", self.at))
+        Err(format!("{what} at byte {}", self.at).into())
     }
 
     fn peek(&self) -> Option<u8> {
@@ -1066,7 +1103,7 @@ fn parse_document<B: Builder>(builder: B, raw: &[u8]) -> Parsed<(B::Value, B)> {
     let value = parser.value(0)?;
     parser.skip_space();
     if parser.at != raw.len() {
-        return Err(format!("trailing data at byte {}", parser.at));
+        return Err(format!("trailing data at byte {}", parser.at).into());
     }
     Ok((value, parser.builder))
 }
@@ -1080,21 +1117,22 @@ fn parse_document<B: Builder>(builder: B, raw: &[u8]) -> Parsed<(B::Value, B)> {
     allow(dead_code, reason = "consumed by the native CRUD executor")
 )]
 pub(crate) fn decode_json_document(raw: &[u8]) -> Result<JsonDocument, String> {
-    let (root, builder) = parse_document(DomBuilder::default(), raw)?;
+    let (root, builder) = parse_document(DomBuilder::default(), raw).map_err(|e| e.message)?;
     Ok(JsonDocument {
         root,
         big_integers: builder.big_integers,
     })
 }
 
-/// Parse a JSON document into Python objects. Raises `ValueError` for syntax
-/// errors, invalid UTF-8, `NaN`/`Infinity`, unpaired surrogates and nesting
-/// deeper than 128 levels.
+/// Parse a JSON document into Python objects. Raises `JsonDecodeError` (a
+/// `ValueError`) for syntax errors, invalid UTF-8, `NaN`/`Infinity`, unpaired
+/// surrogates and nesting deeper than 128 levels, and a plain `ValueError`
+/// when Python refuses a value (an integer over its digit limit).
 #[pyfunction]
 pub fn decode_json<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Bound<'py, PyAny>> {
     parse_document(PyBuilder { py }, raw)
         .map(|(value, _)| value)
-        .map_err(PyValueError::new_err)
+        .map_err(ParseError::into_py)
 }
 
 fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
@@ -1107,20 +1145,41 @@ fn int_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
     repr.call1((value,))?.extract()
 }
 
-fn write_key(out: &mut Vec<u8>, key: &Bound<'_, PyAny>) -> PyResult<()> {
+/// The text a dict key is written as; `sort_keys` orders by it, like `json.dumps`.
+fn key_text(key: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(text) = key.cast::<PyString>() {
-        return write_string(out, text.to_str()?);
+        return Ok(text.to_str()?.to_owned());
     }
     if key.is_instance_of::<PyBool>() {
-        return write_string(out, if key.is_truthy()? { "true" } else { "false" });
+        return Ok(if key.is_truthy()? { "true" } else { "false" }.to_owned());
     }
     if key.is_instance_of::<PyInt>() {
-        return write_string(out, &int_text(key)?);
+        return int_text(key);
     }
     if key.is_none() {
-        return write_string(out, "null");
+        return Ok("null".to_owned());
     }
     Err(PyTypeError::new_err("keys must be str, int, bool or None"))
+}
+
+/// Rewrite every character outside printable ASCII (DEL and all non-ASCII) of
+/// valid UTF-8 JSON as `\uXXXX` (a surrogate pair above the BMP), as `json.dumps`
+/// does by default. Only string contents can hold such characters, so the
+/// structure is untouched.
+fn escape_non_ascii(json: &[u8]) -> Vec<u8> {
+    let text = String::from_utf8_lossy(json);
+    let mut out = Vec::with_capacity(json.len());
+    let mut units = [0u16; 2];
+    for ch in text.chars() {
+        if ch.is_ascii() && ch != '\u{7f}' {
+            out.push(ch as u8);
+            continue;
+        }
+        for unit in ch.encode_utf16(&mut units) {
+            out.extend_from_slice(format!("\\u{unit:04x}").as_bytes());
+        }
+    }
+    out
 }
 
 /// How `encode_json` writes: compact by default; `indent` pretty-prints with that
@@ -1192,11 +1251,9 @@ impl<'py> Encoder<'py> {
     }
 
     fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
-        let mut items: Vec<(Vec<u8>, Bound<'py, PyAny>)> = Vec::with_capacity(dict.len());
+        let mut items: Vec<(String, Bound<'py, PyAny>)> = Vec::with_capacity(dict.len());
         for (key, item) in dict.iter() {
-            let mut text = Vec::new();
-            write_key(&mut text, &key)?;
-            items.push((text, item));
+            items.push((key_text(&key)?, item));
         }
         if self.sort_keys {
             items.sort_by(|a, b| a.0.cmp(&b.0));
@@ -1208,7 +1265,7 @@ impl<'py> Encoder<'py> {
                 self.out.push(b',');
             }
             self.newline(depth + 1);
-            self.out.extend_from_slice(&key);
+            write_string(&mut self.out, &key)?;
             self.colon();
             self.write(&item, depth + 1)?;
         }
@@ -1374,16 +1431,18 @@ fn is_instance_of_named(value: &Bound<'_, PyAny>, module: &str, class: &str) -> 
 /// Serialise plain Python values (`dict`, `list`, `tuple`, `str`, `int`,
 /// `float`, `bool`, `None`), schema instances, UUIDs and datetimes to UTF-8 JSON:
 /// compact by default, `indent` spaces when given, `sort_keys` to order object
-/// keys, `default` to serialise anything else. `NaN` and infinities raise
+/// keys (by their text, like `json.dumps`), `default` to serialise anything
+/// else, `ensure_ascii` to escape every non-ASCII character. `NaN` and infinities raise
 /// `ValueError`; an unsupported value without a `default` raises `TypeError`.
 #[pyfunction]
-#[pyo3(signature = (value, indent=None, sort_keys=false, default=None))]
+#[pyo3(signature = (value, indent=None, sort_keys=false, default=None, ensure_ascii=false))]
 pub fn encode_json<'py>(
     py: Python<'py>,
     value: &Bound<'py, PyAny>,
     indent: Option<usize>,
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
+    ensure_ascii: bool,
 ) -> PyResult<Bound<'py, PyBytes>> {
     if indent.is_some_and(|width| width > MAX_INDENT) {
         return Err(PyValueError::new_err(format!(
@@ -1399,6 +1458,9 @@ pub fn encode_json<'py>(
         schemas: 0,
     };
     encoder.write(value, 0)?;
+    if ensure_ascii {
+        return Ok(PyBytes::new(py, &escape_non_ascii(&encoder.out)));
+    }
     Ok(PyBytes::new(py, &encoder.out))
 }
 

@@ -199,11 +199,15 @@ class _JWTVerifier:
     ) -> bytes: ...
 
 def decode_json(raw: bytes) -> Any: ...
+
+class JsonDecodeError(ValueError): ...
+
 def encode_json(
     value: Any,
     indent: int | None = None,
     sort_keys: bool = False,
     default: Callable[[Any], Any] | None = None,
+    ensure_ascii: bool = False,
 ) -> bytes: ...
 
 class Router:

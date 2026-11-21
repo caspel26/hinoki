@@ -9,9 +9,10 @@ no CDN. Pages are plain GETs and are public, like the document they display.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
+
+from hinoki import jsontext
 
 STATIC = Path(__file__).parent / "static"
 HTML = "text/html; charset=utf-8"
@@ -58,7 +59,7 @@ def read(name: str) -> bytes:
 
 
 def swagger_pages(base: str, spec: str) -> dict[str, Page]:
-    options = f'{{url: {json.dumps(spec)}, dom_id: "#swagger-ui"}}'
+    options = f'{{url: {jsontext.dumps(spec)}, dom_id: "#swagger-ui"}}'
     init = f"window.ui = SwaggerUIBundle({options});"
     assets = f"{base}/assets"
     return {

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import stat
@@ -14,6 +13,7 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import BinaryIO
 
+from hinoki import jsontext
 from hinoki.appprompts import ask_app, report_app, split_requires
 from hinoki.newcli import interactive
 from hinoki.project import (
@@ -271,15 +271,15 @@ def _app_block(
 ) -> str:
     lines = [
         "[[apps]]",
-        f"name = {json.dumps(name)}",
-        f"models = {json.dumps(models)}",
-        f"migrations = {json.dumps(migrations)}",
+        f"name = {jsontext.toml_value(name)}",
+        f"models = {jsontext.toml_value(models)}",
+        f"migrations = {jsontext.toml_value(migrations)}",
     ]
     if routes:
-        lines.append(f"routes = {json.dumps(routes)}")
+        lines.append(f"routes = {jsontext.toml_value(routes)}")
     if prefix:
-        lines.append(f"prefix = {json.dumps(prefix)}")
-    lines.append(f"requires = {json.dumps(list(requires))}")
+        lines.append(f"prefix = {jsontext.toml_value(prefix)}")
+    lines.append(f"requires = {jsontext.toml_value(list(requires))}")
     return "\n".join(lines) + "\n"
 
 
@@ -399,7 +399,7 @@ def list_apps(args: Namespace) -> int:
             }
             for app in apps
         ]
-        print(json.dumps({"apps": rows}, indent=2))
+        print(jsontext.dumps({"apps": rows}, indent=2))
         return 0
     if not apps:
         print("no apps registered")
