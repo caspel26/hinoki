@@ -613,7 +613,8 @@ class KisoWorker:
         self, request: core.PreparedRequest, response: Response, handle: StreamHandle
     ) -> None:
         """Send a streamed answer: the head, then the body. The place the answer
-        holds is given back as soon as the head is out (or the body is dropped)."""
+        holds is given back when the body ends (a file is sent by the server alone, so
+        its place is given back at once)."""
         route_headers = context.route_headers.get()
         try:
             if handle.location is not None:
@@ -650,7 +651,6 @@ class KisoWorker:
                 sink.finish()
             await reader.close()
             return
-        handle.release()
         await pump_sink(
             sink, reader, answer.preamble, self.pipeline.streams if events else None
         )

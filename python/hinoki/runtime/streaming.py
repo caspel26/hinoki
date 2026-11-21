@@ -319,6 +319,9 @@ async def feed_asgi(
             break
         if piece:
             await send(body_message(piece))
+            await asyncio.sleep(
+                0
+            )  # a send that never waits must not starve the watcher
     await send(body_message(b"", more=False))
 
 

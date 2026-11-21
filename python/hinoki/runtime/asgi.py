@@ -139,7 +139,7 @@ class ASGIAdapter:
         start: dict[str, Any],
     ) -> None:
         """Send a streamed answer through the ASGI callables (Python objects for
-        every piece). The place it holds is given back once the head is sent."""
+        every piece). The place it holds is given back when the body ends."""
         handle = response.stream
         if handle is None:
             raise RuntimeError("not a streamed response")
@@ -150,7 +150,6 @@ class ASGIAdapter:
                 await send({"type": "http.response.body", "body": b""})
                 await discard(handle, pipeline.executor)
                 return
-            handle.release()
             await self._pump(scope, receive, send, handle)
         finally:
             handle.release()
