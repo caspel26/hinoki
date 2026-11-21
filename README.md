@@ -35,15 +35,48 @@
 <p align="center">
   <picture>
     <source media="(prefers-reduced-motion: reduce)" srcset="assets/readme/demo.png">
-    <img src="assets/readme/demo.apng" alt="In a terminal window, hinoki new shows the Hinoki banner and asks for a project name, a database, a server and the rest; its last question, Create an app now?, is answered yes and the app is named posts. hinoki check reports no violated rules, hinoki dev starts the Kiso server, a curl request to POST /posts returns 201 Created with the new post, and a request to the docs URL, http://localhost:8000/docs, returns 200." width="840">
+    <img src="assets/readme/demo.apng" alt="In a terminal window, hinoki new shows the Hinoki banner and asks for a project name, a database, a server and the rest; its last question, Create an app now?, is answered yes and the app is named posts. hinoki check reports no violated rules, hinoki dev starts the Kiso server and prints its address and its docs URL, a curl request to POST /posts returns 201 Created with the new post, and a request to the docs URL, http://localhost:8000/docs, returns 200." width="840">
   </picture>
 </p>
-<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the posts app's source files and migrations are written off screen. The banner is the logo image that Hinoki prints in terminals with inline-image support (kitty, Ghostty, iTerm2, WezTerm); other terminals show a text banner instead.</sub></p>
+<p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the posts app's source files and migrations are written off screen.</sub></p>
 
 > [!WARNING]
 > **Pre-alpha, not released.** The API and the migration format may change. The [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project: install Hinoki from this repository and use disposable data.
 
 Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls: `hinoki dev` and `hinoki serve` use it by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix.
+
+<p align="center">
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#write-an-api">Write an API</a> ·
+  <a href="#what-you-get">What you get</a> ·
+  <a href="#interactive-api-docs">API docs</a> ·
+  <a href="#admin">Admin</a> ·
+  <a href="#python-and-rust">Python and Rust</a> ·
+  <a href="#status">Status</a>
+</p>
+
+## How it works
+
+You declare once. Routing, validation, the OpenAPI document, rules and the development tools read the same declaration; schema changes follow a separate, explicit lane.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/arch-dark.svg">
+    <img src="assets/readme/arch-light.svg" alt="Architecture: Model, Schema and Endpoint declarations form one declared contract, which routing, validation, access and transactions, the OpenAPI document, hinoki check rules and the development MCP all read. Schema changes follow a separate lane: migrations plan, a reviewed SQL file, an explicit apply, then the database." width="860">
+  </picture>
+</p>
+
+Every request goes through the same steps, in this order. Validation, access and the transaction fail in different ways, so the order is part of the contract ([request lifecycle](docs/request-lifecycle.md)).
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/flow-dark.svg">
+    <img src="assets/readme/flow-light.svg" alt="Request flow: the server accepts the request, Hinoki routes and binds it, validates the input, checks access, opens a transaction, calls the handler, renders the response and commits. On an error an open transaction rolls back first, and the error response carries a request ID." width="860">
+  </picture>
+</p>
+
+The router, request parsing and schema validation run in the Rust extension; your handler is plain Python. On an error, an open transaction rolls back before the error response is produced, and every response carries a request ID.
 
 ## Quick start
 
@@ -164,14 +197,28 @@ Input is validated before the handler runs and a response contains only its decl
 
 ## What you get
 
-- **Declared contracts.** `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client.
-- **Rules you can run.** `hinoki check` has eleven built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes and import direction. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason.
-- **ORM and migrations.** SQLite, PostgreSQL, MySQL and MariaDB, explicit relation loading, and SQL migration files you review. Importing an app never connects to a database.
-- **Tools.** Typed settings, generated CRUD, a CLI, MCP servers for the application and for development, and an optional admin.
+| Area | What it gives you |
+| --- | --- |
+| **Contracts** | `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client. |
+| **Rules** | `hinoki check` has eleven built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes and import direction. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason. |
+| **Data** | SQLite, PostgreSQL, MySQL and MariaDB, explicit relation loading, and SQL migration files you review. Importing an app never connects to a database. |
+| **Tools** | Typed settings, generated CRUD, a CLI, MCP servers for the application and for development, and an optional admin. |
+
+## Interactive API docs
+
+With `docs_url="/docs"` (set by `hinoki new`), the app serves interactive API docs generated from the same declarations: paths, request bodies, responses and declared errors. This is the Notes example from the [examples](examples) folder; see the [OpenAPI guide](docs/openapi.md).
+
+<p align="center">
+  <img src="assets/readme/docs.png" alt="The interactive API docs of the Notes example, with POST /notes expanded to show its required JSON request body, with a title and a body, and its 201 response" width="75%">
+</p>
 
 ## Admin
 
-The optional admin is mounted explicitly. By default it has its own users, a sign-in page and per-model permissions; it can use your application's access policy instead. It has four themes, each with light and dark modes. See the [admin guide](docs/admin.md).
+The optional admin is mounted explicitly, and installing or importing it never touches a database. See the [admin guide](docs/admin.md).
+
+* **Access:** its own users, a sign-in page and per-model permissions by default; it can use your application's access policy instead.
+* **Look:** four themes, each with light and dark modes.
+* **Overview:** stat cards and recent records, as in the [Blog example](examples/blog).
 
 <p align="center">
   <picture>
@@ -179,8 +226,8 @@ The optional admin is mounted explicitly. By default it has its own users, a sig
     <img src="assets/readme/admin-login-light.png" alt="The admin sign-in page" width="32%">
   </picture>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-users-dark.png">
-    <img src="assets/readme/admin-users-light.png" alt="The Users section of the admin" width="63%">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/admin-overview-dark.png">
+    <img src="assets/readme/admin-overview-light.png" alt="The admin overview with stat cards and recent posts" width="63%">
   </picture>
 </p>
 

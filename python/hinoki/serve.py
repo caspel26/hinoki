@@ -216,9 +216,11 @@ def run_supervised(
     listener = open_listener(*address, settings.backlog)
     grace = stop_grace(app)
     scheme = "https" if settings.tls_cert_file else "http"
-    return Supervisor(
+    supervisor = Supervisor(
         args.target, listener, workers, grace, reload=reload, scheme=scheme
-    ).run()
+    )
+    supervisor.docs = app.docs_url
+    return supervisor.run()
 
 
 def run_rust(

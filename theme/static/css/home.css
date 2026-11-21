@@ -52,11 +52,10 @@
 
 .hn-label::after {
   content: "";
-  flex: none;
-  width: 36px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--hn-wood), transparent);
+  flex: 1;
+  height: 1px;
+  transform-origin: left;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--hn-brand) 55%, transparent), transparent);
 }
 
 .hn-sub {
@@ -104,10 +103,22 @@
   from { opacity: 0.35; transform: translate3d(0, 14px, 0); }
 }
 
+@keyframes rule-draw {
+  from { transform: scaleX(0); }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .js .reveal:not(.is-in) {
     opacity: 0.35;
     transform: translate3d(0, 14px, 0);
+  }
+
+  .js .hn-label.reveal:not(.is-in)::after {
+    transform: scaleX(0);
+  }
+
+  .js .hn-label.reveal.is-in::after {
+    animation: rule-draw 900ms var(--hn-ease) 160ms backwards;
   }
 
   .js .reveal.is-in {
@@ -1144,43 +1155,81 @@
 }
 
 .hn-paths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
   margin-top: var(--sp-6) !important;
   padding: 0;
   list-style: none;
-  border-bottom: 1px solid var(--hn-edge);
 }
 
 .hn-paths li {
-  border-top: 1px solid var(--hn-edge);
+  display: flex;
 }
 
 .hn-paths a {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 6fr) 2rem;
-  gap: var(--sp-5);
+  flex: 1;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon title arrow"
+    "icon text  text";
+  gap: 2px var(--sp-3);
   align-items: center;
-  min-height: 64px;
-  padding: var(--sp-3) var(--sp-2);
+  padding: var(--sp-4);
+  border: 1px solid var(--hn-edge);
+  border-radius: 16px;
+  background: var(--hn-surface-1);
   color: var(--hn-text-2);
   text-decoration: none;
-  transition: background 140ms var(--hn-ease), padding 240ms var(--hn-ease);
+  transition: border-color 160ms var(--hn-ease), background 160ms var(--hn-ease);
+}
+
+.hn-paths li:first-child a {
+  border-color: color-mix(in srgb, var(--hn-brand) 40%, var(--hn-edge));
+  background: var(--hn-tint-brand);
 }
 
 .hn-paths a:hover {
-  padding-left: var(--sp-4);
-  background: var(--hn-surface-1);
+  border-color: var(--hn-brand);
+  background: var(--hn-surface-2);
+}
+
+.hn-paths__icon {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  align-self: start;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--hn-tint-brand);
+  color: var(--hn-brand);
 }
 
 .hn-paths b {
+  grid-area: title;
   color: var(--hn-text);
   font-size: var(--fs-l);
   font-weight: 650;
 }
 
+.hn-paths__text {
+  grid-area: text;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 .hn-paths i {
+  grid-area: arrow;
   color: var(--hn-brand);
   font-style: normal;
-  text-align: right;
+  transition: transform 160ms var(--hn-ease);
+}
+
+.hn-paths a:hover i {
+  transform: translateX(3px);
 }
 
 /* Diagram */
@@ -1240,6 +1289,103 @@
 
 .hn-dg-lane-node rect {
   fill: var(--hn-sunken);
+}
+
+/* One colour per owner, as in the README request flow: declarations you write
+   (green), Rust (wood), Hinoki (brand), generated outputs (info), explicit
+   steps (amber). */
+.hn-dg-node:is(
+  [data-tip-title="Model"],
+  [data-tip-title="Schema"],
+  [data-tip-title="Endpoint"]
+) { --dg: var(--hn-green); }
+
+.hn-dg-node:is(
+  [data-tip-title="Routing"],
+  [data-tip-title="Validation"]
+) { --dg: var(--hn-wood); }
+
+.hn-dg-node:is(
+  [data-tip-title="Access and transactions"],
+  [data-tip-title="One declared contract"]
+) { --dg: var(--hn-brand); }
+
+.hn-dg-node:is(
+  [data-tip-title="OpenAPI document"],
+  [data-tip-title="Development MCP"],
+  [data-tip-title="Database"]
+) { --dg: var(--hn-info); }
+
+.hn-dg-node:is(
+  [data-tip-title="hinoki check rules"],
+  [data-tip-title="migrations plan"],
+  [data-tip-title="reviewed SQL file"],
+  [data-tip-title="explicit apply"]
+) { --dg: var(--hn-amber); }
+
+.hn-dg-node[data-tip-title] rect {
+  stroke: color-mix(in srgb, var(--dg) 55%, var(--hn-edge-2));
+  fill: color-mix(in srgb, var(--dg) 7%, var(--hn-surface-2));
+}
+
+.hn-dg-node[data-tip-title]:hover rect,
+.hn-dg-node[data-tip-title]:focus-visible rect {
+  stroke: var(--dg);
+  fill: color-mix(in srgb, var(--dg) 16%, var(--hn-surface-2));
+}
+
+.hn-dg-node.hn-dg-core rect {
+  stroke: var(--hn-brand);
+  stroke-width: 1.5;
+  fill: color-mix(in srgb, var(--hn-brand) 14%, var(--hn-surface-2));
+}
+
+.hn-dg--wide .hn-dg-arrow {
+  stroke: var(--dg, currentColor);
+  stroke-opacity: 0.8;
+}
+
+.hn-dg--wide .hn-dg-arrow:is(
+  [style="--i:0"], [style="--i:1"], [style="--i:2"]
+) { --dg: var(--hn-green); }
+.hn-dg--wide .hn-dg-arrow:is([style="--i:3"], [style="--i:4"]) { --dg: var(--hn-wood); }
+.hn-dg--wide .hn-dg-arrow[style="--i:5"] { --dg: var(--hn-brand); }
+.hn-dg--wide .hn-dg-arrow:is([style="--i:6"], [style="--i:8"]) { --dg: var(--hn-info); }
+.hn-dg--wide .hn-dg-arrow[style="--i:7"] { --dg: var(--hn-amber); }
+.hn-dg--wide .hn-dg-lane-arrow { --dg: var(--hn-amber); }
+
+.hn-dg marker path { fill: context-stroke; }
+
+.hn-dg-lane { fill: var(--hn-amber); }
+
+/* Dots that travel along the arrows once the diagram is in view. */
+.hn-dg-pulse {
+  fill: var(--dg, var(--hn-brand));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hn-dg-pulse[data-i="0"], .hn-dg-pulse[data-i="1"], .hn-dg-pulse[data-i="2"] { --dg: var(--hn-green); }
+.hn-dg-pulse:is([data-i="3"], [data-i="4"]) { --dg: var(--hn-wood); }
+.hn-dg-pulse[data-i="5"] { --dg: var(--hn-brand); }
+.hn-dg-pulse:is([data-i="6"], [data-i="8"]) { --dg: var(--hn-info); }
+.hn-dg-pulse[data-i="7"] { --dg: var(--hn-amber); }
+.hn-dg-pulse:is([data-i="10"], [data-i="11"], [data-i="12"], [data-i="13"]) { --dg: var(--hn-amber); }
+
+.js [data-hn-diagram].is-in .hn-dg-pulse {
+  opacity: 1;
+  transition: opacity 600ms var(--hn-ease) 1800ms;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js [data-hn-diagram].is-in .hn-dg-core rect {
+    animation: hn-dg-breathe 4s ease-in-out 1.6s infinite;
+  }
+}
+
+@keyframes hn-dg-breathe {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--hn-brand) 55%, transparent)); }
 }
 
 .hn-dg-t { fill: var(--hn-text); font: 650 15px var(--hn-font-sans); pointer-events: none; }
@@ -1323,17 +1469,13 @@
 }
 
 .hn-explorer__list {
-  padding: 0;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  margin: 0;
+  padding: 10px;
   list-style: none;
   border-right: 1px solid var(--hn-edge);
-}
-
-.hn-explorer__list li {
-  border-bottom: 1px solid var(--hn-edge);
-}
-
-.hn-explorer__list li:last-child {
-  border-bottom: 0;
 }
 
 .hn-explorer__list li[hidden] {
@@ -1343,18 +1485,18 @@
 .hn-explorer__list button {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 8px 10px;
+  gap: 4px 10px;
   align-items: center;
   justify-items: start;
   width: 100%;
-  min-height: 72px;
-  padding: 14px var(--sp-4);
+  padding: 11px 14px;
   border: 0;
-  border-left: 2px solid transparent;
+  border-radius: 12px;
   background: transparent;
+  box-shadow: inset 0 0 0 1px transparent;
   color: var(--hn-text-2);
   text-align: left;
-  transition: background 140ms var(--hn-ease), border-color 140ms var(--hn-ease);
+  transition: background 140ms var(--hn-ease), box-shadow 140ms var(--hn-ease);
 }
 
 .hn-explorer__list button > b {
@@ -1366,8 +1508,8 @@
 }
 
 .hn-explorer__list button[aria-pressed="true"] {
-  border-left-color: var(--hn-brand);
   background: var(--hn-tint-brand);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
   color: var(--hn-text);
 }
 
@@ -1382,12 +1524,19 @@
   border: 0;
   background: none;
   color: var(--hn-brand);
+  font-size: 12.5px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.hn-explorer__list b code {
+  color: inherit;
+  font-size: 0.92em;
 }
 
 .hn-explorer__detail {
   min-width: 0;
-  padding: var(--sp-4) 20px;
+  padding: var(--sp-5) var(--sp-5);
   background: var(--hn-sunken);
 }
 
@@ -1395,20 +1544,24 @@
   animation: rise-in 320ms var(--hn-ease);
 }
 
-/* On wide screens the detail follows the list while it scrolls past. The grid
-   clips instead of hiding overflow, so it is not a scroll container and the
-   sticky offset is measured against the page. */
-@media (min-width: 961px) {
-  @supports (overflow: clip) {
-    .hn-explorer__grid {
-      overflow: clip;
-    }
+/* The card has a fixed height: the list and the detail scroll on their own, so
+   a long list never leaves the detail pane mostly empty. */
+.hn-explorer__grid {
+  grid-template-rows: minmax(0, 1fr);
+  height: clamp(420px, 72vh, 600px);
+}
 
-    .hn-explorer__detail > div {
-      position: sticky;
-      top: calc(var(--header-h) + var(--sp-5));
-    }
-  }
+.hn-explorer__list,
+.hn-explorer__detail {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hn-edge) transparent;
+}
+
+.hn-explorer__detail:focus-visible {
+  outline: 2px solid var(--hn-brand);
+  outline-offset: -2px;
 }
 
 .hn-explorer__detail [hidden] {
@@ -1416,13 +1569,25 @@
 }
 
 .hn-explorer__detail pre {
-  margin: 0;
-  background: none;
+  margin: 0 0 var(--sp-4);
+  padding: 12px 16px;
+  border: 1px solid var(--hn-edge);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.03);
+}
+
+.hn-explorer__detail .hn-pre--bad {
+  border-left-color: var(--hn-red);
+}
+
+.hn-explorer__detail .hn-pre--wvd {
+  border-left-color: var(--hn-wood);
 }
 
 .hn-explorer__detail pre code {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1501,18 +1666,38 @@
 }
 
 .hn-who__col {
-  padding: var(--sp-5) var(--sp-5);
-  border: 1px solid var(--hn-edge);
-  border-left-width: 3px;
-  border-radius: 24px;
+  --tone: var(--hn-green);
+  padding: var(--sp-5);
+  border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--hn-edge));
+  border-radius: 16px;
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--tone) 9%, transparent), transparent 72px),
+    color-mix(in srgb, var(--hn-tint-success) 55%, var(--hn-sunken));
 }
 
-.hn-who__col--yes { border-left-color: var(--hn-green); background: var(--hn-tint-success); }
-.hn-who__col--no { border-left-color: var(--hn-amber); background: var(--hn-tint-warning); }
+.hn-who__col--no {
+  --tone: var(--hn-amber);
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--tone) 9%, transparent), transparent 72px),
+    color-mix(in srgb, var(--hn-tint-warning) 55%, var(--hn-sunken));
+}
 
 .hn-who h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin: 0 0 var(--sp-3);
-  font-size: 18px;
+  font: 500 13px/1.4 var(--hn-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hn-who h3::before {
+  content: "";
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--tone);
 }
 
 .hn-who ul {
@@ -1521,6 +1706,10 @@
 
 .hn-who li {
   margin: 6px 0;
+}
+
+.hn-who li::marker {
+  color: var(--tone);
 }
 
 /* Closing band */
@@ -1604,8 +1793,8 @@
 }
 
 .hn-paths a:focus-visible {
-  padding-left: var(--sp-4);
-  background: var(--hn-surface-1);
+  border-color: var(--hn-brand);
+  background: var(--hn-surface-2);
 }
 
 /* ---------- Responsive ---------- */
@@ -1640,6 +1829,7 @@
 
   .hn-walk--bench .hn-walk__tabs {
     flex-direction: row;
+    align-items: flex-start;
     border-right: 0;
     border-bottom: 1px solid var(--hn-edge);
   }
@@ -1652,6 +1842,11 @@
   .hn-explorer__list {
     border-right: 0;
     border-bottom: 1px solid var(--hn-edge);
+  }
+
+  .hn-explorer__grid {
+    grid-template-rows: minmax(0, 11fr) minmax(0, 9fr);
+    height: min(680px, 85vh);
   }
 
   .hn-dg--wide {
@@ -1685,15 +1880,8 @@
     padding: var(--sp-7) 0 var(--sp-6);
   }
 
-  .hn-paths a {
-    grid-template-columns: minmax(0, 1fr) 2rem;
-    gap: 4px var(--sp-3);
-  }
-
-  .hn-paths a span {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    font-size: 15px;
+  .hn-paths {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .hn-switch button {
@@ -2197,9 +2385,16 @@
 
 .hn-walk--bench .hn-walk__tabs {
   position: relative;
-  --thumb-r: 0;
-  --thumb-bg: var(--hn-brand-tint);
-  --thumb-shadow: inset 2px 0 0 var(--hn-brand);
+  gap: 4px;
+  padding: 10px;
+  --thumb-r: 12px;
+  --thumb-bg: var(--hn-tint-brand);
+  --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
+}
+
+.hn-walk--bench .hn-walk__tabs button {
+  padding: 14px var(--sp-4);
+  border-radius: 12px;
 }
 
 .hn-walk__tabs {
@@ -2207,9 +2402,25 @@
 }
 
 .hn-walk:not(.hn-walk--bench) .hn-walk__tabs {
-  --thumb-r: 0;
-  --thumb-bg: var(--hn-brand-tint);
-  --thumb-shadow: inset 0 -2px 0 var(--hn-brand);
+  gap: 4px;
+  padding: 8px;
+  background: var(--hn-sunken);
+  --thumb-r: 10px;
+  --thumb-bg: var(--hn-tint-brand);
+  --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
+}
+
+.hn-walk:not(.hn-walk--bench) .hn-walk__tabs button {
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font: 500 14px/1.2 var(--hn-font-sans);
+  white-space: nowrap;
+}
+
+.hn-walk:not(.hn-walk--bench) .hn-walk__tabs button[aria-selected="true"] {
+  color: var(--hn-brand);
 }
 
 .ide__termbar b,
@@ -2219,7 +2430,7 @@
 
 @media (max-width: 960px) {
   .hn-walk--bench .hn-walk__tabs {
-    --thumb-shadow: inset 0 -2px 0 var(--hn-brand);
+    --thumb-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 45%, transparent);
   }
 }
 

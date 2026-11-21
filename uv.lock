@@ -628,6 +628,7 @@ server = [
 dev = [
     { name = "complexipy" },
     { name = "granian", extra = ["reload"] },
+    { name = "markdown" },
     { name = "mypy" },
     { name = "openapi-spec-validator" },
     { name = "pre-commit" },
@@ -649,6 +650,7 @@ lint = [
 ]
 test = [
     { name = "granian", extra = ["reload"] },
+    { name = "markdown" },
     { name = "openapi-spec-validator" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -667,6 +669,7 @@ provides-extras = ["server"]
 dev = [
     { name = "complexipy", specifier = "==9.0.0" },
     { name = "granian", extras = ["reload"], specifier = ">=2.8.8,<3" },
+    { name = "markdown", specifier = ">=3.6" },
     { name = "mypy", specifier = ">=1.14" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
     { name = "pre-commit", specifier = ">=4.0" },
@@ -688,6 +691,7 @@ lint = [
 ]
 test = [
     { name = "granian", extras = ["reload"], specifier = ">=2.8.8,<3" },
+    { name = "markdown", specifier = ">=3.6" },
     { name = "openapi-spec-validator", specifier = ">=0.7" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=1.0" },

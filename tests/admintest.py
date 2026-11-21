@@ -262,6 +262,45 @@ def test_templates_escape_by_default_and_guard_raw_values() -> None:
     assert escape("<a>") == "&lt;a&gt;"
 
 
+def sidebar_with(logo: str) -> str:
+    admin = Admin(access=staff, secret=SECRET, site="Brand", logo=logo)
+    return admin.templates.render(
+        "sidebar",
+        home="/admin",
+        site=admin.site,
+        tagline="",
+        logo=admin.logo_mark,
+        nav=Raw(""),
+        extra=Raw(""),
+        user=Raw(""),
+    )
+
+
+def test_the_logo_is_the_bookmark_unless_an_icon_or_a_path_is_given() -> None:
+    assert "#i-bookmark" in sidebar_with("")
+    assert "#i-layers" in sidebar_with("layers")
+    image = sidebar_with("/static/logo.svg?v=1&x=<2>")
+    assert (
+        '<img class="hn-logo-img" src="/static/logo.svg?v=1&amp;x=&lt;2&gt;"' in image
+    )
+    assert "#i-bookmark" not in image
+
+
+@pytest.mark.parametrize(
+    "logo",
+    [
+        "not-an-icon",
+        "https://cdn.example.com/logo.svg",
+        "//cdn.example.com/logo.svg",
+        '/logo.svg" onerror="x',
+        "javascript:alert(1)",
+    ],
+)
+def test_a_logo_the_admin_cannot_show_is_refused_when_it_is_built(logo: str) -> None:
+    with pytest.raises(ValueError, match="logo"):
+        Admin(access=staff, secret=SECRET, logo=logo)
+
+
 def test_application_templates_and_css_override_the_built_in_set(
     tmp_path: Path,
 ) -> None:

@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 992 306" width="992" height="306" role="img" aria-label="Request flow: the server accepts the request, Hinoki routes and binds it, validates the input, checks access, opens a transaction, calls the handler, renders the response and commits. On an error an open transaction rolls back first, and the error response carries a request ID.">
+  <style>
+  text { font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .k-server { --edge: #8fb8e0; --tint: #252a34; }
+  .k-rust { --edge: #e3c29b; --tint: #2f2c2b; }
+  .k-hinoki { --edge: #b9a0e7; --tint: #2a2734; }
+  .k-yours { --edge: #86cfb3; --tint: #242d2e; }
+  .node { fill: #1e1e24; stroke: #3a3a44; stroke-width: 1; }
+  .k-yours.node { stroke-dasharray: 5 4; }
+  .num { fill: var(--edge); font-size: 12px; font-weight: 600; }
+  .title { fill: #eeedf2; font-size: 15px; font-weight: 500; }
+  .detail { fill: #9d9ca9; font-size: 12px; }
+  .group { fill: var(--edge); font-size: 12px; letter-spacing: 0.06em;
+    text-transform: uppercase; }
+  .rule { stroke: var(--edge); stroke-width: 2; stroke-linecap: round;
+    opacity: 0.85; }
+  .mark { fill: #b9a0e7; font-size: 17px; font-weight: 600;
+    letter-spacing: 0.02em; }
+  .sub { fill: #9d9ca9; font-size: 12px; }
+  .track { stroke: #3a3a44; stroke-width: 2; }
+  .tick { fill: #3a3a44; }
+  .lane { stroke: #e0bc7d; stroke-width: 1.5; stroke-dasharray: 4 4;
+    opacity: 0.8; }
+  .arrow { fill: #e0bc7d; }
+  .fail { fill: none; stroke: #e0bc7d; stroke-width: 1; stroke-dasharray: 4 4;
+    opacity: 0.7; }
+  .failtext { fill: #e0bc7d; font-size: 12px; }
+  .dot { fill: #b9a0e7; }
+  .halo { fill: #b9a0e7; opacity: 0.25; }
+  .edot { fill: #e0bc7d; }
+  .ehalo { fill: #e0bc7d; opacity: 0.25; }
+  .runner, .err { opacity: 0; }
+  @keyframes lit {
+    0%, 5% { fill: var(--tint); stroke: var(--edge); }
+    12%, 100% { fill: #1e1e24; stroke: #3a3a44; }
+  }
+  @keyframes travel {
+    0% { opacity: 0; transform: translateX(0); }
+    3.00% { opacity: 1; transform: translateX(0px); animation-timing-function: ease-in-out; }
+    6.50% { opacity: 1; transform: translateX(0px); animation-timing-function: ease-in-out; }
+    12.00% { opacity: 1; transform: translateX(120px); animation-timing-function: ease-in-out; }
+    15.50% { opacity: 1; transform: translateX(120px); animation-timing-function: ease-in-out; }
+    21.00% { opacity: 1; transform: translateX(240px); animation-timing-function: ease-in-out; }
+    24.50% { opacity: 1; transform: translateX(240px); animation-timing-function: ease-in-out; }
+    30.00% { opacity: 1; transform: translateX(360px); animation-timing-function: ease-in-out; }
+    33.50% { opacity: 1; transform: translateX(360px); animation-timing-function: ease-in-out; }
+    39.00% { opacity: 1; transform: translateX(480px); animation-timing-function: ease-in-out; }
+    42.50% { opacity: 1; transform: translateX(480px); animation-timing-function: ease-in-out; }
+    48.00% { opacity: 1; transform: translateX(600px); animation-timing-function: ease-in-out; }
+    51.50% { opacity: 1; transform: translateX(600px); animation-timing-function: ease-in-out; }
+    57.00% { opacity: 1; transform: translateX(720px); animation-timing-function: ease-in-out; }
+    60.50% { opacity: 1; transform: translateX(720px); animation-timing-function: ease-in-out; }
+    66.00% { opacity: 1; transform: translateX(840px); animation-timing-function: ease-in-out; }
+    69.50% { opacity: 1; transform: translateX(840px); animation-timing-function: ease-in-out; }
+    75.00% { opacity: 0; transform: translateX(840px); }
+    100% { opacity: 0; transform: translateX(0); }
+  }
+  @keyframes fail {
+    0%, 75.50% { opacity: 0; transform: translateX(0); }
+    76.00% { opacity: 1; transform: translateX(0); animation-timing-function: ease-in-out; }
+    92.00% { opacity: 1; transform: translateX(-360px); }
+    94.00%, 100% { opacity: 0; transform: translateX(-360px); }
+  }
+  .node { animation: lit 10.0s linear infinite; }
+  .runner { animation: travel 10.0s linear infinite; }
+  .err { animation: fail 10.0s linear infinite; }
+  .n0 { animation-delay: 0.30s; }
+  .n1 { animation-delay: 1.20s; }
+  .n2 { animation-delay: 2.10s; }
+  .n3 { animation-delay: 3.00s; }
+  .n4 { animation-delay: 3.90s; }
+  .n5 { animation-delay: 4.80s; }
+  .n6 { animation-delay: 5.70s; }
+  .n7 { animation-delay: 6.60s; }
+  @media (prefers-reduced-motion: reduce) {
+    .node, .runner, .err { animation: none; }
+    .runner, .err { opacity: 0; }
+  }
+</style>
+  <rect x="0.5" y="0.5" width="991" height="305" rx="16" fill="#131317" stroke="#2c2c34"/>
+  <text class="mark" x="28" y="36" text-anchor="start">hinoki</text><text class="sub" x="964" y="35" text-anchor="end">one request, start to finish</text>
+  <line class="rule k-server" x1="24" y1="72" x2="128" y2="72"/>
+  <text class="group k-server" x="76.0" y="62" text-anchor="middle">Server</text>
+  <line class="rule k-rust" x1="144" y1="72" x2="368" y2="72"/>
+  <text class="group k-rust" x="256.0" y="62" text-anchor="middle">Rust extension</text>
+  <line class="rule k-hinoki" x1="384" y1="72" x2="608" y2="72"/>
+  <text class="group k-hinoki" x="496.0" y="62" text-anchor="middle">Hinoki</text>
+  <line class="rule k-yours" x1="624" y1="72" x2="728" y2="72"/>
+  <text class="group k-yours" x="676.0" y="62" text-anchor="middle">Your code</text>
+  <line class="rule k-hinoki" x1="744" y1="72" x2="968" y2="72"/>
+  <text class="group k-hinoki" x="856.0" y="62" text-anchor="middle">Hinoki</text>
+  <rect class="node k-server n0" x="24" y="84" width="104" height="76" rx="12"/><text class="num k-server" x="76.0" y="104" text-anchor="middle">01</text><text class="title" x="76.0" y="126" text-anchor="middle">Accept</text><text class="detail" x="76.0" y="146" text-anchor="middle">Kiso, Granian</text>
+  <rect class="node k-rust n1" x="144" y="84" width="104" height="76" rx="12"/><text class="num k-rust" x="196.0" y="104" text-anchor="middle">02</text><text class="title" x="196.0" y="126" text-anchor="middle">Route</text><text class="detail" x="196.0" y="146" text-anchor="middle">match, bind</text>
+  <rect class="node k-rust n2" x="264" y="84" width="104" height="76" rx="12"/><text class="num k-rust" x="316.0" y="104" text-anchor="middle">03</text><text class="title" x="316.0" y="126" text-anchor="middle">Validate</text><text class="detail" x="316.0" y="146" text-anchor="middle">input Schema</text>
+  <rect class="node k-hinoki n3" x="384" y="84" width="104" height="76" rx="12"/><text class="num k-hinoki" x="436.0" y="104" text-anchor="middle">04</text><text class="title" x="436.0" y="126" text-anchor="middle">Access</text><text class="detail" x="436.0" y="146" text-anchor="middle">caller, policy</text>
+  <rect class="node k-hinoki n4" x="504" y="84" width="104" height="76" rx="12"/><text class="num k-hinoki" x="556.0" y="104" text-anchor="middle">05</text><text class="title" x="556.0" y="126" text-anchor="middle">Begin</text><text class="detail" x="556.0" y="146" text-anchor="middle">atomic writes</text>
+  <rect class="node k-yours n5" x="624" y="84" width="104" height="76" rx="12"/><text class="num k-yours" x="676.0" y="104" text-anchor="middle">06</text><text class="title" x="676.0" y="126" text-anchor="middle">Handler</text><text class="detail" x="676.0" y="146" text-anchor="middle">your function</text>
+  <rect class="node k-hinoki n6" x="744" y="84" width="104" height="76" rx="12"/><text class="num k-hinoki" x="796.0" y="104" text-anchor="middle">07</text><text class="title" x="796.0" y="126" text-anchor="middle">Respond</text><text class="detail" x="796.0" y="146" text-anchor="middle">render</text>
+  <rect class="node k-hinoki n7" x="864" y="84" width="104" height="76" rx="12"/><text class="num k-hinoki" x="916.0" y="104" text-anchor="middle">08</text><text class="title" x="916.0" y="126" text-anchor="middle">Commit</text><text class="detail" x="916.0" y="146" text-anchor="middle">or roll back</text>
+  <line class="track" x1="76.0" y1="194" x2="916.0" y2="194"/><circle class="tick" cx="76.0" cy="194" r="4"/><circle class="tick" cx="196.0" cy="194" r="4"/><circle class="tick" cx="316.0" cy="194" r="4"/><circle class="tick" cx="436.0" cy="194" r="4"/><circle class="tick" cx="556.0" cy="194" r="4"/><circle class="tick" cx="676.0" cy="194" r="4"/><circle class="tick" cx="796.0" cy="194" r="4"/><circle class="tick" cx="916.0" cy="194" r="4"/><g class="runner"><circle class="halo" cx="76.0" cy="194" r="11"/><circle class="dot" cx="76.0" cy="194" r="6"/></g>
+  <line class="lane" x1="676.0" y1="202" x2="676.0" y2="228"/><line class="lane" x1="676.0" y1="228" x2="322.0" y2="228"/><polygon class="arrow" points="316.0,228 324.0,223 324.0,233"/><g class="err"><circle class="ehalo" cx="676.0" cy="228" r="9"/><circle class="edot" cx="676.0" cy="228" r="5"/></g>
+  <rect class="fail" x="264" y="246" width="704" height="40" rx="10"/><text class="failtext" x="616.0" y="270" text-anchor="middle">On an error, an open transaction rolls back first; the error response carries a request ID.</text>
+</svg>

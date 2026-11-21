@@ -27,6 +27,25 @@ def icon_name(name: str, fallback: str = "file-text") -> str:
     return name if name in ICONS else fallback
 
 
+LOGO_PATH = re.compile(r"/(?!/)[^\s\"'\\]*")
+
+
+def logo_fragment(logo: str) -> Raw:
+    """The brand mark: a built-in icon name or a same-origin image path."""
+    if not logo:
+        logo = "bookmark"
+    if logo in ICONS:
+        return Raw(
+            f'<svg class="hn-icon" aria-hidden="true"><use href="#i-{logo}"/></svg>'
+        )
+    if LOGO_PATH.fullmatch(logo):
+        return Raw(f'<img class="hn-logo-img" src="{escape(logo)}" alt="">')
+    raise ValueError(
+        "logo must be a built-in icon name or a path starting with a single '/' "
+        f"(the admin's CSP only allows same-origin images), got {logo!r}"
+    )
+
+
 def tone_name(tone: str) -> str:
     return str(tone) if tone in TONES else "neutral"
 

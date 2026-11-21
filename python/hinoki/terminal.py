@@ -7,7 +7,6 @@ Ordinary text keeps the terminal's own foreground so light themes stay readable;
 the palette is used for accents.
 """
 
-import base64
 import os
 import re
 import shutil
@@ -124,8 +123,6 @@ def shown_path(target: Path) -> str:
     return text
 
 
-LOGO = Path(__file__).with_name("logo.png")
-LOGO_ROWS = 3
 SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
 SPINNER_COLORS = ("shade", "brand", "light", "brand")
 TAGLINE = "Python API framework"
@@ -138,35 +135,6 @@ BOX_ASCII = ("+", "+", "+", "+", "-", "|")
 BOX_MIN = 34
 BOX_MAX = 60
 BOX_PAD = 2
-
-
-def inline_logo(protocol: str) -> str:
-    """The logo as an inline-image escape sequence for ``protocol``."""
-    data = base64.b64encode(LOGO.read_bytes()).decode("ascii")
-    if protocol == "iterm":
-        return (
-            f"\x1b]1337;File=inline=1;height={LOGO_ROWS};"
-            f"preserveAspectRatio=1:{data}\x07"
-        )
-    chunks = [data[i : i + 4096] for i in range(0, len(data), 4096)]
-    parts = []
-    for index, chunk in enumerate(chunks):
-        more = int(index < len(chunks) - 1)
-        head = f"a=T,f=100,r={LOGO_ROWS},q=2,m={more}" if index == 0 else f"m={more}"
-        parts.append(f"\x1b_G{head};{chunk}\x1b\\")
-    return "".join(parts)
-
-
-def image_protocol(env: Mapping[str, str]) -> str | None:
-    """The inline-image protocol the terminal speaks, if it is known to."""
-    disabled = env.get("HINOKI_IMAGES", "").lower() in {"0", "false", "no", "off"}
-    if disabled or env.get("TMUX") or env.get("STY"):
-        return None
-    program = env.get("TERM_PROGRAM", "")
-    if program in {"iTerm.app", "WezTerm"}:
-        return "iterm"
-    kitty = program == "ghostty" or env.get("TERM") == "xterm-kitty"
-    return "kitty" if kitty or env.get("KITTY_WINDOW_ID") else None
 
 
 def light_background(env: Mapping[str, str]) -> bool:
@@ -193,7 +161,6 @@ class Style:
         color: bool = False,
         unicode: bool = False,
         depth: str = "16",
-        images: str | None = None,
         animated: bool = False,
         light: bool = False,
         width: int = 80,
@@ -201,7 +168,6 @@ class Style:
         self.color = color
         self.unicode = unicode
         self.depth = depth
-        self.images = images
         self.animated = animated
         self.light = light
         self.width = width
@@ -220,7 +186,6 @@ class Style:
             color=capable,
             unicode=capable and encoding == "utf8",
             depth=color_depth(env),
-            images=image_protocol(env) if capable else None,
             animated=capable and not env.get("CI") and env.get("HINOKI_ANIMATE") != "0",
             light=light_background(env),
             width=shutil.get_terminal_size().columns,
@@ -273,22 +238,15 @@ class Style:
         """One line on the guide rail: a glyph in the margin, then ``text``."""
         return f"  {self.glyph(kind)}  {text}".rstrip()
 
-    def mark(self) -> str:
-        """The logo's two triangles as text, in the brand's shade and light."""
-        return self.paint("\u25e2", "shade", bold=True) + self.paint(
-            "\u25e4", "light", bold=True
-        )
-
-    def wordmark(self) -> str:
-        """The logo as text: the mark, then ivory letters with violet dots on
-        the i's (just the bold name without Unicode)."""
+    def wordmark(self, name: str = "Hinoki") -> str:
+        """The name in ivory letters with violet dots on the i's (just the bold
+        name without Unicode)."""
         if not self.unicode:
-            return self.bold("hinoki")
-        letters = "".join(
+            return self.bold(name)
+        return "".join(
             self.paint(letter, "dot", bold=True) if letter == "i" else self.bold(letter)
-            for letter in "hinoki"
+            for letter in name
         )
-        return f"{self.mark()} {letters}"
 
     def prefix(self) -> str:
         """``hinoki`` and an arrow: the brand name that leads the guide rail."""
@@ -321,20 +279,28 @@ class Style:
         fill = " " * (room - visible_width(body))
         return f"  {vertical}{' ' * BOX_PAD}{body}{fill}{' ' * BOX_PAD}{vertical}"
 
-    def box_top(self, width: int) -> str:
+    def box_top(self, width: int, name: str = "Hinoki") -> str:
         corner, end, _, _, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
-        title = self.wordmark()
+        title = self.wordmark(name)
         rule = line * (width - visible_width(title) - 5)
         return f"  {self.edge(corner + line)} {title} {self.edge(rule + end)}"
 
     def box_bottom(self, width: int) -> str:
         _, _, corner, end, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
-        if not self.unicode:
-            return f"  {self.edge(corner + line * (width - 2) + end)}"
-        # The faint mark sits in the border, outside any text a user selects.
-        watermark = self.paint("\u25e2", "shade") + self.paint("\u25e4", "dim")
-        rule = self.edge(corner + line * (width - 7))
-        return f"  {rule} {watermark} {self.edge(line + end)}"
+        return f"  {self.edge(corner + line * (width - 2) + end)}"
+
+    def framed(self, name: str, rows: list[tuple[str, str]]) -> str:
+        """A box titled with the wordmark of ``name``; each row has a left and
+        a right part, and a row must already fit ``box_room()`` columns."""
+        width = self.box_width()
+        blank = self.box_row(width - 2, "")
+        body = "\n".join(self.box_row(width - 2, left, right) for left, right in rows)
+        top = self.box_top(width, name)
+        return f"\n{top}\n{blank}\n{body}\n{blank}\n{self.box_bottom(width)}"
+
+    def box_room(self) -> int:
+        """Columns of text that fit on one row inside the box."""
+        return self.box_width() - 2 - 2 * BOX_PAD
 
     def boxed(self, title: str, detail: str) -> tuple[str, Row, str]:
         """The banner as a box: what is above the tagline row, the row, and
@@ -355,22 +321,11 @@ class Style:
         above = f"\n{self.box_top(width)}\n{blank}\n"
         return above, row, f"\n{below}{blank}\n{self.box_bottom(width)}\n"
 
-    def banner_layout(self, title: str, detail: str) -> tuple[str, Row, str]:
-        """What is above the tagline row, the row itself, and what is below."""
-        if not self.images:
-            return self.boxed(title, detail)
-
-        def row(glint: int | None) -> str:
-            return f"  {self.tagline(detail, glint=glint)}"
-
-        return f"\n  {inline_logo(self.images)}\n", row, "\n"
-
     def banner(self, title: str, detail: str = "") -> str:
-        """The logo (an inline image where the terminal allows, a box with the
-        wordmark otherwise) and the tagline."""
+        """The wordmark box with the tagline."""
         if not self.color:
             return f"hinoki {detail} - {title}" if detail else f"hinoki - {title}"
-        above, row, below = self.banner_layout(title, detail)
+        above, row, below = self.boxed(title, detail)
         return f"{above}{row(None)}{below}"
 
     def intro(self, title: str) -> str:
@@ -391,7 +346,7 @@ class Style:
     def shimmer(self, title: str, detail: str, out: TextIO | None = None) -> None:
         """Draw the banner, sweeping a highlight across the tagline."""
         out = out or sys.stdout
-        above, row, below = self.banner_layout(title, detail)
+        above, row, below = self.boxed(title, detail)
         out.write(above)
         for step in range(len(TAGLINE) + GLINT_FADE + 1):
             out.write(f"\r{row(step - 2)}")

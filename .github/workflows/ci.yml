@@ -16,8 +16,49 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # A pull request that only touches documentation, the docsite theme, assets or
+  # root Markdown skips the Python, Rust, wheel and audit work, and pre-commit
+  # checks only the files of the pull request. The required checks keep their
+  # names and finish green; docs always runs. Any doubt (a push, an API error)
+  # runs everything.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          code=true
+          if [ "$EVENT" = pull_request ] \
+            && files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate \
+              --jq '.[] | .filename, (.previous_filename // empty)')" \
+            && [ -n "$files" ]; then
+            code=false
+            while IFS= read -r file; do
+              case "$file" in
+                docs/*|theme/*|assets/*|mkdocs.yml|LICENSE) ;;
+                */*) code=true ;;
+                *.md) ;;
+                *) code=true ;;
+              esac
+            done <<< "$files"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   python:
     name: Python ${{ matrix.python }}
+    needs: changes
+    # The matrix name is only expanded when the job runs, so a skipped job would
+    # leave the required check pending: the steps are skipped instead.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -63,32 +104,45 @@ jobs:
         python: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.code != 'false'
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        if: needs.changes.outputs.code != 'false'
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        if: needs.changes.outputs.code != 'false'
         with:
           enable-cache: true
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: needs.changes.outputs.code != 'false'
         with:
           key: python-${{ matrix.python }}
       - name: Verify lock is up to date
+        if: needs.changes.outputs.code != 'false'
         run: uv lock --check
       - name: Install
+        if: needs.changes.outputs.code != 'false'
         run: uv sync --locked
       - name: The environment runs the matrix interpreter
+        if: needs.changes.outputs.code != 'false'
         run: uv run --locked python -c "import sys; assert sys.version_info[:2] == tuple(map(int, '${{ matrix.python }}'.split('.'))), sys.version"
       - name: Lint
+        if: needs.changes.outputs.code != 'false'
         run: uv run --locked ruff check .
       - name: Format
+        if: needs.changes.outputs.code != 'false'
         run: uv run --locked ruff format --check .
       - name: Cognitive complexity
+        if: needs.changes.outputs.code != 'false'
         run: uv run --locked complexipy . --failed
       - name: Types and typing fixtures
+        if: needs.changes.outputs.code != 'false'
         run: uv run --locked mypy
       - name: Build the test-only SQL trace extension
+        if: needs.changes.outputs.code != 'false'
         run: uv run --with "maturin>=1.9.4,<2" maturin develop --manifest-path crates/bindings/Cargo.toml --features sql-trace
       - name: One database per pytest-xdist worker
+        if: needs.changes.outputs.code != 'false'
         run: |
           for worker in gw0 gw1 gw2 gw3; do
             PGPASSWORD=hinoki psql -h localhost -U postgres -c "CREATE DATABASE hinoki_$worker"
@@ -98,6 +152,7 @@ jobs:
             done
           done
       - name: Tests
+        if: needs.changes.outputs.code != 'false'
         env:
           # The native write differential tests fail, not skip, without the trace build.
           HINOKI_REQUIRE_SQL_TRACE: "1"
@@ -109,7 +164,7 @@ jobs:
             --ignore=tests/kisoclitest.py --ignore=tests/wsgitest.py
           uv run --no-sync --locked pytest $SERVERS --cov --cov-append --cov-report=xml
       - name: Save coverage report
-        if: matrix.python == '3.13'
+        if: needs.changes.outputs.code != 'false' && matrix.python == '3.13'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: python-coverage
@@ -142,6 +197,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   rust:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -252,6 +309,8 @@ jobs:
         run: cargo test --locked -p hinoki-orm --test mysql
 
   audit:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -291,6 +350,8 @@ jobs:
         run: uv run --locked --group docs mkdocs build --strict -d /tmp/site
 
   wheel:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -343,14 +404,27 @@ jobs:
           PY
 
   pre-commit:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The base commit is needed to check only the files of a pull request.
+          fetch-depth: 0
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: rustfmt
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - run: uv sync --locked
-      - run: uv run --locked pre-commit run --all-files
+      - name: Run the hooks
+        env:
+          CODE: ${{ needs.changes.outputs.code }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$CODE" = false ]; then
+            uv run --locked pre-commit run --from-ref "$BASE" --to-ref HEAD
+          else
+            uv run --locked pre-commit run --all-files
+          fi

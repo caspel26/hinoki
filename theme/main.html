@@ -27,6 +27,12 @@
       }
       document.documentElement.dataset.theme = t;
       document.documentElement.classList.add("js");
+      addEventListener("pagereveal", function (e) {
+        try {
+          if (e.viewTransition && sessionStorage.getItem("hn-section")) e.viewTransition.types.add("section");
+          sessionStorage.removeItem("hn-section");
+        } catch (err) {}
+      });
     })();
   </script>
   <link rel="preload" href="{{ 'static/fonts/plex-sans-latin-wght.woff2' | url }}" as="font" type="font/woff2" crossorigin>
@@ -37,6 +43,7 @@
   <link rel="stylesheet" href="{{ 'static/css/prose.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/icons.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/benchmarks.css' | url }}">
+  <link rel="stylesheet" href="{{ 'static/css/changelog.css' | url }}">
   {% block styles %}{% endblock %}
 </head>
 {% import "macros.html" as m %}
@@ -122,6 +129,7 @@
   {% set leaf_list = (leaves(sec.active.children) if sec.active and sec.active.children else '').split('|') %}
 
   <div class="shell">
+    <svg class="shell__watermark" viewBox="0 0 276 394" aria-hidden="true"><use href="{{ 'static/hinoki-logo.svg' | url }}#mark"/></svg>
     <aside class="side" id="side" aria-label="Section navigation">
       <div class="mobile-sheet__header">
         <span class="mobile-sheet__handle" aria-hidden="true"></span>
@@ -150,6 +158,8 @@
             {% for i in items %}
               {% if i.children %}
                 <li class="side__group"><span>{{ m.icon(m.section_icon(i.title)) }}{{ i.title }}</span>{{ render(i.children, leaf_list, secn) }}</li>
+              {% elif i.is_link %}
+                <li><a class="side__link side__link--external" href="{{ i.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ i.title }} (opens in a new tab)"><span>{{ i.title }}</span>{{ m.icon("external-link") }}</a></li>
               {% elif i.url %}
                 <li><a class="side__link{% if i.active %} is-active{% endif %}" href="{{ i.url | url }}"{% if i.active %} aria-current="page"{% endif %}><span>{{ i.title }}</span></a></li>
               {% endif %}
@@ -220,27 +230,33 @@
           <svg class="brand__word" viewBox="0 0 655 184" aria-hidden="true"><use href="{{ 'static/hinoki-logo.svg' | url }}#wordmark"/></svg>
         </a>
         <p class="foot__tagline">{{ config.site_description }}</p>
+        <a class="foot__repo" href="{{ config.repo_url }}" target="_blank" rel="noopener noreferrer" aria-label="Hinoki on GitHub (opens in a new tab)"><span>Source on GitHub</span>{{ m.icon("external-link") }}</a>
       </div>
       <nav aria-labelledby="foot-docs">
         <p class="foot__title" id="foot-docs">Docs</p>
         <ul>
           {% for item in nav %}
-            {% if item.title in ["Get started", "Guides", "Reference"] %}<li><a href="{{ m.first_url(item) | url }}">{{ item.title }}</a></li>{% endif %}
+            {% if item.title in ["Get started", "Tutorial", "Guides", "Reference"] %}<li><a href="{{ m.first_url(item) | url }}">{{ item.title }}</a></li>{% endif %}
           {% endfor %}
         </ul>
       </nav>
       <nav aria-labelledby="foot-project">
         <p class="foot__title" id="foot-project">Project</p>
         <ul>
-          <li><a href="{{ config.repo_url }}">GitHub</a></li>
-          <li><a href="{{ config.repo_url }}/blob/main/ROADMAP.md">Roadmap</a></li>
-          <li><a href="{{ config.repo_url }}/blob/main/LICENSE">Licence (MIT)</a></li>
+          <li><a href="{{ 'status/' | url }}">Status</a></li>
+          <li><a class="foot__ext" href="{{ config.repo_url }}/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" aria-label="Roadmap (opens in a new tab)"><span>Roadmap</span>{{ m.icon("external-link") }}</a></li>
+          <li><a class="foot__ext" href="{{ config.repo_url }}/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" aria-label="Contributing (opens in a new tab)"><span>Contributing</span>{{ m.icon("external-link") }}</a></li>
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-legal">
+        <p class="foot__title" id="foot-legal">Legal</p>
+        <ul>
+          <li><a class="foot__ext" href="{{ config.repo_url }}/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" aria-label="Licence, MIT (opens in a new tab)"><span>Licence (MIT)</span>{{ m.icon("external-link") }}</a></li>
           <li><a href="{{ 'static/icons/lucide/LICENSE.txt' | url }}">Lucide icons (ISC)</a></li>
         </ul>
       </nav>
       <div class="foot__bottom">
-        <span>hinoki <span data-docs-version-footer>v{{ config.extra.hn_version }}</span></span>
-        <span class="chip">pre-alpha</span>
+        <span class="foot__version">hinoki <span data-docs-version-footer>v{{ config.extra.hn_version }}</span> <span class="chip">pre-alpha</span></span>
         <span>© 2026 caspel26</span>
       </div>
     </div>
@@ -264,5 +280,6 @@
   <script>window.HN = { base: "{{ base_url }}", repo: "{{ config.repo_url }}", site: "{{ config.site_url }}"{% if page and page.content and 'HNK-' in page.content %}, rules: {{ config.extra.hn_rules | tojson }}{% endif %} };</script>
   <script src="{{ 'static/js/hinoki.js' | url }}" defer></script>
   {% block scripts %}{% endblock %}
+  {% if page and page.meta and page.meta.changelog %}<script src="{{ 'static/js/changelog.js' | url }}" defer></script>{% endif %}
 </body>
 </html>

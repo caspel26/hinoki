@@ -448,9 +448,10 @@ def test_the_banner_is_a_rounded_box_with_the_wordmark_that_fits_the_terminal(
     style = Style.detect(Tty(), {"TERM": "xterm-256color"})  # type: ignore[arg-type]
     lines = box_lines(style.banner("new project", "v1.2.3"))
 
-    assert lines[0].startswith("  \u256d\u2500 \u25e2\u25e4 hinoki \u2500")
+    assert lines[0].startswith("  \u256d\u2500 Hinoki \u2500")
     assert lines[0].endswith("\u256e")
-    assert lines[-1].startswith("  \u2570") and lines[-1].endswith("\u256f")
+    assert lines[-1] == "  \u2570" + "\u2500" * (len(lines[0]) - 4) + "\u256f"
+    assert "\u25e2" not in "".join(lines) and "\u25e4" not in "".join(lines)
     assert {len(line) for line in lines} == {len(lines[0])}
     assert len(lines[0]) <= min(columns, 62)
     row = next(line for line in lines if "Python API framework" in line)
@@ -463,7 +464,7 @@ def test_the_ascii_banner_box_names_the_command_without_unicode() -> None:
     lines = box_lines(text)
 
     assert text.isascii()
-    assert lines[0].startswith("  +- hinoki -") and lines[-1].startswith("  +--")
+    assert lines[0].startswith("  +- Hinoki -") and lines[-1].startswith("  +--")
     assert {len(line) for line in lines} == {len(lines[0])}
     assert "new project" in text and "v1.2.3" in text
 
@@ -483,29 +484,39 @@ def test_the_wordmark_keeps_the_terminal_foreground_on_a_light_16_colour_theme()
     style = Style(color=True, unicode=True, depth="16", light=True)
     text = style.banner("new project", "v1.2.3")
 
-    assert "97m" not in text and "\x1b[1;39mh" in text
+    assert "97m" not in text and "\x1b[1;39mH" in text
 
 
-def test_an_image_terminal_shows_the_logo_then_the_tagline_without_a_box() -> None:
-    style = Style(color=True, unicode=True, images="kitty", width=80)
-    text = style.banner("new project", "v1.2.3")
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"TERM_PROGRAM": "ghostty", "TERM": "xterm-256color"},
+        {"TERM_PROGRAM": "iTerm.app", "TERM": "xterm-256color"},
+        {"KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"},
+    ],
+)
+def test_image_terminals_get_the_same_box_as_any_other(env: dict[str, str]) -> None:
+    class Tty(io.StringIO):
+        encoding = "utf-8"
 
-    assert text.startswith("\n  \x1b_Ga=T,f=100")
-    assert "\u256d" not in text and "\u2502" not in text
-    tagline = ANSI.sub("", text.rpartition("\x1b\\")[2]).strip()
-    assert tagline == "Python API framework  v1.2.3"
+        def isatty(self) -> bool:
+            return True
+
+    text = Style.detect(Tty(), env).banner("new project", "v1.2.3")
+
+    assert "\u256d" in text and "\x1b_G" not in text and "\x1b]1337" not in text
+    assert not hasattr(Style(), "images")
 
 
 def test_the_plain_banner_stays_one_line() -> None:
     assert Style().banner("new project", "v1.2.3") == "hinoki v1.2.3 - new project"
 
 
-@pytest.mark.parametrize("images", [None, "iterm"])
 def test_the_shimmer_settles_on_exactly_the_static_banner(
-    monkeypatch: pytest.MonkeyPatch, images: str | None
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
-    style = Style(color=True, unicode=True, depth="truecolor", images=images, width=72)
+    style = Style(color=True, unicode=True, depth="truecolor", width=72)
     out = io.StringIO()
     style.shimmer("new project", "v1.2.3", out)
 

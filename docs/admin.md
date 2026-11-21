@@ -91,7 +91,7 @@ To use your own identity instead (single sign-on, an existing user table), pass 
 
 ## The sign-in page
 
-`login` shows a card titled **Sign in** with a username and a password field. Every page of the admin redirects there (`303`) when the browser has no valid session.
+`login` shows a centred card with the site name, the title **Sign in**, a username field, a password field and a full-width button, in the active theme's colours and in its light or dark mode. Every page of the admin redirects there (`303`) when the browser has no valid session.
 
 | Request | Answer |
 | --- | --- |
@@ -105,6 +105,17 @@ To use your own identity instead (single sign-on, an existing user table), pass 
 Usernames are stored in lower case: 1 to 150 letters, digits and `. _ @ + -`, starting with a letter or digit. An unknown username costs the same hashing work as a wrong password and gets the same answer.
 
 `password` changes the signed-in user's password. The form asks for the current password, a new one (at least `admin.min_password_length` characters) and the new one again. A wrong current password, two different new ones or a password that breaks the length rule answer `422` with the reason on the form; an expired form answers `403`. Success ends every other session of the user and redirects (`303`) to the admin root (`?done=password`) with a new session.
+
+### The logo
+
+The sidebar and the sign-in card show a bookmark icon by default. `logo=` replaces it with another built-in icon or with an image you serve yourself:
+
+```python
+Admin(site="Blog Studio", logo="layers")  # a built-in icon
+Admin(site="Blog Studio", logo="/static/logo.svg")  # an image from your app
+```
+
+An image path must start with a single `/`: the admin's content security policy only allows same-origin images, so an `https://` URL or `//host/...` is refused with a `ValueError` when the `Admin` is built, as is an unknown icon name. The built-in icons are the `i-*` symbols of the admin sprite (`bookmark`, `layers`, `folder`, `users`, `tag`, `image`, ...).
 
 ### Sessions and cookies
 

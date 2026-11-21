@@ -23,7 +23,7 @@ import hinoki.serve as serve_module
 from hinoki import Hinoki, core
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.listener import ListenError, inherited_address, open_listener
-from hinoki.runtime.supervisor import Supervisor
+from hinoki.runtime.supervisor import Supervisor, docs_line
 from hinoki.serve import add_arguments, choose_server, granian_tls
 from hinoki.settings import (
     MAX_WORKERS,
@@ -32,6 +32,7 @@ from hinoki.settings import (
     ServerSettings,
     SettingsError,
 )
+from hinoki.terminal import ANSI, Style
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -380,6 +381,53 @@ def test_run_supervised_opens_listener_and_computes_scheme(
     supervisor.assert_called_once()
     assert supervisor.call_args.kwargs == {"reload": False, "scheme": "https"}
     listener.close()
+
+
+def test_run_supervised_passes_the_applications_docs_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    supervisor = Mock()
+    monkeypatch.setattr(serve_module, "open_listener", Mock(return_value=listener))
+    monkeypatch.setattr("hinoki.runtime.supervisor.Supervisor", supervisor)
+    args = argparse.Namespace(target="app:factory", workers=None)
+    app = Hinoki(openapi_url="/openapi.json", docs_url="/docs")
+    settings = ServerSettings()
+    serve_module.run_supervised(args, app, ("127.0.0.1", 8123), settings, True)
+    assert supervisor.return_value.docs == "/docs"
+    listener.close()
+
+
+@pytest.mark.parametrize("colour", [False, True])
+def test_the_docs_line_is_coloured_only_where_the_terminal_takes_colour(
+    colour: bool,
+) -> None:
+    style = Style(color=colour, depth="truecolor")
+    line = docs_line("http://127.0.0.1:8000/docs", style)
+    assert ANSI.sub("", line) == "docs: http://127.0.0.1:8000/docs"
+    assert ("\x1b[" in line) is colour
+
+
+@pytest.mark.parametrize(
+    ("docs", "line"),
+    [("/docs", "docs: http://127.0.0.1:{port}/docs"), (None, None)],
+)
+def test_the_supervisor_announces_the_docs_url_after_the_address(
+    docs: str | None,
+    line: str | None,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 4)
+    port = listener.getsockname()[1]
+    supervisor = Supervisor("app:make", listener, 1, 1.0, reload=True)
+    supervisor.docs = docs
+    monkeypatch.setattr(signal, "signal", lambda *_: None)
+    supervisor.stop.set()
+    assert supervisor.run() == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == f"listening on http://127.0.0.1:{port} (reloading)"
+    assert lines[1:] == ([line.format(port=port)] if line else [])
 
 
 def test_run_rust_chooses_inline_or_supervised_and_refuses_bad_listener(

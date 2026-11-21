@@ -283,7 +283,7 @@
 
 .code-head__lang {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -494,12 +494,19 @@ details {
   --callout: var(--hn-info);
   --callout-tint: var(--hn-tint-info);
   margin: var(--sp-5) 0;
-  padding: 10px 16px;
-  border: 1px solid color-mix(in srgb, var(--callout) 30%, transparent);
-  border-left: 3px solid var(--callout);
-  border-radius: 8px;
-  background: var(--callout-tint);
+  padding: 14px 18px 16px;
+  border: 1px solid color-mix(in srgb, var(--callout) 22%, var(--hn-edge));
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--callout) 9%, transparent),
+      transparent 56px
+    ),
+    color-mix(in srgb, var(--callout-tint) 55%, var(--hn-sunken));
+  color: var(--hn-text-2);
   font-size: 15px;
+  line-height: 1.65;
 }
 
 .admonition > :first-child,
@@ -511,13 +518,19 @@ details > :first-child {
 details > summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 6px !important;
+  gap: 9px;
+  margin: 0 0 8px !important;
   padding: 0;
-  color: var(--callout);
-  font-size: 14px;
-  font-weight: 600;
+  color: var(--hn-text);
+  font: 500 12px/1.4 var(--hn-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: default;
+}
+
+.admonition-title::before,
+details > summary::before {
+  color: var(--callout);
 }
 
 details > summary {
@@ -765,7 +778,7 @@ html[data-theme="light"] .doc-object.doc-attribute > .doc-signature.highlight co
   border-radius: 999px;
   background: var(--hn-tint-brand);
   color: var(--hn-brand);
-  font: 500 11px/1.7 var(--hn-font-mono);
+  font: 500 12px/1.7 var(--hn-font-mono);
 }
 
 .doc-section-title,

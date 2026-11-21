@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" height="460" role="img" aria-label="Architecture: Model, Schema and Endpoint declarations form one declared contract, which routing, validation, access and transactions, the OpenAPI document, hinoki check rules and the development MCP all read. Schema changes follow a separate lane: migrations plan, a reviewed SQL file, an explicit apply, then the database.">
+  <style>
+  text { font-family: ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  .k-server { --edge: #386b99; --tint: #ebf0f5; }
+  .k-rust { --edge: #87522a; --tint: #f3eeea; }
+  .k-hinoki { --edge: #5f3da5; --tint: #efecf6; }
+  .k-yours { --edge: #28745d; --tint: #eaf1ef; }
+  .k-amber { --edge: #8a5d16; --tint: #f6eedf; }
+  .k-core { --edge: #5f3da5; --tint: #efecf6; }
+  .node { fill: var(--tint); stroke: var(--edge); stroke-width: 1; }
+  .core { stroke-width: 1.5; animation: breathe 4s ease-in-out infinite; }
+  .title { fill: #1d1a24; font-size: 15px; font-weight: 600; }
+  .sub { fill: #5f596a; font-size: 12px; font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .lane { fill: #8a5d16; font-size: 12.5px; font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .arrow { fill: none; stroke: var(--edge); stroke-width: 1.2; opacity: 0.85; }
+  .dot { fill: var(--edge); opacity: 0; offset-rotate: 0deg;
+    animation: run 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+  @keyframes run {
+    0% { offset-distance: 0%; opacity: 0; }
+    12% { opacity: 1; }
+    88% { opacity: 1; }
+    100% { offset-distance: 100%; opacity: 0; }
+  }
+  @keyframes breathe {
+    0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+    50% { filter: drop-shadow(0 0 8px var(--edge)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dot, .core { animation: none; }
+    .dot { opacity: 0; }
+  }
+</style>
+  <defs><marker id="a-server" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#386b99"/></marker><marker id="a-rust" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#87522a"/></marker><marker id="a-hinoki" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#5f3da5"/></marker><marker id="a-yours" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#28745d"/></marker><marker id="a-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8a5d16"/></marker><marker id="a-core" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#5f3da5"/></marker></defs>
+  <rect x="0.5" y="0.5" width="999" height="459" rx="16" fill="#ffffff" stroke="#ddd6cb"/>
+  <g transform="translate(20 20)">
+  <path class="arrow k-yours" d="M250 66 C295 66 295 150 340 150" marker-end="url(#a-yours)"/><circle class="dot k-yours" r="3" style="offset-path: path('M250 66 C295 66 295 150 340 150'); animation-delay: 0.00s"/>
+  <path class="arrow k-yours" d="M250 146 C295 146 295 150 340 150" marker-end="url(#a-yours)"/><circle class="dot k-yours" r="3" style="offset-path: path('M250 146 C295 146 295 150 340 150'); animation-delay: 0.37s"/>
+  <path class="arrow k-yours" d="M250 226 C295 226 295 150 340 150" marker-end="url(#a-yours)"/><circle class="dot k-yours" r="3" style="offset-path: path('M250 226 C295 226 295 150 340 150'); animation-delay: 0.74s"/>
+  <path class="arrow k-rust" d="M560 150 C615 150 615 30 670 30" marker-end="url(#a-rust)"/><circle class="dot k-rust" r="3" style="offset-path: path('M560 150 C615 150 615 30 670 30'); animation-delay: 1.11s"/>
+  <path class="arrow k-rust" d="M560 150 C615 150 615 82 670 82" marker-end="url(#a-rust)"/><circle class="dot k-rust" r="3" style="offset-path: path('M560 150 C615 150 615 82 670 82'); animation-delay: 1.48s"/>
+  <path class="arrow k-hinoki" d="M560 150 C615 150 615 134 670 134" marker-end="url(#a-hinoki)"/><circle class="dot k-hinoki" r="3" style="offset-path: path('M560 150 C615 150 615 134 670 134'); animation-delay: 1.85s"/>
+  <path class="arrow k-server" d="M560 150 C615 150 615 186 670 186" marker-end="url(#a-server)"/><circle class="dot k-server" r="3" style="offset-path: path('M560 150 C615 150 615 186 670 186'); animation-delay: 2.22s"/>
+  <path class="arrow k-amber" d="M560 150 C615 150 615 238 670 238" marker-end="url(#a-amber)"/><circle class="dot k-amber" r="3" style="offset-path: path('M560 150 C615 150 615 238 670 238'); animation-delay: 2.59s"/>
+  <path class="arrow k-server" d="M560 150 C615 150 615 290 670 290" marker-end="url(#a-server)"/><circle class="dot k-server" r="3" style="offset-path: path('M560 150 C615 150 615 290 670 290'); animation-delay: 2.96s"/>
+  <path class="arrow k-amber" d="M140 384 L190 384" marker-end="url(#a-amber)"/><circle class="dot k-amber" r="3" style="offset-path: path('M140 384 L190 384'); animation-delay: 0.13s"/>
+  <path class="arrow k-amber" d="M360 384 L410 384" marker-end="url(#a-amber)"/><circle class="dot k-amber" r="3" style="offset-path: path('M360 384 L410 384'); animation-delay: 0.50s"/>
+  <path class="arrow k-amber" d="M580 384 L630 384" marker-end="url(#a-amber)"/><circle class="dot k-amber" r="3" style="offset-path: path('M580 384 L630 384'); animation-delay: 0.87s"/>
+  <path class="arrow k-amber" d="M780 384 L830 384" marker-end="url(#a-amber)"/><circle class="dot k-amber" r="3" style="offset-path: path('M780 384 L830 384'); animation-delay: 1.24s"/>
+  <rect class="node k-yours" x="20" y="40" width="230" height="52" rx="8"/><text class="title" x="34" y="58.0">Model</text><text class="sub" x="34" y="75.0">tables and queries</text>
+  <rect class="node k-yours" x="20" y="120" width="230" height="52" rx="8"/><text class="title" x="34" y="138.0">Schema</text><text class="sub" x="34" y="155.0">accepts and returns</text>
+  <rect class="node k-yours" x="20" y="200" width="230" height="52" rx="8"/><text class="title" x="34" y="218.0">Endpoint</text><text class="sub" x="34" y="235.0">access=  atomic=  errors=</text>
+  <rect class="node k-core core" x="340" y="98" width="220" height="104" rx="8"/><text class="title" x="354" y="146.0">One declared contract</text><text class="sub" x="354" y="163.0">ordinary decorators</text>
+  <rect class="node k-rust" x="670" y="10" width="270" height="40" rx="8"/><text class="title" x="684" y="35.0">Routing</text>
+  <rect class="node k-rust" x="670" y="62" width="270" height="40" rx="8"/><text class="title" x="684" y="87.0">Validation</text>
+  <rect class="node k-hinoki" x="670" y="114" width="270" height="40" rx="8"/><text class="title" x="684" y="139.0">Access and transactions</text>
+  <rect class="node k-server" x="670" y="166" width="270" height="40" rx="8"/><text class="title" x="684" y="191.0">OpenAPI document</text>
+  <rect class="node k-amber" x="670" y="218" width="270" height="40" rx="8"/><text class="title" x="684" y="243.0">hinoki check rules</text>
+  <rect class="node k-server" x="670" y="270" width="270" height="40" rx="8"/><text class="title" x="684" y="295.0">Development MCP</text>
+  <rect class="node k-yours" x="20" y="366" width="120" height="36" rx="8"/><text class="title" x="34" y="389.0">Model</text>
+  <rect class="node k-amber" x="190" y="366" width="170" height="36" rx="8"/><text class="title" x="204" y="389.0">migrations plan</text>
+  <rect class="node k-amber" x="410" y="366" width="170" height="36" rx="8"/><text class="title" x="424" y="389.0">reviewed SQL file</text>
+  <rect class="node k-amber" x="630" y="366" width="150" height="36" rx="8"/><text class="title" x="644" y="389.0">explicit apply</text>
+  <rect class="node k-server" x="830" y="366" width="110" height="36" rx="8"/><text class="title" x="844" y="389.0">Database</text>
+  <text class="lane" x="20" y="352">Schema changes: explicit, never at startup</text>
+  </g>
+</svg>
