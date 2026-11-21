@@ -449,7 +449,8 @@ fn an_unusable_policy_is_refused() {
     };
     assert!(refused(|c| c.codings.clear()));
     assert!(refused(|c| c.levels.gzip = 10));
-    assert!(refused(|c| c.levels.brotli_quality = 12));
+    assert!(refused(|c| c.levels.brotli_quality = 10));
+    assert!(!refused(|c| c.levels.brotli_quality = 9));
     assert!(refused(|c| c.levels.brotli_window = 9));
     assert!(refused(|c| c.max_concurrent = 0));
     assert!(refused(|c| c.types = vec!["json".into()]));

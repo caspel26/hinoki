@@ -36,7 +36,7 @@ use hyper::body::Body;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::conn::declared_length;
-use crate::encode::{encode_all, Coding, Encoded, Levels, Source};
+use crate::encode::{encode_all, Coding, Encoded, Levels, Source, MAX_BROTLI_QUALITY};
 use crate::headers::Header;
 use crate::stream::{Delivery, Reply};
 
@@ -198,8 +198,10 @@ impl Compression {
         if !(1..=9).contains(&config.levels.gzip) {
             return bad("the gzip level is 1 to 9");
         }
-        if config.levels.brotli_quality > 11 || !(10..=24).contains(&config.levels.brotli_window) {
-            return bad("the brotli quality is 0 to 11 and its window 10 to 24");
+        if config.levels.brotli_quality > MAX_BROTLI_QUALITY
+            || !(10..=24).contains(&config.levels.brotli_window)
+        {
+            return bad("the brotli quality is 0 to 9 and its window 10 to 24");
         }
         if config.max_concurrent == 0 {
             return bad("at least one concurrent compression is needed");

@@ -45,6 +45,10 @@ pub struct Levels {
     pub brotli_window: u32,
 }
 
+/// The highest brotli quality accepted. Above it one 64 KiB piece takes tens of
+/// milliseconds, which would hold a runtime thread for the whole of a poll.
+pub const MAX_BROTLI_QUALITY: u32 = 9;
+
 /// Source pieces an [`Encoded`] body takes in one `poll` before it yields.
 const STEPS: usize = 4;
 /// Size of brotli's internal input buffer.
