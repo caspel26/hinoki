@@ -1070,12 +1070,7 @@ impl<'a, B: Builder> Parser<'a, B> {
     fn plain_run(&mut self) -> Parsed<&'a str> {
         let input = self.input;
         let start = self.at;
-        while let Some(&byte) = input.get(self.at) {
-            if byte == b'"' || byte == b'\\' || byte < 0x20 {
-                break;
-            }
-            self.at += 1;
-        }
+        self.at += special_at(&input[start..]);
         std::str::from_utf8(&input[start..self.at]).map_err(|_| "invalid UTF-8".into())
     }
 
@@ -1233,15 +1228,40 @@ fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
 fn push_escaped(out: &mut Vec<u8>, text: &str) {
     let bytes = text.as_bytes();
     let mut start = 0;
-    for (at, &byte) in bytes.iter().enumerate() {
-        if byte >= 0x20 && byte != b'"' && byte != b'\\' {
-            continue;
-        }
+    while start < bytes.len() {
+        let at = start + special_at(&bytes[start..]);
         out.extend_from_slice(&bytes[start..at]);
+        let Some(&byte) = bytes.get(at) else { return };
         push_escape(out, byte);
         start = at + 1;
     }
-    out.extend_from_slice(&bytes[start..]);
+}
+
+/// The offset of the first byte of `bytes` that a JSON string cannot hold
+/// as is (`"`, `\` or a control character), or `bytes.len()`. Eight bytes are
+/// tested per step with plain integer arithmetic.
+fn special_at(bytes: &[u8]) -> usize {
+    const ONES: u64 = 0x0101_0101_0101_0101;
+    const HIGH: u64 = 0x8080_8080_8080_8080;
+    let mut at = 0;
+    for chunk in bytes.chunks_exact(8) {
+        let Ok(word) = <[u8; 8]>::try_from(chunk).map(u64::from_le_bytes) else {
+            break;
+        };
+        let quote = word ^ (ONES * 0x22);
+        let slash = word ^ (ONES * 0x5c);
+        let found = (word.wrapping_sub(ONES * 0x20) & !word)
+            | (quote.wrapping_sub(ONES) & !quote)
+            | (slash.wrapping_sub(ONES) & !slash);
+        if found & HIGH != 0 {
+            return at + (found & HIGH).trailing_zeros() as usize / 8;
+        }
+        at += 8;
+    }
+    bytes[at..]
+        .iter()
+        .position(|&byte| byte < 0x20 || byte == b'"' || byte == b'\\')
+        .map_or(bytes.len(), |found| at + found)
 }
 
 fn push_escape(out: &mut Vec<u8>, byte: u8) {
@@ -1779,6 +1799,31 @@ mod tests {
 
     fn pair(a: &str, b: &str) -> (String, String) {
         (a.to_owned(), b.to_owned())
+    }
+
+    #[test]
+    fn the_word_scan_finds_the_first_special_byte_like_a_byte_loop() {
+        let naive = |bytes: &[u8]| {
+            bytes
+                .iter()
+                .position(|&b| b < 0x20 || b == b'"' || b == b'\\')
+                .unwrap_or(bytes.len())
+        };
+        for length in 0..20 {
+            for position in 0..length {
+                for byte in 0..=255u8 {
+                    let mut bytes = vec![b'a'; length];
+                    bytes[position] = byte;
+                    bytes[length - 1] = if position + 1 < length { b'\\' } else { byte };
+                    assert_eq!(special_at(&bytes), naive(&bytes), "{bytes:?}");
+                }
+            }
+        }
+        assert_eq!(special_at(b""), 0);
+        assert_eq!(
+            special_at("é日本語 plain".as_bytes()),
+            "é日本語 plain".len()
+        );
     }
 
     #[test]
