@@ -62,6 +62,14 @@ def compile_response_check(name: str, annotation: object) -> Check:
     checks = [arm_check(name, arm) for arm in arms if arm is not Response]
     if Response in arms:
         checks.append(lambda value: isinstance(value, Response))
+    return any_arm(checks)
+
+
+def any_arm(checks: list[Check]) -> Check:
+    """The check that accepts what any of ``checks`` accepts; a single one is
+    used as it is, without a wrapper call per response."""
+    if len(checks) == 1:
+        return checks[0]
     return lambda value: any(check(value) for check in checks)
 
 
@@ -135,4 +143,4 @@ def compile_item(name: str, annotation: object) -> Check:
             "declare the action with validate_response=False to skip the check"
         )
     checks = [arm_check(name, arm) for arm in arms]
-    return lambda value: any(check(value) for check in checks)
+    return any_arm(checks)
