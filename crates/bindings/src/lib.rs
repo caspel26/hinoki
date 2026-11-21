@@ -8,6 +8,7 @@ mod crudplan;
 mod crypto;
 mod db;
 mod driver;
+mod filelocate;
 mod jwt;
 mod kiso;
 mod modelrows;
@@ -97,6 +98,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     kiso::register(m)?;
     wsgi::register(m)?;
     m.add_class::<sink::ResponseSink>()?;
+    m.add_function(wrap_pyfunction!(filelocate::locate_file, m)?)?;
     m.add_class::<streamlimit::StreamLimit>()?;
     m.add_class::<streamlimit::StreamPermit>()?;
     m.add_function(wrap_pyfunction!(sink::sse_frame, m)?)?;

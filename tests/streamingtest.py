@@ -402,6 +402,16 @@ async def test_a_file_outside_the_root_or_not_a_file_is_not_found(
         assert (await client.get("/f")).status == 404
 
 
+async def test_locate_file_follows_links_inside_the_root_and_reports_the_size(
+    files: Path,
+) -> None:
+    (files / "alias.txt").symlink_to(files / "a.txt")
+    found = await core.locate_file("alias.txt", str(files))
+    assert found == (str((files / "a.txt").resolve()), 5)
+    assert await core.locate_file(str(files / "a.txt")) == found
+    assert await core.locate_file("link.txt", str(files)) is None
+
+
 async def test_head_closes_the_source_without_reading_it() -> None:
     async with ASGIClient(build()) as client:
         reply = await client.request("HEAD", "/head")

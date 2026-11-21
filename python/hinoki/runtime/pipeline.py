@@ -80,7 +80,6 @@ from hinoki.runtime.streaming import (
     declared_length,
     discard,
     discard_answer,
-    locate,
 )
 from hinoki.schema import Schema, encode
 from hinoki.settings import AppSettings, SecuritySettings
@@ -1036,7 +1035,7 @@ class Pipeline:
     async def _stream_response(self, answer: Streamed) -> Response:
         location = None
         if isinstance(answer, File):
-            location = await self.executor.run(locate, answer)
+            location = await core.locate_file(answer.path, answer.root)
             if location is None:
                 raise HTTPError(HTTPStatus.NOT_FOUND, "not_found")
         return Response(

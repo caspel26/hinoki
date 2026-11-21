@@ -264,18 +264,6 @@ class File(Streamed):
             self.root,
         )
 
-    def resolve(self) -> str | None:
-        """The real path of the regular file to send, or ``None`` when there is
-        none or it is outside ``root``. Blocking: run it off the event loop."""
-        if self.root is None:
-            real = os.path.realpath(self.path)
-        else:
-            base = os.path.realpath(self.root)
-            real = os.path.realpath(os.path.join(base, self.path))
-            if os.path.commonpath([real, base]) != base:
-                return None
-        return real if os.path.isfile(real) else None
-
 
 def _items(headers: Headers) -> list[tuple[str, str]]:
     return list(headers.items() if hasattr(headers, "items") else headers)

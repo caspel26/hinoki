@@ -12,12 +12,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from collections.abc import Awaitable, Callable
 from typing import Any, NamedTuple
 
 from hinoki import core
-from hinoki.http.stream import EventStream, File, Sourced, Streamed
+from hinoki.http.stream import EventStream, Sourced, Streamed
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.responses import StreamHandle
 
@@ -34,17 +33,6 @@ class StreamAborted(RuntimeError):
 
 class SinkClosed(Exception):
     """The sink was closed by the other side while a piece was waiting."""
-
-
-def locate(file: File) -> tuple[str, int] | None:
-    """The resolved path and size of a servable file, or ``None``."""
-    path = file.resolve()
-    if path is None:
-        return None
-    try:
-        return path, os.stat(path).st_size
-    except OSError:
-        return None
 
 
 def declared_length(handle: StreamHandle) -> int | None:
