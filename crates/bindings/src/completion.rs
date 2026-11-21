@@ -24,9 +24,9 @@ use hinoki_orm::{DbError, ErrorKind};
 use kiso::queue::Push;
 use kiso::Queue;
 use pyo3::prelude::*;
-use tokio::task::AbortHandle;
 
 use crate::db::db_error;
+use crate::handoff::Abort;
 
 /// Completions resolved per callback before yielding back to the loop.
 const BATCH: usize = 256;
@@ -66,7 +66,7 @@ impl Shared {
 
 struct Pending {
     future: Py<PyAny>,
-    abort: AbortHandle,
+    abort: Arc<Abort>,
     cancelled: Arc<AtomicBool>,
 }
 
@@ -323,9 +323,7 @@ where
             shared.push(Completion { id, convert });
         }
     };
-    let abort = pyo3_async_runtimes::tokio::get_runtime()
-        .spawn(task)
-        .abort_handle();
+    let abort = crate::handoff::spawn_abortable(task);
     completer
         .slab
         .lock()
