@@ -303,6 +303,10 @@
               
             
               
+                <li><a class="side__link" href="../compression/"><span>Compress responses</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -460,7 +464,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></span>
             <span>11 min read</span>
           </p>
           
@@ -493,7 +497,7 @@ types live in the <code>hinoki.settings</code> namespace (<code>settings.AppSett
 <code>settings.SettingsError</code>); name your loaded value <code>app_settings</code> so the namespace
 is not shadowed.</p>
 <p><code>settings.AppSettings</code> brings the built-in groups: <code>execution</code>, <code>lifecycle</code>,
-<code>logging</code>, <code>docs</code>, <code>server</code>, <code>pagination</code>, <code>cors</code>, <code>security</code> and <code>admin</code>, plus
+<code>logging</code>, <code>docs</code>, <code>server</code>, <code>pagination</code>, <code>cors</code>, <code>compression</code>, <code>security</code> and <code>admin</code>, plus
 <code>timezone</code>, <code>debug</code> and <code>allowed_hosts</code> (see <a href="../web-security/">Hosts, CORS and HTTPS</a>).
 <code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> default to <code>None</code>; the
 generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments, which win over settings.</p>
@@ -815,6 +819,12 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>0</code> to <code>86400</code>; how long a browser may cache a preflight</td>
 </tr>
 <tr>
+<td><code>compression</code></td>
+<td><code>enabled</code></td>
+<td><code>false</code></td>
+<td>Compress responses with brotli or gzip; Kiso only (<code>serve --server granian</code> refuses it). The other <code>compression</code> fields are in <a href="../compression/#settings">compress responses</a></td>
+</tr>
+<tr>
 <td><code>admin</code></td>
 <td><code>secret</code></td>
 <td>unset</td>
@@ -1099,7 +1109,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

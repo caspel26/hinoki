@@ -303,6 +303,10 @@
               
             
               
+                <li><a class="side__link" href="../compression/"><span>Compress responses</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -460,8 +464,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:30:50 UTC">November 21, 2026</span></span>
-            <span>21 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></span>
+            <span>22 min read</span>
           </p>
           
         </header>
@@ -537,6 +541,8 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 <h2 id="streamed-responses">Streamed responses<a class="headerlink" href="#streamed-responses" title="Permanent link">&para;</a></h2>
 <p>An action that returns <code>Stream</code>, <code>EventStream</code> or <code>File</code> is never served by the native handler lane (<code>lane_reason</code> <code>streamed response</code>): its handler and its iterator run in Python, and each piece crosses to Rust as a Python <code>bytes</code>. After that the server frames the body (<code>transfer-encoding: chunked</code> on HTTP/1.1), keeps a bounded queue of 8 pieces so a slow client slows the iterator down, checks a declared <code>content-length</code>, applies <code>execution.stream_idle_timeout</code> to a <code>Stream</code>, sends a keep-alive comment to an event stream every <code>execution.sse_keepalive</code> seconds, and ends an event stream normally on shutdown. A <code>File</code> is opened and sent by the server, and its bytes never enter Python.</p>
 <p>A client that leaves is noticed when the server next writes to it, so a stream that keeps producing is closed at once, while a silent one is closed at its next keep-alive or idle timeout. A body that fails after the head is cut instead of ending as complete, and the access log keeps the status of the head. See <a href="../streaming/">stream a response</a>.</p>
+<h2 id="response-compression">Response compression<a class="headerlink" href="#response-compression" title="Permanent link">&para;</a></h2>
+<p>With <code>compression.enabled</code> Kiso compresses eligible bodies with brotli or gzip after the application has answered, on HTTP/1.1 and HTTP/2, for whole answers, streams, event streams and files. It negotiates <code>accept-encoding</code>, adds <code>Vary</code>, skips small or non-text bodies and answers with <code>cache-control: no-transform</code>, flushes a stream whenever its producer pauses, and sends an answer uncompressed when <code>compression.max_concurrent</code> compressions are already running. It is a Kiso feature: Granian does not compress. See <a href="../compression/">compress responses</a>.</p>
 <h2 id="workers-signals-and-restarts">Workers, signals and restarts<a class="headerlink" href="#workers-signals-and-restarts" title="Permanent link">&para;</a></h2>
 <p>With one worker <code>hinoki serve</code> runs the server in its own process. With several workers (and always under <code>hinoki dev</code>) it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
 <ul>
@@ -589,12 +595,12 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#limits">Limits</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#reload-with-hinoki-dev">Reload with hinoki dev</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#limits">Limits</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#response-compression">Response compression</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#reload-with-hinoki-dev">Reload with hinoki dev</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:30:50 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

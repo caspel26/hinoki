@@ -303,6 +303,10 @@
               
             
               
+                <li><a class="side__link" href="../compression/"><span>Compress responses</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -460,7 +464,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:38:36 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></span>
             <span>9 min read</span>
           </p>
           
@@ -729,7 +733,8 @@ call the application's code or live in the event loop.</p>
 <li>Closing the server with an open event stream ends the stream normally on Kiso.
   This was not measured on Granian.</li>
 </ul>
-<p>Compression, <code>Range</code> requests and WebSockets are not provided.</p>
+<p><code>Range</code> requests and WebSockets are not provided. Kiso can compress these bodies
+when asked; see <a href="../compression/">compress responses</a>.</p>
 <h2 id="test-a-stream">Test a stream<a class="headerlink" href="#test-a-stream" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient.stream()</code> gives the head and the pieces as they are sent, and leaving
 the block simulates a disconnect:</p>
@@ -757,7 +762,7 @@ stops with <code>BodyTooLarge</code> after <code>max_bytes</code> (10 MiB by def
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../errors/"><small>Previous</small><span>Errors</span></a>
-        <a class="pager__link pager__link--next" href="../middleware/"><small>Next</small><span>Middleware</span></a>
+        <a class="pager__link pager__link--next" href="../compression/"><small>Next</small><span>Compress responses</span></a>
       </nav>
     </main>
 
@@ -776,7 +781,7 @@ stops with <code>BodyTooLarge</code> after <code>max_bytes</code> (10 MiB by def
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:38:36 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/streaming.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

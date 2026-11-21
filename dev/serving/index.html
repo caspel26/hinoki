@@ -303,6 +303,10 @@
               
             
               
+                <li><a class="side__link" href="../compression/"><span>Compress responses</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -460,7 +464,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -710,7 +714,7 @@ instrumentation seam today. Use the server's own limits and access log and the
 request log of your proxy, or serve with Granian when you need to wrap the
 application.</p>
 <h2 id="streamed-responses">Streamed responses<a class="headerlink" href="#streamed-responses" title="Permanent link">&para;</a></h2>
-<p>Actions that return <code>Stream</code>, <code>EventStream</code> or <code>File</code> work on both servers. Kiso sends them from its own queue, with its idle timeout, keep-alive comments and disconnect check, and sends a <code>File</code> without the bytes entering Python. Granian receives each piece as an ASGI message, and a <code>File</code> through <code>http.response.pathsend</code> when the server offers it; there Hinoki's own pump handles the idle timeout, the keep-alive and the disconnect. <code>execution.max_streams</code>, <code>execution.stream_idle_timeout</code> and <code>execution.sse_keepalive</code> apply to both (<a href="../settings/">settings</a>). Details and measured behavior: <a href="../streaming/">stream a response</a>.</p>
+<p>Actions that return <code>Stream</code>, <code>EventStream</code> or <code>File</code> work on both servers. Kiso sends them from its own queue, with its idle timeout, keep-alive comments and disconnect check, and sends a <code>File</code> without the bytes entering Python. Granian receives each piece as an ASGI message, and a <code>File</code> through <code>http.response.pathsend</code> when the server offers it; there Hinoki's own pump handles the idle timeout, the keep-alive and the disconnect. <code>execution.max_streams</code>, <code>execution.stream_idle_timeout</code> and <code>execution.sse_keepalive</code> apply to both (<a href="../settings/">settings</a>). Details and measured behavior: <a href="../streaming/">stream a response</a>. Response compression exists on Kiso only; <code>compression.enabled</code> with <code>--server granian</code> is refused (<a href="../compression/">compress responses</a>).</p>
 <h2 id="wsgi">WSGI<a class="headerlink" href="#wsgi" title="Permanent link">&para;</a></h2>
 <p>ASGI is the intended way to serve Hinoki. When a deployment can only run WSGI,
 wrap the application:</p>
@@ -806,7 +810,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
