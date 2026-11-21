@@ -794,7 +794,7 @@ def build_worker(
         for name in RUST_ONLY
         if getattr(settings, name) is not None
     }
-    app_settings = app.settings
+    app_settings = getattr(app, "settings", None)
     return KisoWorker(
         app,
         host,

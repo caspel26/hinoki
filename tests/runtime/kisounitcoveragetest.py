@@ -81,6 +81,7 @@ def _worker() -> Any:
     worker.access_log_slow_ms = None
     worker.access_log_sink = None
     worker.server_timing = False
+    worker.compression = None
     worker.access_log_sink = None
     worker.lane = None
     worker.header_read_timeout = 5.0
