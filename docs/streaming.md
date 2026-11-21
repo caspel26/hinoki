@@ -255,7 +255,8 @@ These were checked with a running server (see `tests/kisostreamingtest.py` and
 * Closing the server with an open event stream ends the stream normally on Kiso.
   This was not measured on Granian.
 
-Compression, `Range` requests and WebSockets are not provided.
+`Range` requests and WebSockets are not provided. Kiso can compress these bodies
+when asked; see [compress responses](compression.md).
 
 ## Test a stream
 
