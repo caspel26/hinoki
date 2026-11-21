@@ -228,6 +228,12 @@ class Binding:
     native_defaults: tuple[tuple[str, object], ...] = field(
         init=False, repr=False, compare=False
     )
+    has_files: bool = field(init=False, repr=False, compare=False)
+    takes_text: bool = field(init=False, repr=False, compare=False)
+    needs_request: bool = field(init=False, repr=False, compare=False)
+    owner_headers: tuple[tuple[str, str], ...] = field(
+        init=False, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         """Freeze handler execution shape with the request binding plan."""
@@ -247,8 +253,28 @@ class Binding:
         object.__setattr__(
             self, "principal_name", principals[0] if len(principals) == 1 else None
         )
+        has_files = any(p.source == "file" for p in self.params)
+        object.__setattr__(self, "has_files", has_files)
+        object.__setattr__(
+            self,
+            "takes_text",
+            any(p.text and p.source == "body" for p in self.params),
+        )
+        # The Request object is built only for an action that can read it: it
+        # asked for it, binds the body or files, or may render with a custom
+        # renderer. Everything else binds from the parsed values alone.
+        object.__setattr__(
+            self,
+            "needs_request",
+            self.takes_request or self.needs_body or has_files or not self.default_json,
+        )
+        object.__setattr__(
+            self,
+            "owner_headers",
+            tuple(getattr(self.route.owner, "response_headers", ())),
+        )
         bodies = [p for p in self.params if p.source == "body"]
-        only_body = len(bodies) == 1 and not self.has_files
+        only_body = len(bodies) == 1 and not has_files
         object.__setattr__(self, "body_param", bodies[0] if only_body else None)
         object.__setattr__(
             self,
@@ -278,14 +304,6 @@ class Binding:
     @property
     def query_param(self) -> Param | None:
         return next((p for p in self.params if p.source == "queryschema"), None)
-
-    @property
-    def takes_text(self) -> bool:
-        return any(param.text and param.source == "body" for param in self.params)
-
-    @property
-    def has_files(self) -> bool:
-        return any(param.source == "file" for param in self.params)
 
     @property
     def requires_files(self) -> bool:
