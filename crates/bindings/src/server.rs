@@ -1130,6 +1130,9 @@ pub struct Core {
     ready: AtomicBool,
     policies: [Vec<Header>; 2],
     cors: Option<Cors>,
+    /// Policies of routes that declare their own CORS, by action number; each
+    /// replaces `cors` for that route.
+    route_cors: HashMap<u32, Cors>,
     hosts: Option<Hosts>,
     redirect_https: bool,
     id_name: Vec<u8>,
@@ -1229,6 +1232,19 @@ struct RouteAuth {
 /// `(action, authentication, challenge)` of a [`RouteAuth`].
 type RouteAuthSpec = (u32, Py<PyClaimsAuth>, Option<Vec<u8>>);
 
+/// `(action, policy)` of a route's own CORS policy.
+type RouteCorsSpec = (u32, CorsSpec);
+
+fn cors_from((any_origin, origins, credentials, expose, preflight): CorsSpec) -> Cors {
+    Cors {
+        any_origin,
+        origins,
+        credentials,
+        expose,
+        preflight,
+    }
+}
+
 /// The Python handle of a [`Core`].
 #[pyclass(name = "ServerCore", module = "hinoki.core", frozen)]
 pub struct ServerCore {
@@ -1250,7 +1266,8 @@ impl ServerCore {
         request_timeout_ms=30000,
         trust_request_id=false, python_paths=Vec::new(),
         cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new(),
-        hosts=None, redirect_https=false, static_pages=Vec::new(), route_auth=Vec::new()
+        hosts=None, redirect_https=false, static_pages=Vec::new(), route_auth=Vec::new(),
+        route_cors=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1273,6 +1290,7 @@ impl ServerCore {
         redirect_https: bool,
         static_pages: Vec<StaticSpec>,
         route_auth: Vec<RouteAuthSpec>,
+        route_cors: Vec<RouteCorsSpec>,
     ) -> PyResult<Self> {
         if redirect_https && hosts.is_none() {
             return Err(PyValueError::new_err(
@@ -1327,15 +1345,11 @@ impl ServerCore {
                 in_flight: InFlight::new(max_in_flight),
                 ready: AtomicBool::new(false),
                 policies: [policies.0, policies.1],
-                cors: cors.map(
-                    |(any_origin, origins, credentials, expose, preflight)| Cors {
-                        any_origin,
-                        origins,
-                        credentials,
-                        expose,
-                        preflight,
-                    },
-                ),
+                cors: cors.map(cors_from),
+                route_cors: route_cors
+                    .into_iter()
+                    .map(|(action, spec)| (action, cors_from(spec)))
+                    .collect(),
                 hosts: hosts.map(|(exact, suffixes)| Hosts { exact, suffixes }),
                 redirect_https,
                 id_name: request_id_name,
@@ -1686,12 +1700,13 @@ impl Core {
         trace: &Trace,
     ) -> Result<Outcome, String> {
         let (request_id, id_ignored) = self.request_id(&head.headers, head.trusted);
-        let asked = Asked {
+        let mut asked = Asked {
             head_only: head.method == "HEAD",
             request_id,
             id_ignored,
             https: head.https,
             origin: origin_of(&head.headers),
+            action: None,
         };
         if let Some(early) = self.refuse(head.query, &head.headers) {
             return self.answer(&asked, early, Vec::new());
@@ -1724,6 +1739,7 @@ impl Core {
         if let Some(pattern) = action.and_then(|number| self.templates.get(&number)) {
             trace.set_route(Arc::clone(pattern));
         }
+        asked.action = action;
         let plan = match action {
             Some(number) => self
                 .plan
@@ -1863,15 +1879,17 @@ impl Core {
         head: &Head<'_>,
         asked: &Asked,
     ) -> Result<Option<Outcome>, String> {
-        let Some(cors) = self.cors.as_ref() else {
+        let origin = joined_value(&head.headers, b"origin");
+        let requested = joined_value(&head.headers, b"access-control-request-method");
+        let Some((action, cors)) = self.preflight_policy(head.path, requested.as_deref()) else {
             return Ok(None);
         };
-        let origin = joined_value(&head.headers, b"origin");
-        let requests_method = head
-            .headers
-            .iter()
-            .any(|(name, _)| name.eq_ignore_ascii_case(b"access-control-request-method"));
-        match cors.preflight(head.method, origin.as_deref(), requests_method) {
+        // The answer, a refusal too, carries the policy that decided it.
+        let asked = &Asked {
+            action,
+            ..asked.clone()
+        };
+        match cors.preflight(head.method, origin.as_deref(), requested.is_some()) {
             Ok(Some(own)) => self
                 .policy_reply(asked, 204, own, Vec::new())
                 .map(|reply| Some(Outcome::Early(reply))),
@@ -1882,8 +1900,42 @@ impl Core {
         }
     }
 
+    /// The policy that answers a preflight: the one of the route the browser asks
+    /// about (the method in `Access-Control-Request-Method` on this path) when it
+    /// declares its own, else the application's. The action is that route's.
+    fn preflight_policy(
+        &self,
+        path: &str,
+        requested: Option<&[u8]>,
+    ) -> Option<(Option<u32>, &Cors)> {
+        let own = requested
+            .and_then(|method| std::str::from_utf8(method).ok())
+            .filter(|_| path.is_ascii() && !self.route_cors.is_empty())
+            .and_then(|method| match self.resolve(method, path) {
+                Resolved::Route(action, _) => self
+                    .route_cors
+                    .get(&action)
+                    .map(|cors| (Some(action), cors)),
+                Resolved::Missing(..) => None,
+            });
+        own.or_else(|| self.cors.as_ref().map(|cors| (None, cors)))
+    }
+
+    /// The CORS policy of an answer: its route's own, else the application's.
+    fn cors_headers(&self, asked: &Asked) -> Vec<Header> {
+        asked
+            .action
+            .and_then(|action| self.route_cors.get(&action))
+            .or(self.cors.as_ref())
+            .map(|policy| policy.headers(&asked.origin))
+            .unwrap_or_default()
+    }
+
     fn has_policies(&self) -> bool {
-        self.hosts.is_some() || self.cors.is_some() || self.redirect_https
+        self.hosts.is_some()
+            || self.cors.is_some()
+            || !self.route_cors.is_empty()
+            || self.redirect_https
     }
 
     /// The prebuilt page for a `GET`/`HEAD` of its path. Python compares the
@@ -1902,11 +1954,7 @@ impl Core {
         if asked.id_ignored {
             self.ignored_ids.fetch_add(1, Ordering::Relaxed);
         }
-        let cors = self
-            .cors
-            .as_ref()
-            .map(|policy| policy.headers(&asked.origin))
-            .unwrap_or_default();
+        let cors = self.cors_headers(asked);
         let mut body = page.body.clone();
         let headers = final_headers(
             &page.headers,
@@ -1961,11 +2009,7 @@ impl Core {
             .ok_or_else(|| "startup probe is not configured".to_owned())?;
         let mut body = probe.body.clone();
         let own = vec![(b"content-type".to_vec(), b"application/json".to_vec())];
-        let cors = self
-            .cors
-            .as_ref()
-            .map(|policy| policy.headers(&asked.origin))
-            .unwrap_or_default();
+        let cors = self.cors_headers(asked);
         let response_headers = final_headers(
             &own,
             &self.policies[usize::from(asked.https)],
@@ -2004,10 +2048,7 @@ impl Core {
             .and_then(|route| route.crud_plan.as_ref())
             .is_some_and(|slot| slot.is_armed());
         let native_policy = self.policies[usize::from(asked.https)].clone();
-        let native_cors = self
-            .cors
-            .as_ref()
-            .map_or_else(Vec::new, |cors| cors.headers(&asked.origin));
+        let native_cors = self.cors_headers(&asked);
         let route_headers = if native_crud {
             route_plan.map_or_else(Vec::new, |route| route.headers.clone())
         } else {
@@ -2203,11 +2244,7 @@ impl Core {
         if asked.id_ignored {
             self.ignored_ids.fetch_add(1, Ordering::Relaxed);
         }
-        let cors = self
-            .cors
-            .as_ref()
-            .map(|c| c.headers(&asked.origin))
-            .unwrap_or_default();
+        let cors = self.cors_headers(asked);
         let headers = final_headers(
             &own,
             &self.policies[usize::from(asked.https)],
@@ -2236,6 +2273,8 @@ pub struct Asked {
     id_ignored: bool,
     https: bool,
     origin: Vec<u8>,
+    /// The matched route, once known: its own CORS policy, if any, applies.
+    action: Option<u32>,
 }
 
 /// The `Origin` header as `origin_of` in the Python pipeline reads it: repeated

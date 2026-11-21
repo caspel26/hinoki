@@ -14,6 +14,7 @@ VERBS = {"delete", "get", "patch", "post", "put", "query"}
 HTTP_TYPES = {
     "Request",
     "Response",
+    "Cors",
     "Middleware",
     "MiddlewareRequest",
     "Next",

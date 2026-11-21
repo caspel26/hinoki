@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypeVar
 from hinoki.access import Access
 from hinoki.errors import APIError, TooManyRequests
 from hinoki.fields import UNSET, Unset
+from hinoki.http.cors import Cors
 from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.pagination import PageNumberPagination
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
@@ -56,6 +57,7 @@ class Route:
     validate_response: bool = True
     rate_limit: RateLimitPolicy | None = None
     middleware: tuple[Middleware, ...] = ()
+    cors: Cors | None = None
 
     @property
     def is_async(self) -> bool:
@@ -81,6 +83,7 @@ class Options:
     validate_response: bool = True
     rate_limit: RateLimitPolicy | None = None
     middleware: Sequence[Middleware] = ()
+    cors: Cors | None = None
 
 
 class RouteDeclaration:
@@ -126,9 +129,16 @@ class RouteDeclaration:
             validate_response=options.validate_response,
             rate_limit=options.rate_limit,
             middleware=check_middleware(options.middleware),
+            cors=check_cors(options.cors),
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
+
+
+def check_cors(cors: Cors | None) -> Cors | None:
+    if cors is not None and not isinstance(cors, Cors):
+        raise ValueError(f"cors=... takes an http.Cors, got {cors!r}")
+    return cors
 
 
 def rate_limited(options: Options) -> Sequence[type[APIError]]:
@@ -167,6 +177,7 @@ def get(
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
+    cors: Cors | None = None,
 ) -> RouteDeclaration:
     """Declare a GET action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -183,6 +194,7 @@ def get(
         validate_response,
         rate_limit,
         middleware,
+        cors,
     )
     return RouteDeclaration("GET", path, options)
 
@@ -201,6 +213,7 @@ def post(
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
+    cors: Cors | None = None,
 ) -> RouteDeclaration:
     """Declare a POST action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -217,6 +230,7 @@ def post(
         validate_response,
         rate_limit,
         middleware,
+        cors,
     )
     return RouteDeclaration("POST", path, options)
 
@@ -235,6 +249,7 @@ def put(
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
+    cors: Cors | None = None,
 ) -> RouteDeclaration:
     """Declare a PUT action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -251,6 +266,7 @@ def put(
         validate_response,
         rate_limit,
         middleware,
+        cors,
     )
     return RouteDeclaration("PUT", path, options)
 
@@ -269,6 +285,7 @@ def patch(
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
+    cors: Cors | None = None,
 ) -> RouteDeclaration:
     """Declare a PATCH action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -285,6 +302,7 @@ def patch(
         validate_response,
         rate_limit,
         middleware,
+        cors,
     )
     return RouteDeclaration("PATCH", path, options)
 
@@ -303,6 +321,7 @@ def delete(
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
+    cors: Cors | None = None,
 ) -> RouteDeclaration:
     """Declare a DELETE action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -319,6 +338,7 @@ def delete(
         validate_response,
         rate_limit,
         middleware,
+        cors,
     )
     return RouteDeclaration("DELETE", path, options)
 
@@ -337,6 +357,7 @@ def query(
     validate_response: bool = True,
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
+    cors: Cors | None = None,
 ) -> RouteDeclaration:
     """Declare a QUERY action: a safe, idempotent request that carries a body
     (a search too large or too structured for a query string). It binds its
@@ -356,6 +377,7 @@ def query(
         validate_response,
         rate_limit,
         middleware,
+        cors,
     )
     return RouteDeclaration("QUERY", path, options)
 
@@ -403,7 +425,9 @@ class RouteGroup:
     ``prefix`` is prepended to every path (``"/"`` means the prefix itself),
     ``access`` is the default policy (pass ``access=None`` on an action to make it
     public), ``atomic=True`` makes POST/PUT/PATCH/DELETE transactional unless the
-    action says ``atomic=False``, and ``errors`` are added to each action's own.
+    action says ``atomic=False``, ``errors`` are added to each action's own and
+    ``cors`` is the default ``http.Cors`` (``cors=None`` on an action keeps the
+    application's policy).
     The result is an ordinary action: rules, OpenAPI and the MCP see no difference.
     """
 
@@ -414,6 +438,7 @@ class RouteGroup:
         access: Access | None = None,
         atomic: bool = False,
         errors: Sequence[type[APIError]] = (),
+        cors: Cors | None = None,
     ) -> None:
         if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
             raise ValueError("a prefix starts with '/' and does not end with one")
@@ -421,6 +446,7 @@ class RouteGroup:
         self.access = access
         self.atomic = atomic
         self.errors = tuple(errors)
+        self.cors = check_cors(cors)
         self._handlers: list[Callable[..., object]] = []
         self._included = False
 
@@ -449,6 +475,7 @@ class RouteGroup:
         full = (self.prefix or "/") if path == "/" else self.prefix + path
         access = options.pop("access", UNSET)
         atomic = options.pop("atomic", None)
+        cors = options.pop("cors", UNSET)
         own_errors = tuple(options.pop("errors", ()))
         chosen = Options(
             status=options.pop("status", 200),
@@ -466,6 +493,7 @@ class RouteGroup:
             validate_response=options.pop("validate_response", True),
             rate_limit=options.pop("rate_limit", None),
             middleware=options.pop("middleware", ()),
+            cors=self.cors if isinstance(cors, Unset) else cors,
         )
         if options:
             raise TypeError(f"unknown action options {sorted(options)}")

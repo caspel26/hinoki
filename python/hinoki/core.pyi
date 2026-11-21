@@ -535,6 +535,9 @@ class ServerCore:
         redirect_https: bool = False,
         static_pages: list[tuple[str, list[tuple[bytes, bytes]], bytes]] = ...,
         route_auth: list[tuple[int, _ClaimsAuth, bytes | None]] = ...,
+        route_cors: list[
+            tuple[int, tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]]]
+        ] = ...,
     ) -> None: ...
     def trusts(self, address: str) -> bool: ...
     def set_ready(self, ready: bool) -> None: ...

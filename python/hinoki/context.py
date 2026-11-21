@@ -58,6 +58,10 @@ route_headers: ContextVar[tuple[tuple[str, str], ...]] = ContextVar(
 )
 
 
+# The CORS policy of the matched route, when it declares its own (``cors=``).
+# Set once the route is known; ``None`` means the application's policy applies.
+route_cors: ContextVar[Any] = ContextVar("hinoki_route_cors", default=None)
+
 # Runs a sync callable on the worker's bounded executor (set per request); lets
 # framework hooks written with plain ``def`` (auth providers, ...) do blocking
 # work and sync model calls without stalling the event loop.
