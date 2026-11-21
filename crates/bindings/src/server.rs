@@ -37,6 +37,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::completion;
 use crate::crudplan::{CrudPlan, PyCrudPlan};
 use crate::db::PyDatabase;
+use crate::handoff;
 use crate::jwt::{Admission, ClaimsAuth, PyClaimsAuth};
 use crate::request;
 use crate::router::{Match, Router};
@@ -594,12 +595,14 @@ impl PreparedRequest {
     ) -> bool {
         let sender = self.release();
         sender.is_some_and(|tx| {
-            tx.send(Sent::Whole(Reply {
-                status,
-                headers,
-                body: body.to_vec(),
-            }))
-            .is_ok()
+            handoff::reply(
+                tx,
+                Sent::Whole(Reply {
+                    status,
+                    headers,
+                    body: body.to_vec(),
+                }),
+            )
         })
     }
 
@@ -665,7 +668,7 @@ impl PreparedRequest {
             headers: head,
             path,
         });
-        Ok(self.release().is_some_and(|tx| tx.send(sent).is_ok()))
+        Ok(self.release().is_some_and(|tx| handoff::reply(tx, sent)))
     }
 
     /// Finalize an automatically eligible handler response with the route's
@@ -762,12 +765,14 @@ impl PreparedRequest {
         };
         let sender = self.release();
         sender.is_some_and(|tx| {
-            tx.send(Sent::Whole(Reply {
-                status,
-                headers: final_headers,
-                body: final_body,
-            }))
-            .is_ok()
+            handoff::reply(
+                tx,
+                Sent::Whole(Reply {
+                    status,
+                    headers: final_headers,
+                    body: final_body,
+                }),
+            )
         })
     }
 }
@@ -823,8 +828,10 @@ impl Submission {
     /// The answer given through `respond`, once it has arrived (never blocks);
     /// the same answer on every later call. `None` while it is pending. Raises
     /// `RuntimeError` when the request was dropped without being answered, so a
-    /// poller does not wait for an answer that will never come.
+    /// poller does not wait for an answer that will never come. Replies this
+    /// thread still holds for a batched hand-off go over first.
     fn reply<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        crate::handoff::deliver_queued();
         let mut delivered = self.delivered.lock().map_err(|_| poisoned())?;
         if delivered.is_none() {
             let mut slot = self.receiver.lock().map_err(|_| poisoned())?;

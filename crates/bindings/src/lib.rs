@@ -10,6 +10,7 @@ mod db;
 mod disposition;
 mod driver;
 mod filelocate;
+mod handoff;
 mod jwt;
 mod kiso;
 mod modelrows;
@@ -144,6 +145,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(driver::driving, m)?)?;
     m.add_function(wrap_pyfunction!(driver::_native_wait, m)?)?;
     m.add_class::<nativerun::NativeRun>()?;
+    m.add_class::<nativerun::NativeSteps>()?;
     m.add_function(wrap_pyfunction!(nativerun::run_native, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
