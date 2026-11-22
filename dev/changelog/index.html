@@ -472,7 +472,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>10 min read</span>
+            <span>11 min read</span>
           </p>
           
         </header>
@@ -483,6 +483,11 @@
 <p><code>crates/kiso/src/ws.rs</code>, <code>crates/kiso/src/wsrun.rs</code>, <code>crates/bindings/src/websocket.rs</code>, <code>crates/bindings/src/server.rs</code>, <code>python/hinoki/websocket.py</code>, <code>python/hinoki/runtime/websockets.py</code>, <code>python/hinoki/runtime/asgisocket.py</code>, <code>python/hinoki/openapi.py</code>, <code>python/hinoki/settings.py</code></p>
 </blockquote>
 <p><code>@http.websocket("/path/{param}")</code> declares a WebSocket action with <code>access=</code>, <code>message=</code> and <code>reply=</code> (<code>Schema</code> classes), <code>subprotocols=</code>, <code>origins=</code>, <code>max_message_bytes=</code> and <code>idle_timeout=</code>; the handler is an <code>async def</code> that takes an <code>http.WebSocket</code> and reads and sends text, binary or typed JSON messages. On Kiso the handshake, framing, masking, UTF-8 checks, ping and pong, the close handshake, message size limits, bounded queues and timers run in Rust; a refused handshake (<code>426</code>, <code>400</code>, <code>401</code>, <code>403</code>, an Origin that is not allowed, <code>503</code> over the connection limit) is an ordinary HTTP answer before the upgrade, and a server stop or reload closes open connections with <code>1001</code>. Granian serves the same actions through the ASGI <code>websocket</code> scope. New <code>execution</code> settings <code>max_websockets</code>, <code>ws_max_message_bytes</code>, <code>ws_queue</code>, <code>ws_ping_interval</code>, <code>ws_pong_timeout</code> and <code>ws_close_timeout</code>. The OpenAPI document describes the actions under <code>x-hinoki-websockets</code>. WebSocket over HTTP/2 and <code>permessage-deflate</code> are not provided. See <a href="docs/websockets.md">WebSockets</a>.</p>
+<h4>🌿 A branch banner for the CLI</h4>
+<blockquote>
+<p><code>python/hinoki/terminal.py</code>, <code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/newcli.py</code>, <code>python/hinoki/shellui.py</code></p>
+</blockquote>
+<p>The banner of <code>hinoki new</code>, <code>hinoki app create</code>, the shell and Kiso at start is now a branch (<code>╭─</code>, <code>│</code>, <code>╰─</code>) titled <code>Hinoki</code> or <code>Kiso</code>, with the tagline and the version, then aligned key and value rows: Kiso's mode, workers, scheme, access log and native lane; the Python version, documentation and source for <code>hinoki new</code>; the application, settings, models and Python version for the shell. Without colour the output is the same plain line. See <a href="docs/new-project.md#how-it-looks-in-a-terminal"><code>hinoki new</code></a> and <a href="docs/kiso.md">Kiso</a>.</p>
 <h4>🧭 Cursor (keyset) pagination</h4>
 <blockquote>
 <p><code>crates/orm/src/query.rs</code>, <code>crates/bindings/src/cursor.rs</code>, <code>crates/bindings/src/rows.rs</code>, <code>crates/bindings/src/db.rs</code>, <code>python/hinoki/pagination.py</code>, <code>python/hinoki/orm/keyset.py</code>, <code>python/hinoki/resources.py</code>, <code>python/hinoki/settings.py</code></p>
