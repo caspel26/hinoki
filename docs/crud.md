@@ -50,7 +50,7 @@ class InvoicePatch(Schema): ...
 | `update=InvoicePatch` | `update` | `PATCH /invoices/{item_id}` | `200`, `InvoiceOut` |
 | `delete=True` | `delete` | `DELETE /invoices/{item_id}` | `204`, no body |
 
-Writes run in a transaction. `pagination=` selects the page-number policy of the list route (default `PageNumberPagination()`). `omit=("list",)` or `omit=("retrieve",)` drops a read so that you can write it yourself. The generated actions are ordinary routes, visible to OpenAPI, `hinoki routes` and the route registry; nothing is registered at import time.
+Writes run in a transaction. `pagination=` selects the pagination policy of the list route: `PageNumberPagination()` (the default) or `CursorPagination()` for keyset [cursor pagination](pagination.md#cursor-keyset-pagination). `omit=("list",)` or `omit=("retrieve",)` drops a read so that you can write it yourself. The generated actions are ordinary routes, visible to OpenAPI, `hinoki routes` and the route registry; nothing is registered at import time.
 
 ### Access per action
 

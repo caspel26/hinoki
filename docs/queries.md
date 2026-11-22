@@ -58,7 +58,8 @@ the supported comparison and membership operators (`ne`, `in`, `isnull`, `gt`,
   literally. SQLite folds ASCII case only; MySQL and MariaDB assume the
   `NO_BACKSLASH_ESCAPES` mode is off (the default).
 * `apaginate` runs the count and the page as two statements; concurrent writes
-  can make `total` and `items` disagree slightly.
+  can make `total` and `items` disagree slightly. `apaginate_cursor` runs one
+  statement and no count; see [cursor pagination](pagination.md#cursor-keyset-pagination).
 * `@db.ordered_by` applies only when a query has no `order_by`. Counts and bulk
   updates ignore it.
 
