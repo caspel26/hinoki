@@ -7,13 +7,10 @@ Events are not Django signals: they are typed (mypy checks the payload), they ha
 ## A minimal example
 
 ```python
-from dataclasses import dataclass
-
-from hinoki import Hinoki, events, http
+from hinoki import Hinoki, Schema, events, http
 
 
-@dataclass(frozen=True)
-class NoteSaved:
+class NoteSaved(Schema):
     text: str
 
 
@@ -27,12 +24,14 @@ async def tell_search(event: NoteSaved) -> None:
 
 @http.post("/notes")
 async def save() -> dict[str, str]:
-    await events.emit(NoteSaved("hello"))
+    await events.emit(NoteSaved(text="hello"))
     return {"status": "saved"}
 
 
 app = Hinoki(events=[handlers], include=[save])
 ```
+
+Your own events can be a `Schema` (as above: frozen, keyword-only and validated when built) or a frozen `dataclass`; registration accepts any class. A `Schema` costs a validation per event, and it cannot hold a model class or instance, so the built-in model events below (`subject: type[M]`, `instance: M`) are dataclasses and an event that carries a row should carry its identifier instead.
 
 `events.emit` uses the bus of the current worker. Outside a request, a startup hook or a management command it raises `EventError` unless you wrap the code in `events.use(app.events)`.
 
@@ -87,7 +86,7 @@ app = Hinoki(include=manifest_routes(), events=manifest_events())
 ```python
 with app.events.capture() as seen:
     ...  # code under test emits events
-assert seen == [NoteSaved("hello")]
+assert seen == [NoteSaved(text="hello")]
 
 with app.events.muted():
     ...  # events emitted here run no handler
@@ -95,10 +94,65 @@ with app.events.muted():
 
 `capture()` records every event emitted in the block and still runs the handlers; `muted()` runs no handler (`capture()` still records what is emitted). `app.events.stats()` returns the counters of `(event, phase, outcome)`, which are low-cardinality by construction. `app.events.registrations` lists what is registered.
 
+## Model events
+
+`Created`, `Updated` and `Deleted` (`from hinoki.events import Created, Updated, Deleted`) are emitted by the model write path itself. Each carries `subject`, the model class, so `@handlers.after_commit(Created[Note])` receives only notes and a bare `Created` receives every model (annotate it `Created[Any]`).
+
+| Event | Payload | Emitted by |
+| --- | --- | --- |
+| `Created[M]` | `subject`, `instance` (the stored instance) | `acreate`, `asave` of a new instance, `abulk_create` (one per row), generated CRUD create, admin create |
+| `Updated[M]` | `subject`, `instance`, `changed` (the changed column names, read before the write) | `asave`, `aupdate_from`, `aupdate_within`, `abulk_update` (one per row that changed), generated CRUD update, admin edit. Nothing is emitted when no column changed. |
+| `Deleted[M]` | `subject`, `count` (rows one DELETE statement removed) | `Model.adelete`, `QuerySet.adelete`, `abulk_delete` (one per chunk of keys), generated CRUD delete, admin delete. No key or row is loaded, so there is no instance; nothing is emitted when no row was deleted. |
+
+```python
+from hinoki import Hinoki, events
+from hinoki.events import Created, Updated
+from hinoki.orm import Model, pk
+
+
+class Note(Model, table="notes"):
+    id: int = pk()
+    title: str
+
+
+class Audit(Model, table="audit_lines"):
+    id: int = pk()
+    note_id: int
+
+
+handlers = events.Handlers("notes")
+
+
+@handlers.in_transaction(Created[Note])
+async def audit(event: Created[Note]) -> None:
+    # Runs in the insert's transaction: raising here rolls the note back.
+    await Audit.acreate(id=event.instance.id, note_id=event.instance.id)
+
+
+@handlers.after_commit(Updated[Note])
+async def reindex(event: Updated[Note]) -> None:
+    if "title" in event.changed:
+        print("reindex", event.instance.id)
+
+
+app = Hinoki(events=[handlers])
+```
+
+Any code the application runs (a request, a startup hook, a command) that calls `await Note.acreate(...)` or `await note.asave()` now emits; in a script or test wrap it in `with events.use(app.events):` and a database.
+
+How it runs:
+
+- A write emits only when the application's bus has a handler for that event and model. With none, the write takes the path it always took: one context-variable read and one dictionary lookup, with no extra await or allocation.
+- With an `in_transaction` handler the write runs in a transaction (a savepoint inside an open one), so an exception or timeout in the handler rolls the row back and reaches the caller. With only `after_commit` handlers no transaction is added: the handler is queued on the open transaction and dropped on rollback, or runs at once when none is open. `Updated` and `Created` are emitted after the instance holds the stored row and after the [lifecycle hooks](model-hooks.md), so the instance is what a hook left.
+- A handler that writes another model with handlers emits again, bounded by `events.max_depth`.
+- Not emitted: `QuerySet.aupdate`, `Model.aupdate`, `aupdate_where` (one UPDATE by filter, no instances), raw SQL and migrations. Use `asave` or `abulk_update` on loaded instances when a handler must see the change.
+- Events never reveal rows a caller cannot see: they come from the same write that applied ownership and tenant scoping. Generated CRUD update saves the instance with the scoped UPDATE (a row that left the scope is refused before any event), and the `Updated` instance is the row the caller was allowed to write.
+- Native lane: Kiso runs generated create, update and delete in Rust without the model, so a model with a handler for `Created`, `Updated` or `Deleted` (any phase, bare or for that model) loses native eligibility for the matching action only (`create`, `update`, `delete`); it runs on the Python lane, where the event fires. `hinoki routes` and the plan diagnostics report the reason `model_event_handlers`. A hand-written `async def` handler that awaits `acreate`, `abulk_create`, `abulk_update`, `adelete` or `abulk_delete` on such a model stays off the native handler lane for the same reason. Models without handlers are unchanged.
+
 ## What events do not do
 
 - No delivery between services or processes, no queue, no retry, no at-least-once guarantee. For work that must survive a crash, use a job queue.
-- Model, authentication, rate-limit and lifecycle events, the `hinoki events` command, Prometheus metrics and the native-lane behaviour are not part of this first slice. Until the model events exist, application code emits its own events, and the existing [lifecycle hooks](model-hooks.md) and `db.after_commit` keep working unchanged.
+- Authentication, rate-limit and lifecycle events, the `hinoki events` command and Prometheus metrics are not part of this release.
 - Events never carry rows a caller cannot see: emit them from code that already applied ownership and tenant policy, and put identifiers rather than whole rows in the payload.
 
 See also [Lifecycle hooks](model-hooks.md), [Transactions](transactions.md) and [Application modules](modules.md).
