@@ -11,7 +11,7 @@ import pytest
 
 from hinoki import API, Hinoki, Schema, core, crud, http
 from hinoki.db import Database, DatabaseModule
-from hinoki.errors import FieldError, RegistrationError
+from hinoki.errors import FieldError, RegistrationError, ValidationError
 from hinoki.orm import Model, QuerySet, field, ordered_by, use_database
 from hinoki.orm.keyset import cursor_order
 from hinoki.orm.migrations import create_table_sql, table_state
@@ -341,3 +341,81 @@ async def test_timestamp_and_uuid_keys_walk_without_gaps(tmp_path: Path) -> None
 def test_a_nullable_column_cannot_order_a_cursor() -> None:
     with pytest.raises(FieldError, match="note"):
         cursor_order(Event.all().order_by("note"))
+
+
+@ordered_by("note")
+class Note(Model, table="cursor_notes"):
+    id: int = field(primary_key=True)
+    note: str | None = None
+
+
+class NoteOut(Schema):
+    id: int
+
+
+def test_a_crud_ordered_by_a_nullable_column_fails_at_registration() -> None:
+    with pytest.raises(RegistrationError, match=r"Note.*note"):
+
+        @crud(Note, path="/notes", read=NoteOut, pagination=STRATEGY)
+        class Notes(API):
+            pass
+
+
+class Doc(Model, table="cursor_docs"):
+    id: int = field(primary_key=True)
+    title: str
+
+
+async def docs(tmp_path: Path, titles: list[str]) -> Database:
+    database = await Database.connect(
+        f"sqlite:///{tmp_path / 'docs.db'}", max_size=1, wait=1
+    )
+    await database.execute(create_table_sql(Doc.__table__, table_state(Doc), "sqlite"))
+    for number, title in enumerate(titles, 1):
+        await database.execute(
+            "INSERT INTO cursor_docs (id, title) VALUES (?, ?)", number, title
+        )
+    return database
+
+
+async def read(limit: int, token: str | None) -> CursorPage[Doc]:
+    params = CursorParams(limit, token, STRATEGY)
+    return await Doc.all().order_by("title").apaginate_cursor(params)
+
+
+async def test_long_text_keys_page_and_every_issued_token_decodes(
+    tmp_path: Path,
+) -> None:
+    titles = [f"{letter}{'x' * 999}" for letter in "abcde"]
+    database = await docs(tmp_path, titles)
+    with use_database(database):
+        seen: list[str] = []
+        token = None
+        while True:
+            found = await read(2, token)
+            seen += [doc.title for doc in found.items]
+            for link in (found.next, found.previous):
+                assert link is None or len(link) <= 4096
+            token = found.next
+            if token is None:
+                break
+    assert seen == titles
+    database.close()
+
+
+async def test_an_unencodable_edge_only_matters_when_its_link_is_needed(
+    tmp_path: Path,
+) -> None:
+    titles = ["a", "b", "c" * 2000]
+    database = await docs(tmp_path, titles)
+    with use_database(database):
+        everything = await read(5, None)
+        assert [doc.title for doc in everything.items] == titles
+        assert everything.next is None and everything.previous is None
+        first = await read(2, None)
+        assert first.next is not None and first.previous is None
+        with pytest.raises(ValidationError) as caught:
+            await read(1, first.next)
+    assert caught.value.details[0].path == "cursor"
+    assert caught.value.details[0].code == "unencodable"
+    database.close()
