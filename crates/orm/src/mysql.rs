@@ -54,6 +54,21 @@ impl Flight {
     }
 }
 
+/// The URL with `require_ssl=true` unless the caller chose a value. A
+/// `#fragment` ends the URL, so the option goes before it.
+fn require_ssl(url: &str) -> String {
+    let url = url.split_once('#').map_or(url, |(base, _)| base);
+    let query = url.split_once('?').map_or("", |(_, query)| query);
+    if query
+        .split('&')
+        .any(|option| option.starts_with("require_ssl="))
+    {
+        return url.to_owned();
+    }
+    let separator = if url.contains('?') { '&' } else { '?' };
+    format!("{url}{separator}require_ssl=true")
+}
+
 impl MysqlPool {
     pub(crate) fn connect(url: &str, max_size: usize, wait: Duration) -> Result<Self, DbError> {
         if max_size == 0 {
@@ -68,16 +83,7 @@ impl MysqlPool {
                 "invalid MySQL database URL",
             ));
         }
-        let mut url = url.to_owned();
-        let query = url.split_once('?').map(|(_, query)| query).unwrap_or("");
-        if !query
-            .split('&')
-            .any(|option| option.starts_with("require_ssl="))
-        {
-            let separator = if url.contains('?') { '&' } else { '?' };
-            url.push(separator);
-            url.push_str("require_ssl=true");
-        }
+        let url = require_ssl(url);
         let opts = Opts::from_url(&url)
             .map_err(|_| DbError::new(ErrorKind::Connect, "invalid MySQL database URL"))?;
         let constraints = PoolConstraints::new(0, max_size)
@@ -387,4 +393,29 @@ fn error(error: &mysql_async::Error, fallback: ErrorKind) -> DbError {
         return result;
     }
     DbError::new(fallback, "database request failed")
+}
+
+#[cfg(test)]
+mod require_ssl_tests {
+    use super::require_ssl;
+
+    #[test]
+    fn tls_is_required_before_any_fragment() {
+        assert_eq!(
+            require_ssl("mysql://u@h/d"),
+            "mysql://u@h/d?require_ssl=true"
+        );
+        assert_eq!(
+            require_ssl("mysql://u@h/d?a=1"),
+            "mysql://u@h/d?a=1&require_ssl=true"
+        );
+        assert_eq!(
+            require_ssl("mysql://u@h/d#x"),
+            "mysql://u@h/d?require_ssl=true"
+        );
+        assert_eq!(
+            require_ssl("mysql://u@h/d?require_ssl=false"),
+            "mysql://u@h/d?require_ssl=false"
+        );
+    }
 }
