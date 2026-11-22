@@ -13,7 +13,7 @@ authentication provider (how a request proves who it is) with the permissions an
 action needs. Write both once and name the policy on each private action.
 
 ```python
-# blog/security.py
+# blog/apps/blog/security.py
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import User
@@ -39,7 +39,7 @@ editor = Access(auth=auth, permissions=[BlogPermission.WRITE])
 reader = Access(auth=auth)
 ```
 
-This is the [Blog example's security module](https://github.com/caspel26/hinoki/blob/main/examples/blog/security.py).
+This is the [Blog example's security module](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/security.py).
 
 ## Name your permissions
 
@@ -70,7 +70,7 @@ Name the policy with `access=` on the HTTP decorator and annotate a
 `Caller[User]` parameter to receive the authenticated caller:
 
 ```python
-# blog/drafts.py
+# blog/apps/blog/drafts.py
 from hinoki import Caller, http
 
 from .models import Post, User
@@ -80,13 +80,19 @@ from .security import editor
 
 @http.post("/drafts", status=201, access=editor, atomic=True)
 async def create_draft(data: PostCreate, caller: Caller[User]) -> PostOut:
-    post = await Post.acreate(data, author_id=caller.user.id)
+    post = await Post.acreate(
+        data,
+        author_id=caller.user.id,
+        publication_id=caller.user.publication_id,
+    )
     return PostOut.from_model(post, author_name=caller.user.name)
 ```
 
 Take the owner from `caller.user`, never from the request body. Permissions say
 *what* a caller may do; whether a given row is theirs is still your query (the
-Blog's `owned_post` helper shows one way).
+Blog's `owned_post` helper in
+[`api.py`](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/api.py)
+shows one way).
 
 To protect a whole group, set the policy once on a `RouteGroup`
 (`RouteGroup("/invoices", access=billing_staff)`); an action may override it, and
@@ -112,7 +118,7 @@ event loop. Create it where you own its lifetime (a factory or a module) and cal
 `close()` at shutdown.
 
 ```python
-# blog/passwords.py
+# blog/apps/blog/passwords.py
 from hinoki.crypto import PasswordHasher
 
 hasher = PasswordHasher()
@@ -130,7 +136,7 @@ async def password_matches(password: str, stored: str) -> bool:
 tells you when to rehash after a parameter change, and `random_token()` returns a
 URL-safe random token for opaque credentials. When the hashing queue is full, the
 hasher raises `HashingBusy`, a `503`. The Blog's
-[accounts module](https://github.com/caspel26/hinoki/blob/main/examples/blog/accounts.py)
+[accounts module](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/accounts.py)
 shows a complete login with constant-time behaviour for unknown users.
 
 ## Verify JSON Web Tokens

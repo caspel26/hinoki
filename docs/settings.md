@@ -81,6 +81,10 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `server` | `interface` | `asgi` | `asgi` or `wsgi`: what `hinoki serve` calls (a Hinoki application or a WSGI callable); `--interface` overrides it. See [WSGI](serving.md#wsgi) |
 | `pagination` | `page_size` | `20` | Page size an action's `PageNumberPagination()` leaves out; `1` to `max_page_size`. See [Pagination](pagination.md) |
 | `pagination` | `max_page_size` | `100` | Largest `page_size` a client may ask for |
+| `pagination` | `cursor_secret`, `cursor_ttl_seconds` | unset | `settings.Secret` of at least 32 bytes that signs cursors, and an optional lifetime in seconds; see [Pagination](pagination.md) |
+| `events` | `handler_timeout` | `5.0` seconds | Must be positive; seconds each handler may run. See [Events](events.md) |
+| `events` | `max_handlers` | `16` | `1` or greater; handlers per event and phase |
+| `events` | `max_depth` | `4` | `1` or greater; how deep handlers may emit events |
 | `server` | `host` | `127.0.0.1` | Bind address used by `hinoki dev/serve` |
 | `server` | `port` | `8000` | `1` to `65535` |
 | `server` | `workers` | `1` | `1` to `256`; `dev` uses one worker for reload |
@@ -157,15 +161,15 @@ application exists:
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 settings = ProjectSettings.load()
-app = Hinoki(
-    settings=settings, title=f"Notes ({settings.theme})", include=manifest_routes()
-)
+app = Hinoki(settings=settings, title=f"Notes ({settings.theme})")
 ```
+
+Routes, events, middleware and rules come from `hinoki.toml`, so `Hinoki(...)`
+needs no `include=`, `events=` or `rules=` here.
 
 ## Variable names
 
@@ -263,14 +267,14 @@ connection limit.
 
 One-off scripts have a different lifecycle: they open a short-lived `Database`
 themselves ([use the database from a script](databases.md#use-the-database-from-a-script)).
-`examples/blog/apps/blog/seed.py` does so, applies migrations, inserts synthetic rows and
+`examples/blog/blog/apps/blog/seed.py` does so, applies migrations, inserts synthetic rows and
 closes the pool in `finally`. It is a one-time seed for a fresh disposable
 database, not a repeatable reset:
 
 ```sh
-cd examples
+cd examples/blog
 export BLOG_DATABASE__URL=postgresql://app:password@localhost/blog
-uv run python -m blog.seed
+uv run python -m blog.apps.blog.seed
 ```
 
 Use a disposable database for the example. The seed command is not a production migration mechanism and is not run at app startup.

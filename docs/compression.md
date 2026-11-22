@@ -13,10 +13,7 @@ related:
 
 ```python
 # notes/main.py
-import json
-
-from hinoki import Hinoki, http
-from hinoki.http import Response
+from hinoki import Hinoki, Schema, http
 from hinoki.settings import AppSettings, CompressionSettings
 
 app = Hinoki(
@@ -26,14 +23,24 @@ app = Hinoki(
     )
 )
 
-NOTES = [{"id": number, "title": f"note {number}"} for number in range(1, 301)]
+
+class Note(Schema):
+    id: int
+    title: str
 
 
-@http.get("/notes")
-async def notes() -> Response:
-    return Response(
-        200, headers={"content-type": "application/json"}, body=json.dumps(NOTES)
-    )
+class NoteList(Schema):
+    items: list[Note]
+
+
+NOTES = NoteList(
+    items=[Note(id=number, title=f"note {number}") for number in range(1, 301)]
+)
+
+
+@http.get("/notes", access=None)
+async def notes() -> NoteList:
+    return NOTES
 
 
 app.include(notes)
@@ -45,12 +52,12 @@ app.include(notes)
 $ curl -s -D - -o /dev/null -H "accept-encoding: br" http://127.0.0.1:8000/notes
 HTTP/1.1 200 OK
 content-type: application/json
-content-length: 557
+content-length: 591
 vary: accept-encoding
 content-encoding: br
 ```
 
-For `gzip` the same request answers `content-encoding: gzip` with `content-length: 1477`, and a request without `accept-encoding` gets the 9984 bytes unchanged. `curl --compressed` decodes the answer. These figures were produced by running this example; they describe this body, not a general ratio.
+For `gzip` the same request answers `content-encoding: gzip` with `content-length: 1438`, and a request without `accept-encoding` gets the 8795 bytes unchanged. `curl --compressed` decodes the answer. These figures were produced by running this example; they describe this body, not a general ratio.
 
 ## What is compressed
 

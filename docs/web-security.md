@@ -10,29 +10,38 @@ related:
 
 A new application answers any `Host`, sends no CORS headers, never redirects to
 HTTPS and trusts no proxy. That keeps development friction-free; before a
-deployment, name what it serves:
+deployment, name what it serves. The built-in groups (`cors`, `security`,
+`server`) are set from the environment, `.env` or a TOML file the class names;
+a value assigned to such a group in the class body is not read.
 
 ```python
 # notes/settings.py
 from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    allowed_hosts: tuple[str, ...] = ("api.example.com",)
-    cors: settings.CorsSettings = settings.CorsSettings(
-        origins=("https://app.example.com",),
-    )
-    security: settings.SecuritySettings = settings.SecuritySettings(
-        redirect_https=True,
-        hsts_seconds=31_536_000,
-    )
-    server: settings.ServerSettings = settings.ServerSettings(
-        trusted_proxies=("10.20.0.0/16",),
-    )
+class ProjectSettings(
+    settings.AppSettings, prefix="NOTES_", dotenv=".env", toml="settings.toml"
+):
+    pass
+```
+
+```toml
+# settings.toml
+allowed_hosts = ["api.example.com"]
+
+[cors]
+origins = ["https://app.example.com"]
+
+[security]
+redirect_https = true
+hsts_seconds = 31_536_000
+
+[server]
+trusted_proxies = ["10.20.0.0/16"]
 ```
 
 Every field can also come from the environment, which is usually where a
-deployment sets them:
+deployment sets them and which wins over the TOML file:
 
 ```sh
 NOTES_ALLOWED_HOSTS=api.example.com,.example.org
@@ -98,14 +107,20 @@ An action can carry its own policy with `cors=http.Cors(...)`, for a public feed
 
 ```python
 # notes/apps/feed/api.py
-from hinoki import http
+from hinoki import Schema, http
+
+from notes.security import reader  # an `Access` policy
 
 partner = http.Cors(origins=("https://partner.example",), credentials=True)
 
 
-@http.get("/feed/partner", cors=partner)
-async def partner_feed() -> dict[str, str]:
-    return {"feed": "partner"}
+class Feed(Schema):
+    feed: str
+
+
+@http.get("/feed/partner", access=reader, cors=partner)
+async def partner_feed() -> Feed:
+    return Feed(feed="partner")
 ```
 
 - **Precedence.** The route's policy replaces the application's for that route; nothing is merged, so the application's origins do not apply to it. An action without `cors=` keeps the application policy, and a route with `cors=` works even while the application's `cors.origins` is empty.
@@ -121,19 +136,14 @@ Every HTTP response gets `X-Content-Type-Options: nosniff`, the configured `X-Fr
 
 The choices are enums rather than arbitrary strings, and environment/TOML values must match the listed wire values exactly. `FrameOptions` provides `deny` and `sameorigin`. `ReferrerPolicy` provides `no-referrer`, `no-referrer-when-downgrade`, `same-origin`, `origin`, `strict-origin`, `origin-when-cross-origin`, `strict-origin-when-cross-origin` and `unsafe-url`. `unsafe-url` can disclose the full referring URL to another origin; use it only when that is intended.
 
-```python
-# notes/settings.py
-from hinoki import settings
-
-
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    security: settings.SecuritySettings = settings.SecuritySettings(
-        redirect_https=True,
-        hsts_seconds=31_536_000,
-        hsts_include_subdomains=True,
-        frame_options=settings.FrameOptions.DENY,
-        referrer_policy=settings.ReferrerPolicy.STRICT_ORIGIN,
-    )
+```toml
+# settings.toml
+[security]
+redirect_https = true
+hsts_seconds = 31_536_000
+hsts_include_subdomains = true
+frame_options = "deny"
+referrer_policy = "strict-origin"
 ```
 
 For configuration loaded from the environment, set `NOTES_ALLOWED_HOSTS=api.example.com` and `NOTES_SECURITY__REDIRECT_HTTPS=true`. A wildcard host policy cannot be combined with the redirect: Hinoki requires an explicit host allowlist before constructing an absolute `Location`, which avoids redirecting an attacker supplied `Host` value. The redirect is `308`, preserves the method and raw path/query, and runs before route lookup, authentication and body reading. A configured CORS preflight is answered before redirecting so browser preflight requests remain usable.
@@ -144,18 +154,13 @@ HSTS defaults off. Hinoki emits it only when the request's effective scheme is H
 
 Forwarded metadata is ignored unless the immediate socket peer matches `server.trusted_proxies`. Configure only the addresses or CIDRs of proxies that remove client-supplied forwarding headers and write their own values. For example:
 
-```python
-# notes/settings.py
-from hinoki import settings
-
-
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    # The private address used by this deployment's ingress, not every private network.
-    server: settings.ServerSettings = settings.ServerSettings(
-        trusted_proxies=("10.20.0.0/16",),
-        request_id_header="x-correlation-id",
-        trust_request_id=True,
-    )
+```toml
+# settings.toml
+# The private address used by this deployment's ingress, not every private network.
+[server]
+trusted_proxies = ["10.20.0.0/16"]
+request_id_header = "x-correlation-id"
+trust_request_id = true
 ```
 
 From a trusted peer, Hinoki accepts a single `X-Forwarded-Proto` value of `http` or `https` and walks a bounded `X-Forwarded-For` chain from the peer side to the first untrusted address. `Request.scheme` and `Request.client` use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. `X-Forwarded-Host` is never used: `Host`, `allowed_hosts` and generated URLs continue to use the original Host header.

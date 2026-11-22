@@ -87,24 +87,29 @@ after the class it is mounted on), and `module.<Model>Crud.<action>` for a
 you say "public on purpose". The Blog example names its exceptions once:
 
 ```python
-# blog/rules.py
+# examples/blog/blog/rules.py
 PUBLIC = [
-    "blog.api.health",
-    "blog.api.Posts.listing",
-    "blog.api.Posts.one",
-    "blog.accounts.*.login",  # public on purpose: it is how you sign in
+    "blog.apps.blog.api.health",
+    "blog.apps.blog.api.Posts.listing",
+    "blog.apps.blog.api.Posts.one",
+    "blog.apps.blog.accounts.*.login",  # public on purpose: it is how you sign in
 ]
-SIGNED_IN = ["blog.accounts.*.me"]  # any signed-in user, no permission
+SIGNED_IN = ["blog.apps.blog.accounts.*.me"]  # any signed-in user, no permission
 
 blog_rules = RuleSet(
     Actions.require_access(match="blog.*", except_=PUBLIC),
     Actions.require_permissions(match="blog.*", except_=[*PUBLIC, *SIGNED_IN]),
-    Transactions.require_atomic(except_=["blog.accounts.*.login"]),
+    Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
     Schemas.forbid_exposure("token", "password_hash"),
-    Imports.forbid(source="blog.models", target="blog.api"),
-    # ... and the other six rules, see examples/blog/rules.py
+    Imports.forbid(source="blog.apps.blog.models", target="blog.apps.blog.api"),
+    # ... and the other six rules, see the file
 )
 ```
+
+Blog passes `blog_rules` and its waiver file to `Hinoki(...)` by hand. Tracker
+lists two sets in its manifest instead,
+`rules = ["tracker.rules:policy", "tracker.rules:layers"]`, and its
+`Hinoki(...)` call names no rules.
 
 The model rules match the model's *module* (`blog.*`) and report unverifiable
 when no model matches, even with `*`. In a project with `hinoki.toml`,
@@ -257,17 +262,22 @@ applies `PATH` to the app that `run_scenario` starts.
 
 Application startup applies the waiver file the same way as `hinoki check`.
 This app requires access on every
-action, yet it starts and serves `/health` because the owner waived it:
+action, yet it starts and serves `/health` because the owner waived it. It
+passes `rules=` by hand, the explicit form, to keep the example in one file:
 
 ```python
 # shop/main.py
-from hinoki import Actions, Hinoki, Request, http
+from hinoki import Actions, Hinoki, Schema, http
 from hinoki.rules import RuleSet
 
 
+class Health(Schema):
+    status: str
+
+
 @http.get("/health")
-def health(request: Request) -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> Health:
+    return Health(status="ok")
 
 
 app = Hinoki(rules=RuleSet(Actions.require_access()), include=[health])

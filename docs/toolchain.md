@@ -17,8 +17,8 @@ uv run --locked pre-commit install
 ```
 
 Requires: uv ≥ 0.9, a stable Rust toolchain (rustup) with `rustfmt` and `clippy`.
-The PyO3 extension build backend requires maturin ≥ 1.9.4; uv selects it from
-the isolated build-system requirement.
+The PyO3 extension build backend requires maturin ≥ 1.16.0 (`[build-system]` in
+`pyproject.toml`); uv selects it from the isolated build-system requirement.
 
 ## Gates
 
@@ -27,10 +27,10 @@ the isolated build-system requirement.
 | Lock is current | `uv lock --check` |
 | Lint (+ autofix) | `uv run --locked ruff check --fix .` |
 | Format | `uv run --locked ruff format .` |
-| Types + typing fixtures | `uv run --locked mypy` |
+| Types + typing fixtures | `uv run --locked mypy` (checks `python/hinoki`, `tests` and `examples`) |
 | Python cognitive complexity | `uv run --locked complexipy . --failed` |
 | Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
-| Python tests + coverage | `uv run --locked pytest --cov` |
+| Python tests + coverage | `uv run --locked pytest --cov` (runs `tests` and the tests of `examples/notes`, `examples/tracker` and `examples/blog`) |
 | Only the real-server tests | `uv run --locked pytest -m runtime` |
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` (see PyO3 setup below) |
 | All hooks | `uv run --locked pre-commit run --all-files` |

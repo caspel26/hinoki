@@ -18,8 +18,10 @@ messages with the client: text, binary or JSON checked against a `Schema`.
 # chat/echo.py
 from hinoki import http
 
+from chat.security import member  # an `Access` policy
 
-@http.websocket("/echo")
+
+@http.websocket("/echo", access=member)
 async def echo(socket: http.WebSocket) -> None:
     async for text in socket:
         await socket.send_text(text)
@@ -78,13 +80,28 @@ handler, which is also where tenant or ownership checks belong; WebSocket
 actions are not part of generated CRUD.
 
 ```python
-from hinoki import Access, Caller, http
+# chat/security.py
+from hinoki import Access, BearerAuth, Caller
 
-READ = Access(tokens, permissions=["chat:read"])
+
+class Tokens(BearerAuth[str]):
+    async def resolve_token(
+        self, token: str
+    ) -> Caller[str] | None: ...  # look the token up; return None when it is unknown
+
+
+READ = Access(Tokens(), permissions=["chat:read"])
+```
+
+```python
+# chat/inbox.py
+from hinoki import Caller, http
+
+from chat.security import READ
 
 
 @http.websocket("/inbox", access=READ)
-async def inbox(who: Caller[None], socket: http.WebSocket) -> None:
+async def inbox(who: Caller[str], socket: http.WebSocket) -> None:
     await socket.send_text(f"hello {who.id}")
 ```
 
@@ -114,7 +131,13 @@ A mapping gives each subprotocol its own `Access`, which runs after the
 action's:
 
 ```python
-@http.websocket("/feed", subprotocols={"public.v1": None, "staff.v1": STAFF})
+# chat/feed.py
+from hinoki import http
+
+from chat.security import READ
+
+
+@http.websocket("/feed", subprotocols={"public.v1": None, "staff.v1": READ})
 async def feed(socket: http.WebSocket) -> None:
     await socket.send_text(socket.subprotocol or "")
 ```
@@ -138,6 +161,8 @@ is not JSON closes with `1007`, JSON that fails validation with `1008`.
 ```python
 from hinoki import Schema, http
 
+from chat.security import READ
+
 
 class Move(Schema):
     x: int
@@ -150,7 +175,7 @@ class Position(Schema):
     by: str
 
 
-@http.websocket("/board", message=Move, reply=Position)
+@http.websocket("/board", access=READ, message=Move, reply=Position)
 async def board(socket: http.WebSocket) -> None:
     async for move in socket:
         await socket.send_json({"x": move.x + 1, "y": move.y, "by": "server"})

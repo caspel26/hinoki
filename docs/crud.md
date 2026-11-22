@@ -139,13 +139,26 @@ The list applies, in this order: `get_queryset(principal)` (tenant and visibilit
 
 ```python
 # notes/apps/billing/api.py
+from typing import Any
+
+from hinoki import API, Caller, crud
+from hinoki.orm import QuerySet
+
+
 @crud(Invoice, path="/invoices", read=InvoiceOut, filters=InvoiceFilters)
 class Invoices(API):
-    def filter_queryset(self, query, params: InvoiceFilters, principal):
+    def filter_queryset(
+        self,
+        query: QuerySet[Invoice],
+        params: InvoiceFilters,
+        principal: Caller[Any] | None,
+    ) -> QuerySet[Invoice]:
         if params.paid is None:
             return query.filter(archived=False)
         return query
 ```
+
+The Tracker example's [`TaskFilters`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/filters.py) and its `Tasks` class in [`api.py`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/api.py) show a filtered, owner-scoped list.
 
 The filters belong to the `list` action: `omit=("list",)` with `filters=` is refused. With `CursorPagination` the ordering columns must be non-null `int`, `str`, `UUID`, `datetime` or `float` columns, and a cursor is bound to the filters and ordering of the request that issued it ([details](pagination.md#cursor-keyset-pagination)). A filtered list is not eligible for the native generated-CRUD list lane (the answer comes from the ordinary Python path, with rows still encoded in Rust); the [admin](admin.md) lists have their own filters and do not use this one. A `FilterSet` also works on its own: `InvoiceFilters.parse({"paid": ["true"]})` returns the typed instance or raises `ValidationError`.
 

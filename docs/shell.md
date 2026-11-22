@@ -16,10 +16,10 @@ uv run hinoki shell
 ```
 
 ```pycon
->>> await Invoice.filter(paid=False).acount()
+>>> await Note.filter(body="").acount()
 3
->>> [invoice.reference for invoice in await Invoice.all()]
-['INV-003', 'INV-002', 'INV-001']
+>>> [note.title for note in await Note.all()]
+['Ship it', 'Ship the docs', 'Ship the tests']
 >>> settings.database.url
 Secret('***')
 ```
@@ -30,7 +30,7 @@ Secret('***')
 | --- | --- |
 | `app` | the application from `hinoki.toml` (`[project] application`) |
 | `settings` | its validated settings |
-| model classes | every concrete model of every registered app, by class name (`Invoice`, `Note`, …) |
+| model classes | every concrete model of every registered app, by class name (`Note`, …) |
 
 Two models with the same class name in different apps stop the shell before the
 prompt; select the modules you need with `--models`. A model may not be called
@@ -46,7 +46,7 @@ block the shell's loop.
 ## Choose the application and models
 
 ```sh
-uv run hinoki shell --models notes.apps.billing.models
+uv run hinoki shell --models notes.apps.notes.models
 uv run hinoki shell notes.main:app
 ```
 
@@ -90,7 +90,7 @@ and Python's `>>>` / `...` prompts.
   and close the app modules; the shell exits 0 whatever code is passed.
 - A model module that does not import stops the shell with
   `cannot load model module '…'`; a duplicate class name with
-  `model name 'Invoice' occurs in both '…' and '…'`. Both exit 2.
+  `model name 'Note' occurs in both '…' and '…'`. Both exit 2.
 - Outside a project without a target: `pass TARGET outside a project with
   hinoki.toml`.
 

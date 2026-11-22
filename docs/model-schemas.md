@@ -23,17 +23,17 @@ from .models import Invoice
 class InvoiceIn(Schema): ...
 
 
+@derive(Invoice)
+class InvoiceOut(Schema): ...
+
+
 @derive(Invoice, exclude=("customer_id",))
-class InvoiceOut(Schema):
+class InvoiceDetail(Schema):
     customer_name: str
 
 
 @derive(Invoice, only=("reference", "paid"), partial=True)
 class InvoicePatch(Schema): ...
-
-
-@derive(Invoice)
-class InvoiceRow(Schema): ...
 ```
 
 | Option | Effect |
@@ -64,7 +64,7 @@ A derivation that would leave out a column the base declares fails closed:
 
 ```python
 @derive(Invoice, only=("reference",))  # RegistrationError: inherited field 'id'
-class ReferenceOnly(InvoiceRow): ...
+class ReferenceOnly(InvoiceOut): ...
 ```
 
 Derive the narrower schema from `Schema` instead. A selection that keeps or
@@ -84,25 +84,25 @@ from hinoki.pagination import Page, PageNumberPagination, PageParams
 from notes.security import billing_staff
 
 from .models import Invoice
-from .schemas import InvoiceOut
+from .schemas import InvoiceDetail, InvoiceOut
 
 invoices = RouteGroup("/invoices", access=billing_staff)
 
 
-def to_out(invoice: Invoice) -> InvoiceOut:
-    return InvoiceOut.from_model(invoice, customer_name=invoice.customer.name)
+def to_detail(invoice: Invoice) -> InvoiceDetail:
+    return InvoiceDetail.from_model(invoice, customer_name=invoice.customer.name)
 
 
 @invoices.get("/", pagination=PageNumberPagination())
-async def list_invoices(page: PageParams) -> Page[InvoiceOut]:
+async def list_invoices(page: PageParams) -> Page[InvoiceDetail]:
     rows = await Invoice.all().select_related("customer").apaginate(page)
-    return rows.map(to_out)
+    return rows.map(to_detail)
 
 
 @invoices.get("/{invoice_id}", errors=(errors.NotFound,))
-async def get_invoice(invoice_id: UUID) -> InvoiceOut:
+async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
     invoice = await Invoice.filter(id=invoice_id).select_related("customer").aget()
-    return to_out(invoice)
+    return to_detail(invoice)
 ```
 
 * `from_model(row, **extra)` reads the attributes the schema needs; `extra`

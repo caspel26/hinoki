@@ -84,7 +84,8 @@ class ProjectSettings(
 ```
 
 Each worker opens one bounded pool during startup and closes it during
-shutdown. Importing models or routes never opens a connection, and no
+shutdown. The [Notes example's settings](https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/settings.py)
+are exactly this field with nothing else. Importing models or routes never opens a connection, and no
 `modules=` entry is needed. The file named by `toml=` must exist, even if it
 is empty: otherwise the settings fail to load with
 `settings.toml: TOML file cannot be read or parsed`.

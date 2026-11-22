@@ -35,14 +35,21 @@ class Passwords(Module):
             hasher.close()
 ```
 
-Install it on the application:
+Install it on the application. The rules come from `hinoki.toml`, so the call
+names only what is specific to this app:
 
 ```python
 # notes/main.py
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+
+from notes.passwords import Passwords
+from notes.settings import ProjectSettings
+
 app = Hinoki(
     settings=ProjectSettings,
+    include=manifest_routes(),
     title="Notes",
-    rules=project_rules,
     modules=[Passwords()],
 )
 ```

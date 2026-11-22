@@ -21,8 +21,17 @@ hinoki serve --workers 4
 from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    server: settings.ServerSettings = settings.ServerSettings(server="kiso", workers=4)
+class ProjectSettings(
+    settings.AppSettings, prefix="NOTES_", dotenv=".env", toml="settings.toml"
+):
+    pass
+```
+
+```toml
+# settings.toml
+[server]
+server = "kiso"
+workers = 4
 ```
 
 `--server kiso` selects it explicitly when a project defaults to Granian. Choose
@@ -124,7 +133,7 @@ reloading: SIGHUP (generation 2)
 reloaded 4 workers (generation 2)
 ```
 
-The supervisor's own settings are not reloaded: `host`, `port`, `backlog`, `workers`, `server`, `interface` and `metrics.listen` need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run `hinoki migrate` before sending the signal.
+The supervisor's own settings are not reloaded: `host`, `port`, `backlog`, `workers`, `server`, `interface` and `metrics.listen` need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run `hinoki migrations apply` before sending the signal.
 
 * A new worker that exits, fails its lifespan startup or is not ready in time is killed, and the reload stops with `error: reload stopped at worker K of N; the other workers keep running`. The workers not yet replaced keep serving the old code (workers already replaced stay new); another `SIGHUP` retries them all. The supervisor does not exit.
 * A `SIGHUP` that arrives during a reload is remembered once and handled when it ends. `SIGTERM` or `SIGINT` during a reload stops everything, the new and the old workers, as usual.
@@ -134,14 +143,21 @@ The supervisor's own settings are not reloaded: `host`, `port`, `backlog`, `work
 * The reload is orchestrated by the supervisor, which is Python; the drain of the old worker and the TLS loading of the new one are Rust. With metrics, see [several workers](metrics.md#several-workers).
 
 ```python
-# notes/settings.py: reload is on by default; "stop" turns it off
+# notes/settings.py
 from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    server: settings.ServerSettings = settings.ServerSettings(
-        workers=4, sighup="reload"
-    )
+class ProjectSettings(
+    settings.AppSettings, prefix="NOTES_", dotenv=".env", toml="settings.toml"
+):
+    pass
+```
+
+```toml
+# settings.toml: reload is on by default; "stop" turns it off
+[server]
+workers = 4
+sighup = "reload"
 ```
 
 ```sh

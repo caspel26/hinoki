@@ -15,7 +15,6 @@ related:
 from hinoki import Hinoki
 from hinoki.ai.mcpapp import expose_as_mcp
 
-from notes.rules import project_rules
 from notes.security import billing_staff
 from notes.settings import ProjectSettings
 
@@ -24,8 +23,7 @@ app = Hinoki(
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    rules=project_rules,
-)
+)  # routes and rules come from hinoki.toml
 mcp = expose_as_mcp(
     app,
     tools=["notes.apps.billing.api.list_invoices"],
@@ -34,7 +32,7 @@ mcp = expose_as_mcp(
 app.include(*mcp)  # POST /mcp
 ```
 
-`Hinoki(...)` has already included the routes listed in `hinoki.toml`; `expose_as_mcp` selects among those, so call it after the app exists.
+`Hinoki(...)` has already included the routes listed in `hinoki.toml`; `expose_as_mcp` selects among those, so call it after the app exists. The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py) does the same for one read-only action of an `API` class (`blog.apps.blog.api.Posts.drafts`, with the `editor` policy).
 
 ## Choose the tools
 

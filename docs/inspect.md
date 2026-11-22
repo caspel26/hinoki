@@ -75,11 +75,18 @@ how to read and waive a result, is in [Rules](rules.md).
 uv run hinoki routes
 ```
 
+From `examples/tracker`:
+
 ```text
-GET     /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.list_invoices
-POST    /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.create_invoice
-GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.billing.api.get_invoice
-GET     /health                         public                   notes.api.health
+GET     /activity                  MemberTokens[tracker:use] tracker.apps.activity.api.Feed.list
+GET     /activity/{item_id}        MemberTokens[tracker:use] tracker.apps.activity.api.Feed.retrieve
+GET     /health                    public                   tracker.routes.health
+GET     /members/me                MemberTokens[tracker:use] tracker.apps.members.api.me
+GET     /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
+POST    /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.create
+DELETE  /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.delete
+GET     /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.retrieve
+POST    /tasks/{item_id}/complete  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.complete
 ```
 
 Each row is method, path, access (the provider and its permissions, or `public`)
@@ -90,12 +97,12 @@ that start with the prefix, `--method` one method; no match prints
 `no routes match` and exits 1:
 
 ```sh
-uv run hinoki routes --path /billing --method GET
+uv run hinoki routes --path /tasks --method GET
 ```
 
 ```text
-GET     /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.list_invoices
-GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.billing.api.get_invoice
+GET     /tasks            MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
+GET     /tasks/{item_id}  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.retrieve
 ```
 
 `--lanes` adds, per route, whether [Kiso](kiso.md#the-native-handler-lane) runs
