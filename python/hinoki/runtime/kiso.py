@@ -680,7 +680,9 @@ class KisoWorker:
     ) -> None:
         answer = handle.answer
         if not isinstance(answer, Sourced):
-            raise RuntimeError("only a sourced answer reaches the sink pump")
+            raise RuntimeError(
+                "only a sourced answer reaches the sink pump"
+            )  # pragma: no cover
         events = isinstance(answer, EventStream)
         sink = request.respond_stream(
             response.status,

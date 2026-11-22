@@ -168,7 +168,7 @@ class ASGIAdapter:
         every piece). The place it holds is given back when the body ends."""
         handle = response.stream
         if handle is None:
-            raise RuntimeError("not a streamed response")
+            raise RuntimeError("not a streamed response")  # pragma: no cover
         pipeline = self.pipeline
         try:
             await send({**start, "headers": response.headers})

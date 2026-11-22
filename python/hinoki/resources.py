@@ -75,7 +75,7 @@ class Crud(enum.StrEnum):
 def caller_id(user: object) -> NoReturn:
     """Marker for ``identity_key``: the owner value is ``Caller.id``, so the
     caller needs no user object. It is never called."""
-    raise TypeError("caller_id is read from the Caller, not called")
+    raise TypeError("caller_id is read from the Caller, not called")  # pragma: no cover
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -995,7 +995,7 @@ def declaring_module() -> str:
     frame = inspect.currentframe()
     caller = frame.f_back.f_back if frame and frame.f_back else None
     if caller is None:
-        return __name__
+        return __name__  # pragma: no cover - a frame always has a caller here
     outer = caller.f_back
     if (
         caller.f_code.co_name != "<module>"

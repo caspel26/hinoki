@@ -435,7 +435,7 @@ class Hinoki:
         head, tail = raw
         if isinstance(head, int) and isinstance(tail, dict):
             return self._websockets[head], tail
-        return None
+        return None  # pragma: no cover - the router only stores (int, dict) pairs
 
     def _collect_routes(
         self, items: tuple[object, ...]

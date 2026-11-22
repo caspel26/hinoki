@@ -1241,7 +1241,9 @@ class Pipeline:
         known and admitted."""
         access = binding.route.access
         if native is None:
-            raise RuntimeError("native guarded route without its request data")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native guarded route without its request data"
+            )
         if input_error is not None and input_error[0] == "bad_path_encoding":
             raise native_input_exception(input_error)
         principal = None
@@ -1291,7 +1293,9 @@ class Pipeline:
         order."""
         param = binding.query_param
         if param is None or native is None:
-            raise RuntimeError("native query route without its request data")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native query route without its request data"
+            )
         invalid = input_error is not None and input_error[0] == "validation_error"
         if input_error is not None and not invalid:
             raise native_input_exception(input_error)
@@ -1324,7 +1328,9 @@ class Pipeline:
         parse, then every path, query and body problem in declaration order."""
         param = binding.body_param
         if param is None:
-            raise RuntimeError("native body route without a body parameter")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native body route without a body parameter"
+            )
         invalid = input_error is not None and input_error[0] == "validation_error"
         if (
             input_error is not None
@@ -1333,7 +1339,9 @@ class Pipeline:
         ):
             raise native_input_exception(input_error)
         if body is None:
-            raise RuntimeError("native body route without its request data")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native body route without its request data"
+            )
         headers = core.header_dict(body.headers)
         raw = await self._body(body.source, headers.get("content-length", ""))
         if input_error is not None and not invalid:
@@ -1410,7 +1418,7 @@ class Pipeline:
         self, binding: Binding, result: HandlerResponse
     ) -> Response:
         if isinstance(result, Streamed):  # a native handler is never annotated
-            return await self._streamed(binding, result)
+            return await self._streamed(binding, result)  # pragma: no cover
         return Response(result.status, result.body, result.headers)
 
     def _native_rendered(
@@ -1426,11 +1434,15 @@ class Pipeline:
             renderer = route.renderers[0]
         else:
             if native is None:
-                raise RuntimeError("native multi-renderer route without its headers")
+                raise RuntimeError(  # pragma: no cover - routing excludes this state
+                    "native multi-renderer route without its headers"
+                )
             accept = core.header_dict(native.headers).get("accept", "")
             chosen = negotiate(accept, route.renderers)
             if chosen is None:
-                raise RuntimeError("native route answered an unacceptable request")
+                raise RuntimeError(  # pragma: no cover - routing excludes this state
+                    "native route answered an unacceptable request"
+                )
             renderer = chosen
         shown = result if renderer.consumes_objects else encode(result)
         body = renderer.render(shown, cast("Request", None))
