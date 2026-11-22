@@ -11,6 +11,7 @@ class TaskIn(Schema):
     """What a client may set. The owner is the caller, never a field."""
 
     title: Annotated[str, Field(min_length=1, max_length=120)]
+    priority: Annotated[int, Field(ge=1, le=5)] = 3
 
 
 @derive(Task, exclude=("owner_id",))
