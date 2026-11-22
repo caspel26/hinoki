@@ -18,7 +18,7 @@ import signal
 import threading
 from typing import Any
 
-from hinoki import core
+from hinoki import __version__, core
 from hinoki.runtime import wsgibridge
 from hinoki.runtime.kiso import access_sink, access_style
 from hinoki.runtime.listener import open_listener
@@ -49,7 +49,7 @@ def app_settings(target: object) -> AppSettings:
     return settings if isinstance(settings, AppSettings) else AppSettings()
 
 
-def start_server(
+def start_server(  # noqa: PLR0913 - the metrics listener and slot ride along
     target: Any,
     host: str,
     port: int,
@@ -57,6 +57,9 @@ def start_server(
     *,
     listener_fd: int | None,
     dev: bool,
+    metrics_fd: int | None = None,
+    metrics_dir: str | None = None,
+    slot: int = 0,
 ) -> core.WsgiServer:
     """Start the server for ``target``; errors surface here, before any request."""
     app = app_settings(target)
@@ -89,6 +92,9 @@ def start_server(
         access_log_sink=access_sink(settings, dev),
         server_timing=dev if settings.server_timing is None else settings.server_timing,
         compression=app.compression.native_options(),
+        metrics=app.metrics.native_options(
+            version=__version__, worker=slot, fd=metrics_fd, directory=metrics_dir
+        ),
         **limits,
     )
 
@@ -118,7 +124,7 @@ def wait_for_stop(parent: int | None) -> None:
             return  # the supervisor is gone
 
 
-def run(
+def run(  # noqa: PLR0913 - the metrics listener and slot ride along
     target: Any,
     host: str,
     port: int,
@@ -127,6 +133,9 @@ def run(
     listener_fd: int | None = None,
     parent: int | None = None,
     dev: bool = False,
+    metrics_fd: int | None = None,
+    metrics_dir: str | None = None,
+    slot: int = 0,
 ) -> int:
     """Serve ``target`` until a stop signal, then drain and close it."""
     core.configure_runtime(settings.runtime_threads)
@@ -134,7 +143,15 @@ def run(
         target.start()  # startup errors stop the worker before it listens
     try:
         server = start_server(
-            target, host, port, settings, listener_fd=listener_fd, dev=dev
+            target,
+            host,
+            port,
+            settings,
+            listener_fd=listener_fd,
+            dev=dev,
+            metrics_fd=metrics_fd,
+            metrics_dir=metrics_dir,
+            slot=slot,
         )
         try:
             if parent is None:

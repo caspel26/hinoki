@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import importlib.util
 import inspect
+import socket
 import sys
 from pathlib import Path
 from typing import Any
@@ -155,30 +156,58 @@ def refuse(message: str) -> int:
     return 2
 
 
-def compresses(app: object) -> bool:
-    """Whether ``compression.enabled`` is on: in the application (the one a
-    ``WSGIAdapter`` wraps, for one), or in the environment for a plain WSGI
-    callable, which has no settings of its own."""
+def app_settings_of(app: object) -> AppSettings:
+    """The settings of the application a runner hosts (the one a ``WSGIAdapter``
+    wraps, for one), or the environment's for a plain WSGI callable, which has
+    no settings of its own."""
     if not isinstance(app, WSGIAdapter | Hinoki):
-        return AppSettings.load().compression.enabled
+        return AppSettings.load()
     if isinstance(app, WSGIAdapter):
         app = app.app
     settings = getattr(app, "settings", None)
-    return isinstance(settings, AppSettings) and settings.compression.enabled
+    return settings if isinstance(settings, AppSettings) else AppSettings()
+
+
+def compresses(app: object) -> bool:
+    """Whether ``compression.enabled`` is on for ``app``."""
+    return app_settings_of(app).compression.enabled
+
+
+def measures(app: object) -> bool:
+    """Whether ``metrics.listen`` is set for ``app``."""
+    return app_settings_of(app).metrics.listen is not None
+
+
+def kiso_only_refusal(chosen: str, compression: bool, metrics: bool) -> int | None:
+    """The refusal for a Kiso-only setting that is on under another server."""
+    if chosen == "kiso":
+        return None
+    for enabled, name, feature in (
+        (compression, "compression.enabled", "compression"),
+        (metrics, "metrics.listen", "metrics"),
+    ):
+        if enabled:
+            return refuse(
+                f"{name} is not supported by the {chosen} server "
+                f"({feature} is Kiso only); unset it or choose --server kiso"
+            )
+    return None
 
 
 def choose_server(
-    args: argparse.Namespace, settings: ServerSettings, compression: bool = False
+    args: argparse.Namespace,
+    settings: ServerSettings,
+    compression: bool = False,
+    metrics: bool = False,
 ) -> str | int:
     """The server to run, or the exit status of a refusal: an unknown value, a
     setting the server cannot honour, or a Kiso that is not available.
-    ``compression`` says whether ``compression.enabled`` is on."""
+    ``compression`` says whether ``compression.enabled`` is on and ``metrics``
+    whether ``metrics.listen`` is set."""
     chosen = args.server or settings.server
-    if compression and chosen != "kiso":
-        return refuse(
-            f"compression.enabled is not supported by the {chosen} server "
-            "(compression is Kiso only); unset it or choose --server kiso"
-        )
+    refusal = kiso_only_refusal(chosen, compression, metrics)
+    if refusal is not None:
+        return refusal
     conflicts = settings.conflicts(chosen)
     if conflicts:
         return refuse(
@@ -223,6 +252,19 @@ def stop_grace(app: Hinoki) -> float:
     return (3 + len(app.modules)) * app.runtime.shutdown_timeout
 
 
+def open_metrics(app: object, backlog: int) -> socket.socket | None:
+    """The listener of ``metrics.listen``, opened by the supervisor once for
+    every worker, or ``None`` while metrics are off."""
+    metrics = app_settings_of(app).metrics
+    address = metrics.address()
+    if address is None:
+        return None
+    try:
+        return open_listener(*address, backlog)
+    except ListenError as error:
+        raise ListenError(f"metrics.listen {metrics.listen}: {error}") from error
+
+
 def run_supervised(
     args: argparse.Namespace,
     app: Hinoki,
@@ -237,7 +279,13 @@ def run_supervised(
     grace = stop_grace(app)
     scheme = "https" if settings.tls_cert_file else "http"
     supervisor = Supervisor(
-        args.target, listener, workers, grace, reload=reload, scheme=scheme
+        args.target,
+        listener,
+        workers,
+        grace,
+        reload=reload,
+        scheme=scheme,
+        metrics=open_metrics(app, settings.backlog),
     )
     supervisor.docs = app.docs_url
     return supervisor.run()
@@ -383,6 +431,7 @@ def run_wsgi_kiso(
             reload=reload,
             scheme=scheme,
             interface="wsgi",
+            metrics=open_metrics(target, settings.backlog),
         ).run()
     except ListenError as error:
         return refuse(f"cannot listen on {address[0]}:{address[1]}: {error}")
@@ -405,7 +454,7 @@ def run_wsgi(args: argparse.Namespace, reload: bool) -> int:
         settings = settings_of(target)
     except SettingsError as error:
         return refuse(str(error))
-    chosen = choose_server(args, settings, compresses(target))
+    chosen = choose_server(args, settings, compresses(target), measures(target))
     if isinstance(chosen, int):
         return chosen
     if chosen == "kiso":
@@ -443,7 +492,7 @@ def run_asgi(args: argparse.Namespace, reload: bool) -> int:
             "server.interface is wsgi, but TARGET is a Hinoki application (ASGI); "
             "name a WSGI callable such as WSGIAdapter(app), or pass --interface asgi"
         )
-    chosen = choose_server(args, settings, compresses(app))
+    chosen = choose_server(args, settings, compresses(app), measures(app))
     if isinstance(chosen, int):
         return chosen
     if chosen == "kiso":

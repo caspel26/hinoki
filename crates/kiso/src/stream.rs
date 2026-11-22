@@ -18,6 +18,7 @@ use std::future::Future;
 use std::io::Write as _;
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -31,6 +32,7 @@ use tokio::time::{Instant, Sleep};
 use crate::conn::Answer;
 use crate::encode::Encoded;
 use crate::headers::Header;
+use crate::metrics::{ErrorKind, Registry};
 
 /// One piece of a streamed body, or the producer's failure.
 pub type Chunk = Result<Bytes, Aborted>;
@@ -115,6 +117,8 @@ pub enum Reply {
     Live(Live),
     File(FileBody),
     Encoded(Box<Encoded>),
+    /// One of the above whose bytes the metrics count.
+    Counted(Box<Counted>),
 }
 
 /// A restartable wait on the runtime's clock.
@@ -406,6 +410,63 @@ pub enum Produced {
     Live(Live),
     File(FileBody),
     Encoded(Box<Encoded>),
+    Counted(Box<Counted>),
+}
+
+/// A body that is produced piece by piece and counted by the metrics: the
+/// bytes handed on are added to its route, and a producer that fails is an error.
+pub struct Counted {
+    inner: Produced,
+    registry: Arc<Registry>,
+    slot: usize,
+}
+
+impl Counted {
+    /// `reply` with its bytes counted for the route in `slot`. A whole body is
+    /// counted at once; a body still being produced, as it is produced.
+    pub fn wrap(reply: Reply, registry: &Arc<Registry>, slot: usize) -> Reply {
+        let inner = match reply {
+            Reply::Whole(full) => {
+                let size = full.size_hint().exact().unwrap_or(0);
+                registry.add_bytes(slot, usize::try_from(size).unwrap_or(usize::MAX));
+                return Reply::Whole(full);
+            }
+            Reply::Live(live) => Produced::Live(live),
+            Reply::File(file) => Produced::File(file),
+            Reply::Encoded(encoded) => Produced::Encoded(encoded),
+            Reply::Counted(counted) => return Reply::Counted(counted),
+        };
+        Reply::Counted(Box::new(Self {
+            inner,
+            registry: Arc::clone(registry),
+            slot,
+        }))
+    }
+
+    pub fn poll_piece(
+        &mut self,
+        cx: &mut Context<'_>,
+        limit: usize,
+    ) -> Poll<Option<Result<Bytes, Aborted>>> {
+        let polled = self.inner.poll_piece(cx, limit);
+        match &polled {
+            Poll::Ready(Some(Ok(chunk))) => self.registry.add_bytes(self.slot, chunk.len()),
+            Poll::Ready(Some(Err(_))) => self.registry.error(self.slot, ErrorKind::StreamAborted),
+            _ => {}
+        }
+        polled
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.inner.is_done()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        match &self.inner {
+            Produced::File(file) => SizeHint::with_exact(file.remaining()),
+            _ => SizeHint::default(),
+        }
+    }
 }
 
 impl Produced {
@@ -418,6 +479,7 @@ impl Produced {
             Self::Live(live) => live.poll_piece(cx, limit),
             Self::File(file) => file.poll_piece(cx, limit),
             Self::Encoded(encoded) => encoded.poll_piece(cx, limit),
+            Self::Counted(counted) => counted.poll_piece(cx, limit),
         }
     }
 
@@ -426,6 +488,7 @@ impl Produced {
             Self::Live(live) => live.is_done(),
             Self::File(file) => file.is_done(),
             Self::Encoded(encoded) => encoded.is_done(),
+            Self::Counted(counted) => counted.is_done(),
         }
     }
 }
@@ -451,6 +514,9 @@ impl Body for Reply {
             Self::Encoded(encoded) => encoded
                 .poll_piece(cx, usize::MAX)
                 .map(|piece| piece.map(|result| result.map(Frame::data))),
+            Self::Counted(counted) => counted
+                .poll_piece(cx, usize::MAX)
+                .map(|piece| piece.map(|result| result.map(Frame::data))),
         }
     }
 
@@ -460,6 +526,7 @@ impl Body for Reply {
             Self::Live(live) => live.is_done(),
             Self::File(file) => file.is_done(),
             Self::Encoded(encoded) => encoded.is_done(),
+            Self::Counted(counted) => counted.is_done(),
         }
     }
 
@@ -468,6 +535,7 @@ impl Body for Reply {
             Self::Whole(full) => full.size_hint(),
             Self::Live(_) | Self::Encoded(_) => SizeHint::default(),
             Self::File(file) => SizeHint::with_exact(file.remaining()),
+            Self::Counted(counted) => counted.size_hint(),
         }
     }
 }

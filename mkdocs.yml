@@ -108,6 +108,7 @@ nav:
           - Errors: errors.md
           - Stream a response: streaming.md
           - Compress responses: compression.md
+          - Export Prometheus metrics: metrics.md
           - Middleware: middleware.md
           - Pagination: pagination.md
           - Parsers and renderers: codecs.md

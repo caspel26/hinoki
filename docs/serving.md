@@ -127,7 +127,7 @@ granian --interface asgi notes.main:app
 
 ## Metrics and tracing
 
-Hinoki ships no metrics registry, exporter or tracing integration, and no health route besides the optional [startup probe](#optional-startup-probe). On an ASGI server the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:
+Kiso exports Prometheus metrics (off by default; see [export Prometheus metrics](metrics.md)). Hinoki ships no tracing integration and no health route besides the optional [startup probe](#optional-startup-probe). On an ASGI server such as Granian there is no built-in exporter, and the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:
 
 ```python
 # notes/metrics.py
@@ -165,10 +165,8 @@ app = Timing(notes_app, record=my_metrics.observe)  # serve with any ASGI server
 
 What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do **not** label by `scope["path"]` (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: `logging.include_request_id` adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.
 
-Kiso has no ASGI boundary, so this wrapper does not apply to it and it has no
-instrumentation seam today. Use the server's own limits and access log and the
-request log of your proxy, or serve with Granian when you need to wrap the
-application.
+Kiso has no ASGI boundary, so this wrapper does not apply to it. Use its
+built-in [Prometheus metrics](metrics.md) instead.
 
 ## Streamed responses
 

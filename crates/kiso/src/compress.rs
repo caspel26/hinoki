@@ -356,7 +356,7 @@ impl Offer {
             Reply::Whole(full) => policy.whole(coding, headers, full, slot),
             Reply::Live(live) => policy.encoded(coding, headers, Source::Live(live), slot),
             Reply::File(file) => policy.encoded(coding, headers, Source::File(file), slot),
-            encoded @ Reply::Encoded(_) => encoded,
+            already @ (Reply::Encoded(_) | Reply::Counted(_)) => already,
         }
     }
 }

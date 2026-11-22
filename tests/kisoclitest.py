@@ -379,7 +379,11 @@ def test_run_supervised_opens_listener_and_computes_scheme(
         == 4
     )
     supervisor.assert_called_once()
-    assert supervisor.call_args.kwargs == {"reload": False, "scheme": "https"}
+    assert supervisor.call_args.kwargs == {
+        "reload": False,
+        "scheme": "https",
+        "metrics": None,
+    }
     listener.close()
 
 
@@ -880,7 +884,7 @@ def test_supervisor_run_owns_worker_and_listener_until_exit(
     )
     monkeypatch.setattr(supervisor, "changes", lambda: iter([set()]))
     monkeypatch.setattr(supervisor, "ticks", lambda: iter([set()]))
-    monkeypatch.setattr(supervisor, "spawn", lambda: process)
+    monkeypatch.setattr(supervisor, "spawn", lambda _slot: process)
     monkeypatch.setattr(supervisor, "watch", lambda _events: 0)
     monkeypatch.setattr(supervisor, "supervise", lambda _events: 0)
     assert supervisor.run() == 0

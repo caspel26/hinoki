@@ -32,7 +32,8 @@ use crate::compress::{Compression, Offer, Shape};
 use crate::early::Early;
 use crate::framing::Signals;
 use crate::headers::Header;
-use crate::stream::{self, Delivery, FileAnswer, Live, Reply, Streamed};
+use crate::metrics::{ErrorKind, InFlightGuard, Registry};
+use crate::stream::{self, Counted, Delivery, FileAnswer, Live, Reply, Streamed};
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
@@ -275,6 +276,44 @@ pub struct Transport {
     pub server_timing: bool,
     /// Compress answers by this policy; `None` sends them as they are.
     pub compression: Option<Arc<Compression>>,
+    /// Record every answer here; `None` records nothing.
+    pub metrics: Option<Arc<Registry>>,
+}
+
+/// What `respond` keeps of a request for the metrics, past the handoff.
+struct Metered {
+    registry: Arc<Registry>,
+    trace: Arc<Trace>,
+    method: usize,
+    in_flight: InFlightGuard,
+}
+
+impl Metered {
+    fn begin(registry: &Arc<Registry>, incoming: &Incoming) -> Self {
+        Self {
+            registry: Arc::clone(registry),
+            trace: Arc::clone(&incoming.trace),
+            method: Registry::method_index(&incoming.method),
+            in_flight: registry.enter(),
+        }
+    }
+
+    /// Record the answer and count the bytes of its body as they go out.
+    fn record(
+        self,
+        response: Response<Reply>,
+        elapsed: Duration,
+        invalid: bool,
+    ) -> Response<Reply> {
+        let slot = self.registry.slot_of(self.trace.action());
+        self.registry
+            .observe(slot, self.method, response.status().as_u16(), elapsed);
+        if invalid {
+            self.registry.error(slot, ErrorKind::InvalidResponse);
+        }
+        drop(self.in_flight);
+        response.map(|body| Counted::wrap(body, &self.registry, slot))
+    }
 }
 
 /// The parts of a request an access-log line needs, kept past the handoff.
@@ -351,17 +390,26 @@ pub async fn respond<B: Backend>(
         .access_log
         .map(|style| (style, incoming.clone_head()));
     let timed = transport.server_timing.then(|| Arc::clone(&incoming.trace));
+    let metered = transport
+        .metrics
+        .as_ref()
+        .map(|registry| Metered::begin(registry, &incoming));
     let offer = transport
         .compression
         .as_ref()
         .map(|policy| policy.offer(&incoming.headers));
     let delivery = backend.deliver(incoming).await;
+    let mut invalid = false;
     let mut response = response_of(delivery, head_only, offer.as_ref()).unwrap_or_else(|reason| {
+        invalid = true;
         stream::report(&format!(
             "the response cannot be sent ({reason}); answering 500 instead"
         ));
         plain(StatusCode::INTERNAL_SERVER_ERROR)
     });
+    if let Some(metered) = metered {
+        response = metered.record(response, started.elapsed(), invalid);
+    }
     let status = response.status().as_u16();
     let timing = timed.map(|trace| server_timing(started.elapsed(), trace.lane()));
     if let Some((style, head)) = logged {
