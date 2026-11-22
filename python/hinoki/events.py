@@ -371,6 +371,12 @@ class EventBus:
         machinery propagates, and the whole delivery takes at most
         ``handler_timeout`` seconds."""
         try:
+            if asyncio.current_task() is None:
+                log.warning(
+                    "%s not delivered: no asyncio task is running",
+                    type(event).__qualname__,
+                )
+                return
             async with asyncio.timeout(self.handler_timeout):
                 await self.emit(event)
         except Exception:
