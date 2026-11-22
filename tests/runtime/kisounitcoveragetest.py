@@ -99,6 +99,7 @@ def _worker() -> Any:
     worker.stopping = asyncio.Event()
     worker._lifespan_task = None
     worker.listener_fd = None
+    worker.ready_fd = None
     worker.pipeline = SimpleNamespace()
     worker.core = SimpleNamespace()
     worker._inbox = asyncio.Queue()
@@ -419,7 +420,7 @@ async def test_stop_without_server_and_with_shutdown_callbacks(
     loop = SimpleNamespace(remove_reader=lambda fd: events.append(f"reader:{fd}"))
     monkeypatch.setattr("hinoki.runtime.kiso.asyncio.get_running_loop", lambda: loop)
     assert await worker.stop() == 2
-    assert events == ["ready:False", "timer", "streams", "reader:9"]
+    assert events == ["timer", "streams", "ready:False", "reader:9"]
     assert "aborted 2 native CRUD jobs" in caplog.text
 
     worker.server = cast(Any, Server())

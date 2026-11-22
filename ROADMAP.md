@@ -10,6 +10,7 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 - Typed `http.Middleware` that runs identically on Kiso and Granian (it moves the matched routes onto the Python lane), and WSGI callables served by Kiso with `--interface wsgi` through a bounded thread pool and a streamed response. The WSGI path crosses Python objects and is not native.
 - Streaming responses: `Stream`, `EventStream` (server-sent events) and `File` on Kiso and Granian, with a bounded buffer, an idle timeout, keep-alive comments and a disconnect check. The application's iterator is Python on both servers; Kiso frames and queues the pieces in Rust and sends a `File` without its bytes entering Python. See [stream a response](docs/streaming.md).
 - Optional response compression on Kiso only (`compression.enabled`, off by default): brotli and gzip negotiated, applied and bounded in Rust, with only the settings in Python. See [compress responses](docs/compression.md).
+- Reload on `SIGHUP` in Kiso (`hinoki serve`, POSIX): the supervisor, which is Python, starts new workers one at a time, waits until each serves, then stops the old one gracefully, all on the same listening socket. See [Kiso](docs/kiso.md#reload-on-sighup).
 
 See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
 
@@ -28,7 +29,6 @@ These are directions, not commitments, and none of them is available today.
 - Cursor pagination.
 - WebSockets.
 - Per-route CORS policies.
-- Reload on `SIGHUP` in Kiso.
 - Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 
 This roadmap is intentionally curated; detailed queue notes and owner decisions are maintained locally and are not part of the public repository.

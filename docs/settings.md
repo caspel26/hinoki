@@ -82,6 +82,7 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `server` | `access_log` | unset | One line per request on either server. Unset logs in `hinoki dev` only (or whenever `access_log_format` is set); `true` or `false` decides for `dev` and `serve` |
 | `server` | `access_log_skip` | unset | Kiso only: paths the log leaves out, exact or a `*` prefix; failures are still logged |
 | `server` | `server_timing` | unset | Kiso only: add a `Server-Timing` header with the time taken and the serving lane; unset means `hinoki dev` only, so browser developer tools show it |
+| `server` | `sighup` | unset | Kiso only, `hinoki serve`: `"reload"` (also what unset means) replaces the workers one at a time on `SIGHUP`, `"stop"` stops the server instead; see [reload on `SIGHUP`](kiso.md#reload-on-sighup) |
 | `server` | `recent_requests` | unset | Kiso only: file that also receives each request as a JSON line for `hinoki mcp`'s `recent_requests` tool; works with the access log off |
 | `server` | `access_log_slow_ms` | unset | Kiso only: keep only answers at least this slow (ms); failures are still logged |
 | `server` | `access_log_format` | unset | Kiso only (Granian refuses it): `pretty`, `plain`, `json` or `logger` (route to the `hinoki.access` Python logger). Unset is `pretty` on a colour terminal and `plain` otherwise |

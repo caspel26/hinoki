@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🔄 Reload on SIGHUP in Kiso
+> `python/hinoki/runtime/supervisor.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/runtime/wsgiworker.py`, `python/hinoki/runtime/listener.py`, `python/hinoki/serve.py`, `python/hinoki/settings.py`
+
+`kill -HUP` on the supervisor of `hinoki serve` replaces the workers one at a time on the same listening socket: a new worker imports the code and reads the settings again, reports once its lifespan has started and it serves, and only then is the old one stopped gracefully. A new worker that does not start keeps the old ones running and the reload stops with an error. New setting `server.sighup` (`"reload"`, the default, or `"stop"` for the earlier behavior; Kiso only). `hinoki serve` now runs a supervisor even with one worker unless `sighup` is `"stop"`; on Windows, which has no `SIGHUP`, nothing changes. A worker that is stopping now answers requests already sent to it instead of refusing them with `503`, and a replacement worker's metrics use the next free `worker` number. See [reload on `SIGHUP`](docs/kiso.md#reload-on-sighup).
+
 #### 📈 Prometheus metrics on Kiso
 > `crates/kiso/src/metrics.rs`, `crates/kiso/src/scrape.rs`, `crates/bindings/src/metrics.rs`, `python/hinoki/settings.py`, `python/hinoki/serve.py`, `python/hinoki/runtime/supervisor.py`
 
