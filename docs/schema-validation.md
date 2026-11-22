@@ -165,7 +165,9 @@ subclass type, an unknown or missing argument, a class that overrides
 `_validate_instance`, a `validate` of its own, or a graph with checks,
 normalizers or `@before_validate`) runs the ordinary Python code. A
 `default_factory` whose result is rejected may be called a second time by that
-fallback.
+fallback. `Schema.validate(data)` reads a plain `dict` (and nested dicts and
+lists of plain schemas) straight into the slots; a dict it does not fully
+recognise, for instance with an unknown key, goes through the general validator.
 
 ### Where fields live
 
