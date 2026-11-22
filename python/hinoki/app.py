@@ -39,7 +39,7 @@ from hinoki.parsers import (
     Parser,
     check_parsers,
 )
-from hinoki.project import manifest_declaring
+from hinoki.project import ProjectManifest, manifest_declaring
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 from hinoki.routing import (
     Found,
@@ -179,7 +179,7 @@ class Hinoki:
         commands: Sequence[Command | type[Command]] = (),
         on_startup: Sequence[Hook] = (),
         on_shutdown: Sequence[Hook] = (),
-        events: Sequence[Handlers] = (),
+        events: Sequence[Handlers] | None = None,
         startup_url: str | None = None,
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
@@ -193,8 +193,11 @@ class Hinoki:
         waivers: str | Path | None = None,
         parsers: Sequence[Parser] | None = None,
         renderers: Sequence[Renderer] | None = None,
-        middleware: Sequence[Middleware] = (),
+        middleware: Sequence[Middleware] | None = None,
     ) -> None:
+        include, events, middleware = self._manifest_defaults(
+            sys._getframe(1), include, events, middleware
+        )
         if isinstance(settings, type) and issubclass(settings, Settings):
             settings = settings.load()  # a class: read its variables now
         self._startup_url = check_startup_url(startup_url)
@@ -219,19 +222,39 @@ class Hinoki:
         if automatic is not None or declared:
             self.install(*([automatic] if automatic else []), *declared)
         self._automatic_database: DatabaseModule | None = automatic
-        if include is None:
-            include = self._project_routes(sys._getframe(1))
         if include:
             self.include(*include)
 
+    @classmethod
+    def _manifest_defaults(
+        cls,
+        caller: FrameType,
+        include: Sequence[Includable] | None,
+        events: Sequence[Handlers] | None,
+        middleware: Sequence[Middleware] | None,
+    ) -> tuple[Sequence[Includable], Sequence[Handlers], Sequence[Middleware]]:
+        """Fill each of ``include=``, ``events=`` and ``middleware=`` that was left
+        out from ``hinoki.toml``; an explicit value, even empty, is kept."""
+        manifest = (
+            cls._project_manifest(caller)
+            if include is None or events is None or middleware is None
+            else None
+        )
+        if manifest is None:
+            return include or (), events or (), middleware or ()
+        return (
+            manifest.route_items() if include is None else include,
+            manifest.event_handlers() if events is None else events,
+            manifest.middleware_list() if middleware is None else middleware,
+        )
+
     @staticmethod
-    def _project_routes(caller: FrameType) -> list[Includable]:
-        """Without ``include=``, the routes ``hinoki.toml`` declares, when the
-        manifest names the module that builds this application."""
-        manifest = manifest_declaring(
+    def _project_manifest(caller: FrameType) -> ProjectManifest | None:
+        """Without ``include=``, ``events=`` or ``middleware=``, what ``hinoki.toml``
+        declares, when the manifest names the module that builds this application."""
+        return manifest_declaring(
             caller.f_globals.get("__name__", ""), caller.f_globals.get("__file__")
         )
-        return manifest.route_items() if manifest is not None else []
 
     def admin_settings(self) -> AdminSettings | None:
         """The app's ``admin`` settings group, or ``None`` without built-in settings."""
