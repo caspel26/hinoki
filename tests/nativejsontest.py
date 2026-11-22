@@ -117,6 +117,28 @@ def test_encode_limits_nesting() -> None:
         core.encode_json(deep)
 
 
+@pytest.mark.parametrize("empty_innermost", [False, True], ids=["scalar", "empty"])
+def test_nesting_limits_are_exact(empty_innermost: bool) -> None:
+    def lists(count: int) -> Any:
+        value: Any = [] if empty_innermost else 1
+        for _ in range(count - 1 if empty_innermost else count):
+            value = [value]
+        return value
+
+    def text(count: int) -> bytes:
+        return b"[" * count + (b"" if empty_innermost else b"1") + b"]" * count
+
+    assert json.loads(core.encode_json(lists(200))) == lists(200)
+    with pytest.raises(ValueError, match="nested too deeply"):
+        core.encode_json(lists(201))
+    assert core.decode_json(text(128)) == lists(128)
+    with pytest.raises(core.JsonDecodeError, match="nesting too deep"):
+        core.decode_json(text(129))
+    objects = b'{"a":' * 128 + b"{}" + b"}" * 128
+    with pytest.raises(core.JsonDecodeError, match="nesting too deep"):
+        core.decode_json(objects)
+
+
 STDLIB_TEXT: Any = {
     "é": 'ü😀\x7f\x1f"\\\n',
     "a b": [],
