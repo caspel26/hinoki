@@ -263,7 +263,7 @@ def _append_app(
     )
 
 
-def _app_block(  # noqa: PLR0913 - one keyword per manifest key
+def _app_block(
     name: str,
     *,
     models: str,
@@ -272,7 +272,6 @@ def _app_block(  # noqa: PLR0913 - one keyword per manifest key
     prefix: str,
     requires: tuple[str, ...],
     events: str = "",
-    middleware: str = "",
 ) -> str:
     lines = [
         "[[apps]]",
@@ -284,8 +283,6 @@ def _app_block(  # noqa: PLR0913 - one keyword per manifest key
         lines.append(f"routes = {jsontext.toml_value(routes)}")
     if events:
         lines.append(f"events = {jsontext.toml_value(events)}")
-    if middleware:
-        lines.append(f"middleware = {jsontext.toml_value(middleware)}")
     if prefix:
         lines.append(f"prefix = {jsontext.toml_value(prefix)}")
     lines.append(f"requires = {jsontext.toml_value(list(requires))}")
@@ -323,7 +320,6 @@ def register_app(  # noqa: PLR0913 - one keyword per manifest key
     prefix: str = "",
     requires: tuple[str, ...] = (),
     events: str = "",
-    middleware: str = "",
     start: Path | None = None,
 ) -> Path:
     """Register an existing package as an app without creating any file."""
@@ -340,7 +336,6 @@ def register_app(  # noqa: PLR0913 - one keyword per manifest key
             prefix=prefix,
             requires=requires,
             events=events,
-            middleware=middleware,
         )
         try:
             _append_block(manifest.path, manifest.path.read_bytes(), block)
@@ -384,11 +379,6 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
     add.add_argument(
         "--events", default="", help="module:attribute of the app's Handlers"
     )
-    add.add_argument(
-        "--middleware",
-        default="",
-        help="module:attribute of the app's sequence of Middleware",
-    )
     add.add_argument("--prefix", default="", help="mount prefix (default: /NAME)")
     add.add_argument(
         "--requires", default="", help="comma-separated apps this one depends on"
@@ -418,7 +408,6 @@ def list_apps(args: Namespace) -> int:
                 "prefix": app.prefix or (f"/{app.name}" if app.routes else ""),
                 "requires": list(app.requires),
                 "events": app.events,
-                "middleware": app.middleware,
             }
             for app in apps
         ]
@@ -434,7 +423,6 @@ def list_apps(args: Namespace) -> int:
             f"  migrations: {app.migrations}\n"
             f"{_routes_line(app)}"
             f"{_events_line(app)}"
-            f"{_middleware_line(app)}"
             f"  requires: {', '.join(app.requires) or '—'}"
         )
     return 0
@@ -442,10 +430,6 @@ def list_apps(args: Namespace) -> int:
 
 def _events_line(app: ProjectApp) -> str:
     return f"  events: {app.events}\n" if app.events else ""
-
-
-def _middleware_line(app: ProjectApp) -> str:
-    return f"  middleware: {app.middleware}\n" if app.middleware else ""
 
 
 def _routes_line(app: ProjectApp) -> str:
@@ -496,7 +480,6 @@ def add_app(args: Namespace) -> int:
         migrations=args.migrations,
         routes=args.routes,
         events=args.events,
-        middleware=args.middleware,
         prefix=args.prefix,
         requires=tuple(item for item in args.requires.split(",") if item),
     )

@@ -195,8 +195,8 @@ class Hinoki:
         renderers: Sequence[Renderer] | None = None,
         middleware: Sequence[Middleware] | None = None,
     ) -> None:
-        include, events, middleware = self._manifest_defaults(
-            sys._getframe(1), include, events, middleware
+        include, events, middleware, rules = self._manifest_defaults(
+            sys._getframe(1), include, events, middleware, rules
         )
         if isinstance(settings, type) and issubclass(settings, Settings):
             settings = settings.load()  # a class: read its variables now
@@ -232,26 +232,35 @@ class Hinoki:
         include: Sequence[Includable] | None,
         events: Sequence[Handlers] | None,
         middleware: Sequence[Middleware] | None,
-    ) -> tuple[Sequence[Includable], Sequence[Handlers], Sequence[Middleware]]:
-        """Fill each of ``include=``, ``events=`` and ``middleware=`` that was left
-        out from ``hinoki.toml``; an explicit value, even empty, is kept."""
+        rules: RuleSet | None,
+    ) -> tuple[
+        Sequence[Includable],
+        Sequence[Handlers],
+        Sequence[Middleware],
+        RuleSet | None,
+    ]:
+        """Fill each of ``include=``, ``events=``, ``middleware=`` and ``rules=``
+        that was left out from ``hinoki.toml``; an explicit value, even empty,
+        is kept. ``rules`` stays ``None`` when the manifest lists none."""
         manifest = (
             cls._project_manifest(caller)
-            if include is None or events is None or middleware is None
+            if any(value is None for value in (include, events, middleware, rules))
             else None
         )
         if manifest is None:
-            return include or (), events or (), middleware or ()
+            return include or (), events or (), middleware or (), rules
         return (
             manifest.route_items() if include is None else include,
             manifest.event_handlers() if events is None else events,
             manifest.middleware_list() if middleware is None else middleware,
+            manifest.rule_set() if rules is None and manifest.rules else rules,
         )
 
     @staticmethod
     def _project_manifest(caller: FrameType) -> ProjectManifest | None:
-        """Without ``include=``, ``events=`` or ``middleware=``, what ``hinoki.toml``
-        declares, when the manifest names the module that builds this application."""
+        """Without ``include=``, ``events=``, ``middleware=`` or ``rules=``, what
+        ``hinoki.toml`` declares, when the manifest names the module that builds
+        this application."""
         return manifest_declaring(
             caller.f_globals.get("__name__", ""), caller.f_globals.get("__file__")
         )

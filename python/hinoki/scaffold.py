@@ -45,7 +45,6 @@ MAIN = '''"""The application. `hinoki.toml` names it; `uv run hinoki dev` serves
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from {name}.rules import project_rules
 from {name}.settings import ProjectSettings
 
 app = Hinoki(
@@ -54,8 +53,7 @@ app = Hinoki(
     title="{title}",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    rules=project_rules,
-)
+)  # the rules come from `rules` in hinoki.toml
 '''
 
 ROUTES = '''"""The project's own routes. Apps list theirs in `apps/<name>/routes.py`."""
@@ -366,6 +364,7 @@ def files(
             "[project]\n"
             f'application = "{name}.main:app"\n'
             f'routes = "{name}.routes:routes"\n'
+            f'rules = ["{name}.rules:project_rules"]\n'
         ),
         "README.md": README.format(**values),
         "AGENTS.md": AGENTS.format(**values),
