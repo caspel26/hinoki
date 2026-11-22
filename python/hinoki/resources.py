@@ -10,6 +10,7 @@ import inspect
 import types
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from datetime import date
 from operator import attrgetter
 from typing import Any, ClassVar, NoReturn, cast
 
@@ -25,7 +26,13 @@ from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.routing import Options, RouteDeclaration, check_flag, check_tags
+from hinoki.routing import (
+    Options,
+    RouteDeclaration,
+    check_deprecated,
+    check_flag,
+    check_tags,
+)
 from hinoki.schema import Schema
 
 if typing.TYPE_CHECKING:
@@ -83,7 +90,7 @@ class _CrudConfig:
     cors: Cors | None = None
     schema_shown: Mapping[str, bool] = dataclasses.field(default_factory=dict)
     tags: tuple[str, ...] = ()
-    deprecated: bool = False
+    deprecated: bool | date = False
 
     def documentation(self, action: str) -> dict[str, Any]:
         """The OpenAPI options of one generated action."""
@@ -844,7 +851,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     cors: Cors | None = None,
     include_in_schema: bool | Mapping[str, bool] = True,
     tags: Sequence[str] = (),
-    deprecated: bool = False,
+    deprecated: bool | date = False,
 ) -> CrudDeclaration:
     """Declare generated CRUD for ``model``.
 
@@ -869,7 +876,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         check_name(name)
     try:
         check_tags(tags)
-        check_flag("deprecated", deprecated)
+        check_deprecated(deprecated)
         shown = schema_visibility(include_in_schema)
     except ValueError as exc:
         raise RegistrationError(f"crud(...) {exc}") from exc

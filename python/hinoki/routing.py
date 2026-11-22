@@ -13,6 +13,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypeVar
 
 from hinoki.access import Access
@@ -60,7 +61,7 @@ class Route:
     cors: Cors | None = None
     include_in_schema: bool = True
     tags: tuple[str, ...] = ()
-    deprecated: bool = False
+    deprecated: bool | date = False
     operation_id: str | None = None
 
     @property
@@ -90,7 +91,7 @@ class Options:
     cors: Cors | None = None
     include_in_schema: bool = True
     tags: Sequence[str] = ()
-    deprecated: bool = False
+    deprecated: bool | date = False
     operation_id: str | None = None
 
 
@@ -142,7 +143,7 @@ class RouteDeclaration:
                 "include_in_schema", options.include_in_schema
             ),
             tags=check_tags(options.tags),
-            deprecated=check_flag("deprecated", options.deprecated),
+            deprecated=check_deprecated(options.deprecated),
             operation_id=check_operation_id(options.operation_id),
         )
         setattr(fn, ROUTE_ATTR, route)
@@ -152,6 +153,13 @@ class RouteDeclaration:
 def check_flag(name: str, value: object) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{name}=... takes True or False, got {value!r}")
+    return value
+
+
+def check_deprecated(value: object) -> bool | date:
+    """``True``, ``False`` or the ``datetime.date`` the action was deprecated on."""
+    if isinstance(value, datetime) or not isinstance(value, bool | date):
+        raise ValueError(f"deprecated=... takes True, False or a date, got {value!r}")
     return value
 
 
@@ -223,7 +231,7 @@ def get(
     cors: Cors | None = None,
     include_in_schema: bool = True,
     tags: Sequence[str] = (),
-    deprecated: bool = False,
+    deprecated: bool | date = False,
     operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a GET action. ``errors`` lists the ``APIError`` subclasses the
@@ -267,7 +275,7 @@ def post(
     cors: Cors | None = None,
     include_in_schema: bool = True,
     tags: Sequence[str] = (),
-    deprecated: bool = False,
+    deprecated: bool | date = False,
     operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a POST action. ``errors`` lists the ``APIError`` subclasses the
@@ -311,7 +319,7 @@ def put(
     cors: Cors | None = None,
     include_in_schema: bool = True,
     tags: Sequence[str] = (),
-    deprecated: bool = False,
+    deprecated: bool | date = False,
     operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a PUT action. ``errors`` lists the ``APIError`` subclasses the
@@ -355,7 +363,7 @@ def patch(
     cors: Cors | None = None,
     include_in_schema: bool = True,
     tags: Sequence[str] = (),
-    deprecated: bool = False,
+    deprecated: bool | date = False,
     operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a PATCH action. ``errors`` lists the ``APIError`` subclasses the
@@ -399,7 +407,7 @@ def delete(
     cors: Cors | None = None,
     include_in_schema: bool = True,
     tags: Sequence[str] = (),
-    deprecated: bool = False,
+    deprecated: bool | date = False,
     operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a DELETE action. ``errors`` lists the ``APIError`` subclasses the
@@ -443,7 +451,7 @@ def query(
     cors: Cors | None = None,
     include_in_schema: bool = True,
     tags: Sequence[str] = (),
-    deprecated: bool = False,
+    deprecated: bool | date = False,
     operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a QUERY action: a safe, idempotent request that carries a body

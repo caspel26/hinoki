@@ -37,6 +37,7 @@ from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import MultiPartParser, Parser, UploadedFile, XMLParser
 from hinoki.renderers import is_default_json_renderer
 from hinoki.routing import Route
+from hinoki.runtime.deprecation import header_of
 from hinoki.runtime.responsecheck import (
     NO_ANNOTATION,
     Check,
@@ -304,8 +305,10 @@ class Binding:
     @property
     def owner_headers(self) -> tuple[tuple[str, str], ...]:
         """The owner's response headers, read per request: they may change
-        after startup."""
-        return tuple(getattr(self.route.owner, "response_headers", ()))
+        after startup. A deprecated action adds its ``Deprecation`` header."""
+        headers = tuple(getattr(self.route.owner, "response_headers", ()))
+        notice = header_of(self.route.deprecated)
+        return headers if notice is None else (*headers, notice)
 
     @property
     def query_param(self) -> Param | None:
