@@ -47,6 +47,40 @@ app = Hinoki(include=[items], middleware=[Tenant()])
 first, then the action's, in the order listed; each one returns what the next
 one returned unless it answers itself.
 
+## Declaring middleware in `hinoki.toml`
+
+An app can name a sequence of middleware in its `[[apps]]` table. Hinoki does
+not generate the module: you create it yourself.
+
+```python
+# shop/apps/notes/middleware.py
+middleware = [Tenant()]
+```
+
+```toml
+[[apps]]
+name = "notes"
+models = "shop.apps.notes.models"
+migrations = "shop.apps.notes.migrations"
+middleware = "shop.apps.notes.middleware:middleware"
+```
+
+```python
+from hinoki import Hinoki
+from hinoki.project import manifest_middleware, manifest_routes
+
+app = Hinoki(include=manifest_routes(), middleware=manifest_middleware())
+```
+
+`manifest_middleware()` imports each app's list in dependency order
+(`requires`) and flattens them, so a required app's middleware runs
+before the dependent app's, and within an app in the order listed. The result is
+the application's own middleware: it runs before an action's and obeys
+[the order below](#order-and-what-stays-outside). A target that does not import,
+or that is not a list or tuple of objects with an `async def __call__`, raises a
+`ProjectError` naming the app. `hinoki app add notes --models ... --middleware
+pkg.middleware:middleware` registers one and `hinoki app list` shows it.
+
 ## What a middleware sees
 
 `MiddlewareRequest` is the head of the request: `method`, `path`, the matched
