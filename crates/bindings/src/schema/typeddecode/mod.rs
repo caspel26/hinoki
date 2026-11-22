@@ -15,9 +15,11 @@
 //! the two grammars.
 
 mod nativeinit;
+mod nativemethods;
 
 pub use nativeinit::NativeInit;
 pub(crate) use nativeinit::{complete, from_record, replaced};
+pub use nativemethods::NativeMethod;
 
 use std::borrow::Cow;
 use std::collections::HashMap;

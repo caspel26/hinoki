@@ -40,6 +40,16 @@ class CompiledSchema:
     def build_text(self, data: Any) -> Any: ...
     def replace(self, instance: Any, changes: dict[str, Any]) -> Any | None: ...
 
+class NativeMethod:
+    """``__copy__``, ``__deepcopy__``, ``__reduce__`` or ``__setstate__`` of a
+    schema class, run in Rust over the names of its slots. ``kind`` is
+    ``"copy"``, ``"deepcopy"``, ``"reduce"`` or ``"setstate"``; ``state`` lists
+    every slot."""
+
+    def __init__(self, kind: str, state: list[str]) -> None: ...
+    def __call__(self, instance: Any, *arguments: Any) -> Any: ...
+    def __get__(self, instance: Any, owner: Any = None) -> Any: ...
+
 class NativeInit:
     """The constructor of a schema class: validates keyword arguments and writes
     them into the instance in Rust, or runs ``slow`` (the Python constructor)

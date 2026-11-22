@@ -1060,6 +1060,47 @@ def allocate_schema_instance(cls: type[Schema], values: dict[str, Any]) -> Schem
     return allocator(cls, **values)
 
 
+def native_state_names(cls: type) -> list[str]:
+    """Every slot an instance of ``cls`` can hold, base classes first."""
+    names: list[str] = []
+    for klass in reversed(cls.__mro__):
+        declared = klass.__dict__.get("__slots__", ())
+        for name in (declared,) if isinstance(declared, str) else declared:
+            if name not in ("__dict__", "__weakref__") and name not in names:
+                names.append(name)
+    return names
+
+
+def defined_by_user(cls: type, name: str) -> bool:
+    """True when ``name`` comes from a class body, not from ``object`` or from
+    the native method this module installs."""
+    found = inspect.getattr_static(cls, name, None)
+    if found is None or isinstance(found, core.NativeMethod):
+        return False
+    return getattr(found, "__objclass__", None) is not object
+
+
+_PROTOCOL_METHODS = (
+    ("__copy__", "copy"),
+    ("__deepcopy__", "deepcopy"),
+    ("__reduce__", "reduce"),
+)
+
+
+def install_native_methods(cls: type[Schema]) -> None:
+    """``copy``, ``deepcopy`` and pickling run in Rust over the slots, except
+    for what the class (or a base) defines itself."""
+    state = native_state_names(cls)
+    if any(
+        defined_by_user(cls, name)
+        for name in ("__reduce_ex__", "__getstate__", "__setstate__")
+    ):
+        return
+    for name, kind in _PROTOCOL_METHODS:
+        if not defined_by_user(cls, name):
+            setattr(cls, name, core.NativeMethod(kind, state))
+
+
 def install_generated_init(cls: type[Schema], generated_init: Any) -> None:
     """Install direct, wire-validated and model-conversion constructors."""
 
@@ -1455,6 +1496,7 @@ class Schema(metaclass=_SchemaMeta):
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
         reset_inherited_entries(cls)
+        install_native_methods(cls)
         setattr(cls, _TRACKS_SUPPLIED_FIELDS, not custom_init)
         if custom_init:
             install_custom_init(cls, cls.__init__)
@@ -1469,14 +1511,9 @@ class Schema(metaclass=_SchemaMeta):
                 cls.computed_fields()
                 refuse_hooked_unions(cls)
 
-    def __setstate__(self, state: object) -> None:
-        # Frozen fields live in slots: restore them the way the generated
-        # constructor writes them.
-        attributes, slots = state if isinstance(state, tuple) else (state, None)
-        for name, value in (attributes or {}).items():
-            object.__setattr__(self, name, value)
-        for name, value in (slots or {}).items():
-            object.__setattr__(self, name, value)
+    # Frozen fields live in slots: restore them the way the generated
+    # constructor writes them.
+    __setstate__ = core.NativeMethod("setstate", [])
 
     @classmethod
     def is_generic(cls) -> bool:
