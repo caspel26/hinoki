@@ -74,7 +74,7 @@ def lanes_of(app: Hinoki) -> dict[int, tuple[str, str]]:
             selection, reason = select_crud_plan(binding, pipeline)
         except Exception:
             selection, reason = None, "native_plan_build_failed"
-        if selection is None and lane_refusal(binding) is None:
+        if selection is None and lane_refusal(binding, pipeline.events) is None:
             lanes[id(binding.route)] = ("native", "native_dispatch")
             continue
         lane = "native" if selection else "python"

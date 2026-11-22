@@ -29,6 +29,7 @@ import types
 from collections.abc import Callable
 from typing import Any
 
+from hinoki.events import Created, Deleted, EventBus, Updated
 from hinoki.orm.model import Model
 
 MODEL_STARTS = frozenset({"filter", "all"})
@@ -49,12 +50,24 @@ QUERYSET_BUILDERS = frozenset(
 )
 QUERYSET_TERMINALS = frozenset({"aget", "afirst", "acount", "aexists"})
 QUERYSET_WRITES = frozenset({"aupdate", "adelete"})
+# The model event a write emits; ``aupdate`` and ``aupdate_where`` emit none.
+MODEL_WRITE_EVENTS: dict[str, type] = {
+    "acreate": Created,
+    "abulk_create": Created,
+    "abulk_update": Updated,
+    "adelete": Deleted,
+    "abulk_delete": Deleted,
+}
+QUERYSET_WRITE_EVENTS: dict[str, type] = {"adelete": Deleted}
 # What a write calls on the model: none of it may be replaced.
 WRITE_PATH = (
     "insert",
+    "insert_observed",
     "write_insert",
     "write_update",
     "save_with",
+    "save_observed",
+    "event_transaction",
     "asave",
     "from_schema",
     "merged_values",
@@ -145,17 +158,20 @@ def is_stock(model: type[Model], name: str) -> bool:
     return getattr(own, "__func__", own) is getattr(stock, "__func__", stock)
 
 
-def check_write(model: type[Model]) -> None:
+def check_write(model: type[Model], bus: EventBus | None, kind: type | None) -> None:
     """A write is native only for a model whose write path is stock and that
-    has no hook: a hook is application code that may await anything."""
+    has no hook: a hook is application code that may await anything. A handler
+    for the event the write emits (``kind``) is application code too."""
     for name in WRITE_PATH:
         if not is_stock(model, name):
             raise ProofError(f"{model.__name__}.{name} is overridden")
     if model.write_hooks():
         raise ProofError(f"{model.__name__} has write hooks")
+    if bus is not None and kind is not None and bus.registered(kind, model):
+        raise ProofError(f"{model.__name__} has {kind.__name__} event handlers")
 
 
-def check_chain(model: type[Model], links: list[str]) -> None:
+def check_chain(model: type[Model], links: list[str], bus: EventBus | None) -> None:
     first, rest = links[0], links[1:]
     if not is_stock(model, first):
         raise ProofError(f"{model.__name__}.{first} is overridden")
@@ -163,14 +179,14 @@ def check_chain(model: type[Model], links: list[str]) -> None:
         if rest:
             raise ProofError(f"{first} is followed by more calls")
         if first in MODEL_WRITES:
-            check_write(model)
+            check_write(model, bus, MODEL_WRITE_EVENTS.get(first))
         return
     if first not in MODEL_STARTS:
         raise ProofError(f"{model.__name__}.{first} is not a native query")
-    check_steps(model, rest)
+    check_steps(model, rest, bus)
 
 
-def check_steps(model: type[Model], steps: list[str]) -> None:
+def check_steps(model: type[Model], steps: list[str], bus: EventBus | None) -> None:
     for name in steps[:-1]:
         if name not in QUERYSET_BUILDERS:
             raise ProofError(f"{name} is not a native query step")
@@ -180,17 +196,19 @@ def check_steps(model: type[Model], steps: list[str]) -> None:
     if last not in QUERYSET_BUILDERS | QUERYSET_TERMINALS | QUERYSET_WRITES:
         raise ProofError(f"{last} is not a native query step")
     if last in QUERYSET_WRITES:
-        check_write(model)
+        check_write(model, bus, QUERYSET_WRITE_EVENTS.get(last))
 
 
-def check_await(func: types.FunctionType, node: ast.Await) -> None:
+def check_await(
+    func: types.FunctionType, node: ast.Await, bus: EventBus | None
+) -> None:
     root, links = chain_of(node.value)
     if not links:
         raise ProofError("an await is not a call on a model")
     target = resolve(func, root)
     if not (isinstance(target, type) and issubclass(target, Model)):
         raise ProofError("an await is not on a Model class")
-    check_chain(target, links)
+    check_chain(target, links, bus)
 
 
 def uses_task_api(node: ast.AST) -> bool:
@@ -225,8 +243,10 @@ def comprehension_is_async(node: ast.AST) -> bool:
     return isinstance(node, ast.comprehension) and bool(node.is_async)
 
 
-def prove(func: Callable[..., Any]) -> None:
-    """Raise :class:`ProofError` with the reason unless ``func`` is provably native."""
+def prove(func: Callable[..., Any], bus: EventBus | None = None) -> None:
+    """Raise :class:`ProofError` with the reason unless ``func`` is provably
+    native. With the application's ``bus``, a write whose model event has a
+    handler is not."""
     function, definition = function_tree(func)
     for node in ast.walk(definition):
         if node is definition:
@@ -240,13 +260,13 @@ def prove(func: Callable[..., Any]) -> None:
         ):
             raise ProofError("it uses asyncio directly")
         if isinstance(node, ast.Await):
-            check_await(function, node)
+            check_await(function, node, bus)
 
 
-def native_refusal(func: Callable[..., Any]) -> str | None:
+def native_refusal(func: Callable[..., Any], bus: EventBus | None = None) -> str | None:
     """Why ``func`` stays on the Python path, or ``None`` when it is provable."""
     try:
-        prove(func)
+        prove(func, bus)
     except ProofError as reason:
         return str(reason)
     return None

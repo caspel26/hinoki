@@ -37,6 +37,7 @@ from hinoki.runtime.servercore import native_handler_eligible, route_guarded
 if TYPE_CHECKING:
     import contextvars
 
+    from hinoki.events import EventBus
     from hinoki.runtime.pipeline import BodySource, Pipeline
 
 log = logging.getLogger("hinoki.runtime")
@@ -47,8 +48,10 @@ def needs_request_data(binding: Binding) -> bool:
     return binding.route.method in BODY_METHODS or route_guarded(binding)
 
 
-def lane_refusal(binding: Binding) -> str | None:
-    """Why the native lane does not serve this route, or ``None`` when it does."""
+def lane_refusal(binding: Binding, bus: EventBus | None = None) -> str | None:
+    """Why the native lane does not serve this route, or ``None`` when it does.
+    ``bus`` is the application's: a write with a handler for its model event
+    stays on the Python path, where the handler can run."""
     route = binding.route
     reason = None
     if binding.streams:
@@ -57,7 +60,7 @@ def lane_refusal(binding: Binding) -> str | None:
         reason = "not an async def handler"
     elif not native_handler_eligible(binding):
         reason = "not natively eligible"
-    return reason or native_refusal(route.handler)
+    return reason or native_refusal(route.handler, bus)
 
 
 def timeout_response() -> Response:

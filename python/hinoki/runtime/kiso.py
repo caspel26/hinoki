@@ -311,7 +311,7 @@ class KisoWorker:
             return None
         actions = set()
         for action, binding in enumerate(self.pipeline.bindings):
-            refusal = lane_refusal(binding)
+            refusal = lane_refusal(binding, self.pipeline.events)
             if refusal is None:
                 actions.add(action)
             log.debug(

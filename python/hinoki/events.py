@@ -1,6 +1,6 @@
 """Typed events with explicit handlers.
 
-An event is a class (usually a frozen dataclass). A ``Handlers`` collection
+An event is a class (a ``Schema`` or a frozen dataclass). A ``Handlers`` collection
 registers functions for event types in one of two phases named after what they
 may do: ``in_transaction`` handlers run inside the writer's transaction and can
 fail it; ``after_commit`` handlers run once the outermost transaction has
@@ -175,6 +175,36 @@ class Handlers:
         return decorate
 
 
+@dataclass(frozen=True, slots=True)
+class Created[M]:
+    """A model row was inserted by ``insert`` (``acreate``, ``asave`` of a new
+    instance, ``abulk_create``, generated CRUD create). ``instance`` is the
+    stored instance."""
+
+    subject: type[M]
+    instance: M
+
+
+@dataclass(frozen=True, slots=True)
+class Updated[M]:
+    """A model instance was saved with changes (``asave``, ``aupdate_from``,
+    ``abulk_update``, generated CRUD update). ``changed`` names the columns
+    that differed from the stored row before the write."""
+
+    subject: type[M]
+    instance: M
+    changed: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Deleted[M]:
+    """A DELETE statement removed ``count`` rows of the model (``adelete``,
+    ``abulk_delete``, generated CRUD delete). No key or row is loaded."""
+
+    subject: type[M]
+    count: int
+
+
 # Shared by the helpers of one emit: how deep the handlers are nested.
 _depth: ContextVar[int] = ContextVar("hinoki_event_depth", default=0)
 _captured: ContextVar[list[object] | None] = ContextVar(
@@ -203,6 +233,10 @@ class EventBus:
         self._by_kind: dict[type, list[Registration]] = {}
         self._count: Counter[tuple[EventKey, Phase]] = Counter()
         self._stats: Counter[tuple[str, str, str]] = Counter()
+        # Subjects (None: every subject) with a handler per event class, and the
+        # event keys with an in_transaction handler: O(1) guards for write paths.
+        self._subjects: dict[type, set[type | None]] = {}
+        self._transactional: set[EventKey] = set()
         self._load(collections)
 
     def _load(self, collections: Sequence[Handlers]) -> None:
@@ -229,6 +263,9 @@ class EventBus:
                 f"{item.phase.value} handlers (events.max_handlers)"
             )
         self._by_kind.setdefault(item.key[0], []).append(item)
+        self._subjects.setdefault(item.key[0], set()).add(item.key[1])
+        if item.phase is Phase.IN_TRANSACTION:
+            self._transactional.add(item.key)
 
     @property
     def registrations(self) -> tuple[Registration, ...]:
@@ -241,6 +278,25 @@ class EventBus:
         for it or the calling context is capturing events. The cheap guard the
         write paths use before they build an event."""
         return kind in self._by_kind or _captured.get() is not None
+
+    def registered(self, kind: type, subject: type) -> bool:
+        """Whether a handler (any phase) is registered for ``kind`` with this
+        subject: ``Kind[subject]`` or bare ``Kind``. Ignores ``capture()``."""
+        subjects = self._subjects.get(kind)
+        return subjects is not None and (None in subjects or subject in subjects)
+
+    def wants(self, kind: type, subject: type) -> bool:
+        """Whether a write should build and emit ``kind`` for ``subject``: a
+        handler is registered for it or the context is capturing events."""
+        return self.registered(kind, subject) or _captured.get() is not None
+
+    def wants_transaction(self, kind: type, subject: type) -> bool:
+        """Whether an ``in_transaction`` handler receives ``kind`` for
+        ``subject``, so the write must run in a transaction that can roll back."""
+        return (kind, None) in self._transactional or (
+            kind,
+            subject,
+        ) in self._transactional
 
     def matching(self, event: object) -> list[Registration]:
         """The handlers that receive ``event``, in execution order. A handler
@@ -410,20 +466,34 @@ def use(bus: EventBus) -> Iterator[EventBus]:
         events_var.reset(token)
 
 
+def listener(kind: type, subject: type) -> EventBus | None:
+    """The current bus when a write of ``subject`` must emit ``kind``, else
+    ``None``: the guard of the model write paths (one context-variable read
+    when no application bus is current)."""
+    bus = events_var.get()
+    if bus is None or not bus.wants(kind, subject):
+        return None
+    return bus
+
+
 async def emit(event: object) -> None:
     """Emit ``event`` on the current worker's bus."""
     await current_events().emit(event)
 
 
 __all__ = [
+    "Created",
+    "Deleted",
     "EventBus",
     "EventError",
     "EventTimeout",
     "Handlers",
     "Phase",
     "Registration",
+    "Updated",
     "current_events",
     "emit",
     "events_var",
+    "listener",
     "use",
 ]

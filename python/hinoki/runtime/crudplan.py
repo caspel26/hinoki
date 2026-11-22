@@ -16,6 +16,7 @@ from hinoki import pagination as pagination_module
 from hinoki.crypto import ClaimsJWTAuth
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ErrorDetail, ErrorRegistry
+from hinoki.events import Created, Deleted, EventBus, Updated
 from hinoki.fields import UNSET
 from hinoki.orm import Model, QuerySet
 from hinoki.orm import queryset as queryset_module
@@ -115,6 +116,11 @@ MODEL_METHODS = (
 HOOK_METHODS = frozenset(MODEL_METHODS[-4:])
 HOOKED_ACTIONS = frozenset({"create", "update"})
 WRITE_ACTIONS = frozenset({"create", "update", "delete"})
+ACTION_EVENTS: dict[str, type] = {
+    "create": Created,
+    "update": Updated,
+    "delete": Deleted,
+}
 QUERYSET_METHODS = (
     "__init__",
     "__await__",
@@ -303,6 +309,10 @@ def select_crud_plan(
             "custom_route_or_access_policy",
         ),
         (plain_crud_model(model, resource, action), "custom_or_unsupported_model"),
+        (
+            not action_has_event_handlers(pipeline.app.events, model, action),
+            "model_event_handlers",
+        ),
     )
     reason = next((label for passed, label in checks if not passed), "")
     schemas = action_schemas(resource)
@@ -618,6 +628,14 @@ def owner_is_plain(owner: type[CrudBase]) -> bool:
         ),
     )
     return all(class_static(owner, name) is value for name, value in expected)
+
+
+def action_has_event_handlers(bus: EventBus, model: type[Model], action: str) -> bool:
+    """Whether a handler (any phase) receives the model event the generated
+    action emits. The native plan writes without the model, so it would skip
+    the event: such an action stays on the Python lane."""
+    kind = ACTION_EVENTS.get(action)
+    return kind is not None and bus.registered(kind, model)
 
 
 def plain_crud_model(model: type[Model], resource: _CrudConfig, action: str) -> bool:

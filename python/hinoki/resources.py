@@ -623,9 +623,9 @@ class CrudBase(API):
     async def apply_change(
         self, item: Any, scoped: QuerySet[Any], values: dict[str, Any], principal: Any
     ) -> Any:
-        if item.write_hooks():
-            # Hooks run, and the UPDATE carries the scope, so a row that left it
-            # since it was read is refused, as on the unhooked path.
+        if item.has_save_effects():
+            # Hooks and events run, and the UPDATE carries the scope, so a row
+            # that left it since it was read is refused, as on the unhooked path.
             try:
                 return await item.aupdate_within(scoped, **values)
             except item.NotFound:
