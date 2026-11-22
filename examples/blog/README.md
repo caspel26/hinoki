@@ -40,8 +40,8 @@ uv run hinoki dev
 ```
 
 `migrations apply` creates the Blog tables and the admin's user tables in
-`.hinoki/local.sqlite3`. For another database set `BLOG_DATABASE__URL` and pass
-the same URL with `--database` to the migration commands.
+`.hinoki/local.sqlite3`. For another database export `BLOG_DATABASE__URL`;
+`hinoki migrations` and `hinoki dev` both read it.
 
 Open `/admin` and sign in as the superuser; `/docs` shows the OpenAPI UI.
 `BLOG_JWT_SECRET` switches on `POST /auth/login`.
