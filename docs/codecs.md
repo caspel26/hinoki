@@ -19,7 +19,7 @@ A **parser** turns a request body into Python data; a **renderer** turns a handl
 | `BytesParser` | — | Hands `request.data` the raw `bytes` of an `application/octet-stream` body |
 | `JSONRenderer` | Encodes `dict`, `list`, `Schema`, UUID, datetime and `dump()` objects | `prepare(value, request)` and `default` callbacks run in Python; `indent`, `sort_keys`, `media_type` |
 | `HTMLRenderer`, `TextRenderer` | — | Type-check and UTF-8 encode strings in Python; `media_type` |
-| `XMLRenderer` | — | Writes the JSON-compatible result as UTF-8 XML in Python; `root`, `item` |
+| `XMLRenderer` | Encodes what `JSONRenderer` encodes (`dict`, `list`, `Schema`, UUID, datetime, `dump()` objects) as UTF-8 XML, with the GIL held; ASCII element names, U+FFFD for characters XML 1.0 forbids, depth limit 200 | `root`, `item` |
 
 Content negotiation (`Accept`, quality values, wildcards) also runs in Rust; with nothing acceptable the answer is 406 before the handler runs.
 
@@ -68,7 +68,7 @@ async def hook(request: Request) -> HookReceipt: ...  # request.data is a dict o
 
 ## Answer XML
 
-`XMLRenderer` renders the handler's result in its JSON-compatible form, as `application/xml; charset=utf-8` with an XML declaration. That is the data a default `JSONRenderer()` writes: a `Schema` or `dump()` object becomes its mapping, a UUID or datetime its text, and a tuple a list, at any depth. A `JSONRenderer`'s own options (`default`, `prepare`, `sort_keys`) do not apply to it:
+`XMLRenderer` renders the handler's result as `application/xml; charset=utf-8` with an XML declaration. It is written by the Rust encoder, which accepts what the JSON encoder accepts: `dict`, `list`, `tuple`, `str`, `int`, `float`, `bool`, `None`, `Schema` instances, UUIDs, datetimes and `dump()` objects, at any depth. `date`, `time`, `timedelta`, `Decimal`, `bytes`, sets and frozensets, IP addresses and networks, `PurePath` and `SecretStr` (written masked) and enum members have a wire form only inside a `Schema` instance; anywhere else they raise `TypeError` (`500`), exactly as in `JSONRenderer` (give the handler a `Schema`, or convert them first). A `JSONRenderer`'s own options (`default`, `prepare`, `sort_keys`) do not apply to it:
 
 ```python
 from hinoki import JSONRenderer, XMLRenderer
@@ -79,7 +79,23 @@ async def report() -> dict[str, object]:
     return {"id": 1, "tags": ["a", "b"], "note": None}
 ```
 
-`Accept: application/xml` answers `<?xml version="1.0" encoding="UTF-8"?><report><id>1</id><tags><item>a</item><item>b</item></tags><note/></report>`; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated `item` elements (`item=` renames them), `None` an empty element and booleans `true`/`false`. Keys are spelled as the JSON encoder spells them: a string as is, an integer in decimal, `None` as `null` and booleans as `true`/`false`; any other key (a float, a UUID, a tuple) raises an error (`500`), as it does for JSON. A key that is not a valid XML name (a space, a leading digit, a name starting with `xml`, so also an integer key) is written as `<item key="...">`, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats, which JSON refuses, are written `NaN`, `INF` and `-INF`. Nesting deeper than 200 levels (the JSON encoder's limit), an integer of more than 4300 digits or a value that is not JSON-compatible raises an error (`500`). The renderer runs in Python, but it never reads the request, so an action that lists it stays on the native handler lane.
+`Accept: application/xml` answers `<?xml version="1.0" encoding="UTF-8"?><report><id>1</id><tags><item>a</item><item>b</item></tags><note/></report>`; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated `item` elements (`item=` renames them), `None` an empty element and booleans `true`/`false`. Keys are spelled as the JSON encoder spells them: a string as is, an integer in decimal, `None` as `null` and booleans as `true`/`false`; any other key (a float, a UUID, a tuple) raises an error (`500`), as it does for JSON. A key that is not a valid XML name (a space, a leading digit, a name starting with `xml`, so also an integer key) is written as `<item key="...">`, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats, which JSON refuses, are written `NaN`, `INF` and `-INF`; finite floats are spelled as the JSON encoder spells them (`1e-7`, `1e+16`). Element names are ASCII (`[A-Za-z_][A-Za-z0-9_.-]*`, not starting with `xml` in any case, no colon), so `root=` and `item=` that do not match raise `ValueError` when the renderer is created. Nesting deeper than 200 levels (the JSON encoder's limit; the reading limit is separate: `XMLParser(max_depth=)`, default 32, at most 1000), an integer of more than 4300 digits or a value it cannot write raises an error (`500`) whose message names the type or the limit. The encoder holds the GIL, as the JSON encoder does, because it reads Python objects as it writes; it never reads the request, so an action that lists the renderer stays on the native handler lane.
+
+### What a round trip keeps
+
+`XMLParser` is not the inverse of `XMLRenderer`. Reading back what was written, with `XMLParser` or `XML[Schema]`:
+
+| Written | Read back |
+| --- | --- |
+| `None`, `""`, `{}` and `[]` (all an empty element) | `None` |
+| `1`, `1.5`, `true` | the strings `"1"`, `"1.5"` and `"true"` (use `XML[Schema]` to convert per field) |
+| a list of one item | `{"item": "1"}` (a mapping with the item name as its key) |
+| a list of two or more items | `{"item": ["1", "2"]}` |
+| a key written as `<item key="...">` | the key `item` |
+| the root element's name | lost |
+| a character XML 1.0 cannot carry | U+FFFD |
+
+Attributes and namespace prefixes are ignored on reading, and mixed text and elements are refused. A document of more than 32 levels needs `XMLParser(max_depth=...)`. Use XML for interchange, not to store Python values.
 
 ## Configure the Rust JSON encoder
 

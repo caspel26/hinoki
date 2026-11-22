@@ -1,15 +1,15 @@
 """XMLRenderer: structure, escaping, unusual keys, negotiation."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 from uuid import UUID
 
 import pytest
 
-from hinoki import Hinoki, JSONRenderer, Request, XMLRenderer, http
-from hinoki.renderers import xml_text
+from hinoki import Hinoki, JSONRenderer, Request, Schema, XMLRenderer, core, http
 from hinoki.schema import encode
 from tests.harness import Pool
 
@@ -160,6 +160,86 @@ def test_keys_json_refuses_are_refused(key: object) -> None:
         render({key: 1})
 
 
+class Price(Schema):
+    amount: Decimal
+    day: date
+    tags: set[str]
+    shade: Shade
+    note: str | None = None
+
+
+class Dumped:
+    def dump(self) -> dict[str, object]:
+        return {"a": [1, None], "b": UUID(int=2)}
+
+
+def test_a_schema_instance_has_wire_forms_inside_and_a_dump_object_works() -> None:
+    price = Price(
+        amount=Decimal("1.50"), day=date(2026, 1, 2), tags={"b", "a"}, shade=Shade.DARK
+    )
+    assert render({"p": price, "d": Dumped()}) == (
+        f"{DECLARATION}<response><p><amount>1.50</amount><day>2026-01-02</day>"
+        "<tags><item>a</item><item>b</item></tags><shade>dark</shade><note/></p>"
+        f"<d><a><item>1</item><item/></a><b>{UUID(int=2)}</b></d></response>"
+    )
+    assert render(price) == render(json.loads(JSONRenderer().render(price, None)))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("value", [Decimal(1), date(2026, 1, 2), {1, 2}, b"x"])
+def test_values_json_refuses_outside_a_schema_are_refused(value: object) -> None:
+    with pytest.raises(TypeError, match="cannot be rendered as XML"):
+        render({"v": value})
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        JSONRenderer().render({"v": value}, None)  # type: ignore[arg-type]
+
+
+def test_floats_are_written_as_json_writes_them() -> None:
+    values = [0.1, -0.0, 1e16, 1e-7, 123456.789]
+    written = JSONRenderer().render(values, None).decode()  # type: ignore[arg-type]
+    expected = "".join(f"<item>{text}</item>" for text in written[1:-1].split(","))
+    assert render(values) == f"{DECLARATION}<response>{expected}</response>"
+
+
+def test_the_nesting_limit_is_the_json_one() -> None:
+    deep: object = 1
+    for _ in range(200):
+        deep = [deep]
+    assert render(deep).count("<item>") == 200
+    with pytest.raises(ValueError, match="nested too deeply"):
+        render([deep])
+
+
+def test_a_dump_that_never_settles_is_bounded() -> None:
+    class Forever:
+        def dump(self) -> object:
+            return Forever()
+
+    with pytest.raises(ValueError, match="nested too deeply"):
+        render(Forever())
+
+
+def test_root_and_item_are_checked_by_the_encoder_too() -> None:
+    assert core.xml_name_ok("a.b-c") and not core.xml_name_ok("xml")
+    with pytest.raises(ValueError, match="element names"):
+        core.encode_xml(1, "bad name")
+    with pytest.raises(ValueError, match="element names"):
+        core.encode_xml(1, "ok", "1")
+    assert core.encode_xml(1) == f"{DECLARATION}<response>1</response>".encode()
+
+
+def test_what_a_round_trip_keeps_is_what_the_docs_say() -> None:
+    def back(value: object) -> object:
+        return core.parse_xml_body(core.encode_xml(value), 32, 10_000)
+
+    empties: list[object] = [None, "", {}, []]
+    assert [back(v) for v in empties] == [None] * 4
+    assert back({"a": 1, "b": 1.5, "c": True}) == {"a": "1", "b": "1.5", "c": "true"}
+    assert back([1]) == {"item": "1"}
+    assert back([1, 2]) == {"item": ["1", "2"]}
+    assert back({"a b": 1}) == {"item": "1"}
+    assert back({"a": "x\ud800\x00"}) == {"a": "x\ufffd\ufffd"}
+
+
 def legal(char: str) -> bool:
     return (
         char in "\t\n\r"
@@ -170,7 +250,7 @@ def legal(char: str) -> bool:
 
 
 def reference_text(value: str) -> str:
-    """Character-by-character escaping: what ``xml_text`` must match."""
+    """Character-by-character escaping: what the encoder must match."""
     escapes = {
         "&": "&amp;",
         "<": "&lt;",
@@ -203,9 +283,17 @@ TRICKY = [
 
 @pytest.mark.parametrize("text", TRICKY)
 def test_escaping_matches_the_character_rules(text: str) -> None:
-    assert xml_text(text) == reference_text(text)
+    assert render({"v": text}) == (
+        f"{DECLARATION}<response><v>{reference_text(text)}</v></response>"
+    )
+    assert render([text]) == (
+        f"{DECLARATION}<response><item>{reference_text(text)}</item></response>"
+    )
 
 
-def test_text_without_special_characters_is_returned_as_is() -> None:
-    text = "nothing to escape here " * 10
-    assert xml_text(text) is text
+@pytest.mark.parametrize("text", TRICKY)
+def test_a_key_written_as_an_attribute_is_escaped_like_text(text: str) -> None:
+    key = f"{text} "
+    assert render({key: 1}) == (
+        f'{DECLARATION}<response><item key="{reference_text(key)}">1</item></response>'
+    )
