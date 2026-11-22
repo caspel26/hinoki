@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 01:14:44 UTC">November 21, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -687,7 +687,8 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 
 <span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">users</span><span class="o">=</span><span class="n">AdminAccounts</span><span class="p">(</span><span class="n">login_limit</span><span class="o">=</span><span class="n">DatabaseLoginWindow</span><span class="p">()))</span>
 </code></pre></div>
-<p>Both count one window per client address; an IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set <code>server.trusted_proxies</code> behind a proxy. With <code>DatabaseLoginWindow</code>, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>.</p>
+<p>Both count one window per client address and route (a flood on the sign-in never spends the password change's attempts). A full table never drops a blocked address: new addresses are refused until the oldest block expires. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.</p>
+<p>an IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set <code>server.trusted_proxies</code> behind a proxy. With <code>DatabaseLoginWindow</code>, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>.</p>
 <h2 id="serve-it-under-another-path">Serve it under another path<a class="headerlink" href="#serve-it-under-another-path" title="Permanent link">&para;</a></h2>
 <p>The <code>Mount</code> prefix decides where the admin lives; links, assets and the cookie path follow it. <code>Mount("/ops", site)</code> serves it at <code>/ops</code>. <code>Admin(prefix="/staff")</code> adds a path of its own after the mount (<code>/ops/staff</code>). An admin included without a <code>Mount</code> is served at <code>/admin</code>.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
@@ -761,7 +762,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 01:14:44 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

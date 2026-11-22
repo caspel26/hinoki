@@ -476,7 +476,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>15 min read</span>
+            <span>16 min read</span>
           </p>
           
         </header>
@@ -621,6 +621,7 @@ async def reindex() -&gt; dict[str, str]: ...
 <li>The test client's <code>json=</code> also accepts <code>datetime</code> and <code>UUID</code> values.</li>
 <li>A JSON column whose bytes start with a UTF-8 byte order mark raises <code>FieldError</code>.</li>
 </ul></section><section class="cl__sec" data-kind="fixes"><h3>🐛 Fixes</h3><ul>
+<li><strong>Security review fixes:</strong> WebSocket handshakes over ASGI route on the raw path and honour <code>allowed_hosts</code> and trusted proxies, and the same-origin check compares the scheme (also on Kiso over HTTPS); a duplicate <code>Host</code> on HTTP/1.0 is refused; a non-numeric <code>Host</code> port no longer breaks WSGI; the admin form uses the admin timezone; documentation URLs are escaped; a full sign-in table keeps blocked addresses, sign-in and password change count apart, and a user name is delayed after repeated failures; MySQL <code>require_ssl</code> precedes a URL fragment; Kiso's WSGI host bounds the body bytes being read; a remote PostgreSQL URL without <code>sslmode</code> and a world-readable TLS key log a warning.</li>
 <li><strong>Manifests and scaffolds:</strong> names and paths with characters above the Basic Multilingual Plane (for example emoji) are written as valid TOML; they used to be written as surrogate-pair escapes, which TOML rejects (<code>python/hinoki/projectcli.py</code>, <code>python/hinoki/scaffold.py</code>).</li>
 <li><strong><code>hinoki check</code>:</strong> it imports the manifest's models before running the rules and warns when it ran no rules (<code>python/hinoki/checkcli.py</code>, #391, #393).</li>
 <li><strong>Migrations:</strong> a plan error no longer suggests running <code>migrations plan</code> (#392).</li>

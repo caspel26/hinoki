@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -769,7 +769,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
 <li><strong>Startup is lazy</strong> under Granian (Kiso starts them with the worker). Modules (including the database pool) start on the first request of each worker process, so a pre-forking server can import the file in its master process. If startup fails, every request answers <code>503</code> with <code>not_ready</code> and the error is logged.</li>
 <li><strong>Shutdown</strong> runs on <code>WSGIAdapter.close()</code> or, otherwise, at interpreter exit. A server that kills workers without exiting normally skips it, as it would any <code>atexit</code> hook.</li>
 <li><strong>Async handlers</strong> run on the adapter's loop and <strong>sync handlers</strong> on the bounded executor, as under ASGI. Each WSGI server thread blocks for the duration of its request, so concurrency is the server's thread count rather than the event loop.</li>
-<li><strong>Bodies are buffered.</strong> Request bodies are read up to <code>max_body_bytes</code> plus one byte, so an oversized upload still answers <code>413</code>. Responses are complete before they are sent: an application with an action that returns <code>Stream</code>, <code>EventStream</code> or <code>File</code> is refused when the adapter starts (<code>WSGIStartupError</code> naming the actions; serve it with ASGI or Kiso, see <a href="../streaming/">streaming</a>), and a client disconnect is not reported to the handler.</li>
+<li><strong>Bodies are buffered.</strong> Request bodies are read up to <code>max_body_bytes</code> plus one byte, so an oversized upload still answers <code>413</code>. On Kiso the bytes of the bodies being read are bounded by what the threads and the queue could hold (<code>(threads + queue) * max_body_bytes</code>); a request that would pass it answers <code>503</code> before its body is read. Responses are complete before they are sent: an application with an action that returns <code>Stream</code>, <code>EventStream</code> or <code>File</code> is refused when the adapter starts (<code>WSGIStartupError</code> naming the actions; serve it with ASGI or Kiso, see <a href="../streaming/">streaming</a>), and a client disconnect is not reported to the handler.</li>
 <li><strong>Paths.</strong> The server decodes the path once and the adapter passes it on without decoding again, so a client's <code>%2520</code> reaches the handler as <code>%20</code>, as under ASGI. A percent-encoded slash (<code>%2F</code>) cannot be told apart from a real one in WSGI and is not available inside a path parameter. A bad <code>Content-Length</code> answers <code>400</code>.</li>
 <li><strong>One protocol per process.</strong> Do not serve the same application object over ASGI and WSGI in one process; the adapter owns its own loop and module lifespan. Run two processes if you need both.</li>
 </ul>
@@ -819,7 +819,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

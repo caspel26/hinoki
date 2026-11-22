@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:23:33 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -755,7 +755,9 @@ certificate chain and hostname: <code>require</code>, <code>verify-ca</code> and
 require TLS, and Hinoki's <code>verify-ca</code> also verifies the hostname. Trust uses
 Mozilla WebPKI roots plus any PEM certificates in <code>sslrootcert</code> (at most
 1 MiB), so <code>sslmode=require</code> needs a trusted certificate too. <code>sslmode=allow</code>
-is unsupported. Mount the CA file where each worker can read it.</p>
+is unsupported. A URL to a remote host without <code>sslmode</code> logs a warning at
+connect: <code>prefer</code> lets a network attacker strip TLS, so use <code>verify-full</code>.
+Mount the CA file where each worker can read it.</p>
 <p>Hinoki does not create the PostgreSQL role or database: create them once with
 your usual tools before the first <code>hinoki migrations apply</code>.</p>
 <h3 id="sqlite-storage">SQLite storage<a class="headerlink" href="#sqlite-storage" title="Permanent link">&para;</a></h3>
@@ -857,7 +859,7 @@ per-backend behaviour.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:23:33 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

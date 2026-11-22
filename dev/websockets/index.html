@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -575,8 +575,12 @@ origin the application's CORS policy lists by name. A CORS wildcard
 (<code>cors</code> origins <code>*</code>) is not honoured here: a browser sends cookies on a
 WebSocket handshake and does not hide the answer from other sites, so an open
 policy would let any site use a cookie-authenticated action. Anything else is
-refused with <code>403</code> before the upgrade. On Granian the check covers the route
-list and the same host.</p>
+refused with <code>403</code> before the upgrade. On Granian the check covers the same
+sources. Where the connection is known to be <code>https</code> (direct TLS, a trusted
+proxy reporting <code>https</code>, or <code>wss</code> on Granian), the same-host match also
+requires an <code>https://</code> origin. Granian handshakes also go through
+<code>allowed_hosts</code> and trusted-proxy handling, and the route is matched on the raw
+path, as for HTTP requests.</p>
 <h2 id="subprotocols">Subprotocols<a class="headerlink" href="#subprotocols" title="Permanent link">&para;</a></h2>
 <p><code>subprotocols=</code> names the subprotocols an action speaks, each an HTTP token
 (letters, digits and <code>!#$%&amp;'*+-.^_`|~</code>, so <code>chat.v1</code> but not <code>chat/v1</code>). The server picks the
@@ -743,7 +747,7 @@ origins and the handshake's security requirement. They are not listed under
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/websockets.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
