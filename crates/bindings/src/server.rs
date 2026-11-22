@@ -1764,6 +1764,21 @@ fn build_routes(
 }
 
 impl Core {
+    /// The WebSocket action a request addresses, if it is theirs to answer. A
+    /// plain GET that an HTTP route also matches (`/rooms/stats` beside
+    /// `/rooms/{room}`) is that route's, not a refused upgrade.
+    fn websocket_target(&self, head: &Head<'_>) -> Option<(u32, Vec<(String, String)>)> {
+        if head.method != "GET" || !head.path.is_ascii() || self.ws_plans.is_empty() {
+            return None;
+        }
+        let Match::Found { action, params } = self.ws_router.find("GET", head.path) else {
+            return None;
+        };
+        let plain_http = matches!(head.upgrade, Upgrade::Absent)
+            && matches!(self.resolve("GET", head.path), Resolved::Route(..));
+        (!plain_http).then_some((action, params))
+    }
+
     /// Classify one request: refuse it, answer it natively, or queue it for the
     /// Python pipeline. The `Err` is an internal inconsistency (a missing plan or
     /// early body), never a client mistake.
@@ -1801,16 +1816,8 @@ impl Core {
         if let Some(page) = self.static_page(head.method, head.path) {
             return Ok(self.static_response(&asked, page));
         }
-        if head.method == "GET" && head.path.is_ascii() && !self.ws_plans.is_empty() {
-            if let Match::Found { action, params } = self.ws_router.find("GET", head.path) {
-                // A plain GET that an HTTP route also matches (`/rooms/stats`
-                // beside `/rooms/{room}`) is that route's, not a refused upgrade.
-                let plain_http = matches!(head.upgrade, Upgrade::Absent)
-                    && matches!(self.resolve("GET", head.path), Resolved::Route(..));
-                if !plain_http {
-                    return self.websocket(head, asked, action, params);
-                }
-            }
+        if let Some((action, params)) = self.websocket_target(&head) {
+            return self.websocket(head, asked, action, params);
         }
         let (action, params) = match self.resolve(head.method, head.path) {
             // A raw target the server cannot read as a plain path, and the
