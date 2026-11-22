@@ -15,6 +15,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Relations](relations.md): foreign keys, one-to-one, many-to-many association models and explicit loading.
 - [Query and write rows](queries.md): filters, pagination, reusable queries, creates, updates and bulk writes.
 - [Lifecycle hooks](model-hooks.md): react to a model's own writes and inspect its changed columns.
+- [Events](events.md): typed events with explicit handlers that run inside the transaction or after the commit.
 - [Migrations](migrations.md): plan, review, apply and check migrations for every app.
 - [Schemas](schemas.md): declare the data that crosses the API boundary and convert it to and from rows.
 - [Scalar field types](schema-types.md): enums, literals, dates, decimals, bytes, addresses, secrets and paths.

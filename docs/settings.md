@@ -41,7 +41,7 @@ types live in the `hinoki.settings` namespace (`settings.AppSettings`,
 is not shadowed.
 
 `settings.AppSettings` brings the built-in groups: `execution`, `lifecycle`,
-`logging`, `docs`, `server`, `pagination`, `cors`, `compression`, `metrics`, `security` and `admin`, plus
+`logging`, `docs`, `server`, `pagination`, `cors`, `compression`, `metrics`, `security`, `events` and `admin`, plus
 `timezone`, `debug` and `allowed_hosts` (see [Hosts, CORS and HTTPS](web-security.md)).
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`; the
 generated `main.py` sets them with `Hinoki(...)` arguments, which win over settings.
