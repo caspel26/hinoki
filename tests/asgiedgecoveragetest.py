@@ -12,10 +12,10 @@ from hinoki.runtime.asgi import ASGIAdapter
 
 
 @pytest.mark.asyncio
-async def test_adapter_rejects_non_http_non_lifespan_scope() -> None:
+async def test_adapter_rejects_unknown_scope_type() -> None:
     adapter = cast(Any, object.__new__(ASGIAdapter))
-    with pytest.raises(RuntimeError, match="unsupported scope type 'websocket'"):
-        await adapter({"type": "websocket"}, None, None)
+    with pytest.raises(RuntimeError, match="unsupported scope type 'webtransport'"):
+        await adapter({"type": "webtransport"}, None, None)
 
 
 @pytest.mark.asyncio
