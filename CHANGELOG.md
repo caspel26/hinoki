@@ -8,6 +8,16 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 📣 Deprecated actions tell their callers
+> `python/hinoki/runtime/deprecation.py`, `python/hinoki/runtime/binding.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/servercore.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/routing.py`, `python/hinoki/routescli.py`
+
+`deprecated=True` or `deprecated=date(2026, 11, 22)` on an action (or on `crud(...)`) now also adds a `Deprecation` header to its responses and logs a warning on the `hinoki.deprecated` logger when it is called, at most once a minute per action. The action leaves the native lane (`lane_reason` `deprecated`).
+
+```python
+@http.get("/v1/tasks", deprecated=date(2026, 11, 22))
+async def list_tasks_v1() -> list[str]: ...
+```
+
 #### 🏷️ Per-action OpenAPI controls
 > `python/hinoki/routing.py`, `python/hinoki/openapi.py`, `python/hinoki/resources.py`, `python/hinoki/app.py`, `python/hinoki/ai/mcpapp.py`
 

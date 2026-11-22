@@ -130,11 +130,32 @@ app.include(reindex, list_tasks)
 
 * `include_in_schema=False` leaves the action out of `Hinoki.openapi()`, `hinoki openapi` and `/openapi.json`. The action is still registered, served and protected by its `Access` exactly as before: leaving it out neither hides it from a caller who knows the path nor authorizes anything. A path whose actions are all left out is not listed, and a `Schema` or security scheme used only by left-out actions does not appear under `components`.
 * `tags` lists non-empty names, in order and without repeats, written to the operation's `tags`.
-* `deprecated=True` writes `deprecated: true`.
+* `deprecated=True` writes `deprecated: true`. A deprecated action also tells its callers at run time: each response carries a `Deprecation` header and the call is logged as a warning, see [deprecate an action](#deprecate-an-action).
 * `operation_id` replaces the generated operation ID. It must be a non-empty string, and two documented actions with the same value stop `include` with a `RegistrationError`; a generated ID never takes a value that an action declared. A left-out action does not take part in that check.
 * `RouteGroup(prefix, include_in_schema=..., tags=...)` sets defaults for its actions: an action's own `include_in_schema` wins, and its `tags` follow the group's.
 * `crud(...)` takes `include_in_schema` as one flag for the whole resource or a mapping by action (`{"delete": False}`; unknown names are refused), plus `tags` and `deprecated` for every generated action. It has no `operation_id`, because one value cannot name several actions.
 * An MCP tool is built from the OpenAPI document, so `expose_as_mcp` refuses an action left out with `include_in_schema=False` instead of exposing it. The admin's HTML pages are always left out of the document and are not affected by these options.
+
+## Deprecate an action
+
+```python
+from datetime import date
+
+from hinoki import http
+
+
+@http.get("/v1/tasks", deprecated=date(2026, 11, 22))
+async def list_tasks_v1() -> list[str]:
+    return []
+```
+
+`deprecated` takes `True`, `False` or the `datetime.date` the action was deprecated on (a `datetime` is refused). It does three things:
+
+* The document marks the operation `deprecated: true`.
+* Every response, success or error, carries a `Deprecation` header: `@<unix seconds>` for a date (the form of RFC 9745, midnight UTC), `true` when no date is given.
+* The `hinoki.deprecated` logger warns `deprecated action called: GET /v1/tasks (N call(s) since the last report)`. An action is reported at most once per minute, with the calls it stayed quiet about, so a busy action does not flood the log; the state is one entry per deprecated action. Nothing is logged at startup.
+
+The header and the warning are produced by the Python pipeline, so a deprecated action leaves [the native lane](kiso.md#what-is-native-and-what-still-runs-in-python) (`hinoki routes --lanes` shows `lane_reason` `deprecated`) and, for generated CRUD, the native CRUD plan. The response and the access check do not change. There is no `Sunset` header.
 
 ## Current limits
 
