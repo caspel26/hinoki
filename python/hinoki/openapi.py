@@ -19,7 +19,14 @@ from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
 from hinoki.http.response import Response
 from hinoki.http.stream import EventStream, Streamed
-from hinoki.pagination import MAX_NUMBER, Page, PageNumberPagination
+from hinoki.pagination import (
+    MAX_NUMBER,
+    MAX_TOKEN,
+    CursorPage,
+    CursorPagination,
+    Page,
+    Pagination,
+)
 from hinoki.runtime.binding import Binding, Param
 from hinoki.runtime.responsecheck import union_arms
 from hinoki.schema import Schema, SchemaExtra
@@ -343,11 +350,29 @@ class OpenAPIBuilder:
     def generic(self, origin: object, args: tuple[Any, ...]) -> dict[str, Any] | None:
         if origin is list and args:
             return {"type": "array", "items": self.annotation(args[0])}
-        if origin is Page and args:
-            return self.page_schema(args[0])
+        if origin in {Page, CursorPage} and args:
+            build = self.page_schema if origin is Page else self.cursor_page_schema
+            return build(args[0])
         if origin is dict and len(args) == DICT_ARGS:
             return {"type": "object", "additionalProperties": self.annotation(args[1])}
         return None
+
+    def cursor_page_schema(self, item: object) -> dict[str, Any]:
+        items = self.annotation(item)
+        name = "CursorPage_" + str(items.get("$ref", "item")).rsplit("/", 1)[-1]
+        if name not in self.components:
+            cursor: dict[str, Any] = {"type": ["string", "null"]}
+            self.components[name] = {
+                "type": "object",
+                "properties": {
+                    "items": {"type": "array", "items": items},
+                    "next": cursor,
+                    "previous": cursor,
+                    "page_size": {"type": "integer"},
+                },
+                "required": ["items", "next", "previous", "page_size"],
+            }
+        return ref(name)
 
     def page_schema(self, item: object) -> dict[str, Any]:
         items = self.annotation(item)
@@ -519,7 +544,29 @@ def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
     return low if name == "min_length" else high
 
 
-def page_parameters(strategy: PageNumberPagination) -> list[dict[str, Any]]:
+def page_parameters(strategy: Pagination) -> list[dict[str, Any]]:
+    if isinstance(strategy, CursorPagination):
+        size, upper = strategy.limits
+        return [
+            {
+                "name": "cursor",
+                "in": "query",
+                "required": False,
+                "description": "Opaque cursor from `next` or `previous`.",
+                "schema": {"type": "string", "minLength": 1, "maxLength": MAX_TOKEN},
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": False,
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": upper,
+                    "default": size,
+                },
+            },
+        ]
     return [
         {
             "name": "page",

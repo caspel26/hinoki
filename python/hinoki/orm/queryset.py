@@ -17,8 +17,9 @@ from hinoki.blocking import run_sync
 from hinoki.db import Database, current_owner
 from hinoki.errors import FieldError, MultipleObjectsReturned
 from hinoki.orm.context import current_database
+from hinoki.orm.keyset import fetch_page
 from hinoki.orm.relations import ALIAS_PREFIX, STORE, Relation, store
-from hinoki.pagination import Page, PageParams
+from hinoki.pagination import CursorPage, CursorParams, Page, PageParams
 from hinoki.utils import _read_utc
 
 if TYPE_CHECKING:
@@ -183,7 +184,10 @@ class QuerySet[M: Model]:
         return result
 
     def compile(
-        self, kind: str = "select", dialect: str = "postgres"
+        self,
+        kind: str = "select",
+        dialect: str = "postgres",
+        keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
     ) -> tuple[str, list[Any]]:
         refuse_sqlite_decimal(self.model, self.filters, self.order, dialect)
         return core.compile_query(
@@ -195,6 +199,7 @@ class QuerySet[M: Model]:
             limit=self.limit_to,
             offset=self.offset_by,
             joins=self.joins(counting=kind == "count"),
+            keyset=keyset,
             dialect=dialect,
         )
 
@@ -286,6 +291,12 @@ class QuerySet[M: Model]:
         """Run the query and build the rows; what ``await queryset`` returns."""
         database = current_database()
         sql, params = self.compile(dialect=database.dialect)
+        return await self.fetch_compiled(database, sql, params)
+
+    async def fetch_compiled(
+        self, database: Database, sql: str, params: list[Any]
+    ) -> list[M]:
+        """Run ``sql`` compiled from this query and build its rows."""
         plan = self.model.row_plan() if self.uses_stock_builders() else None
         if plan is not None and self.loading.selected:
             plan = self.joined_plan(plan)
@@ -466,6 +477,15 @@ class QuerySet[M: Model]:
         window = ordered.limit(params.page_size).offset(params.offset)
         return Page(await window, params.page, params.page_size, total)
 
+    async def apaginate_cursor(self, params: CursorParams) -> CursorPage[M]:
+        """One keyset page: ordered like this query with the primary key as the
+        final sort key, bounded by the signed cursor in ``params``, without a
+        COUNT. This query's filters apply; its limit and offset do not."""
+        return await fetch_page(self, params)
+
+    def paginate_cursor(self, params: CursorParams) -> CursorPage[M]:
+        return run_sync(self.apaginate_cursor(params))
+
 
 # Row-wire selection must compare against the ORM's original methods, not
 # whichever implementations happen to be installed when an app is included.
@@ -475,8 +495,10 @@ ROW_WIRE_METHODS = (
     "limit",
     "offset",
     "apaginate",
+    "apaginate_cursor",
     "__await__",
     "fetch",
+    "fetch_compiled",
     "_hydrate",
     "build",
     "load",

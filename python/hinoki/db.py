@@ -42,7 +42,7 @@ from hinoki.core import (
 from hinoki.modules import Module, ModuleContext
 
 if TYPE_CHECKING:
-    from hinoki.core import Param, Row, _ModelRows, _RowPlan
+    from hinoki.core import Param, Row, _CursorCodec, _ModelRows, _RowPlan
     from hinoki.orm.options import indexed, ordered_by, table, timestamps, unique
 
 __all__ = [
@@ -174,6 +174,24 @@ class Database:
         target = active.native if active else self.engine
         return await target._fetch_page_wire(
             sql, params, plan, (page, page_size, total)
+        )
+
+    async def _fetch_cursor_wire(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+        codec: _CursorCodec,
+        keys: list[str],
+        limit: int,
+        mode: int,
+    ) -> bytes | tuple[list[Row], bool]:
+        """Private keyset-list fetch: the page JSON, or the rows (in page order,
+        cut to ``limit``) and whether more exist when Rust cannot encode them."""
+        active = self.active()
+        target = active.native if active else self.engine
+        return await target._fetch_cursor_wire(
+            sql, params, plan, codec, keys, limit, mode
         )
 
     async def fetch_one(self, sql: str, *params: Param) -> Row | None:

@@ -24,7 +24,16 @@ from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
-from hinoki.pagination import Page, PageNumberPagination, PageParams
+from hinoki.orm.keyset import CursorRequest, fetch_request, prepare
+from hinoki.pagination import (
+    CursorPage,
+    CursorPagination,
+    CursorParams,
+    Page,
+    PageNumberPagination,
+    PageParams,
+    Pagination,
+)
 from hinoki.routing import Options, RouteDeclaration
 from hinoki.schema import Schema
 
@@ -77,7 +86,7 @@ class _CrudConfig:
     owner: str = ""
     identity_key: Callable[[Any], Any] = attrgetter("id")
     assign: Mapping[str, Callable[[Any], Any]] = dataclasses.field(default_factory=dict)
-    pagination: PageNumberPagination = PageNumberPagination()  # noqa: RUF009
+    pagination: Pagination = PageNumberPagination()  # noqa: RUF009
     actions: Mapping[str, Access | None] | None = None
     omit: frozenset[str] = frozenset()
     cors: Cors | None = None
@@ -322,6 +331,54 @@ async def wire_list_rows(
     models = await window._hydrate(fetched)
     items = await schema_items(self, models)
     return Page(list(items), page.page, page.page_size, total)
+
+
+async def list_cursor_rows(
+    self: CrudBase,
+    request: Request,
+    page: CursorParams,
+    principal: Any = None,
+    _row_plan: RowWireSelection | None = None,
+) -> Any:
+    """The keyset list: the same ``get_queryset`` (ownership, tenant) as the
+    offset list, with the cursor bound on top of it."""
+    query = await self.call_hook("get_queryset", principal)
+    cursor = prepare(query, page)
+    if (
+        _row_plan is not None
+        and _row_plan.valid_for(self)
+        and _row_plan.valid_query(query)
+        and _row_plan.valid_window(
+            cursor.walk, order=cursor.walk.order, limit=page.limit + 1, offset=None
+        )
+    ):
+        return await wire_cursor_rows(self, cursor, _row_plan)
+    result = await fetch_request(cursor)
+    items = await schema_items(self, result.items)
+    return CursorPage(list(items), result.next, result.previous, result.page_size)
+
+
+async def wire_cursor_rows(
+    self: CrudBase, cursor: CursorRequest, selection: RowWireSelection
+) -> Any:
+    database = current_database()
+    sql, params = cursor.compile(database.dialect)
+    fetched = await database._fetch_cursor_wire(
+        sql,
+        params,
+        selection.plan,
+        cursor.codec,
+        cursor.keys,
+        cursor.limit,
+        cursor.mode,
+    )
+    if isinstance(fetched, bytes):
+        return Response(200, fetched, content_type="application/json")
+    rows, more = fetched
+    models = await cursor.walk._hydrate(rows)
+    after, before = cursor.links(models, more)
+    items = await schema_items(self, models)
+    return CursorPage(list(items), after, before, cursor.limit)
 
 
 async def schema_items(self: CrudBase, rows: list[Any]) -> list[Any]:
@@ -618,17 +675,19 @@ def declare(
 
 
 def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
-    page = Page[resource.read]  # type: ignore[name-defined]
+    by_cursor = isinstance(resource.pagination, CursorPagination)
+    page = (CursorPage if by_cursor else Page)[resource.read]
+    template = list_cursor_rows if by_cursor else list_rows
     listed = Options(access=resource.access_for("list"), cors=resource.cors)
     listing = dataclasses.replace(listed, pagination=resource.pagination)
     shown = Options(access=resource.access_for("retrieve"), cors=resource.cors)
     return {
         "list": declare(
-            list_rows,
+            template,
             "list",
             {
                 "request": Request,
-                "page": PageParams,
+                "page": CursorParams if by_cursor else PageParams,
                 **caller_hint(resource, "list"),
                 "return": page,
             },
@@ -816,7 +875,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     owner: str = "",
     identity_key: Callable[[Any], Any] = attrgetter("id"),
     assign: Mapping[str, Callable[[Any], Any]] | None = None,
-    pagination: PageNumberPagination = PageNumberPagination(),  # noqa: B008
+    pagination: Pagination = PageNumberPagination(),  # noqa: B008
     omit: tuple[str, ...] = (),
     name: str | None = None,
     cors: Cors | None = None,

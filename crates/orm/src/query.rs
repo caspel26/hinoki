@@ -329,9 +329,9 @@ impl<V: Clone> Builder<V> {
         let mut branches = Vec::with_capacity(columns.len());
         for (index, (_, descending)) in keyset.columns.iter().enumerate() {
             let mut terms = Vec::with_capacity(index + 1);
-            for before in 0..index {
-                let holder = self.placeholder(keyset.values[before].clone());
-                terms.push(format!("{} = {holder}", columns[before]));
+            for (column, value) in columns.iter().zip(&keyset.values).take(index) {
+                let holder = self.placeholder(value.clone());
+                terms.push(format!("{column} = {holder}"));
             }
             let symbol = if *descending { "<" } else { ">" };
             let holder = self.placeholder(keyset.values[index].clone());
