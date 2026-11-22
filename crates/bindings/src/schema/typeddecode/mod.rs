@@ -19,7 +19,7 @@ mod nativemethods;
 
 pub use nativeinit::NativeInit;
 pub(crate) use nativeinit::{complete, from_record, replaced};
-pub use nativemethods::NativeMethod;
+pub use nativemethods::{NativeMethod, Pinned};
 
 use std::borrow::Cow;
 use std::collections::HashMap;

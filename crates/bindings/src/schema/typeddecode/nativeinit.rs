@@ -371,24 +371,20 @@ fn read<'py>(
     depth: usize,
 ) -> Option<Bound<'py, PyAny>> {
     match &plan.shape {
-        Shape::Schema(index) if value.is_exact_instance_of::<PyDict>() => {
-            record(typed, *index, value, depth)
+        // `validate` takes mappings for nested schemas, never ready instances,
+        // and always builds new lists (the input is not kept).
+        Shape::Schema(index) if !value.is_none() => {
+            let dict = value.cast_exact::<PyDict>().ok()?;
+            record(typed, *index, dict.as_any(), depth)
         }
-        Shape::List { min, max, item } if value.is_exact_instance_of::<PyList>() => {
+        Shape::List { min, max, item } if !value.is_none() => {
             let list = value.cast_exact::<PyList>().ok()?;
             within(list.len(), *min, *max).ok()?;
-            let mut members = Vec::with_capacity(list.len());
-            let mut same = true;
-            for member in list.iter() {
-                let read = read(typed, item, &member, depth)?;
-                same &= read.is(&member);
-                members.push(read);
-            }
-            if same {
-                Some(value.clone())
-            } else {
-                Some(PyList::new(value.py(), members).ok()?.into_any())
-            }
+            let members = list
+                .iter()
+                .map(|member| read(typed, item, &member, depth))
+                .collect::<Option<Vec<_>>>()?;
+            Some(PyList::new(value.py(), members).ok()?.into_any())
         }
         _ => accept(typed, plan, value, depth),
     }

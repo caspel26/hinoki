@@ -1093,8 +1093,14 @@ def install_native_methods(cls: type[Schema]) -> None:
     state = native_state_names(cls)
     if any(
         defined_by_user(cls, name)
-        for name in ("__reduce_ex__", "__getstate__", "__setstate__")
+        for name in ("__reduce__", "__reduce_ex__", "__getstate__", "__setstate__")
     ):
+        # Entries a base installed were built from its slots, not these.
+        for name in ("__copy__", "__deepcopy__"):
+            if isinstance(inspect.getattr_static(cls, name, None), core.NativeMethod):
+                setattr(cls, name, None)
+        if isinstance(inspect.getattr_static(cls, "__reduce__"), core.NativeMethod):
+            cls.__reduce__ = object.__reduce__  # type: ignore[method-assign]
         return
     for name, kind in _PROTOCOL_METHODS:
         if not defined_by_user(cls, name):
@@ -1326,11 +1332,6 @@ def _no_typed_json(_raw: bytes) -> None:
     return None
 
 
-class _Cached(staticmethod):  # type: ignore[type-arg]
-    """A per-class entry that ``_TypedJson`` and ``_Validate`` installed on one
-    class; a subclass must not inherit it, because it belongs to that class."""
-
-
 class _TypedJson:
     """``Schema.validate_json``: on first use for a class, the class gets the
     Rust decoder itself as its attribute (a builtin method, so a call costs no
@@ -1345,7 +1346,7 @@ class _TypedJson:
         except Exception:
             return _no_typed_json
         if owner.__dict__.get("validate_json", self) is self:
-            type.__setattr__(owner, "validate_json", _Cached(decode))
+            type.__setattr__(owner, "validate_json", core.Pinned(owner, decode, self))
         return decode
 
 
@@ -1363,7 +1364,7 @@ class _Validate:
             return method
         found = method if native is None else native
         if owner.__dict__.get("validate", self) is self:
-            type.__setattr__(owner, "validate", _Cached(found))
+            type.__setattr__(owner, "validate", core.Pinned(owner, found, self))
         return found
 
 
@@ -1400,7 +1401,7 @@ def reset_inherited_entries(cls: type[Schema]) -> None:
     parent installs for itself later (a user's own ``validate`` is left alone)."""
     for name, fresh in (("validate_json", _TYPED_JSON), ("validate", _VALIDATE)):
         if name not in cls.__dict__ and isinstance(
-            inspect.getattr_static(cls, name), _Cached | _TypedJson | _Validate
+            inspect.getattr_static(cls, name), core.Pinned | _TypedJson | _Validate
         ):
             type.__setattr__(cls, name, fresh)
 
@@ -2493,7 +2494,9 @@ def typed_decoder(cls: type[Schema]) -> Callable[[bytes], object | None] | None:
         graph_has_before(cls)
         or graph_has_checks(cls)
         or not graph_is_stock(cls)
-        or not isinstance(inspect.getattr_static(cls, "validate"), _Cached | _Validate)
+        or not isinstance(
+            inspect.getattr_static(cls, "validate"), core.Pinned | _Validate
+        )
     ):
         return None
     return cls.native_schema().decode_typed

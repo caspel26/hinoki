@@ -40,6 +40,13 @@ class CompiledSchema:
     def build_text(self, data: Any) -> Any: ...
     def replace(self, instance: Any, changes: dict[str, Any]) -> Any | None: ...
 
+class Pinned:
+    """A per-class entry cached on the class it was built for; through another
+    class it defers to ``fallback.__get__``."""
+
+    def __init__(self, owner: Any, entry: Any, fallback: Any) -> None: ...
+    def __get__(self, instance: Any, owner: Any = None) -> Any: ...
+
 class NativeMethod:
     """``__copy__``, ``__deepcopy__``, ``__reduce__`` or ``__setstate__`` of a
     schema class, run in Rust over the names of its slots. ``kind`` is

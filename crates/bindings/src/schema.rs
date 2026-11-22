@@ -37,7 +37,7 @@ mod coerce;
 mod internet;
 mod scalars;
 mod typeddecode;
-pub use typeddecode::{NativeInit, NativeMethod};
+pub use typeddecode::{NativeInit, NativeMethod, Pinned};
 
 use internet::NetKind;
 pub(crate) use scalars::wire_text;

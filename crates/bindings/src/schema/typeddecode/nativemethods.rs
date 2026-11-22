@@ -23,6 +23,44 @@ enum Kind {
     SetState,
 }
 
+/// A per-class entry (`validate`, `validate_json`) cached on the class it was
+/// built for. Found through another class, as `super().validate` does from an
+/// override, it defers to `fallback`, which builds the entry for that class.
+#[pyclass(module = "hinoki.core", frozen)]
+pub struct Pinned {
+    owner: Py<PyAny>,
+    entry: Py<PyAny>,
+    fallback: Py<PyAny>,
+}
+
+#[pymethods]
+impl Pinned {
+    #[new]
+    fn new(owner: Py<PyAny>, entry: Py<PyAny>, fallback: Py<PyAny>) -> Self {
+        Self {
+            owner,
+            entry,
+            fallback,
+        }
+    }
+
+    fn __get__(
+        &self,
+        py: Python<'_>,
+        instance: Option<&Bound<'_, PyAny>>,
+        owner: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Py<PyAny>> {
+        match owner {
+            Some(found) if !found.is(self.owner.bind(py)) => Ok(self
+                .fallback
+                .bind(py)
+                .call_method1("__get__", (instance, found))?
+                .unbind()),
+            _ => Ok(self.entry.clone_ref(py)),
+        }
+    }
+}
+
 /// One method of the object protocol for one schema class.
 #[pyclass(module = "hinoki.core", frozen)]
 pub struct NativeMethod {
