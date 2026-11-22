@@ -9,6 +9,7 @@ import logging
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 
+from hinoki import context
 from hinoki.db import Database
 from hinoki.errors import STARTUP_HOOK, ShutdownError, StartupError
 from hinoki.events import EventBus, events_var
@@ -180,14 +181,13 @@ class Lifespan:
         # Models reach the worker's Database in a hook as they do in a request.
         token = database_var.set(self.ctx.find(Database))
         events_token = events_var.set(self.events)
+        run_sync = self.executor.run_shutdown if shutdown else self.executor.run
+        runner_token = context.sync_runner.set(run_sync)
         try:
             try:
                 if inspect.iscoroutinefunction(hook):
                     result = await hook(self.ctx)
                 else:
-                    run_sync = (
-                        self.executor.run_shutdown if shutdown else self.executor.run
-                    )
                     result = await run_sync(hook, self.ctx)
                     if inspect.isawaitable(result):  # a sync wrapper around a coroutine
                         result = await result
@@ -200,6 +200,7 @@ class Lifespan:
                     raise
                 raise _HookRaised(exc) from None
         finally:
+            context.sync_runner.reset(runner_token)
             events_var.reset(events_token)
             database_var.reset(token)
 

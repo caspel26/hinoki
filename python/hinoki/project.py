@@ -455,17 +455,15 @@ def _parse_app(value: object) -> ProjectApp:
         raise ProjectError(f"app {name!r} repeats a dependency")
     routes, prefix = _parse_app_routes(name, value)
     events = value.get("events", "")
-    if events and (not isinstance(events, str) or not _valid_target(events)):
+    if not isinstance(events, str) or (events and not _valid_target(events)):
         raise ProjectError(f"app {name!r} events must be a module:attribute target")
-    return ProjectApp(
-        name, models, migrations, tuple(requires), routes, prefix, str(events)
-    )
+    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix, events)
 
 
 def _parse_app_routes(name: str, value: dict[str, object]) -> tuple[str, str]:
     routes = value.get("routes", "")
     prefix = value.get("prefix", "")
-    if routes and (not isinstance(routes, str) or not _valid_target(routes)):
+    if not isinstance(routes, str) or (routes and not _valid_target(routes)):
         raise ProjectError(f"app {name!r} routes must be a module:attribute target")
     if not isinstance(prefix, str) or (
         prefix and (not prefix.startswith("/") or prefix.endswith("/"))
