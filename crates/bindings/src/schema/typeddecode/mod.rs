@@ -508,12 +508,12 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
         let typed: &'t Typed = self.typed;
         let class = &typed.classes[index];
         if let Some(layout) = &class.layout {
-            return self.stored(class, layout, depth);
+            return self.stored(index, class, layout, depth);
         }
         let base = self.pending.len();
         self.pending.resize_with(base + class.fields.len(), || None);
         let read = self.members(class, base, depth);
-        let built = read.and_then(|()| self.close(class, base));
+        let built = read.and_then(|()| self.close(index, class, base));
         self.pending.truncate(base);
         built
     }
@@ -522,6 +522,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
     /// slot as it is read, and a bit mask tells which fields were seen.
     fn stored(
         &mut self,
+        index: usize,
         class: &PlanClass,
         layout: &Layout,
         depth: usize,
@@ -567,7 +568,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
                 record.set_item(field.name.bind(py), instance.getattr(field.name.bind(py))?)?;
             }
         }
-        self.construct(class, record)
+        self.construct(index, class, record, Some(instance))
     }
 
     /// The field the next member names, with its colon consumed; or, for a
@@ -612,11 +613,38 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
         self.skip(depth + 1)
     }
 
-    /// The instance from `record` by the class's own constructor, which fills
-    /// the defaults; a refusal there is reported, with its path, by the
-    /// ordinary path.
-    fn construct(&self, class: &PlanClass, record: Bound<'py, PyDict>) -> Step<Bound<'py, PyAny>> {
+    /// The instance from `record`: defaults the plan vouches for are completed
+    /// in Rust (as `validate` and the constructor do), otherwise the class's
+    /// own constructor fills them; a refusal there is reported, with its path,
+    /// by the ordinary path.
+    fn construct(
+        &self,
+        index: usize,
+        class: &PlanClass,
+        record: Bound<'py, PyDict>,
+        held: Option<Bound<'py, PyAny>>,
+    ) -> Step<Bound<'py, PyAny>> {
         let py = self.py;
+        if let Some(done) = complete(self.typed, index, &record)? {
+            let instance = match held {
+                Some(instance) => instance,
+                None => self
+                    .typed
+                    .allocate
+                    .bind(py)
+                    .call1((class.class.bind(py),))?,
+            };
+            for field in &class.fields {
+                let name = field.name.bind(py);
+                if let Some(value) = record.get_item(name)? {
+                    assign(&instance, name, &value)?;
+                }
+            }
+            if let Some(supplied) = done.supplied {
+                assign(&instance, self.typed.supplied.bind(py), &supplied)?;
+            }
+            return Ok(instance);
+        }
         match class
             .class
             .bind(py)
@@ -658,7 +686,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
     }
 
     /// The instance from the values read into `pending[base..]`.
-    fn close(&mut self, class: &PlanClass, base: usize) -> Step<Bound<'py, PyAny>> {
+    fn close(&mut self, index: usize, class: &PlanClass, base: usize) -> Step<Bound<'py, PyAny>> {
         let py = self.py;
         let slots = &mut self.pending[base..];
         let present = slots.iter().filter(|slot| slot.is_some()).count();
@@ -685,7 +713,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
         }
         let record = PyDict::new(py);
         fill(&record, class, slots)?;
-        self.construct(class, record)
+        self.construct(index, class, record, None)
     }
 
     /// A string value: its text, escapes resolved. A lone surrogate or a NUL

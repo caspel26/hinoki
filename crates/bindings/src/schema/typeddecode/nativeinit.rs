@@ -301,6 +301,7 @@ fn write<'py>(
             Some(found) if matched < class.fields.len() => {
                 PyFrozenSet::new(py, found.keys())?.into_any()
             }
+            None if matched < class.fields.len() => PyFrozenSet::empty(py)?.into_any(),
             _ => all.bind(py).clone(),
         };
         store(instance, offset, supplied);

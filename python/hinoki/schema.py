@@ -1299,7 +1299,10 @@ class _TypedJson:
     def __get__(
         self, instance: object, owner: type[Schema]
     ) -> Callable[[bytes], object | None]:
-        decode = typed_decoder(owner) or _no_typed_json
+        try:
+            decode = typed_decoder(owner) or _no_typed_json
+        except Exception:
+            return _no_typed_json
         if "validate_json" not in owner.__dict__:
             type.__setattr__(owner, "validate_json", _Cached(decode))
         return decode
@@ -2449,7 +2452,12 @@ def typed_decoder(cls: type[Schema]) -> Callable[[bytes], object | None] | None:
     """The one-pass Rust body decoder of ``cls``, or ``None`` when a before
     hook, a check or a custom validation hook on its graph has to run on the
     ordinary path."""
-    if graph_has_before(cls) or graph_has_checks(cls) or not graph_is_stock(cls):
+    if (
+        graph_has_before(cls)
+        or graph_has_checks(cls)
+        or not graph_is_stock(cls)
+        or not isinstance(inspect.getattr_static(cls, "validate"), _Cached | _Validate)
+    ):
         return None
     return cls.native_schema().decode_typed
 
