@@ -280,6 +280,7 @@ pub async fn track(
         Reply::Live(live) => (Bytes::new(), Some(Produced::Live(live))),
         Reply::File(file) => (Bytes::new(), Some(Produced::File(file))),
         Reply::Encoded(encoded) => (Bytes::new(), Some(Produced::Encoded(encoded))),
+        Reply::Counted(counted) => (Bytes::new(), Some(Produced::Counted(counted))),
     };
     entry.done = rest.is_empty() && live.is_none();
     if !rest.is_empty() || live.is_some() {

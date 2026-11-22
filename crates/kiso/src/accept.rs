@@ -23,6 +23,7 @@ use crate::accesslog::{AccessLog, LogFilter};
 use crate::compress::Compression;
 use crate::conn::{respond, Backend, Transport};
 use crate::framing::{Framing, Guarded, Signals};
+use crate::metrics::Registry;
 use crate::stall::StallGuard;
 use crate::streams::{track, Close, Streams};
 
@@ -84,6 +85,8 @@ pub struct ServerConfig {
     pub server_timing: bool,
     /// Compress answers by this policy; `None` sends them as they are.
     pub compression: Option<Arc<Compression>>,
+    /// Record every answer in these metrics; `None` records nothing.
+    pub metrics: Option<Arc<Registry>>,
 }
 
 impl Default for ServerConfig {
@@ -100,6 +103,7 @@ impl Default for ServerConfig {
             log_filter: Arc::default(),
             server_timing: false,
             compression: None,
+            metrics: None,
         }
     }
 }
@@ -177,6 +181,7 @@ async fn serve_h1<S, B>(
         log_filter: Arc::clone(&config.log_filter),
         server_timing: config.server_timing,
         compression: config.compression.clone(),
+        metrics: config.metrics.clone(),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
@@ -232,6 +237,7 @@ async fn serve_h2<S, B>(
         log_filter: Arc::clone(&config.log_filter),
         server_timing: config.server_timing,
         compression: config.compression.clone(),
+        metrics: config.metrics.clone(),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
     };

@@ -1255,6 +1255,18 @@ impl ServerCore {
     pub fn shared(&self) -> Arc<Core> {
         Arc::clone(&self.core)
     }
+
+    /// The action number and route pattern of every route, for the metrics.
+    pub fn route_patterns(&self) -> Vec<(u32, Arc<str>)> {
+        let mut routes: Vec<_> = self
+            .core
+            .templates
+            .iter()
+            .map(|(action, pattern)| (*action, Arc::clone(pattern)))
+            .collect();
+        routes.sort_by_key(|route| route.0);
+        routes
+    }
 }
 
 #[pymethods]
@@ -1738,6 +1750,9 @@ impl Core {
         };
         if let Some(pattern) = action.and_then(|number| self.templates.get(&number)) {
             trace.set_route(Arc::clone(pattern));
+        }
+        if let Some(number) = action {
+            trace.set_action(number);
         }
         asked.action = action;
         let plan = match action {

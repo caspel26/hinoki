@@ -592,6 +592,7 @@ class KisoServer:
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
         compression: dict[str, object] | None = None,
+        metrics: dict[str, object] | None = None,
     ) -> KisoServer: ...
     @property
     def port(self) -> int: ...
@@ -648,6 +649,7 @@ class WsgiServer:
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
         compression: dict[str, object] | None = None,
+        metrics: dict[str, object] | None = None,
     ) -> WsgiServer: ...
     @property
     def port(self) -> int: ...

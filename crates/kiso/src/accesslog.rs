@@ -9,7 +9,7 @@
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -53,9 +53,22 @@ impl Lane {
 pub struct Trace {
     lane: AtomicU8,
     route: OnceLock<Arc<str>>,
+    /// The matched action number plus one; zero while none matched.
+    action: AtomicU32,
 }
 
 impl Trace {
+    /// The number of the action that matched; the metrics find the route's
+    /// series by it.
+    pub fn set_action(&self, action: u32) {
+        self.action
+            .store(action.saturating_add(1), Ordering::Relaxed);
+    }
+
+    pub fn action(&self) -> Option<u32> {
+        self.action.load(Ordering::Relaxed).checked_sub(1)
+    }
+
     pub fn set(&self, lane: Lane) {
         self.lane.store(lane as u8 + 1, Ordering::Relaxed);
     }

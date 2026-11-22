@@ -14,6 +14,7 @@ mod filelocate;
 mod handoff;
 mod jwt;
 mod kiso;
+mod metrics;
 mod modelrows;
 mod nativecrud;
 mod nativerun;

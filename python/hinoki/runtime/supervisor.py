@@ -20,10 +20,12 @@ starts its runtime after it starts. The supervisor never starts tokio itself.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Iterator
@@ -48,7 +50,7 @@ def docs_line(url: str, style: Style) -> str:
 class Supervisor:
     """Owns the listener and the worker processes of one ``serve`` or ``dev`` run."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - the listeners and run options
         self,
         target: str,
         listener: socket.socket,
@@ -58,9 +60,18 @@ class Supervisor:
         reload: bool = False,
         scheme: str = "http",
         interface: str = "asgi",
+        metrics: socket.socket | None = None,
     ) -> None:
         self.target = target
         self.interface = interface
+        # The shared metrics listener, opened here like the main one, and the
+        # private directory where the workers leave their snapshots.
+        self.metrics = metrics
+        self.metrics_dir = (
+            tempfile.mkdtemp(prefix="hinoki-metrics-")
+            if metrics and workers > 1
+            else None
+        )
         self.docs: str | None = None  # path of the docs page, announced on start
         self.listener = listener
         self.count = workers
@@ -71,7 +82,7 @@ class Supervisor:
         self.stop = threading.Event()
         self.signals = 0
 
-    def command(self) -> list[str]:
+    def command(self, slot: int = 0) -> list[str]:
         return [
             sys.executable,
             "-m",
@@ -83,18 +94,33 @@ class Supervisor:
             str(os.getpid()),
             *(["--interface", self.interface] if self.interface != "asgi" else []),
             *(["--dev"] if self.reload else []),
+            *self.metrics_arguments(slot),
         ]
 
-    def spawn(self) -> subprocess.Popen[bytes]:
+    def metrics_arguments(self, slot: int) -> list[str]:
+        if self.metrics is None:
+            return []
+        return [
+            "--metrics-fd",
+            str(self.metrics.fileno()),
+            *(["--metrics-dir", self.metrics_dir] if self.metrics_dir else []),
+            "--slot",
+            str(slot),
+        ]
+
+    def spawn(self, slot: int = 0) -> subprocess.Popen[bytes]:
         """Start a worker with SIGINT blocked: a terminal Ctrl-C reaches the
         whole process group, and while the worker still imports Hinoki it
         would end it with a traceback. The supervisor owns the stop (SIGTERM);
         the worker unblocks SIGINT first thing, behind a no-op handler
         (``kiso.take_interrupts``)."""
         previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+        inherited = [self.listener.fileno()]
+        if self.metrics is not None:
+            inherited.append(self.metrics.fileno())
         try:
             return subprocess.Popen(  # noqa: S603 - our own interpreter and module
-                self.command(), pass_fds=(self.listener.fileno(),)
+                self.command(slot), pass_fds=tuple(inherited)
             )
         finally:
             signal.pthread_sigmask(signal.SIG_SETMASK, previous)
@@ -166,23 +192,35 @@ class Supervisor:
         # made while the worker starts is not missed.
         next(events, None)  # ends at once when a signal has already come
         if self.stop.is_set():
-            self.listener.close()
+            self.release()
+            self.discard_snapshots()
             return 0
-        self.processes = [self.spawn() for _ in range(self.count)]
+        self.processes = [self.spawn(slot) for slot in range(self.count)]
         if not self.reload:
             # No worker is ever started again: only the workers listen, so a
             # client that arrives while they stop is refused, not left waiting.
-            self.listener.close()
+            self.release()
         try:
             code = self.watch(events) if self.reload else self.supervise(events)
         finally:
-            self.listener.close()  # (``dev``) no new clients while stopping
+            self.release()  # (``dev``) no new clients while stopping
             self.stop_workers()
+            self.discard_snapshots()
             # A further signal while the interpreter winds down would find the
             # default action and end the process by that signal.
             for number in SIGNALS:
                 signal.signal(number, signal.SIG_IGN)
         return code
+
+    def release(self) -> None:
+        """Close the supervisor's own copies of the listening sockets."""
+        self.listener.close()
+        if self.metrics is not None:
+            self.metrics.close()
+
+    def discard_snapshots(self) -> None:
+        if self.metrics_dir is not None:
+            shutil.rmtree(self.metrics_dir, ignore_errors=True)
 
     def supervise(self, events: Iterator[set[tuple[Any, str]]]) -> int:
         for _ in events:

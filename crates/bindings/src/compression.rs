@@ -8,7 +8,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-fn field<'py, T: FromPyObjectOwned<'py>>(
+pub(crate) fn field<'py, T: FromPyObjectOwned<'py>>(
     options: &Bound<'py, PyDict>,
     name: &str,
 ) -> PyResult<Option<T>> {
