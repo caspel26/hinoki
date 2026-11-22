@@ -1,4 +1,4 @@
-"""OpenAPI 3.1 document generated from the registered routes and schemas.
+"""OpenAPI 3.2 (or 3.1) document generated from the registered routes and schemas.
 
 Everything comes from declarations that already exist (paths, handler
 signatures, ``Schema`` fields, return annotations, docstrings); nothing is
@@ -95,6 +95,9 @@ ERROR = "Error"
 DICT_ARGS = 2
 SIMPLE_DEFAULTS = (str, int, float, bool)
 INPUTS = {"path", "query", "page", "queryschema"}
+# The ``openapi`` field of each version the document can be written as.
+SPEC_VERSIONS = {"3.1": "3.1.0", "3.2": "3.2.0"}
+DEFAULT_SPEC_VERSION = "3.2"
 BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
@@ -116,11 +119,20 @@ def labels(route: Route) -> dict[str, Any]:
     return found
 
 
-def operation_key(method: str) -> str:
-    """The path item field holding a method's operation. OpenAPI 3.1 has no
-    ``query`` operation (3.2 adds it), so QUERY uses the ``x-query`` extension
-    field with the same operation object."""
-    return "x-query" if method == "QUERY" else method.lower()
+def operation_key(method: str, spec_version: str = DEFAULT_SPEC_VERSION) -> str:
+    """The path item field holding a method's operation. OpenAPI 3.2 has a
+    ``query`` operation (section 4.9, Path Item Object); 3.1 has none, so there
+    QUERY uses the ``x-query`` extension field with the same operation object."""
+    if method == "QUERY" and spec_version == "3.1":
+        return "x-query"
+    return method.lower()
+
+
+def operation_of(item: dict[str, Any], method: str) -> Any:
+    """The operation a path item holds for a lower-case ``method``. QUERY is
+    ``query`` in OpenAPI 3.2 and ``x-query`` in a document written as 3.1."""
+    found = item.get(method)
+    return item.get("x-query") if found is None and method == "query" else found
 
 
 def component_name(schema: type[Schema]) -> str:
@@ -141,10 +153,22 @@ def ref(name: str) -> dict[str, str]:
 class OpenAPIBuilder:
     """Builds one document; create a new builder per document."""
 
-    def __init__(self, app: Hinoki, title: str, version: str) -> None:
+    def __init__(
+        self,
+        app: Hinoki,
+        title: str,
+        version: str,
+        spec_version: str = DEFAULT_SPEC_VERSION,
+    ) -> None:
+        if spec_version not in SPEC_VERSIONS:
+            raise ValueError(
+                f"openapi_version must be one of {sorted(SPEC_VERSIONS)}, "
+                f"not {spec_version!r}"
+            )
         self.app = app
         self.title = title
         self.version = version
+        self.spec_version = spec_version
         self.components: dict[str, dict[str, Any]] = {}
         self.owners: dict[str, type[Schema]] = {}
         self.operation_ids: set[str] = {
@@ -161,9 +185,10 @@ class OpenAPIBuilder:
             if not documented(route):
                 continue
             path = paths.setdefault(route.path, {})
-            path[operation_key(route.method)] = self.operation(binding)
+            key = operation_key(route.method, self.spec_version)
+            path[key] = self.operation(binding)
         document: dict[str, Any] = {
-            "openapi": "3.1.0",
+            "openapi": SPEC_VERSIONS[self.spec_version],
             "info": {"title": self.title, "version": self.version},
             "paths": paths,
         }
@@ -179,9 +204,9 @@ class OpenAPIBuilder:
         return document
 
     def websockets(self) -> dict[str, Any]:
-        """OpenAPI 3.1 has no WebSocket operation, so the actions are described
-        under a vendor extension: the handshake is an HTTP GET, the messages
-        are the ``Schema`` the route declares."""
+        """OpenAPI 3.1 and 3.2 have no WebSocket operation, so the actions are
+        described under a vendor extension: the handshake is an HTTP GET, the
+        messages are the ``Schema`` the route declares."""
         described: dict[str, Any] = {}
         for route in self.app.websockets:
             entry: dict[str, Any] = {"operationId": route.name}
