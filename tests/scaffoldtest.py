@@ -154,6 +154,9 @@ def test_the_command_reports_success_and_failure(
 def test_the_generated_project_passes_its_own_rules_and_tests(tmp_path: Path) -> None:
     target = create("shop", tmp_path)
     assert "include=manifest_routes()" in (target / "shop/main.py").read_text()
+    assert "rules=" not in (target / "shop/main.py").read_text()
+    manifest = tomllib.loads((target / "hinoki.toml").read_text())
+    assert manifest["project"]["rules"] == ["shop.rules:project_rules"]
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(target), *sys.path])}
     check = subprocess.run(
         [sys.executable, "-m", "hinoki", "check"],
@@ -165,6 +168,7 @@ def test_the_generated_project_passes_its_own_rules_and_tests(tmp_path: Path) ->
         check=False,
     )
     assert check.returncode == 0, check.stdout + check.stderr
+    assert "no rules were run" not in check.stderr
     tests = subprocess.run(
         [
             sys.executable,
