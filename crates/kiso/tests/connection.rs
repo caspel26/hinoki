@@ -440,6 +440,26 @@ async fn stop_lets_a_running_request_finish_and_closes_idle_connections() {
 }
 
 #[tokio::test]
+async fn stop_answers_a_connection_accepted_before_it_but_not_yet_read() {
+    let running = start(ServerConfig::default()).await;
+    let mut waiting = connect(&running).await;
+    // Connections are accepted in order: once this one answers, `waiting` is accepted.
+    let mut probe = connect(&running).await;
+    get(&mut probe, "/health").await;
+
+    running.stop.send(true).unwrap();
+    waiting
+        .write_all(b"GET /health HTTP/1.1\r\nhost: t\r\n\r\n")
+        .await
+        .unwrap();
+    let (head, _) = read_response(&mut waiting, true).await;
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+    assert!(is_closed(&mut waiting, WAIT).await);
+    let closed = timeout(WAIT, running.task).await.unwrap().unwrap();
+    assert_eq!(closed, Closed { aborted: 0 });
+}
+
+#[tokio::test]
 async fn a_request_that_outlives_the_shutdown_timeout_is_aborted() {
     let config = ServerConfig {
         shutdown_timeout: Duration::from_millis(200),

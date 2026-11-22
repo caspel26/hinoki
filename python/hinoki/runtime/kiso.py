@@ -40,7 +40,7 @@ from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.http.stream import EventStream, Sourced
 from hinoki.runtime import banner
-from hinoki.runtime.listener import inherited_address, open_listener
+from hinoki.runtime.listener import inherited_address, open_listener, signal_ready
 from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_data
 from hinoki.runtime.pipeline import NativeBody
 from hinoki.runtime.recent import RequestRecorder
@@ -183,6 +183,7 @@ class KisoWorker:
         server_timing: bool = False,
         compression: dict[str, object] | None = None,
         metrics: dict[str, object] | None = None,
+        ready_fd: int | None = None,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -211,6 +212,8 @@ class KisoWorker:
         # The pid of the supervisor that started this worker, if any: the worker
         # stops when its parent is no longer that process.
         self.parent = parent
+        # Where a supervisor that replaces workers waits for this one to serve.
+        self.ready_fd = ready_fd
         self.timer: asyncio.TimerHandle | None = None
         # Starts not ready; the lifespan startup flips it.
         self.core = build_server_core(self.pipeline)
@@ -667,7 +670,6 @@ class KisoWorker:
         server, self.server = self.server, None
         if server is None:
             return 0
-        self.core.set_ready(False)
         if self.timer is not None:
             self.timer.cancel()
             self.timer = None
@@ -678,8 +680,12 @@ class KisoWorker:
         drain_interrupted = False
         self.pipeline.streams.stop_events()  # SSE streams end with a normal close
         try:
+            # Not ready only once the connections are drained: a request that a
+            # client already sent to this worker (a reload stops one while its
+            # successor serves) is answered, not refused with a 503.
             aborted = await server.shutdown()
         finally:
+            self.core.set_ready(False)
             asyncio.get_running_loop().remove_reader(server.wake_fd)
             try:
                 native_aborted, drain_interrupted = await _drain_native_uninterruptibly(
@@ -737,6 +743,10 @@ class KisoWorker:
             interrupt = self._on_signal if self.parent is None else self._ignore_signal
             loop.add_signal_handler(signal.SIGINT, interrupt)
             loop.add_signal_handler(signal.SIGHUP, interrupt)
+            if self.ready_fd is not None:
+                # After the handlers: the supervisor's SIGTERM to a worker it
+                # replaces comes right after this, and must stop it gracefully.
+                signal_ready(self.ready_fd)
             if self.parent is None:
                 shown = f"[{self.host}]" if ":" in self.host else self.host
                 print(f"listening on {self.scheme}://{shown}:{port}", flush=True)
@@ -791,11 +801,12 @@ def build_worker(  # noqa: PLR0913 - the supervisor's descriptors and the metric
     metrics_fd: int | None = None,
     metrics_dir: str | None = None,
     slot: int = 0,
+    ready_fd: int | None = None,
 ) -> KisoWorker:
     """A worker for ``app`` with the limits of its ``server`` settings group
     (``None`` keeps the native default). ``metrics_fd``, ``metrics_dir`` and
     ``slot`` are what a supervisor gives a worker for the shared metrics
-    listener."""
+    listener; ``ready_fd`` is the pipe on which it reports that it serves."""
     limits: dict[str, Any] = {
         name: getattr(settings, name)
         for name in RUST_ONLY
@@ -812,6 +823,7 @@ def build_worker(  # noqa: PLR0913 - the supervisor's descriptors and the metric
         http2=settings.http2,
         listener_fd=listener_fd,
         parent=parent,
+        ready_fd=ready_fd,
         access_log=access_style(settings, dev),
         access_log_skip=settings.access_log_skip,
         access_log_slow_ms=settings.access_log_slow_ms,
@@ -866,6 +878,7 @@ def run_wsgi_worker(args: argparse.Namespace, host: str, port: int) -> int:
         metrics_fd=args.metrics_fd,
         metrics_dir=args.metrics_dir,
         slot=args.slot,
+        ready_fd=args.ready_fd,
     )
 
 
@@ -882,6 +895,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--metrics-fd", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--metrics-dir", help=argparse.SUPPRESS)
     parser.add_argument("--slot", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--ready-fd", type=int, help=argparse.SUPPRESS)
     parser.add_argument(
         "--interface",
         choices=("asgi", "wsgi"),
@@ -897,6 +911,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         os.set_inheritable(args.fd, False)  # nothing a handler starts keeps it
     if args.metrics_fd is not None:
         os.set_inheritable(args.metrics_fd, False)
+    if args.ready_fd is not None:
+        os.set_inheritable(args.ready_fd, False)
     host, port = (
         inherited_address(args.fd) if args.fd is not None else (args.host, args.port)
     )
@@ -917,6 +933,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         metrics_fd=args.metrics_fd,
         metrics_dir=args.metrics_dir,
         slot=args.slot,
+        ready_fd=args.ready_fd,
     )
     return asyncio.run(worker.run())
 

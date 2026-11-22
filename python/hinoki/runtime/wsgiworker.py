@@ -21,7 +21,7 @@ from typing import Any
 from hinoki import __version__, core
 from hinoki.runtime import wsgibridge
 from hinoki.runtime.kiso import access_sink, access_style
-from hinoki.runtime.listener import open_listener
+from hinoki.runtime.listener import open_listener, signal_ready
 from hinoki.settings import (
     AppSettings,
     ExecutionSettings,
@@ -99,10 +99,10 @@ def start_server(  # noqa: PLR0913 - the metrics listener and slot ride along
     )
 
 
-def wait_for_stop(parent: int | None) -> None:
+def wait_for_stop(parent: int | None, ready_fd: int | None = None) -> None:
     """Block until SIGTERM (or SIGINT outside a supervisor). A second signal
     does not wait; a supervised worker leaves SIGINT and SIGHUP to its
-    supervisor."""
+    supervisor. ``ready_fd`` is told once the handlers are in place."""
     stopping = threading.Event()
 
     def on_signal(_number: int, _frame: object) -> None:
@@ -119,6 +119,8 @@ def wait_for_stop(parent: int | None) -> None:
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, interrupt)
     signal.signal(signal.SIGHUP, interrupt)
+    if ready_fd is not None:
+        signal_ready(ready_fd)
     while not stopping.wait(0.5):
         if parent is not None and os.getppid() != parent:
             return  # the supervisor is gone
@@ -136,6 +138,7 @@ def run(  # noqa: PLR0913 - the metrics listener and slot ride along
     metrics_fd: int | None = None,
     metrics_dir: str | None = None,
     slot: int = 0,
+    ready_fd: int | None = None,
 ) -> int:
     """Serve ``target`` until a stop signal, then drain and close it."""
     core.configure_runtime(settings.runtime_threads)
@@ -158,7 +161,7 @@ def run(  # noqa: PLR0913 - the metrics listener and slot ride along
                 shown = f"[{host}]" if ":" in host else host
                 scheme = "https" if settings.tls_cert_file else "http"
                 print(f"listening on {scheme}://{shown}:{server.port}", flush=True)
-            wait_for_stop(parent)
+            wait_for_stop(parent, ready_fd)
         finally:
             aborted = server.shutdown()
         if aborted:
