@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from hinoki.prompts import Check, Prompter, keys_available, raw_keys
 from hinoki.scaffold import (
     DATABASES,
     NAME,
+    REPOSITORY,
     RESERVED_NAMES,
     SERVERS,
     ScaffoldError,
@@ -368,12 +370,21 @@ def next_steps(
     ]
 
 
+def banner_facts() -> list[tuple[str, str]]:
+    """What the banner of the interactive commands says about where they run."""
+    return [
+        ("python", platform.python_version()),
+        ("docs", DOCS.removeprefix("https://").rstrip("/")),
+        ("source", REPOSITORY.removeprefix("https://")),
+    ]
+
+
 def show_banner(style: Style, title: str = "new project") -> None:
     detail = f"v{__version__}"
     if style.animated and style.unicode:
-        style.shimmer(title, detail)
+        style.shimmer(title, detail, banner_facts())
     else:
-        print(style.banner(title, detail))
+        print(style.banner(title, detail, banner_facts()))
     if style.fancy:
         print(style.intro(title))
 

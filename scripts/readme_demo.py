@@ -16,7 +16,7 @@ title cards made from ``lockup-dark.svg``. Glyphs Plex Mono lacks (the ``◢◤`
 mark, box lines and corners, spinners) are drawn as shapes.
 
 The children run as in a colour terminal; ``hinoki new`` draws its banner as a
-box of text, so nothing needs to be replaced on the screen.
+branch of text, so nothing needs to be replaced on the screen.
 
 Only the timing and the motion are edited, never the text: long waits are
 shortened, repeated spinner frames are dropped, lines a program prints at once
