@@ -107,6 +107,8 @@ def test_header_names_with_an_underscore_are_dropped() -> None:
         ("example.test", "https", ("example.test", "443")),
         ("[::1]:8080", "http", ("[::1]", "8080")),
         ("[::1]", "https", ("[::1]", "443")),
+        ("example.test:abc", "http", ("example.test", "80")),
+        ("[::1]:x", "https", ("[::1]", "443")),
     ],
 )
 def test_split_host(value: str, scheme: str, expected: tuple[str, str]) -> None:
