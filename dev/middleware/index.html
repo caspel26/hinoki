@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 12:43:43 UTC">November 22, 2026</span></span>
+            <span>4 min read</span>
           </p>
           
         </header>
@@ -512,6 +512,30 @@ and an application served by Kiso can use it.</p>
 <p><code>RouteGroup</code> actions take the same option. The application's middleware runs
 first, then the action's, in the order listed; each one returns what the next
 one returned unless it answers itself.</p>
+<h2 id="declaring-middleware-in-hinokitoml">Declaring middleware in <code>hinoki.toml</code><a class="headerlink" href="#declaring-middleware-in-hinokitoml" title="Permanent link">&para;</a></h2>
+<p>An app can name a sequence of middleware in its <code>[[apps]]</code> table. Hinoki does
+not generate the module: you create it yourself.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># shop/apps/notes/middleware.py</span>
+<span class="n">middleware</span> <span class="o">=</span> <span class="p">[</span><span class="n">Tenant</span><span class="p">()]</span>
+</code></pre></div>
+<div class="language-toml highlight"><pre><span></span><code><span class="k">[[apps]]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.apps.notes.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.apps.notes.migrations"</span>
+<span class="n">middleware</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.apps.notes.middleware:middleware"</span>
+</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">()</span>  <span class="c1"># reads routes, events and middleware from hinoki.toml</span>
+</code></pre></div>
+<p>When the manifest's <code>project.application</code> names the module that builds the app, <code>Hinoki()</code> loads each key you did not pass; an explicit <code>middleware=</code> (even <code>()</code>) wins and skips the key. <code>manifest_middleware()</code> is the explicit form, to combine lists. It imports each app's list in dependency order
+(<code>requires</code>) and flattens them, so a required app's middleware runs
+before the dependent app's, and within an app in the order listed. The result is
+the application's own middleware: it runs before an action's and obeys
+<a href="#order-and-what-stays-outside">the order below</a>. A target that does not import,
+or that is not a list or tuple of objects with an <code>async def __call__</code>, raises a
+<code>ProjectError</code> naming the app. <code>hinoki app add notes --models ... --middleware
+pkg.middleware:middleware</code> registers one and <code>hinoki app list</code> shows it.</p>
 <h2 id="what-a-middleware-sees">What a middleware sees<a class="headerlink" href="#what-a-middleware-sees" title="Permanent link">&para;</a></h2>
 <p><code>MiddlewareRequest</code> is the head of the request: <code>method</code>, <code>path</code>, the matched
 route template in <code>route</code> (for example <code>/items/{item_id}</code>, safe to use as a
@@ -596,12 +620,12 @@ change the lane.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-a-middleware-sees">What a middleware sees</a></li><li><a href="#order-and-what-stays-outside">Order and what stays outside</a></li><li><a href="#cost">Cost</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#declaring-middleware-in-hinokitoml">Declaring middleware in hinoki.toml</a></li><li><a href="#what-a-middleware-sees">What a middleware sees</a></li><li><a href="#order-and-what-stays-outside">Order and what stays outside</a></li><li><a href="#cost">Cost</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 12:43:43 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/middleware.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

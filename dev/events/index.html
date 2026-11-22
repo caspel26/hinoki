@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
-            <span>11 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 12:43:43 UTC">November 22, 2026</span></span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -578,11 +578,10 @@
 <span class="n">events</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.apps.notes.events:handlers"</span>
 </code></pre></div>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_events</span><span class="p">,</span> <span class="n">manifest_routes</span>
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span> <span class="n">events</span><span class="o">=</span><span class="n">manifest_events</span><span class="p">())</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">()</span>  <span class="c1"># reads routes, events and middleware from hinoki.toml</span>
 </code></pre></div>
-<p><code>manifest_events()</code> imports each app's <code>Handlers</code> in dependency order (<code>requires</code>) and fails with a message naming the app when the target does not import or is not a <code>Handlers</code>. <code>hinoki app create notes --events</code> writes <code>events.py</code> and the key; <code>hinoki app add notes --models ... --events pkg.events:handlers</code> registers an existing one; <code>hinoki app list</code> shows it.</p>
+<p>When the manifest's <code>project.application</code> names the module that builds the app, <code>Hinoki()</code> loads each key you did not pass: <code>include=</code>, <code>events=</code> and <code>middleware=</code> are independent, and an explicit argument (even <code>()</code>) wins and skips that key. <code>manifest_events()</code> does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's <code>Handlers</code> in dependency order (<code>requires</code>) and fails with a message naming the app when the target does not import or is not a <code>Handlers</code>. Hinoki does not generate the module: you create it yourself (for example <code>shop/apps/notes/events.py</code> with <code>handlers = events.Handlers("notes")</code>, as in the example on this page) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. <code>hinoki app add notes --models ... --events pkg.events:handlers</code> registers an existing one; <code>hinoki app list</code> shows it.</p>
 <h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">capture</span><span class="p">()</span> <span class="k">as</span> <span class="n">seen</span><span class="p">:</span>
     <span class="o">...</span>  <span class="c1"># code under test emits events</span>
@@ -758,7 +757,7 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 12:43:43 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/events.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
