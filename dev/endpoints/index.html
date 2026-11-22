@@ -471,7 +471,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -572,7 +572,7 @@
 <li>A <code>QUERY</code> action must not change state. <code>RouteGroup(atomic=True)</code> applies to <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> only; pass <code>atomic=True</code> on the action if the read needs a transaction.</li>
 <li><code>@http.query</code> inside an <code>API</code> class works like the other methods. A <code>405</code> answer lists <code>QUERY</code> in <code>Allow</code> where it is available; <code>HEAD</code> is answered through <code>GET</code> routes only. Hinoki sends no <code>Accept-Query</code> or cache headers by itself.</li>
 <li>The method is recent. Granian passes it through over ASGI and WSGI (both are tested), but a proxy, gateway, firewall or HTTP client may reject it, and browsers send a CORS preflight for it. Keep a <code>GET</code> or <code>POST</code> route beside it when clients cannot send <code>QUERY</code>.</li>
-<li>In the OpenAPI document a <code>QUERY</code> operation appears under the path's <code>x-query</code> field; see <a href="../openapi/#query-operations">OpenAPI</a>.</li>
+<li>In the OpenAPI document a <code>QUERY</code> operation appears under the path's <code>query</code> field (<code>x-query</code> with <code>openapi_version="3.1"</code>); see <a href="../openapi/#query-operations">OpenAPI</a>.</li>
 </ul>
 <h2 id="bind-request-values">Bind request values<a class="headerlink" href="#bind-request-values" title="Permanent link">&para;</a></h2>
 <p>Typed path parameters come from the path, query parameters from the query string, and a body parameter from the request body. Declare <code>request: Request</code> as the first parameter when you need headers, cookies or raw request data; it is injected only when that parameter is annotated.</p>
@@ -729,7 +729,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

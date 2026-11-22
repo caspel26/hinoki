@@ -312,6 +312,7 @@
     <span class="n">openapi_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">redoc_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+    <span class="n">openapi_version</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"3.1"</span><span class="p">,</span> <span class="s2">"3.2"</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">rules</span><span class="p">:</span> <span class="n">RuleSet</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">enforce_rules</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">waivers</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -909,7 +910,7 @@ method is not allowed (use <code>lookup</code> to tell them apart).</p>
 
     <div class="doc doc-contents ">
 
-        <p>The OpenAPI 3.1 document for the registered routes.</p>
+        <p>The OpenAPI document (3.2 by default, 3.1 with <code>openapi_version</code>).</p>
 
 
     </div>

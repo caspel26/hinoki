@@ -471,13 +471,13 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></span>
-            <span>8 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></span>
+            <span>9 min read</span>
           </p>
           
         </header>
         
-<p><code>Hinoki.openapi()</code> builds an OpenAPI 3.1 document from the routes registered with the app. Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.</p>
+<p><code>Hinoki.openapi()</code> builds an OpenAPI 3.2 document from the routes registered with the app (3.1 on request, see <a href="#the-document-version">the document version</a>). Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.</p>
 <p>Generate the document from the application without starting a server:</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>openapi<span class="w"> </span>--output<span class="w"> </span>openapi.json
 hinoki<span class="w"> </span>openapi<span class="w"> </span>--check<span class="w"> </span>openapi.json
@@ -502,11 +502,21 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
     <span class="n">redoc_url</span><span class="o">=</span><span class="s2">"/redoc"</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>The corresponding <code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> settings provide the same defaults. A viewer requires <code>openapi_url</code>. <code>Hinoki(...)</code> arguments override settings; passing <code>None</code> disables a page. The packaged viewers work without a CDN.</p>
+<p>The corresponding <code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> settings provide the same defaults. A viewer requires <code>openapi_url</code>. <code>Hinoki(...)</code> arguments override settings; passing <code>None</code> disables a page. The packaged viewers (Swagger UI 5.35.1 and ReDoc 3.2.0, which read OpenAPI 3.2 and list <code>QUERY</code> operations) work without a CDN; ReDoc 3 is loaded as a JavaScript module with its usage reporting turned off.</p>
 <p>The generated OpenAPI document, Swagger UI, ReDoc and their assets answer <code>HEAD</code> with the same status and representation headers as <code>GET</code>, without a response body. Each request still has its own request ID in the configured response header (<code>x-request-id</code> by default).</p>
+<h2 id="the-document-version">The document version<a class="headerlink" href="#the-document-version" title="Permanent link">&para;</a></h2>
+<p>The <code>openapi</code> field is <code>3.2.0</code> by default. <code>Hinoki(openapi_version="3.1")</code> or the <code>docs.openapi_version</code> setting (<code>"3.1"</code> or <code>"3.2"</code>) writes a <code>3.1.0</code> document instead; any other value raises <code>ValueError</code>. <code>hinoki openapi</code> and the served document follow the application's choice. The version changes one thing: where a <code>QUERY</code> action is written. Every other operation, schema and component is the same in both.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">openapi_version</span><span class="o">=</span><span class="s2">"3.1"</span><span class="p">)</span>  <span class="c1"># keep a 3.1 document for a 3.1-only consumer</span>
+</code></pre></div>
+<p>OpenAPI 3.2.0 was checked against the bundled and current readers; use <code>"3.1"</code> for a consumer that only reads 3.1. <code>@apidevtools/swagger-parser</code> 13.1.0, for one, rejects every 3.2.0 document, and <code>openapi-typescript</code> 7.13.0 reads a 3.2 document but leaves its <code>query</code> operations out.</p>
 <h2 id="query-operations">QUERY operations<a class="headerlink" href="#query-operations" title="Permanent link">&para;</a></h2>
-<p>The document is OpenAPI 3.1, which has no field for the <code>QUERY</code> method (OpenAPI 3.2 adds <code>query</code>). An action declared with <code>@http.query</code> is therefore written under the path item's <code>x-query</code> extension field, with the same operation object as any other method: operation ID, parameters, request body, responses and security. The document stays valid 3.1.</p>
-<p>Tools that only read the standard method fields do not see these operations: Swagger UI and ReDoc do not list them, and a client generator skips them unless it is told about <code>x-query</code>. The application MCP and <code>explain_action</code> read the field.</p>
+<p>An action declared with <code>@http.query</code> is written under the path item's <code>query</code> field in a 3.2 document (Path Item Object, <a href="https://spec.openapis.org/oas/v3.2.0.html#path-item-object">OpenAPI 3.2.0 section 4.9</a>), with the same operation object as any other method: operation ID, parameters, request body, responses and security.</p>
+<div class="language-json highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"paths"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"/search"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"get"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"operationId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"search_page"</span><span class="p">},</span><span class="w"> </span><span class="nt">"query"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"operationId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"search"</span><span class="p">}}}}</span>
+</code></pre></div>
+<p>With <code>openapi_version="3.1"</code> there is no such field, so the same operation object is written under the <code>x-query</code> extension instead and the document stays valid 3.1. A 3.1 document with a <code>query</code> field would be invalid, and a 3.2 document never carries both, because the two entries would repeat the <code>operationId</code>.</p>
+<p>Readers of a 3.1 document that look only at the standard method fields do not see <code>x-query</code> operations. The application MCP, <code>explain_action</code> and <code>hinoki openapi --breaking-against</code> read both fields, so a baseline written as 3.1 compares correctly with a 3.2 document.</p>
 <h2 id="what-is-generated">What is generated<a class="headerlink" href="#what-is-generated" title="Permanent link">&para;</a></h2>
 <ul>
 <li>A unique <code>operationId</code> is derived from the handler's qualified name. If names collide, Hinoki appends a numeric suffix.</li>
@@ -614,12 +624,12 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#serve-the-document-and-viewers">Serve the document and viewers</a></li><li><a href="#query-operations">QUERY operations</a></li><li><a href="#what-is-generated">What is generated</a></li><li><a href="#per-action-controls">Per-action controls</a></li><li><a href="#deprecate-an-action">Deprecate an action</a></li><li><a href="#current-limits">Current limits</a></li></ul>
+            <ul><li><a href="#serve-the-document-and-viewers">Serve the document and viewers</a></li><li><a href="#the-document-version">The document version</a></li><li><a href="#query-operations">QUERY operations</a></li><li><a href="#what-is-generated">What is generated</a></li><li><a href="#per-action-controls">Per-action controls</a></li><li><a href="#deprecate-an-action">Deprecate an action</a></li><li><a href="#current-limits">Current limits</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
