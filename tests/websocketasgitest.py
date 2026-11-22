@@ -7,6 +7,7 @@ from typing import Any
 
 from hinoki import Access, BearerAuth, Caller, Hinoki, http
 from hinoki.runtime.asgi import ASGIAdapter
+from hinoki.settings import AppSettings
 
 
 @http.websocket("/echo/{name}", origins=["https://app.example"], max_message_bytes=8)
@@ -51,8 +52,10 @@ class Peer:
         self.sent.append(event)
 
 
-async def run(peer: Peer, *incoming: dict[str, Any]) -> list[dict[str, Any]]:
-    app = Hinoki()
+async def run(
+    peer: Peer, *incoming: dict[str, Any], settings: AppSettings | None = None
+) -> list[dict[str, Any]]:
+    app = Hinoki(settings=settings) if settings else Hinoki()
     app.include(echo, boom, private)
     adapter = ASGIAdapter(app)
     for event in incoming:
@@ -96,6 +99,34 @@ async def test_a_foreign_origin_is_refused_and_a_listed_one_accepted() -> None:
         {"type": "websocket.disconnect", "code": 1000},
     )
     assert accepted[0]["type"] == "websocket.accept"
+
+
+async def test_a_double_encoded_path_does_not_reach_another_route() -> None:
+    peer = Peer("/echo/..%2fprivate", [])
+    peer.scope["raw_path"] = b"/echo/..%252fprivate"
+    peer.scope["path"] = "/echo/..%2fprivate"
+    sent = await run(peer, connect(), {"type": "websocket.disconnect", "code": 1000})
+    assert sent[0]["type"] == "websocket.accept"
+    assert sent[1:] == []  # the handler saw one segment, not two
+
+
+async def test_the_origin_must_match_the_scheme_of_the_connection() -> None:
+    plain = Peer("/echo/a", [(b"origin", b"http://testserver")])
+    plain.scope["scheme"] = "wss"
+    assert [e["type"] for e in await run(plain, connect())] == ["websocket.close"]
+    secure = Peer("/echo/a", [(b"origin", b"https://testserver")])
+    secure.scope["scheme"] = "wss"
+    sent = await run(secure, connect(), {"type": "websocket.disconnect", "code": 1000})
+    assert sent[0]["type"] == "websocket.accept"
+
+
+async def test_a_host_the_application_does_not_allow_is_refused() -> None:
+    sent = await run(
+        Peer("/echo/a", []),
+        connect(),
+        settings=AppSettings(allowed_hosts=("api.example.com",)),
+    )
+    assert [event["type"] for event in sent] == ["websocket.close"]
 
 
 async def test_a_message_over_the_limit_closes_with_1009() -> None:

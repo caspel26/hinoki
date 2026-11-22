@@ -8,7 +8,6 @@ idle timers belong to the ASGI server."""
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import urlsplit
 
 from hinoki.runtime.requests import Scope
 from hinoki.websocket import CloseCode, WebSocketRoute
@@ -66,18 +65,23 @@ class ASGITransport:
         return sent
 
 
-def origin_allowed(route: WebSocketRoute, scope: Scope) -> bool:
+def origin_allowed(
+    route: WebSocketRoute, scope: Scope, cors_origins: frozenset[str] = frozenset()
+) -> bool:
     """An absent Origin (not a browser) passes; otherwise it must be one the
-    route names, ``*``, or the host the request was addressed to."""
+    route names, one the application's CORS policy lists, or the scheme and
+    host the request was addressed to. The CORS wildcard is not honoured: a
+    handshake carries cookies and a browser does not hide its answer."""
     headers = {k.decode("latin-1").lower(): v for k, v in scope.get("headers", [])}
     origin = headers.get("origin")
     if origin is None:
         return True
-    value = origin.decode("latin-1")
-    if "*" in route.origins or value in route.origins:
+    value = origin.decode("latin-1").lower()
+    if "*" in route.origins or value in route.origins or value in cors_origins:
         return True
-    host = headers.get("host", b"").decode("latin-1")
-    return bool(host) and urlsplit(value).netloc == host
+    host = headers.get("host", b"").decode("latin-1").lower()
+    page_scheme = "https" if scope.get("scheme") == "wss" else "http"
+    return bool(host) and value == f"{page_scheme}://{host}"
 
 
 async def accept(receive: Any, send: Any, subprotocol: str | None) -> bool:
