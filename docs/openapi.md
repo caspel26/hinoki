@@ -9,7 +9,7 @@ related:
 
 # OpenAPI document
 
-`Hinoki.openapi()` builds an OpenAPI 3.1 document from the routes registered with the app. Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.
+`Hinoki.openapi()` builds an OpenAPI 3.2 document from the routes registered with the app (3.1 on request, see [the document version](#the-document-version)). Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.
 
 Generate the document from the application without starting a server:
 
@@ -43,15 +43,33 @@ app = Hinoki(
 )
 ```
 
-The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` settings provide the same defaults. A viewer requires `openapi_url`. `Hinoki(...)` arguments override settings; passing `None` disables a page. The packaged viewers work without a CDN.
+The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` settings provide the same defaults. A viewer requires `openapi_url`. `Hinoki(...)` arguments override settings; passing `None` disables a page. The packaged viewers (Swagger UI 5.35.1 and ReDoc 3.2.0, which read OpenAPI 3.2 and list `QUERY` operations) work without a CDN; ReDoc 3 is loaded as a JavaScript module with its usage reporting turned off.
 
 The generated OpenAPI document, Swagger UI, ReDoc and their assets answer `HEAD` with the same status and representation headers as `GET`, without a response body. Each request still has its own request ID in the configured response header (`x-request-id` by default).
 
+## The document version
+
+The `openapi` field is `3.2.0` by default. `Hinoki(openapi_version="3.1")` or the `docs.openapi_version` setting (`"3.1"` or `"3.2"`) writes a `3.1.0` document instead; any other value raises `ValueError`. `hinoki openapi` and the served document follow the application's choice. The version changes one thing: where a `QUERY` action is written. Every other operation, schema and component is the same in both.
+
+```python
+from hinoki import Hinoki
+
+app = Hinoki(openapi_version="3.1")  # keep a 3.1 document for a 3.1-only consumer
+```
+
+OpenAPI 3.2.0 was checked against the bundled and current readers; use `"3.1"` for a consumer that only reads 3.1. `@apidevtools/swagger-parser` 13.1.0, for one, rejects every 3.2.0 document, and `openapi-typescript` 7.13.0 reads a 3.2 document but leaves its `query` operations out.
+
 ## QUERY operations
 
-The document is OpenAPI 3.1, which has no field for the `QUERY` method (OpenAPI 3.2 adds `query`). An action declared with `@http.query` is therefore written under the path item's `x-query` extension field, with the same operation object as any other method: operation ID, parameters, request body, responses and security. The document stays valid 3.1.
+An action declared with `@http.query` is written under the path item's `query` field in a 3.2 document (Path Item Object, [OpenAPI 3.2.0 section 4.9](https://spec.openapis.org/oas/v3.2.0.html#path-item-object)), with the same operation object as any other method: operation ID, parameters, request body, responses and security.
 
-Tools that only read the standard method fields do not see these operations: Swagger UI and ReDoc do not list them, and a client generator skips them unless it is told about `x-query`. The application MCP and `explain_action` read the field.
+```json
+{"paths": {"/search": {"get": {"operationId": "search_page"}, "query": {"operationId": "search"}}}}
+```
+
+With `openapi_version="3.1"` there is no such field, so the same operation object is written under the `x-query` extension instead and the document stays valid 3.1. A 3.1 document with a `query` field would be invalid, and a 3.2 document never carries both, because the two entries would repeat the `operationId`.
+
+Readers of a 3.1 document that look only at the standard method fields do not see `x-query` operations. The application MCP, `explain_action` and `hinoki openapi --breaking-against` read both fields, so a baseline written as 3.1 compares correctly with a 3.2 document.
 
 ## What is generated
 

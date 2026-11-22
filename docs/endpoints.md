@@ -78,7 +78,7 @@ curl -X QUERY http://127.0.0.1:8000/billing/invoices/search -H 'content-type: ap
 * A `QUERY` action must not change state. `RouteGroup(atomic=True)` applies to `POST`, `PUT`, `PATCH` and `DELETE` only; pass `atomic=True` on the action if the read needs a transaction.
 * `@http.query` inside an `API` class works like the other methods. A `405` answer lists `QUERY` in `Allow` where it is available; `HEAD` is answered through `GET` routes only. Hinoki sends no `Accept-Query` or cache headers by itself.
 * The method is recent. Granian passes it through over ASGI and WSGI (both are tested), but a proxy, gateway, firewall or HTTP client may reject it, and browsers send a CORS preflight for it. Keep a `GET` or `POST` route beside it when clients cannot send `QUERY`.
-* In the OpenAPI document a `QUERY` operation appears under the path's `x-query` field; see [OpenAPI](openapi.md#query-operations).
+* In the OpenAPI document a `QUERY` operation appears under the path's `query` field (`x-query` with `openapi_version="3.1"`); see [OpenAPI](openapi.md#query-operations).
 
 ## Bind request values
 

@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 📘 OpenAPI 3.2 and `query` as a first-class method
+> `python/hinoki/openapi.py`, `python/hinoki/app.py`, `python/hinoki/settings.py`, `python/hinoki/ai/openapidiff.py`, `python/hinoki/ai/mcp.py`, `python/hinoki/ai/mcpapp.py`, `python/hinoki/docsui/`
+
+The generated document is now OpenAPI `3.2.0`, and an `@http.query` action is written as the path item's `query` operation instead of the `x-query` extension. `Hinoki(openapi_version="3.1")` or `docs.openapi_version = "3.1"` keeps a `3.1.0` document with `x-query`; nothing else in the document differs. `hinoki openapi --breaking-against` treats `x-query` and `query` as the same operation, so a 3.1 baseline compares with a 3.2 document. The bundled viewers are now Swagger UI 5.35.1 and ReDoc 3.2.0, since the previous 5.17.14 and 2.1.5 refused a 3.2 document; ReDoc 3 is served as a JavaScript module. Some third-party tools read only 3.1 (`@apidevtools/swagger-parser` 13.1.0 rejects every 3.2 document), so set `openapi_version` to `3.1` for them. See [the document version](docs/openapi.md#the-document-version).
+
 #### 🔌 WebSockets
 > `crates/kiso/src/ws.rs`, `crates/kiso/src/wsrun.rs`, `crates/bindings/src/websocket.rs`, `crates/bindings/src/server.rs`, `python/hinoki/websocket.py`, `python/hinoki/runtime/websockets.py`, `python/hinoki/runtime/asgisocket.py`, `python/hinoki/openapi.py`, `python/hinoki/settings.py`
 

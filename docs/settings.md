@@ -76,6 +76,7 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
 | `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
+| `docs` | `openapi_version` | `3.2` | `3.2` or `3.1`: the document's `openapi` version; `Hinoki(openapi_version=...)` overrides it. See [the document version](openapi.md#the-document-version) |
 | `server` | `server` | `kiso` | `granian` or `kiso`; `--server` overrides it. See [Kiso server](kiso.md) |
 | `server` | `interface` | `asgi` | `asgi` or `wsgi`: what `hinoki serve` calls (a Hinoki application or a WSGI callable); `--interface` overrides it. See [WSGI](serving.md#wsgi) |
 | `pagination` | `page_size` | `20` | Page size an action's `PageNumberPagination()` leaves out; `1` to `max_page_size`. See [Pagination](pagination.md) |
