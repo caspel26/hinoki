@@ -130,9 +130,12 @@ class CursorParams:
 class CursorPagination:
     """Strategy: ``?cursor=TOKEN&limit=N``, keyset pages with signed cursors.
 
-    The cursor is opaque. It is signed with ``secret`` (at least 32 bytes) and
-    bound to the table and ordering of the query, so a changed or foreign token
-    is a 422, never a 500. ``ttl`` (seconds) makes cursors expire. Anything left
+    The cursor is signed with ``secret`` (at least 32 bytes) and bound to the
+    table and ordering of the query, so a changed or foreign token is a 422,
+    never a 500. It is signed, not encrypted: it carries the sort-key values of
+    the boundary row in readable form, so do not order by a column whose value
+    must stay private. Clients should treat it as opaque. ``ttl`` (seconds)
+    makes cursors expire. Anything left
     out comes from the application's ``pagination`` settings when the action is
     included; values given here win."""
 

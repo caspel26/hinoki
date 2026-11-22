@@ -17,14 +17,14 @@ from hinoki import context
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.auth import Caller
-from hinoki.errors import Forbidden, RegistrationError, ValidationError
+from hinoki.errors import FieldError, Forbidden, RegistrationError, ValidationError
 from hinoki.fields import UNSET, Unset
 from hinoki.http.cors import Cors
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
-from hinoki.orm.keyset import CursorRequest, fetch_request, prepare
+from hinoki.orm.keyset import CursorRequest, cursor_order, fetch_request, prepare
 from hinoki.pagination import (
     CursorPage,
     CursorPagination,
@@ -674,8 +674,21 @@ def declare(
     return function
 
 
+def check_cursor_order(resource: _CrudConfig) -> None:
+    """Fail at registration when the model's own ordering cannot carry a cursor;
+    a custom ``get_queryset`` ordering is still checked on each request."""
+    try:
+        cursor_order(resource.model.all())
+    except FieldError as exc:
+        raise RegistrationError(
+            f"{resource.model.__name__}: list cannot use CursorPagination: {exc}"
+        ) from exc
+
+
 def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
     by_cursor = isinstance(resource.pagination, CursorPagination)
+    if by_cursor:
+        check_cursor_order(resource)
     page = (CursorPage if by_cursor else Page)[resource.read]
     template = list_cursor_rows if by_cursor else list_rows
     listed = Options(access=resource.access_for("list"), cors=resource.cors)

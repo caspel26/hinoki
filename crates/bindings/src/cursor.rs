@@ -1,7 +1,9 @@
-//! Keyset cursors: opaque, signed position tokens and the page assembly around
-//! them.
+//! Keyset cursors: signed position tokens and the page assembly around them.
 //!
 //! A token carries only the sort-key values of one row and a direction. It
+//! is signed, not encrypted: the values are readable. Issuing and decoding
+//! share `MAX_TOKEN_CHARS` and `MAX_TEXT_BYTES`, so a token that is issued
+//! always decodes. It
 //! never carries filters or scope: the keyset condition is ANDed onto the
 //! caller's own query, so a replayed or borrowed token cannot show a row the
 //! query would not. The token is `base64url(payload || HMAC-SHA256)`; the
@@ -34,8 +36,10 @@ const MAC_LEN: usize = 32;
 const HEADER_LEN: usize = 7;
 const MIN_SECRET: usize = 32;
 const MAX_KEYS: usize = 8;
-const MAX_TOKEN_CHARS: usize = 1024;
-const MAX_TEXT_BYTES: usize = 512;
+/// Longest token, in characters, that is both issued and accepted.
+const MAX_TOKEN_CHARS: usize = 4096;
+/// Longest text sort-key value, in bytes, that a token can carry.
+const MAX_TEXT_BYTES: usize = 1024;
 const CLOCK_SKEW_SECONDS: u64 = 60;
 
 const TAG_INT: u8 = 1;
@@ -123,7 +127,11 @@ impl Codec {
         }
         let tag = self.mac(&payload).finalize().into_bytes();
         payload.extend_from_slice(&tag);
-        Ok(URL_SAFE_NO_PAD.encode(payload))
+        let token = URL_SAFE_NO_PAD.encode(payload);
+        if token.len() > MAX_TOKEN_CHARS {
+            return Err(CursorError::Unencodable);
+        }
+        Ok(token)
     }
 
     pub(crate) fn decode(
@@ -550,6 +558,25 @@ mod tests {
         assert!(codec
             .encode_at(false, &[Value::Text("x".repeat(MAX_TEXT_BYTES))], 1)
             .is_ok());
+    }
+
+    #[test]
+    fn a_token_longer_than_the_decode_limit_is_never_issued() {
+        let codec = codec(None, b"f");
+        let text = || Value::Text("é".repeat(MAX_TEXT_BYTES / 2));
+        let one = codec.encode_at(false, &[text()], 1).unwrap();
+        assert!(one.len() <= MAX_TOKEN_CHARS);
+        assert!(codec.decode_at(&one, 1, 1).is_ok());
+        let many = [text(), text(), text(), text()];
+        assert_eq!(
+            codec.encode_at(false, &many, 1).unwrap_err(),
+            CursorError::Unencodable
+        );
+        for count in 1..=many.len() {
+            if let Ok(token) = codec.encode_at(true, &many[..count], 1) {
+                assert!(codec.decode_at(&token, count, 1).is_ok(), "{count}");
+            }
+        }
     }
 
     fn rows(ids: &[i64]) -> Vec<Row> {

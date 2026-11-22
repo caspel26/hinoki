@@ -22,7 +22,11 @@ FIRST, FORWARD, BACKWARD = 0, 1, 2  # the ``mode`` argument of the Rust fetch
 # Column kinds a cursor can carry; nullable columns cannot be sort keys because
 # NULL has no place in a keyset comparison.
 KEY_KINDS = frozenset({"int", "str", "uuid", "datetime", "float"})
-CURSOR_MESSAGES = {"invalid": "invalid cursor", "expired": "cursor expired"}
+CURSOR_MESSAGES = {
+    "invalid": "invalid cursor",
+    "expired": "cursor expired",
+    "unencodable": "a sort value of this page is too long or unsupported for a cursor",
+}
 
 type Order = tuple[tuple[str, bool], ...]
 
@@ -88,19 +92,23 @@ class CursorRequest:
         """``(next, previous)``; the same rules as ``Codec::links`` in Rust."""
         if not rows:
             return None, None
-        after = self.token(False, rows[-1])
-        before = self.token(True, rows[0])
         if self.mode == FIRST:
-            return (after if more else None), None
+            return (self.after(rows) if more else None), None
         if self.mode == FORWARD:
-            return (after if more else None), before
-        return after, (before if more else None)
+            return (self.after(rows) if more else None), self.before(rows)
+        return self.after(rows), (self.before(rows) if more else None)
+
+    def after(self, rows: list[Any]) -> str:
+        return self.token(False, rows[-1])
+
+    def before(self, rows: list[Any]) -> str:
+        return self.token(True, rows[0])
 
     def token(self, backward: bool, row: Any) -> str:
         try:
             return self.codec.encode(backward, [getattr(row, key) for key in self.keys])
-        except ValueError as exc:
-            raise FieldError(f"cannot build a cursor from this row: {exc}") from exc
+        except ValueError:
+            raise invalid("unencodable") from None
 
 
 def prepare(query: QuerySet[Any], params: CursorParams) -> CursorRequest:
