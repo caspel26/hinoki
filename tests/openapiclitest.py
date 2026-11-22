@@ -18,7 +18,7 @@ def test_command_prints_deterministic_valid_document_without_a_served_route(
     first = capsys.readouterr().out
     assert first.endswith("\n")
     document = json.loads(first)
-    assert document["openapi"] == "3.1.0"
+    assert document["openapi"] == "3.2.0"
     validate(document)
 
     assert main(["openapi", TARGET]) == 0
@@ -33,7 +33,7 @@ def test_output_writes_deterministic_json(
     assert capsys.readouterr().out == ""
     contents = output.read_text(encoding="utf-8")
     assert contents.endswith("\n")
-    assert json.loads(contents)["openapi"] == "3.1.0"
+    assert json.loads(contents)["openapi"] == "3.2.0"
     assert contents == json.dumps(json.loads(contents), indent=2, sort_keys=True) + "\n"
 
 

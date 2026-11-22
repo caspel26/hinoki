@@ -46,6 +46,16 @@ def obj(required: list[str] | None = None, **properties: Any) -> dict[str, Any]:
     }
 
 
+def test_query_moving_between_x_query_and_query_is_not_a_removal() -> None:
+    old = doc(request=obj(name={"type": "string"}), path="/p", method="x-query")
+    new = doc(request=obj(name={"type": "string"}), path="/p", method="query")
+    assert breaking_changes(old, new) == []
+    assert breaking_changes(new, old) == []
+    gone = {"openapi": "3.2.0", "paths": {"/p": {}}}
+    assert breaking_changes(old, gone) == ["removed operation QUERY /p"]
+    assert breaking_changes(new, gone) == ["removed operation QUERY /p"]
+
+
 def test_identical_documents_and_additions_are_compatible() -> None:
     old = doc(
         request=obj(name={"type": "string"}), response=obj(id={"type": "integer"})
