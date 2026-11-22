@@ -235,7 +235,7 @@ The path is checked against Kiso and Granian (`--interface wsgi`, with one and t
 ## Errors and edge cases
 
 - `error: X is neither an application nor a factory`: the target names something else, for example an ASGI wrapper; run wrappers with `granian`.
-- `error: Granian is not installed; install the server extra`: run `uv sync` in a generated project (it depends on `hinoki[server]`), or use Kiso.
+- `error: Granian is not installed; install the server extra`: run `uv sync` in a generated project (it depends on `hinoki-api[server]`), or use Kiso.
 - `hinoki dev` reloads with `watchfiles`, also part of the `server` extra, on either server; without it `dev` exits with that message and `serve` still works.
 - `--workers` outside the supported range is refused on Kiso; `0` means "use `server.workers`".
 - `--interface wsgi` with `server.native_dispatch` or `server.trusted_proxies` set on Kiso exits with status `2` and names the setting.

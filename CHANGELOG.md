@@ -52,6 +52,11 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### 📦 Release build and package name
+> `pyproject.toml`, `Cargo.toml`, `.github/workflows/release-build.yml`, `scripts/smoke_wheel.py`, `python/hinoki/scaffold.py`, `python/hinoki/serve.py`, `docs/release.md`
+
+The PyPI package is now named `hinoki-api` (the module is still `import hinoki`, the command still `hinoki`), because the `hinoki` name belongs to an unrelated project. Generated projects depend on `hinoki-api[server]` and name it under `[tool.uv.sources]`. The release profile uses fat LTO with one codegen unit. A new `Release build` workflow builds manylinux x86_64/aarch64 and macOS arm64/x86_64 wheels and the sdist, smoke-tests each wheel and keeps them as artifacts; it publishes nothing. Windows is not supported natively: building the extension there stops with a message that points to WSL2. `docs/release.md` is the release checklist.
+
 #### 🧾 XML responses written in Rust
 > `crates/bindings/src/xml_encode.rs`, `python/hinoki/renderers.py`, `python/hinoki/core.pyi`, `docs/codecs.md`
 

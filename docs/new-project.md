@@ -148,7 +148,7 @@ No database is created or contacted. Create the tables with
 
 ## Where Hinoki comes from {#where-hinoki-comes-from}
 
-This repository's pre-alpha Hinoki framework is not published on PyPI; the [`hinoki` name](https://pypi.org/project/hinoki/) belongs to an unrelated legacy package. The generated `pyproject.toml` therefore names this repository as the source under `[tool.uv.sources]`:
+This repository's pre-alpha Hinoki framework (package `hinoki-api`) is not published on PyPI yet; the [`hinoki` name](https://pypi.org/project/hinoki/) belongs to an unrelated legacy package. The generated `pyproject.toml` therefore names this repository as the source under `[tool.uv.sources]`:
 
 | Given | Source written |
 | --- | --- |
