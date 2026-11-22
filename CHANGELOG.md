@@ -43,7 +43,7 @@ async def reindex() -> dict[str, str]: ...
 
 On Kiso, the JSON body of a `Schema` parameter without `pattern`, `normalize`, `one_of`, collections, `@before_validate` or checks is read by Rust straight into the instance's fields, without the intermediate dict and list tree. Any invalid or unusual body falls back to the ordinary decode and validation on the same bytes, so errors do not change. `Schema.validate_json(raw)` returns the instance, or `None` when the ordinary path must run. See [one-pass JSON body](docs/schema-validation.md#one-pass-json-body).
 
-Schema fields now live in `__slots__`: they are no longer in `vars(instance)`, and a class that combines two bases that declare fields needs `slots=False` on all but one (a `RegistrationError` says so). Classes made with `model=` keep their fields in the instance dict.
+Schema fields now live in `__slots__`: they are no longer in `vars(instance)`, and a class that combines two bases that declare fields needs `slots=False` on all but one (a `RegistrationError` says so). Classes made with `model=` keep their fields in the instance dict. `Schema` now has a metaclass, so it cannot be combined with an `abc.ABC` or `Protocol` base.
 
 The same plain schemas now construct (`Item(...)`), `validate`, `validate_text`, `replace` and `dump` in Rust, with the same results and errors; anything outside the plan runs the Python code. A `default_factory` whose value is rejected may be called twice. See [native constructor and `validate`](docs/schema-validation.md#native-constructor-and-validate).
 

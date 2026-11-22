@@ -188,6 +188,10 @@ class Ticket(Audited):
 Without it, two field-bearing bases raise a `RegistrationError` that names
 `slots=False`.
 
+`Schema` has its own metaclass, so a schema cannot also inherit from a class
+whose metaclass is `abc.ABCMeta` (`abc.ABC`, a `Protocol`): Python reports a
+metaclass conflict. Keep such a base out of the schema's bases.
+
 ## Text that cannot be stored
 
 A string or dict key containing NUL (`\u0000`) is refused with `nul` or
