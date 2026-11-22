@@ -383,6 +383,8 @@ def test_run_supervised_opens_listener_and_computes_scheme(
         "reload": False,
         "scheme": "https",
         "metrics": None,
+        "rolling": serve_module.rolls_on_hangup(settings, False),
+        "startup_timeout": app.runtime.startup_timeout,
     }
     listener.close()
 
@@ -438,7 +440,7 @@ def test_run_rust_chooses_inline_or_supervised_and_refuses_bad_listener(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     app = Hinoki()
-    settings = ServerSettings()
+    settings = ServerSettings(sighup="stop")
     args = argparse.Namespace(host=None, port=None, workers=1)
     monkeypatch.setattr(serve_module, "check_port", lambda _: None)
     inline = Mock(return_value=0)
@@ -662,6 +664,7 @@ class FakeWorkerProcess:
         self.signals: list[signal.Signals] = []
         self.killed = False
         self.waits = 0
+        self.pid = id(self)
 
     def poll(self) -> int | None:
         return self.code
