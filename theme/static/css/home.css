@@ -278,23 +278,23 @@
   opacity: 0.8;
 }
 
+/* The pointer glow is a trail: six discs that chase the pointer with growing lag,
+   each smaller and fainter, so the glow dissolves behind the cursor. JS writes
+   only the transform; the discs start at the hero origin. */
 .hn-hero__bg i {
-  --mx: 0px;
-  --my: 0px;
   inset-inline-start: 0;
   top: 0;
-  inline-size: 200px;
+  inline-size: 180px;
   aspect-ratio: 1;
-  margin: -100px 0 0 -100px;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--hn-brand) 42%, transparent), transparent);
+  margin: -90px 0 0 -90px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--hn-brand) 40%, transparent), transparent);
   opacity: 0;
-  transform: translate3d(var(--mx), var(--my), 0);
   will-change: transform;
-  transition: opacity var(--hn-dur-2) var(--hn-ease);
+  transition: opacity var(--hn-dur-3) var(--hn-ease);
 }
 
 .hn-hero.has-pointer .hn-hero__bg i {
-  opacity: 1;
+  opacity: calc(1 - var(--n) * 0.17);
 }
 
 .hn-hero__bg::before,
