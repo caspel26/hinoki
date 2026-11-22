@@ -22,7 +22,8 @@ from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from time import perf_counter
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast
 
 from hinoki import context
 from hinoki.errors import EventError, EventRegistrationError, EventTimeout
@@ -34,6 +35,13 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 EventKey = tuple[type, type | None]
+
+# The index the native recorder takes for each outcome.
+OUTCOMES = {"ok": 0, "error": 1, "timeout": 2}
+
+
+class EventRecorder(Protocol):
+    def record(self, slot: int, outcome: int, seconds: float) -> None: ...
 
 
 class Phase(enum.Enum):
@@ -285,6 +293,9 @@ class EventBus:
         # event keys with an in_transaction handler: O(1) guards for write paths.
         self._subjects: dict[type, set[type | None]] = {}
         self._transactional: set[EventKey] = set()
+        # Native metrics (Kiso with metrics.listen): ``None`` costs one check.
+        self._recorder: EventRecorder | None = None
+        self._slots: dict[int, int] = {}
         self._load(collections)
 
     def _load(self, collections: Sequence[Handlers]) -> None:
@@ -426,6 +437,8 @@ class EventBus:
 
     async def run(self, item: Registration, event: object) -> None:
         outcome = "error"
+        recorder = self._recorder
+        started = 0.0 if recorder is None else perf_counter()
         try:
             await self.call(item, event)
             outcome = "ok"
@@ -434,6 +447,10 @@ class EventBus:
             raise
         finally:
             self._stats[(item.event_name, item.phase.value, outcome)] += 1
+            if recorder is not None:
+                recorder.record(
+                    self._slots[item.order], OUTCOMES[outcome], perf_counter() - started
+                )
 
     async def call(self, item: Registration, event: object) -> None:
         limit = asyncio.timeout(self.handler_timeout)
@@ -467,6 +484,22 @@ class EventBus:
         """Handler runs counted per event, phase and outcome (``ok``,
         ``error`` or ``timeout``) since the worker started."""
         return dict(self._stats)
+
+    def metric_series(self) -> list[tuple[str, str]]:
+        """The (event, phase) pairs of the registered handlers, in execution
+        order and without repeats: the fixed label set of the event metrics."""
+        pairs = ((r.event_name, r.phase.value) for r in self.registrations)
+        return list(dict.fromkeys(pairs))
+
+    def attach_metrics(self, recorder: EventRecorder | None) -> None:
+        """Record every handler run, with its duration, into ``recorder`` (the
+        native recorder of a Kiso server whose ``metrics.events`` series came
+        from ``metric_series()``). ``None`` stops recording."""
+        slots = {pair: n for n, pair in enumerate(self.metric_series())}
+        self._slots = {
+            r.order: slots[(r.event_name, r.phase.value)] for r in self.registrations
+        }
+        self._recorder = recorder
 
     @contextmanager
     def capture(self) -> Iterator[list[object]]:

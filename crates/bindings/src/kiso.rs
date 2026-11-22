@@ -658,10 +658,18 @@ pub struct KisoServer {
     reader: UnixStream,
     stop: watch::Sender<bool>,
     task: Mutex<Option<JoinHandle<Closed>>>,
+    registry: Option<Arc<kiso::Registry>>,
 }
 
 #[pymethods]
 impl KisoServer {
+    /// The recorder of event handler runs, or `None` while metrics are off.
+    fn event_metrics(&self) -> Option<crate::metrics::EventMetrics> {
+        self.registry
+            .as_ref()
+            .map(|registry| crate::metrics::EventMetrics::new(Arc::clone(registry)))
+    }
+
     /// Serve on the listening socket `fd`, which the caller created and detached
     /// (this takes ownership of it as soon as it runs: on any error the
     /// descriptor is closed, so the caller must not use it again), or bind `host:port` (port 0 picks a free
@@ -726,7 +734,8 @@ impl KisoServer {
             server_timing,
             compression,
         )?;
-        config.metrics = metrics.as_ref().map(|m| Arc::clone(&m.registry));
+        let registry = metrics.as_ref().map(|m| Arc::clone(&m.registry));
+        config.metrics.clone_from(&registry);
         let (reader, writer) = UnixStream::pair().map_err(io_error)?;
         reader.set_nonblocking(true).map_err(io_error)?;
         writer.set_nonblocking(true).map_err(io_error)?;
@@ -751,6 +760,7 @@ impl KisoServer {
             reader,
             stop,
             task: Mutex::new(Some(task)),
+            registry,
         })
     }
 
@@ -802,5 +812,6 @@ impl KisoServer {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<KisoServer>()?;
+    m.add_class::<crate::metrics::EventMetrics>()?;
     Ok(())
 }

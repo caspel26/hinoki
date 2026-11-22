@@ -26,6 +26,29 @@ pub(crate) struct Metrics {
     shared: Option<Shared>,
 }
 
+/// Where Python records the runs of event handlers: one call updates the fixed
+/// series the registry made at start from the registered handlers.
+#[pyclass(name = "EventMetrics", module = "hinoki.core", frozen)]
+pub(crate) struct EventMetrics {
+    registry: Arc<Registry>,
+}
+
+impl EventMetrics {
+    pub(crate) fn new(registry: Arc<Registry>) -> Self {
+        Self { registry }
+    }
+}
+
+#[pymethods]
+impl EventMetrics {
+    /// Count one handler run of series `slot` with `outcome` (0 ok, 1 error,
+    /// 2 timeout) that took `seconds`. Unknown slots and outcomes are ignored.
+    fn record(&self, slot: usize, outcome: usize, seconds: f64) {
+        let elapsed = Duration::try_from_secs_f64(seconds).unwrap_or(Duration::ZERO);
+        self.registry.observe_event(slot, outcome, elapsed);
+    }
+}
+
 fn required<'py, T: FromPyObjectOwned<'py>>(
     options: &Bound<'py, PyDict>,
     name: &str,
@@ -91,6 +114,7 @@ pub(crate) fn parse(
         worker,
         version: field(options, "version")?.unwrap_or_default(),
         buckets: field(options, "buckets")?.unwrap_or_else(|| DEFAULT_BUCKETS.to_vec()),
+        events: field(options, "events")?.unwrap_or_default(),
     };
     let registry = Registry::new(config, routes)
         .map(Arc::new)

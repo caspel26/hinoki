@@ -204,7 +204,11 @@ class KisoWorker:
         self.access_log_sink = access_log_sink
         self.server_timing = server_timing
         self.compression = compression
-        self.metrics = metrics
+        self.metrics = (
+            None
+            if metrics is None
+            else {**metrics, "events": app.events.metric_series()}
+        )
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -298,6 +302,8 @@ class KisoWorker:
             await self._finish_lifespan()
             raise
         self.server = server
+        if self.metrics is not None:
+            self.pipeline.events.attach_metrics(server.event_metrics())
         self.address = (self.host, server.port)
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
