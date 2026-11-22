@@ -461,6 +461,11 @@ class KisoWorker:
                 return
 
     def _spawn(self, request: core.PreparedRequest) -> None:
+        if request.method == "WS":
+            task = asyncio.create_task(self._serve_websocket(request))
+            self.tasks.add(task)
+            task.add_done_callback(self.tasks.discard)
+            return
         if self.lane is not None and self.lane.start(request):
             return
         failure = request._take_native_failure()
@@ -473,6 +478,38 @@ class KisoWorker:
         )
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
+
+    async def _serve_websocket(self, request: core.PreparedRequest) -> None:
+        """Judge the handshake like an HTTP action; a refusal is answered
+        instead of the upgrade, an admitted one switches the connection and runs
+        the handler until either side closes."""
+        if request.id_ignored:
+            log.warning("ignored invalid request ID from trusted proxy")
+        rid = request.request_id
+        try:
+            action = request.action
+            if action is None:
+                raise RuntimeError("WebSocket request has no action")
+            route = self.pipeline.websockets[action]
+            admitted = await self.pipeline.admit_websocket(
+                rid,
+                route,
+                scope_of(request, self.address, self.scheme),
+                request.prepared_path_params,
+            )
+            if isinstance(admitted, Response):
+                request.respond_routed(
+                    admitted.status, admitted.headers, admitted.body, ()
+                )
+                return
+            socket = request.accept_websocket(admitted.subprotocol)
+            if socket is not None:
+                await self.pipeline.run_websocket(
+                    rid, route, socket, admitted, unquote(request.path)
+                )
+        except Exception:
+            log.exception("request %s failed", rid)
+            self._fail(request)
 
     async def _serve_failure(
         self, request: core.PreparedRequest, failure: core.NativeFailure

@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [redirect_location, host_allow_list, declared_length]
+        target: [redirect_location, host_allow_list, declared_length, websocket_frames, websocket_handshake]
     env:
       # Short on pull requests and pushes, longer in the weekly run.
       FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '600' || '60' }}

@@ -62,6 +62,9 @@ EARLY_ERRORS: dict[str, tuple[int, str, list[tuple[bytes, bytes]] | None]] = {
     "bad_host": (HTTPStatus.BAD_REQUEST, "bad_host", None),
     "disallowed_host": (HTTPStatus.BAD_REQUEST, "disallowed_host", None),
     "cors_origin_denied": (HTTPStatus.FORBIDDEN, "cors_origin_denied", None),
+    # The upgrade headers of a 426 are added by the classifier.
+    "bad_upgrade": (HTTPStatus.BAD_REQUEST, "bad_upgrade", None),
+    "upgrade_required": (HTTPStatus.UPGRADE_REQUIRED, "upgrade_required", None),
 }
 
 
@@ -290,6 +293,26 @@ def route_cors_of(
     return found
 
 
+def websockets_of(pipeline: Pipeline) -> list[core.WebSocketSpec]:
+    """The WebSocket routes in declaration order, which is their action number,
+    with the limits Rust enforces for each."""
+    runtime = pipeline.app.runtime
+    return [
+        core.WebSocketSpec(
+            route.path,
+            [origin.encode("ascii") for origin in route.origins],
+            route.max_message_bytes or runtime.ws_max_message_bytes,
+            runtime.ws_queue,
+            runtime.ws_ping_interval,
+            runtime.ws_pong_timeout,
+            route.idle_timeout,
+            runtime.ws_close_timeout,
+            runtime.request_timeout,
+        )
+        for route in pipeline.websockets
+    ]
+
+
 def hosts_of(pipeline: Pipeline) -> tuple[list[bytes], list[bytes]] | None:
     """The normalized host policy as immutable ASCII byte snapshots."""
     policy = pipeline.hosts
@@ -372,4 +395,6 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         static_pages=static_pages_of(pipeline),
         route_auth=route_auth_of(pipeline),
         route_cors=route_cors_of(pipeline),
+        websockets=websockets_of(pipeline),
+        ws_connections=runtime.max_websockets,
     )

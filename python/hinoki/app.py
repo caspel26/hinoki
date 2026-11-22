@@ -69,6 +69,7 @@ from hinoki.settings import (
 )
 from hinoki.utils import Clock, _read_utc, utc_now, utc_today
 from hinoki.waivers import EXPIRED, WaiverError, apply_waivers, read_waivers
+from hinoki.websocket import WebSocketRoute, websocket_of
 
 
 def check_startup_url(value: str | None) -> str | None:
@@ -290,6 +291,8 @@ class Hinoki:
     ) -> None:
         self.errors = ErrorRegistry()
         self._routes: list[Route] = []
+        self._websockets: list[WebSocketRoute] = []
+        self._ws_router = Router()
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
         self._automatic_database = None
@@ -328,6 +331,10 @@ class Hinoki:
         return tuple(self._routes)
 
     @property
+    def websockets(self) -> tuple[WebSocketRoute, ...]:
+        return tuple(self._websockets)
+
+    @property
     def startup_url(self) -> str | None:
         """The fixed startup-probe path, if one was configured."""
         return self._startup_url
@@ -364,8 +371,9 @@ class Hinoki:
         All-or-nothing per call: on conflict the application is unchanged.
         """
         self._check_mutable()
-        pending, groups = self._collect_routes(items)
+        pending, groups, sockets = self._collect_routes(items)
         refuse_shared_names([*self._routes, *pending])
+        ws_router = self._stage_websockets(sockets, pending)
         refuse_duplicate_operation_ids([*self._routes, *pending])
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
@@ -376,18 +384,58 @@ class Hinoki:
         staged = self._stage_router(pending)
         bind_app_timezones(items, self._timezone, self.admin_settings())
         self._router = staged
+        self._ws_router = ws_router
         self._routes.extend(pending)
+        self._websockets.extend(sockets)
         self._bindings.extend(bound)
         for group in groups:
             group._include()
         self._included_groups.update(groups)
 
+    def _stage_websockets(
+        self, sockets: list[WebSocketRoute], pending: list[Route]
+    ) -> Router:
+        """A router with the WebSocket routes, refusing a path an HTTP ``GET``
+        route also takes: the handshake is a ``GET``, so one would hide the other."""
+        staged = Router()
+        for index, found in enumerate([*self._websockets, *sockets]):
+            try:
+                staged.add("GET", found.path, index)
+            except ValueError as exc:
+                raise RegistrationError(f"{found.name}: {exc}") from exc
+        taken = {
+            route.path for route in [*self._routes, *pending] if route.method == "GET"
+        }
+        for found in [*self._websockets, *sockets]:
+            if found.path in taken:
+                raise RegistrationError(
+                    f"{found.name}: {found.path} is also an HTTP GET route"
+                )
+        return staged
+
+    def lookup_websocket(
+        self, path: str
+    ) -> tuple[WebSocketRoute, dict[str, str]] | None:
+        """The WebSocket action for a path, with its path parameters."""
+        raw = self._ws_router.find("GET", path)
+        if raw is None:
+            return None
+        head, tail = raw
+        if isinstance(head, int) and isinstance(tail, dict):
+            return self._websockets[head], tail
+        return None
+
     def _collect_routes(
         self, items: tuple[object, ...]
-    ) -> tuple[list[Route], list[RouteGroup]]:
+    ) -> tuple[list[Route], list[RouteGroup], list[WebSocketRoute]]:
         pending: list[Route] = []
         groups: list[RouteGroup] = []
+        sockets: list[WebSocketRoute] = []
         for item, prefix in flatten(items):
+            declared = websocket_of(item)
+            if declared is not None:
+                sockets.append(self._mounted(declared, prefix))
+                continue
             if isinstance(item, RouteGroup):
                 if item in self._included_groups or item in groups:
                     raise RegistrationError("a RouteGroup can be included only once")
@@ -396,15 +444,15 @@ class Hinoki:
             if callable(bind_mount):
                 bind_mount(prefix)  # e.g. the admin builds its links from it
             found = self.routes_of(item)
-            pending.extend(
-                dataclasses.replace(
-                    route, path=prefix + ("" if route.path == "/" else route.path)
-                )
-                if prefix
-                else route
-                for route in found
-            )
-        return pending, groups
+            pending.extend(self._mounted(route, prefix) for route in found)
+        return pending, groups, sockets
+
+    @staticmethod
+    def _mounted[R: (Route, WebSocketRoute)](route: R, prefix: str) -> R:
+        if not prefix:
+            return route
+        path = prefix + ("" if route.path == "/" else route.path)
+        return dataclasses.replace(route, path=path)
 
     def _stage_router(self, pending: list[Route]) -> Router:
         staged = Router()

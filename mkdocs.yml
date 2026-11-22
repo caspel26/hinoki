@@ -107,6 +107,7 @@ nav:
           - Generate CRUD routes: crud.md
           - Errors: errors.md
           - Stream a response: streaming.md
+          - WebSockets: websockets.md
           - Compress responses: compression.md
           - Export Prometheus metrics: metrics.md
           - Middleware: middleware.md

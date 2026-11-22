@@ -18,7 +18,7 @@
 
 ::: hinoki.settings.ExecutionSettings
     options:
-      members: [sync_workers, sync_queue, request_timeout, max_body_bytes, max_query_bytes, max_header_bytes, max_streams, stream_idle_timeout, sse_keepalive]
+      members: [sync_workers, sync_queue, request_timeout, max_body_bytes, max_query_bytes, max_header_bytes, max_streams, stream_idle_timeout, sse_keepalive, max_websockets, ws_max_message_bytes, ws_queue, ws_ping_interval, ws_pong_timeout, ws_close_timeout]
       show_if_no_docstring: true
 
 ::: hinoki.settings.LifecycleSettings

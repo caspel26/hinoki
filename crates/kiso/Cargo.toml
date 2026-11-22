@@ -15,12 +15,13 @@ flate2 = { version = "1.1", default-features = false, features = ["rust_backend"
 http-body-util = "0.1"
 hyper = { version = "1", features = ["http1", "http2", "server"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
-tokio = { version = "1", features = ["fs", "macros", "net", "rt", "sync", "time"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt", "sync", "time"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 rustls-pki-types = { version = "1", features = ["std"] }
+sha1 = "0.10"
 
 [dev-dependencies]
 h2 = "0.4"
 http = "1"
-tokio = { version = "1", features = ["io-util", "rt-multi-thread"] }
+tokio = { version = "1", features = ["io-util", "rt-multi-thread", "test-util"] }

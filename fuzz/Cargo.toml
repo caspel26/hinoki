@@ -35,3 +35,17 @@ path = "fuzz_targets/declared_length.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "websocket_frames"
+path = "fuzz_targets/websocket_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "websocket_handshake"
+path = "fuzz_targets/websocket_handshake.rs"
+test = false
+doc = false
+bench = false

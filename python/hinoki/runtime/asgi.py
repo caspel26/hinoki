@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote
 
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.http.stream import EventStream, Sourced
+from hinoki.runtime.asgisocket import ASGITransport, accept, origin_allowed, refuse
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.requests import Scope, read_body
 from hinoki.runtime.responses import Response, StreamHandle
@@ -81,8 +83,31 @@ class ASGIAdapter:
             await self._lifespan(receive, send, served=not scope.get(IN_PROCESS))
         elif scope["type"] == "http":
             await self._http(scope, receive, send)
+        elif scope["type"] == "websocket":
+            await self._websocket(scope, receive, send)
         else:
             raise RuntimeError(f"unsupported scope type {scope['type']!r}")
+
+    async def _websocket(self, scope: Scope, receive: Any, send: Any) -> None:
+        found = self.pipeline.app.lookup_websocket(unquote(scope["path"]))
+        if found is None or not origin_allowed(found[0], scope):
+            await refuse(send)
+            return
+        route, params = found
+        rid = self.pipeline.new_request_id()
+        admitted = await self.pipeline.admit_websocket(rid, route, scope, params)
+        if isinstance(admitted, Response):
+            await refuse(send)
+            return
+        if not await accept(receive, send, admitted.subprotocol):
+            return
+        runtime = self.pipeline.app.runtime
+        transport = ASGITransport(
+            receive, send, route.max_message_bytes or runtime.ws_max_message_bytes
+        )
+        await self.pipeline.run_websocket(
+            rid, route, transport, admitted, unquote(scope["path"])
+        )
 
     async def _lifespan(self, receive: Any, send: Any, *, served: bool) -> None:
         finished = False

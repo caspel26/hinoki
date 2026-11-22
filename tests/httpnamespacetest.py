@@ -23,12 +23,13 @@ HTTP_TYPES = {
     "Event",
     "File",
 }
+WEBSOCKET = {"websocket", "WebSocket", "WebSocketClosed", "CloseCode"}
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("python", "tests", "examples", "benchmarks")
 
 
 def test_the_namespace_exports_exactly_the_verbs_and_types() -> None:
-    assert set(http.__all__) == VERBS | HTTP_TYPES
+    assert set(http.__all__) == VERBS | HTTP_TYPES | WEBSOCKET
     assert all(callable(getattr(http, name)) for name in VERBS)
     assert http.Request is hinoki.Request
     assert http.Response is hinoki.Response

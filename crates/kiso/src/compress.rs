@@ -179,6 +179,7 @@ impl Shape {
                 Self::Live(declared_length(&streamed.headers).ok().flatten())
             }
             Delivery::File(answer) => Self::File(answer.file.len()),
+            Delivery::Upgrade(_) => Self::Whole(0),
         }
     }
 

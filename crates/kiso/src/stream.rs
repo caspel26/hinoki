@@ -33,6 +33,7 @@ use crate::conn::Answer;
 use crate::encode::Encoded;
 use crate::headers::Header;
 use crate::metrics::{ErrorKind, Registry};
+use crate::wsrun::Accepted;
 
 /// One piece of a streamed body, or the producer's failure.
 pub type Chunk = Result<Bytes, Aborted>;
@@ -98,6 +99,8 @@ pub enum Delivery {
     Whole(Answer),
     Streamed(Streamed),
     File(FileAnswer),
+    /// Switch the connection to WebSocket: a `101`, then the session.
+    Upgrade(Box<Accepted>),
 }
 
 impl Delivery {
@@ -106,6 +109,7 @@ impl Delivery {
             Self::Whole(answer) => answer.status,
             Self::Streamed(streamed) => streamed.status,
             Self::File(file) => file.status,
+            Self::Upgrade(_) => 101,
         }
     }
 }

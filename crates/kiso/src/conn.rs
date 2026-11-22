@@ -16,7 +16,7 @@ use std::convert::Infallible;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
@@ -24,6 +24,7 @@ use http_body_util::Full;
 use hyper::body::{Body, Incoming as RequestBody};
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::http::request::Parts;
+use hyper::upgrade::OnUpgrade;
 use hyper::{Method, Request, Response, StatusCode, Version};
 
 use crate::accesslog::{self, AccessLog, Lane, LogFilter, Sink, Trace};
@@ -34,6 +35,8 @@ use crate::framing::Signals;
 use crate::headers::Header;
 use crate::metrics::{ErrorKind, InFlightGuard, Registry};
 use crate::stream::{self, Counted, Delivery, FileAnswer, Live, Reply, Streamed};
+use crate::ws::{self, Upgrade};
+use crate::wsrun::{Accepted, Session};
 
 /// The head of a request as the backend sees it. Header names are lowercase,
 /// repeated headers stay separate and in arrival order, and `path` and `query`
@@ -59,6 +62,8 @@ pub struct Incoming {
     pub body: Option<BodyReader>,
     /// Filled in by the backend with where it served the request, for the log.
     pub trace: Arc<Trace>,
+    /// Whether the request asks to switch to WebSocket (HTTP/1.1 only).
+    pub upgrade: Upgrade,
 }
 
 /// A complete answer: final status, final headers and the whole body.
@@ -127,6 +132,11 @@ fn incoming_of(
     } else {
         refusal_of(parts, &mut headers)
     };
+    let upgrade = if parts.version == Version::HTTP_2 {
+        Upgrade::Absent
+    } else {
+        ws::inspect(parts.method.as_str(), &headers)
+    };
     Incoming {
         method: parts.method.as_str().to_owned(),
         path: parts.uri.path().to_owned(),
@@ -142,6 +152,7 @@ fn incoming_of(
         refusal,
         body,
         trace: Arc::default(),
+        upgrade,
     }
 }
 
@@ -190,6 +201,7 @@ fn parts_of(delivery: Delivery, head_only: bool) -> Result<(u16, Vec<Header>, Re
                 },
             )
         }
+        Delivery::Upgrade(_) => return Err("an upgrade is not a plain answer".to_owned()),
     })
 }
 
@@ -257,6 +269,63 @@ pub(crate) fn declared_length(headers: &[Header]) -> Result<Option<u64>, String>
     Ok(declared)
 }
 
+/// A switched connection waiting for its `101` to be written: once hyper
+/// has, [`Switched::on`] resolves with the raw stream.
+#[derive(Debug)]
+pub struct Switched {
+    pub on: OnUpgrade,
+    pub session: Session,
+}
+
+/// Where [`respond`] leaves a [`Switched`] for the connection that owns it.
+pub type Handover = Arc<Mutex<Option<Switched>>>;
+
+/// The `101` that accepts `handshake`, and the handover of the session; why
+/// not, when the handshake was not an offer or the backend chose a subprotocol
+/// the client did not offer.
+fn switch(
+    accepted: Accepted,
+    handshake: &Upgrade,
+    on: OnUpgrade,
+    transport: &Transport,
+) -> Result<Response<Reply>, String> {
+    let Upgrade::Offer(offer) = handshake else {
+        return Err("there is no WebSocket handshake to accept".to_owned());
+    };
+    let Accepted {
+        subprotocol,
+        headers,
+        session,
+    } = accepted;
+    let mut response = Response::new(Reply::Whole(Full::new(Bytes::new())));
+    *response.status_mut() = StatusCode::SWITCHING_PROTOCOLS;
+    let fields = response.headers_mut();
+    fields.insert("upgrade", HeaderValue::from_static("websocket"));
+    fields.insert("connection", HeaderValue::from_static("Upgrade"));
+    let key = HeaderValue::from_str(&ws::accept_key(offer.key.as_bytes()))
+        .map_err(|_| "invalid accept key".to_owned())?;
+    fields.insert("sec-websocket-accept", key);
+    if let Some(chosen) = subprotocol {
+        if !offer.protocols.contains(&chosen) {
+            return Err(format!("subprotocol {chosen:?} was not offered"));
+        }
+        let value = HeaderValue::from_str(&chosen).map_err(|_| "invalid subprotocol".to_owned())?;
+        fields.insert("sec-websocket-protocol", value);
+    }
+    for (name, value) in &headers {
+        let invalid = || format!("invalid header {:?}", String::from_utf8_lossy(name));
+        let name = HeaderName::from_bytes(name).map_err(|_| invalid())?;
+        let value = HeaderValue::from_bytes(value).map_err(|_| invalid())?;
+        fields.append(name, value);
+    }
+    transport.signals.upgraded.store(true, Ordering::Release);
+    *transport
+        .handover
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Switched { on, session });
+    Ok(response)
+}
+
 /// What the connection layer shares with every request it serves.
 #[derive(Debug, Clone)]
 pub struct Transport {
@@ -278,6 +347,8 @@ pub struct Transport {
     pub compression: Option<Arc<Compression>>,
     /// Record every answer here; `None` records nothing.
     pub metrics: Option<Arc<Registry>>,
+    /// Where an accepted WebSocket upgrade is left for the connection.
+    pub handover: Handover,
 }
 
 /// What `respond` keeps of a request for the metrics, past the handoff.
@@ -377,8 +448,9 @@ pub async fn respond<B: Backend>(
     backend: Arc<B>,
     peer: SocketAddr,
     transport: Transport,
-    request: Request<RequestBody>,
+    mut request: Request<RequestBody>,
 ) -> Result<Response<Reply>, Infallible> {
+    let on_upgrade = hyper::upgrade::on(&mut request);
     let head_only = request.method() == Method::HEAD;
     let version = request.version();
     let (parts, body) = request.into_parts();
@@ -398,9 +470,14 @@ pub async fn respond<B: Backend>(
         .compression
         .as_ref()
         .map(|policy| policy.offer(&incoming.headers));
+    let handshake = incoming.upgrade.clone();
     let delivery = backend.deliver(incoming).await;
     let mut invalid = false;
-    let mut response = response_of(delivery, head_only, offer.as_ref()).unwrap_or_else(|reason| {
+    let built = match delivery {
+        Delivery::Upgrade(accepted) => switch(*accepted, &handshake, on_upgrade, &transport),
+        other => response_of(other, head_only, offer.as_ref()),
+    };
+    let mut response = built.unwrap_or_else(|reason| {
         invalid = true;
         stream::report(&format!(
             "the response cannot be sent ({reason}); answering 500 instead"
@@ -427,7 +504,7 @@ pub async fn respond<B: Backend>(
     }
     // `connection` is a forbidden header on HTTP/2, which has no such notion.
     let closing = unread || transport.signals.close.load(Ordering::Acquire);
-    if closing && version != Version::HTTP_2 {
+    if closing && version != Version::HTTP_2 && status != 101 {
         response
             .headers_mut()
             .insert("connection", HeaderValue::from_static("close"));
