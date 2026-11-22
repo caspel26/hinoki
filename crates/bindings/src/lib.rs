@@ -30,6 +30,7 @@ mod streamlimit;
 mod tally;
 mod wsgi;
 mod xml;
+mod xml_encode;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -122,6 +123,8 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(query::compile_query, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_query_string, m)?)?;
     m.add_function(wrap_pyfunction!(xml::parse_xml_body, m)?)?;
+    m.add_function(wrap_pyfunction!(xml_encode::encode_xml, m)?)?;
+    m.add_function(wrap_pyfunction!(xml_encode::xml_name_ok, m)?)?;
     m.add_function(wrap_pyfunction!(request::parse_cookie_header, m)?)?;
     m.add_function(wrap_pyfunction!(request::header_dict, m)?)?;
     m.add_function(wrap_pyfunction!(request::request_headers, m)?)?;

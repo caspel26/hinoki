@@ -30,8 +30,9 @@ from hinoki.context import request_id
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import TooManyRequests
 from hinoki.modules import ModuleContext
-from hinoki.orm import Model, field
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.orm.options import table
+from hinoki.orm.relations import Related
 from hinoki.routescli import lanes_of
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.nativelane import lane_refusal, resume
@@ -66,6 +67,22 @@ class LaneNote(Model):
     title: str
 
 
+@table("lane_writers")
+class LaneWriter(Model):
+    id: int = field(primary_key=True)
+    name: str
+
+
+@table("lane_pieces")
+class LanePiece(Model):
+    id: int = field(primary_key=True)
+    writer_id: int | None = foreign_key(
+        LaneWriter, on_delete=OnDelete.SET_NULL, default=None
+    )
+    title: str
+    writer: ClassVar[Related[LaneWriter | None]]
+
+
 class Holder(Module):
     name = "lane-holder"
     requires: ClassVar[tuple[type[Module], ...]] = (DatabaseModule,)
@@ -83,14 +100,54 @@ class Holder(Module):
             "insert into lane_notes (id, title) "
             "values (1, 'one'), (2, 'two'), (3, 'three')"
         )
+        await self.writers(database)
         self.current.append(database)
         yield
+
+    @staticmethod
+    async def writers(database: Database) -> None:
+        await database.execute(
+            "create table if not exists lane_writers "
+            "(id integer primary key, name text not null)"
+        )
+        await database.execute(
+            "create table if not exists lane_pieces (id integer primary key, "
+            "writer_id integer references lane_writers (id), title text not null)"
+        )
+        await database.execute("delete from lane_pieces")
+        await database.execute("delete from lane_writers")
+        await database.execute("insert into lane_writers (id, name) values (1, 'ann')")
+        await database.execute(
+            "insert into lane_pieces (id, writer_id, title) "
+            "values (1, 1, 'first'), (2, null, 'orphan'), (3, 1, 'third')"
+        )
 
 
 @http.get("/lane/note/{id}")
 async def note(id: int) -> dict[str, Any]:
     found = await LaneNote.aget(id=id)
     return {"id": found.id, "title": found.title}
+
+
+def shown_piece(found: LanePiece) -> dict[str, Any]:
+    writer = found.writer
+    return {
+        "id": found.id,
+        "title": found.title,
+        "writer": None if writer is None else writer.name,
+    }
+
+
+@http.get("/lane/piece/{id}")
+async def piece(id: int) -> dict[str, Any]:
+    found = await LanePiece.filter(id=id).select_related("writer").aget()
+    return shown_piece(found)
+
+
+@http.get("/lane/pieces")
+async def pieces(limit: int = 5) -> list[dict[str, Any]]:
+    rows = await LanePiece.all().select_related("writer").order_by("-id").limit(limit)
+    return [shown_piece(row) for row in rows]
 
 
 @http.get("/lane/notes")
@@ -340,7 +397,8 @@ class HeaderedResource(API, path="/lane/headered"):
         return {"id": found.id, "title": found.title}
 
 
-HANDLERS = (note, notes, count, pure, seen_context, boom, missing, sleeping, plain)
+HANDLERS: tuple[Callable[..., Any], ...] = (note, notes, count, pure, seen_context)
+HANDLERS += (boom, missing, sleeping, plain, piece, pieces)
 CLASSES = (LaneResource, BuiltResource, HeaderedResource)
 GUARDED = (guarded, slow_auth, limited, limited_sync, search, negotiated)
 BODIES = (echo, replace, amend, find, atomic_read, atomic_write, limited_body)
@@ -365,6 +423,7 @@ SERVED |= {"/lane/write/{id}", "/lane/write", "/lane/write-bulk"}
 SERVED |= {"/lane/write-bulk-clash", "/lane/write-atomic/{id}"}
 SERVED |= {"/lane/write-atomic-ok/{id}", "/lane/write-atomic-bulk/{id}"}
 SERVED |= {"/lane/res/{id}", "/lane/res/boom", "/lane/res/make"}
+SERVED |= {"/lane/piece/{id}", "/lane/pieces"}
 
 
 def make_app(url: str, **runtime: float) -> Hinoki:
@@ -458,6 +517,29 @@ async def test_the_lane_answers_like_the_asyncio_path(url: str) -> None:
     # unknown path never leaves Rust.
     assert started.count(1) == 9
     assert started.count(0) == 4
+
+
+JOINED_TARGETS = [
+    "/lane/piece/1",
+    "/lane/piece/2",
+    "/lane/piece/9",
+    "/lane/piece/x",
+    "/lane/pieces",
+    "/lane/pieces?limit=1",
+]
+
+
+async def test_joined_reads_take_the_lane_like_the_asyncio_path(url: str) -> None:
+    oracle, none = await serve_all(url, JOINED_TARGETS, native=False)
+    served, started = await serve_all(url, JOINED_TARGETS, native=True)
+    assert none == []
+    assert [normalized(r) for r in served] == [normalized(r) for r in oracle]
+    assert served[0].json() == {"id": 1, "title": "first", "writer": "ann"}
+    assert served[1].json() == {"id": 2, "title": "orphan", "writer": None}
+    assert served[2].status == 404
+    assert [row["writer"] for row in served[4].json()] == ["ann", None, "ann"]
+    # Only the invalid path parameter stays on the asyncio path.
+    assert started == [1, 1, 1, 0, 1, 1]
 
 
 def bearer(token: str) -> str:

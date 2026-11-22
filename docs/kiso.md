@@ -44,7 +44,7 @@ An `async def` handler that only talks to the database through the ORM can run w
 * it is a `GET`, `DELETE`, `POST`, `PUT`, `PATCH` or `QUERY` that is eligible for the native path above (a body method takes one `Schema` body and built-in parsers);
 * the function is a plain `async def`, not wrapped by a decorator;
 * every `await` in it is an ORM call on a `Model` class:
-    * a read: `Model.aget(...)`, `Model.aget_or_none(...)`, or `Model.filter(...)` / `Model.all()` with `filter`, `order_by`, `limit` and `offset`, ending in `aget`, `afirst`, `acount` or `aexists`, or awaited directly;
+    * a read: `Model.aget(...)`, `Model.aget_or_none(...)`, or `Model.filter(...)` / `Model.all()` with `filter`, `select_related`, `order_by`, `limit` and `offset`, ending in `aget`, `afirst`, `acount` or `aexists`, or awaited directly (`prefetch_related` issues further queries and stays on asyncio);
     * a write: `acreate`, `aupdate`, `aupdate_where`, `adelete`, `abulk_create`, `abulk_update`, `abulk_delete`, or `aupdate` / `adelete` ending a `filter(...)` chain. A write counts only on a model that overrides none of the write hooks (`before_save`, `before_create`, `after_create`, `after_save`) or the methods the write calls (`insert`, `asave`, `from_schema` and the like); `asave`, `aupdate_from` and `aupdate_within` on an instance stay on asyncio.
 
 These keep a route in an asyncio task: `async with`, `async for`, `yield`, async comprehensions, local names that shadow a model, and any other `await` (`asyncio.sleep`, an HTTP client, another coroutine).

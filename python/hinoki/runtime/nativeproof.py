@@ -11,6 +11,7 @@ objects when the application starts::
     await Model.aget(...)             # also aget_or_none
     await Model.filter(...).afirst()  # also aget, acount, aexists
     await Model.filter(...).order_by(...).limit(...)   # the rows
+    await Model.filter(...).select_related(...).aget()  # joined in one query
 
 ``Model`` must be a ``hinoki.Model`` and every link of the chain a stock
 method. Any other await, ``async with``, ``async for``, async comprehension,
@@ -43,7 +44,9 @@ MODEL_WRITES = frozenset(
         "abulk_delete",
     }
 )
-QUERYSET_BUILDERS = frozenset({"filter", "order_by", "limit", "offset"})
+QUERYSET_BUILDERS = frozenset(
+    {"filter", "select_related", "order_by", "limit", "offset"}
+)
 QUERYSET_TERMINALS = frozenset({"aget", "afirst", "acount", "aexists"})
 QUERYSET_WRITES = frozenset({"aupdate", "adelete"})
 # What a write calls on the model: none of it may be replaced.
