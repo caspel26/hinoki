@@ -23,7 +23,7 @@ from hinoki.project import (
     find_manifest,
     load_manifest,
 )
-from hinoki.scaffold import APP_API, APP_EVENTS, APP_ROUTES, NAME, RESERVED_NAMES
+from hinoki.scaffold import APP_API, APP_ROUTES, NAME, RESERVED_NAMES
 from hinoki.terminal import Style
 
 LOCK_NAME = ".hinoki-app-create.lock"
@@ -35,15 +35,12 @@ def create_app(
     *,
     prefix: str = "",
     requires: tuple[str, ...] = (),
-    events: bool = False,
 ) -> Path:
     """Create a model/migration package and append it to the project manifest."""
     _validate_app_name(name)
     manifest_path = find_manifest(start)
     with _manifest_lock(manifest_path):
-        return _create_app_locked(
-            name, manifest_path, prefix or f"/{name}", requires, events
-        )
+        return _create_app_locked(name, manifest_path, prefix or f"/{name}", requires)
 
 
 def _create_app_locked(
@@ -51,7 +48,6 @@ def _create_app_locked(
     manifest_path: Path,
     prefix: str,
     requires: tuple[str, ...],
-    events: bool,
 ) -> Path:
     """Re-read and update the manifest while holding its process lock."""
     manifest = load_manifest(manifest_path)
@@ -64,10 +60,6 @@ def _create_app_locked(
         _write_app_files(
             name, module_name, prefix, app_directory, apps_directory, made_apps_init
         )
-        if events:
-            (app_directory / "events.py").write_text(
-                APP_EVENTS.format(name=name), encoding="utf-8"
-            )
         _append_app(
             manifest.path,
             manifest.path.read_bytes(),
@@ -75,7 +67,6 @@ def _create_app_locked(
             module_name,
             prefix,
             requires,
-            events,
         )
     except OSError as error:
         _remove_app_package(
@@ -256,7 +247,6 @@ def _append_app(
     package: str,
     prefix: str,
     requires: tuple[str, ...],
-    events: bool,
 ) -> None:
     module = f"{package}.apps.{name}"
     _append_block(
@@ -269,12 +259,11 @@ def _append_app(
             routes=f"{module}.routes:routes",
             prefix=prefix,
             requires=requires,
-            events=f"{module}.events:handlers" if events else "",
         ),
     )
 
 
-def _app_block(
+def _app_block(  # noqa: PLR0913 - one keyword per manifest key
     name: str,
     *,
     models: str,
@@ -283,6 +272,7 @@ def _app_block(
     prefix: str,
     requires: tuple[str, ...],
     events: str = "",
+    middleware: str = "",
 ) -> str:
     lines = [
         "[[apps]]",
@@ -294,6 +284,8 @@ def _app_block(
         lines.append(f"routes = {jsontext.toml_value(routes)}")
     if events:
         lines.append(f"events = {jsontext.toml_value(events)}")
+    if middleware:
+        lines.append(f"middleware = {jsontext.toml_value(middleware)}")
     if prefix:
         lines.append(f"prefix = {jsontext.toml_value(prefix)}")
     lines.append(f"requires = {jsontext.toml_value(list(requires))}")
@@ -331,6 +323,7 @@ def register_app(  # noqa: PLR0913 - one keyword per manifest key
     prefix: str = "",
     requires: tuple[str, ...] = (),
     events: str = "",
+    middleware: str = "",
     start: Path | None = None,
 ) -> Path:
     """Register an existing package as an app without creating any file."""
@@ -347,6 +340,7 @@ def register_app(  # noqa: PLR0913 - one keyword per manifest key
             prefix=prefix,
             requires=requires,
             events=events,
+            middleware=middleware,
         )
         try:
             _append_block(manifest.path, manifest.path.read_bytes(), block)
@@ -376,11 +370,6 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
         "--requires", default=None, help="comma-separated apps this one depends on"
     )
     create.add_argument(
-        "--events",
-        action="store_true",
-        help="also create events.py and register its Handlers",
-    )
-    create.add_argument(
         "--no-input", action="store_true", help="never prompt; use the defaults"
     )
     add = actions.add_parser("add", help="register an existing package as an app")
@@ -394,6 +383,11 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
     add.add_argument("--routes", default="", help="module:attribute of the routes")
     add.add_argument(
         "--events", default="", help="module:attribute of the app's Handlers"
+    )
+    add.add_argument(
+        "--middleware",
+        default="",
+        help="module:attribute of the app's sequence of Middleware",
     )
     add.add_argument("--prefix", default="", help="mount prefix (default: /NAME)")
     add.add_argument(
@@ -424,6 +418,7 @@ def list_apps(args: Namespace) -> int:
                 "prefix": app.prefix or (f"/{app.name}" if app.routes else ""),
                 "requires": list(app.requires),
                 "events": app.events,
+                "middleware": app.middleware,
             }
             for app in apps
         ]
@@ -439,6 +434,7 @@ def list_apps(args: Namespace) -> int:
             f"  migrations: {app.migrations}\n"
             f"{_routes_line(app)}"
             f"{_events_line(app)}"
+            f"{_middleware_line(app)}"
             f"  requires: {', '.join(app.requires) or '—'}"
         )
     return 0
@@ -446,6 +442,10 @@ def list_apps(args: Namespace) -> int:
 
 def _events_line(app: ProjectApp) -> str:
     return f"  events: {app.events}\n" if app.events else ""
+
+
+def _middleware_line(app: ProjectApp) -> str:
+    return f"  middleware: {app.middleware}\n" if app.middleware else ""
 
 
 def _routes_line(app: ProjectApp) -> str:
@@ -479,9 +479,7 @@ def create_command(args: Namespace) -> int:
         print(style.error(message), file=sys.stderr)
         return 2
     requires = split_requires(args.requires or "")
-    created = create_app(
-        args.name, prefix=args.prefix or "", requires=requires, events=args.events
-    )
+    created = create_app(args.name, prefix=args.prefix or "", requires=requires)
     manifest = find_manifest()
     for line in report_app(
         style, args.name, created, manifest, args.prefix or "", requires
@@ -498,6 +496,7 @@ def add_app(args: Namespace) -> int:
         migrations=args.migrations,
         routes=args.routes,
         events=args.events,
+        middleware=args.middleware,
         prefix=args.prefix,
         requires=tuple(item for item in args.requires.split(",") if item),
     )
