@@ -283,13 +283,14 @@
   --my: 0px;
   inset-inline-start: 0;
   top: 0;
-  inline-size: 520px;
+  inline-size: 200px;
   aspect-ratio: 1;
-  margin: -260px 0 0 -260px;
-  background: radial-gradient(closest-side, var(--orb-2), transparent);
+  margin: -100px 0 0 -100px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--hn-brand) 42%, transparent), transparent);
   opacity: 0;
   transform: translate3d(var(--mx), var(--my), 0);
-  transition: opacity var(--hn-dur-3) var(--hn-ease);
+  will-change: transform;
+  transition: opacity var(--hn-dur-2) var(--hn-ease);
 }
 
 .hn-hero.has-pointer .hn-hero__bg i {
@@ -317,17 +318,6 @@
   bottom: -30%;
   background: radial-gradient(closest-side, var(--orb-3), transparent);
   opacity: 0.7;
-}
-
-/* Dot grid: it moves by exactly one tile per loop, so the seam never shows.
-   The mask keeps it to the right of the headline. */
-.hn-hero__bg u {
-  position: absolute;
-  inset: -32px -32px -32px 0;
-  background: radial-gradient(circle, color-mix(in srgb, var(--hn-brand) 80%, transparent) 1.6px, transparent 2.1px) 0 0 / 32px 32px;
-  opacity: 0.6;
-  -webkit-mask-image: linear-gradient(to right, transparent 22%, #000 62%);
-  mask-image: linear-gradient(to right, transparent 22%, #000 62%);
 }
 
 /* Motes rise and fade; hidden unless motion is allowed. */
@@ -436,10 +426,6 @@
     animation: hn-drift-b 13s ease-in-out infinite alternate;
   }
 
-  .hn-hero__bg u {
-    animation: hn-grid 6s linear infinite;
-  }
-
   .hn-dust s {
     animation: hn-rise var(--d) linear var(--t) infinite;
   }
@@ -484,11 +470,6 @@
   to { transform: translate3d(48%, -28%, 0) scale(0.86); opacity: 0.95; }
 }
 
-@keyframes hn-grid {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(0, -32px, 0); }
-}
-
 @keyframes hn-rise {
   0% { transform: translate3d(0, 0, 0); opacity: 0; }
   15% { opacity: 1; }
@@ -527,7 +508,6 @@
 
 /* Decorative loops stop while their section is off screen or the tab is hidden. */
 .hn-hero.is-idle .hn-hero__bg b,
-.hn-hero.is-idle .hn-hero__bg u,
 .hn-hero.is-idle .hn-hero__bg::before,
 .hn-hero.is-idle .hn-hero__bg::after,
 .hn-hero.is-idle .hn-dust s,
