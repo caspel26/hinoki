@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import inspect
 import pickle
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 
@@ -172,3 +172,73 @@ def test_validate_json_on_generic_or_unresolved_class_does_not_raise() -> None:
 
     assert hasattr(Late, "validate_json")
     assert Late.validate_json(b"{}") is None
+
+
+class Address(Schema):
+    city: str
+    zip_code: str = Field(default_factory=lambda: "0", alias="zipCode")
+
+
+class Person(Schema):
+    name: str
+    age: Annotated[int, Field(ge=0, le=150)]
+    score: float = 0.5
+    nick: str | None = None
+    home: Address
+    others: list[Address] = Field(default_factory=list)
+    marks: list[float] = Field(default_factory=list)
+
+
+def _same(data: object) -> None:
+    """The direct path and the general validator must agree on every input."""
+    try:
+        expected: object = Person._validate_ordinary(data)
+    except ValidationError as error:
+        expected_details = [(d.path, d.code, d.message) for d in error.details]
+        with pytest.raises(ValidationError) as caught:
+            Person.validate(data)
+        assert [
+            (d.path, d.code, d.message) for d in caught.value.details
+        ] == expected_details
+        return
+    got = Person.validate(data)
+    assert got == expected
+    assert got.dump() == expected.dump()
+    assert got.dump(exclude_unset=True) == expected.dump(exclude_unset=True)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"name": "a", "age": 3, "home": {"city": "x"}},
+        {"name": "a", "age": 3, "home": {"city": "x", "zipCode": "9"}},
+        {"name": "a", "age": 3, "score": 2, "home": {"city": "x"}},
+        {"name": "a", "age": 3, "nick": None, "home": {"city": "x"}},
+        {"name": "a", "age": 3, "home": {"city": "x"}, "others": [{"city": "y"}]},
+        {"name": "a", "age": 3, "home": {"city": "x"}, "marks": [1, 2.5]},
+        {"name": "a", "age": -1, "home": {"city": "x"}},
+        {"name": "a", "age": True, "home": {"city": "x"}},
+        {"name": "a", "age": 3, "home": {"city": 1}},
+        {"name": "a", "age": 3, "home": {"city": "x", "zip_code": "9"}},
+        {"name": "a", "age": 3, "home": {"city": "x"}, "extra": 1},
+        {"name": "a", "home": {"city": "x"}},
+        {"name": "a", "age": 3, "home": None},
+        {"name": "a", "age": 3, "home": {"city": "x"}, "others": [{"city": 2}]},
+        {"name": "a", "age": 3, "home": {"city": "x"}, "marks": ["1"]},
+        {"name": "a\x00", "age": 3, "home": {"city": "x"}},
+        {"name": "a", "age": 10**30, "home": {"city": "x"}},
+        {"name": "a", "age": 3, "score": float("nan"), "home": {"city": "x"}},
+        [],
+        None,
+    ],
+)
+def test_direct_validate_agrees_with_the_general_validator(data: object) -> None:
+    _same(data)
+
+
+def test_direct_validate_keeps_the_input_untouched() -> None:
+    data = {"name": "a", "age": 3, "home": {"city": "x"}, "marks": [1, 2]}
+    built = Person.validate(data)
+    assert data == {"name": "a", "age": 3, "home": {"city": "x"}, "marks": [1, 2]}
+    assert built.marks == [1.0, 2.0]
+    assert built.home is not data["home"]
