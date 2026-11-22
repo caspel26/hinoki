@@ -14,6 +14,11 @@
 //! one thing this module must never do, so every rule below is the stricter of
 //! the two grammars.
 
+mod nativeinit;
+
+pub use nativeinit::NativeInit;
+pub(crate) use nativeinit::{complete, replaced};
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -132,6 +137,8 @@ struct PlanClass {
     renamed: Vec<Box<[u8]>>,
     /// Field positions by key, when there are too many to scan.
     index: Option<HashMap<Box<[u8]>, usize>>,
+    /// What each field takes when it is omitted, once the whole table is known.
+    omitted: Vec<nativeinit::Omitted>,
 }
 
 /// Everything the decode needs about one compiled schema.
@@ -158,12 +165,30 @@ pub(super) fn typed(
         classes.push(class_plan(py, definition, lowered)?);
     }
     let allocate = py.get_type::<PyAny>().getattr("__new__").ok()?.unbind();
-    Some(Typed {
+    let mut typed = Typed {
         classes,
         root,
         allocate,
         supplied: PyString::intern(py, "__hinoki_supplied_fields__").unbind(),
-    })
+    };
+    for (at, definition) in definitions.iter().enumerate() {
+        let defaults = definition
+            .class
+            .direct
+            .as_ref()
+            .and_then(|direct| direct.defaults.as_ref());
+        if let Some((values, factories)) = defaults {
+            let omitted = nativeinit::omitted_of(
+                &typed,
+                &typed.classes[at],
+                values.bind(py),
+                factories.bind(py),
+            )
+            .ok()?;
+            typed.classes[at].omitted = omitted;
+        }
+    }
+    Some(typed)
 }
 
 fn class_plan(
@@ -210,6 +235,7 @@ fn class_plan(
         supplied: direct.supplied.as_ref().map(|s| s.clone_ref(py)),
         renamed,
         index,
+        omitted: Vec::new(),
     })
 }
 

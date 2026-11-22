@@ -7,6 +7,7 @@ import datetime as dt
 import enum
 import functools
 import inspect
+import types
 import typing
 import unicodedata
 import uuid
@@ -50,7 +51,7 @@ from hinoki.fieldtypes import (
     parse_annotation,
 )
 from hinoki.schemaconfig import SchemaConfig, SchemaExtra
-from hinoki.schemafast import instance_accepts
+from hinoki.schemafast import instance_accepts, is_stock_validation
 
 _NO_MODEL = object()
 
@@ -1106,7 +1107,25 @@ def install_generated_init(cls: type[Schema], generated_init: Any) -> None:
 
     setattr(cls, _TRUSTED_CONSTRUCTOR, classmethod(construct_validated))
     setattr(cls, _MODEL_CONSTRUCTOR, classmethod(construct_from_model))
-    cls.__init__ = cast(Any, tracked_init)  # type: ignore[method-assign]
+    cls.__init__ = cast(  # type: ignore[method-assign]
+        Any, core.NativeInit(tracked_init, lambda: native_init_parts(cls))
+    )
+
+
+def native_init_parts(cls: type[Schema]) -> core.CompiledSchema | None:
+    """The compiled schema the native constructor of ``cls`` runs on, or
+    ``None`` when the class keeps the Python constructor (a hook, a check, a
+    normalizer, a custom initialisation, a field outside the native subset).
+    Raises while the class cannot be resolved yet, so that the next
+    construction asks again."""
+    if (
+        cls.is_generic()
+        or not direct_construction(cls)
+        or typed_decoder(cls) is None
+        or not all(field.init for field in dataclasses.fields(cast(Any, cls)))
+    ):
+        return None
+    return cls.native_schema()
 
 
 def install_custom_init(cls: type[Schema], original_init: Any) -> None:
@@ -1266,6 +1285,11 @@ def _no_typed_json(_raw: bytes) -> None:
     return None
 
 
+class _Cached(staticmethod):  # type: ignore[type-arg]
+    """A per-class entry that ``_TypedJson`` and ``_Validate`` installed on one
+    class; a subclass must not inherit it, because it belongs to that class."""
+
+
 class _TypedJson:
     """``Schema.validate_json``: on first use for a class, the class gets the
     Rust decoder itself as its attribute (a builtin method, so a call costs no
@@ -1276,8 +1300,69 @@ class _TypedJson:
         self, instance: object, owner: type[Schema]
     ) -> Callable[[bytes], object | None]:
         decode = typed_decoder(owner) or _no_typed_json
-        type.__setattr__(owner, "validate_json", staticmethod(decode))
+        if "validate_json" not in owner.__dict__:
+            type.__setattr__(owner, "validate_json", _Cached(decode))
         return decode
+
+
+class _Validate:
+    """``Schema.validate``: on first use for a class with no before hook, check
+    or normalizer on its graph, the class gets the Rust validator itself as its
+    attribute (a builtin method: the instance is built and every problem raised
+    without a Python frame). Any other class keeps the ordinary method."""
+
+    def __get__(self, instance: object, owner: type[Schema]) -> Callable[[object], Any]:
+        method = types.MethodType(Schema._validate_ordinary.__func__, owner)  # type: ignore[attr-defined]
+        try:
+            native = native_validator(owner)
+        except Exception:
+            return method
+        found = method if native is None else native
+        if "validate" not in owner.__dict__:
+            type.__setattr__(owner, "validate", _Cached(found))
+        return found
+
+
+def native_validator(cls: type[Schema]) -> Callable[[object], Any] | None:
+    """The Rust ``build`` of ``cls``, when nothing has to run around it."""
+    if typed_decoder(cls) is None or graph_has_normalizers(cls):
+        return None
+    return cls.native_schema().build
+
+
+def text_native(cls: type[Schema]) -> bool:
+    """Whether ``validate_text`` can go straight to Rust for ``cls``: the same
+    condition as the native ``validate``. Decided once per class."""
+    if "__text_native__" not in cls.__dict__:
+        try:
+            ready = native_validator(cls) is not None
+        except Exception:
+            return False
+        type.__setattr__(cls, "__text_native__", ready)
+    return bool(cls.__dict__["__text_native__"])
+
+
+def native_replace(instance: Schema, changes: dict[str, Any]) -> Schema | None:
+    """The copy Rust builds for ``replace``, or ``None`` to use the Python path."""
+    try:
+        found = type(instance).native_schema().replace(instance, changes)
+    except AttributeError:
+        return None
+    return cast("Schema | None", found)
+
+
+def reset_inherited_entries(cls: type[Schema]) -> None:
+    """Give ``cls`` its own lazy entries, so that it never inherits the entry a
+    parent installs for itself later (a user's own ``validate`` is left alone)."""
+    for name, fresh in (("validate_json", _TYPED_JSON), ("validate", _VALIDATE)):
+        if name not in cls.__dict__ and isinstance(
+            inspect.getattr_static(cls, name), _Cached | _TypedJson | _Validate
+        ):
+            type.__setattr__(cls, name, fresh)
+
+
+_TYPED_JSON = _TypedJson()
+_VALIDATE = _Validate()
 
 
 if typing.TYPE_CHECKING:
@@ -1366,6 +1451,7 @@ class Schema(metaclass=_SchemaMeta):
         for name in annotations:
             cls.apply_default(name)
         dataclasses.dataclass(frozen=True, kw_only=True)(cls)
+        reset_inherited_entries(cls)
         setattr(cls, _TRACKS_SUPPLIED_FIELDS, not custom_init)
         if custom_init:
             install_custom_init(cls, cls.__init__)
@@ -1528,12 +1614,19 @@ class Schema(metaclass=_SchemaMeta):
             ...
 
     else:
-        validate_json = _TypedJson()
+        validate_json = _TYPED_JSON
+        validate = _VALIDATE
+
+    if typing.TYPE_CHECKING:
+
+        @classmethod
+        def validate(cls, data: object) -> Self:
+            """Build an instance from decoded JSON or raise ``ValidationError``
+            (validated in Rust)."""
+            ...
 
     @classmethod
-    def validate(cls, data: object) -> Self:
-        """Build an instance from decoded JSON or raise ``ValidationError``
-        (validated in Rust)."""
+    def _validate_ordinary(cls, data: object) -> Self:
         return cls._validate_prepared(prepare_root(cls, data))
 
     @classmethod
@@ -1564,6 +1657,8 @@ class Schema(metaclass=_SchemaMeta):
         Rust, to the ``int``, ``float`` and ``bool`` the fields declare. Anything
         that does not convert is left for ``validate`` to refuse. Before hooks see
         the raw text (each form value is a list of strings) and run first."""
+        if text_native(cls):
+            return cast(Self, cls.native_schema().build_text(data))
         prepared = prepare_root(cls, data)
         return cls._validate_prepared(cls.native_schema().coerce_text(prepared))
 
@@ -1618,6 +1713,9 @@ class Schema(metaclass=_SchemaMeta):
         validated again, normalised and checked like a new instance, so the copy
         is as trustworthy as any other; fields that were never supplied stay
         unsupplied for ``dump(exclude_unset=True)``."""
+        found = native_replace(self, changes)
+        if found is not None:
+            return cast(Self, found)
         specs = self.specs()
         unknown = [name for name in changes if name not in specs]
         if unknown:
@@ -1683,6 +1781,14 @@ class Schema(metaclass=_SchemaMeta):
         Selectors use Python field names. ``exclude_unset`` omits defaulted
         fields not supplied at construction. HTTP responses use default options.
         """
+        if (
+            include is None
+            and type(exclude) is tuple
+            and not exclude
+            and exclude_unset is False
+            and by_alias is True
+        ):
+            return dump_instance(self, True, by_alias=True)
         if type(exclude_unset) is not bool or type(by_alias) is not bool:
             raise TypeError("exclude_unset and by_alias must be bool")
         known: dict[str, object] = (
@@ -2341,10 +2447,31 @@ def schema_index(
 
 def typed_decoder(cls: type[Schema]) -> Callable[[bytes], object | None] | None:
     """The one-pass Rust body decoder of ``cls``, or ``None`` when a before
-    hook or a check on its graph has to run on the ordinary path."""
-    if graph_has_before(cls) or graph_has_checks(cls):
+    hook, a check or a custom validation hook on its graph has to run on the
+    ordinary path."""
+    if graph_has_before(cls) or graph_has_checks(cls) or not graph_is_stock(cls):
         return None
     return cls.native_schema().decode_typed
+
+
+def graph_is_stock(cls: type[Schema]) -> bool:
+    """Whether no schema on the graph of ``cls`` redefines a validation hook
+    (``_validate_instance``, ``native_schema``, ``specs``): Rust builds and
+    validates instances itself only then. Answer cached per class."""
+    cached = cls.__dict__.get("__graph_stock__")
+    if cached is None:
+        pending = [cls]
+        seen: set[type] = set()
+        cached = True
+        while pending and cached:
+            current = pending.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            cached = is_stock_validation(current)
+            pending.extend(nested_schemas(current) if cached else ())
+        cls.__graph_stock__ = cached  # type: ignore[attr-defined]
+    return bool(cached)
 
 
 def compile_native(root: type[Schema]) -> core.CompiledSchema:
@@ -2352,7 +2479,7 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
     index_of: dict[type[Schema], int] = {root: 0}
     queue = [root]
     definitions: list[Any] = []
-    direct: list[tuple[int, frozenset[str] | None]] = []
+    direct: list[tuple[int, frozenset[str] | None, dict[str, Any], dict[str, Any]]] = []
     position = 0
     while position < len(queue):
         current = queue[position]
@@ -2363,10 +2490,21 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
         ]
         if direct_construction(current):
             tracks = current.__dict__.get(_TRACKS_SUPPLIED_FIELDS, False)
+            owned = dataclasses.fields(cast(Any, current))
             direct.append(
                 (
                     len(definitions),
                     frozenset(current.specs()) if tracks else None,
+                    {
+                        field.name: field.default
+                        for field in owned
+                        if field.default is not dataclasses.MISSING
+                    },
+                    {
+                        field.name: field.default_factory
+                        for field in owned
+                        if field.default_factory is not dataclasses.MISSING
+                    },
                 )
             )
         definitions.append(

@@ -37,6 +37,7 @@ mod coerce;
 mod internet;
 mod scalars;
 mod typeddecode;
+pub use typeddecode::NativeInit;
 
 use internet::NetKind;
 pub(crate) use scalars::wire_text;
@@ -92,6 +93,10 @@ pub(crate) struct Direct {
     /// The tracking value for `__hinoki_supplied_fields__` (every field name),
     /// or `None` when the class does not track it.
     supplied: Option<Py<PyAny>>,
+    /// The position of the class in the table.
+    index: usize,
+    /// The dataclass defaults and default factories of its fields, by name.
+    defaults: Option<(Py<PyDict>, Py<PyDict>)>,
 }
 
 impl Rules for PyRules {
@@ -253,7 +258,7 @@ pub struct Compiled {
     unset: Py<PyAny>,
     native: Option<Arc<NativeSchema>>,
     /// The one-pass body decode of this schema, when it is inside its subset.
-    typed: Option<typeddecode::Typed>,
+    typed: Option<Arc<typeddecode::Typed>>,
 }
 
 /// The GIL-free copy of a [`Compiled`] schema.
@@ -530,6 +535,9 @@ fn required_variants(constraints: &Bound<'_, PyDict>) -> PyResult<Vec<(String, u
 }
 
 /// Build a validator from `definitions`: a list of
+/// `(class position, supplied-fields value, defaults, default factories)`.
+type DirectEntry = (usize, Option<Py<PyAny>>, Py<PyDict>, Py<PyDict>);
+
 /// `(class, [(name, wire_name, node, required), ...], forbid_extra)`; nested
 /// schemas refer to a definition by index.
 #[pyfunction]
@@ -541,17 +549,22 @@ pub fn compile_schemas(
     uuid_class: Py<PyAny>,
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
-    direct: Option<Vec<(usize, Option<Py<PyAny>>)>>,
+    direct: Option<Vec<DirectEntry>>,
 ) -> PyResult<Compiled> {
     let mut direct = direct.unwrap_or_default();
     let mut built = Vec::with_capacity(definitions.len());
     for (position, (class, fields, forbid_extra)) in definitions.into_iter().enumerate() {
         let direct = direct
             .iter()
-            .position(|(index, _)| *index == position)
-            .map(|at| Direct {
-                fields: fields.len(),
-                supplied: direct.swap_remove(at).1,
+            .position(|(index, ..)| *index == position)
+            .map(|at| {
+                let (_, supplied, values, factories) = direct.swap_remove(at);
+                Direct {
+                    fields: fields.len(),
+                    supplied,
+                    index: position,
+                    defaults: Some((values, factories)),
+                }
             });
         let mut parsed = Vec::with_capacity(fields.len());
         for (name, wire_name, node, required) in fields {
@@ -585,7 +598,8 @@ pub fn compile_schemas(
     let native = lower_schemas(py, &built, root);
     let typed = native
         .as_deref()
-        .and_then(|lowered| typeddecode::typed(py, &built, lowered, root));
+        .and_then(|lowered| typeddecode::typed(py, &built, lowered, root))
+        .map(Arc::new);
     Ok(Compiled {
         definitions: built,
         root,
@@ -1093,6 +1107,8 @@ struct PyView<'a, 'py> {
     py: Python<'py>,
     uuid: &'a Py<PyAny>,
     from_iso: &'a Py<PyAny>,
+    /// The plan that completes a record whose omitted fields have defaults.
+    typed: Option<&'a typeddecode::Typed>,
 }
 
 impl<'py> View for PyView<'_, 'py> {
@@ -1300,8 +1316,15 @@ impl<'py> View for PyView<'_, 'py> {
             return Ok(record.into_any());
         }
         let class_object = class.object.bind(self.py);
-        if let Some(direct) = class.direct.as_ref().filter(|d| record.len() == d.fields) {
-            return build_direct(self.py, class_object, direct, &record);
+        if let Some(direct) = class.direct.as_ref() {
+            if record.len() == direct.fields {
+                return build_direct(self.py, class_object, direct, &record, None);
+            }
+            if let Some(typed) = self.typed {
+                if let Some(done) = typeddecode::complete(typed, direct.index, &record)? {
+                    return build_direct(self.py, class_object, direct, &record, done.supplied);
+                }
+            }
         }
         class_object.call_method1("__hinoki_construct_validated__", (record, path))
     }
@@ -2870,6 +2893,37 @@ impl Compiled {
         typeddecode::decode(py, typed, raw)
     }
 
+    /// The instance `data` describes, or a `ValidationError` listing every
+    /// problem: `validate` without the tuple, for a schema that has no hook,
+    /// check or normalizer to run around it.
+    fn build<'py>(&self, py: Python<'py>, data: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        self.build_checked(py, data)
+    }
+
+    /// `build` for data that is all text (form fields, a parsed XML tree): the
+    /// text is converted to the declared scalars first, in Rust.
+    fn build_text<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let converted = self.coerce_text(py, data, true)?;
+        self.build_checked(py, &converted)
+    }
+
+    /// A copy of `instance` with `changes` applied, or `None` when `replace`
+    /// must run in Python (an unknown field, another class, no plan).
+    fn replace<'py>(
+        &self,
+        instance: &Bound<'py, PyAny>,
+        changes: &Bound<'py, PyDict>,
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.typed {
+            Some(typed) => typeddecode::replaced(typed, instance, changes),
+            None => Ok(None),
+        }
+    }
+
     /// The tree of a text source (form fields, query pairs, XML) with its text
     /// leaves converted to the scalar types this schema declares, ready for the
     /// strict `validate`. What does not convert is left for `validate` to refuse.
@@ -2913,9 +2967,51 @@ impl Compiled {
             py,
             uuid: &self.uuid,
             from_iso: &self.from_iso,
+            typed: self.typed.as_deref(),
         };
         Run::new(view, &self.definitions, &options).validate(self.root, data)
     }
+}
+
+impl Compiled {
+    fn build_checked<'py>(
+        &self,
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let options = Options {
+            construct: true,
+            use_aliases: true,
+            allow_naive_datetime: false,
+            skip_fields: HashSet::new(),
+            input_bounds: true,
+        };
+        let view = PyView {
+            py,
+            uuid: &self.uuid,
+            from_iso: &self.from_iso,
+            typed: self.typed.as_deref(),
+        };
+        let (instance, problems) =
+            Run::new(view, &self.definitions, &options).validate(self.root, data)?;
+        match instance {
+            Some(instance) if problems.is_empty() => Ok(instance),
+            _ => Err(validation_error(py, problems)?),
+        }
+    }
+}
+
+/// The `ValidationError` of `problems`, as `hinoki.errors` defines it.
+fn validation_error(py: Python<'_>, problems: Vec<Problem>) -> PyResult<PyErr> {
+    let errors = py.import("hinoki.errors")?;
+    let detail = errors.getattr("ErrorDetail")?;
+    let details = PyList::empty(py);
+    for (path, code, message) in problems {
+        details.append(detail.call1((path, code, message))?)?;
+    }
+    Ok(PyErr::from_value(
+        errors.getattr("ValidationError")?.call1((details,))?,
+    ))
 }
 
 /// `object.__new__(class)` filled from `record`, as the generated constructor
@@ -2925,16 +3021,17 @@ fn build_direct<'py>(
     class: &Bound<'py, PyAny>,
     direct: &Direct,
     record: &Bound<'py, PyDict>,
+    given: Option<Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let instance = py.get_type::<PyAny>().call_method1("__new__", (class,))?;
     for (key, value) in record.iter() {
         typeddecode::assign(&instance, key.cast::<PyString>()?, &value)?;
     }
-    if let Some(supplied) = &direct.supplied {
+    if let Some(supplied) = given.or_else(|| direct.supplied.as_ref().map(|s| s.bind(py).clone())) {
         typeddecode::assign(
             &instance,
             &PyString::intern(py, "__hinoki_supplied_fields__"),
-            supplied.bind(py),
+            &supplied,
         )?;
     }
     Ok(instance)

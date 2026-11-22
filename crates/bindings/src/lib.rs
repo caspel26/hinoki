@@ -145,6 +145,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.add_function(wrap_pyfunction!(request::decode_json, m)?)?;
     m.add_class::<schema::Compiled>()?;
+    m.add_class::<schema::NativeInit>()?;
     m.add_function(wrap_pyfunction!(schema::compile_schemas, m)?)?;
     m.add_function(wrap_pyfunction!(schema::check_pattern, m)?)?;
     m.add_function(wrap_pyfunction!(schema::wire_text_of, m)?)?;
