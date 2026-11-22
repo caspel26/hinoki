@@ -1250,10 +1250,8 @@ fn special_at(bytes: &[u8]) -> usize {
     const ONES: u64 = 0x0101_0101_0101_0101;
     const HIGH: u64 = 0x8080_8080_8080_8080;
     let mut at = 0;
-    for chunk in bytes.chunks_exact(8) {
-        let Ok(word) = <[u8; 8]>::try_from(chunk).map(u64::from_le_bytes) else {
-            break;
-        };
+    for chunk in bytes.as_chunks::<8>().0 {
+        let word = u64::from_le_bytes(*chunk);
         let quote = word ^ (ONES * 0x22);
         let slash = word ^ (ONES * 0x5c);
         let found = (word.wrapping_sub(ONES * 0x20) & !word)
