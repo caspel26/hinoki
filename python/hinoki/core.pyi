@@ -52,6 +52,16 @@ class _RowPlan:
         fields: list[tuple[str, str, str, bool]],
     ) -> None: ...
 
+class _CursorCodec:
+    """Signed keyset cursors for one ordering; ``ValueError("invalid" |
+    "expired" | "unencodable")`` on a bad token or key."""
+
+    def __init__(
+        self, secret: bytes, fingerprint: bytes, ttl: int | None = None
+    ) -> None: ...
+    def decode(self, token: str, count: int) -> tuple[bool, list[Any]]: ...
+    def encode(self, backward: bool, values: list[Any]) -> str: ...
+
 class _ModelRows:
     def __init__(
         self,
@@ -252,6 +262,16 @@ class Transaction:
         plan: _RowPlan,
         page_info: tuple[int, int, int],
     ) -> bytes | list[Row]: ...
+    async def _fetch_cursor_wire(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+        codec: _CursorCodec,
+        keys: list[str],
+        limit: int,
+        mode: int,
+    ) -> bytes | tuple[list[Row], bool]: ...
     async def execute(self, sql: str, params: list[Param]) -> int: ...
     async def commit(self) -> None: ...
     async def rollback(self) -> None: ...
@@ -270,6 +290,16 @@ class Database:
         plan: _RowPlan,
         page_info: tuple[int, int, int],
     ) -> bytes | list[Row]: ...
+    async def _fetch_cursor_wire(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+        codec: _CursorCodec,
+        keys: list[str],
+        limit: int,
+        mode: int,
+    ) -> bytes | tuple[list[Row], bool]: ...
     async def execute(self, sql: str, params: list[Param]) -> int: ...
     async def begin(self) -> Transaction: ...
     async def begin_migration(self) -> Transaction: ...
@@ -290,6 +320,7 @@ def compile_query(
     limit: int | None = None,
     offset: int | None = None,
     joins: list[tuple[str, str, str, str, bool, list[str]]] | None = None,
+    keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
     dialect: str = "postgres",
 ) -> tuple[str, list[Any]]: ...
 

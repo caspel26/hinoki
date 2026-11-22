@@ -136,6 +136,47 @@ pub(crate) fn encode_page(
     Some(output)
 }
 
+pub(crate) fn encode_cursor_page(
+    rows: &[Vec<(String, Value)>],
+    plan: &RowPlan,
+    links: &crate::cursor::Links,
+    page_size: u64,
+) -> Option<Vec<u8>> {
+    if page_size == 0 {
+        return None;
+    }
+    let mut output = Vec::new();
+    output.push(b'{');
+    write_key(&mut output, "items")?;
+    output.push(b'[');
+    for (index, row) in rows.iter().enumerate() {
+        if index > 0 {
+            output.push(b',');
+        }
+        write_row(&mut output, row, plan)?;
+    }
+    output.extend_from_slice(b"],\"next\":");
+    write_link(&mut output, links.next.as_deref());
+    output.extend_from_slice(b",\"previous\":");
+    write_link(&mut output, links.previous.as_deref());
+    output.extend_from_slice(b",\"page_size\":");
+    write_number(&mut output, page_size)?;
+    output.push(b'}');
+    Some(output)
+}
+
+/// A cursor is URL-safe base64, so it needs no JSON escaping.
+fn write_link(output: &mut Vec<u8>, link: Option<&str>) {
+    match link {
+        Some(token) => {
+            output.push(b'"');
+            output.extend_from_slice(token.as_bytes());
+            output.push(b'"');
+        }
+        None => output.extend_from_slice(b"null"),
+    }
+}
+
 pub(crate) fn encode_item(row: &[(String, Value)], plan: &RowPlan) -> Option<Vec<u8>> {
     let mut output = Vec::new();
     write_row(&mut output, row, plan)?;
@@ -313,6 +354,35 @@ mod tests {
             bytes,
             r#"{"items":[{"key":"7f9c4a5e-3c1d-4a2b-9b0d-1e2f3a4b5c6d","displayName":"Hinoki\n🌲","created":"2026-11-16T10:00:00+00:00","weight":-0.0}],"page":2,"page_size":10,"total":11,"pages":2}"#.as_bytes()
         );
+    }
+
+    #[test]
+    fn encodes_the_cursor_envelope_with_links_or_null() {
+        let links = crate::cursor::Links {
+            next: Some("abc-_".into()),
+            previous: None,
+        };
+        let bytes = super::encode_cursor_page(
+            &[row(Value::Text("a".into()), Value::Float(1.5))],
+            &plan(),
+            &links,
+            10,
+        )
+        .unwrap();
+        assert_eq!(
+            bytes,
+            r#"{"items":[{"key":"7f9c4a5e-3c1d-4a2b-9b0d-1e2f3a4b5c6d","displayName":"a","created":"2026-11-16T10:00:00+00:00","weight":1.5}],"next":"abc-_","previous":null,"page_size":10}"#.as_bytes()
+        );
+        let none = crate::cursor::Links {
+            next: None,
+            previous: None,
+        };
+        let empty = super::encode_cursor_page(&[], &plan(), &none, 3).unwrap();
+        assert_eq!(
+            empty,
+            br#"{"items":[],"next":null,"previous":null,"page_size":3}"#
+        );
+        assert!(super::encode_cursor_page(&[], &plan(), &none, 0).is_none());
     }
 
     #[test]

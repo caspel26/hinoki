@@ -11,6 +11,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use tokio::sync::Mutex;
 
+use crate::cursor::{CursorQuery, CursorWire, PyCursorCodec};
 use crate::modelrows::{models_to_py, PyModelRows};
 use crate::rows::{PageWireResult, PyRowPlan};
 
@@ -218,6 +219,17 @@ pub(crate) fn rows_to_py(py: Python<'_>, rows: &[Vec<(String, Value)>]) -> PyRes
     Ok(out.into_any().unbind())
 }
 
+/// The encoded page as bytes, or `(rows, has_more)` for Python to finish.
+fn cursor_wire_to_py(py: Python<'_>, result: CursorWire) -> PyResult<Py<PyAny>> {
+    match result {
+        CursorWire::Encoded(bytes) => Ok(PyBytes::new(py, &bytes).into_any().unbind()),
+        CursorWire::Fallback(rows, has_more) => {
+            let rows = rows_to_py(py, &rows)?;
+            Ok((rows, has_more).into_pyobject(py)?.into_any().unbind())
+        }
+    }
+}
+
 /// Run a database future off the loop and convert its outcome on the loop
 /// thread (see `completion`).
 macro_rules! bridge {
@@ -315,6 +327,28 @@ impl PyDatabase {
             PageWireResult::Encoded(bytes) => Ok(PyBytes::new(py2, &bytes).into_any().unbind()),
             PageWireResult::Fallback(rows) => rows_to_py(py2, &rows),
         })
+    }
+
+    #[pyo3(signature = (sql, params, plan, codec, keys, limit, mode))]
+    #[allow(clippy::too_many_arguments)]
+    fn _fetch_cursor_wire<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+        codec: PyRef<'py, PyCursorCodec>,
+        keys: Vec<String>,
+        limit: u64,
+        mode: u8,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let query = CursorQuery::from_python(&codec, keys, limit, mode)?;
+        let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let rows = db.fetch(&sql, &values).await?;
+            Ok::<_, DbError>(query.finish(rows, &plan))
+        };
+        bridge!(py, fut, |py2, result| cursor_wire_to_py(py2, result))
     }
 
     fn execute<'py>(
@@ -454,6 +488,32 @@ impl PyTransaction {
         })
     }
 
+    #[pyo3(signature = (sql, params, plan, codec, keys, limit, mode))]
+    #[allow(clippy::too_many_arguments)]
+    fn _fetch_cursor_wire<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+        codec: PyRef<'py, PyCursorCodec>,
+        keys: Vec<String>,
+        limit: u64,
+        mode: u8,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let query = CursorQuery::from_python(&codec, keys, limit, mode)?;
+        let (inner, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let rows = {
+                let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+                let tx = guard.as_ref().ok_or_else(busy_error)?;
+                tx.fetch(&sql, &values).await?
+            };
+            Ok::<_, DbError>(query.finish(rows, &plan))
+        };
+        bridge!(py, fut, |py2, result| cursor_wire_to_py(py2, result))
+    }
+
     fn execute<'py>(
         &self,
         py: Python<'py>,
@@ -507,6 +567,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
     m.add_class::<PyDatabase>()?;
     m.add_class::<PyTransaction>()?;
+    m.add_class::<PyCursorCodec>()?;
     m.add_function(wrap_pyfunction!(configure_runtime, m)?)?;
     let module_name = m.getattr("__name__")?;
     for exception in [
