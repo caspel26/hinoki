@@ -153,6 +153,20 @@ Ticket.validate_json(b'{"title": "Opera", "seats": 2}')  # a Ticket
 Ticket.validate_json(b'{"title": "Opera"}')  # None: validate() reports it
 ```
 
+### Native constructor and `validate`
+
+For the same plain schemas, `Schema(...)`, `Schema.validate(data)`,
+`Schema.validate_text(data)`, `instance.replace(...)` and `instance.dump()` run
+in Rust: the arguments are checked and written to the slots without a Python
+frame, defaults and `default_factory` values included. The result, the
+exceptions and `dump(exclude_unset=True)` are the same as on the Python path.
+Anything the plan does not vouch for (positional arguments, a value of a
+subclass type, an unknown or missing argument, a class that overrides
+`_validate_instance`, a `validate` of its own, or a graph with checks,
+normalizers or `@before_validate`) runs the ordinary Python code. A
+`default_factory` whose result is rejected may be called a second time by that
+fallback.
+
 ### Where fields live
 
 A `Schema` subclass keeps its fields in `__slots__` (the instance still has a
