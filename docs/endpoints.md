@@ -222,6 +222,8 @@ The refusal is `errors.TooManyRequests(retry_after)`: status 429, code `rate_lim
 
 Limiting failed credentials of a `BearerAuth` provider belongs in that provider, because authentication runs first.
 
+A refusal emits a `RateLimited` [event](events.md#authentication-and-rate-limit-events) (policy class name, route template, `retry_after`; no key, caller or address) when the application has a handler for it. A handler cannot change the `429`.
+
 ### The response is checked against the annotation
 
 Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.

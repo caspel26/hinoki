@@ -94,6 +94,59 @@ with app.events.muted():
 
 `capture()` records every event emitted in the block and still runs the handlers; `muted()` runs no handler (`capture()` still records what is emitted). `app.events.stats()` returns the counters of `(event, phase, outcome)`, which are low-cardinality by construction. `app.events.registrations` lists what is registered.
 
+## Seeing what is registered
+
+`hinoki events` lists every handler of the application without starting a server, opening a database or writing anything. It builds the application the way `hinoki routes` does and takes the same optional target (default: the project's `application`).
+
+```sh
+uv run hinoki events notes_events_sample:app
+```
+
+```text
+Created[Note]  in_transaction  notes        async  notes_events_sample.audit
+Updated[Note]  after_commit    notes        sync   notes_events_sample.reindex
+AuthRejected   after_commit    notes        async  notes_events_sample.count_rejections
+
+limits: events.handler_timeout=5.0, events.max_handlers=16, events.max_depth=4
+```
+
+Each row is the event (`Event` or `Event[Model]`), the phase, the name of the `Handlers` collection (`-` when it has none), `async` or `sync`, and the handler as `module.qualname`, in execution order. The last line shows the `events` limits in force. In a project, a line `declared in hinoki.toml: APP -> module:attribute` follows for each app that sets `events` in `hinoki.toml`. An application with no handlers prints `no event handlers registered` and exits `0`. `--format json` prints an object with `handlers` (`event`, `phase`, `handler`, `collection`, `async`), `limits` (`handler_timeout`, `max_handlers`, `max_depth`) and `apps` (`app`, `events`). A target that cannot be loaded prints `error: cannot load TARGET: ...` and exits `2`. The listing shows what is registered, not whether a handler will run: that depends on the code that emits.
+
+## Authentication and rate-limit events
+
+These events describe a request the application refused. They are plain frozen dataclasses (`Schema` cannot hold arbitrary types, and an event emitted on every refused request should cost nothing to build).
+
+| Event | Payload | Emitted when |
+| --- | --- | --- |
+| `AuthRejected` | `reason`, `route`, `method` | A route's `Access` policy refused the request: `reason` is `"missing"` (no credentials, `401`), `"invalid"` (credentials the provider rejected, `401`) or `"forbidden"` (a caller without a required permission, `403`). Also for a WebSocket handshake (`method` is `WEBSOCKET`). |
+| `RateLimited` | `policy`, `route`, `method`, `retry_after` | A route's `rate_limit` policy refused with `TooManyRequests` (`429`), including the admin's shared sign-in limit. `policy` is the class name of the policy; `retry_after` is the whole seconds sent in `Retry-After`. |
+
+```python
+from hinoki import events
+from hinoki.events import AuthRejected, RateLimited
+
+security = events.Handlers("security")
+
+
+@security.after_commit(AuthRejected)
+async def count_rejection(event: AuthRejected) -> None:
+    rejections.labels(event.reason, event.route).inc()
+
+
+@security.after_commit(RateLimited)
+def log_limit(event: RateLimited) -> None:
+    log.warning(
+        "rate limited %s %s (%ss)", event.method, event.route, event.retry_after
+    )
+```
+
+- **No secrets, no high-cardinality values.** `route` is the path template (`/notes/{note_id}`), never the requested path or query string. The payloads carry no credential, token, user name, caller id, address or header, so a handler can count or log them without handling personal data. Add nothing of that kind if you define similar events.
+- **They cannot change the answer.** The `401`, `403` or `429` is decided before the event is emitted. Only `after_commit` handlers are accepted: there is no transaction, so `@handlers.in_transaction(AuthRejected)` raises `EventRegistrationError` when it is registered (an event class opts out of transactions with the class attribute `has_transaction: ClassVar[bool] = False`). A failing handler is logged and counted and never reaches the response, and the whole delivery of one event, handlers included, takes at most `events.handler_timeout` seconds before the answer is sent. A slow handler still delays the refusal up to that limit, so keep handlers short and hand heavy work to a queue.
+- **Zero cost without a listener.** The runtime builds the payload only when a handler is registered for the event (one context-variable read and one dictionary lookup).
+- **Native lane.** Kiso authenticates generated CRUD and handler routes protected by an unmodified `ClaimsJWTAuth` in Rust and answers `401` and `403` there. When a handler is registered for `AuthRejected`, those routes are authenticated by Python so the event can fire (`hinoki routes --lanes` reports `auth_event_handlers` for generated CRUD). Without such a handler nothing changes.
+- **What is not an event.** A `401`, `403` or `429` raised by your own handler code or by ownership checks inside generated CRUD is not an access-policy decision and emits nothing. There is no `AuthSucceeded`: it would fire on every authenticated request, and Rust authenticates the fast path, so it would turn that path off for everyone who listens.
+- **Startup and shutdown.** Worker lifecycle, migration and configuration-reload events are not provided: use the `on_startup` and `on_shutdown` hooks of the application.
+
 ## Model events
 
 `Created`, `Updated` and `Deleted` (`from hinoki.events import Created, Updated, Deleted`) are emitted by the model write path itself. Each carries `subject`, the model class, so `@handlers.after_commit(Created[Note])` receives only notes and a bare `Created` receives every model (annotate it `Created[Any]`).
@@ -152,7 +205,7 @@ How it runs:
 ## What events do not do
 
 - No delivery between services or processes, no queue, no retry, no at-least-once guarantee. For work that must survive a crash, use a job queue.
-- Authentication, rate-limit and lifecycle events, the `hinoki events` command and Prometheus metrics are not part of this release.
+- Worker lifecycle, migration and reload events and Prometheus metrics are not part of this release; use `on_startup` and `on_shutdown` for startup and shutdown.
 - Events never carry rows a caller cannot see: emit them from code that already applied ownership and tenant policy, and put identifiers rather than whole rows in the payload.
 
 See also [Lifecycle hooks](model-hooks.md), [Transactions](transactions.md) and [Application modules](modules.md).

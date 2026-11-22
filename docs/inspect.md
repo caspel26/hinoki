@@ -105,6 +105,19 @@ for a `native` route here still logs `python` unless Rust runs a generated CRUD
 plan for it. JSON always has `method`, `path`, `handler`, `access`, `status`,
 `lane` and `lane_reason`.
 
+## List event handlers with `events` {#events}
+
+```sh
+uv run hinoki events
+uv run hinoki events notes.main:app --format json
+```
+
+Prints each registered [event handler](events.md#seeing-what-is-registered) in
+execution order (event, phase, collection, `async` or `sync`, handler), the
+`events` limits, and the `events` target each app declares in `hinoki.toml`.
+`--format json` has `handlers`, `limits` and `apps`. It reads the application
+and the manifest only; an unloadable target exits 2.
+
 ## Export the OpenAPI document with `openapi` {#openapi}
 
 ```sh
