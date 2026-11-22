@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 use pyo3::basic::CompareOp;
 use pyo3::exceptions::PyUnicodeEncodeError;
+use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use regex::Regex;
@@ -827,15 +828,16 @@ pub fn instance_fields(
     with_computed: bool,
 ) -> PyResult<SchemaInstanceFields> {
     let class = value.get_type();
-    if !class.hasattr("__hinoki_schema__")? {
+    let py = value.py();
+    if !class.hasattr(intern!(py, "__hinoki_schema__"))? {
         return Ok(None);
     }
     // Read the class's own entries: a subclass must not use its parent's table.
-    let table = class.getattr("__dict__")?;
+    let table = class.getattr(intern!(py, "__dict__"))?;
     // A class that overrides `dump()` decides what it exposes: the caller falls
     // back to calling it, exactly as the Python encoder always did.
     if honour_custom_dump {
-        let overrides = match table.get_item("__native_dump__") {
+        let overrides = match table.get_item(intern!(py, "__native_dump__")) {
             Ok(flag) => !flag.is_truthy()?,
             Err(_) => {
                 class.call_method0("native_schema")?;
@@ -849,7 +851,7 @@ pub fn instance_fields(
             return Ok(None);
         }
     }
-    let own = table.get_item("__native__").ok();
+    let own = table.get_item(intern!(py, "__native__")).ok();
     let compiled = match own {
         Some(found) if !found.is_none() => found,
         _ => class.call_method0("native_schema")?,
@@ -881,9 +883,12 @@ pub fn instance_fields(
 
 /// The class's own `(name, wire name)` pairs for its computed fields.
 fn computed_names(table: &Bound<'_, PyAny>, by_alias: bool) -> PyResult<SchemaWireNames> {
-    let Ok(entries) = table.get_item("__hinoki_computed__") else {
+    // Most classes have none: test first instead of building a `KeyError`.
+    let key = intern!(table.py(), "__hinoki_computed__");
+    if !table.contains(key)? {
         return Ok(Vec::new());
-    };
+    }
+    let entries = table.get_item(key)?;
     let mut names = Vec::new();
     for entry in entries.try_iter()? {
         let (name, wire_name): (String, String) = entry?.extract()?;

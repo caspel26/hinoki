@@ -17,7 +17,7 @@ from hinoki.blocking import run_sync
 from hinoki.db import Database, current_owner
 from hinoki.errors import FieldError, MultipleObjectsReturned
 from hinoki.orm.context import current_database
-from hinoki.orm.relations import ALIAS_PREFIX, Relation, store
+from hinoki.orm.relations import ALIAS_PREFIX, STORE, Relation, store
 from hinoki.pagination import Page, PageParams
 from hinoki.utils import _read_utc
 
@@ -268,13 +268,27 @@ class QuerySet[M: Model]:
             for name in ("build", "_hydrate")
         )
 
+    def joined_plan(self, plan: core._ModelRows) -> core._ModelRows | None:
+        """The native builder for ``plan``'s model with its ``select_related``
+        relations, laid out as ``build`` reads them; ``None`` when a related
+        model must go through ``from_row``."""
+        joins = []
+        for name in self.loading.selected:
+            related = self.forward(name).model
+            related_plan = related.row_plan()
+            if related_plan is None:
+                return None
+            key = list(related.__columns__).index(related.__primary_key__)
+            joins.append((name, related_plan, f"{ALIAS_PREFIX}{name}{SEPARATOR}", key))
+        return plan.joined(joins, STORE)
+
     async def fetch(self) -> list[M]:
         """Run the query and build the rows; what ``await queryset`` returns."""
         database = current_database()
         sql, params = self.compile(dialect=database.dialect)
         plan = self.model.row_plan() if self.uses_stock_builders() else None
-        if self.loading.selected:
-            plan = None
+        if plan is not None and self.loading.selected:
+            plan = self.joined_plan(plan)
         fetch_models = getattr(database, "fetch_models", None)
         if plan is not None and fetch_models is not None:
             instances: list[M] = await fetch_models(sql, list(params), plan)
