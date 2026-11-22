@@ -546,7 +546,7 @@ def metadata(args: argparse.Namespace) -> dict[str, Any]:
         "python_short": platform.python_version(),
         "packages": {
             name: importlib.metadata.version(name)
-            for name in ("hinoki", "django", "django-bolt", "psycopg", "granian")
+            for name in ("hinoki-api", "django", "django-bolt", "psycopg", "granian")
         },
         "rustc": execute(["rustc", "--version"]).stdout.strip(),
         "loadavg_before_run": os.getloadavg(),
