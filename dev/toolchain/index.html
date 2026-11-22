@@ -229,6 +229,10 @@
                 <li><a class="side__link is-active" href="./" aria-current="page"><span>Toolchain and CI</span></a></li>
               
             
+              
+                <li><a class="side__link" href="../release/"><span>Release checklist</span></a></li>
+              
+            
             </ul>
           
         
@@ -243,7 +247,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 22:31:09 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -405,6 +409,11 @@ test gate.</p>
 <td>abi3 (<code>cp312-abi3</code>) wheel in <code>dist/</code>; built and import-tested by the <code>wheel</code> CI job</td>
 </tr>
 <tr>
+<td>Release wheels</td>
+<td><code>release-build.yml</code> (tag <code>v*</code> or manual)</td>
+<td>manylinux x86_64/aarch64 and macOS arm64/x86_64 wheels plus the sdist, smoke-tested with <code>scripts/smoke_wheel.py</code>; artifacts only, nothing is published (<a href="../release/">Release checklist</a>)</td>
+</tr>
+<tr>
 <td>Rust workspace tests</td>
 <td><code>cargo test --workspace</code> with the PyO3 environment above</td>
 <td>PyO3 unit tests link to the selected Python interpreter; PostgreSQL tests require <code>HINOKI_TEST_DATABASE_URL</code></td>
@@ -421,7 +430,7 @@ test gate.</p>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../troubleshooting/"><small>Previous</small><span>Troubleshooting</span></a>
-        
+        <a class="pager__link pager__link--next" href="../release/"><small>Next</small><span>Release checklist</span></a>
       </nav>
     </main>
 
@@ -440,7 +449,7 @@ test gate.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 22:31:09 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

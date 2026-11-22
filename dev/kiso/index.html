@@ -467,7 +467,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></span>
             <span>24 min read</span>
           </p>
           
@@ -588,7 +588,7 @@ reloaded 4 workers (generation 2)
 <span class="nb">kill</span><span class="w"> </span>-HUP<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s1">'hinoki serve'</span><span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
 <h2 id="reload-with-hinoki-dev">Reload with <code>hinoki dev</code><a class="headerlink" href="#reload-with-hinoki-dev" title="Permanent link">&para;</a></h2>
-<p>The supervisor watches the project directory (<code>*.py</code>, <code>*.toml</code> and <code>.env</code> files; <code>.venv</code>, <code>.git</code> and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short <code>error: cannot load ...</code> line for a missing module or name, a traceback for other failures), <code>waiting for changes</code> follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, <code>backlog</code> and the choice of server are read once when <code>hinoki dev</code> starts: change them and restart the command. The other <code>server</code> settings (limits, <code>trusted_proxies</code>, <code>runtime_threads</code>) are read again by every restarted worker. The watcher ignores <code>.venv</code> but not a virtual environment with another name, such as <code>venv/</code>: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. <code>dev</code> needs <code>watchfiles</code> (the <code>hinoki[server]</code> extra) and uses one worker.</p>
+<p>The supervisor watches the project directory (<code>*.py</code>, <code>*.toml</code> and <code>.env</code> files; <code>.venv</code>, <code>.git</code> and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short <code>error: cannot load ...</code> line for a missing module or name, a traceback for other failures), <code>waiting for changes</code> follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, <code>backlog</code> and the choice of server are read once when <code>hinoki dev</code> starts: change them and restart the command. The other <code>server</code> settings (limits, <code>trusted_proxies</code>, <code>runtime_threads</code>) are read again by every restarted worker. The watcher ignores <code>.venv</code> but not a virtual environment with another name, such as <code>venv/</code>: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. <code>dev</code> needs <code>watchfiles</code> (the <code>hinoki-api[server]</code> extra) and uses one worker.</p>
 <h2 id="behind-a-reverse-proxy">Behind a reverse proxy<a class="headerlink" href="#behind-a-reverse-proxy" title="Permanent link">&para;</a></h2>
 <p><code>server.trusted_proxies</code> works as described in <a href="../web-security/#reverse-proxies-and-request-ids">Hosts, CORS and HTTPS</a>: the native layer matches the TCP peer against it for the request ID and the HSTS and scheme policy of its own answers, and the request pipeline resolves the forwarded scheme and client address of the requests it handles from the same peer. The rate limit of a natively served route resolves its client the same way, so <code>RateLimitContext.client</code> is the same on both lanes. Points to know:</p>
 <ul>
@@ -635,7 +635,7 @@ reloaded 4 workers (generation 2)
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

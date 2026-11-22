@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Release checklist · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="Release checklist · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://hinoki.caspel.dev/devstatic/og.png">
+  <meta property="og:image:alt" content="Hinoki: A Python API framework that checks its own architecture.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://hinoki.caspel.dev/devstatic/og.png">
+  <link rel="canonical" href="https://hinoki.caspel.dev/dev/release/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+      addEventListener("pagereveal", function (e) {
+        try {
+          if (e.viewTransition && sessionStorage.getItem("hn-section")) e.viewTransition.types.add("section");
+          sessionStorage.removeItem("hn-section");
+        } catch (err) {}
+      });
+    })();
+  </script>
+  <link rel="preload" href="../static/fonts/plex-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../static/fonts/ibm-plex-mono-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../static/fonts/ibm-plex-mono-latin-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../static/css/tokens.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/prose.css">
+  <link rel="stylesheet" href="../static/css/icons.css">
+  <link rel="stylesheet" href="../static/css/benchmarks.css">
+  <link rel="stylesheet" href="../static/css/changelog.css">
+  
+</head>
+
+<body class="is-doc" data-base="..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href=".." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip" data-project-stage>pre-alpha</span>
+      <div class="docs-version" data-docs-version hidden>
+        <button class="status-chip docs-version__trigger" type="button" data-docs-version-trigger aria-controls="docs-version-menu" aria-expanded="false" aria-label="Choose documentation version">
+          <span data-docs-version-current>dev</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <nav class="docs-version__menu" id="docs-version-menu" data-docs-version-menu aria-label="Documentation versions" hidden></nav>
+      </div>
+      <nav class="top__nav" aria-label="Sections">
+        
+          
+        
+          
+            <a class="top__link" href="../getting-started/"><span class="i i--rocket" aria-hidden="true"></span>Get started</a>
+          
+        
+          
+            <a class="top__link" href="../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span>Tutorial</a>
+          
+        
+          
+            <a class="top__link" href="../guides/"><span class="i i--book-open" aria-hidden="true"></span>Guides</a>
+          
+        
+          
+            <a class="top__link" href="../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span>Concepts</a>
+          
+        
+          
+            <a class="top__link" href="../reference/"><span class="i i--braces" aria-hidden="true"></span>Reference</a>
+          
+        
+          
+            <a class="top__link is-active" href="../status/" aria-current="true"><span class="i i--folder-git-2" aria-hidden="true"></span>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn top__repo" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+
+  <div class="shell">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title mobile-sheet__brand"><svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg><svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="Hinoki navigation"><use href="../static/hinoki-logo.svg#wordmark"/></svg></span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+              
+            
+              
+                <li><a class="side__link" href="../getting-started/"><span class="i i--rocket" aria-hidden="true"></span><span>Get started</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span><span>Tutorial</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../guides/"><span class="i i--book-open" aria-hidden="true"></span><span>Guides</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span><span>Concepts</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../reference/"><span class="i i--braces" aria-hidden="true"></span><span>Reference</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="../status/"><span class="i i--folder-git-2" aria-hidden="true"></span><span>Project</span></a></li>
+              
+            
+            <li class="side__repo"><a class="side__link" href="https://github.com/caspel26/hinoki"><svg class="side__gh" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg><span>GitHub</span></a></li>
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><span class="i i--folder-git-2" aria-hidden="true"></span>Project</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../status/"><span>Status</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../documentation-versions/"><span>Documentation versions</span></a></li>
+              
+            
+              
+                <li><a class="side__link side__link--external" href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" aria-label="Roadmap (opens in a new tab)"><span>Roadmap</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+              
+            
+              
+                <li><a class="side__link side__link--external" href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" aria-label="Contributing (opens in a new tab)"><span>Contributing</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../troubleshooting/"><span>Troubleshooting</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../toolchain/"><span>Toolchain and CI</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./" aria-current="page"><span>Release checklist</span></a></li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose">
+        <header class="page-head">
+          <p class="kicker" data-search-exclude><span class="i-tile"><span class="i i--folder-git-2 i--m" aria-hidden="true"></span></span><span>Project</span></p>
+          <h1 id="release-checklist">Release checklist<a class="headerlink" href="#release-checklist" title="Permanent link">&para;</a></h1>
+          
+          <p class="page-meta" data-search-exclude>
+            <span class="chip chip--implemented">implemented</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></span>
+            <span>2 min read</span>
+          </p>
+          
+        </header>
+        
+<p>How a Hinoki release is prepared. Nothing here runs by itself: the release
+build workflow produces files, and publishing them is a manual decision of the
+owner.</p>
+<h2 id="what-a-release-contains">What a release contains<a class="headerlink" href="#what-a-release-contains" title="Permanent link">&para;</a></h2>
+<p>The PyPI package is named <code>hinoki-api</code>; the module you import is <code>hinoki</code>
+(<code>pip install hinoki-api</code>, <code>import hinoki</code>). The <code>hinoki</code> name on PyPI belongs to
+an unrelated project.</p>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>Platforms</th>
+<th>Built by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>abi3 wheel (<code>cp312-abi3</code>)</td>
+<td>Linux x86_64 and aarch64 (manylinux 2014), macOS arm64 and x86_64</td>
+<td><code>release-build.yml</code></td>
+</tr>
+<tr>
+<td>Source distribution</td>
+<td>any (needs a Rust toolchain to install)</td>
+<td><code>release-build.yml</code></td>
+</tr>
+</tbody>
+</table>
+<p>Windows is not built. The native extension uses Unix sockets, so
+<code>pip install hinoki-api</code> on Windows falls back to the source distribution and
+stops at a compile error that points to WSL2. On Windows, install and run
+Hinoki inside WSL2.</p>
+<p>The release profile uses fat LTO with one codegen unit (<code>[profile.release]</code> in
+the workspace <code>Cargo.toml</code>), which makes the release build slower than a
+default one. Measure a build before relying on its duration.</p>
+<h2 id="before-the-release">Before the release<a class="headerlink" href="#before-the-release" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Run the checks of <a href="../toolchain/">Toolchain and CI</a> on <code>main</code>, including <code>cargo deny check</code>
+   and the full test suite.</li>
+<li>If the change can affect speed, compare at least five current benchmark
+   samples with a retained baseline (see <a href="../benchmarks/">Benchmarks</a>).</li>
+<li>Set the version, which must be the same in <code>pyproject.toml</code>
+   (<code>project.version</code>) and in the workspace <code>Cargo.toml</code>
+   (<code>workspace.package.version</code>), then run <code>uv lock</code> so <code>uv.lock</code> follows.</li>
+<li>In <code>CHANGELOG.md</code>, turn <code>Unreleased</code> into <code>[X.Y.Z] - date</code>.</li>
+<li>Update <a href="../status/">Status</a> and the <code>Pre-alpha, not released</code> notes in the
+   README if they no longer hold.</li>
+<li>Merge these changes by pull request.</li>
+</ol>
+<h2 id="build-and-inspect-the-artifacts">Build and inspect the artifacts<a class="headerlink" href="#build-and-inspect-the-artifacts" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Start <strong>Release build</strong> on <code>main</code> from the Actions tab (<code>workflow_dispatch</code>).
+   A tag that starts with <code>v</code> starts the same workflow.</li>
+<li>Wait for the four wheel jobs and the sdist job. Each wheel job installs its
+   wheel in a clean Python 3.12 environment and serves a minimal app with
+   <code>scripts/smoke_wheel.py</code>.</li>
+<li>Download the artifacts and check them locally:</li>
+</ol>
+<div class="language-sh highlight"><pre><span></span><code>gh<span class="w"> </span>run<span class="w"> </span>download<span class="w"> </span>RUN_ID<span class="w"> </span>--dir<span class="w"> </span>dist
+uvx<span class="w"> </span>twine<span class="w"> </span>check<span class="w"> </span>dist/*/*
+</code></pre></div>
+<h2 id="publish">Publish<a class="headerlink" href="#publish" title="Permanent link">&para;</a></h2>
+<p>The repository has no automated publishing and no PyPI credentials. Publishing
+is the owner's action:</p>
+<ol>
+<li>Upload <code>dist/*/*</code> to PyPI by the owner's chosen method (a project token or
+   trusted publishing configured for this repository).</li>
+<li>Install the published version in a clean environment and run
+   <code>python scripts/smoke_wheel.py</code> with that environment's interpreter.</li>
+<li>Tag the release <code>vX.Y.Z</code>. The tag must equal <code>project.version</code>: the
+   <code>release</code> job of <code>deploy-docs.yml</code> checks it and publishes the versioned
+   documentation (see <a href="../documentation-versions/">Documentation versions</a>).
+   The development documentation must be published first.</li>
+</ol>
+<h2 id="after-the-release">After the release<a class="headerlink" href="#after-the-release" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Create the GitHub release from the tag, with the <code>CHANGELOG.md</code> section as
+   its notes.</li>
+<li>Open a pull request that adds an empty <code>Unreleased</code> section to
+   <code>CHANGELOG.md</code>.</li>
+</ol>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../toolchain/">Toolchain and CI</a></li><li><a href="../documentation-versions/">Documentation versions</a></li></ul>
+        </aside>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../toolchain/"><small>Previous</small><span>Toolchain and CI</span></a>
+        
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#what-a-release-contains">What a release contains</a></li><li><a href="#before-the-release">Before the release</a></li><li><a href="#build-and-inspect-the-artifacts">Build and inspect the artifacts</a></li><li><a href="#publish">Publish</a></li><li><a href="#after-the-release">After the release</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/release.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <div class="foot__about">
+        <a class="foot__brand" href=".." aria-label="Hinoki home">
+          <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+          <svg class="brand__word" viewBox="0 0 655 184" aria-hidden="true"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+        </a>
+        <p class="foot__tagline">A Python API framework that checks its own architecture.</p>
+        <a class="foot__repo" href="https://github.com/caspel26/hinoki" target="_blank" rel="noopener noreferrer" aria-label="Hinoki on GitHub (opens in a new tab)"><span>Source on GitHub</span><span class="i i--external-link" aria-hidden="true"></span></a>
+      </div>
+      <nav aria-labelledby="foot-docs">
+        <p class="foot__title" id="foot-docs">Docs</p>
+        <ul>
+          
+            
+          
+            <li><a href="../getting-started/">Get started</a></li>
+          
+            <li><a href="../tutorial/">Tutorial</a></li>
+          
+            <li><a href="../guides/">Guides</a></li>
+          
+            
+          
+            <li><a href="../reference/">Reference</a></li>
+          
+            
+          
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-project">
+        <p class="foot__title" id="foot-project">Project</p>
+        <ul>
+          <li><a href="../status/">Status</a></li>
+          <li><a class="foot__ext" href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" aria-label="Roadmap (opens in a new tab)"><span>Roadmap</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+          <li><a class="foot__ext" href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" aria-label="Contributing (opens in a new tab)"><span>Contributing</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-legal">
+        <p class="foot__title" id="foot-legal">Legal</p>
+        <ul>
+          <li><a class="foot__ext" href="https://github.com/caspel26/hinoki/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" aria-label="Licence, MIT (opens in a new tab)"><span>Licence (MIT)</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+          <li><a href="../static/icons/lucide/LICENSE.txt">Lucide icons (ISC)</a></li>
+        </ul>
+      </nav>
+      <div class="foot__bottom">
+        <span class="foot__version">hinoki <span data-docs-version-footer>v0.0.1</span> <span class="chip">pre-alpha</span></span>
+        <span>© 2026 caspel26</span>
+      </div>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://hinoki.caspel.dev/dev" };</script>
+  <script src="../static/js/hinoki.js" defer></script>
+  
+  
+  
+</body>
+</html>

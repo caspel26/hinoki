@@ -518,7 +518,12 @@
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>🧾 XML responses written in Rust</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>📦 Release build and package name</h4>
+<blockquote>
+<p><code>pyproject.toml</code>, <code>crates/bindings/src/lib.rs</code>, <code>.github/workflows/release-build.yml</code>, <code>scripts/smoke_wheel.py</code>, <code>python/hinoki/scaffold.py</code>, <code>python/hinoki/serve.py</code>, <code>docs/release.md</code></p>
+</blockquote>
+<p>The PyPI package is now named <code>hinoki-api</code> (the module is still <code>import hinoki</code>, the command still <code>hinoki</code>), because the <code>hinoki</code> name belongs to an unrelated project. Generated projects depend on <code>hinoki-api[server]</code> and name it under <code>[tool.uv.sources]</code>. A new <code>Release build</code> workflow builds manylinux x86_64/aarch64 and macOS arm64/x86_64 wheels and the sdist, smoke-tests each wheel and keeps them as artifacts; it publishes nothing. Windows is not supported natively: building the extension there stops with a message that points to WSL2. <code>docs/release.md</code> is the release checklist.</p>
+<h4>🧾 XML responses written in Rust</h4>
 <blockquote>
 <p><code>crates/bindings/src/xml_encode.rs</code>, <code>python/hinoki/renderers.py</code>, <code>python/hinoki/core.pyi</code>, <code>docs/codecs.md</code></p>
 </blockquote>
