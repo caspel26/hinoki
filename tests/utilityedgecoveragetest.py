@@ -140,6 +140,8 @@ def test_module_context_detects_a_mistyped_registry_entry() -> None:
 def test_runtime_config_rejects_nonpositive_body_and_invalid_limits() -> None:
     with pytest.raises(ValueError, match="sync_workers"):
         RuntimeConfig(sync_workers=0)
+    with pytest.raises(ValueError, match="max_streams"):
+        RuntimeConfig(max_streams=0)
     with pytest.raises(ValueError, match="max_body_bytes"):
         RuntimeConfig(max_body_bytes=0)
     with pytest.raises(ValueError, match="max_query_bytes"):

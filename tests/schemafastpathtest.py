@@ -346,3 +346,22 @@ def test_a_custom_native_schema_or_specs_is_not_bypassed() -> None:
     Respecced(n=1)
     assert "native_schema" in seen
     assert seen.count("specs") >= 2  # construction itself asks for them
+
+
+class FractionalCount(Schema):
+    count: Annotated[int, Field(ge=0.5)]
+
+
+class BoundedRatio(Schema):
+    ratio: Annotated[float, Field(le=0.5)]
+
+
+def test_bounds_the_check_cannot_compare_exactly_still_refuse_values_outside_them() -> (
+    None
+):
+    assert FractionalCount(count=1).count == 1
+    assert BoundedRatio(ratio=0.25).ratio == 0.25
+    with pytest.raises(ValidationError):
+        FractionalCount(count=0)
+    with pytest.raises(ValidationError):
+        BoundedRatio(ratio=0.75)

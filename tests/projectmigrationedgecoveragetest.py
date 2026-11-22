@@ -15,6 +15,7 @@ from hinoki.db import Database
 from hinoki.errors import MigrationError
 from hinoki.orm import Model, field, pk
 from hinoki.project import ProjectApp, ProjectError, ProjectManifest
+from hinoki.settings import DatabaseSettings
 
 
 def _manifest(root: Path, apps: tuple[ProjectApp, ...] = ()) -> ProjectManifest:
@@ -422,3 +423,43 @@ def test_plan_project_sees_constraint_names_of_unrelated_apps(
     args = argparse.Namespace(app="billing")
     with pytest.raises(MigrationError, match=r"uq_shared_pair.*pp_invoices"):
         projectmigrations.plan_project(args, manifest)
+
+
+def test_the_default_local_database_is_not_a_declared_application_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    app = SimpleNamespace(settings=SimpleNamespace(database=DatabaseSettings()))
+    monkeypatch.setattr(projectmigrations, "build_app", lambda _target: app)
+    monkeypatch.delenv(projectmigrations.URL_VARIABLE, raising=False)
+    database = projectmigrations.migration_database(
+        argparse.Namespace(database=None), manifest
+    )
+    assert database.source == projectmigrations.DEFAULT_SOURCE
+
+
+def test_plan_project_takes_the_dialect_from_the_resolved_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Note(Model, table="pp_dialect_notes"):
+        id: int = pk()
+        text: str = field(max_length=20, default="")
+
+    apps = (ProjectApp("notes", "sample.notes", "notes_migrations", ()),)
+    manifest = _manifest(tmp_path, apps)
+    directory = tmp_path / "migrations"
+    directory.mkdir()
+    monkeypatch.setattr(ProjectManifest, "all_models", lambda _self: {"notes": [Note]})
+    monkeypatch.setattr(
+        ProjectManifest, "migration_directories", lambda _self: {"notes": directory}
+    )
+    args = argparse.Namespace(
+        app="notes",
+        name=None,
+        database="sqlite:///" + str(tmp_path / "d.db"),
+        allow_destructive=False,
+        check=False,
+        dry_run=True,
+    )
+    result = projectmigrations.plan_project(args, manifest)
+    assert len(result.operations) == 1

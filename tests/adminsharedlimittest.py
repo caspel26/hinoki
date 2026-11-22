@@ -123,3 +123,22 @@ async def test_concurrent_checks_never_pass_more_than_the_limit(
 async def test_accounts_accept_the_shared_policy(database: Database) -> None:
     shared = DatabaseLoginWindow(limit=1, clock=Clock())
     assert AdminAccounts(login_limit=shared).login_limit is shared
+
+
+async def test_a_swap_that_keeps_losing_refuses_the_attempt(
+    database: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    policy = DatabaseLoginWindow(limit=5, window=60, clock=Clock())
+    tries: list[str] = []
+
+    async def lost(key: str, now: datetime, limit: int) -> bool:
+        tries.append(key)
+        return False
+
+    monkeypatch.setattr(policy, "count", lost)
+
+    with pytest.raises(errors.TooManyRequests) as refused:
+        await policy.check(context("203.0.113.1"))
+
+    assert len(tries) == DatabaseLoginWindow.ATTEMPTS
+    assert refused.value.retry_after == 1

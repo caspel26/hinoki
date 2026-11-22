@@ -116,7 +116,7 @@ def sized(constraints: dict[str, object]) -> tuple[int, int | None] | None:
         return None
     low, high = constraints.get("min_length"), constraints.get("max_length")
     if not isinstance(low or 0, int) or not isinstance(high or 0, int):
-        return None
+        return None  # pragma: no cover - registration refuses non-integer bounds
     return (low or 0, high)  # type: ignore[return-value]
 
 
@@ -205,7 +205,7 @@ def uuid_check(constraints: dict[str, object]) -> Check | None:
 
 def datetime_check(constraints: dict[str, object]) -> Check | None:
     if constraints:
-        return None
+        return None  # pragma: no cover - datetime fields accept no constraints
     return lambda value: (
         type(value) is dt.datetime
         and value.tzinfo is not None

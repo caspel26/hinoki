@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import enum
+import sys
+import types
 import typing
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any, cast
 from uuid import uuid4
 
 import pytest
@@ -16,9 +19,11 @@ from hinoki import (
     Invalid,
     Schema,
     Unset,
+    before_validate,
     field_check,
     field_normalize,
 )
+from hinoki import schema as schema_module
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.fieldtypes import FieldType
 from hinoki.schema import (
@@ -26,29 +31,42 @@ from hinoki.schema import (
     _MAX_INSTANCE_DEPTH,
     _TRUSTED_CONSTRUCTOR,
     FieldSpec,
+    _declared_annotations,
+    _is_class_var,
     allocate_schema_instance,
     annotation_is_str,
     chosen_columns,
     encode,
     encode_items,
+    fixed_instance_value,
     from_row,
     instance_error,
     list_instance_value,
+    member_accepts,
+    member_key,
     merge_alias,
+    native_replace,
     nested_instance_value,
     normalize_selector,
     plain,
     prepare_normalized_values,
+    prepare_value,
     resolve_schema_config,
     run_checks,
     schema_instance_values,
+    sorted_items,
     stop_awaitable,
     tagged_union_instance_value,
+    text_native,
+    type_accepts,
+    type_reaches_before,
+    typed_entries,
     typed_instance_value,
     uses_generated_init,
     validate_aliases,
     validate_normalizer_method,
     validate_reserved_names,
+    variant_accepts,
     walk_model_schema,
     walk_model_value,
 )
@@ -509,3 +527,154 @@ def test_unset_nested_schema_values_do_not_create_exported_fields() -> None:
     instance = object.__new__(Patch)
     object.__setattr__(instance, "value", UNSET)
     assert schema_instance_values(Patch, instance) == {}
+
+
+class Shade(enum.Enum):
+    DARK = "dark"
+
+
+class Hooked(Schema):
+    kind: Annotated[str, Field(one_of=("hooked",))]
+    name: str
+
+    @before_validate
+    @classmethod
+    def trim(cls, data: dict[str, Any]) -> dict[str, Any]:
+        return {**data, "name": str(data.get("name", "")).strip()}
+
+
+class Plain(Schema):
+    kind: Annotated[str, Field(one_of=("plain",))]
+
+
+class Holder(Schema):
+    pair: tuple[Hooked, int]
+    union: Annotated[Hooked | Plain, Field(discriminator="kind")]
+    choice: int | str
+    anything: Any
+    shade: Shade
+    maybe: int | None
+    tags: tuple[int, str]
+
+
+def test_instance_checks_follow_each_kind_of_field_type() -> None:
+    specs = Holder.specs()
+    anything, maybe = specs["anything"].ftype, specs["maybe"].ftype
+    assert variant_accepts(anything, object())
+    assert variant_accepts(maybe, None)
+    assert not variant_accepts(specs["choice"].ftype, None)
+    assert type_accepts(specs["choice"].ftype, "x")
+    assert not type_accepts(specs["choice"].ftype, 1.5)
+    assert type_accepts(specs["union"].ftype, Plain(kind="plain"))
+    assert not type_accepts(specs["union"].ftype, "plain")
+    assert member_accepts(specs["shade"].ftype, Shade.DARK)
+    assert not member_accepts(specs["shade"].ftype, "dark")
+
+
+def test_a_fixed_tuple_instance_is_bounded_in_depth() -> None:
+    ftype = Holder.specs()["tags"].ftype
+    with pytest.raises(ValidationError) as error:
+        fixed_instance_value(
+            ftype, (1, "a"), False, set(), _MAX_INSTANCE_DEPTH + 1, "p"
+        )
+    assert error.value.details[0].message == "input is nested too deeply"
+
+
+def test_before_hooks_reach_tuple_members_and_discriminated_variants() -> None:
+    specs = Holder.specs()
+    pair = prepare_value(
+        specs["pair"].ftype, [{"kind": "hooked", "name": " a "}, 1], "", 0
+    )
+    assert pair == [{"kind": "hooked", "name": "a"}, 1]
+    union = specs["union"].ftype
+    assert prepare_value(union, {"kind": "hooked", "name": " b "}, "", 0) == {
+        "kind": "hooked",
+        "name": "b",
+    }
+    assert prepare_value(union, "text", "", 0) == "text"
+    unknown = {"kind": "other", "name": " c "}
+    assert prepare_value(union, unknown, "", 0) is unknown
+    assert prepare_value(specs["pair"].ftype, "text", "", 0) == "text"
+    assert type_reaches_before(union)
+    assert not type_reaches_before(specs["choice"].ftype)
+
+
+def test_a_plain_union_without_hooks_passes_input_through_the_hook_walk() -> None:
+    ftype = Holder.specs()["choice"].ftype
+    assert prepare_value(ftype, "x", "", 0) == "x"
+
+
+def test_typed_entries_follow_plain_unions_and_fixed_tuples() -> None:
+    specs = Holder.specs()
+    choice = specs["choice"].ftype
+    [(chosen, path, value)] = typed_entries(choice, "x", "f")
+    assert (chosen.kind, path, value) == ("str", "f", "x")
+    assert typed_entries(choice, 1.5, "f") == []
+    entries = typed_entries(specs["tags"].ftype, (1, "a"), "t")
+    assert [(path, item) for _, path, item in entries] == [("t[0]", 1), ("t[1]", "a")]
+    assert typed_entries(specs["tags"].ftype, (1,), "t") == []
+    assert typed_entries(specs["tags"].ftype, [1, "a"], "t") == []
+
+
+def test_set_members_are_ordered_by_tuple_contents_or_kept_when_unsortable() -> None:
+    assert member_key((2, 1)) == (3, (member_key(2), member_key(1)))
+    assert sorted_items({(2, "b"), (1, "z")}) == [(1, "z"), (2, "b")]
+    unorderable = {1j, 2j}
+    assert sorted_items(unorderable) == list(unorderable)
+
+
+def test_a_forward_reference_to_a_class_variable_is_not_a_field() -> None:
+    assert _is_class_var(typing.ForwardRef("ClassVar[int]"))
+    assert not _is_class_var(typing.ForwardRef("int"))
+
+
+def test_lazy_annotations_are_read_through_annotationlib(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = types.ModuleType("annotationlib")
+    fake.Format = types.SimpleNamespace(FORWARDREF="forwardref")  # type: ignore[attr-defined]
+    fake.call_annotate_function = lambda annotate, fmt: {"x": (annotate, fmt)}  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "annotationlib", fake)
+
+    def annotate(format: int) -> dict[str, object]:
+        return {}
+
+    assert _declared_annotations({"__annotate__": annotate}) == {
+        "x": (annotate, "forwardref")
+    }
+    assert _declared_annotations({}) == {}
+
+
+def test_a_schema_with_a_duplicate_base_reports_the_python_error() -> None:
+    with pytest.raises(TypeError, match="duplicate base class"):
+        type("Twice", (Schema, Schema), {"__annotations__": {"value": int}})
+
+
+def test_text_validation_stays_in_python_when_the_native_check_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Fresh(Schema):
+        value: int
+
+    def broken(_cls: object) -> object:
+        raise RuntimeError("native build failed")
+
+    monkeypatch.setattr(schema_module, "native_validator", broken)
+    assert text_native(Fresh) is False
+
+
+def test_a_replace_without_a_native_copy_uses_the_python_path() -> None:
+    class Lacking:
+        @classmethod
+        def native_schema(cls) -> object:
+            return object()
+
+    assert native_replace(cast(Any, Lacking()), {"value": 2}) is None
+
+
+def test_dumping_by_alias_with_an_empty_list_exclusion_matches_the_fast_dump() -> None:
+    class Aliased(Schema):
+        user_id: Annotated[int, Field(alias="userId")]
+
+    item = Aliased(user_id=3)
+    assert item.dump(by_alias=True, exclude=[]) == {"userId": 3}

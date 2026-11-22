@@ -283,3 +283,14 @@ def test_routes_with_middleware_leave_the_native_lane() -> None:
 def test_middleware_must_have_an_async_call(bad: object) -> None:
     with pytest.raises(TypeError, match="async def __call__"):
         Hinoki(middleware=[bad])  # type: ignore[list-item]
+
+
+async def test_the_base_middleware_passes_the_request_through() -> None:
+    @http.get("/bare", middleware=[Middleware()])
+    async def bare() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    app = Hinoki()
+    app.include(bare)
+    async with ASGIClient(app) as client:
+        assert (await client.get("/bare")).body == {"ok": "yes"}

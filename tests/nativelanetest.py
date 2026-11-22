@@ -3,12 +3,14 @@ task. The asyncio path (``native_dispatch=False``) is the oracle: both must
 answer every request alike."""
 
 import asyncio
+import contextvars
 import os
 import re
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, ClassVar
+from types import SimpleNamespace
+from typing import Any, ClassVar, cast
 
 import pytest
 
@@ -24,6 +26,7 @@ from hinoki import (
     RateLimitContext,
     RuntimeConfig,
     Schema,
+    core,
     http,
 )
 from hinoki.context import request_id
@@ -35,7 +38,14 @@ from hinoki.orm.options import table
 from hinoki.orm.relations import Related
 from hinoki.routescli import lanes_of
 from hinoki.runtime.kiso import KisoWorker
-from hinoki.runtime.nativelane import lane_refusal, resume
+from hinoki.runtime.nativelane import (
+    NativeLane,
+    Run,
+    lane_refusal,
+    resume,
+    timeout_response,
+)
+from hinoki.runtime.responses import Response
 from hinoki.runtime.servercore import stock_owner
 from tests.kisoservertest import Received, fetch
 from tests.providers import TokenAuth
@@ -850,3 +860,224 @@ async def test_cancelling_a_resumed_coroutine_runs_its_cleanup() -> None:
     with pytest.raises(asyncio.CancelledError):
         await task
     assert cleaned.is_set()
+
+
+class FakeRequest:
+    """What a lane needs of a prepared request, recording how it was answered."""
+
+    def __init__(self, request_id: str = "rid", id_ignored: bool = False) -> None:
+        self.request_id = request_id
+        self.id_ignored = id_ignored
+        self.action = 1
+        self.native_handler = True
+        self.native_error = None
+        self.native_args = ()
+        self.answers: list[int] = []
+        self.refuse_answer = False
+
+    def respond_final(self, status: int, headers: Any, body: bytes) -> None:
+        if self.refuse_answer:
+            raise OSError("peer gone")
+        self.answers.append(status)
+
+
+class FakePipeline:
+    def __init__(self) -> None:
+        self.bindings = {1: SimpleNamespace()}
+        self.app = SimpleNamespace(runtime=SimpleNamespace(request_timeout=None))
+        self.failure: Response | Exception | None = None
+        self.gate: asyncio.Event | None = None
+
+    def native_context(self, _rid: str) -> contextvars.Context:
+        return contextvars.copy_context()
+
+    def drive_native(self, *_args: Any) -> None:
+        return None
+
+    def native_failure_now(self, _error: Exception, _rid: str) -> Response | None:
+        if isinstance(self.failure, Exception):
+            raise self.failure
+        return self.failure
+
+    async def native_failure(self, _error: Exception, _rid: str) -> Response:
+        if isinstance(self.failure, Exception):
+            raise self.failure
+        return Response(500)
+
+    async def native_continue(self, *_args: Any) -> Response:
+        if self.gate is not None:
+            await self.gate.wait()
+        if isinstance(self.failure, Exception):
+            raise self.failure
+        return Response(204)
+
+
+def make_lane() -> tuple[NativeLane, FakePipeline, list[FakeRequest]]:
+    failed: list[FakeRequest] = []
+    pipeline = FakePipeline()
+    lane = NativeLane(
+        cast("Any", pipeline),
+        frozenset(),
+        set(),
+        cast("Any", failed.append),
+        lambda _r: cast("Any", None),
+    )
+    lane.actions = frozenset({1})
+    return lane, pipeline, failed
+
+
+def run_of(lane: NativeLane, request: FakeRequest) -> Run:
+    run = Run(
+        cast("Any", request), cast("Any", SimpleNamespace()), contextvars.copy_context()
+    )
+    lane.runs.add(run)
+    return run
+
+
+def test_a_timeout_answers_504() -> None:
+    assert timeout_response().status == 504
+
+
+async def test_a_handler_that_returns_no_response_fails_the_request(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    lane, _pipeline, failed = make_lane()
+    request = FakeRequest()
+    run = run_of(lane, request)
+    lane._finish(run, "not a response", None, None)
+    assert failed == [request] and not lane.runs
+    assert "returned no response" in caplog.text
+
+
+async def test_a_handler_ending_with_a_base_exception_fails_the_request() -> None:
+    lane, _pipeline, failed = make_lane()
+    request = FakeRequest()
+    lane._finish(run_of(lane, request), None, SystemExit(3), None)
+    assert failed == [request] and request.answers == []
+
+
+async def test_a_deadline_answers_504_and_a_shutdown_cancel_answers_nothing() -> None:
+    lane, _pipeline, failed = make_lane()
+    late, cancelled = FakeRequest(), FakeRequest()
+    lane._finish(run_of(lane, late), None, asyncio.CancelledError(), "deadline")
+    lane._finish(run_of(lane, cancelled), None, asyncio.CancelledError(), "cancelled")
+    assert late.answers == [504]
+    assert cancelled.answers == [] and failed == []
+
+
+async def test_an_error_is_answered_in_place_or_translated_in_a_task() -> None:
+    lane, pipeline, failed = make_lane()
+    now, later = FakeRequest(), FakeRequest()
+    pipeline.failure = Response(418)
+    lane._finish(run_of(lane, now), None, ValueError("x"), None)
+    assert now.answers == [418]
+    pipeline.failure = None
+    lane._finish(run_of(lane, later), None, ValueError("x"), None)
+    await asyncio.gather(*lane.tasks)
+    assert later.answers == [500] and failed == []
+
+
+async def test_an_error_translation_that_itself_fails_fails_the_request(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    lane, pipeline, failed = make_lane()
+    in_place, in_task = FakeRequest(), FakeRequest()
+    pipeline.failure = RuntimeError("translator broke")
+    lane._finish(run_of(lane, in_place), None, ValueError("x"), None)
+    assert failed == [in_place] and "could not be translated" in caplog.text
+    pipeline.failure = RuntimeError("translator broke")
+    task = asyncio.ensure_future(
+        lane._translate(run_of(lane, in_task), ValueError("x"))
+    )
+    await task
+    assert failed == [in_place, in_task]
+
+
+async def test_an_answer_the_peer_cannot_take_fails_the_request(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    lane, _pipeline, failed = make_lane()
+    request = FakeRequest()
+    request.refuse_answer = True
+    lane._respond(run_of(lane, request), Response(200))
+    assert failed == [request] and "could not be answered" in caplog.text
+
+
+async def test_a_completion_from_another_thread_is_finished_on_the_loop() -> None:
+    lane, _pipeline, _failed = make_lane()
+    request = FakeRequest()
+    run = run_of(lane, request)
+    seen: list[Any] = []
+    lane._finish = lambda *args: seen.append(args)  # type: ignore[method-assign]
+    await asyncio.to_thread(lane._done, run, Response(200), None, None)
+    await asyncio.sleep(0)
+    assert len(seen) == 1 and seen[0][0] is run
+
+
+async def test_a_handover_from_another_thread_continues_on_the_loop() -> None:
+    lane, pipeline, failed = make_lane()
+    pipeline.gate = asyncio.Event()
+    request = FakeRequest()
+    run = run_of(lane, request)
+
+    async def parked() -> None:
+        return None
+
+    coro = parked()
+    handover = (coro, contextvars.copy_context(), None, 1.0, "cancelled")
+    await asyncio.to_thread(lane._foreign, run, *handover)
+    await asyncio.sleep(0)
+    assert len(lane.unwinding) == 1 and run not in lane.runs
+    pipeline.gate.set()
+    await asyncio.gather(*lane.tasks)
+    assert request.answers == [204] and not lane.unwinding and failed == []
+    coro.close()
+
+
+async def test_a_handover_whose_continuation_fails_fails_the_request() -> None:
+    lane, pipeline, failed = make_lane()
+    request = FakeRequest()
+    pipeline.failure = RuntimeError("broken")
+    await lane._answer(run_of(lane, request), pipeline.native_continue())
+    assert failed == [request]
+
+
+async def test_shutdown_cancels_every_driven_handler_and_waits_for_them() -> None:
+    lane, _pipeline, _failed = make_lane()
+    cancelled: list[str] = []
+    started = run_of(lane, FakeRequest("a"))
+    started.handle = cast("Any", SimpleNamespace(cancel=lambda: cancelled.append("a")))
+    run_of(lane, FakeRequest("b"))
+    lane.cancel_all()
+    assert cancelled == ["a"]
+
+    async def unwind() -> None:
+        await asyncio.sleep(0.01)
+        lane.runs.clear()
+
+    unwinder = asyncio.ensure_future(unwind())
+    await asyncio.wait_for(lane.drain(), timeout=5)
+    await unwinder
+
+
+async def test_a_request_with_an_ignored_id_is_logged_and_a_failed_start_unregisters(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    lane, _pipeline, _failed = make_lane()
+
+    def refuse(*_args: Any) -> None:
+        raise RuntimeError("no handle")
+
+    monkeypatch.setattr(core, "run_native", refuse)
+    with pytest.raises(RuntimeError, match="no handle"):
+        lane.start(cast("Any", FakeRequest(id_ignored=True)))
+    assert not lane.runs and "ignored invalid request ID" in caplog.text
+
+
+def test_closing_a_resumed_coroutine_closes_the_coroutine() -> None:
+    closed: list[bool] = []
+    coro = SimpleNamespace(close=lambda: closed.append(True))
+    generator = resume(coro, "yielded")
+    assert next(generator) == "yielded"
+    generator.close()
+    assert closed == [True]

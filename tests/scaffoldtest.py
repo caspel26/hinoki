@@ -1,28 +1,55 @@
 """``python -m hinoki new`` and the explain_error MCP tool."""
 
 import argparse
+import contextlib
 import io
+import itertools
 import json
 import os
+import pty
 import re
 import subprocess
 import sys
+import termios
+import threading
 import tomllib
+import types
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from hinoki import newcli
+from hinoki import appprompts, newcli, terminal
 from hinoki.__main__ import main
 from hinoki.ai.errorcatalog import CATALOG, explain
 from hinoki.ai.mcp import DevProject, Server
+from hinoki.appprompts import name_check, prefix_check, report_app, requires_check
 from hinoki.newcli import fill_from_prompts
+from hinoki.project import ProjectError
 from hinoki.projectcli import create_app as create_project_app
-from hinoki.prompts import Prompter, tokens
+from hinoki.prompts import (
+    Choice,
+    Confirm,
+    Prompter,
+    Text,
+    keys_available,
+    raw_keys,
+    read_keys,
+    tokens,
+)
 from hinoki.rules import RuleSet
 from hinoki.scaffold import ScaffoldError, create, files
-from hinoki.terminal import ANSI, Style
+from hinoki.terminal import (
+    ANSI,
+    CLEAR_LINE,
+    RESET,
+    TAGLINE,
+    Style,
+    elapsed,
+    fit,
+    shown_path,
+)
 from tests.projects.rulesapp import create_app, rules
 
 
@@ -794,3 +821,285 @@ def test_a_bad_app_flag_is_refused_before_anything_is_created(
 def test_the_app_flags_exclude_each_other(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         main(["new", "shop", "--app", "posts", "--no-app", "--dir", str(tmp_path)])
+
+
+FANCY = Style(color=True, unicode=True, depth="truecolor")
+
+
+def plain(text: str) -> str:
+    return re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", text)
+
+
+def test_names_are_checked_before_an_app_is_created() -> None:
+    assert newcli.check_name("") == "a project name is required"
+    check = name_check(["blog"])
+    assert check("") == "an app name is required"
+    assert check("blog") == "app 'blog' is already registered"
+    assert check("my-app") is not None and check("posts") is None
+    assert prefix_check("posts") is not None and prefix_check("/posts/") is not None
+    assert prefix_check("/posts") is None
+    assert requires_check(["blog"])("blog, shop, x") == "unknown app: shop, x"
+    assert requires_check(["blog"])(" , ") is None
+
+
+def test_the_app_report_lists_its_files_and_the_next_step() -> None:
+    created = Path("shop/apps/posts")
+    lines = report_app(FANCY, "posts", created, Path("hinoki.toml"), "", ("blog",))
+    shown = plain("\n".join(lines))
+    assert "Created app posts" in shown and "mounted at /posts, requires blog" in shown
+    assert "migrations/" in shown and "registered app posts" in shown
+    assert "uv run hinoki migrations plan" in shown
+    quiet = report_app(
+        FANCY, "posts", created, Path("hinoki.toml"), "/p", (), next_steps=False
+    )
+    assert "mounted at /p" in plain("\n".join(quiet))
+    assert "migrations plan" not in "\n".join(quiet)
+
+
+def test_the_app_questions_are_asked_with_keys_on_a_terminal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    @contextlib.contextmanager
+    def typed(_out: Any) -> Iterator[Iterator[str]]:
+        yield tokens("posts\r\r\r")
+
+    monkeypatch.setattr(appprompts, "keys_available", lambda: True)
+    monkeypatch.setattr(appprompts, "raw_keys", typed)
+    monkeypatch.setattr(appprompts, "show_banner", lambda *_args: None)
+    manifest = argparse.Namespace(apps=[argparse.Namespace(name="blog")])
+    args = argparse.Namespace(name=None, prefix=None, requires=None)
+    assert appprompts.ask_app(args, manifest, answers(), FANCY) == 0  # type: ignore[arg-type]
+    assert (args.name, args.prefix, args.requires) == ("posts", "/posts", "")
+    assert "Prefix" in plain(capsys.readouterr().out)
+
+
+def test_the_project_summary_shows_key_files_and_next_steps(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = create("shop", tmp_path)
+    newcli.report_created(FANCY, target, "shop")
+    shown = plain(capsys.readouterr().out)
+    assert "Created shop" in shown and "hinoki.toml" in shown and "tests/" in shown
+    steps = plain("\n".join(newcli.next_steps(FANCY, target, False, 1.5)))
+    assert "uv sync" in steps and "add an app" in steps and "1.5s" in steps
+    done = plain("\n".join(newcli.next_steps(FANCY, target, True, 0.2, app="posts")))
+    assert "uv sync" not in done and "add an app" not in done
+    assert "200ms" in done
+
+
+def test_cancelling_reads_differently_with_and_without_colour() -> None:
+    assert "Cancelled" in plain(newcli.cancelled(FANCY))
+    assert "cancelled; nothing was created" in newcli.cancelled(Style())
+
+
+def test_a_successful_setup_command_reports_how_long_it_took(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    command = [sys.executable, "-c", "pass"]
+    assert newcli.run_tool(command, tmp_path, FANCY)
+    assert "-c pass" in plain(capsys.readouterr().out)
+
+
+def test_the_banner_shimmers_on_an_animated_terminal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("hinoki.terminal.time.sleep", lambda _seconds: None)
+    animated = Style(color=True, unicode=True, depth="truecolor", animated=True)
+    newcli.show_banner(animated)
+    shown = plain(capsys.readouterr().out)
+    assert "new project" in shown and "esc to cancel" in shown
+
+
+def test_key_prompts_run_on_a_terminal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    @contextlib.contextmanager
+    def typed(_out: Any) -> Iterator[Iterator[str]]:
+        yield tokens("shop\r\r\r\r\r\r\r\rn\r")
+
+    monkeypatch.setattr(newcli, "keys_available", lambda: True)
+    monkeypatch.setattr(newcli, "raw_keys", typed)
+    args = new_args()
+    newcli.ask_everything(args, answers(), FANCY)
+    assert args.name == "shop"
+    assert "Name" in plain(capsys.readouterr().out)
+
+
+def test_a_failed_first_app_leaves_the_project_and_says_how_to_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def refuse(_name: str, _start: Path | None = None, **_options: Any) -> Path:
+        raise ProjectError("no manifest")
+
+    monkeypatch.setattr("hinoki.projectcli.create_app", refuse)
+    assert not newcli.create_first_app(Style(), tmp_path, "posts")
+    err = capsys.readouterr().err
+    assert "no manifest" in err and "hinoki app create posts" in err
+
+
+def test_a_project_is_not_built_when_its_first_app_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(newcli, "create_first_app", lambda *_args: False)
+    args = new_args(name="shop", dir=str(tmp_path), app="posts")
+    assert newcli.build_project(args, Style()) is None
+
+
+def test_keys_are_decoded_across_a_split_character() -> None:
+    reader, writer = os.pipe()
+    try:
+        os.write(writer, "é".encode()[:1])
+        os.write(writer, "é".encode()[1:] + b"\x1b[A")
+        os.close(writer)
+        assert list(read_keys(reader)) == ["é", "up"]
+    finally:
+        os.close(reader)
+
+
+def test_raw_keys_reads_single_keys_and_restores_the_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    master, slave = pty.openpty()
+    out = io.StringIO()
+    try:
+        with os.fdopen(slave, "r", closefd=False) as stdin:
+            monkeypatch.setattr(sys, "stdin", stdin)
+            assert keys_available()
+            with raw_keys(out) as keys:
+                os.write(master, b"ab\x1b[A")
+                assert list(itertools.islice(keys, 3)) == ["a", "b", "up"]
+                assert not termios.tcgetattr(slave)[3] & termios.ICANON
+            assert termios.tcgetattr(slave)[3] & termios.ICANON
+        assert out.getvalue() == "\x1b[?25l\x1b[?25h"
+    finally:
+        os.close(master)
+        os.close(slave)
+
+
+class OneLine:
+    summary = "one"
+
+    def __init__(self) -> None:
+        self.seen: list[str] = []
+
+    def render(self, style: Style) -> list[str]:
+        return ["line"]
+
+    def handle(self, key: str) -> bool:
+        self.seen.append(key)
+        return key == "enter"
+
+    def value(self) -> str:
+        return "".join(self.seen)
+
+
+def test_a_one_line_widget_is_redrawn_from_the_start_of_its_line() -> None:
+    prompter, out = keyed("a\r")
+    assert prompter.run(OneLine()) == "aenter"
+    assert out.getvalue().count("\r") == 1
+
+
+def test_ctrl_d_ends_the_input() -> None:
+    prompter, _out = keyed("a\x04")
+    with pytest.raises(EOFError):
+        prompter.run(OneLine())
+    prompter, _out = keyed("a")
+    with pytest.raises(EOFError):
+        prompter.run(OneLine())
+
+
+def test_widgets_answer_to_clear_digits_and_arrows() -> None:
+    text = Text("Name", "Name", "dflt", lambda _text: None)
+    for key in ("a", "b", "clear"):
+        text.handle(key)
+    assert text.value() == "dflt"
+    choice = Choice("Pick", "Pick", [("a", ""), ("b", ""), ("c", "")], "a")
+    choice.handle("3")
+    assert choice.value() == "c"
+    choice.handle("9")
+    assert choice.value() == "c"
+    confirm = Confirm("Sure", "Sure", True)
+    confirm.handle("left")
+    assert confirm.value() == "no"
+    confirm.handle("Y")
+    assert confirm.value() == "yes"
+
+
+def test_a_long_line_is_cut_to_the_width_keeping_its_colours() -> None:
+    cut = fit("\x1b[1mhello world\x1b[0m", 6)
+    assert plain(cut) == "hello\u2026"
+    assert cut.startswith("\x1b[1m") and cut.endswith(RESET)
+    assert fit("short", 20) == "short"
+
+
+def test_durations_show_milliseconds_below_a_second_and_seconds_above() -> None:
+    assert elapsed(0.2) == "200ms" and elapsed(2.34) == "2.3s"
+
+
+def test_the_tagline_can_carry_a_glint_and_a_detail() -> None:
+    assert plain(FANCY.tagline("v1")) == f"{TAGLINE}  v1"
+    glinted = FANCY.tagline("", glint=3)
+    assert plain(glinted) == TAGLINE and glinted != FANCY.tagline("")
+
+
+def test_questions_and_headings_are_marked_on_a_coloured_terminal() -> None:
+    assert plain(FANCY.question("Name", "x")).strip().startswith("? Name [x]")
+    assert plain(FANCY.heading("Name")).strip() == "? Name"
+    assert Style().question("Name", "") == "Name: "
+    assert Style().intro("t") == ""
+
+
+class StepEvent:
+    """An ``Event`` whose wait times out twice, then reports the set flag."""
+
+    def __init__(self) -> None:
+        self.waits = 0
+
+    def wait(self, _timeout: float) -> bool:
+        self.waits += 1
+        return self.waits > 2
+
+    def set(self) -> None:
+        return None
+
+
+def test_the_spinner_draws_frames_and_clears_its_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        terminal,
+        "threading",
+        types.SimpleNamespace(Event=StepEvent, Thread=threading.Thread),
+    )
+    out = io.StringIO()
+    animated = Style(color=True, unicode=True, animated=True)
+    with animated.spinner("work", out):
+        pass
+    drawn = out.getvalue()
+    assert drawn.count("work") == 2 and drawn.startswith("\x1b[?25l")
+    assert drawn.endswith(f"\r{CLEAR_LINE}\x1b[?25h")
+
+
+def test_the_app_questions_fall_back_to_lines_and_can_be_cancelled(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(appprompts, "show_banner", lambda *_args: None)
+    manifest = argparse.Namespace(apps=[])
+    args = argparse.Namespace(name=None, prefix=None, requires=None)
+    asked = answers("posts", "")
+    assert appprompts.ask_app(args, manifest, asked, Style()) == 0  # type: ignore[arg-type]
+    assert (args.name, args.prefix) == ("posts", "/posts")
+
+    def interrupted(_prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    blank = argparse.Namespace(name=None, prefix=None, requires=None)
+    assert appprompts.ask_app(blank, manifest, interrupted, Style()) == 130  # type: ignore[arg-type]
+    assert "nothing was created" in capsys.readouterr().err
+
+
+def test_a_path_under_the_home_directory_is_shown_with_a_tilde(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert shown_path(tmp_path / "shop") == f"~{os.sep}shop"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
 from types import SimpleNamespace
 from typing import Any, cast
 from uuid import uuid4
@@ -454,3 +455,117 @@ async def test_sync_custom_hook_requires_request_runner_and_awaits_handoff() -> 
         assert await api.call_custom_hook("to_schema", "value") == "value"
     finally:
         sync_runner.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_a_reload_that_shows_a_changed_owner_is_refused() -> None:
+    principal = Caller(id="ann", user="ann")
+    key = uuid4()
+    visible = Memo(id=key, owner="ann", title="visible", body="")
+    reread = Memo(id=key, owner="bob", title="visible", body="")
+
+    class Query:
+        def filter(self, **_conditions: Any) -> Query:
+            return self
+
+        async def aget(self) -> Memo:
+            return visible
+
+    class Reloading:
+        resource = Memos.resource
+
+        async def call_hook(self, name: str, *_args: Any) -> Any:
+            return Query() if name == "get_queryset" else visible
+
+        def check_written(self, item: Any) -> None:
+            pass
+
+        async def reload_written(self, _key: Any, _principal: Any) -> Memo:
+            return reread
+
+    stub = cast(CrudBase, Reloading())
+    with pytest.raises(RegistrationError, match="store changed a server-assigned"):
+        await crud_module.create_row(
+            stub, cast(Request, object()), MemoIn(title="x"), principal
+        )
+    with pytest.raises(RegistrationError, match="change changed a server-assigned"):
+        await crud_module.update_row(
+            stub, cast(Request, object()), key, MemoPatch(title="y"), principal
+        )
+
+
+class _CursorDatabase:
+    dialect = "postgres"
+
+    def __init__(self, result: Any) -> None:
+        self.result = result
+
+    async def _fetch_cursor_wire(self, *_args: Any) -> Any:
+        return self.result
+
+
+@pytest.mark.asyncio
+async def test_a_cursor_page_read_on_the_wire_returns_bytes_or_hydrated_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = [SimpleNamespace(id=uuid4())]
+    cursor = SimpleNamespace(
+        codec=None,
+        keys=(),
+        limit=5,
+        mode="forward",
+        walk=SimpleNamespace(_hydrate=_WireQuery(rows)._hydrate),
+        compile=lambda _dialect: ("SELECT id", []),
+        links=lambda _models, _more: ("after-token", None),
+    )
+    selection = SimpleNamespace(plan=object())
+    monkeypatch.setattr(crud_module, "schema_items", _wire_schema_items)
+    api = cast(CrudBase, object())
+    for result in (b"[]", ([{"id": 1}], True)):
+        monkeypatch.setattr(
+            crud_module, "current_database", partial(_CursorDatabase, result)
+        )
+        reply = await crud_module.wire_cursor_rows(
+            api, cast(Any, cursor), cast(Any, selection)
+        )
+        if isinstance(result, bytes):
+            assert reply.body == b"[]"
+        else:
+            assert reply.next == "after-token" and reply.page_size == 5
+            assert reply.items == [str(rows[0].id)]
+
+
+def test_a_crud_base_without_a_resource_declares_nothing() -> None:
+    class Bare(CrudBase):
+        pass
+
+    assert not hasattr(Bare, "resource")
+    assert Bare.routes() == []
+
+
+def test_a_subclass_keeps_its_own_handwritten_action() -> None:
+    @crud(Memo, path="/kept-edge", read=MemoOut)
+    class Parent(API):
+        pass
+
+    class Child(Parent):
+        async def retrieve(self, request: Request, item_id: str) -> str:
+            return "mine"
+
+    assert Child.__dict__["retrieve"].__qualname__.endswith("Child.retrieve")
+
+
+@pytest.mark.asyncio
+async def test_an_async_custom_hook_is_awaited_directly() -> None:
+    @crud(Memo, path="/async-hook-edge", read=MemoOut)
+    class AsyncHook(API):
+        async def to_schema(self, item: Any) -> Any:
+            return f"async {item}"
+
+    api = cast(CrudBase, AsyncHook())
+    assert await api.call_custom_hook("to_schema", "x") == "async x"
+
+
+def test_crud_omit_refuses_an_unknown_action() -> None:
+    with pytest.raises(RegistrationError, match="takes 'list' or 'retrieve'"):
+        crud(Memo, path="/omit-edge", read=MemoOut, omit=("delete",))

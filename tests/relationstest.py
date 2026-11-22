@@ -15,7 +15,7 @@ from hinoki.errors import (
     RelationNotLoaded,
 )
 from hinoki.orm import Model, OnDelete, field, foreign_key, use_database
-from hinoki.orm.relations import ON_DELETE, Related
+from hinoki.orm.relations import ON_DELETE, Related, store
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
@@ -522,3 +522,24 @@ async def test_a_loaded_relation_is_not_served_after_its_key_changed(
 async def test_delete_across_a_relation_is_refused_clearly(db: Database) -> None:
     with pytest.raises(FieldError, match="across a relation"):
         await Article.adelete(writer__name="Ada")
+
+
+def test_a_forward_relation_loaded_in_memory_goes_stale_when_its_key_changes() -> None:
+    ada = Writer(name="Ada")
+    article = Article(writer_id=ada.id, title="t")
+    store(article, "writer", ada)
+    assert article.writer is ada
+
+    article.writer_id = uuid4()
+    with pytest.raises(RelationNotLoaded, match="another writer_id"):
+        _ = article.writer
+
+
+def test_a_forward_relation_loaded_as_none_goes_stale_when_a_key_is_set() -> None:
+    note = Note(article_id=None)
+    store(note, "article", None)
+    assert note.article is None
+
+    note.article_id = uuid4()
+    with pytest.raises(RelationNotLoaded, match="another article_id"):
+        _ = note.article

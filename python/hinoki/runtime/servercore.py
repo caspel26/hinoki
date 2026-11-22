@@ -244,7 +244,7 @@ def native_handler_eligible(binding: Binding) -> bool:
         ):
             return False
     elif route.method not in {"GET", "DELETE"} or binding.needs_body:
-        return False
+        return False  # pragma: no cover - registration refuses bodies on GET and DELETE
     renderer_ok = all(is_native_renderer(r) for r in route.renderers)
     path_names = PATH_PARAM.findall(route.path)
     supported_inputs = all(

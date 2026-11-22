@@ -35,6 +35,17 @@ the isolated build-system requirement.
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` (see PyO3 setup below) |
 | All hooks | `uv run --locked pre-commit run --all-files` |
 
+### Measuring coverage
+
+Coverage also measures child processes (`patch = ["subprocess"]` with `parallel` and `sigterm` in `[tool.coverage.run]`), so the supervisor, worker and `hinoki serve` tests count. CI runs two phases and merges them: the main suite with `pytest -n 4 --cov`, then the server suites (`tests/runtime`, `tests/kisoservertest.py`, `tests/kisoclitest.py`, `tests/wsgitest.py`) with `--cov --cov-append`. Locally:
+
+```sh
+uv run --locked pytest -n 4 --cov --cov-report=term-missing
+uv run --locked coverage report --precision=2 --skip-covered -m
+```
+
+Without the database URLs below, the database-backed tests (most of the admin, parts of the ORM and the migrator) are skipped and their lines show as uncovered. A few unreachable guards carry `# pragma: no cover` with the reason next to it.
+
 ### Database tests
 
 The binding tests embed Python. Select the interpreter explicitly and add its

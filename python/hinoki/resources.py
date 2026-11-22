@@ -75,7 +75,7 @@ class Crud(enum.StrEnum):
 def caller_id(user: object) -> NoReturn:
     """Marker for ``identity_key``: the owner value is ``Caller.id``, so the
     caller needs no user object. It is never called."""
-    raise TypeError("caller_id is read from the Caller, not called")
+    raise TypeError("caller_id is read from the Caller, not called")  # pragma: no cover
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -243,9 +243,6 @@ class _CrudConfig:
         found = {name: getattr(data, name) for name in data.specs()}
         return {name: value for name, value in found.items() if value is not UNSET}
 
-    def present(self, row: Any) -> Any:
-        return self.read(**{name: getattr(row, name) for name in self.read.specs()})
-
     def owner_of(self, principal: Any) -> Any:
         """The caller's owner value; a caller without one may change nothing,
         or ``None`` would match every ownerless row."""
@@ -284,12 +281,6 @@ class _CrudConfig:
         row = await self.fetch(key)
         if self.owner and getattr(row, self.owner) != self.owner_of(principal):
             raise Forbidden("You cannot change this item.")
-
-    async def refuse(self, key: Any) -> Forbidden:
-        """A write matched no row: 404 if the row is gone or hidden by now,
-        otherwise the owner changed under the caller."""
-        await self.fetch(key)
-        return Forbidden("You cannot change this item.")
 
 
 async def list_rows(
@@ -1004,7 +995,7 @@ def declaring_module() -> str:
     frame = inspect.currentframe()
     caller = frame.f_back.f_back if frame and frame.f_back else None
     if caller is None:
-        return __name__
+        return __name__  # pragma: no cover - a frame always has a caller here
     outer = caller.f_back
     if (
         caller.f_code.co_name != "<module>"

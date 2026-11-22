@@ -256,3 +256,33 @@ def test_a_computed_field_cannot_use_a_field_wire_name() -> None:
             (Aliased,),
             {"other": computed_field(alias="n")(other)},
         )
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"alias": "  "}, "alias must be non-empty text"),
+        ({"description": 5}, "description must be non-empty text"),
+        ({"examples": ()}, "examples must not be empty"),
+    ],
+)
+def test_a_computed_field_refuses_blank_metadata(
+    options: dict[str, Any], message: str
+) -> None:
+    def value(self: Any) -> int:
+        return 1
+
+    with pytest.raises(RegistrationError, match=message):
+        declare({"value": computed_field(**options)(value)})
+
+
+def test_a_computed_field_with_an_unresolved_annotation_is_refused() -> None:
+    class Dangling(Schema):
+        a: int
+
+        @computed_field
+        def value(self) -> "NotDefinedAnywhere":  # type: ignore[name-defined]  # noqa: F821
+            return 1
+
+    with pytest.raises(RegistrationError, match="NotDefinedAnywhere"):
+        Dangling.computed_fields()["value"].field_type(Dangling)

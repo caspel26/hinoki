@@ -306,6 +306,7 @@ def test_the_json_encoder_writes_arrays_inside_schemas() -> None:
         (frozenset[tuple[list[int], ...]], "hashable"),
         (set[tuple[Point, int]], "hashable"),
         (set[bytearray], "unsupported"),
+        (set[int, str], "takes one item type"),  # type: ignore[misc]
     ],
 )
 def test_unsupported_shapes_fail_at_class_creation(

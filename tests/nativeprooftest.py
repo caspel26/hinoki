@@ -2,6 +2,8 @@
 
 import asyncio
 import functools
+import linecache
+import sys
 from asyncio import current_task as current_task_alias
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -310,3 +312,78 @@ def test_an_inline_import_of_a_task_api_is_refused() -> None:
 
 def test_a_task_api_under_another_name_is_refused() -> None:
     assert native_refusal(imported_task_api) == "it uses asyncio directly"
+
+
+_this = sys.modules[__name__]
+
+
+async def reads_through_a_module() -> Any:
+    return await _this.ProofNote.aget(id=1)
+
+
+async def reads_a_name_the_module_lacks() -> Any:
+    return await _this.NotYetDefined.aget(id=1)
+
+
+async def reads_through_a_class_attribute() -> Any:
+    return await ProofNote.manager.aget(id=1)  # type: ignore[attr-defined]
+
+
+async def starts_from_a_call() -> Any:
+    return await sleeps()().aget(id=1)  # type: ignore[operator]
+
+
+async def unknown_model_method() -> Any:
+    return await ProofNote.not_a_query(id=1)  # type: ignore[attr-defined]
+
+
+async def imports_asyncio_inline() -> None:
+    import asyncio as aio  # noqa: PLC0415
+
+    del aio
+    await ProofNote.aget(id=1)
+
+
+@pytest.mark.parametrize(
+    ("handler", "reason"),
+    [
+        (reads_through_a_module, None),
+        (reads_a_name_the_module_lacks, "NotYetDefined is not defined yet"),
+        (
+            reads_through_a_class_attribute,
+            "manager is read from something that is not a module",
+        ),
+        (starts_from_a_call, "an await starts from something other than a name"),
+        (unknown_model_method, "ProofNote.not_a_query is not a native query"),
+        (imports_asyncio_inline, "it uses asyncio directly"),
+    ],
+)
+def test_names_and_imports_the_proof_cannot_follow_are_refused(
+    handler: Callable[..., Any], reason: str | None
+) -> None:
+    assert native_refusal(handler) == reason
+
+
+def test_a_closure_name_that_is_not_bound_yet_is_refused() -> None:
+    later: type[ProofNote]
+
+    async def read() -> Any:
+        return await later.aget(id=1)
+
+    assert native_refusal(read) == "later is not bound yet"
+    later = ProofNote
+    assert native_refusal(read) is None
+
+
+def test_a_source_that_is_not_one_async_function_is_refused() -> None:
+    filename = "<not-a-function>"
+    lines = ["x = 1\n"]
+    linecache.cache[filename] = (len("".join(lines)), None, lines, filename)
+    namespace: dict[str, Any] = {}
+    try:
+        exec(compile("async def made(): return 1", filename, "exec"), namespace)  # noqa: S102
+        assert native_refusal(namespace["made"]) == (
+            "its source is not one async function"
+        )
+    finally:
+        linecache.cache.pop(filename, None)

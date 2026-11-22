@@ -27,6 +27,7 @@ from hinoki.settings import (
     JsonFormatter,
     LifecycleSettings,
     LoggingSettings,
+    MetricsSettings,
     PaginationSettings,
     Secret,
     SecuritySettings,
@@ -864,3 +865,32 @@ def test_json_formatter_formats_exceptions_and_stderr_handler_is_dynamic() -> No
     original = handler.stream
     handler.stream = io.StringIO()
     assert handler.stream is original
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"ws_max_message_bytes": 0}, "ws_max_message_bytes"),
+        ({"ws_ping_interval": 0.0}, "ws_"),
+        ({"ws_pong_timeout": float("inf")}, "ws_"),
+        ({"ws_close_timeout": -1.0}, "ws_"),
+        ({"max_streams": 0}, "max_streams"),
+        ({"stream_idle_timeout": 0.0}, "sse_keepalive"),
+        ({"sse_keepalive": float("nan")}, "sse_keepalive"),
+    ],
+)
+def test_execution_settings_refuse_unusable_websocket_and_stream_limits(
+    overrides: dict[str, object], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        ExecutionSettings(**overrides)  # type: ignore[arg-type]
+
+
+def test_metrics_settings_refuse_an_empty_token_and_pass_a_token_on() -> None:
+    with pytest.raises(ValueError, match="token must not be empty"):
+        MetricsSettings(listen="127.0.0.1:9100", token=Secret("")).validate()
+    options = MetricsSettings(
+        listen="127.0.0.1:9100", token=Secret("scrape-secret")
+    ).native_options(version="1")
+    assert options is not None
+    assert options["token"] == "scrape-secret"

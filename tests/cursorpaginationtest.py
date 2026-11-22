@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import API, Hinoki, Schema, core, crud, http
+from hinoki import API, Hinoki, Schema, context, core, crud, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import FieldError, RegistrationError, ValidationError
 from hinoki.orm import Model, QuerySet, field, ordered_by, use_database
@@ -303,6 +303,18 @@ def test_short_secrets_are_refused() -> None:
         PaginationSettings(cursor_secret=Secret("short")).validate()
 
 
+def test_a_cursor_lifetime_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="ttl"):
+        CursorPagination(ttl=0)
+    with pytest.raises(ValueError, match="cursor_ttl_seconds"):
+        PaginationSettings(cursor_ttl_seconds=0).validate()
+
+
+def test_an_unresolved_cursor_strategy_cannot_make_a_codec() -> None:
+    with pytest.raises(ValueError, match="no secret"):
+        CursorPagination(page_size=2).codec(b"fingerprint")
+
+
 class Event(Model, table="cursor_events"):
     id: uuid.UUID = field(primary_key=True)
     at: datetime
@@ -419,3 +431,50 @@ async def test_an_unencodable_edge_only_matters_when_its_link_is_needed(
     assert caught.value.details[0].path == "cursor"
     assert caught.value.details[0].code == "unencodable"
     database.close()
+
+
+async def test_a_manual_cursor_walks_back_with_the_previous_link(
+    tmp_path: Path,
+) -> None:
+    database = await docs(tmp_path, [f"t{n}" for n in range(1, 6)])
+    with use_database(database):
+        first = await read(2, None)
+        second = await read(2, first.next)
+        third = await read(2, second.next)
+        back = await read(2, third.previous)
+        start = await read(2, back.previous)
+    database.close()
+
+    assert [d.title for d in back.items] == ["t3", "t4"]
+    assert back.next is not None and back.previous is not None
+    assert [d.title for d in start.items] == ["t1", "t2"]
+    assert start.previous is None and start.next is not None
+
+
+async def test_a_cursor_page_over_no_rows_has_no_links(tmp_path: Path) -> None:
+    database = await docs(tmp_path, [])
+    with use_database(database):
+        empty = await read(2, None)
+    database.close()
+
+    assert (empty.items, empty.next, empty.previous) == ([], None, None)
+
+
+async def test_a_sync_handler_can_page_by_cursor(tmp_path: Path) -> None:
+    database = await docs(tmp_path, ["a", "b", "c"])
+    token = context.event_loop.set(asyncio.get_running_loop())
+    try:
+        with use_database(database):
+            found = await asyncio.to_thread(
+                lambda: (
+                    Doc.all()
+                    .order_by("title")
+                    .paginate_cursor(CursorParams(2, None, STRATEGY))
+                )
+            )
+    finally:
+        context.event_loop.reset(token)
+    database.close()
+
+    assert [d.title for d in found.items] == ["a", "b"]
+    assert found.next is not None

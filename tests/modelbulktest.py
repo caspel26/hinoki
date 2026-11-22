@@ -260,3 +260,16 @@ async def test_a_sync_bulk_on_the_event_loop_is_refused_before_anything_else(
 ) -> None:
     with pytest.raises(RuntimeError, match=r"await the a\.\.\. variant"):
         call()
+
+
+async def test_bulk_update_with_nothing_does_nothing(database: Database) -> None:
+    assert await Tag.abulk_update([]) == []
+
+
+async def test_a_sync_bulk_with_nothing_writes_nothing(database: Database) -> None:
+    await Tag.abulk_create([{"id": 1, "name": "keep"}])
+
+    assert await in_thread(lambda: Tag.bulk_create([])) == []
+    assert await in_thread(lambda: Tag.bulk_update([])) == []
+    assert await in_thread(lambda: Tag.bulk_delete([])) == 0
+    assert await names() == ["keep"]

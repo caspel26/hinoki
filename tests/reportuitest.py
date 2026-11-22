@@ -121,3 +121,36 @@ def test_routes_colour_methods_and_keep_plain_output(
     colored = capsys.readouterr().out
     assert "\x1b" in colored
     assert plain(colored).split()[:2] == ["GET", "/things"]
+
+
+def test_check_shows_the_waiver_of_a_waived_finding() -> None:
+    waived = Diagnostic(
+        "rule.three",
+        Severity.ERROR,
+        Phase.STATIC,
+        "known",
+        "c.py:3",
+        "why",
+        Status.WAIVED,
+        waiver="accepted until the migration",
+    )
+    text = plain(checkcli.render([waived], 1, "text", FANCY))
+    assert "waived: accepted until the migration" in text
+    assert "1 rule(s): 0 violated, 0 unverifiable, 1 waived" in text
+
+
+def test_a_failing_native_plan_build_is_reported_as_the_lane_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @http.get("/things")
+    def things() -> dict[str, int]:
+        return {}
+
+    def fail(*_args: object) -> None:
+        raise RuntimeError("plan build failed")
+
+    monkeypatch.setattr(routescli, "select_crud_plan", fail)
+    app = Hinoki()
+    app.include(things)
+    lanes = routescli.lanes_of(app)
+    assert lanes[id(app.routes[0])] == ("python", "native_plan_build_failed")

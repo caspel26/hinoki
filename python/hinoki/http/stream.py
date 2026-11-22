@@ -59,7 +59,7 @@ class Streamed(Response):
 
     def same_body(self, other: Streamed) -> bool:
         """Whether ``other`` sends the same body: a ``with_header`` copy does."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover - abstract
 
 
 class Sourced(Streamed):

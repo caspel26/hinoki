@@ -554,7 +554,7 @@ def decimal_columns(model: type[Model], column: str) -> bool:
     if owner:
         relation = model.__relations__.get(owner.removeprefix(ALIAS_PREFIX))
         if relation is None:
-            return False
+            return False  # pragma: no cover - callers pass valid relation names
         model = relation.model
     field_type = model.__field_types__.get(name)
     return field_type is not None and field_type.kind == "decimal"

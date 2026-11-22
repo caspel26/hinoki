@@ -311,3 +311,149 @@ def test_a_worker_that_cannot_be_spawned_does_not_leak_its_pipe(
                 os.fstat(descriptor)
     finally:
         supervisor.listener.close()
+
+
+class FakeWorker:
+    """A worker process that exits only when it is killed or waited for twice."""
+
+    def __init__(self, pid: int = 4242, *, stubborn: bool = False) -> None:
+        self.pid = pid
+        self.code: int | None = None
+        self.stubborn = stubborn
+        self.signals: list[int] = []
+        self.waits = 0
+        self.killed = False
+
+    def poll(self) -> int | None:
+        return self.code
+
+    def send_signal(self, number: int) -> None:
+        self.signals.append(number)
+
+    def kill(self) -> None:
+        self.killed = True
+        self.code = -9
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.waits += 1
+        if timeout is not None and self.stubborn and self.waits < 2:
+            raise subprocess.TimeoutExpired("worker", timeout)
+        if self.code is None:
+            self.code = 0
+        return self.code
+
+
+def rolling_supervisor(**options: Any) -> Supervisor:
+    return Supervisor("app:make", socket.socket(), 1, 1.0, rolling=True, **options)
+
+
+def test_a_reload_that_is_stopped_replaces_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    supervisor = rolling_supervisor()
+
+    def never(_worker: int) -> None:
+        raise AssertionError("no worker is started while stopping")
+
+    monkeypatch.setattr(supervisor, "start_ready", never)
+    supervisor.processes = [FakeWorker()]  # type: ignore[list-item]
+    supervisor.stop.set()
+    try:
+        supervisor.roll()
+        assert supervisor.generation == 1
+    finally:
+        supervisor.listener.close()
+
+
+def test_a_successor_still_starting_when_stopped_drains_with_the_others(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    supervisor = rolling_supervisor()
+    fresh = FakeWorker()
+    monkeypatch.setattr(supervisor, "spawn", lambda *_a, **_k: fresh)
+    supervisor.stop.set()
+    try:
+        assert supervisor.start_ready(1) is None
+        assert supervisor.draining == [fresh]  # type: ignore[comparison-overlap]
+        assert not fresh.killed
+    finally:
+        supervisor.listener.close()
+
+
+def test_a_successor_that_never_serves_is_killed_and_reported(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    supervisor = rolling_supervisor()
+    fresh = FakeWorker()
+    monkeypatch.setattr(supervisor, "spawn", lambda *_a, **_k: fresh)
+    monkeypatch.setattr(supervisor, "await_ready", lambda _fd: "exited before it")
+    try:
+        assert supervisor.start_ready(1) is None
+        assert fresh.killed
+        assert "error: the new worker exited before it" in capsys.readouterr().err
+        assert supervisor.draining == []
+    finally:
+        supervisor.listener.close()
+
+
+def test_a_replaced_worker_is_killed_once_the_grace_period_is_over() -> None:
+    supervisor = rolling_supervisor()
+    supervisor.grace = 0.0
+    old = FakeWorker(stubborn=True)
+    supervisor.worker_of[old.pid] = 7
+    try:
+        supervisor.retire(old)  # type: ignore[arg-type]
+        assert old.signals == [signal.SIGTERM]
+        assert old.killed
+        assert supervisor.draining == []
+        assert old.pid not in supervisor.worker_of
+    finally:
+        supervisor.listener.close()
+
+
+def test_a_replaced_worker_is_waited_for_again_until_it_exits() -> None:
+    supervisor = rolling_supervisor()
+    supervisor.grace = 30.0
+    old = FakeWorker(stubborn=True)
+    try:
+        supervisor.retire(old)  # type: ignore[arg-type]
+        assert not old.killed
+        assert old.waits >= 2
+        assert supervisor.draining == []
+    finally:
+        supervisor.listener.close()
+
+
+def test_a_replaced_worker_is_left_to_the_shutdown_when_stopping() -> None:
+    supervisor = rolling_supervisor()
+    old = FakeWorker(stubborn=True)
+    supervisor.stop.set()
+    try:
+        supervisor.retire(old)  # type: ignore[arg-type]
+        assert old.signals == [signal.SIGTERM]
+        assert supervisor.draining == [old]  # type: ignore[comparison-overlap]
+        assert not old.killed
+    finally:
+        supervisor.listener.close()
+
+
+def test_a_replaced_workers_snapshot_is_removed_and_the_others_stay() -> None:
+    metrics = socket.socket()
+    supervisor = Supervisor("app:make", socket.socket(), 2, 1.0, metrics=metrics)
+    assert supervisor.metrics_dir is not None
+    directory = Path(supervisor.metrics_dir)
+    try:
+        for name in ("worker-3.prom", "worker-3.tmp", "worker-4.prom"):
+            (directory / name).write_text("x")
+        supervisor.discard_snapshot(None)
+        assert len(list(directory.iterdir())) == 3
+        supervisor.discard_snapshot(3)
+        assert [path.name for path in directory.iterdir()] == ["worker-4.prom"]
+    finally:
+        supervisor.release()
+        supervisor.discard_snapshots()
+    plain = Supervisor("app:make", socket.socket(), 1, 1.0)
+    try:
+        plain.discard_snapshot(3)  # no metrics directory: nothing to remove
+    finally:
+        plain.release()

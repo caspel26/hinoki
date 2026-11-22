@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from hinoki import Hinoki, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, http
 from hinoki.runtime.asgi import ASGIAdapter
 
 
@@ -13,6 +13,16 @@ from hinoki.runtime.asgi import ASGIAdapter
 async def echo(name: str, socket: http.WebSocket) -> None:
     async for message in socket:
         await socket.send_text(f"{name}:{message}")
+
+
+class Nobody(BearerAuth[str]):
+    def resolve_token(self, token: str) -> Caller[str] | None:
+        return None
+
+
+@http.websocket("/private", access=Access(Nobody()))
+async def private(socket: http.WebSocket) -> None:
+    raise AssertionError("an unauthenticated client must not reach the handler")
 
 
 @http.websocket("/boom")
@@ -43,7 +53,7 @@ class Peer:
 
 async def run(peer: Peer, *incoming: dict[str, Any]) -> list[dict[str, Any]]:
     app = Hinoki()
-    app.include(echo, boom)
+    app.include(echo, boom, private)
     adapter = ASGIAdapter(app)
     for event in incoming:
         peer.inbox.put_nowait(event)
@@ -97,3 +107,14 @@ async def test_a_message_over_the_limit_closes_with_1009() -> None:
 async def test_a_failing_handler_closes_with_1011() -> None:
     sent = await run(Peer("/boom", []), connect())
     assert sent[-1]["code"] == 1011
+
+
+async def test_an_unauthenticated_client_is_refused_before_accept() -> None:
+    sent = await run(Peer("/private", []), connect())
+    assert [event["type"] for event in sent] == ["websocket.close"]
+    assert sent[0]["code"] == 1008
+
+
+async def test_a_client_that_leaves_before_connecting_gets_nothing() -> None:
+    sent = await run(Peer("/echo/a", []), {"type": "websocket.disconnect"})
+    assert sent == []

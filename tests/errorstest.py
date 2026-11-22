@@ -279,3 +279,12 @@ def test_error_headers_are_checked_like_response_headers() -> None:
     assert names.count(b"content-length") <= 1 and b"transfer-encoding" not in names
     assert b"x-hint" in names
     assert b"x-split" not in names and b"bad name" not in names
+
+
+def test_a_failing_builtin_translation_leaves_the_error_unhandled() -> None:
+    def broken(_error: ObjectNotFound) -> APIError:
+        raise RuntimeError("translation failed")
+
+    registry = Hinoki().errors
+    registry.defaults[ObjectNotFound] = broken
+    assert registry.translate_builtin(ObjectNotFound()) is None
