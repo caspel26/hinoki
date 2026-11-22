@@ -35,9 +35,9 @@ class Step(NamedTuple):
 
 STEPS = (
     Step("Accept", "Kiso, Granian", "server"),
-    Step("Route", "match, bind", "rust"),
-    Step("Validate", "input Schema", "rust"),
+    Step("Route", "method, path", "rust"),
     Step("Access", "caller, policy", "hinoki"),
+    Step("Validate", "bind input", "rust"),
     Step("Begin", "atomic writes", "hinoki"),
     Step("Handler", "your function", "yours"),
     Step("Respond", "render", "hinoki"),
@@ -48,8 +48,10 @@ STEPS = (
 # docs/request-lifecycle.md.
 GROUPS = (
     (0, 0, "Server", "server"),
-    (1, 2, "Rust extension", "rust"),
-    (3, 4, "Hinoki", "hinoki"),
+    (1, 1, "Rust", "rust"),
+    (2, 2, "Hinoki", "hinoki"),
+    (3, 3, "Rust", "rust"),
+    (4, 4, "Hinoki", "hinoki"),
     (5, 5, "Your code", "yours"),
     (6, 7, "Hinoki", "hinoki"),
 )
@@ -309,10 +311,10 @@ def failure() -> str:
 
 def render(p: Palette) -> str:
     alt = (
-        "Request flow: the server accepts the request, Hinoki routes and binds it, "
-        "validates the input, checks access, opens a transaction, calls the handler, "
-        "renders the response and commits. On an error an open transaction rolls "
-        "back first, and the error response carries a request ID."
+        "Request flow: the server accepts the request, Hinoki routes it, checks "
+        "access, binds and validates the input, opens a transaction, calls the "
+        "handler, renders the response and commits. On an error an open "
+        "transaction rolls back first, and the error response carries a request ID."
     )
     head = (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" '
