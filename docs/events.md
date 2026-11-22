@@ -202,10 +202,23 @@ How it runs:
 - Events never reveal rows a caller cannot see: they come from the same write that applied ownership and tenant scoping. Generated CRUD update saves the instance with the scoped UPDATE (a row that left the scope is refused before any event), and the `Updated` instance is the row the caller was allowed to write.
 - Native lane: Kiso runs generated create, update and delete in Rust without the model, so a model with a handler for `Created`, `Updated` or `Deleted` (any phase, bare or for that model) loses native eligibility for the matching action only (`create`, `update`, `delete`); it runs on the Python lane, where the event fires. `hinoki routes` and the plan diagnostics report the reason `model_event_handlers`. A hand-written `async def` handler that awaits `acreate`, `abulk_create`, `abulk_update`, `adelete` or `abulk_delete` on such a model stays off the native handler lane for the same reason. Models without handlers are unchanged.
 
+## Metrics
+
+With [`metrics.listen`](metrics.md) set on Kiso, every handler run is counted and timed on the metrics listener. The label set is fixed at startup from the registered handlers: `event` is the event class (`Created[Note]` for a handler registered for one model), `phase` is `in_transaction` or `after_commit`, and `outcome` is `ok`, `error` or `timeout`. No payload, handler name or request value becomes a label, so the series count never exceeds the number of registered (event, phase) pairs.
+
+```text
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="ok",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="error",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="timeout",worker="0"} 3
+hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commit",worker="0"} 9
+```
+
+With metrics off, or under another server, `EventBus.stats()` still counts runs per worker and nothing else is recorded: a handler run pays one `None` check. See [export Prometheus metrics](metrics.md#event-handlers).
+
 ## What events do not do
 
 - No delivery between services or processes, no queue, no retry, no at-least-once guarantee. For work that must survive a crash, use a job queue.
-- Worker lifecycle, migration and reload events and Prometheus metrics are not part of this release; use `on_startup` and `on_shutdown` for startup and shutdown.
+- Worker lifecycle, migration and reload events are not part of this release; use `on_startup` and `on_shutdown` for startup and shutdown.
 - Events never carry rows a caller cannot see: emit them from code that already applied ownership and tenant policy, and put identifiers rather than whole rows in the payload.
 
 See also [Lifecycle hooks](model-hooks.md), [Transactions](transactions.md) and [Application modules](modules.md).
