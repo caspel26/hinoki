@@ -1303,7 +1303,7 @@ class _TypedJson:
             decode = typed_decoder(owner) or _no_typed_json
         except Exception:
             return _no_typed_json
-        if "validate_json" not in owner.__dict__:
+        if owner.__dict__.get("validate_json", self) is self:
             type.__setattr__(owner, "validate_json", _Cached(decode))
         return decode
 
@@ -1321,7 +1321,7 @@ class _Validate:
         except Exception:
             return method
         found = method if native is None else native
-        if "validate" not in owner.__dict__:
+        if owner.__dict__.get("validate", self) is self:
             type.__setattr__(owner, "validate", _Cached(found))
         return found
 

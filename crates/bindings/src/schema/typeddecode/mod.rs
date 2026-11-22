@@ -529,30 +529,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
     ) -> Step<Bound<'py, PyAny>> {
         let py = self.py;
         let instance = allocate(class.class.bind(py))?;
-        let mut seen = 0u128;
-        self.skip_space();
-        if self.peek() == Some(b'}') {
-            self.at += 1;
-        } else {
-            let mut hint = 0;
-            loop {
-                match self.member(class, hint)? {
-                    Ok(at) => {
-                        if seen & (1 << at) != 0 {
-                            return Err(Stop::Fallback);
-                        }
-                        let value = self.value(&class.fields[at].plan, depth + 1)?;
-                        store(&instance, layout.offsets[at], value);
-                        seen |= 1 << at;
-                        hint = at + 1;
-                    }
-                    Err(key) => self.extra(class, key, depth)?,
-                }
-                if self.separator(b'}')? {
-                    break;
-                }
-            }
-        }
+        let seen = self.fill_slots(class, layout, &instance, depth)?;
         if seen & layout.required != layout.required {
             return Err(Stop::Fallback);
         }
@@ -569,6 +546,41 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
             }
         }
         self.construct(index, class, record, Some(instance))
+    }
+
+    /// The members of an object, each value stored in its slot; the mask of the
+    /// fields seen.
+    fn fill_slots(
+        &mut self,
+        class: &PlanClass,
+        layout: &Layout,
+        instance: &Bound<'py, PyAny>,
+        depth: usize,
+    ) -> Step<u128> {
+        let mut seen = 0u128;
+        self.skip_space();
+        if self.peek() == Some(b'}') {
+            self.at += 1;
+            return Ok(seen);
+        }
+        let mut hint = 0;
+        loop {
+            match self.member(class, hint)? {
+                Ok(at) => {
+                    if seen & (1 << at) != 0 {
+                        return Err(Stop::Fallback);
+                    }
+                    let value = self.value(&class.fields[at].plan, depth + 1)?;
+                    store(instance, layout.offsets[at], value);
+                    seen |= 1 << at;
+                    hint = at + 1;
+                }
+                Err(key) => self.extra(class, key, depth)?,
+            }
+            if self.separator(b'}')? {
+                return Ok(seen);
+            }
+        }
     }
 
     /// The field the next member names, with its colon consumed; or, for a
@@ -828,33 +840,10 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
         } else {
             self.digits()?
         };
-        let mut real = false;
-        let mut fraction = None;
-        if self.peek() == Some(b'.') {
-            real = true;
-            self.at += 1;
-            let from = self.at;
-            let frac = self.digits()?;
-            fraction = Some((frac, self.at - from));
-        }
-        let mut exponent = false;
-        if matches!(self.peek(), Some(b'e' | b'E')) {
-            real = true;
-            exponent = true;
-            self.at += 1;
-            if matches!(self.peek(), Some(b'+' | b'-')) {
-                self.at += 1;
-            }
-            self.digits()?;
-        }
-        if !real {
-            let whole = whole.ok_or(Stop::Fallback)?;
-            let int = if negative {
-                0i64.checked_sub_unsigned(whole)
-            } else {
-                i64::try_from(whole).ok()
-            };
-            return int.map(Num::Int).ok_or(Stop::Fallback);
+        let fraction = self.fraction()?;
+        let exponent = self.exponent()?;
+        if fraction.is_none() && !exponent {
+            return integer(whole, negative);
         }
         if let (false, Some(whole), Some((Some(frac), places))) = (exponent, whole, fraction) {
             if let Some(float) = exact_decimal(whole, frac, places) {
@@ -870,6 +859,31 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
         } else {
             Err(Stop::Fallback)
         }
+    }
+
+    /// The `.digits` part of a number, if there is one: the digits and how
+    /// many places they take.
+    fn fraction(&mut self) -> Step<Option<(Option<u64>, usize)>> {
+        if self.peek() != Some(b'.') {
+            return Ok(None);
+        }
+        self.at += 1;
+        let from = self.at;
+        let frac = self.digits()?;
+        Ok(Some((frac, self.at - from)))
+    }
+
+    /// Consume an `e`/`E` exponent, if there is one.
+    fn exponent(&mut self) -> Step<bool> {
+        if !matches!(self.peek(), Some(b'e' | b'E')) {
+            return Ok(false);
+        }
+        self.at += 1;
+        if matches!(self.peek(), Some(b'+' | b'-')) {
+            self.at += 1;
+        }
+        self.digits()?;
+        Ok(true)
     }
 
     /// A value that no field reads: it must still be a valid JSON value.
@@ -1087,6 +1101,17 @@ fn fill<'py>(
         }
     }
     Ok(())
+}
+
+/// An integer token as an `i64`; one outside the range is left to the ordinary path.
+fn integer(whole: Option<u64>, negative: bool) -> Step<Num> {
+    let whole = whole.ok_or(Stop::Fallback)?;
+    let int = if negative {
+        0i64.checked_sub_unsigned(whole)
+    } else {
+        i64::try_from(whole).ok()
+    };
+    int.map(Num::Int).ok_or(Stop::Fallback)
 }
 
 /// `whole.frac` as a float when the digits fit in 2^53 and the scale in 10^22:
