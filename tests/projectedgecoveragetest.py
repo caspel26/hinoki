@@ -160,7 +160,12 @@ def test_app_management_run_reports_project_errors(
         ),
     )
     args = Namespace(
-        app_action="create", name="billing", prefix=None, requires=None, no_input=True
+        app_action="create",
+        name="billing",
+        prefix=None,
+        requires=None,
+        events=False,
+        no_input=True,
     )
     assert projectcli.run(args) == 2
     assert capsys.readouterr().err == "error: invalid project\n"
