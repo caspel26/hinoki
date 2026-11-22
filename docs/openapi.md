@@ -104,6 +104,38 @@ async def get_task(task_id: UUID) -> TaskOutput:
     ...
 ```
 
+## Per-action controls
+
+`include_in_schema`, `tags`, `deprecated` and `operation_id` are options of `@http.get`, `post`, `put`, `patch`, `delete` and `query`:
+
+```python
+from hinoki import Access, Hinoki, http
+
+admin_only = Access(auth=staff_auth, permissions=["ops:run"])
+
+
+@http.get("/ops/reindex", access=admin_only, include_in_schema=False)
+async def reindex() -> dict[str, str]:
+    return {"status": "started"}
+
+
+@http.get("/v1/tasks", tags=["tasks"], deprecated=True, operation_id="listTasksV1")
+async def list_tasks() -> list[str]:
+    return []
+
+
+app = Hinoki()
+app.include(reindex, list_tasks)
+```
+
+* `include_in_schema=False` leaves the action out of `Hinoki.openapi()`, `hinoki openapi` and `/openapi.json`. The action is still registered, served and protected by its `Access` exactly as before: leaving it out neither hides it from a caller who knows the path nor authorizes anything. A path whose actions are all left out is not listed, and a `Schema` or security scheme used only by left-out actions does not appear under `components`.
+* `tags` lists non-empty names, in order and without repeats, written to the operation's `tags`.
+* `deprecated=True` writes `deprecated: true`.
+* `operation_id` replaces the generated operation ID. It must be a non-empty string, and two documented actions with the same value stop `include` with a `RegistrationError`; a generated ID never takes a value that an action declared. A left-out action does not take part in that check.
+* `RouteGroup(prefix, include_in_schema=..., tags=...)` sets defaults for its actions: an action's own `include_in_schema` wins, and its `tags` follow the group's.
+* `crud(...)` takes `include_in_schema` as one flag for the whole resource or a mapping by action (`{"delete": False}`; unknown names are refused), plus `tags` and `deprecated` for every generated action. It has no `operation_id`, because one value cannot name several actions.
+* An MCP tool is built from the OpenAPI document, so `expose_as_mcp` refuses an action left out with `include_in_schema=False` instead of exposing it. The admin's HTML pages are always left out of the document and are not affected by these options.
+
 ## Current limits
 
-Per-action `tags`, `deprecated`, a caller-supplied `operation_id` and `include_in_schema` controls are not implemented. Response bodies are generated from annotations; every action's return value is checked against its annotation at runtime, and an annotation that cannot be checked stops the app at startup ([details](endpoints.md#the-response-is-checked-against-the-annotation)). See [project status](status.md) for other API boundaries.
+`operation_id`, `tags` and `deprecated` are per action only: there is no group-wide `deprecated` or `operation_id`, and no tag metadata (descriptions) in the document's top-level `tags`. Response bodies are generated from annotations; every action's return value is checked against its annotation at runtime, and an annotation that cannot be checked stops the app at startup ([details](endpoints.md#the-response-is-checked-against-the-annotation)). See [project status](status.md) for other API boundaries.

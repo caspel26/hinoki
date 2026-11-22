@@ -8,6 +8,16 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🏷️ Per-action OpenAPI controls
+> `python/hinoki/routing.py`, `python/hinoki/openapi.py`, `python/hinoki/resources.py`, `python/hinoki/app.py`, `python/hinoki/ai/mcpapp.py`
+
+`@http.get(..., include_in_schema=False)` leaves an action out of the OpenAPI document without changing how it is served or protected; `tags`, `deprecated` and `operation_id` describe it. `RouteGroup(...)` and `crud(...)` take the same controls, and a duplicate `operation_id` stops registration. MCP refuses an action that is left out.
+
+```python
+@http.get("/ops/reindex", access=admin_only, include_in_schema=False)
+async def reindex() -> dict[str, str]: ...
+```
+
 #### 🔄 Reload on SIGHUP in Kiso
 > `python/hinoki/runtime/supervisor.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/runtime/wsgiworker.py`, `python/hinoki/runtime/listener.py`, `python/hinoki/serve.py`, `python/hinoki/settings.py`
 
