@@ -116,3 +116,48 @@ def test_dump_options_still_checked() -> None:
 def test_pickle_round_trip() -> None:
     item = Item(name="a", price=1.0, qty=4)
     assert pickle.loads(pickle.dumps(item)) == item  # noqa: S301 - our own bytes
+
+
+class Options(Schema):
+    page: int = 1
+    size: int = 20
+    ratio: float = 1
+
+
+def test_no_keywords_supplies_nothing() -> None:
+    assert Options().dump(exclude_unset=True) == {}
+    assert Options().replace(size=5).dump(exclude_unset=True) == {"size": 5}
+    assert Options(**{}).dump(exclude_unset=True) == {}
+
+
+def test_omitted_int_default_of_a_float_field_is_a_float_on_every_path() -> None:
+    for built in (
+        Options(),
+        Options.validate({}),
+        Options.validate_json(b"{}"),
+        Options.validate_json(b'{"page": 2}'),
+    ):
+        assert built is not None
+        assert type(built.ratio) is float
+    partial = Options.validate_json(b'{"page": 2}')
+    assert partial is not None
+    assert partial.dump(exclude_unset=True) == {"page": 2}
+
+
+def test_validate_json_honours_a_validate_override() -> None:
+    class Guarded(Schema):
+        x: int
+
+        @classmethod
+        def validate(cls, data: Any) -> Guarded:  # noqa: ARG003
+            raise ValueError("must run")
+
+    assert Guarded.validate_json(b'{"x": 1}') is None
+
+
+def test_validate_json_on_generic_or_unresolved_class_does_not_raise() -> None:
+    class Late(Schema):
+        other: Missing  # type: ignore[name-defined]  # noqa: F821
+
+    assert hasattr(Late, "validate_json")
+    assert Late.validate_json(b"{}") is None
