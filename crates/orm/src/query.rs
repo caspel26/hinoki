@@ -325,7 +325,11 @@ impl<V: Clone> Builder<V> {
     }
 
     /// `k1 > v1 OR (k1 = v1 AND k2 < v2) OR ...`, each key in its own direction.
+    /// A redundant `k1 >= v1` bound goes first: it gives the planner an index
+    /// range to start from, which the OR alone does not.
     fn expanded_comparison(&mut self, columns: &[String], keyset: &Keyset<V>) -> String {
+        let lead = if keyset.columns[0].1 { "<=" } else { ">=" };
+        let bound = self.placeholder(keyset.values[0].clone());
         let mut branches = Vec::with_capacity(columns.len());
         for (index, (_, descending)) in keyset.columns.iter().enumerate() {
             let mut terms = Vec::with_capacity(index + 1);
@@ -338,7 +342,11 @@ impl<V: Clone> Builder<V> {
             terms.push(format!("{} {symbol} {holder}", columns[index]));
             branches.push(format!("({})", terms.join(" AND ")));
         }
-        format!("({})", branches.join(" OR "))
+        format!(
+            "({} {lead} {bound} AND ({}))",
+            columns[0],
+            branches.join(" OR ")
+        )
     }
 
     fn clause(&mut self, filter: &Filter<V>) -> Result<String, QueryError> {
@@ -705,15 +713,15 @@ mod tests {
         let (sql, params) = compile_select(&q).unwrap();
         assert!(
             sql.ends_with(
-                "WHERE ((\"a\" > $1) OR (\"a\" = $2 AND \"b\" < $3) \
-                 OR (\"a\" = $4 AND \"b\" = $5 AND \"id\" > $6))"
+                "WHERE (\"a\" >= $1 AND ((\"a\" > $2) OR (\"a\" = $3 AND \"b\" < $4) \
+                 OR (\"a\" = $5 AND \"b\" = $6 AND \"id\" > $7)))"
             ),
             "{sql}"
         );
-        assert_eq!(params, vec![1, 1, 2, 1, 2, 3]);
+        assert_eq!(params, vec![1, 1, 1, 2, 1, 2, 3]);
         let (sql, params) = compile_select_with(&q, Dialect::Mysql).unwrap();
-        assert_eq!(sql.matches('?').count(), 6);
-        assert_eq!(params, vec![1, 1, 2, 1, 2, 3]);
+        assert_eq!(sql.matches('?').count(), 7);
+        assert_eq!(params, vec![1, 1, 1, 2, 1, 2, 3]);
     }
 
     #[test]
