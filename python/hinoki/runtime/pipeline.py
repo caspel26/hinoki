@@ -37,6 +37,7 @@ from hinoki.errors import (
     TooManyRequests,
     ValidationError,
 )
+from hinoki.events import events_var
 from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
@@ -210,6 +211,7 @@ class Pipeline:
                     "matches a route; move one of them"
                 )
         self.ctx = ModuleContext(app.settings)
+        self.events = app.events
         self.logging = (
             app.settings.logging if isinstance(app.settings, AppSettings) else None
         )
@@ -254,6 +256,7 @@ class Pipeline:
             needs_database=needs_database,
             on_startup=app.on_startup,
             on_shutdown=app.on_shutdown,
+            events=app.events,
         )
 
     @staticmethod
@@ -509,9 +512,11 @@ class Pipeline:
         context.route_cors.set(None)
         runner_token = context.sync_runner.set(self.executor.run)
         db_token = database_var.set(self.ctx.find(Database))
+        events_token = events_var.set(self.events)
         try:
             return await response
         finally:
+            events_var.reset(events_token)
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
@@ -589,6 +594,7 @@ class Pipeline:
         context.route_cors.set(None)
         context.sync_runner.set(self.executor.run)
         database_var.set(self.ctx.find(Database))
+        events_var.set(self.events)
 
     async def drive_native(
         self,

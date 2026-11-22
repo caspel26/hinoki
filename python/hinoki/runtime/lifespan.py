@@ -11,6 +11,7 @@ from contextlib import AbstractAsyncContextManager
 
 from hinoki.db import Database
 from hinoki.errors import STARTUP_HOOK, ShutdownError, StartupError
+from hinoki.events import EventBus, events_var
 from hinoki.modules import Module, ModuleContext, order_modules
 from hinoki.orm import database_var
 from hinoki.runtime.config import RuntimeConfig
@@ -48,7 +49,7 @@ class Lifespan:
     a critical managed task failed.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - the runtime pieces ride along
         self,
         modules: Sequence[Module],
         ctx: ModuleContext,
@@ -58,9 +59,11 @@ class Lifespan:
         needs_database: bool = False,
         on_startup: Sequence[Hook] = (),
         on_shutdown: Sequence[Hook] = (),
+        events: EventBus | None = None,
     ) -> None:
         self.modules = order_modules(modules)
         self.ctx = ctx
+        self.events = events
         self.executor = executor
         self.config = config
         self.needs_database = needs_database
@@ -176,6 +179,7 @@ class Lifespan:
         sync executor, as sync handlers run."""
         # Models reach the worker's Database in a hook as they do in a request.
         token = database_var.set(self.ctx.find(Database))
+        events_token = events_var.set(self.events)
         try:
             try:
                 if inspect.iscoroutinefunction(hook):
@@ -196,6 +200,7 @@ class Lifespan:
                     raise
                 raise _HookRaised(exc) from None
         finally:
+            events_var.reset(events_token)
             database_var.reset(token)
 
     async def _enter(self, manager: AbstractAsyncContextManager[object]) -> None:

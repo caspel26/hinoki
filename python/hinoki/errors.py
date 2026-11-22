@@ -23,6 +23,19 @@ class ModuleGraphError(RegistrationError):
     """Missing dependency, dependency cycle or duplicate module name."""
 
 
+class EventRegistrationError(RegistrationError):
+    """An event handler is untyped, mistyped, in the wrong phase or over a limit."""
+
+
+class EventError(Exception):
+    """An event could not be delivered: a handler timed out, the nesting limit
+    was reached, or the event needs a transaction that is not open."""
+
+
+class EventTimeout(EventError):
+    """A handler ran longer than ``events.handler_timeout``."""
+
+
 STARTUP_HOOK = "on_startup:"
 
 

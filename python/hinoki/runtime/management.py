@@ -41,7 +41,9 @@ async def run_command(app: Hinoki, command: Command, args: Namespace) -> int:
     modules = modules_for_command(app, command)
     module_context = ModuleContext(app.settings)
     executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
-    lifespan = Lifespan(modules, module_context, executor, app.runtime)
+    lifespan = Lifespan(
+        modules, module_context, executor, app.runtime, events=app.events
+    )
     await lifespan.startup()
     context = CommandContext(app.settings, module_context)
     try:

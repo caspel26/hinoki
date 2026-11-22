@@ -19,6 +19,7 @@ from hinoki.core import Router
 from hinoki.db import DatabaseModule
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorRegistrar, ErrorRegistry, RegistrationError
+from hinoki.events import EventBus, Handlers
 from hinoki.fields import UNSET, Unset
 from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.management import Command, _normalize_commands
@@ -158,6 +159,9 @@ class Hinoki:
     worker after the modules have started; shutdown hooks run before they are
     closed, and only after a startup that completed.
 
+    ``events`` lists the ``Handlers`` collections whose typed event handlers
+    run, in this order (see ``hinoki.events``); an unlisted one does nothing.
+
     ``startup_url`` optionally reserves a public GET/HEAD endpoint that returns
     ``{"status": "ok"}`` after worker startup. It reports startup completion,
     not application, database, or event-loop health.
@@ -175,6 +179,7 @@ class Hinoki:
         commands: Sequence[Command | type[Command]] = (),
         on_startup: Sequence[Hook] = (),
         on_shutdown: Sequence[Hook] = (),
+        events: Sequence[Handlers] = (),
         startup_url: str | None = None,
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
@@ -207,6 +212,7 @@ class Hinoki:
         # An explicit waiver file wins over the project's ``hinoki-rules.toml``.
         self.waiver_file: Path | None = None if waivers is None else Path(waivers)
         self._initialize_registries(commands, on_startup, on_shutdown)
+        self._events = EventBus(events, built_in.events if built_in else None)
         # The declared form: ``Hinoki(include=[...], modules=[...])``.
         declared = [self.module_of(m) for m in modules]
         automatic = self.settings_database(declared)
@@ -363,6 +369,11 @@ class Hinoki:
     def commands(self) -> tuple[Command, ...]:
         """The app's explicitly registered management commands."""
         return self._commands
+
+    @property
+    def events(self) -> EventBus:
+        """The typed event handlers listed in ``events=``, fixed at construction."""
+        return self._events
 
     @property
     def on_startup(self) -> tuple[Hook, ...]:

@@ -1,0 +1,429 @@
+"""Typed events with explicit handlers.
+
+An event is a class (usually a frozen dataclass). A ``Handlers`` collection
+registers functions for event types in one of two phases named after what they
+may do: ``in_transaction`` handlers run inside the writer's transaction and can
+fail it; ``after_commit`` handlers run once the outermost transaction has
+committed and can cancel nothing. The application lists its collections in
+``Hinoki(events=[...])`` (or ``manifest_events()``); nothing registers by import.
+Delivery is inside one worker process: there is no queue and no retry.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import dataclasses
+import enum
+import inspect
+import logging
+import typing
+from collections import Counter
+from collections.abc import Awaitable, Callable, Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, cast
+
+from hinoki import context
+from hinoki.errors import EventError, EventRegistrationError, EventTimeout
+from hinoki.settings import EventsSettings
+
+if TYPE_CHECKING:
+    from hinoki.db import ActiveTransaction
+
+log = logging.getLogger(__name__)
+
+EventKey = tuple[type, type | None]
+
+
+class Phase(enum.Enum):
+    IN_TRANSACTION = "in_transaction"
+    AFTER_COMMIT = "after_commit"
+
+
+@dataclass(frozen=True, slots=True)
+class Registration:
+    """One handler as registered: where it runs, for which event, in what order."""
+
+    handler: Callable[[Any], object]
+    phase: Phase
+    key: EventKey
+    name: str
+    order: int = 0
+
+    @property
+    def is_async(self) -> bool:
+        return inspect.iscoroutinefunction(self.handler)
+
+    @property
+    def event_name(self) -> str:
+        return key_name(self.key)
+
+
+def key_name(key: EventKey) -> str:
+    kind, subject = key
+    return (
+        kind.__qualname__
+        if subject is None
+        else (f"{kind.__qualname__}[{subject.__qualname__}]")
+    )
+
+
+def event_key(kind: object) -> EventKey:
+    """``(event class, subject class or None)`` for ``Created`` or ``Created[Note]``."""
+    origin = typing.get_origin(kind)
+    if origin is None:
+        if not isinstance(kind, type):
+            raise EventRegistrationError(f"{kind!r} is not an event class")
+        return (kind, None)
+    args = typing.get_args(kind)
+    if not isinstance(origin, type) or len(args) != 1 or not isinstance(args[0], type):
+        raise EventRegistrationError(
+            f"{kind!r} is not an event class or an event class of one class"
+        )
+    return (origin, args[0])
+
+
+def handler_name(handler: Callable[..., object]) -> str:
+    return f"{handler.__module__}.{handler.__qualname__}"
+
+
+def check_handler(handler: Callable[..., object], key: EventKey, phase: Phase) -> None:
+    """Refuse a handler that is untyped, takes the wrong event or cannot be
+    timed out in its phase."""
+    name = handler_name(handler)
+    if not callable(handler):
+        raise EventRegistrationError(f"{name} is not callable")
+    if phase is Phase.IN_TRANSACTION and not inspect.iscoroutinefunction(handler):
+        raise EventRegistrationError(
+            f"{name}: an in_transaction handler must be 'async def' so that its "
+            "time limit can be enforced inside the transaction"
+        )
+    parameters = list(inspect.signature(handler).parameters.values())
+    if len(parameters) != 1 or parameters[0].kind not in (
+        inspect.Parameter.POSITIONAL_ONLY,
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+    ):
+        raise EventRegistrationError(f"{name} must take exactly one event parameter")
+    declared = event_key(handler_parameter(handler, parameters[0].name, name))
+    if declared[0] is not key[0] or (key[1] is not None and declared[1] is not key[1]):
+        raise EventRegistrationError(
+            f"{name}: the parameter is annotated {key_name(declared)} but the "
+            f"handler is registered for {key_name(key)}"
+        )
+
+
+def handler_parameter(
+    handler: Callable[..., object], parameter: str, name: str
+) -> object:
+    try:
+        hints = typing.get_type_hints(handler)
+    except Exception as error:
+        raise EventRegistrationError(
+            f"{name}: cannot resolve its annotations ({error})"
+        ) from error
+    if parameter not in hints:
+        raise EventRegistrationError(f"{name}: the event parameter has no type")
+    return hints[parameter]
+
+
+class Handlers:
+    """A collection of event handlers, listed on the application to take effect.
+
+    ``@handlers.in_transaction(Event)`` and ``@handlers.after_commit(Event)``
+    register the decorated function, which is returned unchanged so a test can
+    call it directly. The event type is ``Event`` or, for events about one
+    class, ``Event[Note]``; the handler's parameter must be annotated with the
+    same type. Registration order is execution order.
+    """
+
+    def __init__(self, name: str = "") -> None:
+        self.name = name
+        self._items: list[Registration] = []
+
+    @property
+    def registrations(self) -> tuple[Registration, ...]:
+        return tuple(self._items)
+
+    def in_transaction[E](
+        self, kind: type[E]
+    ) -> Callable[[Callable[[E], Awaitable[None]]], Callable[[E], Awaitable[None]]]:
+        """Run inside the transaction of the write that emitted the event. An
+        exception or a timeout rolls the write back and reaches its caller."""
+        return self._register(kind, Phase.IN_TRANSACTION)
+
+    def after_commit[E](
+        self, kind: type[E]
+    ) -> Callable[
+        [Callable[[E], Awaitable[None] | None]],
+        Callable[[E], Awaitable[None] | None],
+    ]:
+        """Run after the outermost transaction commits (at once when none is
+        open). A failure is logged and counted; it cancels nothing."""
+        return self._register(kind, Phase.AFTER_COMMIT)
+
+    def _register[F: Callable[..., object]](
+        self, kind: object, phase: Phase
+    ) -> Callable[[F], F]:
+        key = event_key(kind)
+
+        def decorate(handler: F) -> F:
+            check_handler(handler, key, phase)
+            self._items.append(Registration(handler, phase, key, handler_name(handler)))
+            return handler
+
+        return decorate
+
+
+# Shared by the helpers of one emit: how deep the handlers are nested.
+_depth: ContextVar[int] = ContextVar("hinoki_event_depth", default=0)
+_captured: ContextVar[list[object] | None] = ContextVar(
+    "hinoki_event_capture", default=None
+)
+_muted: ContextVar[bool] = ContextVar("hinoki_event_muted", default=False)
+
+
+class EventBus:
+    """The handlers an application listed, in a fixed order, and ``emit``.
+
+    Immutable after construction except for its counters. The runtime makes the
+    application's bus current for each request, hook and command, the way it
+    does the database.
+    """
+
+    def __init__(
+        self,
+        collections: Sequence[Handlers] = (),
+        settings: EventsSettings | None = None,
+    ) -> None:
+        limits = settings or EventsSettings()
+        self.handler_timeout = limits.handler_timeout
+        self.max_handlers = limits.max_handlers
+        self.max_depth = limits.max_depth
+        self._by_kind: dict[type, list[Registration]] = {}
+        self._count: Counter[tuple[EventKey, Phase]] = Counter()
+        self._stats: Counter[tuple[str, str, str]] = Counter()
+        self._load(collections)
+
+    def _load(self, collections: Sequence[Handlers]) -> None:
+        seen: set[int] = set()
+        order = 0
+        for collection in collections:
+            if not isinstance(collection, Handlers):
+                raise EventRegistrationError(
+                    f"events= takes Handlers collections, not {collection!r}"
+                )
+            if id(collection) in seen:
+                raise EventRegistrationError("the same Handlers is listed twice")
+            seen.add(id(collection))
+            for item in collection.registrations:
+                self._add(dataclasses.replace(item, order=order))
+                order += 1
+
+    def _add(self, item: Registration) -> None:
+        slot = (item.key, item.phase)
+        self._count[slot] += 1
+        if self._count[slot] > self.max_handlers:
+            raise EventRegistrationError(
+                f"{item.event_name} has more than {self.max_handlers} "
+                f"{item.phase.value} handlers (events.max_handlers)"
+            )
+        self._by_kind.setdefault(item.key[0], []).append(item)
+
+    @property
+    def registrations(self) -> tuple[Registration, ...]:
+        """Every handler in execution order."""
+        merged = [r for items in self._by_kind.values() for r in items]
+        return tuple(sorted(merged, key=lambda r: r.order))
+
+    def listening(self, kind: type) -> bool:
+        """Whether emitting ``kind`` would do anything: a handler is registered
+        for it or the calling context is capturing events. The cheap guard the
+        write paths use before they build an event."""
+        return kind in self._by_kind or _captured.get() is not None
+
+    def matching(self, event: object) -> list[Registration]:
+        """The handlers that receive ``event``, in execution order. A handler
+        registered for ``Event[Note]`` receives an event whose ``subject`` is
+        ``Note``; one registered for ``Event`` receives every such event."""
+        items = self._by_kind.get(type(event), ())
+        subject = getattr(event, "subject", None)
+        return [r for r in items if r.key[1] is None or r.key[1] is subject]
+
+    async def emit(self, event: object) -> None:
+        """Deliver ``event``: ``in_transaction`` handlers now, in order (the
+        first failure stops the rest and propagates); ``after_commit`` handlers
+        once the outermost transaction commits."""
+        captured = _captured.get()
+        if captured is not None:
+            captured.append(event)
+        handlers = self.matching(event)
+        if not handlers or _muted.get():
+            return
+        depth = _depth.get()
+        if depth >= self.max_depth:
+            raise EventError(
+                f"events nested deeper than {self.max_depth} "
+                f"(events.max_depth) at {type(event).__qualname__}"
+            )
+        inside = [h for h in handlers if h.phase is Phase.IN_TRANSACTION]
+        after = [h for h in handlers if h.phase is Phase.AFTER_COMMIT]
+        token = _depth.set(depth + 1)
+        try:
+            if inside:
+                self.require_transaction(event)
+                for item in inside:
+                    await self.run(item, event)
+            if after:
+                await self.defer(after, event, depth + 1)
+        finally:
+            _depth.reset(token)
+
+    def require_transaction(self, event: object) -> None:
+        if active_transaction() is None:
+            raise EventError(
+                f"{type(event).__qualname__} has in_transaction handlers but "
+                "no transaction is open: emit it inside db.atomic() or a model write"
+            )
+
+    async def defer(
+        self, handlers: list[Registration], event: object, depth: int
+    ) -> None:
+        async def deliver() -> None:
+            token = _depth.set(depth)
+            try:
+                for item in handlers:
+                    await self.run_isolated(item, event)
+            finally:
+                _depth.reset(token)
+
+        database = current_database_or_none()
+        if database is not None and database.active() is not None:
+            database.after_commit(deliver)
+        else:
+            await deliver()
+
+    async def run_isolated(self, item: Registration, event: object) -> None:
+        try:
+            await self.run(item, event)
+        except Exception:
+            log.exception("after_commit handler %s failed", item.name)
+
+    async def run(self, item: Registration, event: object) -> None:
+        outcome = "error"
+        try:
+            await self.call(item, event)
+            outcome = "ok"
+        except EventTimeout:
+            outcome = "timeout"
+            raise
+        finally:
+            self._stats[(item.event_name, item.phase.value, outcome)] += 1
+
+    async def call(self, item: Registration, event: object) -> None:
+        limit = asyncio.timeout(self.handler_timeout)
+        try:
+            async with limit:
+                if item.is_async:
+                    await cast("Awaitable[Any]", item.handler(event))
+                else:
+                    await self.call_sync(item, event)
+        except TimeoutError as error:
+            if not limit.expired():
+                raise
+            raise EventTimeout(
+                f"event handler {item.name} timed out after "
+                f"{self.handler_timeout:g}s (events.handler_timeout)"
+            ) from error
+
+    @staticmethod
+    async def call_sync(item: Registration, event: object) -> None:
+        runner = context.sync_runner.get()
+        if runner is None:
+            raise EventError(
+                f"{item.name} is a plain 'def' handler and no worker executor "
+                "is active; make it 'async def' or emit inside a request"
+            )
+        result = await runner(item.handler, event)
+        if inspect.isawaitable(result):
+            await result
+
+    def stats(self) -> dict[tuple[str, str, str], int]:
+        """Handler runs counted per event, phase and outcome (``ok``,
+        ``error`` or ``timeout``) since the worker started."""
+        return dict(self._stats)
+
+    @contextmanager
+    def capture(self) -> Iterator[list[object]]:
+        """Collect the events emitted in this block, whether or not a handler
+        listens, for a test to assert on. Handlers still run."""
+        seen: list[object] = []
+        token = _captured.set(seen)
+        try:
+            yield seen
+        finally:
+            _captured.reset(token)
+
+    @contextmanager
+    def muted(self) -> Iterator[None]:
+        """Deliver nothing in this block (``capture`` still records)."""
+        token = _muted.set(True)
+        try:
+            yield
+        finally:
+            _muted.reset(token)
+
+
+def current_database_or_none() -> Any:
+    # Local import: ``hinoki.orm`` imports the model, which imports this module.
+    from hinoki.orm.context import database_var  # noqa: PLC0415
+
+    return database_var.get()
+
+
+def active_transaction() -> ActiveTransaction | None:
+    database = current_database_or_none()
+    return None if database is None else database.active()
+
+
+events_var: ContextVar[EventBus | None] = ContextVar("hinoki_events", default=None)
+
+
+def current_events() -> EventBus:
+    bus = events_var.get()
+    if bus is None:
+        raise EventError(
+            "no event bus is active: serve an Hinoki application or use "
+            "hinoki.events.use(bus)"
+        )
+    return bus
+
+
+@contextmanager
+def use(bus: EventBus) -> Iterator[EventBus]:
+    """Make ``bus`` the current one inside the block (the runtime does this for
+    every request, startup hook and management command)."""
+    token = events_var.set(bus)
+    try:
+        yield bus
+    finally:
+        events_var.reset(token)
+
+
+async def emit(event: object) -> None:
+    """Emit ``event`` on the current worker's bus."""
+    await current_events().emit(event)
+
+
+__all__ = [
+    "EventBus",
+    "EventError",
+    "EventTimeout",
+    "Handlers",
+    "Phase",
+    "Registration",
+    "current_events",
+    "emit",
+    "events_var",
+    "use",
+]
