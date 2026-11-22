@@ -261,8 +261,36 @@ pub struct WsgiLimits {
 pub struct WsgiBackend {
     jobs: std_mpsc::SyncSender<Job>,
     admission: Arc<Semaphore>,
+    /// Bytes of request body being read, so many slow uploads cannot hold more
+    /// memory than the admitted requests could.
+    reading: Arc<Semaphore>,
     limits: WsgiLimits,
     active: Arc<AtomicUsize>,
+}
+
+/// Most body bytes read at once: what the threads and the queue could hold.
+fn read_budget(limits: &WsgiLimits) -> usize {
+    let slots = limits.threads.saturating_add(limits.queue);
+    slots
+        .saturating_mul(limits.max_body_bytes)
+        .clamp(1, u32::MAX as usize)
+}
+
+/// The bytes a request reserves: its declared length, or the largest body when
+/// it is chunked or declares nothing parseable.
+fn claimed_bytes(headers: &[(Vec<u8>, Vec<u8>)], max_body_bytes: usize) -> u32 {
+    let declared = headers
+        .iter()
+        .find(|(name, _)| name == b"content-length")
+        .and_then(|(_, value)| {
+            std::str::from_utf8(value)
+                .ok()?
+                .trim()
+                .parse::<usize>()
+                .ok()
+        });
+    let claim = declared.map_or(max_body_bytes, |bytes| bytes.min(max_body_bytes));
+    u32::try_from(claim.max(1)).unwrap_or(u32::MAX)
 }
 
 fn plain(status: u16, text: &'static str) -> Delivery {
@@ -350,6 +378,7 @@ impl WsgiBackend {
         Ok(Self {
             jobs,
             admission: Arc::new(Semaphore::new(limits.threads + limits.queue)),
+            reading: Arc::new(Semaphore::new(read_budget(&limits))),
             limits,
             active,
         })
@@ -379,14 +408,20 @@ impl WsgiBackend {
             ..
         } = request;
         let body = match body {
-            Some(reader) => match reader.read_all(self.limits.max_body_bytes).await {
-                Ok(bytes) => bytes,
-                Err(error) => return body_failure(&error),
-            },
+            Some(reader) => {
+                // The bytes this body may take are reserved while it is read; a
+                // client still sending holds no thread or queue slot, only this.
+                let claim = claimed_bytes(&headers, self.limits.max_body_bytes);
+                let Ok(_reserved) = Arc::clone(&self.reading).try_acquire_many_owned(claim) else {
+                    return overloaded();
+                };
+                match reader.read_all(self.limits.max_body_bytes).await {
+                    Ok(bytes) => bytes,
+                    Err(error) => return body_failure(&error),
+                }
+            }
             None => Vec::new(),
         };
-        // Admitted only once the body is in: a client still sending it holds
-        // neither a thread nor a queue slot.
         let Ok(admission) = Arc::clone(&self.admission).try_acquire_owned() else {
             return overloaded();
         };
@@ -717,6 +752,22 @@ def bridge(call):
 
     async fn next_piece(live: &mut kiso::Live) -> Option<Chunk> {
         std::future::poll_fn(|cx| live.poll_piece(cx, usize::MAX)).await
+    }
+
+    #[test]
+    fn a_body_claims_its_declared_length_or_the_largest_body() {
+        let length = |value: &[u8]| vec![(b"content-length".to_vec(), value.to_vec())];
+        assert_eq!(claimed_bytes(&length(b"10"), 1024), 10);
+        assert_eq!(claimed_bytes(&length(b"99999"), 1024), 1024);
+        assert_eq!(claimed_bytes(&length(b"x"), 1024), 1024);
+        assert_eq!(claimed_bytes(&[], 1024), 1024);
+        let limits = WsgiLimits {
+            threads: 2,
+            queue: 3,
+            max_body_bytes: 1024,
+            request_timeout: Duration::from_secs(1),
+        };
+        assert_eq!(read_budget(&limits), 5 * 1024);
     }
 
     #[test]
