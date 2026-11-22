@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -531,7 +531,7 @@
 <p><code>GET /invoices/feed?limit=20</code> answers <code>{"items": [...], "next": "&lt;cursor&gt;", "previous": null, "page_size": 20}</code>. Pass <code>next</code> as <code>cursor</code> to read forward and <code>previous</code> to read back. <code>next</code> is <code>null</code> on the last page; <code>previous</code> is <code>null</code> on the first. Generated lists switch with <code>crud(..., pagination=CursorPagination())</code> and return the same envelope.</p>
 <ul>
 <li><strong>Ordering.</strong> The page follows the query's <code>order_by</code> (or the model's <code>ordered_by</code>), with the primary key appended as the final tie-break, so rows with equal sort values are never skipped or repeated. Sort columns must be non-null <code>int</code>, <code>str</code>, <code>uuid</code>, <code>datetime</code> or <code>float</code> columns; anything else raises a <code>FieldError</code>, and a <code>crud(...)</code> whose model ordering is invalid fails at registration with a <code>RegistrationError</code> naming the model and column (an ordering added by a custom <code>get_queryset</code> is checked on each request). A <code>str</code> sort value is bounded: at most 1024 bytes per value, and a whole cursor at most 4096 characters, the same limit for issuing and reading. A page whose boundary row exceeds it, and whose link is needed, answers <code>422</code> with the field <code>cursor</code> and the code <code>unencodable</code> (it never answers <code>500</code>); order by a shorter column when values can be long. The queryset's own <code>limit</code> and <code>offset</code> are ignored.</li>
-<li><strong>Filters and scope.</strong> The cursor only holds a position. Filters, <code>get_queryset</code>, ownership and tenant policies are applied to every page exactly as for the first one, so a cursor cannot reach rows its holder could not list.</li>
+<li><strong>Filters and scope.</strong> The cursor holds a position. <code>get_queryset</code>, ownership and tenant policies are applied to every page exactly as for the first one, so a cursor cannot reach rows its holder could not list. On a generated list with <a href="../crud/#filter-order-and-search-the-list">client filters</a>, the cursor is also bound to the filters and the <code>ordering</code> that the client sent: a cursor used with different ones answers <code>422</code> with the code <code>invalid</code>. A list without client filters keeps its cursors valid as before. The <code>ordering</code> columns of the <code>FilterSet</code> must be non-null <code>int</code>, <code>str</code>, <code>uuid</code>, <code>datetime</code> or <code>float</code> columns, checked when the routes are declared.</li>
 <li><strong>Signing.</strong> Cursors are signed with HMAC-SHA256 in Rust and bound to the table and the ordering they were issued for, so they are tamper-proof. They are not encrypted: a cursor is base64 and readable, and it contains the sort-key values of the boundary row. Do not order a cursor list by a column whose value must stay private, even when the read schema hides it. The secret comes from <code>CursorPagination(secret=...)</code> or <code>pagination.cursor_secret</code> and must have at least 32 bytes; without one, including the action fails with a <code>RegistrationError</code>. Changing the secret invalidates outstanding cursors.</li>
 <li><strong>Expiry.</strong> <code>cursor_ttl_seconds</code> (setting) or <code>CursorPagination(ttl=...)</code> makes a cursor expire; the default never does.</li>
 <li><strong>Errors.</strong> A tampered, malformed, foreign or differently ordered cursor answers <code>422</code> with the field <code>cursor</code> and the code <code>invalid</code>; an expired one answers <code>422</code> with <code>expired</code>; an unencodable boundary value answers <code>422</code> with <code>unencodable</code>. <code>limit</code> follows the same bounds as <code>page_size</code>.</li>
@@ -562,7 +562,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/pagination.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

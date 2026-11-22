@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -663,6 +663,7 @@
     <span class="p">),</span>
 <span class="p">]</span>
 </code></pre></div>
+<p>To let clients filter, order and search the generated list, pass a <code>FilterSet</code> as <code>filters=InvoiceFilters</code> to <code>@crud(...)</code> or to the value form. The class then may define <code>filter_queryset(self, query, params: InvoiceFilters, principal)</code>, which runs after <code>get_queryset</code> and the client's filters, so it can only narrow further; see <a href="../crud/#filter-order-and-search-the-list">filter, order and search the list</a>.</p>
 <h2 id="one-instance-per-request">One instance per request<a class="headerlink" href="#one-instance-per-request" title="Permanent link">&para;</a></h2>
 <p>Hinoki creates the class with no arguments for every request and calls the method on that instance. Keep <code>self</code> empty:</p>
 <ul>
@@ -772,7 +773,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:28:30 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/class-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

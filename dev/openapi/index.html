@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></span>
-            <span>9 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></span>
+            <span>10 min read</span>
           </p>
           
         </header>
@@ -525,7 +525,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 <ul>
 <li>A unique <code>operationId</code> is derived from the handler's qualified name. If names collide, Hinoki appends a numeric suffix.</li>
 <li>The first line of the handler docstring becomes <code>summary</code>; the remaining lines become <code>description</code>.</li>
-<li>Path, query and pagination parameters come from the bound handler signature. Body fields and successful response fields come from <code>Schema</code> annotations. Parser and renderer media types supply the content types.</li>
+<li>Path, query and pagination parameters come from the bound handler signature. A list with <a href="../crud/#filter-order-and-search-the-list"><code>filters=</code></a> documents one typed query parameter per filter: <code>boolean</code>, <code>integer</code>, <code>number</code> or <code>string</code> schemas (with <code>format</code> for dates, instants, UUIDs and decimals, and an <code>enum</code> for a <code>Literal</code>), <code>name.from</code> and <code>name.to</code> for a <code>Range</code>, <code>name.null</code> for a nullable field, a comma-separated array (<code>style: form</code>, <code>explode: false</code>, <code>maxItems</code>) for <code>In</code>, <code>search</code> with its length limit, and <code>ordering</code> as an array whose <code>enum</code> is each declared key and its <code>-</code> form. The same parameters appear in 3.1 and 3.2 documents. Body fields and successful response fields come from <code>Schema</code> annotations. Parser and renderer media types supply the content types.</li>
 <li>Typed <code>UploadedFile</code> parameters generate a <code>multipart/form-data</code> request body with binary file properties. Repeated files use an array of binary items; optional single-file bindings are not required in the body or property list. Text keys read dynamically through <code>request.POST</code> are not inferred or listed.</li>
 <li>A declared <code>errors=(...)</code> adds response entries for those <code>APIError</code> classes. Request binding and schema validation errors are documented as <code>422</code> where the action has request inputs.</li>
 <li><code>access=...</code> adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.</li>
@@ -633,7 +633,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

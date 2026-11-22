@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
-            <span>8 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></span>
+            <span>11 min read</span>
           </p>
           
         </header>
@@ -576,6 +576,85 @@
 <li>Two different classes whose actions would share a name raise <code>RegistrationError</code> when included, naming both paths, so one <code>except_</code> entry, waiver or MCP pattern never covers both by accident.</li>
 <li>One value mounted twice (<code>Mount("/a", notes)</code> and <code>Mount("/b", notes)</code>) keeps one name, as any <code>API</code> class or function does: an exception for it covers both mounts.</li>
 </ul>
+<h2 id="filter-order-and-search-the-list">Filter, order and search the list<a class="headerlink" href="#filter-order-and-search-the-list" title="Permanent link">&para;</a></h2>
+<p>Declare what a client may ask for in a <code>FilterSet</code> and pass it as <code>filters=</code>. It works for <code>crud(...)</code> as a value and as <code>@crud(...)</code> on an <code>API</code> class.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/filters.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.filters</span><span class="w"> </span><span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">FilterSet</span><span class="p">,</span> <span class="n">In</span><span class="p">,</span> <span class="n">Range</span><span class="p">,</span> <span class="n">Search</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceFilters</span><span class="p">(</span><span class="n">FilterSet</span><span class="p">):</span>
+    <span class="n">paid</span><span class="p">:</span> <span class="n">Eq</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span>
+    <span class="n">status</span><span class="p">:</span> <span class="n">In</span><span class="p">[</span><span class="n">Literal</span><span class="p">[</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"paid"</span><span class="p">,</span> <span class="s2">"overdue"</span><span class="p">]]</span>
+    <span class="n">issued</span><span class="p">:</span> <span class="n">Range</span><span class="p">[</span><span class="n">date</span><span class="p">]</span>
+    <span class="n">search</span> <span class="o">=</span> <span class="n">Search</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">,</span> <span class="s2">"customer_name"</span><span class="p">)</span>
+    <span class="n">ordering</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"issued"</span><span class="p">,</span> <span class="s2">"reference"</span><span class="p">)</span>
+</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">crud</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.apps.billing.filters</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceFilters</span>
+
+<span class="n">invoices</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">)</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Declaration</th>
+<th>Request</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>paid: Eq[bool]</code></td>
+<td><code>?paid=false</code></td>
+<td>equals the value</td>
+</tr>
+<tr>
+<td><code>status: In[...]</code></td>
+<td><code>?status=open,overdue</code></td>
+<td>equals any of at most 50 comma-separated values</td>
+</tr>
+<tr>
+<td><code>issued: Range[date]</code></td>
+<td><code>?issued.from=2024-01-01&amp;issued.to=2024-03-31</code></td>
+<td>inclusive bounds, either one optional</td>
+</tr>
+<tr>
+<td><code>discount: Eq[int \| None]</code></td>
+<td><code>?discount.null=true</code></td>
+<td>no value (<code>true</code>) or a value (<code>false</code>); only for a nullable column and a <code>T \| None</code> argument</td>
+</tr>
+<tr>
+<td><code>search = Search("reference", "customer_name")</code></td>
+<td><code>?search=acme</code></td>
+<td>the text is contained in any of the columns, ignoring case; <code>%</code> and <code>_</code> are literal</td>
+</tr>
+<tr>
+<td><code>ordering = ("issued", "reference")</code></td>
+<td><code>?ordering=-issued,reference</code></td>
+<td>sort keys from the list, <code>-</code> for descending</td>
+</tr>
+</tbody>
+</table>
+<p>Each attribute name is the column it filters. Types are <code>bool</code>, <code>int</code>, <code>float</code>, <code>str</code>, <code>UUID</code>, <code>date</code>, <code>datetime</code> (an RFC 3339 instant, read as UTC), <code>Decimal</code> and <code>Literal[...]</code> of strings; an <code>Eq</code>, <code>In</code> or <code>Range</code> is also what the typed OpenAPI parameter documents. A bool, UUID or <code>Literal</code> has no <code>Range</code>. An empty value (<code>?paid=</code>) is ignored.</p>
+<p>A name that is not declared, an operator that the field does not have (<code>?paid.from=1</code>), a value of the wrong type or outside the <code>Literal</code>, a repeated parameter, an ordering key outside <code>ordering</code>, or a value that is too long is a <code>422</code> listing every problem with its <code>path</code> and a <code>code</code> (<code>type</code>, <code>choice</code>, <code>unknown</code>, <code>operator</code>, <code>duplicate</code>, <code>too_long</code>, <code>too_many</code>); the message never repeats the client's value. Values are parsed and coerced in Rust, bound as parameters and never become SQL text, and column names come only from the declaration, checked against the model when the routes are declared.</p>
+<p>SQLite keeps a <code>Decimal</code> column as text, which compares by spelling and orders alphabetically, not numerically. A <code>Range[Decimal]</code> filter (<code>?amount.from=...</code>/<code>?amount.to=...</code>) or an <code>ordering</code> entry naming a <code>Decimal</code> column is a <code>422</code> there, with <code>code</code> <code>unsupported</code> and <code>path</code> naming the field (or <code>ordering</code>); only equality (<code>Eq</code>, <code>In</code>, <code>.null</code>) is checked against a <code>Decimal</code> column on SQLite. PostgreSQL and MySQL compare and order a <code>Decimal</code> numerically and accept the full <code>Range</code>.</p>
+<p>A filter's produced names (its own name, <code>.from</code>/<code>.to</code> for a <code>Range</code>, <code>.null</code> when nullable, plus <code>search</code> and <code>ordering</code> when declared) must not collide with the pagination parameters (<code>page</code>/<code>page_size</code>, or <code>cursor</code>/<code>limit</code>): a <code>FilterSet</code> that does is refused when the routes are declared, for <code>crud(...)</code> and for a manual <code>@http.get</code> action alike.</p>
+<p>The list applies, in this order: <code>get_queryset(principal)</code> (tenant and visibility), the client's filters combined with AND on top of it, the <code>filter_queryset</code> hook, the client's ordering and then pagination. A client filter can only narrow what <code>get_queryset</code> returned. The client's <code>ordering</code> replaces the order that <code>get_queryset</code> or the model set, always ends with the primary key so pages are stable, and without it that order stays.</p>
+<p><code>filter_queryset(self, query, params, principal)</code> is an optional hook of the class form; <code>params</code> is the <code>InvoiceFilters</code> instance (<code>params.paid</code>, <code>params.status</code> as a list, <code>params.issued</code> as <code>Bounds(from_, to)</code>, <code>params.search_term</code>, <code>params.is_null("discount")</code>, each <code>None</code> when the client did not send it):</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
+<span class="nd">@crud</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Invoices</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">filter_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">InvoiceFilters</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">params</span><span class="o">.</span><span class="n">paid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">query</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">archived</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">query</span>
+</code></pre></div>
+<p>The filters belong to the <code>list</code> action: <code>omit=("list",)</code> with <code>filters=</code> is refused. With <code>CursorPagination</code> the ordering columns must be non-null <code>int</code>, <code>str</code>, <code>UUID</code>, <code>datetime</code> or <code>float</code> columns, and a cursor is bound to the filters and ordering of the request that issued it (<a href="../pagination/#cursor-keyset-pagination">details</a>). A filtered list is not eligible for the native generated-CRUD list lane (the answer comes from the ordinary Python path, with rows still encoded in Rust); the <a href="../admin/">admin</a> lists have their own filters and do not use this one. A <code>FilterSet</code> also works on its own: <code>InvoiceFilters.parse({"paid": ["true"]})</code> returns the typed instance or raises <code>ValidationError</code>.</p>
 <h2 id="hooks-in-the-class-form">Hooks in the class form<a class="headerlink" href="#hooks-in-the-class-form" title="Permanent link">&para;</a></h2>
 <p>Apply <code>@crud(...)</code> to a class whose only base is <code>API</code>. These methods change what the generated actions do; every other decorated method is a handwritten action:</p>
 <table>
@@ -591,6 +670,11 @@
 <td><code>get_queryset(principal)</code></td>
 <td>every action</td>
 <td>The base query: tenant or visibility filters. Builds a query, does no I/O</td>
+</tr>
+<tr>
+<td><code>filter_queryset(query, params, principal)</code></td>
+<td>list</td>
+<td>Narrows the list after the client's <a href="#filter-order-and-search-the-list">filters</a>; <code>params</code> is the <code>FilterSet</code> instance</td>
 </tr>
 <tr>
 <td><code>to_schema(item)</code></td>
@@ -720,14 +804,14 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
           
             <ul><li><a href="#generated-actions">Generated actions</a>
             <ul><li><a href="#access-per-action">Access per action</a></li></ul>
-          </li><li><a href="#hooks-in-the-class-form">Hooks in the class form</a>
+          </li><li><a href="#filter-order-and-search-the-list">Filter, order and search the list</a></li><li><a href="#hooks-in-the-class-form">Hooks in the class form</a>
             <ul><li><a href="#generate-or-hand-write">Generate or hand-write</a></li></ul>
           </li><li><a href="#reuse">Reuse</a></li><li><a href="#security-and-validation">Security and validation</a></li><li><a href="#model-hooks-and-kiso">Model hooks and Kiso</a></li><li><a href="#inspect-the-generated-routes">Inspect the generated routes</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

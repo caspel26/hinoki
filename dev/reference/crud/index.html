@@ -312,6 +312,7 @@ ownership, schema requirements and route replacement.</p>
     <span class="n">assign</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span>
     <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">(),</span>
+    <span class="n">filters</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">FilterSet</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">omit</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -331,8 +332,10 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 <code>name=</code> names the generated class (<code>"ArchiveCrud"</code>) or its module and
 class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP patterns match.
 <code>cors=http.Cors(...)</code> gives every generated action that CORS policy instead
-of the application's. <code>include_in_schema=False</code> leaves every generated action
-out of the OpenAPI document; <code>include_in_schema={"delete": False}</code> leaves out
+of the application's. <code>filters=</code> takes a <code>FilterSet</code> subclass: the list then
+accepts the filters, ordering and search it declares.
+<code>include_in_schema=False</code> leaves every generated action out of the OpenAPI
+document; <code>include_in_schema={"delete": False}</code> leaves out
 only the named actions. <code>tags</code> and <code>deprecated</code> apply to every action.
 Left-out actions are still served and protected by their access.</p>
 

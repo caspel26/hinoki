@@ -4420,11 +4420,11 @@ it to the ordering of that query.</p>
 
         <p>Strategy: <code>?cursor=TOKEN&amp;limit=N</code>, keyset pages with signed cursors.</p>
 <p>The cursor is signed with <code>secret</code> (at least 32 bytes) and bound to the
-table and ordering of the query, so a changed or foreign token is a 422,
-never a 500. It is signed, not encrypted: it carries the sort-key values of
-the boundary row in readable form, so do not order by a column whose value
-must stay private. Clients should treat it as opaque. <code>ttl</code> (seconds)
-makes cursors expire. Anything left
+table, the ordering and the client filters of the query, so a changed or
+foreign token is a 422, never a 500. It is signed, not encrypted: it
+carries the sort-key values of the boundary row in readable form, so do
+not order by a column whose value must stay private. Clients should treat it
+as opaque. <code>ttl</code> (seconds) makes cursors expire. Anything left
 out comes from the application's <code>pagination</code> settings when the action is
 included; values given here win.</p>
 
