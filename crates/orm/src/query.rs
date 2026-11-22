@@ -59,6 +59,17 @@ pub struct Filter<V> {
     pub values: Vec<V>,
 }
 
+/// "Rows strictly after this position" for keyset pagination: `columns` are the
+/// sort keys in order with their direction (`true` is descending), `values` the
+/// position, one per column. Keys must not be NULL. The condition is
+/// `(a, b) > (?, ?)` when every key sorts the same way and the expanded
+/// `a > ? OR (a = ? AND b < ?)` form otherwise.
+#[derive(Debug, Clone)]
+pub struct Keyset<V> {
+    pub columns: Vec<(String, bool)>,
+    pub values: Vec<V>,
+}
+
 /// `JOIN table AS alias ON alias.remote = base.local`. The joined columns
 /// are selected as `alias__N` (N = position in `columns`, so long column names
 /// never overflow the identifier limit); an empty list joins only for filtering.
@@ -78,6 +89,8 @@ pub struct Select<V> {
     pub columns: Vec<String>,
     pub joins: Vec<Join>,
     pub filters: Vec<Filter<V>>,
+    /// Keyset (cursor) condition, ANDed with `filters`.
+    pub keyset: Option<Keyset<V>>,
     pub order: Vec<(String, bool)>,
     pub limit: Option<u64>,
     pub offset: Option<u64>,
@@ -258,15 +271,82 @@ impl<V: Clone> Builder<V> {
     }
 
     fn filters(&mut self, filters: &[Filter<V>]) -> Result<(), QueryError> {
+        self.conditions(filters, None)
+    }
+
+    fn conditions(
+        &mut self,
+        filters: &[Filter<V>],
+        keyset: Option<&Keyset<V>>,
+    ) -> Result<(), QueryError> {
         let mut clauses = Vec::new();
         for filter in filters {
             clauses.push(self.clause(filter)?);
+        }
+        if let Some(keyset) = keyset {
+            clauses.push(self.keyset(keyset)?);
         }
         if !clauses.is_empty() {
             self.sql.push_str(" WHERE ");
             self.sql.push_str(&clauses.join(" AND "));
         }
         Ok(())
+    }
+
+    fn keyset(&mut self, keyset: &Keyset<V>) -> Result<String, QueryError> {
+        let count = keyset.columns.len();
+        if count == 0 || keyset.values.len() != count {
+            return Err(QueryError::BadFilter(
+                "a keyset needs one value per sort column".into(),
+            ));
+        }
+        let mut columns = Vec::with_capacity(count);
+        for (name, _) in &keyset.columns {
+            columns.push(column_ref(name, self.base.as_deref(), self.dialect)?);
+        }
+        let descending = keyset.columns[0].1;
+        let uniform = keyset.columns.iter().all(|(_, desc)| *desc == descending);
+        if count == 1 || uniform {
+            return Ok(self.row_comparison(&columns, &keyset.values, descending));
+        }
+        Ok(self.expanded_comparison(&columns, keyset))
+    }
+
+    fn row_comparison(&mut self, columns: &[String], values: &[V], descending: bool) -> String {
+        let symbol = if descending { "<" } else { ">" };
+        let holders: Vec<String> = values
+            .iter()
+            .map(|value| self.placeholder(value.clone()))
+            .collect();
+        if columns.len() == 1 {
+            return format!("{} {symbol} {}", columns[0], holders[0]);
+        }
+        format!("({}) {symbol} ({})", columns.join(", "), holders.join(", "))
+    }
+
+    /// `k1 > v1 OR (k1 = v1 AND k2 < v2) OR ...`, each key in its own direction.
+    /// A redundant `k1 >= v1` bound goes first: it gives the planner an index
+    /// range to start from, which the OR alone does not.
+    fn expanded_comparison(&mut self, columns: &[String], keyset: &Keyset<V>) -> String {
+        let lead = if keyset.columns[0].1 { "<=" } else { ">=" };
+        let bound = self.placeholder(keyset.values[0].clone());
+        let mut branches = Vec::with_capacity(columns.len());
+        for (index, (_, descending)) in keyset.columns.iter().enumerate() {
+            let mut terms = Vec::with_capacity(index + 1);
+            for (column, value) in columns.iter().zip(&keyset.values).take(index) {
+                let holder = self.placeholder(value.clone());
+                terms.push(format!("{column} = {holder}"));
+            }
+            let symbol = if *descending { "<" } else { ">" };
+            let holder = self.placeholder(keyset.values[index].clone());
+            terms.push(format!("{} {symbol} {holder}", columns[index]));
+            branches.push(format!("({})", terms.join(" AND ")));
+        }
+        format!(
+            "({} {lead} {bound} AND ({}))",
+            columns[0],
+            branches.join(" OR ")
+        )
     }
 
     fn clause(&mut self, filter: &Filter<V>) -> Result<String, QueryError> {
@@ -436,7 +516,7 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
     if joined {
         b.base = Some(q.table.clone());
     }
-    b.filters(&q.filters)?;
+    b.conditions(&q.filters, q.keyset.as_ref())?;
     if !q.order.is_empty() {
         let parts = q
             .order
@@ -555,6 +635,7 @@ mod tests {
             columns: vec!["id".into(), "title".into()],
             joins: vec![],
             filters,
+            keyset: None,
             order: vec![],
             limit: None,
             offset: None,
@@ -585,6 +666,86 @@ mod tests {
         let (sql, params) = compile_select(&select(vec![f("id", Op::In, &[])])).unwrap();
         assert!(sql.ends_with("WHERE FALSE"));
         assert!(params.is_empty());
+    }
+
+    fn keyset(columns: &[(&str, bool)], values: &[i32]) -> Keyset<i32> {
+        Keyset {
+            columns: columns.iter().map(|(c, d)| ((*c).into(), *d)).collect(),
+            values: values.to_vec(),
+        }
+    }
+
+    #[test]
+    fn keyset_on_one_key_is_a_plain_comparison() {
+        let mut q = select(vec![f("published", Op::Eq, &[1])]);
+        q.keyset = Some(keyset(&[("id", false)], &[7]));
+        let (sql, params) = compile_select(&q).unwrap();
+        assert!(
+            sql.ends_with("WHERE \"published\" = $1 AND \"id\" > $2"),
+            "{sql}"
+        );
+        assert_eq!(params, vec![1, 7]);
+        q.keyset = Some(keyset(&[("id", true)], &[7]));
+        assert!(compile_select(&q).unwrap().0.ends_with("\"id\" < $2"));
+    }
+
+    #[test]
+    fn keyset_with_uniform_direction_uses_a_row_comparison() {
+        let mut q = select(vec![]);
+        q.keyset = Some(keyset(&[("created", true), ("id", true)], &[5, 9]));
+        let (sql, params) = compile_select_with(&q, Dialect::Sqlite).unwrap();
+        assert!(
+            sql.ends_with("WHERE (\"created\", \"id\") < (?1, ?2)"),
+            "{sql}"
+        );
+        assert_eq!(params, vec![5, 9]);
+        let (sql, _) = compile_select_with(&q, Dialect::Mysql).unwrap();
+        assert!(sql.ends_with("WHERE (`created`, `id`) < (?, ?)"), "{sql}");
+    }
+
+    #[test]
+    fn keyset_with_mixed_directions_expands_each_branch() {
+        let mut q = select(vec![]);
+        q.keyset = Some(keyset(
+            &[("a", false), ("b", true), ("id", false)],
+            &[1, 2, 3],
+        ));
+        let (sql, params) = compile_select(&q).unwrap();
+        assert!(
+            sql.ends_with(
+                "WHERE (\"a\" >= $1 AND ((\"a\" > $2) OR (\"a\" = $3 AND \"b\" < $4) \
+                 OR (\"a\" = $5 AND \"b\" = $6 AND \"id\" > $7)))"
+            ),
+            "{sql}"
+        );
+        assert_eq!(params, vec![1, 1, 1, 2, 1, 2, 3]);
+        let (sql, params) = compile_select_with(&q, Dialect::Mysql).unwrap();
+        assert_eq!(sql.matches('?').count(), 7);
+        assert_eq!(params, vec![1, 1, 1, 2, 1, 2, 3]);
+    }
+
+    #[test]
+    fn keyset_qualifies_columns_of_a_joined_query_and_checks_its_shape() {
+        let mut q = select(vec![]);
+        q.joins = vec![Join {
+            table: "authors".into(),
+            alias: "rel_author".into(),
+            local: "author_id".into(),
+            remote: "id".into(),
+            left: false,
+            columns: vec![],
+        }];
+        q.keyset = Some(keyset(&[("id", false)], &[1]));
+        assert!(compile_select(&q)
+            .unwrap()
+            .0
+            .contains("\"posts\".\"id\" > $1"));
+        q.keyset = Some(keyset(&[("id", false)], &[]));
+        assert!(compile_select(&q).is_err());
+        q.keyset = Some(keyset(&[], &[]));
+        assert!(compile_select(&q).is_err());
+        q.keyset = Some(keyset(&[("id; DROP", false)], &[1]));
+        assert!(compile_select(&q).is_err());
     }
 
     #[test]
@@ -750,6 +911,7 @@ mod tests {
                 op: Op::ContainsAny,
                 values: vec!["needle".to_owned()],
             }],
+            keyset: None,
             order: vec![],
             limit: None,
             offset: None,

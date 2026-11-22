@@ -109,6 +109,7 @@ async fn typed_values_round_trip_and_pool_recovers_after_errors() {
             op: Op::ContainsAny,
             values: vec![Value::Text("hello".into())],
         }],
+        keyset: None,
         order: vec![],
         limit: None,
         offset: None,

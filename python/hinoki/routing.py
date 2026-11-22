@@ -21,7 +21,7 @@ from hinoki.errors import APIError, TooManyRequests
 from hinoki.fields import UNSET, Unset
 from hinoki.http.cors import Cors
 from hinoki.http.middleware import Middleware, check_middleware
-from hinoki.pagination import PageNumberPagination
+from hinoki.pagination import Pagination
 from hinoki.parsers import DEFAULT_PARSERS, Parser, check_parsers
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 
@@ -50,7 +50,7 @@ class Route:
     access: Access | None
     atomic: bool
     owner: type | None = None
-    pagination: PageNumberPagination | None = None
+    pagination: Pagination | None = None
     replaces: str = ""
     parsers: tuple[Parser, ...] = DEFAULT_PARSERS
     renderers: tuple[Renderer, ...] = DEFAULT_RENDERERS
@@ -80,7 +80,7 @@ class Options:
     status: int = 200
     access: Access | None = None
     atomic: bool = False
-    pagination: PageNumberPagination | None = None
+    pagination: Pagination | None = None
     replaces: str = ""
     parsers: Sequence[Parser] | None = None
     renderers: Sequence[Renderer] | None = None
@@ -220,7 +220,7 @@ def get(
     status: int = 200,
     access: Access | None = None,
     atomic: bool = False,
-    pagination: PageNumberPagination | None = None,
+    pagination: Pagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
@@ -264,7 +264,7 @@ def post(
     status: int = 200,
     access: Access | None = None,
     atomic: bool = False,
-    pagination: PageNumberPagination | None = None,
+    pagination: Pagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
@@ -308,7 +308,7 @@ def put(
     status: int = 200,
     access: Access | None = None,
     atomic: bool = False,
-    pagination: PageNumberPagination | None = None,
+    pagination: Pagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
@@ -352,7 +352,7 @@ def patch(
     status: int = 200,
     access: Access | None = None,
     atomic: bool = False,
-    pagination: PageNumberPagination | None = None,
+    pagination: Pagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
@@ -396,7 +396,7 @@ def delete(
     status: int = 200,
     access: Access | None = None,
     atomic: bool = False,
-    pagination: PageNumberPagination | None = None,
+    pagination: Pagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
@@ -440,7 +440,7 @@ def query(
     status: int = 200,
     access: Access | None = None,
     atomic: bool = False,
-    pagination: PageNumberPagination | None = None,
+    pagination: Pagination | None = None,
     replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,

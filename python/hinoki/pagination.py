@@ -1,12 +1,15 @@
-"""Page-number pagination: parameters, strategy and the page container."""
+"""Pagination: page-number and keyset (cursor) parameters, strategies and pages."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from hinoki import core
 from hinoki.errors import ErrorDetail, ValidationError
 from hinoki.schema import encode
+
+MIN_SECRET = 32  # bytes; the Rust codec enforces the same floor
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +111,122 @@ class PageNumberPagination:
         return default
 
 
+MAX_TOKEN = 1024  # characters; the Rust codec rejects longer tokens as well
+
+
+@dataclass(frozen=True, slots=True)
+class CursorParams:
+    """Validated request for one keyset page: the size and the raw token.
+
+    The token is only decoded when the query runs, because the signature binds
+    it to the ordering of that query."""
+
+    limit: int
+    token: str | None
+    strategy: CursorPagination
+
+
+@dataclass(frozen=True, slots=True)
+class CursorPagination:
+    """Strategy: ``?cursor=TOKEN&limit=N``, keyset pages with signed cursors.
+
+    The cursor is signed with ``secret`` (at least 32 bytes) and bound to the
+    table and ordering of the query, so a changed or foreign token is a 422,
+    never a 500. It is signed, not encrypted: it carries the sort-key values of
+    the boundary row in readable form, so do not order by a column whose value
+    must stay private. Clients should treat it as opaque. ``ttl`` (seconds)
+    makes cursors expire. Anything left
+    out comes from the application's ``pagination`` settings when the action is
+    included; values given here win."""
+
+    page_size: int | None = None
+    max_page_size: int | None = None
+    secret: str | None = field(default=None, repr=False)
+    ttl: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.page_size is not None and self.max_page_size is not None:
+            PageNumberPagination.check(self.page_size, self.max_page_size)
+        if self.secret is not None and len(self.secret.encode()) < MIN_SECRET:
+            raise ValueError(f"secret needs at least {MIN_SECRET} bytes")
+        if self.ttl is not None and self.ttl < 1:
+            raise ValueError("ttl must be positive")
+
+    def resolved(
+        self,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        max_page_size: int = DEFAULT_MAX_PAGE_SIZE,
+        secret: str | None = None,
+        ttl: int | None = None,
+    ) -> CursorPagination:
+        """This strategy with everything left out filled from the defaults given.
+        Raises ``ValueError`` when the result is invalid or has no secret."""
+        size = page_size if self.page_size is None else self.page_size
+        upper = max_page_size if self.max_page_size is None else self.max_page_size
+        key = secret if self.secret is None else self.secret
+        if key is None:
+            raise ValueError(
+                "cursor pagination needs a secret: set CursorPagination(secret=...) "
+                "or pagination.cursor_secret in the settings"
+            )
+        PageNumberPagination.check(size, upper)
+        return CursorPagination(size, upper, key, ttl if self.ttl is None else self.ttl)
+
+    @property
+    def limits(self) -> tuple[int, int]:
+        size = DEFAULT_PAGE_SIZE if self.page_size is None else self.page_size
+        upper = (
+            DEFAULT_MAX_PAGE_SIZE if self.max_page_size is None else self.max_page_size
+        )
+        return size, upper
+
+    def parse(self, query: dict[str, list[str]]) -> CursorParams:
+        errors: list[ErrorDetail] = []
+        default_size, upper = self.limits
+        size = PageNumberPagination.number(query, "limit", default_size, upper, errors)
+        token = self.token(query, errors)
+        if errors:
+            raise ValidationError(errors)
+        return CursorParams(size, token, self)
+
+    @staticmethod
+    def token(query: dict[str, list[str]], errors: list[ErrorDetail]) -> str | None:
+        values = query.get("cursor")
+        if values is None:
+            return None
+        if len(values) != 1 or not 0 < len(values[0]) <= MAX_TOKEN:
+            errors.append(ErrorDetail("cursor", "invalid", "invalid cursor"))
+            return None
+        return values[0]
+
+    def codec(self, fingerprint: bytes) -> core._CursorCodec:
+        if self.secret is None:
+            raise ValueError("an unresolved CursorPagination has no secret")
+        return core._CursorCodec(self.secret.encode(), fingerprint, self.ttl)
+
+
+@dataclass(frozen=True, slots=True)
+class CursorPage[T]:
+    """One keyset page: ``next``/``previous`` are cursors, or ``None`` at an end."""
+
+    items: list[T]
+    next: str | None
+    previous: str | None
+    page_size: int
+
+    def map[U](self, convert: Callable[[T], U]) -> CursorPage[U]:
+        items = [convert(item) for item in self.items]
+        return CursorPage(items, self.next, self.previous, self.page_size)
+
+    def dump(self) -> dict[str, object]:
+        return {
+            "items": [encode(item) for item in self.items],
+            "next": self.next,
+            "previous": self.previous,
+            "page_size": self.page_size,
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class Page[T]:
     """One page of results plus the totals needed to navigate."""
@@ -140,3 +259,6 @@ class Page[T]:
             "total": self.total,
             "pages": self.pages,
         }
+
+
+Pagination = PageNumberPagination | CursorPagination

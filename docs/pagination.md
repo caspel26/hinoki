@@ -4,7 +4,7 @@ status: implemented
 
 # Pagination
 
-An action opts into page-number pagination with `pagination=PageNumberPagination()`. A size you leave out comes from the application's `pagination` settings group; without settings the defaults are `page_size=20` and `max_page_size=100`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.
+An action opts into page-number pagination with `pagination=PageNumberPagination()`, or into [cursor pagination](#cursor-keyset-pagination) with `pagination=CursorPagination()`. A size you leave out comes from the application's `pagination` settings group; without settings the defaults are `page_size=20` and `max_page_size=100`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.
 
 The Billing app lists invoices a page at a time. The handler asks the model for one page, and `Page.map()` turns its rows into schemas:
 
@@ -53,3 +53,34 @@ The application in `notes/main.py` reads them through `Hinoki(settings=ProjectSe
 Precedence, from strongest to weakest: a size set on the action's `PageNumberPagination(...)`, the application's `pagination` settings, then 20 and 100. Each size is resolved separately, so `PageNumberPagination(page_size=10)` keeps its 10 and takes its maximum from the settings. The result must satisfy `1 <= page_size <= max_page_size`: invalid settings fail when they load, and an action whose own size does not fit the resolved other one (for example `PageNumberPagination(max_page_size=10)` under a settings `page_size` of 25) fails when it is included, naming the action. The generated OpenAPI parameters show the resolved values.
 
 Use the queryset's `apaginate`/`paginate` methods for database rows. They append the primary key as the last sort key (after any `order_by`), so rows with equal sort values keep one position across pages. `Page.of(rows, params)` slices an in-memory sequence and counts that sequence; it is not a substitute for database pagination on large tables.
+
+## Cursor (keyset) pagination
+
+`pagination=CursorPagination(...)` pages by position instead of by offset. A response carries `next` and `previous` cursors that clients should treat as opaque; the database starts each page at the cursor's row through the sort index, so a page costs the same at any depth, and no `COUNT` runs. Use it for long, growing lists or feeds; keep page numbers when users jump to page *n* or need a total.
+
+```python
+# notes/apps/billing/api.py
+from hinoki.pagination import CursorPage, CursorPagination, CursorParams
+
+
+@invoices.get("/feed", pagination=CursorPagination(page_size=20))
+async def feed(page: CursorParams) -> CursorPage[InvoiceOut]:
+    return (await Invoice.all().apaginate_cursor(page)).map(InvoiceOut.from_model)
+```
+
+```sh
+export NOTES_PAGINATION__CURSOR_SECRET="$(openssl rand -hex 32)"
+```
+
+`GET /invoices/feed?limit=20` answers `{"items": [...], "next": "<cursor>", "previous": null, "page_size": 20}`. Pass `next` as `cursor` to read forward and `previous` to read back. `next` is `null` on the last page; `previous` is `null` on the first. Generated lists switch with `crud(..., pagination=CursorPagination())` and return the same envelope.
+
+* **Ordering.** The page follows the query's `order_by` (or the model's `ordered_by`), with the primary key appended as the final tie-break, so rows with equal sort values are never skipped or repeated. Sort columns must be non-null `int`, `str`, `uuid`, `datetime` or `float` columns; anything else raises a `FieldError`, and a `crud(...)` whose model ordering is invalid fails at registration with a `RegistrationError` naming the model and column (an ordering added by a custom `get_queryset` is checked on each request). A `str` sort value is bounded: at most 1024 bytes per value, and a whole cursor at most 4096 characters, the same limit for issuing and reading. A page whose boundary row exceeds it, and whose link is needed, answers `422` with the field `cursor` and the code `unencodable` (it never answers `500`); order by a shorter column when values can be long. The queryset's own `limit` and `offset` are ignored.
+* **Filters and scope.** The cursor only holds a position. Filters, `get_queryset`, ownership and tenant policies are applied to every page exactly as for the first one, so a cursor cannot reach rows its holder could not list.
+* **Signing.** Cursors are signed with HMAC-SHA256 in Rust and bound to the table and the ordering they were issued for, so they are tamper-proof. They are not encrypted: a cursor is base64 and readable, and it contains the sort-key values of the boundary row. Do not order a cursor list by a column whose value must stay private, even when the read schema hides it. The secret comes from `CursorPagination(secret=...)` or `pagination.cursor_secret` and must have at least 32 bytes; without one, including the action fails with a `RegistrationError`. Changing the secret invalidates outstanding cursors.
+* **Expiry.** `cursor_ttl_seconds` (setting) or `CursorPagination(ttl=...)` makes a cursor expire; the default never does.
+* **Errors.** A tampered, malformed, foreign or differently ordered cursor answers `422` with the field `cursor` and the code `invalid`; an expired one answers `422` with `expired`; an unencodable boundary value answers `422` with `unencodable`. `limit` follows the same bounds as `page_size`.
+* **Rust path.** The keyset `WHERE`, the signature, the direction handling and, for a generated plain list, the JSON page are produced in Rust.
+* **Indexes.** Index the sort columns in the sort order (for example `(rank DESC, id)`) to get the constant-time pages; without one the database sorts the table for every page.
+* **Admin.** The admin lists keep page-number pagination.
+
+The `pagination` settings group also takes `cursor_secret` and `cursor_ttl_seconds`; sizes resolve as described above, and `page_size`/`max_page_size` apply to `limit`. The measurements are in `benchmarks/README.md` (`cursorbench.py`).

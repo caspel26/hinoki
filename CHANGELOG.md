@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🧭 Cursor (keyset) pagination
+> `crates/orm/src/query.rs`, `crates/bindings/src/cursor.rs`, `crates/bindings/src/rows.rs`, `crates/bindings/src/db.rs`, `python/hinoki/pagination.py`, `python/hinoki/orm/keyset.py`, `python/hinoki/resources.py`, `python/hinoki/settings.py`
+
+`pagination=CursorPagination()` pages generated lists and handwritten routes by position: the response carries signed, tamper-proof but readable (not encrypted) `next` and `previous` cursors that clients should treat as opaque, runs no `COUNT`, and costs the same at any depth when the sort columns are indexed. The keyset `WHERE`, the signature and, for generated lists, the JSON page are built in Rust. The cursor holds only a position, so `get_queryset`, ownership and tenant policies apply to every page; a tampered, foreign or expired cursor answers `422`. A secret of at least 32 bytes is required (`CursorPagination(secret=...)` or `pagination.cursor_secret`); `cursor_ttl_seconds` is optional. See [cursor pagination](docs/pagination.md#cursor-keyset-pagination).
+
 #### 📣 Deprecated actions tell their callers
 > `python/hinoki/runtime/deprecation.py`, `python/hinoki/runtime/binding.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/servercore.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/routing.py`, `python/hinoki/routescli.py`
 

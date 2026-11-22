@@ -45,6 +45,7 @@ SEPARATOR = "__"
 MAX_BODY_LIMIT = 1 << 30  # 1 GiB: a larger "limit" is no limit
 MAX_SYNC_WORKERS = 1024
 MAX_PORT = 65536
+MIN_CURSOR_SECRET = 32  # bytes; the Rust codec enforces the same floor
 MAX_WORKERS = 256
 MAX_CONNECTIONS = 1_000_000
 MAX_READ_TIMEOUT = 3600
@@ -1358,14 +1359,24 @@ class AdminSettings(Settings):
 
 
 class PaginationSettings(Settings):
-    """Defaults for ``PageNumberPagination`` that an action does not set itself."""
+    """Defaults for ``PageNumberPagination`` and ``CursorPagination`` that an
+    action does not set itself. ``cursor_secret`` (at least 32 bytes) signs
+    cursors; ``cursor_ttl_seconds`` makes them expire (``None``: they do not)."""
 
     page_size: int = 20
     max_page_size: int = 100
+    cursor_secret: Secret | None = None
+    cursor_ttl_seconds: int | None = None
 
     def validate(self) -> None:
         if not 1 <= self.page_size <= self.max_page_size:
             raise ValueError("need 1 <= page_size <= max_page_size")
+        if self.cursor_secret is not None and (
+            len(self.cursor_secret.reveal().encode()) < MIN_CURSOR_SECRET
+        ):
+            raise ValueError(f"cursor_secret needs at least {MIN_CURSOR_SECRET} bytes")
+        if self.cursor_ttl_seconds is not None and self.cursor_ttl_seconds < 1:
+            raise ValueError("cursor_ttl_seconds must be positive")
 
 
 def is_host_pattern(entry: str) -> bool:

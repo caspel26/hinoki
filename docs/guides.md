@@ -35,7 +35,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Compress responses](compression.md): optional brotli and gzip compression of bodies, on Kiso only.
 - [Export Prometheus metrics](metrics.md): request counters and histograms on a dedicated listener, on Kiso only.
 - [Middleware](middleware.md): typed `Middleware` around an action or the whole app, identical on Kiso and Granian.
-- [Pagination](pagination.md): page-number pagination with `PageNumberPagination`.
+- [Pagination](pagination.md): page-number pagination with `PageNumberPagination` and keyset cursors with `CursorPagination`.
 - [Parsers and renderers](codecs.md): other body formats in and out.
 - [OpenAPI document](openapi.md): the OpenAPI 3.1 document generated from routes, signatures and `Schema` declarations.
 

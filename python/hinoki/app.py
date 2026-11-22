@@ -24,7 +24,12 @@ from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import OpenAPIBuilder, documented
-from hinoki.pagination import DEFAULT_MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE
+from hinoki.pagination import (
+    DEFAULT_MAX_PAGE_SIZE,
+    DEFAULT_PAGE_SIZE,
+    CursorPagination,
+    Pagination,
+)
 from hinoki.parsers import (
     DEFAULT_PARSERS,
     SOURCE_DEFAULTS,
@@ -271,6 +276,11 @@ class Hinoki:
             if built_in
             else (DEFAULT_PAGE_SIZE, DEFAULT_MAX_PAGE_SIZE)
         )
+        cursor_secret = built_in.pagination.cursor_secret if built_in else None
+        self.cursor_defaults = (
+            None if cursor_secret is None else cursor_secret.reveal(),
+            built_in.pagination.cursor_ttl_seconds if built_in else None,
+        )
 
     def _initialize_registries(
         self,
@@ -470,14 +480,17 @@ class Hinoki:
             changes["renderers"] = self.default_renderers
         if route.pagination is not None:
             try:
-                changes["pagination"] = route.pagination.resolved(
-                    *self.pagination_defaults
-                )
+                changes["pagination"] = self.resolved_pagination(route.pagination)
             except ValueError as exc:
                 raise RegistrationError(f"{route.name}: pagination {exc}") from exc
         if self.middleware:
             changes["middleware"] = (*self.middleware, *route.middleware)
         return dataclasses.replace(route, **changes) if changes else route
+
+    def resolved_pagination(self, strategy: Pagination) -> Pagination:
+        if isinstance(strategy, CursorPagination):
+            return strategy.resolved(*self.pagination_defaults, *self.cursor_defaults)
+        return strategy.resolved(*self.pagination_defaults)
 
     def install(self, *modules: Module) -> None:
         """Install modules and include their APIs.

@@ -42,4 +42,12 @@ Model write validation raises `ModelValidationError` from `hinoki.errors`, with 
 
 ::: hinoki.pagination.PageNumberPagination
 
+::: hinoki.pagination.CursorParams
+
+::: hinoki.pagination.CursorPage
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.pagination.CursorPagination
+
 ::: hinoki.orm.Related

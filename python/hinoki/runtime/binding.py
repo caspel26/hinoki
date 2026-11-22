@@ -33,7 +33,13 @@ from hinoki.errors import (
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
 from hinoki.http.stream import Streamed
-from hinoki.pagination import PageNumberPagination, PageParams
+from hinoki.pagination import (
+    CursorPagination,
+    CursorParams,
+    PageNumberPagination,
+    PageParams,
+    Pagination,
+)
 from hinoki.parsers import MultiPartParser, Parser, UploadedFile, XMLParser
 from hinoki.renderers import is_default_json_renderer
 from hinoki.routing import Route
@@ -145,7 +151,7 @@ class Param:
     schema: type[Schema] | None = None
     default: object = EMPTY
     kind: str = "str"
-    strategy: PageNumberPagination | None = None
+    strategy: Pagination | None = None
     file_mode: str = ""
     text: bool = False  # a Schema read from a text source, converted before checking
 
@@ -374,6 +380,22 @@ def is_principal(annotation: object) -> bool:
     return annotation is Caller or typing.get_origin(annotation) is Caller
 
 
+def checked_pagination(route: Route, name: str, annotation: type) -> Pagination:
+    """The route's strategy, which must be the one the parameter type needs."""
+    if route.pagination is None:
+        raise RegistrationError(
+            f"{route.name}: {name!r} asks for {annotation.__name__} but the action "
+            "has no pagination=... option"
+        )
+    wanted = CursorPagination if annotation is CursorParams else PageNumberPagination
+    if not isinstance(route.pagination, wanted):
+        raise RegistrationError(
+            f"{route.name}: {name!r} is {annotation.__name__}, which needs "
+            f"pagination={wanted.__name__}(...)"
+        )
+    return route.pagination
+
+
 def special_param(
     route: Route,
     parameter: inspect.Parameter,
@@ -381,13 +403,8 @@ def special_param(
 ) -> Param | None:
     """Parameters that are not plain request values: page, principal, body."""
     name, where = parameter.name, route.name
-    if annotation is PageParams:
-        if route.pagination is None:
-            raise RegistrationError(
-                f"{where}: {name!r} asks for PageParams but the action has no "
-                "pagination=... option"
-            )
-        return Param(name, "page", strategy=route.pagination)
+    if annotation is PageParams or annotation is CursorParams:
+        return Param(name, "page", strategy=checked_pagination(route, name, annotation))
     if is_principal(annotation):
         if route.access is None:
             raise RegistrationError(
@@ -664,7 +681,7 @@ def bind(route: Route) -> Binding:
     )
     if route.pagination is not None and not any(p.source == "page" for p in params):
         raise RegistrationError(
-            f"{route.name}: pagination=... needs a PageParams parameter"
+            f"{route.name}: pagination=... needs a PageParams or CursorParams parameter"
         )
     check_query_schema(route, params)
     if sum(p.source == "body" for p in params) > 1:
