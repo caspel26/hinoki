@@ -14,8 +14,10 @@ import pytest
 
 from hinoki import Access, Caller, Hinoki, Schema, core, http
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
+from hinoki.errors import RegistrationError
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.settings import AppSettings, CorsSettings, ExecutionSettings
+from hinoki.websocket import Param, WebSocketClosed, convert
 
 GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 SECRET = b"k" * 32
@@ -481,3 +483,107 @@ def test_the_settings_reject_bad_websocket_limits() -> None:
         ExecutionSettings(max_websockets=0)
     with pytest.raises(ValueError, match="at least 1"):
         ExecutionSettings(ws_queue=0)
+
+
+class FakeTransport:
+    """A scripted peer: ``inbox`` is what it receives, ``accepts`` what it sends."""
+
+    def __init__(
+        self, inbox: list[tuple[str, str | bytes]], accepts: bool = True
+    ) -> None:
+        self.inbox = inbox
+        self.accepts = accepts
+        self.closed: tuple[int, str] | None = None
+        self.sent: list[str | bytes] = []
+
+    async def receive(self) -> tuple[str, str | bytes] | None:
+        return self.inbox.pop(0) if self.inbox else None
+
+    async def send_text(self, text: str) -> bool:
+        self.sent.append(text)
+        return self.accepts
+
+    async def send_bytes(self, data: bytes) -> bool:
+        self.sent.append(data)
+        return self.accepts
+
+    async def close(self, code: int = 1000, reason: str = "") -> bool:
+        self.closed = (code, reason)
+        return True
+
+
+@pytest.mark.parametrize(
+    ("kind", "method", "reason"),
+    [
+        ("bytes", "receive_text", "text expected"),
+        ("text", "receive_bytes", "binary expected"),
+    ],
+)
+async def test_the_wrong_kind_of_message_closes_with_1003(
+    kind: str, method: str, reason: str
+) -> None:
+    transport = FakeTransport([(kind, b"x" if kind == "bytes" else "x")])
+    socket = http.WebSocket(transport, path="/x")
+    with pytest.raises(WebSocketClosed) as caught:
+        await getattr(socket, method)()
+    assert (caught.value.code, caught.value.reason) == (1003, reason)
+    assert socket.closed == (1003, reason)
+
+
+async def test_receive_json_validates_with_the_given_schema() -> None:
+    transport = FakeTransport([("text", '{"x": 1, "y": 2}'), ("text", '{"x": 1}')])
+    socket = http.WebSocket(transport, path="/x")
+    assert await socket.receive_json(Move) == Move(x=1, y=2)
+    with pytest.raises(WebSocketClosed) as caught:
+        await socket.receive_json(Move)
+    assert caught.value.code == 1008
+
+
+async def test_receive_json_without_a_schema_returns_the_parsed_value() -> None:
+    socket = http.WebSocket(FakeTransport([("text", "[1, 2]")]), path="/x")
+    assert await socket.receive_json() == [1, 2]
+
+
+async def test_sending_to_a_lost_peer_raises_websocket_closed() -> None:
+    socket = http.WebSocket(FakeTransport([], accepts=False), path="/x")
+    with pytest.raises(WebSocketClosed) as lost:
+        await socket.send_text("a")
+    assert lost.value.code == 1006
+    with pytest.raises(WebSocketClosed):
+        await socket.send_bytes(b"a")
+
+
+async def test_sending_after_a_close_reports_its_code() -> None:
+    transport = FakeTransport([], accepts=False)
+    transport.closed = (1001, "bye")
+    socket = http.WebSocket(transport, path="/x")
+    with pytest.raises(WebSocketClosed) as gone:
+        await socket.send_text("a")
+    assert (gone.value.code, gone.value.reason) == (1001, "bye")
+
+
+async def test_a_typed_stream_refuses_a_binary_message() -> None:
+    transport = FakeTransport([("bytes", b"x")])
+    socket = http.WebSocket(transport, path="/x", message=Move)
+    assert [item async for item in socket] == []
+    assert transport.closed == (1003, "text expected")
+
+
+def test_a_path_value_converts_to_a_bool_or_is_refused() -> None:
+    flag = Param("on", bool, True, True, None)
+    assert [convert(flag, text) for text in ("true", "1", "FALSE", "0")] == [
+        True,
+        True,
+        False,
+        False,
+    ]
+    with pytest.raises(ValueError, match="maybe"):
+        convert(flag, "maybe")
+
+
+def test_an_unresolvable_annotation_is_a_registration_error() -> None:
+    async def handler(socket: http.WebSocket, size: Missing) -> None:  # type: ignore[name-defined]  # noqa: F821
+        return None
+
+    with pytest.raises(RegistrationError, match="cannot resolve annotations"):
+        http.websocket("/x")(handler)
