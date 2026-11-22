@@ -9,6 +9,9 @@ license = "MIT"
 repository = "https://github.com/caspel26/hinoki"
 rust-version = "1.89"
 
+# Release wheels only; debug builds and `cargo test` are unaffected. Fat LTO with one
+# codegen unit made `encode_json` and `decode_json` 5-10 % faster and the extension
+# about 30 % smaller, at about 70 % more clean release build time.
 [profile.release]
 lto = "fat"
 codegen-units = 1

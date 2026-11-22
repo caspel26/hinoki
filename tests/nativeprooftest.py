@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from hinoki.orm import Model, field
+from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.runtime import nativeproof
 from hinoki.runtime.nativeproof import native_refusal
 
@@ -73,9 +73,37 @@ async def no_await(id: int) -> dict[str, int]:
     return {"id": id}
 
 
+class ProofWriter(Model):
+    id: int = field(primary_key=True)
+
+
+class ProofPiece(Model):
+    id: int = field(primary_key=True)
+    writer_id: int = foreign_key(
+        ProofWriter, on_delete=OnDelete.CASCADE, related_name="pieces"
+    )
+
+
+async def read_joined(id: int) -> ProofPiece:
+    return await ProofPiece.filter(id=id).select_related("writer").aget()
+
+
+async def read_joined_rows() -> list[ProofPiece]:
+    return await ProofPiece.all().select_related("writer").order_by("id").limit(5)
+
+
 @pytest.mark.parametrize(
     "handler",
-    [read_one, read_optional, read_first, read_all, read_page, no_await],
+    [
+        read_one,
+        read_optional,
+        read_first,
+        read_all,
+        read_page,
+        no_await,
+        read_joined,
+        read_joined_rows,
+    ],
 )
 def test_plain_native_reads_are_proved(handler: Callable[..., Any]) -> None:
     assert native_refusal(handler) is None
@@ -163,6 +191,10 @@ async def awaits_inside_an_argument(id: int) -> Any:
     return await ProofNote.aget(id=await ProofNote.aget_or_none(id=id))
 
 
+async def prefetches() -> Any:
+    return await ProofWriter.all().prefetch_related("pieces").afirst()
+
+
 async def non_awaited_task() -> None:
     asyncio.create_task(sleeps())  # noqa: RUF006
     await ProofNote.aget(id=1)
@@ -180,6 +212,7 @@ async def non_awaited_task() -> None:
         (hooked_queryset_write, "HookedNote has write hooks"),
         (replaced_write_path, "ReplacedNote.write_insert is overridden"),
         (unknown_write, "aupdate_from is not a native query step"),
+        (prefetches, "prefetch_related is not a native query step"),
         (chained_past_a_terminal, "aget is followed by more calls"),
         (async_with, "it uses AsyncWith"),
         (async_for, "it uses AsyncFor"),

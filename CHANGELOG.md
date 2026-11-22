@@ -53,9 +53,9 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 ### 🔧 Improvements
 
 #### 📦 Release build and package name
-> `pyproject.toml`, `Cargo.toml`, `.github/workflows/release-build.yml`, `scripts/smoke_wheel.py`, `python/hinoki/scaffold.py`, `python/hinoki/serve.py`, `docs/release.md`
+> `pyproject.toml`, `crates/bindings/src/lib.rs`, `.github/workflows/release-build.yml`, `scripts/smoke_wheel.py`, `python/hinoki/scaffold.py`, `python/hinoki/serve.py`, `docs/release.md`
 
-The PyPI package is now named `hinoki-api` (the module is still `import hinoki`, the command still `hinoki`), because the `hinoki` name belongs to an unrelated project. Generated projects depend on `hinoki-api[server]` and name it under `[tool.uv.sources]`. The release profile uses fat LTO with one codegen unit. A new `Release build` workflow builds manylinux x86_64/aarch64 and macOS arm64/x86_64 wheels and the sdist, smoke-tests each wheel and keeps them as artifacts; it publishes nothing. Windows is not supported natively: building the extension there stops with a message that points to WSL2. `docs/release.md` is the release checklist.
+The PyPI package is now named `hinoki-api` (the module is still `import hinoki`, the command still `hinoki`), because the `hinoki` name belongs to an unrelated project. Generated projects depend on `hinoki-api[server]` and name it under `[tool.uv.sources]`. A new `Release build` workflow builds manylinux x86_64/aarch64 and macOS arm64/x86_64 wheels and the sdist, smoke-tests each wheel and keeps them as artifacts; it publishes nothing. Windows is not supported natively: building the extension there stops with a message that points to WSL2. `docs/release.md` is the release checklist.
 
 #### 🧾 XML responses written in Rust
 > `crates/bindings/src/xml_encode.rs`, `python/hinoki/renderers.py`, `python/hinoki/core.pyi`, `docs/codecs.md`
@@ -67,10 +67,17 @@ The PyPI package is now named `hinoki-api` (the module is still `import hinoki`,
 
 A request now does less Python work with the same behaviour: a coroutine that finishes without suspending runs inline with no task and no timer, the `Request` object is built only when the action, a renderer or a body needs it, response header shapes are computed once per route shape, and a `Schema` whose fields hold exactly the declared types is accepted by a compiled per-class check instead of the full validation. A `Schema` that overrides `_validate_instance`, `native_schema` or `specs` keeps the full validation. Indicative single-core runs on a loaded host gave about +40% to +70% on a minimal action and +28% on a one-row read; the official comparative numbers are not yet re-measured.
 
+On Kiso, an ORM read chain that uses `select_related(...)` now stays on the native handler lane, since the join is part of the same single query; `prefetch_related` still runs in an asyncio task (`python/hinoki/runtime/nativeproof.py`). An indicative single-core run of a one-row joined read gave about +14%.
+
 #### 🔒 Hardened HTTP and WSGI edges
 > `crates/kiso/src/conn.rs`, `crates/kiso/src/stream.rs`, `crates/bindings/src/wsgi.rs` (#389, #401, #402)
 
 Middleware, raw responses and the WSGI path are stricter: a path with a NUL byte or a dot segment is refused, and a WSGI stream whose application goes silent is reset.
+
+#### 🦀 Native page encoding and joined rows
+> `crates/bindings/src/request.rs`, `crates/bindings/src/schema.rs`, `crates/bindings/src/modelrows.rs`, `python/hinoki/orm/queryset.py`
+
+The JSON encoder writes a `Page` of `Schema` instances directly instead of building the dumped dicts first; a `Page` subclass or an item with a custom `dump` still goes through `dump()`. Encoding a `Schema` no longer raises and catches a `KeyError` per class lookup. Queries with `select_related(...)` now build the model and its joined instances in the native row builder whenever every involved model can already use it (no custom `from_row` or row hooks). The produced JSON and instances are unchanged. Indicative single-core runs gave about +21% on a paginated list of 20 rows, a further +4% on that list with a joined author, and +2% to +4% on a minimal action; the official comparative numbers are not yet re-measured.
 
 #### 🗄️ Database defaults and messages
 > `python/hinoki/db.py`, `crates/orm/src/database.rs` (#395, #397)

@@ -60,6 +60,11 @@ class _ModelRows:
         json_columns: list[str],
         snapshot_key: str,
     ) -> None: ...
+    def joined(
+        self,
+        joins: list[tuple[str, _ModelRows, str, int]],
+        store_key: str,
+    ) -> _ModelRows: ...
 
 class _NativeWait:
     def __await__(self) -> Any: ...
