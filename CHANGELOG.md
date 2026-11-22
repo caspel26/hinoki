@@ -52,6 +52,11 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### 🧾 XML responses written in Rust
+> `crates/bindings/src/xml_encode.rs`, `python/hinoki/renderers.py`, `python/hinoki/core.pyi`, `docs/codecs.md`
+
+`XMLRenderer` now writes through `core.encode_xml` instead of Python. It takes the same values as `JSONRenderer` and shares its depth limit (200) and its rules for UUIDs, datetimes, `Schema` instances and `dump()` objects. Behavior changes: a bare `Decimal`, `date`, `time`, `timedelta`, `bytes`, `set` or `frozenset`, IP address or network (`IPv4Address`, `IPv6Address`, `IPv4Network`, `IPv6Network`), `PurePath` or `SecretStr` outside a `Schema` instance now raises `TypeError` (500), as it does for JSON, instead of being converted; and a float exponent is no longer zero-padded (`1e-7`, not `1e-07`). Everything else is byte-identical. `docs/codecs.md` now states the exact round-trip rules (`None`, `""`, `{}` and `[]` all read back as `None`).
+
 #### ⚡ Less work per request
 > `python/hinoki/schemafast.py`, `python/hinoki/schema.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/binding.py`
 
