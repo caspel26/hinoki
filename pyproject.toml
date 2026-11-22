@@ -155,5 +155,9 @@ markers = ["runtime: starts a real server process (Granian)"]
 
 [tool.coverage.run]
 source = ["hinoki"]
+# The server and CLI tests run Hinoki in child processes: measure those too.
+parallel = true
+patch = ["subprocess"]
+sigterm = true
 [tool.coverage.report]
 show_missing = true
