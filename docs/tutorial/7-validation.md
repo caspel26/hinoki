@@ -131,7 +131,7 @@ or the admin. Put the same constraints on the model:
 # catalog/models.py
 from uuid import UUID, uuid4
 
-from hinoki import Field
+from hinoki import Field, db
 from hinoki.orm import Model, field, pk
 
 
@@ -140,6 +140,7 @@ def trimmed(value: str) -> None:
         raise ValueError("surrounding whitespace is not allowed")
 
 
+@db.table("catalog_products")
 class Product(Model):
     id: UUID = pk(default_factory=uuid4)
     sku: str = field(
