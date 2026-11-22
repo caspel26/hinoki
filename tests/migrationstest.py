@@ -613,7 +613,7 @@ async def test_mysql_family_failed_migration_reports_implicit_ddl_commit(
 
 def test_models_are_importable_from_a_console_script() -> None:
     project = str(Path(__file__).resolve().parents[1])
-    examples = str(Path(project) / "examples")
+    examples = str(Path(project) / "examples" / "notes")
     original_path = sys.path.copy()
     sys.path[:] = [entry for entry in sys.path if entry not in {"", project, examples}]
     try:
@@ -748,7 +748,7 @@ def test_statements_split_on_line_terminators() -> None:
 
 def test_models_of_finds_the_models_of_a_module() -> None:
     names = [m.__name__ for m in models_of("blog.apps.blog.models")]
-    assert names == ["User", "Post"]
+    assert names == ["Publication", "User", "Post", "AuditEntry"]
 
 
 def test_command_line_plans_and_prints(
