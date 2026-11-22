@@ -251,9 +251,10 @@
   position: relative;
 }
 
-/* Two soft glows, no grid and no lines. The first breathes slowly behind the
-   editor so the page is never still; the second follows the pointer. Both are
-   painted radial gradients (no blur filter) and only transform and opacity change. */
+/* Soft glows, no grid and no lines. Three slow orbs drift on the right of the
+   hero, away from the headline, each on its own period so the loop never reads
+   as one cycle; a fourth follows the pointer. All are painted radial gradients
+   (no blur filter) and only transform and opacity change. */
 .hn-hero__bg {
   position: absolute !important;
   inset: -40px 0 0;
@@ -262,7 +263,9 @@
 }
 
 .hn-hero__bg b,
-.hn-hero__bg i {
+.hn-hero__bg i,
+.hn-hero__bg::before,
+.hn-hero__bg::after {
   position: absolute;
   border-radius: 50%;
 }
@@ -294,19 +297,60 @@
   opacity: 1;
 }
 
+.hn-hero__bg::before,
+.hn-hero__bg::after {
+  content: "";
+  inline-size: min(560px, 70vw);
+  aspect-ratio: 1;
+}
+
+.hn-hero__bg::before {
+  inset-inline-end: -4%;
+  top: 14%;
+  background: radial-gradient(closest-side, var(--orb-1), transparent);
+  opacity: 0.6;
+}
+
+.hn-hero__bg::after {
+  inset-inline-end: 30%;
+  bottom: -30%;
+  background: radial-gradient(closest-side, var(--orb-3), transparent);
+  opacity: 0.7;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .hn-hero__bg b {
-    animation: hn-breathe 14s ease-in-out infinite alternate;
+    animation: hn-breathe 13s ease-in-out infinite alternate;
+  }
+
+  .hn-hero__bg::before {
+    animation: hn-drift-a 17s ease-in-out infinite alternate;
+  }
+
+  .hn-hero__bg::after {
+    animation: hn-drift-b 21s ease-in-out infinite alternate;
   }
 }
 
 @keyframes hn-breathe {
-  from { transform: translate3d(-4%, 3%, 0) scale(0.92); opacity: 0.55; }
-  to { transform: translate3d(4%, -4%, 0) scale(1.08); opacity: 0.95; }
+  from { transform: translate3d(-16%, 10%, 0) scale(0.86); opacity: 0.55; }
+  to { transform: translate3d(16%, -10%, 0) scale(1.12); opacity: 0.95; }
+}
+
+@keyframes hn-drift-a {
+  from { transform: translate3d(14%, -28%, 0) scale(0.88); opacity: 0.3; }
+  to { transform: translate3d(-34%, 14%, 0) scale(1.15); opacity: 0.85; }
+}
+
+@keyframes hn-drift-b {
+  from { transform: translate3d(-12%, 10%, 0) scale(1.12); opacity: 0.4; }
+  to { transform: translate3d(40%, -22%, 0) scale(0.9); opacity: 0.85; }
 }
 
 /* Decorative loops stop while their section is off screen or the tab is hidden. */
 .hn-hero.is-idle .hn-hero__bg b,
+.hn-hero.is-idle .hn-hero__bg::before,
+.hn-hero.is-idle .hn-hero__bg::after,
 .hn-ticker.is-idle .hn-ticker__track {
   animation-play-state: paused;
 }
