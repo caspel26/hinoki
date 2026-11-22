@@ -255,7 +255,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>1 min read</span>
           </p>
           
@@ -263,7 +263,7 @@
         
 <p>A model describes a table; a <code>Schema</code> describes what crosses the API. A column
 reaches a client only when a schema names it.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tracker/schemas.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tasks/schemas.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">derive</span>
@@ -275,6 +275,7 @@ reaches a client only when a schema names it.</p>
 <span class="w">    </span><span class="sd">"""What a client may set. The owner is the caller, never a field."""</span>
 
     <span class="n">title</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)]</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">5</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">3</span>
 
 
 <span class="nd">@derive</span><span class="p">(</span><span class="n">Task</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,))</span>
@@ -283,13 +284,17 @@ reaches a client only when a schema names it.</p>
 </code></pre></div>
 <ul>
 <li><code>TaskIn</code> is strict: no coercion, no unknown keys, and every problem is reported
-  with its path. Validation runs in Rust before your code does.</li>
+  with its path. Validation runs in Rust before your code does. <code>priority</code> is
+  optional and, when sent, must be from 1 to 5.</li>
 <li><code>TaskOut</code> takes its fields from <code>Task</code>, with the model's types and limits.
   <code>exclude=("owner_id",)</code> keeps the owner out. Relations are never derived;
   you name them on purpose.</li>
 <li>The owner is not a field of <code>TaskIn</code>, so a client cannot choose it. Server
   values passed to <code>Task.acreate(data, owner_id=...)</code> always win, and a schema
   never carries the primary key.</li>
+<li>Every response is a <code>Schema</code>, never a model, a dict or a dataclass. The
+  <code>members</code> app does the same with <code>MemberOut</code>, which names <code>id</code> and <code>name</code>
+  and so never sends the token.</li>
 </ul>
 <p>Schemas also support aliases, computed fields and tagged unions; see
 <a href="../../schema-collections/#discriminated-unions">discriminated unions</a>.</p>
@@ -327,7 +332,7 @@ reaches a client only when a schema names it.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/2-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

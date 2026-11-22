@@ -239,8 +239,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -330,7 +330,7 @@ Persistence     Model / QuerySet                     tables, relations, explicit
 <ul>
 <li>Relations are never lazy. Load what the response shows (<code>select_related</code> for single values, <code>prefetch_related</code> for collections) in the function that builds the response, so the cost is visible in one place.</li>
 <li>Paginate every list (<code>pagination=</code> + <code>PageParams</code> + <code>Page[...]</code>). Never return an unbounded list; never load a whole table to count or aggregate (use <code>acount()</code>, filters or SQL). <strong>Rule:</strong> <code>Actions.require_pagination</code>.</li>
-<li>Filter and order only by names you choose; never pass client-supplied column names to <code>filter</code> or <code>order_by</code>.</li>
+<li>Filter and order only by names you choose; never pass client-supplied column names to <code>filter</code> or <code>order_by</code>. For a generated list, declare them once in a <code>hinoki.filters.FilterSet</code> (<code>done: Eq[bool]</code>, <code>search = Search("title")</code>, <code>ordering = (...)</code>) and pass <code>filters=TaskFilters</code> to <code>crud(...)</code>, as <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/filters.py">Tracker</a> does.</li>
 </ul>
 <h2 id="5-sync-and-async">5. Sync and async<a class="headerlink" href="#5-sync-and-async" title="Permanent link">&para;</a></h2>
 <p>Prefer <code>async</code> handlers. A sync handler runs on a bounded pool and uses the sync model methods; it must not block for long, and a full queue answers <code>503 overloaded</code>. Password hashing has its own bounded pool. Never call blocking code from an <code>async</code> handler. See <a href="../sync-async/">sync and async code</a>.</p>
@@ -350,7 +350,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 <h2 id="9-security-defaults-to-keep">9. Security defaults to keep<a class="headerlink" href="#9-security-defaults-to-keep" title="Permanent link">&para;</a></h2>
 <p>HTTPS terminates somewhere you control (<code>Admin(secure_cookies=True)</code> behind a proxy); <code>access=</code> on everything that is not public on purpose; CSRF on every cookie-authenticated form (the admin does it); a strict CSP; Argon2id passwords; JWT keys with a fixed algorithm and a <code>kid</code>; no token, password or hash in logs or error bodies; uploads within the 1 MiB body limit; no real personal data in tests or fixtures.</p>
 <h2 id="10-rules-to-turn-on-from-day-one">10. Rules to turn on from day one<a class="headerlink" href="#10-rules-to-turn-on-from-day-one" title="Permanent link">&para;</a></h2>
-<p><code>hinoki new</code> enables eight rules (<code>HNK-ACC-001</code>, <code>HNK-ACC-002</code>, <code>HNK-API-001</code>, <code>HNK-API-002</code>, <code>HNK-API-003</code>, <code>HNK-TXN-001</code>, <code>HNK-SCH-001</code>, <code>HNK-SCH-002</code>) and leaves the model rules <code>HNK-DB-001</code> and <code>HNK-DB-002</code> commented out until the first model exists. Turn those on then, and add <code>Imports.forbid</code> (<code>HNK-IMP-001</code>) for the direction in <a href="#1-three-layers-one-direction">section 1</a>. Waivers live in <code>hinoki-rules.toml</code>, are the owner's decision, carry a reason and a bounded target, and are never edited by tools or agents to pass a check.</p>
+<p><code>hinoki new</code> enables eight rules (<code>HNK-ACC-001</code>, <code>HNK-ACC-002</code>, <code>HNK-API-001</code>, <code>HNK-API-002</code>, <code>HNK-API-003</code>, <code>HNK-TXN-001</code>, <code>HNK-SCH-001</code>, <code>HNK-SCH-002</code>) and leaves the model rules <code>HNK-DB-001</code> and <code>HNK-DB-002</code> commented out until the first model exists. Turn those on then, and add <code>Imports.forbid</code> (<code>HNK-IMP-001</code>) for the direction in <a href="#1-three-layers-one-direction">section 1</a>. List the rule modules in the manifest, <code>[project] rules = ["tracker.rules:policy", "tracker.rules:layers"]</code>, and <code>Hinoki()</code> loads them; project-wide <code>middleware</code> is listed the same way (see <a href="../rules/">rules</a> and <a href="../middleware/#declaring-middleware-in-hinokitoml">middleware</a>). Waivers live in <code>hinoki-rules.toml</code>, are the owner's decision, carry a reason and a bounded target, and are never edited by tools or agents to pass a check.</p>
 <h2 id="11-anti-patterns">11. Anti-patterns<a class="headerlink" href="#11-anti-patterns" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Returning a <code>Model</code>, or a dict built from one.</li>
@@ -399,7 +399,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/patterns.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

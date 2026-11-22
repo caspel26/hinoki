@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 23:53:08 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>9 min read</span>
           </p>
           
@@ -483,26 +483,33 @@
         
 <p>A new application answers any <code>Host</code>, sends no CORS headers, never redirects to
 HTTPS and trusts no proxy. That keeps development friction-free; before a
-deployment, name what it serves:</p>
+deployment, name what it serves. The built-in groups (<code>cors</code>, <code>security</code>,
+<code>server</code>) are set from the environment, <code>.env</code> or a TOML file the class names;
+a value assigned to such a group in the class body is not read.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
-    <span class="n">allowed_hosts</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"api.example.com"</span><span class="p">,)</span>
-    <span class="n">cors</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">CorsSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">CorsSettings</span><span class="p">(</span>
-        <span class="n">origins</span><span class="o">=</span><span class="p">(</span><span class="s2">"https://app.example.com"</span><span class="p">,),</span>
-    <span class="p">)</span>
-    <span class="n">security</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span><span class="p">(</span>
-        <span class="n">redirect_https</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">hsts_seconds</span><span class="o">=</span><span class="mi">31_536_000</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span>
-        <span class="n">trusted_proxies</span><span class="o">=</span><span class="p">(</span><span class="s2">"10.20.0.0/16"</span><span class="p">,),</span>
-    <span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">,</span> <span class="n">toml</span><span class="o">=</span><span class="s2">"settings.toml"</span>
+<span class="p">):</span>
+    <span class="k">pass</span>
+</code></pre></div>
+<div class="language-toml highlight"><pre><span></span><code><span class="c1"># settings.toml</span>
+<span class="n">allowed_hosts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"api.example.com"</span><span class="p">]</span>
+
+<span class="k">[cors]</span>
+<span class="n">origins</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"https://app.example.com"</span><span class="p">]</span>
+
+<span class="k">[security]</span>
+<span class="n">redirect_https</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="n">hsts_seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">31_536_000</span>
+
+<span class="k">[server]</span>
+<span class="n">trusted_proxies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"10.20.0.0/16"</span><span class="p">]</span>
 </code></pre></div>
 <p>Every field can also come from the environment, which is usually where a
-deployment sets them:</p>
+deployment sets them and which wins over the TOML file:</p>
 <div class="language-sh highlight"><pre><span></span><code><span class="nv">NOTES_ALLOWED_HOSTS</span><span class="o">=</span>api.example.com,.example.org
 <span class="nv">NOTES_CORS__ORIGINS</span><span class="o">=</span>https://app.example.com,http://localhost:5173
 <span class="nv">NOTES_SECURITY__REDIRECT_HTTPS</span><span class="o">=</span><span class="nb">true</span>
@@ -566,14 +573,20 @@ until you set them.</p>
 <h3 id="cors-per-route">Per-route CORS<a class="headerlink" href="#cors-per-route" title="Permanent link">&para;</a></h3>
 <p>An action can carry its own policy with <code>cors=http.Cors(...)</code>, for a public feed, a partner endpoint or a route that must not be readable from the origins the rest of the application allows. <code>http.Cors</code> takes the fields of <code>settings.CorsSettings</code> (<code>origins</code>, <code>methods</code>, <code>headers</code>, <code>expose_headers</code>, <code>credentials</code>, <code>max_age</code>) and requires at least one origin:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/feed/api.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">reader</span>  <span class="c1"># an `Access` policy</span>
 
 <span class="n">partner</span> <span class="o">=</span> <span class="n">http</span><span class="o">.</span><span class="n">Cors</span><span class="p">(</span><span class="n">origins</span><span class="o">=</span><span class="p">(</span><span class="s2">"https://partner.example"</span><span class="p">,),</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/feed/partner"</span><span class="p">,</span> <span class="n">cors</span><span class="o">=</span><span class="n">partner</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">partner_feed</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"feed"</span><span class="p">:</span> <span class="s2">"partner"</span><span class="p">}</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Feed</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">feed</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/feed/partner"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">reader</span><span class="p">,</span> <span class="n">cors</span><span class="o">=</span><span class="n">partner</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">partner_feed</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Feed</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Feed</span><span class="p">(</span><span class="n">feed</span><span class="o">=</span><span class="s2">"partner"</span><span class="p">)</span>
 </code></pre></div>
 <ul>
 <li><strong>Precedence.</strong> The route's policy replaces the application's for that route; nothing is merged, so the application's origins do not apply to it. An action without <code>cors=</code> keeps the application policy, and a route with <code>cors=</code> works even while the application's <code>cors.origins</code> is empty.</li>
@@ -585,34 +598,24 @@ until you set them.</p>
 <h2 id="browser-security-headers-and-https">Security headers and HTTPS<a class="headerlink" href="#browser-security-headers-and-https" title="Permanent link">&para;</a></h2>
 <p>Every HTTP response gets <code>X-Content-Type-Options: nosniff</code>, the configured <code>X-Frame-Options</code> and <code>Referrer-Policy</code>, including errors, OpenAPI/docs and admin responses. Defaults are <code>SAMEORIGIN</code> and <code>same-origin</code>, preserving the admin's existing referrer privacy default. These fields are owned by the app security policy: configured values replace same-named headers returned by a route.</p>
 <p>The choices are enums rather than arbitrary strings, and environment/TOML values must match the listed wire values exactly. <code>FrameOptions</code> provides <code>deny</code> and <code>sameorigin</code>. <code>ReferrerPolicy</code> provides <code>no-referrer</code>, <code>no-referrer-when-downgrade</code>, <code>same-origin</code>, <code>origin</code>, <code>strict-origin</code>, <code>origin-when-cross-origin</code>, <code>strict-origin-when-cross-origin</code> and <code>unsafe-url</code>. <code>unsafe-url</code> can disclose the full referring URL to another origin; use it only when that is intended.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
-    <span class="n">security</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">SecuritySettings</span><span class="p">(</span>
-        <span class="n">redirect_https</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">hsts_seconds</span><span class="o">=</span><span class="mi">31_536_000</span><span class="p">,</span>
-        <span class="n">hsts_include_subdomains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">frame_options</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">FrameOptions</span><span class="o">.</span><span class="n">DENY</span><span class="p">,</span>
-        <span class="n">referrer_policy</span><span class="o">=</span><span class="n">settings</span><span class="o">.</span><span class="n">ReferrerPolicy</span><span class="o">.</span><span class="n">STRICT_ORIGIN</span><span class="p">,</span>
-    <span class="p">)</span>
+<div class="language-toml highlight"><pre><span></span><code><span class="c1"># settings.toml</span>
+<span class="k">[security]</span>
+<span class="n">redirect_https</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="n">hsts_seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">31_536_000</span>
+<span class="n">hsts_include_subdomains</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="n">frame_options</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"deny"</span>
+<span class="n">referrer_policy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"strict-origin"</span>
 </code></pre></div>
 <p>For configuration loaded from the environment, set <code>NOTES_ALLOWED_HOSTS=api.example.com</code> and <code>NOTES_SECURITY__REDIRECT_HTTPS=true</code>. A wildcard host policy cannot be combined with the redirect: Hinoki requires an explicit host allowlist before constructing an absolute <code>Location</code>, which avoids redirecting an attacker supplied <code>Host</code> value. The redirect is <code>308</code>, preserves the method and raw path/query, and runs before route lookup, authentication and body reading. A configured CORS preflight is answered before redirecting so browser preflight requests remain usable.</p>
 <p>HSTS defaults off. Hinoki emits it only when the request's effective scheme is HTTPS. Behind TLS termination, configure the exact proxy addresses in <code>server.trusted_proxies</code>; an untrusted <code>X-Forwarded-Proto</code> does not enable HSTS or suppress the redirect. <code>hsts_preload</code> also requires <code>hsts_include_subdomains</code> and a <code>max-age</code> of at least one year. Use HSTS only after confirming that HTTPS is available for every covered host: browsers retain the policy after the response.</p>
 <h2 id="reverse-proxies-and-request-ids">Reverse proxies and request IDs<a class="headerlink" href="#reverse-proxies-and-request-ids" title="Permanent link">&para;</a></h2>
 <p>Forwarded metadata is ignored unless the immediate socket peer matches <code>server.trusted_proxies</code>. Configure only the addresses or CIDRs of proxies that remove client-supplied forwarding headers and write their own values. For example:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
-
-
-<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
-    <span class="c1"># The private address used by this deployment's ingress, not every private network.</span>
-    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span>
-        <span class="n">trusted_proxies</span><span class="o">=</span><span class="p">(</span><span class="s2">"10.20.0.0/16"</span><span class="p">,),</span>
-        <span class="n">request_id_header</span><span class="o">=</span><span class="s2">"x-correlation-id"</span><span class="p">,</span>
-        <span class="n">trust_request_id</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="p">)</span>
+<div class="language-toml highlight"><pre><span></span><code><span class="c1"># settings.toml</span>
+<span class="c1"># The private address used by this deployment's ingress, not every private network.</span>
+<span class="k">[server]</span>
+<span class="n">trusted_proxies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"10.20.0.0/16"</span><span class="p">]</span>
+<span class="n">request_id_header</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"x-correlation-id"</span>
+<span class="n">trust_request_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
 </code></pre></div>
 <p>From a trusted peer, Hinoki accepts a single <code>X-Forwarded-Proto</code> value of <code>http</code> or <code>https</code> and walks a bounded <code>X-Forwarded-For</code> chain from the peer side to the first untrusted address. <code>Request.scheme</code> and <code>Request.client</code> use those validated values. Invalid, repeated or ambiguous values fall back to the socket scope. <code>X-Forwarded-Host</code> is never used: <code>Host</code>, <code>allowed_hosts</code> and generated URLs continue to use the original Host header.</p>
 <p>On a listener bound to <code>::</code>, an IPv4 peer can appear as <code>::ffff:a.b.c.d</code>, which a plain IPv4 entry does not match (the proxy is then untrusted); see <a href="../kiso/#behind-a-reverse-proxy">behind a reverse proxy</a>.</p>
@@ -660,7 +663,7 @@ until you set them.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 23:53:08 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/web-security.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -255,8 +255,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>4 min read</span>
           </p>
           
         </header>
@@ -314,6 +314,8 @@ If billing later references a model of another app, list that app in
 <code>requires</code>: migrations then run in dependency order.</p>
 <h2 id="add-a-model">Add a model<a class="headerlink" href="#add-a-model" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py</span>
+<span class="sd">"""Models owned by this app."""</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
@@ -338,9 +340,9 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 </code></pre></div>
 <div class="language-text highlight"><pre><span></span><code>database: sqlite:///…/notes/.hinoki/local.sqlite3 (from local SQLite default)
 create table billing_invoices
-wrote …/notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
+wrote notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
 database: sqlite:///…/notes/.hinoki/local.sqlite3 (from local SQLite default)
-notes: nothing to apply
+entries: nothing to apply
 billing: 0001-create-table-billing-invoices
 </code></pre></div>
 <p><code>plan</code> compares the models with the recorded migration state and writes the
@@ -365,15 +367,26 @@ uv<span class="w"> </span>run<span class="w"> </span>pytest
 </code></pre></div>
 <p><code>notes/rules.py</code> keeps two model rules commented out:
 <code>Models.require_explicit_table</code> and <code>Models.require_foreign_key_index</code>.
-<code>hinoki check</code> sees only the models the application imports, and a model rule
-that matches no model is <code>unverifiable</code>, which fails the check. Turn them on
-(and import <code>Models</code>) once a billing route imports <code>Invoice</code>; then add
-<code>@db.table("billing_invoices")</code> above the class, or the check reports:</p>
-<div class="language-text highlight"><pre><span></span><code>notes/apps/billing/models.py:10: HNK-DB-001 [violated] Invoice uses the derived table name 'billing_invoices'
-  fix: name the table with @db.table(...) or table=... on the model
+<code>hinoki check</code> imports the models of every <code>[[apps]]</code> entry, so a project with
+no model at all would report them as <code>unverifiable</code>, which fails the check.
+Now that billing has <code>Invoice</code>, turn them on (and import <code>Models</code>):</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/rules.py (excerpt)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Models</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>
+
+<span class="n">project_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
+    <span class="c1"># …the rules the scaffold wrote…</span>
+    <span class="n">Models</span><span class="o">.</span><span class="n">require_explicit_table</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
+    <span class="n">Models</span><span class="o">.</span><span class="n">require_foreign_key_index</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">),</span>
+<span class="p">)</span>
 </code></pre></div>
-<p>Pinning the derived name changes no table: <code>migrations plan billing</code> then
-reports <code>no changes</code>.</p>
+<p>The check then reports the derived table name:</p>
+<div class="language-text highlight"><pre><span></span><code>notes/apps/billing/models.py:11: HNK-DB-001 [violated] Invoice uses the derived table name 'billing_invoices'
+  fix: name the table with @db.table(...) or table=... on the model
+10 rule(s): 1 violated, 0 unverifiable, 0 waived
+</code></pre></div>
+<p>Add <code>@db.table("billing_invoices")</code> above the class (the first line of its
+decorators) and the check passes. Pinning the derived name changes no table:
+<code>migrations plan billing</code> then reports <code>no changes</code>.</p>
 <p>Endpoints for billing go in <code>notes/apps/billing/api.py</code>, and <code>routes.py</code> lists
 them. The application in <code>notes/main.py</code> includes every app's list with
 <code>manifest_routes()</code>, which mounts this one at <code>/billing</code>, so paths inside the
@@ -392,6 +405,11 @@ app never repeat the prefix:</p>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
 <span class="p">)</span>  <span class="c1"># the rules come from `rules` in hinoki.toml</span>
 </code></pre></div>
+<p><code>include=manifest_routes()</code> is the explicit form of what <code>Hinoki()</code> does by
+itself when you leave <code>include=</code> out, as the <a href="../6-run/">Tracker</a> does; the
+scaffold writes it so the line shows where routes come from. The same manifest
+can also list project-wide <code>middleware</code>, an <code>events</code> module per app and more than
+one rule set (<code>rules</code>), as the Tracker's <code>hinoki.toml</code> does.</p>
 <p>The project's rules (listed in <code>hinoki.toml</code>) require every action to name an
 <code>Access</code> policy with permissions; build one as in <a href="../4-endpoints/">chapter 4</a>.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
@@ -427,7 +445,7 @@ app never repeat the prefix:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

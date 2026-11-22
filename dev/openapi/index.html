@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>10 min read</span>
           </p>
           
@@ -494,13 +494,11 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
     <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
     <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span>
-    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
     <span class="n">redoc_url</span><span class="o">=</span><span class="s2">"/redoc"</span><span class="p">,</span>
@@ -560,23 +558,32 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 </code></pre></div>
 <h2 id="per-action-controls">Per-action controls<a class="headerlink" href="#per-action-controls" title="Permanent link">&para;</a></h2>
 <p><code>include_in_schema</code>, <code>tags</code>, <code>deprecated</code> and <code>operation_id</code> are options of <code>@http.get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code> and <code>query</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">http</span>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">staff_auth</span>  <span class="c1"># any authentication provider</span>
 
 <span class="n">admin_only</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">staff_auth</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="s2">"ops:run"</span><span class="p">])</span>
 
 
+<span class="k">class</span><span class="w"> </span><span class="nc">Started</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Totals</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">tasks</span><span class="p">:</span> <span class="nb">int</span>
+
+
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/ops/reindex"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">admin_only</span><span class="p">,</span> <span class="n">include_in_schema</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">reindex</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"started"</span><span class="p">}</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">reindex</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Started</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Started</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"started"</span><span class="p">)</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/v1/tasks"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"tasks"</span><span class="p">],</span> <span class="n">deprecated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">operation_id</span><span class="o">=</span><span class="s2">"listTasksV1"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">[]</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/v1/totals"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"tasks"</span><span class="p">],</span> <span class="n">deprecated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">operation_id</span><span class="o">=</span><span class="s2">"totalsV1"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">totals</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Totals</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Totals</span><span class="p">(</span><span class="n">tasks</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">()</span>
-<span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="n">reindex</span><span class="p">,</span> <span class="n">list_tasks</span><span class="p">)</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">reindex</span><span class="p">,</span> <span class="n">totals</span><span class="p">])</span>
 </code></pre></div>
 <ul>
 <li><code>include_in_schema=False</code> leaves the action out of <code>Hinoki.openapi()</code>, <code>hinoki openapi</code> and <code>/openapi.json</code>. The action is still registered, served and protected by its <code>Access</code> exactly as before: leaving it out neither hides it from a caller who knows the path nor authorizes anything. A path whose actions are all left out is not listed, and a <code>Schema</code> or security scheme used only by left-out actions does not appear under <code>components</code>.</li>
@@ -590,18 +597,22 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 <h2 id="deprecate-an-action">Deprecate an action<a class="headerlink" href="#deprecate-an-action" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/v1/tasks"</span><span class="p">,</span> <span class="n">deprecated</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">22</span><span class="p">))</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_tasks_v1</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">[]</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Totals</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">tasks</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/v1/totals"</span><span class="p">,</span> <span class="n">deprecated</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">22</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">totals_v1</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Totals</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Totals</span><span class="p">(</span><span class="n">tasks</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 </code></pre></div>
 <p><code>deprecated</code> takes <code>True</code>, <code>False</code> or the <code>datetime.date</code> the action was deprecated on (a <code>datetime</code> is refused). It does three things:</p>
 <ul>
 <li>The document marks the operation <code>deprecated: true</code>.</li>
 <li>Every response, success or error, carries a <code>Deprecation</code> header: <code>@&lt;unix seconds&gt;</code> for a date (the form of RFC 9745, midnight UTC), <code>true</code> when no date is given.</li>
-<li>The <code>hinoki.deprecated</code> logger warns <code>deprecated action called: GET /v1/tasks (N call(s) since the last report)</code>. An action is reported at most once per minute, with the calls it stayed quiet about, so a busy action does not flood the log; the state is one entry per deprecated action. Nothing is logged at startup.</li>
+<li>The <code>hinoki.deprecated</code> logger warns <code>deprecated action called: GET /v1/totals (N call(s) since the last report)</code>. An action is reported at most once per minute, with the calls it stayed quiet about, so a busy action does not flood the log; the state is one entry per deprecated action. Nothing is logged at startup.</li>
 </ul>
 <p>The header and the warning are produced by the Python pipeline, so a deprecated action leaves <a href="../kiso/#what-is-native-and-what-still-runs-in-python">the native lane</a> (<code>hinoki routes --lanes</code> shows <code>lane_reason</code> <code>deprecated</code>) and, for generated CRUD, the native CRUD plan. The response and the access check do not change. There is no <code>Sunset</code> header.</p>
 <h2 id="current-limits">Current limits<a class="headerlink" href="#current-limits" title="Permanent link">&para;</a></h2>
@@ -633,7 +644,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

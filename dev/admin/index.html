@@ -475,17 +475,17 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>8 min read</span>
           </p>
           
         </header>
         
 <p><code>hinoki.admin</code> gives staff a list, search, create, edit, bulk actions and a dashboard for your models, behind its own sign-in page, users and per-model permissions. It ships with the framework; nothing is served until you include it, and importing it never touches a database.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/adminsite.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Tone</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span><span class="p">,</span> <span class="n">User</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span><span class="p">,</span> <span class="n">User</span>
 
 <span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">)</span>
 
@@ -502,11 +502,11 @@
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/routes.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">Mount</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">blog.adminsite</span><span class="w"> </span><span class="kn">import</span> <span class="n">site</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.apps.blog.adminsite</span><span class="w"> </span><span class="kn">import</span> <span class="n">site</span>
 
 <span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Mount</span><span class="p">(</span><span class="s2">"/admin"</span><span class="p">,</span> <span class="n">site</span><span class="p">)]</span>
 </code></pre></div>
-<p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/apps/blog/adminsite.py">Blog example</a> builds a fuller site the same way, with a theme, links, a dashboard and activity.</p>
+<p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/adminsite.py">Blog example</a> builds a fuller site the same way, with a theme, links, a dashboard and activity; its <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/routes.py"><code>routes.py</code></a> mounts it beside the API and its <code>hinoki.toml</code> registers the admin's tables as the <code>admin</code> app.</p>
 <h2 id="create-the-admins-tables">Create the admin's tables<a class="headerlink" href="#create-the-admins-tables" title="Permanent link">&para;</a></h2>
 <p>The admin keeps its users in four tables of your database. Register them as an app, apply the migrations, then create the first user:</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>admin<span class="w"> </span>--models<span class="w"> </span>hinoki.admin.users.models<span class="w"> </span>--migrations<span class="w"> </span>hinoki.admin.users.migrations
@@ -680,7 +680,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 </tr>
 </tbody>
 </table>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/adminsite.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin.users</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdminAccounts</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin.users.limits</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabaseLoginWindow</span>
@@ -688,7 +688,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 <span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">users</span><span class="o">=</span><span class="n">AdminAccounts</span><span class="p">(</span><span class="n">login_limit</span><span class="o">=</span><span class="n">DatabaseLoginWindow</span><span class="p">()))</span>
 </code></pre></div>
 <p>Both count one window per client address and route (a flood on the sign-in never spends the password change's attempts). A full table never drops a blocked address: new addresses are refused until the oldest block expires. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.</p>
-<p>an IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set <code>server.trusted_proxies</code> behind a proxy. With <code>DatabaseLoginWindow</code>, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>.</p>
+<p>An IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set <code>server.trusted_proxies</code> behind a proxy. With <code>DatabaseLoginWindow</code>, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>.</p>
 <h2 id="serve-it-under-another-path">Serve it under another path<a class="headerlink" href="#serve-it-under-another-path" title="Permanent link">&para;</a></h2>
 <p>The <code>Mount</code> prefix decides where the admin lives; links, assets and the cookie path follow it. <code>Mount("/ops", site)</code> serves it at <code>/ops</code>. <code>Admin(prefix="/staff")</code> adds a path of its own after the mount (<code>/ops/staff</code>). An admin included without a <code>Mount</code> is served at <code>/admin</code>.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
@@ -762,7 +762,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -518,7 +518,10 @@ by default; <code>GET</code> actions are not. An action opts out with <code>atom
 <p>A project created with <code>hinoki new</code> enforces <code>Transactions.require_atomic()</code>
 (<code>HNK-TXN-001</code>), so a write that opts out stops <code>hinoki check</code> and startup until
 you record the decision. List the action in <code>except_</code> in <code>notes/rules.py</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/rules.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/rules.py, listed in `rules` of hinoki.toml</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Transactions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
+
 <span class="n">project_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
     <span class="c1"># ... the other rules</span>
     <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.apps.billing.api.remind"</span><span class="p">]),</span>
@@ -636,7 +639,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/transactions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

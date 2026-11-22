@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -487,8 +487,10 @@ messages with the client: text, binary or JSON checked against a <code>Schema</c
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># chat/echo.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">chat.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member</span>  <span class="c1"># an `Access` policy</span>
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/echo"</span><span class="p">)</span>
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/echo"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">member</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">echo</span><span class="p">(</span><span class="n">socket</span><span class="p">:</span> <span class="n">http</span><span class="o">.</span><span class="n">WebSocket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">async</span> <span class="k">for</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">socket</span><span class="p">:</span>
         <span class="k">await</span> <span class="n">socket</span><span class="o">.</span><span class="n">send_text</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
@@ -558,13 +560,26 @@ reads the query. A parameter annotated <code>Caller</code> receives the authenti
 caller, as in HTTP. Authorization of what each message may do stays in your
 handler, which is also where tenant or ownership checks belong; WebSocket
 actions are not part of generated CRUD.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">http</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># chat/security.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">BearerAuth</span><span class="p">,</span> <span class="n">Caller</span>
 
-<span class="n">READ</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">tokens</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="s2">"chat:read"</span><span class="p">])</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Tokens</span><span class="p">(</span><span class="n">BearerAuth</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_token</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Caller</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>  <span class="c1"># look the token up; return None when it is unknown</span>
+
+
+<span class="n">READ</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">Tokens</span><span class="p">(),</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="s2">"chat:read"</span><span class="p">])</span>
+</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># chat/inbox.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">chat.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">READ</span>
 
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/inbox"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">READ</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inbox</span><span class="p">(</span><span class="n">who</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="kc">None</span><span class="p">],</span> <span class="n">socket</span><span class="p">:</span> <span class="n">http</span><span class="o">.</span><span class="n">WebSocket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">inbox</span><span class="p">(</span><span class="n">who</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">socket</span><span class="p">:</span> <span class="n">http</span><span class="o">.</span><span class="n">WebSocket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">await</span> <span class="n">socket</span><span class="o">.</span><span class="n">send_text</span><span class="p">(</span><span class="sa">f</span><span class="s2">"hello </span><span class="si">{</span><span class="n">who</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="origin">Origin<a class="headerlink" href="#origin" title="Permanent link">&para;</a></h2>
@@ -588,7 +603,13 @@ first one the client offered and returns it in the <code>101</code> answer
 (<code>socket.subprotocol</code>). A client that offers none of them is refused with <code>400</code>.
 A mapping gives each subprotocol its own <code>Access</code>, which runs after the
 action's:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/feed"</span><span class="p">,</span> <span class="n">subprotocols</span><span class="o">=</span><span class="p">{</span><span class="s2">"public.v1"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"staff.v1"</span><span class="p">:</span> <span class="n">STAFF</span><span class="p">})</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># chat/feed.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">chat.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">READ</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/feed"</span><span class="p">,</span> <span class="n">subprotocols</span><span class="o">=</span><span class="p">{</span><span class="s2">"public.v1"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"staff.v1"</span><span class="p">:</span> <span class="n">READ</span><span class="p">})</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">feed</span><span class="p">(</span><span class="n">socket</span><span class="p">:</span> <span class="n">http</span><span class="o">.</span><span class="n">WebSocket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">await</span> <span class="n">socket</span><span class="o">.</span><span class="n">send_text</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">subprotocol</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
 </code></pre></div>
@@ -636,6 +657,8 @@ action's:</p>
 is not JSON closes with <code>1007</code>, JSON that fails validation with <code>1008</code>.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">chat.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">READ</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Move</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">x</span><span class="p">:</span> <span class="nb">int</span>
@@ -648,7 +671,7 @@ is not JSON closes with <code>1007</code>, JSON that fails validation with <code
     <span class="n">by</span><span class="p">:</span> <span class="nb">str</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/board"</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="n">Move</span><span class="p">,</span> <span class="n">reply</span><span class="o">=</span><span class="n">Position</span><span class="p">)</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/board"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">READ</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="n">Move</span><span class="p">,</span> <span class="n">reply</span><span class="o">=</span><span class="n">Position</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">board</span><span class="p">(</span><span class="n">socket</span><span class="p">:</span> <span class="n">http</span><span class="o">.</span><span class="n">WebSocket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">async</span> <span class="k">for</span> <span class="n">move</span> <span class="ow">in</span> <span class="n">socket</span><span class="p">:</span>
         <span class="k">await</span> <span class="n">socket</span><span class="o">.</span><span class="n">send_json</span><span class="p">({</span><span class="s2">"x"</span><span class="p">:</span> <span class="n">move</span><span class="o">.</span><span class="n">x</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">:</span> <span class="n">move</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="s2">"by"</span><span class="p">:</span> <span class="s2">"server"</span><span class="p">})</span>
@@ -747,7 +770,7 @@ origins and the handshake's security requirement. They are not listed under
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/websockets.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

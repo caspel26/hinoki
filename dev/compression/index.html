@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:25:22 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -483,10 +483,7 @@
         
 <p><a href="../kiso/">Kiso</a>, Hinoki's Rust server, can compress the bodies it sends with brotli or gzip. It is off by default and it is <strong>Kiso only</strong>: Granian and any other ASGI server never compress what Hinoki gives them, and <code>hinoki serve --server granian</code> refuses <code>compression.enabled</code> instead of ignoring it.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">http</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.http</span><span class="w"> </span><span class="kn">import</span> <span class="n">Response</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppSettings</span><span class="p">,</span> <span class="n">CompressionSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
@@ -496,14 +493,24 @@
     <span class="p">)</span>
 <span class="p">)</span>
 
-<span class="n">NOTES</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">number</span><span class="p">,</span> <span class="s2">"title"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"note </span><span class="si">{</span><span class="n">number</span><span class="si">}</span><span class="s2">"</span><span class="p">}</span> <span class="k">for</span> <span class="n">number</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">301</span><span class="p">)]</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Note</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">notes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
-    <span class="k">return</span> <span class="n">Response</span><span class="p">(</span>
-        <span class="mi">200</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"content-type"</span><span class="p">:</span> <span class="s2">"application/json"</span><span class="p">},</span> <span class="n">body</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">NOTES</span><span class="p">)</span>
-    <span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">NoteList</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Note</span><span class="p">]</span>
+
+
+<span class="n">NOTES</span> <span class="o">=</span> <span class="n">NoteList</span><span class="p">(</span>
+    <span class="n">items</span><span class="o">=</span><span class="p">[</span><span class="n">Note</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">number</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"note </span><span class="si">{</span><span class="n">number</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="k">for</span> <span class="n">number</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">301</span><span class="p">)]</span>
+<span class="p">)</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">notes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">NoteList</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">NOTES</span>
 
 
 <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="n">notes</span><span class="p">)</span>
@@ -512,11 +519,11 @@
 <div class="language-text highlight"><pre><span></span><code>$ curl -s -D - -o /dev/null -H "accept-encoding: br" http://127.0.0.1:8000/notes
 HTTP/1.1 200 OK
 content-type: application/json
-content-length: 557
+content-length: 591
 vary: accept-encoding
 content-encoding: br
 </code></pre></div>
-<p>For <code>gzip</code> the same request answers <code>content-encoding: gzip</code> with <code>content-length: 1477</code>, and a request without <code>accept-encoding</code> gets the 9984 bytes unchanged. <code>curl --compressed</code> decodes the answer. These figures were produced by running this example; they describe this body, not a general ratio.</p>
+<p>For <code>gzip</code> the same request answers <code>content-encoding: gzip</code> with <code>content-length: 1438</code>, and a request without <code>accept-encoding</code> gets the 8795 bytes unchanged. <code>curl --compressed</code> decodes the answer. These figures were produced by running this example; they describe this body, not a general ratio.</p>
 <h2 id="what-is-compressed">What is compressed<a class="headerlink" href="#what-is-compressed" title="Permanent link">&para;</a></h2>
 <p>Kiso decides once per answer, after the application has decided it, so a plain action, <code>Stream</code>, <code>EventStream</code> and <code>File</code> are treated by the same rules and HTTP/1.1 and HTTP/2 behave alike.</p>
 <p>An answer is compressed when all of these hold:</p>
@@ -680,7 +687,7 @@ content-encoding: br
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:25:22 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/compression.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

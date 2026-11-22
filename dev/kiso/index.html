@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>25 min read</span>
           </p>
           
@@ -490,8 +490,15 @@ you choose Granian, and it can answer many requests without entering Python.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
-    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span><span class="n">server</span><span class="o">=</span><span class="s2">"kiso"</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">,</span> <span class="n">toml</span><span class="o">=</span><span class="s2">"settings.toml"</span>
+<span class="p">):</span>
+    <span class="k">pass</span>
+</code></pre></div>
+<div class="language-toml highlight"><pre><span></span><code><span class="c1"># settings.toml</span>
+<span class="k">[server]</span>
+<span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"kiso"</span>
+<span class="n">workers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span>
 </code></pre></div>
 <p><code>--server kiso</code> selects it explicitly when a project defaults to Granian. Choose
 Granian instead when you need an ASGI wrapper around the application
@@ -574,7 +581,7 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 <div class="language-text highlight"><pre><span></span><code>reloading: SIGHUP (generation 2)
 reloaded 4 workers (generation 2)
 </code></pre></div>
-<p>The supervisor's own settings are not reloaded: <code>host</code>, <code>port</code>, <code>backlog</code>, <code>workers</code>, <code>server</code>, <code>interface</code> and <code>metrics.listen</code> need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run <code>hinoki migrate</code> before sending the signal.</p>
+<p>The supervisor's own settings are not reloaded: <code>host</code>, <code>port</code>, <code>backlog</code>, <code>workers</code>, <code>server</code>, <code>interface</code> and <code>metrics.listen</code> need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run <code>hinoki migrations apply</code> before sending the signal.</p>
 <ul>
 <li>A new worker that exits, fails its lifespan startup or is not ready in time is killed, and the reload stops with <code>error: reload stopped at worker K of N; the other workers keep running</code>. The workers not yet replaced keep serving the old code (workers already replaced stay new); another <code>SIGHUP</code> retries them all. The supervisor does not exit.</li>
 <li>A <code>SIGHUP</code> that arrives during a reload is remembered once and handled when it ends. <code>SIGTERM</code> or <code>SIGINT</code> during a reload stops everything, the new and the old workers, as usual.</li>
@@ -583,14 +590,19 @@ reloaded 4 workers (generation 2)
 <li>A request that a client has already sent to the old worker when it is told to stop is answered, not refused with a <code>503</code>: the worker reports not ready only after its connections have drained.</li>
 <li>The reload is orchestrated by the supervisor, which is Python; the drain of the old worker and the TLS loading of the new one are Rust. With metrics, see <a href="../metrics/#several-workers">several workers</a>.</li>
 </ul>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py: reload is on by default; "stop" turns it off</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 
 
-<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
-    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span>
-        <span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">sighup</span><span class="o">=</span><span class="s2">"reload"</span>
-    <span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">,</span> <span class="n">toml</span><span class="o">=</span><span class="s2">"settings.toml"</span>
+<span class="p">):</span>
+    <span class="k">pass</span>
+</code></pre></div>
+<div class="language-toml highlight"><pre><span></span><code><span class="c1"># settings.toml: reload is on by default; "stop" turns it off</span>
+<span class="k">[server]</span>
+<span class="n">workers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span>
+<span class="n">sighup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"reload"</span>
 </code></pre></div>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>serve<span class="w"> </span>notes.main:app<span class="w"> </span><span class="p">&amp;</span>
 <span class="nb">kill</span><span class="w"> </span>-HUP<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s1">'hinoki serve'</span><span class="k">)</span><span class="s2">"</span>
@@ -643,7 +655,7 @@ reloaded 4 workers (generation 2)
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

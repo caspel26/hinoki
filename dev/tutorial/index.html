@@ -255,8 +255,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
-            <span>1 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>2 min read</span>
           </p>
           
         </header>
@@ -277,7 +277,7 @@ to your own project.</p>
 <tbody>
 <tr>
 <td><a href="1-models/">1. Models</a></td>
-<td>tables, an index, a default order</td>
+<td>tables, a foreign key, an index, a default order</td>
 <td>models and migrations</td>
 </tr>
 <tr>
@@ -287,13 +287,13 @@ to your own project.</p>
 </tr>
 <tr>
 <td><a href="3-operations/">3. Operations</a></td>
-<td>the business rules</td>
-<td>ownership inside the statement</td>
+<td>the business rules and the events they announce</td>
+<td>ownership inside the statement, events between apps</td>
 </tr>
 <tr>
 <td><a href="4-endpoints/">4. Endpoints</a></td>
 <td>the HTTP layer</td>
-<td>access, transactions, declared errors</td>
+<td>access, generated CRUD with filters, transactions, declared errors</td>
 </tr>
 <tr>
 <td><a href="5-rules/">5. Rules</a></td>
@@ -302,7 +302,7 @@ to your own project.</p>
 </tr>
 <tr>
 <td><a href="6-run/">6. Run and test it</a></td>
-<td>settings, a server, tests</td>
+<td>the manifest, settings, a server, tests</td>
 <td><code>hinoki dev</code>, the test client</td>
 </tr>
 <tr>
@@ -319,25 +319,70 @@ to your own project.</p>
 </table>
 <p>Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
 chapter 8 continues the project from the <a href="../quick-start/">Quick start</a>.</p>
-<p>The Tracker is one project (<code>tracker/</code>: <code>main.py</code>, settings, rules) with one app
-(<code>tracker/apps/tracker/</code>) that owns the models, schemas, operations, security and
-endpoints, created the way chapter 8 creates yours. Its layers:</p>
+<h2 id="the-trackers-shape">The Tracker's shape<a class="headerlink" href="#the-trackers-shape" title="Permanent link">&para;</a></h2>
+<p>The Tracker is one project with three apps that depend on each other on
+purpose. Each app is a package with its own models, endpoints and migrations:</p>
+<div class="language-text highlight"><pre><span></span><code>tracker/
+├── main.py, settings.py   the application and its typed settings
+├── routes.py              routes that belong to no app (GET /health)
+├── middleware.py          a project-wide middleware
+├── rules.py               architecture rules
+└── apps/
+    ├── members/           Member, the bearer token and the access policy
+    ├── tasks/             Task: models, schemas, filters, operations, api
+    └── activity/          Activity, written by listening to task events
+</code></pre></div>
+<p><code>hinoki.toml</code> is the whole wiring. <code>[project]</code> names the application, the
+project routes, the middleware and the rule sets; each <code>[[apps]]</code> names its
+models, migrations and routes, and <code>requires</code> fixes the order:</p>
+<div class="language-toml highlight"><pre><span></span><code><span class="c1"># examples/tracker/hinoki.toml</span>
+<span class="k">[project]</span>
+<span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.main:app"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.routes:routes"</span>
+<span class="n">middleware</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"tracker.middleware:middleware"</span><span class="p">]</span>
+<span class="n">rules</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"tracker.rules:policy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"tracker.rules:layers"</span><span class="p">]</span>
+
+<span class="k">[[apps]]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"members"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.members.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.members.migrations"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.members.api:routes"</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+
+<span class="k">[[apps]]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tasks"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.tasks.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.tasks.migrations"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.tasks.api:routes"</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"members"</span><span class="p">]</span>
+
+<span class="k">[[apps]]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"activity"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.migrations"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.api:routes"</span>
+<span class="n">events</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.events:handlers"</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"tasks"</span><span class="p">,</span><span class="w"> </span><span class="s2">"members"</span><span class="p">]</span>
+</code></pre></div>
+<p>Inside the <code>tasks</code> app, the layers point one way:</p>
 <div class="language-text highlight"><pre><span></span><code>api.py          HTTP: shapes, status codes, access, transactions
    ↓
 operations.py   business rules: plain async functions, no HTTP types
    ↓
 models.py       tables and relations
 </code></pre></div>
+<p><code>activity</code> reacts to what <code>tasks</code> announces, and <code>tasks</code> never imports it
+(<a href="3-operations/">chapter 3</a> and <a href="5-rules/">chapter 5</a>).</p>
 <h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
-<p><a href="../getting-started/">Install Hinoki</a>. Chapters 1–6 run in the checkout's
-<code>examples/</code> directory:</p>
-<div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+<p><a href="../getting-started/">Install Hinoki</a>. Chapters 1–6 run in the Tracker's own
+directory of the checkout, which is a complete project with its own
+<code>hinoki.toml</code>:</p>
+<div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples/tracker
 </code></pre></div>
-<p>That directory hosts three applications (Notes, Tracker and Blog) under one
-<code>hinoki.toml</code>, so server and check commands name the application, such as
-<code>uv run hinoki check tracker.main:app</code>. Without it, <code>hinoki check</code> here checks
-the directory's own <code>project.app:app</code>, which declares no rules, and reports
-<code>0 rule(s)</code>. In your own project the commands take no target.</p>
+<p>Commands there take no target: <code>uv run hinoki check</code>, <code>uv run hinoki dev</code> and
+<code>uv run hinoki migrations apply</code> read the manifest, as they do in your own
+project. They create <code>examples/tracker/.hinoki/local.sqlite3</code>, which the
+repository ignores.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -360,12 +405,12 @@ the directory's own <code>project.app:app</code>, which declares no rules, and r
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#before-you-start">Before you start</a></li></ul>
+            <ul><li><a href="#the-trackers-shape">The Tracker's shape</a></li><li><a href="#before-you-start">Before you start</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/index.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

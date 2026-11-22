@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
-            <span>4 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>5 min read</span>
           </p>
           
         </header>
@@ -495,27 +495,36 @@ and an application served by Kiso can use it.</p>
         <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">call_next</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">with_header</span><span class="p">(</span><span class="s2">"x-served-by"</span><span class="p">,</span> <span class="s2">"tenant"</span><span class="p">)</span>
 </code></pre></div>
-<p>Declare it on an action, or for the whole application:</p>
+<p>Declare it on an action, or for the whole application. <code>middleware=</code> on
+<code>Hinoki(...)</code> is the explicit form; a project lists it in <code>hinoki.toml</code>
+instead (<a href="#declaring-middleware-in-hinokitoml">below</a>):</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.middleware</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tenant</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/items"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">items</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">[]</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Pong</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">ok</span><span class="p">:</span> <span class="nb">bool</span>
 
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">items</span><span class="p">],</span> <span class="n">middleware</span><span class="o">=</span><span class="p">[</span><span class="n">Tenant</span><span class="p">()])</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/ping"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ping</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Pong</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Pong</span><span class="p">(</span><span class="n">ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">ping</span><span class="p">],</span> <span class="n">middleware</span><span class="o">=</span><span class="p">[</span><span class="n">Tenant</span><span class="p">()])</span>
 </code></pre></div>
 <p><code>RouteGroup</code> actions take the same option. The application's middleware runs
 first, then the action's, in the order listed; each one returns what the next
 one returned unless it answers itself.</p>
 <h2 id="declaring-middleware-in-hinokitoml">Declaring middleware in <code>hinoki.toml</code><a class="headerlink" href="#declaring-middleware-in-hinokitoml" title="Permanent link">&para;</a></h2>
-<p>The <code>[project]</code> table can list middleware for the whole application, like
-Django's <code>MIDDLEWARE</code>. Hinoki does not generate the module: you create it
-yourself, and you edit the list by hand (there is no command for it).</p>
+<p>The <code>[project]</code> table can list middleware for the whole application. Hinoki does not generate the module: you create it
+yourself, and you edit the list by hand (there is no command for it). The
+Tracker example does this with one middleware that adds a version header
+(<a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/middleware.py"><code>middleware.py</code></a>,
+listed on line 4 of its
+<a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/hinoki.toml"><code>hinoki.toml</code></a>).</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># shop/middleware.py</span>
 <span class="n">tenant</span> <span class="o">=</span> <span class="n">Tenant</span><span class="p">()</span>
 <span class="n">timing</span> <span class="o">=</span> <span class="p">[</span><span class="n">Timing</span><span class="p">(),</span> <span class="n">Audit</span><span class="p">()]</span>  <span class="c1"># a list or tuple is flattened</span>
@@ -629,7 +638,7 @@ change the lane.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/middleware.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

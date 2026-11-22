@@ -255,8 +255,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>5 min read</span>
           </p>
           
         </header>
@@ -274,113 +274,167 @@ database</a>):</p>
 <span class="k">class</span><span class="w"> </span><span class="nc">TrackerSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"TRACKER_"</span><span class="p">):</span>
     <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
 </code></pre></div>
-<p><code>main.py</code> declares the application at module level, with its rules, routes and
-an MCP tool:</p>
+<p><code>main.py</code> declares the application at module level. It names no route, event
+handler, middleware or rule, because <code>Hinoki()</code> reads them from <code>hinoki.toml</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.apps.tracker</span><span class="w"> </span><span class="kn">import</span> <span class="n">api</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.apps.tracker.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracker_rules</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">Seed</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackerSettings</span>
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
-    <span class="n">settings</span><span class="o">=</span><span class="n">TrackerSettings</span><span class="p">,</span>
-    <span class="n">title</span><span class="o">=</span><span class="s2">"Tracker"</span><span class="p">,</span>
-    <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
-    <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-    <span class="n">redoc_url</span><span class="o">=</span><span class="s2">"/redoc"</span><span class="p">,</span>
-    <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">api</span><span class="o">.</span><span class="n">health</span><span class="p">,</span> <span class="n">api</span><span class="o">.</span><span class="n">tasks</span><span class="p">],</span>
-    <span class="n">rules</span><span class="o">=</span><span class="n">tracker_rules</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="c1"># The MCP endpoint exposes only this action and uses the caller's own token.</span>
-<span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span>
-    <span class="o">*</span><span class="n">expose_as_mcp</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">api</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.list_tasks"</span><span class="p">],</span> <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">)</span>
-<span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">TrackerSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Hinoki</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Routes, events, middleware and rules come from the manifest."""</span>
+    <span class="k">return</span> <span class="n">Hinoki</span><span class="p">(</span>
+        <span class="n">settings</span><span class="o">=</span><span class="n">settings</span> <span class="ow">or</span> <span class="n">TrackerSettings</span><span class="p">,</span>
+        <span class="n">title</span><span class="o">=</span><span class="s2">"Tracker"</span><span class="p">,</span>
+        <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
+        <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
+        <span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="n">Seed</span><span class="p">],</span>
+    <span class="p">)</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">create_app</span><span class="p">()</span>
 </code></pre></div>
+<p>What the manifest (<a href="../#the-trackers-shape">the index</a>) supplies:</p>
+<table>
+<thead>
+<tr>
+<th><code>hinoki.toml</code></th>
+<th>What <code>Hinoki()</code> loads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[project] routes</code></td>
+<td><code>tracker/routes.py</code>: <code>GET /health</code></td>
+</tr>
+<tr>
+<td><code>[[apps]] routes</code></td>
+<td>each app's routes, at <code>/&lt;app name&gt;</code></td>
+</tr>
+<tr>
+<td><code>[[apps]] events</code></td>
+<td>the handlers of <code>activity</code></td>
+</tr>
+<tr>
+<td><code>[project] middleware</code></td>
+<td><code>ApiVersion</code>, which adds <code>x-tracker-version</code> to every answer of a matched route</td>
+</tr>
+<tr>
+<td><code>[project] rules</code></td>
+<td><code>policy</code> and <code>layers</code>, checked at startup and by <code>hinoki check</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>Hinoki()</code> fills each of <code>include=</code>, <code>events=</code>, <code>middleware=</code> and <code>rules=</code> from
+the manifest when you leave it out, and only in the module that
+<code>[project] application</code> names (<code>tracker.main</code>). An argument you pass yourself,
+even an empty one, replaces the manifest's list for that argument; do that only
+when you want an explicit application, such as a test that serves one app.
+<code>create_app</code> takes the settings so a test can point it at its own database.</p>
 <p><code>Hinoki(settings=TrackerSettings)</code> reads the <code>TRACKER_*</code> variables at import;
-nothing connects until a worker starts. A project created with <code>hinoki new</code>
-writes the same module, with <code>include=manifest_routes()</code> in place of the list
-(<a href="../8-projects/">chapter 8</a>).</p>
+nothing connects until a worker starts.</p>
 <h2 id="serve-it">Serve it<a class="headerlink" href="#serve-it" title="Permanent link">&para;</a></h2>
-<p>From <code>examples/</code>:</p>
+<p>From <code>examples/tracker</code>:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">SQLite (default)</label><label for="__tabbed_1_2">PostgreSQL</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>tracker
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>tracker.main:app
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>manage<span class="w"> </span>seed
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev
 </code></pre></div>
 </div>
 <div class="tabbed-block">
 <div class="language-sh highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">TRACKER_DATABASE__URL</span><span class="o">=</span>postgresql://user:password@127.0.0.1:5432/tracker
-<span class="nb">export</span><span class="w"> </span><span class="nv">EXAMPLES_DATABASE__URL</span><span class="o">=</span><span class="nv">$TRACKER_DATABASE__URL</span>
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>tracker
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev<span class="w"> </span>tracker.main:app
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>manage<span class="w"> </span>seed
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev
 </code></pre></div>
 </div>
 </div>
 </div>
-<p>The migration commands use the <code>database</code> setting of the project application
-named in <code>examples/hinoki.toml</code> (<code>project.app:app</code>, configured by
-<code>EXAMPLES_DATABASE__URL</code>), not the tracker's own settings. In a project whose
-application is the tracker, <code>TRACKER_DATABASE__URL</code> alone configures both
-(<a href="../../migrations/#which-database">which database</a>). <code>hinoki dev</code> serves on
-<code>http://127.0.0.1:8000</code> and reloads on change; open <code>/docs</code> or <code>/redoc</code>.
-<code>hinoki serve</code> runs without reload and takes host, port and workers from the
-<code>server</code> settings (<a href="../../serving/">serving</a>).</p>
+<p>The migration commands, <code>manage</code> and the server all read the <code>database</code> setting
+of the application that <code>hinoki.toml</code> names, so <code>TRACKER_DATABASE__URL</code> alone
+configures all of them (<a href="../../migrations/#which-database">which database</a>).
+<code>hinoki dev</code> serves on <code>http://127.0.0.1:8000</code> and reloads on change; open
+<code>/docs</code>. <code>hinoki serve</code> runs without reload and takes host, port and workers
+from the <code>server</code> settings (<a href="../../serving/">serving</a>).</p>
 <h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
 <p>Every task route needs a member's token, and the Tracker has no sign-up route.
-Create a member in the <a href="../../shell/">shell</a>, which opens the same database as
-the migration commands. From <code>examples/</code>, in a second terminal:</p>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell
+<code>hinoki manage seed</code> is a management command of the example
+(<code>tracker/commands.py</code>) that creates the member <code>Ada Demo</code> with the synthetic
+token <code>demo-member-token</code>:</p>
+<div class="language-text highlight"><pre><span></span><code>member 'Ada Demo' created; token 'demo-member-token'
 </code></pre></div>
-<div class="language-pycon highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ann"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-dev-token"</span><span class="p">)</span>
-</code></pre></div>
-<p>Leave the shell with Ctrl-D, then call the API with the token:</p>
+<p>With the server running, call the API from a second terminal:</p>
 <div class="language-sh highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/tasks<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer ann-dev-token'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"title":"Write the report"}'</span>
-curl<span class="w"> </span>http://127.0.0.1:8000/tasks<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer ann-dev-token'</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"title":"Write docs","priority":2}'</span>
+curl<span class="w"> </span><span class="s1">'http://127.0.0.1:8000/tasks?done=false&amp;priority=1,2&amp;search=docs&amp;ordering=-created_at'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span>
+curl<span class="w"> </span>http://127.0.0.1:8000/activity<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span>
 </code></pre></div>
-<p>The first call answers <code>201</code> with the new task, the second a page with it.
-Without the header both answer <code>401</code>.</p>
+<p>The first call answers <code>201</code> with the new task, the second a page with it that
+matches the filters, and the third the <code>created</code> line that the <code>activity</code> app
+wrote. Without the header every one of them answers <code>401</code>.</p>
+<div class="language-text highlight"><pre><span></span><code>{"id":"…","title":"Write docs","priority":2,"done":false,"created_at":"…","completed_at":null}
+</code></pre></div>
+<p>Completing the task answers <code>200</code>; completing it again is a <code>409</code>
+<code>task_already_done</code>, and deleting a completed task a <code>409</code>
+<code>done_tasks_are_kept</code>:</p>
+<div class="language-sh highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/tasks/&lt;id&gt;/complete<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer demo-member-token'</span>
+</code></pre></div>
 <h2 id="test-it">Test it<a class="headerlink" href="#test-it" title="Permanent link">&para;</a></h2>
-<p>The application reads its settings at import, so the test configuration sets
-the database variable first. In the repository, <code>tests/conftest.py</code> copies
-<code>HINOKI_TEST_DATABASE_URL</code> to <code>TRACKER_DATABASE__URL</code> before any test module
-imports <code>tracker.main</code> (<a href="../../testing/#use-a-disposable-database">testing</a>).</p>
+<p>The tests of the Tracker need no environment variable: the fixture in
+<code>tracker_tests/conftest.py</code> migrates each app, in the order of its <code>requires</code>,
+into a SQLite file in a temporary directory, creates the members Ann and Ben and
+builds the application with <code>create_app(settings)</code> around that file:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker_tests/conftest.py (excerpt)</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">world</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="n">World</span><span class="p">]:</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"sqlite://</span><span class="si">{</span><span class="n">tmp_path</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="s1">'tracker.sqlite3'</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">database</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Database</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">max_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">ORDER</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">migrator</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">APPS</span> <span class="o">/</span> <span class="n">name</span> <span class="o">/</span> <span class="s2">"migrations"</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">use_database</span><span class="p">(</span><span class="n">database</span><span class="p">):</span>
+        <span class="n">ann</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ann"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">)</span>
+        <span class="n">ben</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Member</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ben"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ben-token"</span><span class="p">)</span>
+    <span class="n">database</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">TrackerSettings</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">overrides</span><span class="o">=</span><span class="p">{</span><span class="s2">"database"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"url"</span><span class="p">:</span> <span class="n">url</span><span class="p">}})</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">create_app</span><span class="p">(</span><span class="n">settings</span><span class="p">))</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">World</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ann</span><span class="p">,</span> <span class="n">ben</span><span class="p">)</span>
+</code></pre></div>
 <p>Operations need no HTTP, so test them directly. Then drive the whole stack with
 the in-process client:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/trackertest.py (excerpt)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.main</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span>
-
-
-<span class="nd">@needs_database</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_every_business_error_of_the_tracker_is_declared</span><span class="p">(</span>
-    <span class="n">members</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Member</span><span class="p">,</span> <span class="n">Member</span><span class="p">],</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker_tests/trackerapitest.py (excerpt)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_completing_twice_is_a_conflict_and_done_tasks_are_kept</span><span class="p">(</span>
+    <span class="n">world</span><span class="p">:</span> <span class="n">World</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">async</span> <span class="k">with</span> <span class="n">ASGIClient</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">strict_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-        <span class="n">made</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"x"</span><span class="p">},</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">)</span>
-        <span class="n">path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"/tasks/</span><span class="si">{</span><span class="n">made</span><span class="o">.</span><span class="n">body</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
-        <span class="k">assert</span> <span class="p">(</span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ben-token"</span><span class="p">))</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">404</span>
-        <span class="k">assert</span> <span class="p">(</span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">))</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">200</span>
-        <span class="n">again</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="s2">"ann-token"</span><span class="p">)</span>
-        <span class="k">assert</span> <span class="n">again</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">409</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create</span><span class="p">(</span><span class="n">world</span><span class="p">,</span> <span class="s2">"Ship"</span><span class="p">)</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"/tasks/</span><span class="si">{</span><span class="n">task</span><span class="p">[</span><span class="s1">'id'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">ann</span> <span class="o">=</span> <span class="n">world</span><span class="o">.</span><span class="n">ann</span><span class="o">.</span><span class="n">token</span>
+
+    <span class="n">done</span> <span class="o">=</span> <span class="k">await</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">ann</span><span class="p">)</span>
+    <span class="n">again</span> <span class="o">=</span> <span class="k">await</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">/complete"</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">ann</span><span class="p">)</span>
+    <span class="n">removed</span> <span class="o">=</span> <span class="k">await</span> <span class="n">world</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="n">ann</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="p">(</span><span class="n">done</span><span class="o">.</span><span class="n">status</span><span class="p">,</span> <span class="n">done</span><span class="o">.</span><span class="n">body</span><span class="p">[</span><span class="s2">"done"</span><span class="p">])</span> <span class="o">==</span> <span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">again</span><span class="o">.</span><span class="n">status</span><span class="p">,</span> <span class="n">again</span><span class="o">.</span><span class="n">body</span><span class="p">[</span><span class="s2">"error"</span><span class="p">])</span> <span class="o">==</span> <span class="p">(</span><span class="mi">409</span><span class="p">,</span> <span class="s2">"task_already_done"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">removed</span><span class="o">.</span><span class="n">status</span><span class="p">,</span> <span class="n">removed</span><span class="o">.</span><span class="n">body</span><span class="p">[</span><span class="s2">"error"</span><span class="p">])</span> <span class="o">==</span> <span class="p">(</span><span class="mi">409</span><span class="p">,</span> <span class="s2">"done_tasks_are_kept"</span><span class="p">)</span>
 </code></pre></div>
-<p>The <code>members</code> fixture of
-<a href="https://github.com/caspel26/hinoki/blob/main/tests/trackertest.py"><code>tests/trackertest.py</code></a>
-migrates a fresh database and creates the members Ann and Ben. Run it from the
-repository root against a disposable database, which the fixture empties first:</p>
-<div class="language-sh highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">HINOKI_TEST_DATABASE_URL</span><span class="o">=</span>sqlite://./.hinoki/tracker-test.sqlite3
-uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/trackertest.py
+<p>Run all of them from the repository root:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pytest<span class="w"> </span>examples/tracker/tracker_tests
 </code></pre></div>
-<p><code>strict_errors=True</code> fails a test when an action answers an error it did not
-declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
+<p><code>ASGIClient(app, strict_errors=True)</code> fails a test when an action answers an
+error it did not declare. For tests without <code>async</code>, use <code>SyncClient</code>. See
+<a href="../../testing/">testing</a> for disposable databases of other backends.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Settings are typed and read from prefixed environment variables.</li>
+<li><code>hinoki.toml</code> wires routes, events, middleware and rules; <code>main.py</code> only
+  configures the application.</li>
 <li><code>hinoki dev</code> serves with reload; migrations stay a separate step.</li>
 <li>Test operations directly and the stack with <code>ASGIClient</code>.</li>
 </ul>
@@ -412,7 +466,7 @@ declare. For tests without <code>async</code>, use <code>SyncClient</code>.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/6-run.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

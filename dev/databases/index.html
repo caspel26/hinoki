@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -570,7 +570,8 @@ you choose a database.</p>
     <span class="n">database</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">DatabaseSettings</span>
 </code></pre></div>
 <p>Each worker opens one bounded pool during startup and closes it during
-shutdown. Importing models or routes never opens a connection, and no
+shutdown. The <a href="https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/settings.py">Notes example's settings</a>
+are exactly this field with nothing else. Importing models or routes never opens a connection, and no
 <code>modules=</code> entry is needed. The file named by <code>toml=</code> must exist, even if it
 is empty: otherwise the settings fail to load with
 <code>settings.toml: TOML file cannot be read or parsed</code>.</p>
@@ -859,7 +860,7 @@ per-backend behaviour.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:59:55 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

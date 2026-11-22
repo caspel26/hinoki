@@ -239,7 +239,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:02 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -256,17 +256,16 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">stripe</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">errors</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span> <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">)</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">)</span>
 
 
 <span class="nd">@app</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span class="n">stripe</span><span class="o">.</span><span class="n">CardError</span><span class="p">)</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">card_error</span><span class="p">(</span><span class="n">error</span><span class="p">:</span> <span class="n">stripe</span><span class="o">.</span><span class="n">CardError</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">errors</span><span class="o">.</span><span class="n">APIError</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">errors</span><span class="o">.</span><span class="n">APIError</span><span class="p">(</span><span class="n">error</span><span class="o">.</span><span class="n">user_message</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">402</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">"card_declined"</span><span class="p">)</span>
 </code></pre></div>
-<p><code>Hinoki(...)</code> includes the routes listed in <code>hinoki.toml</code> (<code>include=manifest_routes()</code>) and opens nothing, so importing the module is safe: commands, servers and tests use the same <code>app</code>. The <code>[[apps]]</code> of <code>hinoki.toml</code> are packages of models, migrations and routes, not further <code>Hinoki</code> objects.</p>
+<p><code>Hinoki(...)</code> loads the routes, events, middleware and rules that <code>hinoki.toml</code> declares (each of <code>include=</code>, <code>events=</code>, <code>middleware=</code> and <code>rules=</code> you pass replaces its manifest value; the <a href="https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/main.py">Notes example</a> passes <code>include=</code> because its manifest lists no routes) and opens nothing, so importing the module is safe: commands, servers and tests use the same <code>app</code>. The <code>[[apps]]</code> of <code>hinoki.toml</code> are packages of models, migrations and routes, not further <code>Hinoki</code> objects.</p>
 <h2 id="one-request">One request<a class="headerlink" href="#one-request" title="Permanent link">&para;</a></h2>
 <p>The server hands each request to the compiled router and binding layer: Kiso, the default server, does so from Rust and queues matched requests for the Python pipeline; with Granian the request crosses the ASGI adapter first. Hinoki authenticates the caller, checks access, validates inputs, runs the handler, checks the return value against its annotation and renders the response. A transactional action commits after the response is prepared; a failure rolls back before it becomes an HTTP error. Handwritten handlers and hooks run in Python on both servers: the runtime is not an all-Rust server. Details: <a href="../request-lifecycle/">request lifecycle</a>.</p>
 <h2 id="worker-resources">Worker resources<a class="headerlink" href="#worker-resources" title="Permanent link">&para;</a></h2>
@@ -307,7 +306,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:54:02 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/concepts.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

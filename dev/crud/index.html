@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></span>
-            <span>11 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -647,13 +647,25 @@
 <p>The list applies, in this order: <code>get_queryset(principal)</code> (tenant and visibility), the client's filters combined with AND on top of it, the <code>filter_queryset</code> hook, the client's ordering and then pagination. A client filter can only narrow what <code>get_queryset</code> returned. The client's <code>ordering</code> replaces the order that <code>get_queryset</code> or the model set, always ends with the primary key so pages are stable, and without it that order stays.</p>
 <p><code>filter_queryset(self, query, params, principal)</code> is an optional hook of the class form; <code>params</code> is the <code>InvoiceFilters</code> instance (<code>params.paid</code>, <code>params.status</code> as a list, <code>params.issued</code> as <code>Bounds(from_, to)</code>, <code>params.search_term</code>, <code>params.is_null("discount")</code>, each <code>None</code> when the client did not send it):</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">crud</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
+
+
 <span class="nd">@crud</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Invoices</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">filter_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">InvoiceFilters</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">filter_queryset</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Invoice</span><span class="p">],</span>
+        <span class="n">params</span><span class="p">:</span> <span class="n">InvoiceFilters</span><span class="p">,</span>
+        <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Invoice</span><span class="p">]:</span>
         <span class="k">if</span> <span class="n">params</span><span class="o">.</span><span class="n">paid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">query</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">archived</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">query</span>
 </code></pre></div>
+<p>The Tracker example's <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/filters.py"><code>TaskFilters</code></a> and its <code>Tasks</code> class in <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/api.py"><code>api.py</code></a> show a filtered, owner-scoped list.</p>
 <p>The filters belong to the <code>list</code> action: <code>omit=("list",)</code> with <code>filters=</code> is refused. With <code>CursorPagination</code> the ordering columns must be non-null <code>int</code>, <code>str</code>, <code>UUID</code>, <code>datetime</code> or <code>float</code> columns, and a cursor is bound to the filters and ordering of the request that issued it (<a href="../pagination/#cursor-keyset-pagination">details</a>). A filtered list is not eligible for the native generated-CRUD list lane (the answer comes from the ordinary Python path, with rows still encoded in Rust); the <a href="../admin/">admin</a> lists have their own filters and do not use this one. A <code>FilterSet</code> also works on its own: <code>InvoiceFilters.parse({"paid": ["true"]})</code> returns the typed instance or raises <code>ValidationError</code>.</p>
 <h2 id="hooks-in-the-class-form">Hooks in the class form<a class="headerlink" href="#hooks-in-the-class-form" title="Permanent link">&para;</a></h2>
 <p>Apply <code>@crud(...)</code> to a class whose only base is <code>API</code>. These methods change what the generated actions do; every other decorated method is a handwritten action:</p>
@@ -811,7 +823,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 14:16:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

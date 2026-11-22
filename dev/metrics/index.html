@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -483,29 +483,33 @@
         
 <p><a href="../kiso/">Kiso</a>, Hinoki's Rust server, can count the requests it answers and serve the counts in the Prometheus text exposition format. It is off by default and it is <strong>Kiso only</strong>: <code>hinoki serve --server granian</code> refuses <code>metrics.listen</code> instead of ignoring it. The counters live in Rust and cost a few atomic additions per request; the exposition is served by a dedicated listener, never by the application's own port.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppSettings</span><span class="p">,</span> <span class="n">MetricsSettings</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Note</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes/</span><span class="si">{note_id}</span><span class="s2">"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">note</span><span class="p">(</span><span class="n">note_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Note</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Note</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">note_id</span><span class="p">)</span>
+
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
     <span class="n">settings</span><span class="o">=</span><span class="n">AppSettings</span><span class="p">(</span>
         <span class="n">allowed_hosts</span><span class="o">=</span><span class="p">(</span><span class="s2">"localhost"</span><span class="p">,</span> <span class="s2">"127.0.0.1"</span><span class="p">),</span>
         <span class="n">metrics</span><span class="o">=</span><span class="n">MetricsSettings</span><span class="p">(</span><span class="n">listen</span><span class="o">=</span><span class="s2">"127.0.0.1:9100"</span><span class="p">),</span>
-    <span class="p">)</span>
+    <span class="p">),</span>
+    <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">note</span><span class="p">],</span>
 <span class="p">)</span>
-
-
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/notes/</span><span class="si">{note_id}</span><span class="s2">"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">note</span><span class="p">(</span><span class="n">note_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="n">note_id</span><span class="p">}</span>
-
-
-<span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="n">note</span><span class="p">)</span>
 </code></pre></div>
 <p>Run <code>hinoki serve notes.main:app --server kiso --port 8765</code>, request <code>/notes/1</code>, <code>/notes/2</code> and <code>/nope</code>, then scrape <code>http://127.0.0.1:9100/metrics</code>. The lines for those requests (comments and the other families left out) are:</p>
 <div class="language-text highlight"><pre><span></span><code>hinoki_http_requests_total{route="/notes/{note_id}",method="GET",status="2xx",worker="0"} 2
 hinoki_http_requests_total{route="",method="GET",status="4xx",worker="0"} 1
-hinoki_http_response_bytes_total{route="/notes/{note_id}",worker="0"} 16
 hinoki_http_requests_in_flight{worker="0"} 0
+hinoki_http_response_bytes_total{route="/notes/{note_id}",worker="0"} 16
+hinoki_http_response_bytes_total{route="",worker="0"} 69
 </code></pre></div>
 <p>The application's own port answers <code>/metrics</code> like any other unknown path (<code>404</code>).</p>
 <h2 id="what-is-exported">What is exported<a class="headerlink" href="#what-is-exported" title="Permanent link">&para;</a></h2>
@@ -677,7 +681,7 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/metrics.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

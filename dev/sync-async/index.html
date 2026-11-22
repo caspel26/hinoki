@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -484,6 +484,9 @@
 <p>Each worker runs one event loop. <code>async def</code> is the native style; a plain <code>def</code> handler or hook is fully supported and runs on a bounded thread pool, with the request's context and blocking ORM twins that never block the loop.</p>
 <p>Two actions added to the <code>invoices</code> group of <a href="../function-endpoints/">function endpoints</a>, answering with a one-field <code>Schema</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py  (in the invoices group's module)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span>
+
+
 <span class="k">class</span><span class="w"> </span><span class="nc">UnpaidCount</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">count</span><span class="p">:</span> <span class="nb">int</span>
 
@@ -497,6 +500,7 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">count_unpaid_sync</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">UnpaidCount</span><span class="p">:</span>  <span class="c1"># sync: the twin without the "a"</span>
     <span class="k">return</span> <span class="n">UnpaidCount</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">())</span>
 </code></pre></div>
+<p>The group carries the access policy and <code>atomic=True</code> for both.</p>
 <p>A name with the <code>a</code> prefix awaits the database (<code>aget</code>, <code>acreate</code>, <code>acount</code>); the same name without it is the blocking twin. A queryset is lazy until evaluated: <code>await queryset</code> is the async form of <code>queryset.list()</code>.</p>
 <h2 id="choose-a-style">Choose a style<a class="headerlink" href="#choose-a-style" title="Permanent link">&para;</a></h2>
 <ul>
@@ -664,7 +668,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/sync-async.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

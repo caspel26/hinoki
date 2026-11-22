@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -633,7 +633,7 @@ hinoki<span class="w"> </span>completion<span class="w"> </span>fish<span class=
 </code></pre></div>
 <p>This creates <code>NAME/apps/billing/{models.py,routes.py,migrations/}</code> and registers the model, migration and routes modules in <code>hinoki.toml</code> (<code>routes = "NAME.apps.billing.routes:routes"</code>, <code>prefix = "/billing"</code>). Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
 <p>Both commands report <code>hinoki.toml</code>: <code>hinoki new</code> lists it among the generated files and <code>app create</code> says it registered the app there.</p>
-<p><code>--prefix</code> and <code>--requires</code> (comma-separated) set the mount prefix and dependencies directly. <code>app create</code> writes no events module: to add one, create the module yourself and use <code>app add --events</code> or the app's <code>events</code> key (see <a href="../events/#declaring-handlers-in-hinokitoml">Events</a>). Middleware and rules are project-wide lists in the <code>[project]</code> table that you edit by hand (see <a href="../middleware/#declaring-middleware-in-hinokitoml">Middleware</a> and <a href="../rules/#which-rules-run">Rules</a>). In a terminal, <code>app create</code> asks for whatever is not given — the name, the prefix (default <code>/NAME</code>) and, when other apps exist, <code>requires</code> — with the same prompts, Esc-to-cancel (exit 130, nothing created) and <code>NO_COLOR</code> handling as <code>hinoki new</code>. Without a terminal or with <code>--no-input</code> it never asks: the name is required (exit 2) and the defaults are <code>/NAME</code> and no <code>requires</code>. <code>app create</code> asks for whatever is not given — the name, the prefix (default <code>/NAME</code>) and, when other apps exist, <code>requires</code> — with the same prompts, Esc-to-cancel (exit 130, nothing created) and <code>NO_COLOR</code> handling as <code>hinoki new</code>. Without a terminal or with <code>--no-input</code> it never asks: the name is required (exit 2) and the defaults are <code>/NAME</code> and no <code>requires</code>.</p>
+<p><code>--prefix</code> and <code>--requires</code> (comma-separated) set the mount prefix and dependencies directly. <code>app create</code> writes no events module: to add one, create the module yourself and use <code>app add --events</code> or the app's <code>events</code> key (see <a href="../events/#declaring-handlers-in-hinokitoml">Events</a>). Middleware and rules are project-wide lists in the <code>[project]</code> table that you edit by hand (see <a href="../middleware/#declaring-middleware-in-hinokitoml">Middleware</a> and <a href="../rules/#which-rules-run">Rules</a>). In a terminal, <code>app create</code> asks for whatever is not given — the name, the prefix (default <code>/NAME</code>) and, when other apps exist, <code>requires</code> — with the same prompts, Esc-to-cancel (exit 130, nothing created) and <code>NO_COLOR</code> handling as <code>hinoki new</code>. Without a terminal or with <code>--no-input</code> it never asks: the name is required (exit 2) and the defaults are <code>/NAME</code> and no <code>requires</code>.</p>
 <p>To register a package that already exists, name its modules. Nothing is created or imported; only <code>hinoki.toml</code> changes:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>billing<span class="w"> </span>--models<span class="w"> </span>legacy.billing.models
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>invoices<span class="w"> </span>--models<span class="w"> </span>legacy.invoices.models<span class="w"> </span>--migrations<span class="w"> </span>legacy.db.invoices<span class="w"> </span>--routes<span class="w"> </span>legacy.invoices.routes:routes<span class="w"> </span>--prefix<span class="w"> </span>/invoices<span class="w"> </span>--requires<span class="w"> </span>billing
@@ -732,7 +732,7 @@ hinoki<span class="w"> </span>skills<span class="w"> </span>install<span class="
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>manage<span class="w"> </span>greet<span class="w"> </span>Peppe
 </code></pre></div>
 <p>Commands are declared on the app with <code>Hinoki(commands=[...])</code>. Each command subclasses <code>hinoki.management.Command</code>, gives itself a lower-case name, and adds arguments through <code>add_arguments(parser)</code>. In a scaffolded project, <code>hinoki manage</code> lists commands and <code>hinoki manage greet Peppe</code> runs one; the manifest's <code>project.application</code> supplies the app target. Outside a registered project, use <code>hinoki manage TARGET COMMAND</code>. <code>--help</code> after a command shows its arguments.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># examples/project/app.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># app.py, with `application = "app:app"` in hinoki.toml</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">argparse</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArgumentParser</span><span class="p">,</span> <span class="n">Namespace</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
@@ -752,8 +752,10 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">commands</span><span class="o">=</span><span class="p">[</span><span class="n">Greet</span><span class="p">])</span>
 </code></pre></div>
-<p>The same example is in <code>examples/project/app.py</code>; the examples manifest supplies
-its target when you run the command from the <code>examples/</code> project directory.</p>
+<p>The Tracker example declares a real command, <code>Seed</code>, in
+<a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/commands.py"><code>examples/tracker/tracker/commands.py</code></a>;
+<code>uv run hinoki manage seed</code> creates a demo member from its directory, after
+<code>uv run hinoki migrations apply</code>.</p>
 <p><code>handle(context, args)</code> may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read <code>context.settings</code> and retrieve resources with <code>context.get(Type)</code> or <code>context.find(Type)</code>. Declare module classes in the command's <code>requires</code> tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.</p>
 <p>Commands run inside the project process and can modify data. Use disposable databases when developing or testing a command that writes. A handler returns <code>None</code> for success or an exit code from 0 through 255. Unknown commands and invalid arguments exit 2; a command failure exits nonzero. App settings load when Hinoki constructs the app, but module resources open only for the selected command.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
@@ -801,7 +803,7 @@ its target when you run the command from the <code>examples/</code> project dire
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

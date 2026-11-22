@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -555,6 +555,7 @@ same rows:</p>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">crud</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelAdmin</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.filters</span><span class="w"> </span><span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">FilterSet</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
@@ -563,7 +564,17 @@ same rows:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceOut</span>
 
 
-<span class="nd">@crud</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceFilters</span><span class="p">(</span><span class="n">FilterSet</span><span class="p">):</span>
+    <span class="n">paid</span><span class="p">:</span> <span class="n">Eq</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span>
+
+
+<span class="nd">@crud</span><span class="p">(</span>
+    <span class="n">Invoice</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span>
+    <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Invoices</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Invoice</span><span class="p">]:</span>
         <span class="k">return</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
@@ -721,7 +732,7 @@ declare a field named <code>returning</code>.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

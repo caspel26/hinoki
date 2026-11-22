@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -632,13 +632,15 @@ document marks the schema <code>additionalProperties: true</code>.</p>
 <h2 id="generic-schemas">Generic schemas<a class="headerlink" href="#generic-schemas" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">reader</span>  <span class="c1"># an `Access` policy</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Envelope</span><span class="p">[</span><span class="n">T</span><span class="p">](</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">T</span>
     <span class="n">count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/me"</span><span class="p">)</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/me"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">reader</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">me</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Envelope</span><span class="p">[</span><span class="n">CustomerOut</span><span class="p">]:</span>
     <span class="k">return</span> <span class="n">Envelope</span><span class="p">[</span><span class="n">CustomerOut</span><span class="p">](</span><span class="n">data</span><span class="o">=</span><span class="n">CustomerOut</span><span class="p">(</span><span class="n">display_name</span><span class="o">=</span><span class="s2">"Ada"</span><span class="p">))</span>
 </code></pre></div>
@@ -681,7 +683,7 @@ raise <code>RegistrationError</code>.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

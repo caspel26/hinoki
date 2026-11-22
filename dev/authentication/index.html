@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -484,7 +484,7 @@
 <p>Every endpoint is public until you attach an <code>Access</code> policy. A policy pairs an
 authentication provider (how a request proves who it is) with the permissions an
 action needs. Write both once and name the policy on each private action.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/security.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/security.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">BearerAuth</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Permission</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
@@ -509,7 +509,7 @@ action needs. Write both once and name the policy on each private action.</p>
 <span class="n">editor</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">auth</span><span class="p">,</span> <span class="n">permissions</span><span class="o">=</span><span class="p">[</span><span class="n">BlogPermission</span><span class="o">.</span><span class="n">WRITE</span><span class="p">])</span>
 <span class="n">reader</span> <span class="o">=</span> <span class="n">Access</span><span class="p">(</span><span class="n">auth</span><span class="o">=</span><span class="n">auth</span><span class="p">)</span>
 </code></pre></div>
-<p>This is the <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/security.py">Blog example's security module</a>.</p>
+<p>This is the <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/security.py">Blog example's security module</a>.</p>
 <h2 id="name-your-permissions">Name your permissions<a class="headerlink" href="#name-your-permissions" title="Permanent link">&para;</a></h2>
 <p>Subclass <code>Permission</code>, an empty string enum, and use its members in policies and
 callers. <code>Access</code> and <code>Caller</code> store each permission as its string value, so
@@ -551,7 +551,7 @@ blocking libraries.</p>
 <h2 id="attach-a-policy">Attach a policy<a class="headerlink" href="#attach-a-policy" title="Permanent link">&para;</a></h2>
 <p>Name the policy with <code>access=</code> on the HTTP decorator and annotate a
 <code>Caller[User]</code> parameter to receive the authenticated caller:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/drafts.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/drafts.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">http</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span><span class="p">,</span> <span class="n">User</span>
@@ -561,12 +561,18 @@ blocking libraries.</p>
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/drafts"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">editor</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_draft</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">PostCreate</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">User</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">PostOut</span><span class="p">:</span>
-    <span class="n">post</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">author_id</span><span class="o">=</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+    <span class="n">post</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span>
+        <span class="n">data</span><span class="p">,</span>
+        <span class="n">author_id</span><span class="o">=</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+        <span class="n">publication_id</span><span class="o">=</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">publication_id</span><span class="p">,</span>
+    <span class="p">)</span>
     <span class="k">return</span> <span class="n">PostOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">post</span><span class="p">,</span> <span class="n">author_name</span><span class="o">=</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 </code></pre></div>
 <p>Take the owner from <code>caller.user</code>, never from the request body. Permissions say
 <em>what</em> a caller may do; whether a given row is theirs is still your query (the
-Blog's <code>owned_post</code> helper shows one way).</p>
+Blog's <code>owned_post</code> helper in
+<a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/api.py"><code>api.py</code></a>
+shows one way).</p>
 <p>To protect a whole group, set the policy once on a <code>RouteGroup</code>
 (<code>RouteGroup("/invoices", access=billing_staff)</code>); an action may override it, and
 <code>access=None</code> makes one action public on purpose.</p>
@@ -604,7 +610,7 @@ actions explicitly.</p>
 <p><code>hinoki.crypto.PasswordHasher</code> hashes and verifies with Argon2id in Rust, off the
 event loop. Create it where you own its lifetime (a factory or a module) and call
 <code>close()</code> at shutdown.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/passwords.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/passwords.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.crypto</span><span class="w"> </span><span class="kn">import</span> <span class="n">PasswordHasher</span>
 
 <span class="n">hasher</span> <span class="o">=</span> <span class="n">PasswordHasher</span><span class="p">()</span>
@@ -621,7 +627,7 @@ event loop. Create it where you own its lifetime (a factory or a module) and cal
 tells you when to rehash after a parameter change, and <code>random_token()</code> returns a
 URL-safe random token for opaque credentials. When the hashing queue is full, the
 hasher raises <code>HashingBusy</code>, a <code>503</code>. The Blog's
-<a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/accounts.py">accounts module</a>
+<a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/accounts.py">accounts module</a>
 shows a complete login with constant-time behaviour for unknown users.</p>
 <h2 id="verify-json-web-tokens">Verify JSON Web Tokens<a class="headerlink" href="#verify-json-web-tokens" title="Permanent link">&para;</a></h2>
 <p>Subclass <code>JWTAuth[User]</code>, list the keys and implement <code>resolve_claims</code>, which
@@ -744,7 +750,7 @@ that lacks the permission it is <code>403</code>.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

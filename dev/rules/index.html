@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>11 min read</span>
           </p>
           
@@ -609,24 +609,28 @@ after the class it is mounted on), and <code>module.&lt;Model&gt;Crud.&lt;action
 <code>crud(...)</code> value, where <code>module</code> is the one that calls <code>crud(...)</code>. A bare <code>health</code> matches nothing; write
 <code>notes.api.health</code> or <code>*.health</code>. <code>except_</code> takes the same patterns and is how
 you say "public on purpose". The Blog example names its exceptions once:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/rules.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># examples/blog/blog/rules.py</span>
 <span class="n">PUBLIC</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="s2">"blog.api.health"</span><span class="p">,</span>
-    <span class="s2">"blog.api.Posts.listing"</span><span class="p">,</span>
-    <span class="s2">"blog.api.Posts.one"</span><span class="p">,</span>
-    <span class="s2">"blog.accounts.*.login"</span><span class="p">,</span>  <span class="c1"># public on purpose: it is how you sign in</span>
+    <span class="s2">"blog.apps.blog.api.health"</span><span class="p">,</span>
+    <span class="s2">"blog.apps.blog.api.Posts.listing"</span><span class="p">,</span>
+    <span class="s2">"blog.apps.blog.api.Posts.one"</span><span class="p">,</span>
+    <span class="s2">"blog.apps.blog.accounts.*.login"</span><span class="p">,</span>  <span class="c1"># public on purpose: it is how you sign in</span>
 <span class="p">]</span>
-<span class="n">SIGNED_IN</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"blog.accounts.*.me"</span><span class="p">]</span>  <span class="c1"># any signed-in user, no permission</span>
+<span class="n">SIGNED_IN</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"blog.apps.blog.accounts.*.me"</span><span class="p">]</span>  <span class="c1"># any signed-in user, no permission</span>
 
 <span class="n">blog_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="n">PUBLIC</span><span class="p">),</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="s2">"blog.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="o">*</span><span class="n">PUBLIC</span><span class="p">,</span> <span class="o">*</span><span class="n">SIGNED_IN</span><span class="p">]),</span>
-    <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"blog.accounts.*.login"</span><span class="p">]),</span>
+    <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"hinoki.ai.mcpapp.*"</span><span class="p">]),</span>
     <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token"</span><span class="p">,</span> <span class="s2">"password_hash"</span><span class="p">),</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"blog.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"blog.api"</span><span class="p">),</span>
-    <span class="c1"># ... and the other six rules, see examples/blog/rules.py</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"blog.apps.blog.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="s2">"blog.apps.blog.api"</span><span class="p">),</span>
+    <span class="c1"># ... and the other six rules, see the file</span>
 <span class="p">)</span>
 </code></pre></div>
+<p>Blog passes <code>blog_rules</code> and its waiver file to <code>Hinoki(...)</code> by hand. Tracker
+lists two sets in its manifest instead,
+<code>rules = ["tracker.rules:policy", "tracker.rules:layers"]</code>, and its
+<code>Hinoki(...)</code> call names no rules.</p>
 <p>The model rules match the model's <em>module</em> (<code>blog.*</code>) and report unverifiable
 when no model matches, even with <code>*</code>. In a project with <code>hinoki.toml</code>,
 <code>hinoki check</code> first imports the models of every <code>[[apps]]</code> entry, so they are
@@ -808,15 +812,20 @@ applies <code>PATH</code> to the app that <code>run_scenario</code> starts.</p>
 <h3 id="waivers-at-startup">Waivers at startup<a class="headerlink" href="#waivers-at-startup" title="Permanent link">&para;</a></h3>
 <p>Application startup applies the waiver file the same way as <code>hinoki check</code>.
 This app requires access on every
-action, yet it starts and serves <code>/health</code> because the owner waived it:</p>
+action, yet it starts and serves <code>/health</code> because the owner waived it. It
+passes <code>rules=</code> by hand, the explicit form, to keep the example in one file:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># shop/main.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
 
 
+<span class="k">class</span><span class="w"> </span><span class="nc">Health</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
+
+
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">}</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Health</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Health</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"ok"</span><span class="p">)</span>
 
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">rules</span><span class="o">=</span><span class="n">RuleSet</span><span class="p">(</span><span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">()),</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">health</span><span class="p">])</span>
@@ -918,7 +927,7 @@ same ID twice.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

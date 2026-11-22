@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -563,10 +563,16 @@ how to read and waive a result, is in <a href="../rules/">Rules</a>.</p>
 <h2 id="routes">List routes with <code>routes</code><a class="headerlink" href="#routes" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>routes
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>GET     /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.list_invoices
-POST    /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.create_invoice
-GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.billing.api.get_invoice
-GET     /health                         public                   notes.api.health
+<p>From <code>examples/tracker</code>:</p>
+<div class="language-text highlight"><pre><span></span><code>GET     /activity                  MemberTokens[tracker:use] tracker.apps.activity.api.Feed.list
+GET     /activity/{item_id}        MemberTokens[tracker:use] tracker.apps.activity.api.Feed.retrieve
+GET     /health                    public                   tracker.routes.health
+GET     /members/me                MemberTokens[tracker:use] tracker.apps.members.api.me
+GET     /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
+POST    /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.create
+DELETE  /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.delete
+GET     /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.retrieve
+POST    /tasks/{item_id}/complete  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.complete
 </code></pre></div>
 <p>Each row is method, path, access (the provider and its permissions, or <code>public</code>)
 and handler, sorted by path. The handler is the action's rule subject, the name
@@ -574,10 +580,10 @@ that <code>except_</code> and waivers match: an action of an <code>API</code> cl
 class it is mounted on, even when it inherits the method. <code>--path</code> keeps paths
 that start with the prefix, <code>--method</code> one method; no match prints
 <code>no routes match</code> and exits 1:</p>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>routes<span class="w"> </span>--path<span class="w"> </span>/billing<span class="w"> </span>--method<span class="w"> </span>GET
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>routes<span class="w"> </span>--path<span class="w"> </span>/tasks<span class="w"> </span>--method<span class="w"> </span>GET
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>GET     /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.list_invoices
-GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.billing.api.get_invoice
+<div class="language-text highlight"><pre><span></span><code>GET     /tasks            MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
+GET     /tasks/{item_id}  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.retrieve
 </code></pre></div>
 <p><code>--lanes</code> adds, per route, whether <a href="../kiso/#the-native-handler-lane">Kiso</a> runs
 the handler natively (<code>native</code>) or through the Python pipeline (<code>python</code>), with
@@ -667,7 +673,7 @@ values with no printable default (secrets, unset values). See
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/inspect.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

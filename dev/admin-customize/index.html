@@ -475,17 +475,20 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
         
 <p>A <code>ModelAdmin</code> states only what the model does not already say. Class attributes shape the list and the form; methods change behaviour; templates and themes change the look.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/adminsite.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Admin</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Tone</span><span class="p">,</span> <span class="n">action</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 
 <span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="s2">"Blog Studio"</span><span class="p">,</span> <span class="n">per_page</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
 
@@ -500,7 +503,7 @@
     <span class="n">fieldsets</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Organization"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"author_id"</span><span class="p">,</span> <span class="s2">"published"</span><span class="p">)}</span>
 
     <span class="nd">@action</span><span class="p">(</span><span class="n">confirm</span><span class="o">=</span><span class="s2">"Publish the selected posts?"</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">posts</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">posts</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Post</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">id</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">posts</span><span class="p">])</span><span class="o">.</span><span class="n">aupdate</span><span class="p">({</span><span class="s2">"published"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
 </code></pre></div>
 <h2 id="register-a-model">Register a model<a class="headerlink" href="#register-a-model" title="Permanent link">&para;</a></h2>
@@ -562,33 +565,45 @@
 <p>Datetime fields use the app's <code>settings.timezone</code> (UTC without built-in settings): stored instants are shown there and edited <code>datetime-local</code> values are read there, then saved as UTC-aware datetimes. A time that does not exist or occurs twice during a daylight-saving change is refused for correction.</p>
 <h2 id="override-behaviour">Override behaviour<a class="headerlink" href="#override-behaviour" title="Permanent link">&para;</a></h2>
 <p>Each method below is called by the framework; override what you need and call <code>super()</code> for the rest.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Avatar</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Refusal</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/adminsite.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">Avatar</span><span class="p">,</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">Refusal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 
 
 <span class="nd">@site</span><span class="o">.</span><span class="n">admin</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>  <span class="c1"># the site created above</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PostAdmin</span><span class="p">(</span><span class="n">ModelAdmin</span><span class="p">[</span><span class="n">Post</span><span class="p">]):</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>  <span class="c1"># rows this caller sees, in every statement</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">queryset</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">]:</span>  <span class="c1"># rows this caller sees, in every statement</span>
         <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">author_id</span><span class="o">=</span><span class="n">principal</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"author"</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">can</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>  <span class="c1"># narrows a grant, never widens it</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">can</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">action</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">row</span><span class="p">:</span> <span class="n">Post</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>  <span class="c1"># narrows a grant, never widens it</span>
         <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"delete"</span> <span class="ow">and</span> <span class="n">row</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">row</span><span class="o">.</span><span class="n">published</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">can</span><span class="p">(</span><span class="n">principal</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">display</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">):</span>  <span class="c1"># a list cell: text, a Badge or an Avatar</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">display</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">:</span> <span class="n">Post</span><span class="p">,</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>  <span class="c1"># a list cell: text, a Badge or an Avatar</span>
         <span class="k">if</span> <span class="n">column</span> <span class="o">==</span> <span class="s2">"author_id"</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">Avatar</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">column</span><span class="p">)</span>
 
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">principal</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>  <span class="c1"># {field: message} refuses</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">check</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">row</span><span class="p">:</span> <span class="n">Post</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>  <span class="c1"># {field: message} refuses</span>
         <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"published"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">row</span> <span class="ow">and</span> <span class="n">row</span><span class="o">.</span><span class="n">title</span><span class="p">)):</span>
             <span class="k">return</span> <span class="p">{</span><span class="s2">"title"</span><span class="p">:</span> <span class="s2">"A published post needs a title."</span><span class="p">}</span>
         <span class="k">return</span> <span class="p">{}</span>
 
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">principal</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">:</span> <span class="n">Post</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">published</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">Refusal</span><span class="p">(</span><span class="s2">"Unpublish the post first."</span><span class="p">)</span>  <span class="c1"># shown on the page</span>
         <span class="k">await</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">principal</span><span class="p">)</span>
@@ -608,13 +623,13 @@
 <p>They reach <code>check</code> and <code>save</code> next to the columns, so <code>save</code> takes them out before writing the row; <code>extra_initial(row)</code> returns what the edit form shows. The Users section is built this way (<code>hinoki.admin.users.useradmin</code>).</p>
 <h2 id="add-a-bulk-action">Add a bulk action<a class="headerlink" href="#add-a-bulk-action" title="Permanent link">&para;</a></h2>
 <p>Mark an async method with <code>@action</code>. The list shows the button once rows are selected:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/adminsite.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Caller</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelAdmin</span><span class="p">,</span> <span class="n">action</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">blog.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 
 
 <span class="nd">@site</span><span class="o">.</span><span class="n">admin</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
@@ -702,7 +717,7 @@
 </div>
 </div>
 <p>A <code>Theme</code> is a set of <code>--hn-*</code> design tokens for both schemes, plus <code>edit</code> (<code>"drawer"</code>, <code>"page"</code>), <code>layout</code> (<code>"sidebar"</code>, <code>"topbar"</code>, <code>"index"</code>, <code>"rail"</code>) and <code>list_style</code> (<code>"table"</code>, <code>"rows"</code>, <code>"cards"</code>). Start from a built-in one:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/adminsite.py</span>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/adminsite.py</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">THEMES</span><span class="p">,</span> <span class="n">Admin</span>
@@ -785,7 +800,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin-customize.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

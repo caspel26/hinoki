@@ -279,8 +279,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
-            <span>24 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>26 min read</span>
           </p>
           
         </header>
@@ -2293,7 +2293,81 @@ project this raises <code>ProjectError</code>.</p>
 
     </div>
 
-</div><p>For model-backed route generation, see <a href="../../crud/">Generate CRUD routes</a> and
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.project.manifest_events" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.project.manifest_events</span>
+
+
+<a href="#hinoki.project.manifest_events" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">manifest_events</span><span class="p">(</span>
+    <span class="n">start</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Handlers</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The <code>Handlers</code> each app of <code>hinoki.toml</code> declares, in dependency order,
+for <code>Hinoki(events=manifest_events())</code>. The manifest is found as for
+<code>manifest_routes</code>; outside a project this raises <code>ProjectError</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.project.manifest_middleware" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.project.manifest_middleware</span>
+
+
+<a href="#hinoki.project.manifest_middleware" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">manifest_middleware</span><span class="p">(</span>
+    <span class="n">start</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Middleware</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The <code>[project] middleware</code> list of <code>hinoki.toml</code>, flattened in listed
+order (the first listed runs outermost), for
+<code>Hinoki(middleware=manifest_middleware())</code>. The manifest is found as for
+<code>manifest_routes</code>; outside a project this raises <code>ProjectError</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.project.manifest_rules" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.project.manifest_rules</span>
+
+
+<a href="#hinoki.project.manifest_rules" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">manifest_rules</span><span class="p">(</span><span class="n">start</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RuleSet</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The <code>[project] rules</code> list of <code>hinoki.toml</code> merged, in listed order,
+into one <code>RuleSet</code> for <code>Hinoki(rules=manifest_rules())</code>. The manifest is
+found as for <code>manifest_routes</code>; outside a project this raises
+<code>ProjectError</code>.</p>
+
+
+    </div>
+
+</div><p><code>Hinoki()</code> loads the routes, events, middleware and rules of <code>hinoki.toml</code> by
+itself; call these functions only to pass the same lists by hand.
+For model-backed route generation, see <a href="../../crud/">Generate CRUD routes</a> and
 the <a href="../crud/">CRUD API reference</a>.</p>
 <h2 id="http-method-decorators">HTTP method decorators<a class="headerlink" href="#http-method-decorators" title="Permanent link">&para;</a></h2>
 <p>Import the namespace and decorate actions: <code>from hinoki import http</code>, then <code>@http.get(...)</code>. The names are not available at the top level of <code>hinoki</code>.</p>
@@ -4365,6 +4439,292 @@ coroutine.</p>
 
     </div>
 
+</div><h2 id="middleware">Middleware<a class="headerlink" href="#middleware" title="Permanent link">&para;</a></h2>
+<p>A project-wide middleware subclasses <code>Middleware</code>; see the <a href="../../middleware/">middleware
+guide</a>. List it in <code>middleware</code> of <code>[project]</code> in <code>hinoki.toml</code>
+or pass <code>middleware=[...]</code> to <code>Hinoki</code>.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.Middleware" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.Middleware</span>
+
+
+<a href="#hinoki.http.Middleware" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Base class for a middleware; any object with this <code>async</code> call works.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.MiddlewareRequest" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.MiddlewareRequest</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">MiddlewareRequest</span><span class="p">(</span>
+    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">route</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">client</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">scheme</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The head of the request: no body, nothing to change.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.method" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">method</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.method" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">method</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.path" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">path</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.path" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">path</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.route" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">route</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.route" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">route</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.headers" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">headers</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.headers" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">headers</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.query" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">query</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.query" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">query</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.client" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">client</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.client" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">client</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.scheme" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">scheme</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.scheme" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">scheme</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.MiddlewareRequest.request_id" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">request_id</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.MiddlewareRequest.request_id" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
 </div><h2 id="rate-limits">Rate limits<a class="headerlink" href="#rate-limits" title="Permanent link">&para;</a></h2>
 
 
@@ -4522,7 +4882,7 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
             <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
             <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.middleware">middleware</a></li><li><a href="#hinoki.routing.Route.cors">cors</a></li><li><a href="#hinoki.routing.Route.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.Route.tags">tags</a></li><li><a href="#hinoki.routing.Route.deprecated">deprecated</a></li><li><a href="#hinoki.routing.Route.operation_id">operation_id</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li></ul>
-          </li><li><a href="#hinoki.project.manifest_routes">manifest_routes</a></li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
+          </li><li><a href="#hinoki.project.manifest_routes">manifest_routes</a></li><li><a href="#hinoki.project.manifest_events">manifest_events</a></li><li><a href="#hinoki.project.manifest_middleware">manifest_middleware</a></li><li><a href="#hinoki.project.manifest_rules">manifest_rules</a></li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
             <ul><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.http.response.Response">Response</a>
             <ul><li><a href="#hinoki.http.response.Response.status">status</a></li><li><a href="#hinoki.http.response.Response.body">body</a></li><li><a href="#hinoki.http.response.Response.headers">headers</a></li><li><a href="#hinoki.http.response.Response.raw">raw</a></li><li><a href="#hinoki.http.response.Response.with_header">with_header</a></li></ul>
@@ -4536,6 +4896,8 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
             <ul><li><a href="#hinoki.access.Access.auth">auth</a></li><li><a href="#hinoki.access.Access.permissions">permissions</a></li></ul>
           </li><li><a href="#hinoki.errors.APIError">APIError</a></li><li><a href="#hinoki.errors.BadRequest">BadRequest</a></li><li><a href="#hinoki.errors.Unauthorized">Unauthorized</a></li><li><a href="#hinoki.errors.Forbidden">Forbidden</a></li><li><a href="#hinoki.errors.NotFound">NotFound</a></li><li><a href="#hinoki.errors.Conflict">Conflict</a></li><li><a href="#hinoki.errors.TooManyRequests">TooManyRequests</a></li><li><a href="#hinoki.errors.UniqueConflict">UniqueConflict</a></li><li><a href="#hinoki.errors.ObjectNotFound">ObjectNotFound</a></li><li><a href="#hinoki.errors.ErrorRegistry">ErrorRegistry</a>
             <ul><li><a href="#hinoki.errors.ErrorRegistry.is_builtin">is_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate_builtin">translate_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate">translate</a></li></ul>
+          </li><li><a href="#middleware">Middleware</a></li><li><a href="#hinoki.http.Middleware">Middleware</a></li><li><a href="#hinoki.http.MiddlewareRequest">MiddlewareRequest</a>
+            <ul><li><a href="#hinoki.http.MiddlewareRequest.method">method</a></li><li><a href="#hinoki.http.MiddlewareRequest.path">path</a></li><li><a href="#hinoki.http.MiddlewareRequest.route">route</a></li><li><a href="#hinoki.http.MiddlewareRequest.headers">headers</a></li><li><a href="#hinoki.http.MiddlewareRequest.query">query</a></li><li><a href="#hinoki.http.MiddlewareRequest.client">client</a></li><li><a href="#hinoki.http.MiddlewareRequest.scheme">scheme</a></li><li><a href="#hinoki.http.MiddlewareRequest.request_id">request_id</a></li></ul>
           </li><li><a href="#rate-limits">Rate limits</a></li><li><a href="#hinoki.ratelimit.RateLimitPolicy">RateLimitPolicy</a></li><li><a href="#hinoki.ratelimit.RateLimitContext">RateLimitContext</a>
             <ul><li><a href="#hinoki.ratelimit.RateLimitContext.resource">resource</a></li></ul>
           </li></ul>
@@ -4543,7 +4905,7 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

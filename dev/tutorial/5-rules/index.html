@@ -255,63 +255,79 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
         
 <p>Rules turn the project's promises into checks. A failure names the rule, the
 file and the line.</p>
+<p>The Tracker keeps its promises in <code>tracker/rules.py</code>, as two <code>RuleSet</code> values:
+<code>policy</code> says what an action, a schema and a model must declare, and <code>layers</code>
+says which module may import which.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/rules.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Actions</span><span class="p">,</span> <span class="n">Imports</span><span class="p">,</span> <span class="n">Models</span><span class="p">,</span> <span class="n">Schemas</span><span class="p">,</span> <span class="n">Transactions</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">RuleSet</span>
 
 <span class="n">PKG</span> <span class="o">=</span> <span class="s2">"tracker"</span>
-<span class="n">APP</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.apps.tracker"</span>  <span class="c1"># the app that owns the models, operations and api</span>
+<span class="n">TASKS</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.apps.tasks"</span>
 
-<span class="n">tracker_rules</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.api.health"</span><span class="p">]),</span>
-    <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.api.health"</span><span class="p">]),</span>
+<span class="n">policy</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
+    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.routes.health"</span><span class="p">]),</span>
+    <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.routes.health"</span><span class="p">]),</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_return_type</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span>
     <span class="n">Actions</span><span class="o">.</span><span class="n">require_pagination</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span>
-    <span class="c1"># The MCP endpoint dispatches other actions, which have their own transactions.</span>
-    <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="s2">"hinoki.ai.mcpapp.*"</span><span class="p">]),</span>
+    <span class="n">Transactions</span><span class="o">.</span><span class="n">require_atomic</span><span class="p">(),</span>
     <span class="n">Schemas</span><span class="o">.</span><span class="n">forbid_exposure</span><span class="p">(</span><span class="s2">"token"</span><span class="p">),</span>
     <span class="n">Schemas</span><span class="o">.</span><span class="n">require_string_limits</span><span class="p">(),</span>
-    <span class="c1"># Tables are pinned, and a foreign key is always indexed.</span>
     <span class="n">Models</span><span class="o">.</span><span class="n">require_explicit_table</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span>
     <span class="n">Models</span><span class="o">.</span><span class="n">require_foreign_key_index</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span>
-    <span class="c1"># The direction of dependencies: api -&gt; operations -&gt; models.</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.operations"</span><span class="p">),</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.api"</span><span class="p">),</span>
-    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.operations"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">APP</span><span class="si">}</span><span class="s2">.api"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">layers</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span>
+    <span class="c1"># api -&gt; operations -&gt; models, and tasks never imports its listener.</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TASKS</span><span class="si">}</span><span class="s2">.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TASKS</span><span class="si">}</span><span class="s2">.operations"</span><span class="p">),</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TASKS</span><span class="si">}</span><span class="s2">.models"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TASKS</span><span class="si">}</span><span class="s2">.api"</span><span class="p">),</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TASKS</span><span class="si">}</span><span class="s2">.operations"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TASKS</span><span class="si">}</span><span class="s2">.api"</span><span class="p">),</span>
+    <span class="n">Imports</span><span class="o">.</span><span class="n">forbid</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TASKS</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.apps.activity"</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>The application passes them to <code>Hinoki(rules=tracker_rules)</code>, so a worker
-refuses to start while one is violated.</p>
+<p><code>hinoki.toml</code> lists both under <code>rules</code> in <code>[project]</code>, and the application
+merges them in that order, so a worker refuses to start while one is violated.
+<code>main.py</code> passes no <code>rules=</code> argument (<a href="../6-run/">chapter 6</a>).</p>
 <h2 id="run-the-check">Run the check<a class="headerlink" href="#run-the-check" title="Permanent link">&para;</a></h2>
-<p>From <code>examples/</code>:</p>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check<span class="w"> </span>tracker.main:app
+<p>From <code>examples/tracker</code>:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>13 rule(s): 0 violated, 0 unverifiable, 0 waived
+<div class="language-text highlight"><pre><span></span><code>14 rule(s): 0 violated, 0 unverifiable, 0 waived
 </code></pre></div>
-<p>The check reads the rules from the application and scans the <code>tracker</code>
-package for the import rules.</p>
+<p>The check reads the rules from the manifest, imports the models of every app
+and scans the <code>tracker</code> package for the import rules.</p>
 <h2 id="break-a-rule">Break a rule<a class="headerlink" href="#break-a-rule" title="Permanent link">&para;</a></h2>
-<p>Take <code>create_task</code> out of the group's transaction by adding <code>atomic=False</code> to its
-decorator, then run the check again:</p>
-<div class="language-text highlight"><pre><span></span><code>tracker/apps/tracker/api.py:29: HNK-TXN-001 [violated] POST /tasks (create_task) does not declare atomic=True
+<p>Take <code>complete</code> out of its transaction by changing <code>atomic=True</code> to
+<code>atomic=False</code> in its decorator in <code>tracker/apps/tasks/api.py</code>, then run the
+check again:</p>
+<div class="language-text highlight"><pre><span></span><code>tracker/apps/tasks/api.py:40: HNK-TXN-001 [violated] POST /tasks/{item_id}/complete (Tasks.complete) does not declare atomic=True
   fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
-13 rule(s): 1 violated, 0 unverifiable, 0 waived
+14 rule(s): 1 violated, 0 unverifiable, 0 waived
 </code></pre></div>
-<p>The command exits with status 1. Remove <code>atomic=False</code> to restore the check.</p>
+<p>The command exits with status 1. Put <code>atomic=True</code> back to restore the check.</p>
+<p>The import rules fail the same way. Add <code>from tracker.apps.activity import models</code>
+as the last line of <code>tracker/apps/tasks/operations.py</code> and the check reports it:</p>
+<div class="language-text highlight"><pre><span></span><code>tracker/apps/tasks/operations.py:45: HNK-IMP-001 [violated] tracker.apps.tasks.operations imports tracker.apps.activity, which is forbidden for tracker.apps.tasks
+  fix: move the code to an allowed layer, or depend on it through the layer in between
+</code></pre></div>
+<p>(the check also lists the same line for <code>tracker.apps.activity.models</code>, which
+brings the total to <code>2 violated</code>). Remove the import to restore it.</p>
 <h2 id="waivers">Waivers<a class="headerlink" href="#waivers" title="Permanent link">&para;</a></h2>
 <p>An accepted exception is a <strong>waiver</strong> in <code>hinoki-rules.toml</code>, with a reason, an
 owner and a bounded target. <code>hinoki check</code> and application startup apply the
 same waivers. The project owner writes waivers; tools and agents read them but
-never edit them to make a check pass.</p>
+never edit them to make a check pass. The Tracker needs none; the
+<a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/hinoki-rules.toml">Blog example</a>
+carries one.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Rules are Python values in the project, checked by <code>hinoki check</code> and at startup.</li>
@@ -346,7 +362,7 @@ never edit them to make a check pass.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/5-rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

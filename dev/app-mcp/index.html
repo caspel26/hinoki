@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -486,7 +486,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.ai.mcpapp</span><span class="w"> </span><span class="kn">import</span> <span class="n">expose_as_mcp</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
@@ -495,8 +494,7 @@
     <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="p">)</span>  <span class="c1"># routes and rules come from hinoki.toml</span>
 <span class="n">mcp</span> <span class="o">=</span> <span class="n">expose_as_mcp</span><span class="p">(</span>
     <span class="n">app</span><span class="p">,</span>
     <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">"notes.apps.billing.api.list_invoices"</span><span class="p">],</span>
@@ -504,7 +502,7 @@
 <span class="p">)</span>
 <span class="n">app</span><span class="o">.</span><span class="n">include</span><span class="p">(</span><span class="o">*</span><span class="n">mcp</span><span class="p">)</span>  <span class="c1"># POST /mcp</span>
 </code></pre></div>
-<p><code>Hinoki(...)</code> has already included the routes listed in <code>hinoki.toml</code>; <code>expose_as_mcp</code> selects among those, so call it after the app exists.</p>
+<p><code>Hinoki(...)</code> has already included the routes listed in <code>hinoki.toml</code>; <code>expose_as_mcp</code> selects among those, so call it after the app exists. The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py">Blog example</a> does the same for one read-only action of an <code>API</code> class (<code>blog.apps.blog.api.Posts.drafts</code>, with the <code>editor</code> policy).</p>
 <h2 id="choose-the-tools">Choose the tools<a class="headerlink" href="#choose-the-tools" title="Permanent link">&para;</a></h2>
 <p><code>tools</code> are <code>fnmatch</code> patterns over qualified action names, the same names rules match: <code>module.function</code>, or <code>module.Class.method</code> for an action of an <code>API</code> class. <code>"notes.apps.billing.api.*"</code> selects every action of that module. Generated CRUD actions are named after the module that declares the <code>crud(...)</code> value (<code>notes.apps.billing.routes.InvoiceCrud.list</code>, see <a href="../crud/">Generated CRUD</a>), so a module pattern selects them too.</p>
 <ul>
@@ -585,7 +583,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/app-mcp.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

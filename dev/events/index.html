@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -491,6 +491,10 @@
     <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
 
 
+<span class="k">class</span><span class="w"> </span><span class="nc">Saved</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
+
+
 <span class="n">handlers</span> <span class="o">=</span> <span class="n">events</span><span class="o">.</span><span class="n">Handlers</span><span class="p">(</span><span class="s2">"notes"</span><span class="p">)</span>
 
 
@@ -499,14 +503,15 @@
     <span class="nb">print</span><span class="p">(</span><span class="s2">"index"</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
 
 
-<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/notes"</span><span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/notes"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Saved</span><span class="p">:</span>
     <span class="k">await</span> <span class="n">events</span><span class="o">.</span><span class="n">emit</span><span class="p">(</span><span class="n">NoteSaved</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">"hello"</span><span class="p">))</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"saved"</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">Saved</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"saved"</span><span class="p">)</span>
 
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">events</span><span class="o">=</span><span class="p">[</span><span class="n">handlers</span><span class="p">],</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">save</span><span class="p">])</span>
 </code></pre></div>
+<p><code>events=</code> and <code>include=</code> are passed by hand here because the example is one file. A project lists the collection in <code>hinoki.toml</code> instead (<a href="#declaring-handlers-in-hinokitoml">below</a>). The <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/activity/events.py">Tracker example</a> keeps its handlers in <code>tracker/apps/activity/events.py</code>, and the <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/events.py">Blog example</a> also emits its own event from an action.</p>
 <p>Your own events can be a <code>Schema</code> (as above: frozen, keyword-only and validated when built) or a frozen <code>dataclass</code>; registration accepts any class. A <code>Schema</code> costs a validation per event, and it cannot hold a model class or instance, so the built-in model events below (<code>subject: type[M]</code>, <code>instance: M</code>) are dataclasses and an event that carries a row should carry its identifier instead.</p>
 <p><code>events.emit</code> uses the bus of the current worker. Outside a request, a startup hook or a management command it raises <code>EventError</code> unless you wrap the code in <code>events.use(app.events)</code>.</p>
 <h2 id="two-moments-named-in-the-registration">Two moments, named in the registration<a class="headerlink" href="#two-moments-named-in-the-registration" title="Permanent link">&para;</a></h2>
@@ -572,16 +577,18 @@
 <p>An <code>in_transaction</code> failure or timeout propagates to the writer, which rolls back before any HTTP error is translated. An <code>after_commit</code> failure is isolated: the remaining handlers still run.</p>
 <h2 id="declaring-handlers-in-hinokitoml">Declaring handlers in <code>hinoki.toml</code><a class="headerlink" href="#declaring-handlers-in-hinokitoml" title="Permanent link">&para;</a></h2>
 <div class="language-toml highlight"><pre><span></span><code><span class="k">[[apps]]</span>
-<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes"</span>
-<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.apps.notes.models"</span>
-<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.apps.notes.migrations"</span>
-<span class="n">events</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"shop.apps.notes.events:handlers"</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"activity"</span>
+<span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.models"</span>
+<span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.migrations"</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.api:routes"</span>
+<span class="n">events</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.events:handlers"</span>
+<span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"tasks"</span><span class="p">,</span><span class="w"> </span><span class="s2">"members"</span><span class="p">]</span>
 </code></pre></div>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">()</span>  <span class="c1"># reads routes, events, middleware and rules from hinoki.toml</span>
 </code></pre></div>
-<p>Events stay per app because a handler belongs to the models and behaviour of one app and runs in dependency order, whereas <a href="../middleware/#declaring-middleware-in-hinokitoml">middleware</a> and <a href="../rules/#which-rules-run">rules</a> are project-wide lists. When the manifest's <code>project.application</code> names the module that builds the app, <code>Hinoki()</code> loads <code>events=</code> if you did not pass it (independently of <code>include=</code>, <code>middleware=</code> and <code>rules=</code>); an explicit argument (even <code>()</code>) wins and skips that key. <code>manifest_events()</code> does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's <code>Handlers</code> in dependency order (<code>requires</code>) and fails with a message naming the app when the target does not import or is not a <code>Handlers</code>. Hinoki does not generate the module: you create it yourself (for example <code>shop/apps/notes/events.py</code> with <code>handlers = events.Handlers("notes")</code>, as in the example on this page) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. <code>hinoki app add notes --models ... --events pkg.events:handlers</code> registers an existing one; <code>hinoki app list</code> shows it.</p>
+<p>Events stay per app because a handler belongs to the models and behaviour of one app and runs in dependency order, whereas <a href="../middleware/#declaring-middleware-in-hinokitoml">middleware</a> and <a href="../rules/#which-rules-run">rules</a> are project-wide lists. When the manifest's <code>project.application</code> names the module that builds the app, <code>Hinoki()</code> loads <code>events=</code> if you did not pass it (independently of <code>include=</code>, <code>middleware=</code> and <code>rules=</code>); an explicit argument (even <code>()</code>) wins and skips that key. <code>manifest_events()</code> does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's <code>Handlers</code> in dependency order (<code>requires</code>) and fails with a message naming the app when the target does not import or is not a <code>Handlers</code>. Hinoki does not generate the module: you create it yourself (for example <code>tracker/apps/activity/events.py</code> with <code>handlers = events.Handlers("activity")</code>, as in the Tracker example) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. <code>hinoki app add notes --models ... --events pkg.events:handlers</code> registers an existing one; <code>hinoki app list</code> shows it.</p>
 <h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">capture</span><span class="p">()</span> <span class="k">as</span> <span class="n">seen</span><span class="p">:</span>
     <span class="o">...</span>  <span class="c1"># code under test emits events</span>
@@ -593,13 +600,14 @@
 <p><code>capture()</code> records every event emitted in the block and still runs the handlers; <code>muted()</code> runs no handler (<code>capture()</code> still records what is emitted). <code>app.events.stats()</code> returns the counters of <code>(event, phase, outcome)</code>, which are low-cardinality by construction. <code>app.events.registrations</code> lists what is registered.</p>
 <h2 id="seeing-what-is-registered">Seeing what is registered<a class="headerlink" href="#seeing-what-is-registered" title="Permanent link">&para;</a></h2>
 <p><code>hinoki events</code> lists every handler of the application without starting a server, opening a database or writing anything. It builds the application the way <code>hinoki routes</code> does and takes the same optional target (default: the project's <code>application</code>).</p>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>events<span class="w"> </span>notes_events_sample:app
+<p>From <code>examples/tracker</code>:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>events
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>Created[Note]  in_transaction  notes        async  notes_events_sample.audit
-Updated[Note]  after_commit    notes        sync   notes_events_sample.reindex
-AuthRejected   after_commit    notes        async  notes_events_sample.count_rejections
+<div class="language-text highlight"><pre><span></span><code>Created[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_created
+Updated[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_updated
 
 limits: events.handler_timeout=5.0, events.max_handlers=16, events.max_depth=4
+declared in hinoki.toml: activity -&gt; tracker.apps.activity.events:handlers
 </code></pre></div>
 <p>Each row is the event (<code>Event</code> or <code>Event[Model]</code>), the phase, the name of the <code>Handlers</code> collection (<code>-</code> when it has none), <code>async</code> or <code>sync</code>, and the handler as <code>module.qualname</code>, in execution order. The last line shows the <code>events</code> limits in force. In a project, a line <code>declared in hinoki.toml: APP -&gt; module:attribute</code> follows for each app that sets <code>events</code> in <code>hinoki.toml</code>. An application with no handlers prints <code>no event handlers registered</code> and exits <code>0</code>. <code>--format json</code> prints an object with <code>handlers</code> (<code>event</code>, <code>phase</code>, <code>handler</code>, <code>collection</code>, <code>async</code>), <code>limits</code> (<code>handler_timeout</code>, <code>max_handlers</code>, <code>max_depth</code>) and <code>apps</code> (<code>app</code>, <code>events</code>). A target that cannot be loaded prints <code>error: cannot load TARGET: ...</code> and exits <code>2</code>. The listing shows what is registered, not whether a handler will run: that depends on the code that emits.</p>
 <h2 id="authentication-and-rate-limit-events">Authentication and rate-limit events<a class="headerlink" href="#authentication-and-rate-limit-events" title="Permanent link">&para;</a></h2>
@@ -757,7 +765,7 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/events.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -255,21 +255,21 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
         
 <p>A model declares a table. A relation is loaded only when you ask for it, never
 as a side effect of reading an attribute.</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tracker/models.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<p>The Tracker keeps one model per app, each in the app's <code>models.py</code>. The members
+app owns the table of people:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/members/models.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">pk</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">pk</span>
 
 
 <span class="nd">@db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">"tracker_members"</span><span class="p">)</span>
@@ -277,6 +277,16 @@ as a side effect of reading an attribute.</p>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>
     <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>The tasks app belongs to a member through a foreign key:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tasks/models.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">db</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">OnDelete</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">foreign_key</span><span class="p">,</span> <span class="n">pk</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">utc_now</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.members.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
 
 
 <span class="nd">@db</span><span class="o">.</span><span class="n">indexed</span><span class="p">(</span><span class="s2">"owner_id"</span><span class="p">,</span> <span class="s2">"created_at"</span><span class="p">)</span>
@@ -288,6 +298,7 @@ as a side effect of reading an attribute.</p>
         <span class="n">Member</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">OnDelete</span><span class="o">.</span><span class="n">RESTRICT</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"tasks"</span>
     <span class="p">)</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+    <span class="n">priority</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>
     <span class="n">done</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">utc_now</span><span class="p">)</span>
     <span class="n">completed_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -299,37 +310,57 @@ as a side effect of reading an attribute.</p>
   <code>@db.ordered_by(...)</code> sets the order of every query that does not call
   <code>order_by</code>.</li>
 <li><code>foreign_key(Member, ...)</code> stores the owner's id. <code>task.owner</code> is fetched only
-  when a query asks for it.</li>
+  when a query asks for it. Because <code>tasks</code> imports <code>Member</code>, its entry in
+  <code>hinoki.toml</code> says <code>requires = ["members"]</code>.</li>
 <li><code>@db.table(...)</code> pins the table name, because a Tracker rule requires it
   (<a href="../5-rules/">chapter 5</a>). Without it, Hinoki derives <code>&lt;app&gt;_&lt;models&gt;</code>, as
   <a href="../8-projects/">chapter 8</a> shows.</li>
 </ul>
+<p>The third app, <code>activity</code>, has an <code>Activity</code> model of the same kind: a line per
+task change. <a href="../3-operations/">Chapter 3</a> shows how it gets written.</p>
 <h2 id="apply-the-migrations">Apply the migrations<a class="headerlink" href="#apply-the-migrations" title="Permanent link">&para;</a></h2>
 <p>A migration is a SQL file generated from the models and checked in beside them.
-Tracker ships two; the second adds the composite index:</p>
-<div class="language-sql highlight"><pre><span></span><code><span class="c1">-- tracker/apps/tracker/migrations/0002-indexes.sql</span>
-<span class="c1">-- index tracker_tasks (owner_id, created_at)</span>
-<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">"ix_tracker_tasks_owner_id_created_at"</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="ss">"owner_id"</span><span class="p">,</span><span class="w"> </span><span class="ss">"created_at"</span><span class="p">);</span>
+Each app has its own <code>migrations/</code> directory. Tasks ships one:</p>
+<div class="language-sql highlight"><pre><span></span><code><span class="c1">-- tracker/apps/tasks/migrations/0001-create-table-tracker-tasks.sql</span>
+<span class="c1">-- hinoki migration 0001-create-table-tracker-tasks</span>
+<span class="c1">-- generated from the models; review it.</span>
+
+<span class="c1">-- create table tracker_tasks</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="ss">"id"</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">"owner_id"</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="ss">"tracker_members"</span><span class="w"> </span><span class="p">(</span><span class="ss">"id"</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">RESTRICT</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">"title"</span><span class="w"> </span><span class="nb">varchar</span><span class="p">(</span><span class="mi">120</span><span class="p">)</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">"priority"</span><span class="w"> </span><span class="nb">integer</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">"done"</span><span class="w"> </span><span class="nb">boolean</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">"created_at"</span><span class="w"> </span><span class="n">timestamptz</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="ss">"completed_at"</span><span class="w"> </span><span class="n">timestamptz</span>
+<span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="ss">"ix_tracker_tasks_owner_id_created_at_e46b5006"</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="ss">"tracker_tasks"</span><span class="w"> </span><span class="p">(</span><span class="ss">"owner_id"</span><span class="p">,</span><span class="w"> </span><span class="ss">"created_at"</span><span class="p">);</span>
 </code></pre></div>
-<p>From <code>examples/</code>, list and apply them:</p>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status<span class="w"> </span>tracker
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>tracker
+<p>From <code>examples/tracker</code>, list and apply them:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>status
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>migrations<span class="w"> </span>apply
 </code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>database: sqlite:///.../examples/.hinoki/local.sqlite3 (from local SQLite default)
-tracker          pending  0001-initial
-tracker          pending  0002-indexes
-database: sqlite:///.../examples/.hinoki/local.sqlite3 (from local SQLite default)
-tracker: 0001-initial, 0002-indexes
+<div class="language-text highlight"><pre><span></span><code>database: sqlite:///…/examples/tracker/.hinoki/local.sqlite3 (from local SQLite default)
+members          pending  0001-create-table-tracker-members
+tasks            pending  0001-create-table-tracker-tasks
+activity         pending  0001-create-table-tracker-activity
+database: sqlite:///…/examples/tracker/.hinoki/local.sqlite3 (from local SQLite default)
+members: 0001-create-table-tracker-members
+tasks: 0001-create-table-tracker-tasks
+activity: 0001-create-table-tracker-activity
 </code></pre></div>
 <p>Each command first names the database it uses. With no database configured,
-that is <code>examples/.hinoki/local.sqlite3</code>.
-Migrations run only when you call <code>apply</code>; an application never migrates at
+that is <code>.hinoki/local.sqlite3</code> beside <code>hinoki.toml</code>. <code>apply</code> runs the apps in
+<code>requires</code> order, so <code>tracker_members</code> exists before the table that references
+it. Migrations run only when you call <code>apply</code>; an application never migrates at
 startup.</p>
-<p>When a model changes, <code>uv run hinoki migrations plan tracker</code> writes the next
-migration. Review its SQL, then apply it.</p>
+<p>When a model changes, <code>uv run hinoki migrations plan tasks</code> writes the next
+migration of that app. Review its SQL, then apply it.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
 <li>A model is a typed class; decorators state table facts such as indexes and order.</li>
+<li>Each app owns its models and migrations; <code>requires</code> orders them.</li>
 <li>Migrations are reviewed files, applied by an explicit command.</li>
 <li>Relations are never loaded implicitly.</li>
 </ul>
@@ -361,7 +392,7 @@ migration. Review its SQL, then apply it.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 20:33:12 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/1-models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

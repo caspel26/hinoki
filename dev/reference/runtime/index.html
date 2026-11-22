@@ -279,8 +279,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>4 min read</span>
           </p>
           
         </header>
@@ -1063,6 +1063,342 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
 
     </div>
 
+</div><h2 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h2>
+<p>The <a href="../../events/">events guide</a> explains the two moments a handler runs in.
+A handler collection is listed on the application, or in an app's <code>events</code>
+entry of <code>hinoki.toml</code>.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.Handlers" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.Handlers</span>
+
+
+<a href="#hinoki.events.Handlers" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Handlers</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A collection of event handlers, listed on the application to take effect.</p>
+<p><code>@handlers.in_transaction(Event)</code> and <code>@handlers.after_commit(Event)</code>
+register the decorated function, which is returned unchanged so a test can
+call it directly. The event type is <code>Event</code> or, for events about one
+class, <code>Event[Note]</code>; the handler's parameter must be annotated with the
+same type. Registration order is execution order.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.events.Handlers.name" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">name</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.events.Handlers.name" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.events.Handlers.registrations" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">registrations</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.events.Handlers.registrations" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">registrations</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Registration</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.events.Handlers.in_transaction" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">in_transaction</span>
+
+
+<a href="#hinoki.events.Handlers.in_transaction" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">in_transaction</span><span class="p">(</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">E</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span>
+    <span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">E</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]],</span>
+    <span class="n">Callable</span><span class="p">[[</span><span class="n">E</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]],</span>
+<span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Run inside the transaction of the write that emitted the event. An
+exception or a timeout rolls the write back and reaches its caller.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.events.Handlers.after_commit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">after_commit</span>
+
+
+<a href="#hinoki.events.Handlers.after_commit" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">after_commit</span><span class="p">(</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">E</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span>
+    <span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">E</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]],</span>
+    <span class="n">Callable</span><span class="p">[[</span><span class="n">E</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">],</span>
+<span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Run after the outermost transaction commits (at once when none is
+open). A failure is logged and counted; it cancels nothing.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.Created" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.Created</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.events.Created" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Created</span><span class="p">(</span><span class="n">subject</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span> <span class="n">instance</span><span class="p">:</span> <span class="n">M</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A model row was inserted by <code>insert</code> (<code>acreate</code>, <code>asave</code> of a new
+instance, <code>abulk_create</code>, generated CRUD create). <code>instance</code> is the
+stored instance.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.Updated" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.Updated</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.events.Updated" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Updated</span><span class="p">(</span>
+    <span class="n">subject</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span> <span class="n">instance</span><span class="p">:</span> <span class="n">M</span><span class="p">,</span> <span class="n">changed</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A model instance was saved with changes (<code>asave</code>, <code>aupdate_from</code>,
+<code>abulk_update</code>, generated CRUD update). <code>changed</code> names the columns
+that differed from the stored row before the write.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.Deleted" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.Deleted</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.events.Deleted" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Deleted</span><span class="p">(</span><span class="n">subject</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A DELETE statement removed <code>count</code> rows of the model (<code>adelete</code>,
+<code>abulk_delete</code>, generated CRUD delete). No key or row is loaded.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.events.emit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.events.emit</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.events.emit" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">emit</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Emit <code>event</code> on the current worker's bus.</p>
+
+
+    </div>
+
 </div>
 
 <div class="doc doc-object doc-class">
@@ -1176,14 +1512,16 @@ command. A synchronous or asynchronous <code>handle</code> is supported.</p>
             <ul><li><a href="#hinoki.management.CommandContext.settings">settings</a></li><li><a href="#hinoki.management.CommandContext.get">get</a></li><li><a href="#hinoki.management.CommandContext.find">find</a></li></ul>
           </li><li><a href="#hinoki.management.CommandError">CommandError</a></li><li><a href="#hinoki.runtime.config.RuntimeConfig">RuntimeConfig</a>
             <ul><li><a href="#hinoki.runtime.config.RuntimeConfig.idle_timeout">idle_timeout</a></li></ul>
-          </li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
+          </li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li><li><a href="#events">Events</a></li><li><a href="#hinoki.events.Handlers">Handlers</a>
+            <ul><li><a href="#hinoki.events.Handlers.name">name</a></li><li><a href="#hinoki.events.Handlers.registrations">registrations</a></li><li><a href="#hinoki.events.Handlers.in_transaction">in_transaction</a></li><li><a href="#hinoki.events.Handlers.after_commit">after_commit</a></li></ul>
+          </li><li><a href="#hinoki.events.Created">Created</a></li><li><a href="#hinoki.events.Updated">Updated</a></li><li><a href="#hinoki.events.Deleted">Deleted</a></li><li><a href="#hinoki.events.emit">emit</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
             <ul><li><a href="#hinoki.wsgi.WSGIAdapter.start">start</a></li><li><a href="#hinoki.wsgi.WSGIAdapter.close">close</a></li></ul>
           </li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/runtime.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:51:18 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -485,10 +485,10 @@
 connected, so you can try queries against real data:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell
 </code></pre></div>
-<div class="language-pycon highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">acount</span><span class="p">()</span>
+<div class="language-pycon highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="k">await</span> <span class="n">Note</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">acount</span><span class="p">()</span>
 <span class="go">3</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="n">invoice</span><span class="o">.</span><span class="n">reference</span> <span class="k">for</span> <span class="n">invoice</span> <span class="ow">in</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()]</span>
-<span class="go">['INV-003', 'INV-002', 'INV-001']</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="n">note</span><span class="o">.</span><span class="n">title</span> <span class="k">for</span> <span class="n">note</span> <span class="ow">in</span> <span class="k">await</span> <span class="n">Note</span><span class="o">.</span><span class="n">all</span><span class="p">()]</span>
+<span class="go">['Ship it', 'Ship the docs', 'Ship the tests']</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">settings</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">url</span>
 <span class="go">Secret('***')</span>
 </code></pre></div>
@@ -511,7 +511,7 @@ connected, so you can try queries against real data:</p>
 </tr>
 <tr>
 <td>model classes</td>
-<td>every concrete model of every registered app, by class name (<code>Invoice</code>, <code>Note</code>, …)</td>
+<td>every concrete model of every registered app, by class name (<code>Note</code>, …)</td>
 </tr>
 </tbody>
 </table>
@@ -524,7 +524,7 @@ multiline statements work. Use the async ORM methods (<code>acount()</code>, <co
 awaiting a query): the synchronous ones are meant for <code>def</code> handlers and cannot
 block the shell's loop.</p>
 <h2 id="choose-the-application-and-models">Choose the application and models<a class="headerlink" href="#choose-the-application-and-models" title="Permanent link">&para;</a></h2>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>--models<span class="w"> </span>notes.apps.billing.models
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>--models<span class="w"> </span>notes.apps.notes.models
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>shell<span class="w"> </span>notes.main:app
 </code></pre></div>
 <p>In a project the target defaults to <code>project.application</code>, and every registered
@@ -562,7 +562,7 @@ and Python's <code>&gt;&gt;&gt;</code> / <code>...</code> prompts.</p>
   and close the app modules; the shell exits 0 whatever code is passed.</li>
 <li>A model module that does not import stops the shell with
   <code>cannot load model module '…'</code>; a duplicate class name with
-  <code>model name 'Invoice' occurs in both '…' and '…'</code>. Both exit 2.</li>
+  <code>model name 'Note' occurs in both '…' and '…'</code>. Both exit 2.</li>
 <li>Outside a project without a target: <code>pass TARGET outside a project with
   hinoki.toml</code>.</li>
 </ul>
@@ -599,7 +599,7 @@ and Python's <code>&gt;&gt;&gt;</code> / <code>...</code> prompts.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:51:18 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/shell.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

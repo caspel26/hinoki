@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -494,17 +494,17 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">InvoiceIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 
 
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
+
+
 <span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="s2">"customer_id"</span><span class="p">,))</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceDetail</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
     <span class="n">customer_name</span><span class="p">:</span> <span class="nb">str</span>
 
 
 <span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">,</span> <span class="s2">"paid"</span><span class="p">),</span> <span class="n">partial</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">InvoicePatch</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
-
-
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">InvoiceRow</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 </code></pre></div>
 <table>
 <thead>
@@ -551,7 +551,7 @@ model emits <code>DeprecationWarning</code>.</p>
 <p>A subclass inherits its base's fields; <code>only</code> and <code>exclude</code> cannot remove them.
 A derivation that would leave out a column the base declares fails closed:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">,))</span>  <span class="c1"># RegistrationError: inherited field 'id'</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">ReferenceOnly</span><span class="p">(</span><span class="n">InvoiceRow</span><span class="p">):</span> <span class="o">...</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ReferenceOnly</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">):</span> <span class="o">...</span>
 </code></pre></div>
 <p>Derive the narrower schema from <code>Schema</code> instead. A selection that keeps or
 widens the inherited columns is allowed.</p>
@@ -566,25 +566,25 @@ widens the inherited columns is allowed.</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Invoice</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceOut</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceDetail</span><span class="p">,</span> <span class="n">InvoiceOut</span>
 
 <span class="n">invoices</span> <span class="o">=</span> <span class="n">RouteGroup</span><span class="p">(</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">to_out</span><span class="p">(</span><span class="n">invoice</span><span class="p">:</span> <span class="n">Invoice</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceOut</span><span class="p">:</span>
-    <span class="k">return</span> <span class="n">InvoiceOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">invoice</span><span class="p">,</span> <span class="n">customer_name</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">customer</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_detail</span><span class="p">(</span><span class="n">invoice</span><span class="p">:</span> <span class="n">Invoice</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceDetail</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">InvoiceDetail</span><span class="o">.</span><span class="n">from_model</span><span class="p">(</span><span class="n">invoice</span><span class="p">,</span> <span class="n">customer_name</span><span class="o">=</span><span class="n">invoice</span><span class="o">.</span><span class="n">customer</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
 
 <span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="n">pagination</span><span class="o">=</span><span class="n">PageNumberPagination</span><span class="p">())</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_invoices</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">InvoiceOut</span><span class="p">]:</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_invoices</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">PageParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Page</span><span class="p">[</span><span class="n">InvoiceDetail</span><span class="p">]:</span>
     <span class="n">rows</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"customer"</span><span class="p">)</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">rows</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">to_out</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">rows</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">to_detail</span><span class="p">)</span>
 
 
 <span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,))</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_invoice</span><span class="p">(</span><span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceOut</span><span class="p">:</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_invoice</span><span class="p">(</span><span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceDetail</span><span class="p">:</span>
     <span class="n">invoice</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">invoice_id</span><span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">"customer"</span><span class="p">)</span><span class="o">.</span><span class="n">aget</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">to_out</span><span class="p">(</span><span class="n">invoice</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_detail</span><span class="p">(</span><span class="n">invoice</span><span class="p">)</span>
 </code></pre></div>
 <ul>
 <li><code>from_model(row, **extra)</code> reads the attributes the schema needs; <code>extra</code>
@@ -640,7 +640,7 @@ fields only. See <a href="../endpoints/#the-response-is-checked-against-the-anno
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

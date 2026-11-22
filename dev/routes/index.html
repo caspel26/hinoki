@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -500,7 +500,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
@@ -509,15 +508,14 @@
     <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="p">)</span>  <span class="c1"># rules, events and middleware come from hinoki.toml as well</span>
 </code></pre></div>
 <p><code>manifest_routes()</code> finds <code>hinoki.toml</code> from the calling file's directory upwards and returns, in order:</p>
 <ol>
 <li>the project's <code>routes</code> list, at its own paths;</li>
 <li>each app's <code>routes</code> list under the app's <code>prefix</code>, apps in dependency order (<code>requires</code>).</li>
 </ol>
-<p>An app without a <code>routes</code> key, or with an empty list, adds nothing. Outside a project it raises <code>ProjectError</code>. <code>hinoki app create billing</code> writes the <code>routes.py</code> and the manifest keys; <code>hinoki app create billing --prefix /payments</code> chooses another prefix. <code>hinoki app list</code> prints each app with its routes and prefix.</p>
+<p>An app without a <code>routes</code> key, or with an empty list, adds nothing. Outside a project it raises <code>ProjectError</code>. <code>include=manifest_routes()</code> is the explicit form that <code>hinoki new</code> writes: when the module named by <code>project.application</code> builds <code>Hinoki(...)</code> without <code>include=</code>, it loads the same list itself, as the <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/main.py">Tracker example</a> does (an explicit <code>include=</code>, even empty, wins). <code>hinoki app create billing</code> writes the <code>routes.py</code> and the manifest keys; <code>hinoki app create billing --prefix /payments</code> chooses another prefix. <code>hinoki app list</code> prints each app with its routes and prefix.</p>
 <h2 id="one-place-for-each-prefix">One place for each prefix<a class="headerlink" href="#one-place-for-each-prefix" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -682,7 +680,7 @@ hinoki<span class="w"> </span>routes<span class="w"> </span>--format<span class=
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:04:21 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/routes.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

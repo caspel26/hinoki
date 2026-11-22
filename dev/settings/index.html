@@ -475,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
-            <span>12 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>13 min read</span>
           </p>
           
         </header>
@@ -708,6 +708,30 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>max_page_size</code></td>
 <td><code>100</code></td>
 <td>Largest <code>page_size</code> a client may ask for</td>
+</tr>
+<tr>
+<td><code>pagination</code></td>
+<td><code>cursor_secret</code>, <code>cursor_ttl_seconds</code></td>
+<td>unset</td>
+<td><code>settings.Secret</code> of at least 32 bytes that signs cursors, and an optional lifetime in seconds; see <a href="../pagination/">Pagination</a></td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td><code>handler_timeout</code></td>
+<td><code>5.0</code> seconds</td>
+<td>Must be positive; seconds each handler may run. See <a href="../events/">Events</a></td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td><code>max_handlers</code></td>
+<td><code>16</code></td>
+<td><code>1</code> or greater; handlers per event and phase</td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td><code>max_depth</code></td>
+<td><code>4</code></td>
+<td><code>1</code> or greater; how deep handlers may emit events</td>
 </tr>
 <tr>
 <td><code>server</code></td>
@@ -1025,15 +1049,14 @@ resolve from the current directory, so start the server from the project root.</
 application exists:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">settings</span> <span class="o">=</span> <span class="n">ProjectSettings</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
-<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
-    <span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Notes (</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">theme</span><span class="si">}</span><span class="s2">)"</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">()</span>
-<span class="p">)</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">settings</span><span class="o">=</span><span class="n">settings</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Notes (</span><span class="si">{</span><span class="n">settings</span><span class="o">.</span><span class="n">theme</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
 </code></pre></div>
+<p>Routes, events, middleware and rules come from <code>hinoki.toml</code>, so <code>Hinoki(...)</code>
+needs no <code>include=</code>, <code>events=</code> or <code>rules=</code> here.</p>
 <h2 id="variable-names">Variable names<a class="headerlink" href="#variable-names" title="Permanent link">&para;</a></h2>
 <p>The variable is the prefix plus the field name in capitals; a group nests with a
 double underscore.</p>
@@ -1127,12 +1150,12 @@ so budget <code>replicas × workers × max_size</code> against the server databa
 connection limit.</p>
 <p>One-off scripts have a different lifecycle: they open a short-lived <code>Database</code>
 themselves (<a href="../databases/#use-the-database-from-a-script">use the database from a script</a>).
-<code>examples/blog/apps/blog/seed.py</code> does so, applies migrations, inserts synthetic rows and
+<code>examples/blog/blog/apps/blog/seed.py</code> does so, applies migrations, inserts synthetic rows and
 closes the pool in <code>finally</code>. It is a one-time seed for a fresh disposable
 database, not a repeatable reset:</p>
-<div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples
+<div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>examples/blog
 <span class="nb">export</span><span class="w"> </span><span class="nv">BLOG_DATABASE__URL</span><span class="o">=</span>postgresql://app:password@localhost/blog
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>blog.seed
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>blog.apps.blog.seed
 </code></pre></div>
 <p>Use a disposable database for the example. The seed command is not a production migration mechanism and is not run at app startup.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
@@ -1174,7 +1197,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

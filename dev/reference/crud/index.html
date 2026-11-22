@@ -279,8 +279,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -858,6 +858,774 @@ declared it (or <code>name=</code>) so rules scoped to that module see its actio
 
     </div>
 
+</div><h2 id="filters">Filters<a class="headerlink" href="#filters" title="Permanent link">&para;</a></h2>
+<p>A <code>FilterSet</code> declares what a client may ask of a generated list and is passed
+as <code>filters=</code>; see <a href="../../crud/#filter-order-and-search-the-list">filter, order and search the
+list</a>. Declare each field as
+<code>Eq[T]</code>, <code>In[T]</code> or <code>Range[T]</code> (type aliases of <code>hinoki.filters</code>) and add a
+<code>Search(...)</code> and an <code>ordering</code> tuple. A <code>Range</code> field reads as a <code>Bounds</code>.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.filters.FilterSet" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.filters.FilterSet</span>
+
+
+<a href="#hinoki.filters.FilterSet" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">FilterSet</span><span class="p">(</span><span class="n">parsed</span><span class="p">:</span> <span class="n">FilterParsed</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Base class of a list's declared filters. Subclass it and annotate each
+filter; use it on its own with <code>InvoiceFilters.parse(query)</code>.</p>
+<p>Instances hold what the client sent: <code>params.paid</code> is <code>False</code> or
+<code>None</code> (not sent), <code>params.status</code> a list or <code>None</code>, <code>params.issued</code>
+a <code>Bounds</code> or <code>None</code>, <code>params.search_term</code> the text or <code>None</code> and
+<code>params.order</code> the client's ordering as column names, <code>-</code> for
+descending. <code>params.is_null("closed")</code> answers a <code>closed.null</code> filter,
+declared by a <code>T | None</code> type argument.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.search" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">search</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.search" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">search</span><span class="p">:</span> <span class="n">Search</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.ordering" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">ordering</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.ordering" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">ordering</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.fields" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">fields</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.fields" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">fields</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FilterField</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.plan" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">plan</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.plan" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">plan</span><span class="p">:</span> <span class="n">_FilterPlan</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.conditions" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">conditions</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.conditions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">conditions</span> <span class="o">=</span> <span class="n">conditions</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.order" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">order</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.order" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">order</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"-</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">descending</span> <span class="k">else</span> <span class="n">name</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">descending</span> <span class="ow">in</span> <span class="n">order</span> <span class="ow">or</span> <span class="p">()</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.search_term" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">search_term</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.search_term" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">search_term</span> <span class="o">=</span> <span class="n">term</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.scope" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">scope</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.scope" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">scope</span> <span class="o">=</span> <span class="n">scope</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.arranged" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">arranged</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.arranged" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">arranged</span> <span class="o">=</span> <span class="n">order</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.FilterSet.nulls" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">nulls</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.nulls" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">nulls</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.collect" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">collect</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.collect" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">collect</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FilterField</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.build" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.build" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">build</span><span class="p">(</span>
+    <span class="n">found</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FilterField</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">search</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">core</span><span class="o">.</span><span class="n">_FilterPlan</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.check" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.check" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">cursor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">reserved</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fail at declaration when a filter does not match the model's
+columns. <code>cursor</code> also requires ordering columns a cursor can carry.
+<code>reserved</code> is the pagination parameter names this FilterSet must not
+shadow.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.produced_names" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">produced_names</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.produced_names" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">produced_names</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Every query parameter name this FilterSet reads: each field's own
+name and its <code>.from</code>/<code>.to</code>/<code>.null</code> suffixes, plus <code>search</code> and
+<code>ordering</code> when declared.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.check_reserved" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_reserved</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.check_reserved" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check_reserved</span><span class="p">(</span><span class="n">reserved</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A produced name that collides with a pagination parameter (<code>page</code>,
+<code>page_size</code>, <code>cursor</code> or <code>limit</code>) cannot be told apart from it.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.check_column" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_column</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.check_column" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check_column</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.check_orderable" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_orderable</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.check_orderable" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check_orderable</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">cursor</span><span class="p">:</span> <span class="nb">bool</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.check_cursor_key" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_cursor_key</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.check_cursor_key" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check_cursor_key</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.parse" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">parse</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.filters.FilterSet.parse" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">parse</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+    <span class="n">reserved</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The filters of a parsed query string; names in <code>reserved</code> (the
+pagination parameters) are left alone. A parameter that is not
+declared, is repeated or has a wrong value raises <code>ValidationError</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.assign" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">assign</span>
+
+
+<a href="#hinoki.filters.FilterSet.assign" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">assign</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">eq</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="n">many</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">object</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">low</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="n">high</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.is_null" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">is_null</span>
+
+
+<a href="#hinoki.filters.FilterSet.is_null" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">is_null</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>True</code>/<code>False</code> for <code>?name.null=true|false</code>; <code>None</code> when not sent.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.apply" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">apply</span>
+
+
+<a href="#hinoki.filters.FilterSet.apply" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">apply</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>query</code> narrowed by the client's filters, ANDed: never wider.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.filters.FilterSet.arrange" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">arrange</span>
+
+
+<a href="#hinoki.filters.FilterSet.arrange" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">arrange</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>query</code> ordered as the client asked; its own order stays when the
+client did not ask. The primary key ends the order, so equal sort values
+keep one position from page to page.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.filters.Search" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.filters.Search</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.filters.Search" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Search</span><span class="p">(</span><span class="o">*</span><span class="n">columns</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p><code>?search=text</code>: a case-insensitive "contains" over these text columns,
+any of them matching.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.Search.columns" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">columns</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.Search.columns" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.filters.Bounds" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.filters.Bounds</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.filters.Bounds" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Bounds</span><span class="p">(</span><span class="n">from_</span><span class="p">:</span> <span class="n">T</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">to</span><span class="p">:</span> <span class="n">T</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Both ends, inclusive, of a <code>Range</code> filter; a missing end is <code>None</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.Bounds.from_" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">from_</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.Bounds.from_" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">from_</span><span class="p">:</span> <span class="n">T</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.filters.Bounds.to" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">to</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.filters.Bounds.to" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">to</span><span class="p">:</span> <span class="n">T</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
 </div>
         
       </article>
@@ -880,12 +1648,18 @@ declared it (or <code>name=</code>) so rules scoped to that module see its actio
             <ul><li><a href="#hinoki.resources.CrudAccess.default">default</a></li><li><a href="#hinoki.resources.CrudAccess.list">list</a></li><li><a href="#hinoki.resources.CrudAccess.retrieve">retrieve</a></li><li><a href="#hinoki.resources.CrudAccess.create">create</a></li><li><a href="#hinoki.resources.CrudAccess.update">update</a></li><li><a href="#hinoki.resources.CrudAccess.delete">delete</a></li><li><a href="#hinoki.resources.CrudAccess.resolve">resolve</a></li></ul>
           </li><li><a href="#hinoki.resources.CrudDeclaration">CrudDeclaration</a>
             <ul><li><a href="#hinoki.resources.CrudDeclaration.config">config</a></li><li><a href="#hinoki.resources.CrudDeclaration.path">path</a></li><li><a href="#hinoki.resources.CrudDeclaration.module">module</a></li><li><a href="#hinoki.resources.CrudDeclaration.name">name</a></li><li><a href="#hinoki.resources.CrudDeclaration.named">named</a></li><li><a href="#hinoki.resources.CrudDeclaration.generated">generated</a></li><li><a href="#hinoki.resources.CrudDeclaration.built">built</a></li><li><a href="#hinoki.resources.CrudDeclaration.api">api</a></li><li><a href="#hinoki.resources.CrudDeclaration.build">build</a></li></ul>
-          </li><li><a href="#hinoki.resources.Crud">Crud</a></li></ul>
+          </li><li><a href="#hinoki.resources.Crud">Crud</a></li><li><a href="#filters">Filters</a></li><li><a href="#hinoki.filters.FilterSet">FilterSet</a>
+            <ul><li><a href="#hinoki.filters.FilterSet.search">search</a></li><li><a href="#hinoki.filters.FilterSet.ordering">ordering</a></li><li><a href="#hinoki.filters.FilterSet.fields">fields</a></li><li><a href="#hinoki.filters.FilterSet.plan">plan</a></li><li><a href="#hinoki.filters.FilterSet.conditions">conditions</a></li><li><a href="#hinoki.filters.FilterSet.order">order</a></li><li><a href="#hinoki.filters.FilterSet.search_term">search_term</a></li><li><a href="#hinoki.filters.FilterSet.scope">scope</a></li><li><a href="#hinoki.filters.FilterSet.arranged">arranged</a></li><li><a href="#hinoki.filters.FilterSet.nulls">nulls</a></li><li><a href="#hinoki.filters.FilterSet.collect">collect</a></li><li><a href="#hinoki.filters.FilterSet.build">build</a></li><li><a href="#hinoki.filters.FilterSet.check">check</a></li><li><a href="#hinoki.filters.FilterSet.produced_names">produced_names</a></li><li><a href="#hinoki.filters.FilterSet.check_reserved">check_reserved</a></li><li><a href="#hinoki.filters.FilterSet.check_column">check_column</a></li><li><a href="#hinoki.filters.FilterSet.check_orderable">check_orderable</a></li><li><a href="#hinoki.filters.FilterSet.check_cursor_key">check_cursor_key</a></li><li><a href="#hinoki.filters.FilterSet.parse">parse</a></li><li><a href="#hinoki.filters.FilterSet.assign">assign</a></li><li><a href="#hinoki.filters.FilterSet.is_null">is_null</a></li><li><a href="#hinoki.filters.FilterSet.apply">apply</a></li><li><a href="#hinoki.filters.FilterSet.arrange">arrange</a></li></ul>
+          </li><li><a href="#hinoki.filters.Search">Search</a>
+            <ul><li><a href="#hinoki.filters.Search.columns">columns</a></li></ul>
+          </li><li><a href="#hinoki.filters.Bounds">Bounds</a>
+            <ul><li><a href="#hinoki.filters.Bounds.from_">from_</a></li><li><a href="#hinoki.filters.Bounds.to">to</a></li></ul>
+          </li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
