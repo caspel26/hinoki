@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 📈 Prometheus metrics on Kiso
+> `crates/kiso/src/metrics.rs`, `crates/kiso/src/scrape.rs`, `crates/bindings/src/metrics.rs`, `python/hinoki/settings.py`, `python/hinoki/serve.py`, `python/hinoki/runtime/supervisor.py`
+
+Kiso can serve request metrics in the Prometheus text format from a dedicated listener (`metrics.listen`, off by default; Kiso only, and `hinoki serve --server granian` refuses it). Requests by route pattern, method and status class, duration histograms, requests in flight, response bytes and errors are counted in Rust with atomics; with several workers each keeps its series, told apart by a `worker` label. A `listen` address off the loopback needs `metrics.allow` or `metrics.token`. See [export Prometheus metrics](docs/metrics.md).
+
 #### 🌐 Per-route CORS
 > `python/hinoki/http/cors.py`, `python/hinoki/routing.py`, `python/hinoki/resources.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/origins.py`, `python/hinoki/runtime/servercore.py`, `crates/bindings/src/server.rs`
 
