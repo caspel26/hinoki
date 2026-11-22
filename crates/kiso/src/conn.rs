@@ -105,7 +105,7 @@ fn refusal_of(parts: &Parts, headers: &mut Vec<Header>) -> Option<Early> {
     let ambiguous = match parts.version {
         Version::HTTP_11 => hosts != 1,
         Version::HTTP_2 => parts.uri.authority().is_none() && hosts > 1,
-        _ => false,
+        _ => hosts > 1,
     };
     ambiguous.then_some(Early::BadHost)
 }
