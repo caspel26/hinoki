@@ -602,6 +602,7 @@ def test_app_list_json_has_stable_manifest_fields(
                 "prefix": "",
                 "requires": [],
                 "events": "",
+                "middleware": "",
             }
         ]
     }
