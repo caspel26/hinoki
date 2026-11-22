@@ -21,10 +21,8 @@ import time
 from hinoki import Hinoki, http
 from hinoki.runtime.kiso import KisoWorker
 
-try:
-    from hinoki import ws
-except ImportError:  # a build without WebSocket support (the http baseline)
-    ws = None
+# A build without WebSocket support is the http baseline.
+HAS_WEBSOCKET = hasattr(http, "websocket")
 
 TEXT = 1
 
@@ -36,10 +34,10 @@ async def plain() -> dict[str, str]:
 
 def application() -> Hinoki:
     routes = [plain]
-    if ws is not None:
+    if HAS_WEBSOCKET:
 
-        @ws.route("/echo")
-        async def echo(socket: ws.Socket) -> None:
+        @http.websocket("/echo")
+        async def echo(socket: http.WebSocket) -> None:
             async for message in socket:
                 await socket.send_text(message)
 
@@ -126,7 +124,7 @@ async def http_sample(port: int, clients: int, rounds: int) -> tuple[float, floa
 
 
 async def main(args: argparse.Namespace) -> None:
-    if args.mode == "ws" and ws is None:
+    if args.mode == "ws" and not HAS_WEBSOCKET:
         sys.exit("this build has no WebSocket support: use --mode http")
     worker = KisoWorker(application(), "127.0.0.1", 0)
     port = await worker.start()

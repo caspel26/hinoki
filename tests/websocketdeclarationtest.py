@@ -6,19 +6,19 @@ from typing import Any
 
 import pytest
 
-from hinoki import Caller, Hinoki, Mount, Schema, http, ws
+from hinoki import Caller, Hinoki, Mount, Schema, http
 from hinoki.errors import RegistrationError
 
 
-async def noop(socket: ws.Socket) -> None:
+async def noop(socket: http.WebSocket) -> None:
     return None
 
 
 def declare(path: str = "/x", **options: Any) -> Any:
-    async def handler(socket: ws.Socket) -> None:
+    async def handler(socket: http.WebSocket) -> None:
         return None
 
-    return ws.route(path, **options)(handler)
+    return http.websocket(path, **options)(handler)
 
 
 @pytest.mark.parametrize(
@@ -45,49 +45,49 @@ def test_bad_options_are_refused(
 
 
 def test_a_handler_must_be_async_and_take_a_socket() -> None:
-    def blocking(socket: ws.Socket) -> Any:
+    def blocking(socket: http.WebSocket) -> Any:
         return None
 
     with pytest.raises(RegistrationError, match="async def"):
-        ws.route("/x")(blocking)
+        http.websocket("/x")(blocking)
 
     async def no_socket(room: str) -> None:
         return None
 
-    with pytest.raises(RegistrationError, match=r"ws\.Socket"):
-        ws.route("/x/{room}")(no_socket)
+    with pytest.raises(RegistrationError, match=r"http\.WebSocket"):
+        http.websocket("/x/{room}")(no_socket)
 
 
 def test_parameters_are_scalars_and_path_names_must_be_taken() -> None:
-    async def listy(items: list[str], socket: ws.Socket) -> None:
+    async def listy(items: list[str], socket: http.WebSocket) -> None:
         return None
 
     with pytest.raises(RegistrationError, match="must be str, int"):
-        ws.route("/x")(listy)
+        http.websocket("/x")(listy)
 
     with pytest.raises(RegistrationError, match="lacks a parameter"):
-        ws.route("/x/{room}")(noop)
+        http.websocket("/x/{room}")(noop)
 
 
 def test_a_caller_needs_an_access() -> None:
-    async def anonymous(who: Caller[None], socket: ws.Socket) -> None:
+    async def anonymous(who: Caller[None], socket: http.WebSocket) -> None:
         return None
 
     with pytest.raises(RegistrationError, match="declares no access"):
-        ws.route("/x")(anonymous)
+        http.websocket("/x")(anonymous)
 
 
 def test_a_function_declares_one_websocket_only() -> None:
     declared = declare("/a")
     with pytest.raises(RegistrationError, match="already declares"):
-        ws.route("/b")(declared)
+        http.websocket("/b")(declared)
 
 
 def test_routes_are_mounted_and_looked_up_with_their_parameters() -> None:
-    async def room(room: str, socket: ws.Socket) -> None:
+    async def room(room: str, socket: http.WebSocket) -> None:
         return None
 
-    app = Hinoki(include=[Mount("/chat", [ws.route("/{room}")(room)])])
+    app = Hinoki(include=[Mount("/chat", [http.websocket("/{room}")(room)])])
     found = app.lookup_websocket("/chat/lobby")
     assert found is not None
     assert found[1] == {"room": "lobby"}

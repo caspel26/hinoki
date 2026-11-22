@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Schema, core, http, ws
+from hinoki import Access, Caller, Hinoki, Schema, core, http
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.settings import AppSettings, CorsSettings, ExecutionSettings
@@ -51,8 +51,8 @@ class Moved(Schema):
     by: str
 
 
-@ws.route("/echo")
-async def echo(socket: ws.Socket) -> None:
+@http.websocket("/echo")
+async def echo(socket: http.WebSocket) -> None:
     async for message in socket:
         if isinstance(message, bytes):
             await socket.send_bytes(message)
@@ -60,43 +60,43 @@ async def echo(socket: ws.Socket) -> None:
             await socket.send_text(message)
 
 
-@ws.route("/rooms/{room}")
-async def room(room: str, socket: ws.Socket, size: int = 1) -> None:
+@http.websocket("/rooms/{room}")
+async def room(room: str, socket: http.WebSocket, size: int = 1) -> None:
     await socket.send_text(f"{room}:{size}")
 
 
-@ws.route("/typed", message=Move, reply=Moved)
-async def typed(socket: ws.Socket) -> None:
+@http.websocket("/typed", message=Move, reply=Moved)
+async def typed(socket: http.WebSocket) -> None:
     async for move in socket:
         await socket.send_json({"x": move.x + 1, "y": move.y, "by": "server"})
 
 
-@ws.route("/private", access=Access(Tokens(), permissions=["chat:read"]))
-async def private(who: Caller[None], socket: ws.Socket) -> None:
+@http.websocket("/private", access=Access(Tokens(), permissions=["chat:read"]))
+async def private(who: Caller[None], socket: http.WebSocket) -> None:
     await socket.send_text(who.id)
 
 
-@ws.route(
+@http.websocket(
     "/speak",
     subprotocols={"open": None, "secure": Access(Tokens(), permissions=["chat:read"])},
 )
-async def speak(socket: ws.Socket) -> None:
+async def speak(socket: http.WebSocket) -> None:
     await socket.send_text(socket.subprotocol or "none")
 
 
-@ws.route("/small", max_message_bytes=16)
-async def small(socket: ws.Socket) -> None:
+@http.websocket("/small", max_message_bytes=16)
+async def small(socket: http.WebSocket) -> None:
     async for message in socket:
         await socket.send_text(str(len(message)))
 
 
-@ws.route("/boom")
-async def boom(socket: ws.Socket) -> None:
+@http.websocket("/boom")
+async def boom(socket: http.WebSocket) -> None:
     raise RuntimeError("handler failed")
 
 
-@ws.route("/browser", origins=["https://app.example"])
-async def browser(socket: ws.Socket) -> None:
+@http.websocket("/browser", origins=["https://app.example"])
+async def browser(socket: http.WebSocket) -> None:
     await socket.send_text("hi")
 
 

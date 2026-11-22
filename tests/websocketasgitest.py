@@ -5,18 +5,18 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from hinoki import Hinoki, ws
+from hinoki import Hinoki, http
 from hinoki.runtime.asgi import ASGIAdapter
 
 
-@ws.route("/echo/{name}", origins=["https://app.example"], max_message_bytes=8)
-async def echo(name: str, socket: ws.Socket) -> None:
+@http.websocket("/echo/{name}", origins=["https://app.example"], max_message_bytes=8)
+async def echo(name: str, socket: http.WebSocket) -> None:
     async for message in socket:
         await socket.send_text(f"{name}:{message}")
 
 
-@ws.route("/boom")
-async def boom(socket: ws.Socket) -> None:
+@http.websocket("/boom")
+async def boom(socket: http.WebSocket) -> None:
     raise RuntimeError("handler failed")
 
 
