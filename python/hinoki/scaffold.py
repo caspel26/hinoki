@@ -23,7 +23,7 @@ PYPROJECT = """[project]
 name = "{name}"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["hinoki[server]"]
+dependencies = ["hinoki-api[server]"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
@@ -276,28 +276,26 @@ def git_source(spec: str) -> str:
     if separator and tail and "/" not in tail and ":" not in tail:
         url, revision = head, tail
     extra = f", rev = {jsontext.toml_value(revision)}" if revision else ""
-    return (
-        f"\n[tool.uv.sources]\nhinoki = {{ git = {jsontext.toml_value(url)}{extra} }}\n"
-    )
+    return f"\n[tool.uv.sources]\nhinoki-api = {{ git = {jsontext.toml_value(url)}{extra} }}\n"
 
 
 def framework_source(source: str | None = None) -> str:
-    """Where ``uv sync`` finds Hinoki. It is not on PyPI (an unrelated ``hinoki``
-    is), so the project always names a source: the ``--hinoki`` value (a checkout
-    path or a git URL), else this checkout when Hinoki runs from a source tree,
-    else the public repository."""
+    """Where ``uv sync`` finds ``hinoki-api``. It is not on PyPI yet, so the
+    project always names a source: the ``--hinoki`` value (a checkout path or a
+    git URL), else this checkout when Hinoki runs from a source tree, else the
+    public repository."""
     if source is not None:
         if "://" in source or source.startswith("git+"):
             return git_source(source)
         root = Path(source).expanduser().resolve()
         if not (root / "pyproject.toml").is_file() or not (root / "crates").is_dir():
             raise ScaffoldError(f"{root} is not a Hinoki source checkout")
-        return f"\n[tool.uv.sources]\nhinoki = {{ path = {jsontext.toml_value(str(root))}, editable = true }}\n"
+        return f"\n[tool.uv.sources]\nhinoki-api = {{ path = {jsontext.toml_value(str(root))}, editable = true }}\n"
     import hinoki  # noqa: PLC0415 - only needed to find the checkout
 
     root = Path(hinoki.__file__).resolve().parents[2]
     if (root / "crates").is_dir() and (root / "pyproject.toml").is_file():
-        return f"\n[tool.uv.sources]\nhinoki = {{ path = {jsontext.toml_value(str(root))}, editable = true }}\n"
+        return f"\n[tool.uv.sources]\nhinoki-api = {{ path = {jsontext.toml_value(str(root))}, editable = true }}\n"
     return git_source(REPOSITORY)
 
 

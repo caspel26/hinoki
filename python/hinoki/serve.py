@@ -11,7 +11,7 @@ a function returning one; inside a project it defaults to ``project.application`
 from ``hinoki.toml``. The host, port, worker count and server come from the
 application's ``server`` settings group (``AppSettings.server``), and the
 flags below override them. Kiso is part of the native extension;
-Granian is an optional dependency (``pip install hinoki[server]``) and so is
+Granian is an optional dependency (``pip install hinoki-api[server]``) and so is
 ``watchfiles``, which ``hinoki dev`` reloads with.
 """
 
@@ -232,7 +232,7 @@ def rust_refusal(args: argparse.Namespace, reload: bool) -> str | None:
     if reload and importlib.util.find_spec("watchfiles") is None:
         return (
             "`hinoki dev` reloads with watchfiles, which is not installed; "
-            "install the server extra: pip install 'hinoki[server]' "
+            "install the server extra: pip install 'hinoki-api[server]' "
             "(or run `hinoki serve`, which does not reload)"
         )
     return None
@@ -347,14 +347,14 @@ def run_granian(
     except ImportError:
         print(
             "error: Granian is not installed; install the server extra: "
-            "pip install 'hinoki[server]'",
+            "pip install 'hinoki-api[server]'",
             file=sys.stderr,
         )
         return 2
     if reload and importlib.util.find_spec("watchfiles") is None:
         print(
             "error: `hinoki dev` reloads with watchfiles, which is not installed; "
-            "install the server extra: pip install 'hinoki[server]' "
+            "install the server extra: pip install 'hinoki-api[server]' "
             "(or run `hinoki serve`, which does not reload)",
             file=sys.stderr,
         )
