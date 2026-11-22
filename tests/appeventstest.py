@@ -24,28 +24,32 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
         del sys.modules[module]
 
 
-def test_create_with_events_writes_the_module_and_the_manifest_key(
-    project: Path,
-) -> None:
-    assert main(["app", "create", "notes", "--events", "--no-input"]) == 0
-
-    app = next(a for a in load_manifest().apps if a.name == "notes")
-    assert app.events == "sample.apps.notes.events:handlers"
-    assert (project / "sample" / "apps" / "notes" / "events.py").is_file()
-
-
-def test_create_without_events_leaves_the_key_out(project: Path) -> None:
+def test_create_never_writes_an_events_module(project: Path) -> None:
     assert main(["app", "create", "notes", "--no-input"]) == 0
 
     assert next(a for a in load_manifest().apps if a.name == "notes").events == ""
     assert not (project / "sample" / "apps" / "notes" / "events.py").exists()
+    with pytest.raises(SystemExit):
+        main(["app", "create", "other", "--events", "--no-input"])
 
 
 def test_manifest_events_imports_each_apps_handlers(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert main(["app", "create", "notes", "--events", "--no-input"]) == 0
+    assert main(["app", "create", "notes", "--no-input"]) == 0
     assert main(["app", "create", "plain", "--no-input"]) == 0
+    (project / "sample" / "apps" / "notes" / "events.py").write_text(
+        'from hinoki import events\n\nhandlers = events.Handlers("notes")\n',
+        encoding="utf-8",
+    )
+    manifest = project / "hinoki.toml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            'name = "notes"\n',
+            'name = "notes"\nevents = "sample.apps.notes.events:handlers"\n',
+        ),
+        encoding="utf-8",
+    )
     for name in [m for m in sys.modules if m.startswith("sample")]:
         monkeypatch.delitem(sys.modules, name)
 
@@ -105,7 +109,7 @@ def test_an_unresolvable_or_wrong_events_target_is_an_error(
         manifest.event_handlers()
 
 
-@pytest.mark.parametrize("key", ["events", "routes"])
+@pytest.mark.parametrize("key", ["events", "middleware", "routes"])
 @pytest.mark.parametrize("bad", ["false", "0"])
 def test_a_non_string_target_is_rejected_even_when_falsy(
     project: Path, key: str, bad: str

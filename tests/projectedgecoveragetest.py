@@ -165,7 +165,6 @@ def test_app_management_run_reports_project_errors(
         name="billing",
         prefix=None,
         requires=None,
-        events=False,
         no_input=True,
     )
     assert projectcli.run(args) == 2
