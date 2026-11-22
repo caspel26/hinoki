@@ -315,7 +315,7 @@ wheels = [
 ]
 
 [[package]]
-name = "hinoki"
+name = "hinoki-api"
 version = "0.0.1"
 source = { editable = "../../" }
 
@@ -369,7 +369,7 @@ dependencies = [
     { name = "django-ninja" },
     { name = "fastapi" },
     { name = "granian" },
-    { name = "hinoki" },
+    { name = "hinoki-api" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
@@ -383,7 +383,7 @@ requires-dist = [
     { name = "django-ninja", specifier = "==1.8.0" },
     { name = "fastapi", specifier = "==0.162.7" },
     { name = "granian", specifier = ">=2.8,<3" },
-    { name = "hinoki", editable = "../../" },
+    { name = "hinoki-api", editable = "../../" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = "==3.3.9" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.1.8" },
     { name = "uvicorn", specifier = "==0.54.0" },
