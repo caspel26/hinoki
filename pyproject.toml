@@ -142,16 +142,16 @@ warn_unused_ignores = true
 files = ["python/hinoki", "tests", "examples"]
 # Playwright is a development tool run with uvx, not a project dependency.
 exclude = ["tests/browser/", "tests/mcpclient/"]
-mypy_path = "python:examples/notes:examples/tracker:examples/blog:examples/tracker/tracker_tests:examples/blog/blog_tests"
+mypy_path = "python:examples/notes:examples/tracker:examples/blog:examples/tracker/tracker_tests/support:examples/blog/blog_tests/support"
 explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "examples/notes/notes_tests", "examples/tracker/tracker_tests", "examples/blog/blog_tests"]
 python_files = ["*test.py"]
-pythonpath = ["examples/notes", "examples/tracker", "examples/blog"]
+pythonpath = ["examples/notes", "examples/tracker", "examples/blog", "examples/tracker/tracker_tests/support", "examples/blog/blog_tests/support"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --ignore-glob=**/conftest.py"
 markers = ["runtime: starts a real server process (Granian)"]
 
 [tool.coverage.run]
