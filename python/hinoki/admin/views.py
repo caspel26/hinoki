@@ -210,7 +210,7 @@ async def add_submit(
             403, "The form expired or is invalid. Reload and try again."
         )
     fields = form_fields(entry, creating=True)
-    values, errors = collect(fields, request.POST)
+    values, errors = collect(fields, request.POST, zone=site.admin.timezone)
     errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, None)
     message = "" if errors else await guarded(entry.save(values, principal))
@@ -263,7 +263,7 @@ async def edit_submit(
         )
     fields = form_fields(entry, creating=False)
     original = await current_values(entry, row, fields)
-    values, errors = collect(fields, request.POST, original)
+    values, errors = collect(fields, request.POST, original, site.admin.timezone)
     errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, row)
     message = "" if errors else await guarded(entry.save(values, principal, row))
