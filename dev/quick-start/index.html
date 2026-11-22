@@ -227,7 +227,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:33:10 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -345,18 +345,18 @@ name the hosts you serve, and silence it, add
 <p>Open <code>http://127.0.0.1:8000/docs</code> for the generated OpenAPI UI, or run
 <code>uv run hinoki routes</code> to list every route with its access policy.</p>
 <h2 id="what-the-manifest-does">What the manifest does<a class="headerlink" href="#what-the-manifest-does" title="Permanent link">&para;</a></h2>
-<p><code>hinoki.toml</code> names the application and where its routes live; each app you
-create adds its own models, migrations and routes:</p>
+<p><code>hinoki.toml</code> names the application, where its routes live and which rules it
+runs; each app you create adds its own models, migrations and routes:</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
 <span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span>
+<span class="n">rules</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"notes.rules:project_rules"</span><span class="p">]</span>
 </code></pre></div>
 <p><code>notes/main.py</code> declares the application:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
@@ -365,11 +365,11 @@ create adds its own models, migrations and routes:</p>
     <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="p">)</span>  <span class="c1"># the rules come from `rules` in hinoki.toml</span>
 </code></pre></div>
 <p><code>manifest_routes()</code> reads <code>hinoki.toml</code>, so the application lists no routes of
-its own. Commands read the same file, so inside the project they need no module
+its own, and <code>Hinoki()</code> loads the <code>rules</code> list the same way unless you pass
+<code>rules=</code>. Commands read the same file, so inside the project they need no module
 paths.</p>
 <h2 id="where-the-database-is-configured">Where the database is configured<a class="headerlink" href="#where-the-database-is-configured" title="Permanent link">&para;</a></h2>
 <p>Answering <code>sqlite</code> added one field to <code>notes/settings.py</code>:</p>
@@ -456,7 +456,7 @@ walks through it.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:33:10 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

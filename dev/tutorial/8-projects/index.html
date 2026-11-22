@@ -255,7 +255,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:57:59 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -382,7 +382,6 @@ app never repeat the prefix:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
@@ -391,10 +390,9 @@ app never repeat the prefix:</p>
     <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-    <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="p">)</span>  <span class="c1"># the rules come from `rules` in hinoki.toml</span>
 </code></pre></div>
-<p>The project's rules require every action to name an
+<p>The project's rules (listed in <code>hinoki.toml</code>) require every action to name an
 <code>Access</code> policy with permissions; build one as in <a href="../4-endpoints/">chapter 4</a>.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
@@ -429,7 +427,7 @@ app never repeat the prefix:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:57:59 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

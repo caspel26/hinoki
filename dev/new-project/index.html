@@ -475,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:51:18 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -634,11 +634,13 @@ asked either):</p>
 <p><code>hinoki.toml</code> names the application, so project commands find it on their own.
 <code>notes/main.py</code> binds the routes the manifest lists with
 <code>include=manifest_routes()</code>: <code>project.routes</code> first, then each app's <code>routes</code>
-under its <code>prefix</code>.</p>
+under its <code>prefix</code>. The <code>rules</code> list in the same table is how the application
+gets <code>notes/rules.py</code> (see <a href="../rules/#which-rules-run">which rules run</a>).</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="c1"># hinoki.toml</span>
 <span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
 <span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span>
+<span class="n">rules</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"notes.rules:project_rules"</span><span class="p">]</span>
 </code></pre></div>
 <p>The project package holds no models and registers no app. Models live in apps:
 The last question of <code>hinoki new</code> (or <code>--app billing</code>) creates the first one;
@@ -757,7 +759,7 @@ database</a> lists the URL forms and the connection fields.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:51:18 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/new-project.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
