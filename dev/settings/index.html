@@ -302,6 +302,10 @@
               
             
               
+                <li><a class="side__link" href="../websockets/"><span>WebSockets</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../compression/"><span>Compress responses</span></a></li>
               
             
@@ -467,7 +471,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:22:47 UTC">November 22, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -568,6 +572,42 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>sse_keepalive</code></td>
 <td><code>15.0</code> seconds</td>
 <td>Must be positive; quiet seconds before an <code>EventStream</code> sends a comment (<code>keepalive=None</code> on the stream turns it off)</td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>max_websockets</code></td>
+<td><code>1000</code></td>
+<td><code>1</code> or greater; open <a href="../websockets/">WebSocket</a> connections per worker (Kiso), more are refused with <code>503</code> before the upgrade</td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>ws_max_message_bytes</code></td>
+<td><code>1048576</code> (1 MiB)</td>
+<td><code>1</code> to <code>1073741824</code>; a larger WebSocket message closes the connection with <code>1009</code></td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>ws_queue</code></td>
+<td><code>64</code></td>
+<td><code>1</code> or greater; messages queued in each direction of a WebSocket (Kiso)</td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>ws_ping_interval</code></td>
+<td><code>20.0</code> seconds</td>
+<td>Must be positive, or <code>None</code> to send no pings (Kiso)</td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>ws_pong_timeout</code></td>
+<td><code>20.0</code> seconds</td>
+<td>Must be positive; a peer that does not answer a ping in time is dropped (Kiso)</td>
+</tr>
+<tr>
+<td><code>execution</code></td>
+<td><code>ws_close_timeout</code></td>
+<td><code>5.0</code> seconds</td>
+<td>Must be positive; how long a WebSocket close handshake may take (Kiso)</td>
 </tr>
 <tr>
 <td><code>lifecycle</code></td>
@@ -1124,7 +1164,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:22:47 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

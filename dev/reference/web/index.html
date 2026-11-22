@@ -452,6 +452,28 @@ must exist. Without it, <code>hinoki-rules.toml</code> at the project root is us
 
 
 
+<h3 id="hinoki.app.Hinoki.websockets" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">websockets</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.app.Hinoki.websockets" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">websockets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">WebSocketRoute</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.app.Hinoki.startup_url" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">startup_url</span>
 
@@ -692,6 +714,28 @@ an <code>api()</code> (the admin). Lists and tuples of those are flattened, so a
 feature package can export one <code>routes</code> list, and <code>Mount(prefix, ...)</code>
 places a feature under a path chosen here.</p>
 <p>All-or-nothing per call: on conflict the application is unchanged.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.app.Hinoki.lookup_websocket" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">lookup_websocket</span>
+
+
+<a href="#hinoki.app.Hinoki.lookup_websocket" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">lookup_websocket</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">WebSocketRoute</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The WebSocket action for a path, with its path parameters.</p>
 
 
     </div>
@@ -4441,7 +4485,7 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
           
           
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
-            <ul><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.middleware">middleware</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.resolved_pagination">resolved_pagination</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li></ul>
+            <ul><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.middleware">middleware</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.websockets">websockets</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.lookup_websocket">lookup_websocket</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.resolved_pagination">resolved_pagination</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
