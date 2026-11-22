@@ -1,6 +1,7 @@
 """Apps declare their event handlers in ``hinoki.toml``."""
 
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -10,13 +11,17 @@ from hinoki.events import Handlers
 from hinoki.project import ProjectError, load_manifest, manifest_events
 from hinoki.scaffold import create
 
+_PROJECT_PACKAGES = {"sample", "legacy", "wrongpkg"}
+
 
 @pytest.fixture
-def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     root = create("sample", tmp_path)
     monkeypatch.chdir(root)
     monkeypatch.syspath_prepend(str(root))
-    return root
+    yield root
+    for module in [m for m in sys.modules if m.split(".")[0] in _PROJECT_PACKAGES]:
+        del sys.modules[module]
 
 
 def test_create_with_events_writes_the_module_and_the_manifest_key(
@@ -98,3 +103,20 @@ def test_an_unresolvable_or_wrong_events_target_is_an_error(
     manifest = load_manifest()
     with pytest.raises(ProjectError):
         manifest.event_handlers()
+
+
+@pytest.mark.parametrize("key", ["events", "routes"])
+@pytest.mark.parametrize("bad", ["false", "0"])
+def test_a_non_string_target_is_rejected_even_when_falsy(
+    project: Path, key: str, bad: str
+) -> None:
+    manifest = project / "hinoki.toml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8")
+        + '\n[[apps]]\nname = "a"\nmodels = "sample.models"\n'
+        + f'migrations = "sample.migrations"\n{key} = {bad}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProjectError, match=f"{key} must be a module:attribute"):
+        load_manifest()

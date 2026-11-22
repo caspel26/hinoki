@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from argparse import Namespace
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +12,10 @@ import pytest
 from hinoki import Hinoki, events, http
 from hinoki.db import Database
 from hinoki.errors import EventError, EventRegistrationError, EventTimeout
+from hinoki.management import Command, CommandContext
+from hinoki.modules import ModuleContext
 from hinoki.orm import use_database
+from hinoki.runtime.management import run_command
 from hinoki.settings import EventsSettings
 from hinoki.testing import ASGIClient
 
@@ -319,3 +323,40 @@ def test_settings_validate_the_limits() -> None:
     for bad in ({"handler_timeout": 0}, {"max_handlers": 0}, {"max_depth": 0}):
         with pytest.raises(ValueError, match="must be"):
             EventsSettings(**bad).validate()
+
+
+class EmitFromCommand(Command):
+    name = "emit"
+
+    async def handle(self, _context: CommandContext, _args: Namespace) -> None:
+        await events.emit(Noted("cmd"))
+
+
+async def test_a_command_can_emit_to_sync_handlers() -> None:
+    seen: list[str] = []
+    handlers = events.Handlers()
+
+    @handlers.after_commit(Noted)
+    def record(event: Noted) -> None:
+        seen.append(event.text)
+
+    app = Hinoki(events=[handlers], commands=[EmitFromCommand])
+    assert await run_command(app, app.commands[0], Namespace()) == 0
+    assert seen == ["cmd"]
+
+
+async def test_startup_and_shutdown_hooks_can_emit_to_sync_handlers() -> None:
+    seen: list[str] = []
+    handlers = events.Handlers()
+
+    @handlers.after_commit(Noted)
+    def record(event: Noted) -> None:
+        seen.append(event.text)
+
+    async def hook(_ctx: ModuleContext) -> None:
+        await events.emit(Noted("hook"))
+
+    app = Hinoki(events=[handlers], on_startup=[hook], on_shutdown=[hook])
+    async with ASGIClient(app):
+        assert seen == ["hook"]
+    assert seen == ["hook", "hook"]
