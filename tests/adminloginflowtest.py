@@ -297,7 +297,7 @@ async def test_the_sign_in_route_is_rate_limited(tmp_path: Path) -> None:
     with use_database(database):
         async with ASGIClient(app) as client:  # the test client has no address
             statuses = [
-                (await sign_in(client, "ghost", "x" * 12)).status for _ in range(12)
+                (await sign_in(client, f"ghost{n}", "x" * 12)).status for n in range(12)
             ]
     database.close()
 
