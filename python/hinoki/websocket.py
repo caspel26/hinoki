@@ -1,9 +1,9 @@
-"""WebSocket actions: ``@ws.route("/rooms/{room}")``.
+"""WebSocket actions: ``@http.websocket("/rooms/{room}")``.
 
-    from hinoki import ws
+    from hinoki import http
 
-    @ws.route("/echo")
-    async def echo(socket: ws.Socket) -> None:
+    @http.websocket("/echo")
+    async def echo(socket: http.WebSocket) -> None:
         async for text in socket:
             await socket.send_text(text)
 
@@ -55,7 +55,7 @@ class CloseCode(IntEnum):
     TRY_AGAIN_LATER = 1013
 
 
-class Closed(Exception):
+class WebSocketClosed(Exception):
     """The connection is closed: the peer closed it, the server did (shutdown,
     idle timeout, a limit), or the handler did. ``code`` and ``reason`` are the
     close the connection ended with (``1006`` when it was lost without one)."""
@@ -67,7 +67,7 @@ class Closed(Exception):
 
 
 class Transport(Protocol):
-    """What a server gives a ``Socket``: Kiso's native object, or the ASGI adapter."""
+    """What a server gives a ``WebSocket``: Kiso's object, or the ASGI adapter."""
 
     def receive(self) -> Awaitable[tuple[str, str | bytes] | None]: ...
 
@@ -81,10 +81,10 @@ class Transport(Protocol):
     def closed(self) -> tuple[int, str] | None: ...
 
 
-class Socket:
+class WebSocket:
     """One open WebSocket, as the handler sees it.
 
-    ``receive_*`` wait for the next message and raise ``Closed`` once the
+    ``receive_*`` wait for the next message and raise ``WebSocketClosed`` once the
     connection is over; ``send_*`` wait for room in the bounded outgoing queue.
     ``async for message in socket`` ends when the connection does."""
 
@@ -113,7 +113,7 @@ class Socket:
         kind, payload = await self._next()
         if kind != "text":
             await self.close(CloseCode.UNSUPPORTED_DATA, "text expected")
-            raise Closed(CloseCode.UNSUPPORTED_DATA, "text expected")
+            raise WebSocketClosed(CloseCode.UNSUPPORTED_DATA, "text expected")
         return typing.cast("str", payload)
 
     async def receive_bytes(self) -> bytes:
@@ -121,7 +121,7 @@ class Socket:
         kind, payload = await self._next()
         if kind != "bytes":
             await self.close(CloseCode.UNSUPPORTED_DATA, "binary expected")
-            raise Closed(CloseCode.UNSUPPORTED_DATA, "binary expected")
+            raise WebSocketClosed(CloseCode.UNSUPPORTED_DATA, "binary expected")
         return typing.cast("bytes", payload)
 
     @overload
@@ -166,7 +166,7 @@ class Socket:
         while True:
             try:
                 kind, payload = await self._next()
-            except Closed:
+            except WebSocketClosed:
                 return
             if self.message is None:
                 yield payload
@@ -182,23 +182,27 @@ class Socket:
             raise self._gone()
         return item
 
-    def _gone(self) -> Closed:
+    def _gone(self) -> WebSocketClosed:
         found = self.transport.closed
-        return Closed(*found) if found is not None else Closed()
+        if found is None:
+            return WebSocketClosed()
+        return WebSocketClosed(*found)
 
     async def _decode(self, text: str, schema: type[Schema] | None) -> Any:
         try:
             value = core.decode_json(text.encode())
         except core.JsonDecodeError:
             await self.close(CloseCode.INVALID_DATA, "invalid JSON")
-            raise Closed(CloseCode.INVALID_DATA, "invalid JSON") from None
+            raise WebSocketClosed(CloseCode.INVALID_DATA, "invalid JSON") from None
         if schema is None:
             return value
         try:
             return schema.validate(value)
         except ValidationError:
             await self.close(CloseCode.POLICY_VIOLATION, "invalid message")
-            raise Closed(CloseCode.POLICY_VIOLATION, "invalid message") from None
+            raise WebSocketClosed(
+                CloseCode.POLICY_VIOLATION, "invalid message"
+            ) from None
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,7 +248,7 @@ def websocket_of(obj: object) -> WebSocketRoute | None:
     return found if found.handler is obj else replace(found, handler=obj)
 
 
-def route(  # noqa: PLR0913 - one keyword per documented option
+def websocket(  # noqa: PLR0913 - one keyword per documented option
     path: str,
     *,
     access: Access | None = None,
@@ -372,7 +376,7 @@ def bind_signature(
     params: list[Param] = []
     for name, parameter in inspect.signature(fn).parameters.items():
         hint = hints.get(name, str)
-        if hint is Socket:
+        if hint is WebSocket:
             socket = name
         elif typing.get_origin(hint) is Caller or hint is Caller:
             caller = name
@@ -380,7 +384,7 @@ def bind_signature(
             params.append(scalar_param(fn, name, hint, parameter, name in in_path))
     if socket is None:
         raise RegistrationError(
-            f"{fn.__qualname__} needs a parameter annotated ws.Socket"
+            f"{fn.__qualname__} needs a parameter annotated http.WebSocket"
         )
     if caller is not None and access is None and not any(a for _, a in subprotocols):
         raise RegistrationError(

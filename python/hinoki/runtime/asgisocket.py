@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from hinoki.runtime.requests import Scope
-from hinoki.ws import CloseCode, WebSocketRoute
+from hinoki.websocket import CloseCode, WebSocketRoute
 
 
 class ASGITransport:

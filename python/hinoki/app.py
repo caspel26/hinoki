@@ -69,7 +69,7 @@ from hinoki.settings import (
 )
 from hinoki.utils import Clock, _read_utc, utc_now, utc_today
 from hinoki.waivers import EXPIRED, WaiverError, apply_waivers, read_waivers
-from hinoki.ws import WebSocketRoute, websocket_of
+from hinoki.websocket import WebSocketRoute, websocket_of
 
 
 def check_startup_url(value: str | None) -> str | None:

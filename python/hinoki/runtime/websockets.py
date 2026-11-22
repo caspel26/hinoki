@@ -19,12 +19,12 @@ from hinoki.auth import Caller
 from hinoki.runtime.binding import parse_query
 from hinoki.runtime.requests import authorize
 from hinoki.runtime.responses import HTTPError
-from hinoki.ws import (
+from hinoki.websocket import (
     CloseCode,
-    Closed,
     Param,
-    Socket,
     Transport,
+    WebSocket,
+    WebSocketClosed,
     WebSocketRoute,
     convert,
 )
@@ -108,8 +108,9 @@ async def run(
     route: WebSocketRoute, transport: Transport, admitted: Admitted, path: str
 ) -> None:
     """Run the handler, then close with the code that fits how it ended: 1000 on
-    return, 1011 when it raised. A peer that went away (``Closed``) is no error."""
-    socket = Socket(
+    return, 1011 when it raised. A peer that went away (``WebSocketClosed``) is
+    no error."""
+    socket = WebSocket(
         transport,
         path=path,
         subprotocol=admitted.subprotocol,
@@ -119,7 +120,7 @@ async def run(
     code, reason = CloseCode.NORMAL, ""
     try:
         await route.handler(**admitted.kwargs, **{route.socket: socket})
-    except Closed:
+    except WebSocketClosed:
         pass
     except asyncio.CancelledError:
         raise

@@ -94,7 +94,7 @@ from hinoki.runtime.websockets import admit as admit_handshake
 from hinoki.runtime.websockets import run as run_session
 from hinoki.schema import Schema, encode
 from hinoki.settings import AppSettings, SecuritySettings
-from hinoki.ws import Transport, WebSocketRoute
+from hinoki.websocket import Transport, WebSocketRoute
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
