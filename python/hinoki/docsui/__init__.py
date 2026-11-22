@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from functools import cache
+from html import escape
 from pathlib import Path
 
 from hinoki import jsontext
@@ -44,6 +45,7 @@ def asset(name: str) -> str:
 
 
 def swagger_html(base: str) -> str:
+    base = escape(base)
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -56,6 +58,7 @@ def swagger_html(base: str) -> str:
 
 
 def redoc_html(base: str) -> str:
+    base = escape(base)
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'

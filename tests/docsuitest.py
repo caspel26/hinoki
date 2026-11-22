@@ -2,12 +2,13 @@
 
 import hashlib
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from hinoki import Hinoki, Request, http
-from hinoki.docsui import STATIC, asset
+from hinoki.docsui import STATIC, asset, redoc_html, swagger_html
 from tests.harness import Client, Pool
 
 
@@ -109,3 +110,12 @@ def test_vendored_files_match_the_recorded_hashes() -> None:
     assert (STATIC / "LICENSE-swagger-ui").is_file() and (
         STATIC / "LICENSE-redoc"
     ).is_file()
+
+
+@pytest.mark.parametrize("page", [swagger_html, redoc_html])
+def test_a_documentation_url_cannot_break_out_of_the_page_attribute(
+    page: Callable[[str], str],
+) -> None:
+    html = page('/d"><script>alert(1)</script>')
+    assert "<script>alert" not in html
+    assert "&quot;&gt;&lt;script&gt;" in html
