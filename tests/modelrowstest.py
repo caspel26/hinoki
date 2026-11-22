@@ -198,6 +198,60 @@ async def test_joined_and_custom_models_keep_the_python_path(
     assert all(item.__dict__[SNAPSHOT] for item in joined)
 
 
+async def test_joined_rows_are_built_natively_like_build(
+    database: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seed()
+    await Item(label="loose", count=9, shelf_id=None).insert()
+    query = Item.all().select_related("shelf").order_by("count")
+    sql, params = query.compile(dialect=database.dialect)
+    expected = [query.build(row) for row in await database.fetch(sql, *params)]
+    native_calls: list[str] = []
+    original = Database.fetch_models
+
+    async def spy(
+        self: Database, sql: str, params: list[Any], plan: core._ModelRows
+    ) -> list[Any]:
+        native_calls.append(sql)
+        return await original(self, sql, params, plan)
+
+    monkeypatch.setattr(Database, "fetch_models", spy)
+    native = await query
+
+    assert native_calls == [sql]
+    assert len(native) == 4
+    for found, wanted in zip(native, expected, strict=True):
+        assert found == wanted
+        assert list(found.__dict__) == list(wanted.__dict__)
+        assert found.__dict__ == wanted.__dict__
+        shelf, wanted_shelf = found.related("shelf"), wanted.related("shelf")
+        assert shelf == wanted_shelf
+        if shelf is not None:
+            assert shelf.__dict__ == wanted_shelf.__dict__
+            assert not shelf.is_dirty
+        assert not found.is_dirty
+    assert native[-1].related("shelf") is None
+    assert native[0].related("shelf").name == "top"
+
+
+async def test_a_related_model_with_a_patched_hook_keeps_the_python_path(
+    database: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seed()
+    assert len(await Item.all().select_related("shelf")) == 3
+    seen: list[dict[str, Any]] = []
+    original = Shelf.from_row.__func__  # type: ignore[attr-defined]
+
+    def spy(cls: type[Shelf], row: dict[str, Any]) -> Shelf:
+        seen.append(row)
+        return original(cls, row)  # type: ignore[no-any-return]
+
+    monkeypatch.setattr(Shelf, "from_row", classmethod(spy))
+    joined = await Item.all().select_related("shelf")
+    assert [item.related("shelf").name for item in joined] == ["top"] * 3
+    assert len(seen) == 3
+
+
 def test_row_plan_is_cached_per_class() -> None:
     first = Item.row_plan()
     assert isinstance(first, core._ModelRows)
