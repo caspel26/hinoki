@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -472,7 +476,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>12 min read</span>
+            <span>14 min read</span>
           </p>
           
         </header>
@@ -483,6 +487,11 @@
 <p><code>python/hinoki/openapi.py</code>, <code>python/hinoki/app.py</code>, <code>python/hinoki/settings.py</code>, <code>python/hinoki/ai/openapidiff.py</code>, <code>python/hinoki/ai/mcp.py</code>, <code>python/hinoki/ai/mcpapp.py</code>, <code>python/hinoki/docsui/</code></p>
 </blockquote>
 <p>The generated document is now OpenAPI <code>3.2.0</code>, and an <code>@http.query</code> action is written as the path item's <code>query</code> operation instead of the <code>x-query</code> extension. <code>Hinoki(openapi_version="3.1")</code> or <code>docs.openapi_version = "3.1"</code> keeps a <code>3.1.0</code> document with <code>x-query</code>; nothing else in the document differs. <code>hinoki openapi --breaking-against</code> treats <code>x-query</code> and <code>query</code> as the same operation, so a 3.1 baseline compares with a 3.2 document. The bundled viewers are now Swagger UI 5.35.1 and ReDoc 3.2.0, since the previous 5.17.14 and 2.1.5 refused a 3.2 document; ReDoc 3 is served as a JavaScript module. Some third-party tools read only 3.1 (<code>@apidevtools/swagger-parser</code> 13.1.0 rejects every 3.2 document), so set <code>openapi_version</code> to <code>3.1</code> for them. See <a href="docs/openapi.md#the-document-version">the document version</a>.</p>
+<h4>📣 Typed events</h4>
+<blockquote>
+<p><code>python/hinoki/events.py</code>, <code>python/hinoki/eventscli.py</code>, <code>python/hinoki/project.py</code>, <code>python/hinoki/projectcli.py</code>, <code>python/hinoki/settings.py</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/requests.py</code>, <code>python/hinoki/runtime/lifespan.py</code>, <code>python/hinoki/runtime/kiso.py</code>, <code>crates/kiso/src/metrics.rs</code>, <code>crates/bindings/src/metrics.rs</code>, <code>crates/bindings/src/kiso.rs</code></p>
+</blockquote>
+<p><code>events.Handlers</code> registers handlers by event class: <code>@handlers.in_transaction(E)</code> (async, runs in the writer's transaction and can roll it back) and <code>@handlers.after_commit(E)</code> (runs after the outermost commit, failures are logged and never propagated). Applications list their collections in <code>Hinoki(events=[...])</code> or declare <code>events = "module:attribute"</code> per app in <code>hinoki.toml</code> (<code>manifest_events()</code>, <code>hinoki app create --events</code>, <code>hinoki app add --events</code>). Order is deterministic; each handler has a timeout, and handlers per event and nested depth are bounded (<code>events</code> settings). <code>Created[M]</code>, <code>Updated[M]</code> and <code>Deleted[M]</code> are emitted by the model write paths (<code>acreate</code>, <code>asave</code>, the bulk methods, <code>adelete</code> and generated CRUD) only when a handler or <code>capture()</code> listens; an <code>in_transaction</code> handler makes the write transactional so it can roll it back, bulk and filter UPDATEs (<code>QuerySet.aupdate</code>) emit nothing, and a model with a handler for one of them leaves the native lane for the matching generated create, update or delete (reason <code>model_event_handlers</code>). Nothing registers by import and delivery stays inside one worker: no queue, no retry. <code>AuthRejected</code> (<code>missing</code>, <code>invalid</code> or <code>forbidden</code>, route template and method) and <code>RateLimited</code> (policy class name, route template, <code>retry_after</code>) are emitted when an access policy or a rate-limit policy refuses a request, from the one place each decision is made; they take <code>after_commit</code> handlers only (<code>in_transaction</code> is refused at registration), carry no credential, caller, address or raw path, cannot change the response, are bounded by <code>events.handler_timeout</code>, and cost nothing without a handler. While a handler listens for <code>AuthRejected</code>, Kiso leaves native authentication of those routes to Python (reason <code>auth_event_handlers</code> for generated CRUD). <code>hinoki events</code> lists the registered handlers, the limits and the apps' <code>events</code> targets. Worker lifecycle events are not included (use <code>on_startup</code> and <code>on_shutdown</code>). With <code>metrics.listen</code> on Kiso, every handler run is counted in <code>hinoki_events_total{event,phase,outcome}</code> and timed in <code>hinoki_event_handler_duration_seconds{event,phase}</code>; the series are fixed at startup from the registered handlers, so no label comes from a payload, and a bus without metrics pays one <code>None</code> check per run. See <a href="docs/events.md#authentication-and-rate-limit-events">Events</a> and <a href="docs/metrics.md#event-handlers">Metrics</a>.</p>
 <h4>🔌 WebSockets</h4>
 <blockquote>
 <p><code>crates/kiso/src/ws.rs</code>, <code>crates/kiso/src/wsrun.rs</code>, <code>crates/bindings/src/websocket.rs</code>, <code>crates/bindings/src/server.rs</code>, <code>python/hinoki/websocket.py</code>, <code>python/hinoki/runtime/websockets.py</code>, <code>python/hinoki/runtime/asgisocket.py</code>, <code>python/hinoki/openapi.py</code>, <code>python/hinoki/settings.py</code></p>

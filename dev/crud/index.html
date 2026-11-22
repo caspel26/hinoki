@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -680,7 +684,7 @@
 <p>At declaration Hinoki rejects abstract models, unknown schema fields, unsafe nullable fields, missing required create values, update schemas that can overwrite omitted fields, primary-key updates, unknown assigned columns and incompatible derived schemas. <code>only=</code> and <code>exclude=</code> schemas remain subject to the same checks.</p>
 <p>A stored row that the <code>read=</code> schema refuses (for example a <code>max_length</code> that the data exceeds) is a server fault: the action answers <code>500</code>, the response does not repeat the stored values, and the server log names the model, the read schema, the field and the code. Client input that fails a create or update schema answers <code>422</code>. A create that breaks a unique constraint answers <code>409 unique_conflict</code> unless an error handler you register says otherwise.</p>
 <h2 id="model-hooks-and-kiso">Model hooks and Kiso<a class="headerlink" href="#model-hooks-and-kiso" title="Permanent link">&para;</a></h2>
-<p>Generated create and PATCH update write through the model, so its <a href="../model-hooks/">lifecycle hooks</a> run: create calls <code>acreate</code>, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (<code>403</code>/<code>404</code>). A model that defines any of <code>before_save</code>, <code>before_create</code>, <code>after_create</code> or <code>after_save</code> is not eligible for the native create and update routes; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.</p>
+<p>Generated create and PATCH update write through the model, so its <a href="../model-hooks/">lifecycle hooks</a> run: create calls <code>acreate</code>, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (<code>403</code>/<code>404</code>). A model that defines any of <code>before_save</code>, <code>before_create</code>, <code>after_create</code> or <code>after_save</code> is not eligible for the native create and update routes; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks. A handler registered for the model's <code>Created</code>, <code>Updated</code> or <code>Deleted</code> <a href="../events/#model-events">event</a> likewise moves only the matching action (<code>create</code>, <code>update</code>, <code>delete</code>) to the Python lane, where the event is emitted; update then saves the instance with the scoped UPDATE, as it does for hooks.</p>
 <p>On Kiso, eligible generated routes execute in Rust when their schemas and model are supported and the resource has no access policy (other than an unmodified <code>ClaimsJWTAuth</code>), owner or assignment rule (other than <code>identity_key=caller_id</code>) or custom hook. Ineligible and stale plans use the Python lane. See <a href="../kiso/#generated-crud">Kiso: generated CRUD</a>; no switch is required.</p>
 <h2 id="inspect-the-generated-routes">Inspect the generated routes<a class="headerlink" href="#inspect-the-generated-routes" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>routes<span class="w"> </span>--path<span class="w"> </span>/billing/invoices
@@ -723,7 +727,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

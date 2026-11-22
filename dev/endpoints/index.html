@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -680,6 +684,7 @@
 <p><code>RateLimitContext</code> holds only <code>method</code>, <code>route</code> (the path template), <code>client</code> (the trusted client address, <code>None</code> when unknown; a forwarded address counts only from a configured trusted proxy), <code>caller</code> (the authenticated <code>Caller</code>, <code>None</code> on a public route) and <code>resource(kind)</code>, which returns the worker-owned resource that a <a href="../modules/">module</a> provided, such as a Redis client or the <code>Database</code>. It carries no headers, credentials, body or query values.</p>
 <p>The refusal is <code>errors.TooManyRequests(retry_after)</code>: status 429, code <code>rate_limited</code>, and <code>Retry-After</code> set to <code>retry_after</code>, a whole number of seconds from 1 to 86,400 (anything else is refused when the error is created). The route documents it in OpenAPI by itself, with <code>Retry-After</code> as a required integer header. Only that error answers 429. Any other exception from the policy or its store, including a <code>TooManyRequests</code> that was built without its constructor, is answered <code>503 rate_limit_unavailable</code>: the request is refused rather than allowed unchecked, the answer and the log name the route and never the exception, and the application's error handlers and debug output never see it. Cancellation is not caught.</p>
 <p>Limiting failed credentials of a <code>BearerAuth</code> provider belongs in that provider, because authentication runs first.</p>
+<p>A refusal emits a <code>RateLimited</code> <a href="../events/#authentication-and-rate-limit-events">event</a> (policy class name, route template, <code>retry_after</code>; no key, caller or address) when the application has a handler for it. A handler cannot change the <code>429</code>.</p>
 <h3 id="the-response-is-checked-against-the-annotation">The response is checked against the annotation<a class="headerlink" href="#the-response-is-checked-against-the-annotation" title="Permanent link">&para;</a></h3>
 <p>Every action's return value is checked against its return annotation, and the annotation itself is checked when the app starts. There is nothing to switch on.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
@@ -729,7 +734,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:28:13 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

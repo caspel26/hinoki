@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:51:18 UTC">November 22, 2026</span></span>
-            <span>24 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
+            <span>25 min read</span>
           </p>
           
         </header>
@@ -521,7 +525,7 @@ Granian instead when you need an ASGI wrapper around the application
 <p><code>hinoki routes --lanes</code> shows, per route, whether Kiso runs it natively and, if
 not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 <h2 id="generated-crud">Generated CRUD<a class="headerlink" href="#generated-crud" title="Permanent link">&para;</a></h2>
-<p>Generated CRUD plans can also execute public <code>create</code> (<code>POST</code>), <code>update</code> (<code>PATCH</code>) and <code>delete</code> actions in Rust. These routes use the native path only when their model and schemas are supported and they have no assignment rule or custom CRUD hook (an <code>owner</code> is allowed only with <code>identity_key = caller_id</code>, a text non-key column outside the update schema, on any supported database), and their access policy, if any, uses an unmodified <a href="../authentication/#claims-only-tokens-on-the-native-lane"><code>ClaimsJWTAuth</code></a>. Rust reads and validates the bounded request body, runs the database transaction, fetches the written row where the response requires it, and encodes the response before commit. Writes continue to completion if the client disconnects. A unique-constraint violation returns <code>409 Conflict</code> by default; a registered application error handler takes precedence. Routes that are ineligible or become stale use the ordinary Python CRUD pipeline. Plans are selected automatically at worker startup and checked once per second; a changed plan is disarmed until the worker restarts. This path adds no public setting.</p>
+<p>Generated CRUD plans can also execute public <code>create</code> (<code>POST</code>), <code>update</code> (<code>PATCH</code>) and <code>delete</code> actions in Rust. These routes use the native path only when their model and schemas are supported and they have no assignment rule or custom CRUD hook (an <code>owner</code> is allowed only with <code>identity_key = caller_id</code>, a text non-key column outside the update schema, on any supported database), and their access policy, if any, uses an unmodified <a href="../authentication/#claims-only-tokens-on-the-native-lane"><code>ClaimsJWTAuth</code></a>. Rust reads and validates the bounded request body, runs the database transaction, fetches the written row where the response requires it, and encodes the response before commit. Writes continue to completion if the client disconnects. A unique-constraint violation returns <code>409 Conflict</code> by default; a registered application error handler takes precedence. Routes that are ineligible or become stale use the ordinary Python CRUD pipeline. A model with a handler for <code>Created</code>, <code>Updated</code> or <code>Deleted</code> (<a href="../events/#model-events">model events</a>) is ineligible for the matching action only, reason <code>model_event_handlers</code>. Plans are selected automatically at worker startup and checked once per second; a changed plan is disarmed until the worker restarts. This path adds no public setting.</p>
 <p>The measured phase 1 path is documented in the <a href="../rust-crud-orientation/">native CRUD orientation run</a>. It is a single-host, workload-specific measurement and does not establish general or production performance.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
@@ -639,7 +643,7 @@ reloaded 4 workers (generation 2)
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:51:18 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

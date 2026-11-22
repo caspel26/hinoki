@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></span>
-            <span>5 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -547,6 +551,18 @@ hinoki_http_requests_in_flight{worker="0"} 0
 <td><code>invalid_response</code>: the backend's answer could not be sent as given and became a <code>500</code>. <code>stream_aborted</code>: a stream failed after its head</td>
 </tr>
 <tr>
+<td><code>hinoki_events_total</code></td>
+<td>counter</td>
+<td><code>event</code>, <code>phase</code>, <code>outcome</code></td>
+<td><a href="../events/#metrics">Event handler</a> runs. <code>outcome</code> is <code>ok</code>, <code>error</code> or <code>timeout</code></td>
+</tr>
+<tr>
+<td><code>hinoki_event_handler_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>event</code>, <code>phase</code></td>
+<td>Time a handler ran, whatever its outcome</td>
+</tr>
+<tr>
 <td><code>hinoki_build_info</code></td>
 <td>gauge</td>
 <td><code>version</code>, <code>server</code></td>
@@ -573,6 +589,18 @@ hinoki_http_requests_in_flight{worker="0"} 0
 <li>Bytes are counted as the pieces are handed to the connection: a stream's pieces one by one, a <code>File</code> as it is read, a compressed body at its compressed size. A <code>HEAD</code> counts none. The exposition itself is never compressed and never counted.</li>
 </ul>
 <p>The duration buckets are <code>0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10</code> seconds. Set <code>metrics.buckets</code> to change them.</p>
+<h2 id="event-handlers">Event handlers<a class="headerlink" href="#event-handlers" title="Permanent link">&para;</a></h2>
+<p>The two event families exist only when the application registers <a href="../events/">event handlers</a>. Their series are created at startup, one per registered (event, phase) pair (<code>Created[Note]</code>, <code>after_commit</code>), in a fixed table in Rust; Python records each run with one call that adds to a counter and a histogram bucket, so nothing grows with traffic and no label comes from a payload. The histogram uses the same buckets as the request duration. A series with no run yet is not printed. Handler runs of events emitted inside a request, a startup hook or a command are all counted by the worker that ran them, under the same <code>worker</code> label; the table is built from the handlers of the Hinoki application served by the ASGI path of Kiso; Kiso's WSGI mode records none.</p>
+<p>Example from a real run (three emits of an event with an <code>ok</code>, a failing and a timed-out handler, <code>events.handler_timeout=0.05</code>):</p>
+<div class="language-text highlight"><pre><span></span><code>hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="ok",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="error",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="timeout",worker="0"} 3
+hinoki_event_handler_duration_seconds_bucket{event="NoteSaved",phase="after_commit",le="0.05",worker="0"} 6
+hinoki_event_handler_duration_seconds_bucket{event="NoteSaved",phase="after_commit",le="0.1",worker="0"} 9
+hinoki_event_handler_duration_seconds_sum{event="NoteSaved",phase="after_commit",worker="0"} 0.153349
+hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commit",worker="0"} 9
+</code></pre></div>
+<p>Measured cost of recording on one Apple-silicon laptop (an <code>after_commit</code> handler that returns at once, 200,000 emits per sample, 15 interleaved samples per variant, medians over three runs): about 3.3 µs per emit with metrics off and 3.4 to 3.5 µs with them on, that is roughly 50 to 110 ns (about 2 %) more; the extension was a debug build. A handler that does real work makes the share smaller.</p>
 <h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -644,12 +672,12 @@ hinoki_http_requests_in_flight{worker="0"} 0
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-is-exported">What is exported</a></li><li><a href="#settings">Settings</a></li><li><a href="#several-workers">Several workers</a></li><li><a href="#what-it-does-not-cover">What it does not cover</a></li></ul>
+            <ul><li><a href="#what-is-exported">What is exported</a></li><li><a href="#event-handlers">Event handlers</a></li><li><a href="#settings">Settings</a></li><li><a href="#several-workers">Several workers</a></li><li><a href="#what-it-does-not-cover">What it does not cover</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/metrics.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

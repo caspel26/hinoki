@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -703,6 +707,7 @@ that lacks the permission it is <code>403</code>.</p>
 <li><code>JWTAuth</code> leeway must be 0–120 seconds; another value fails when the provider is built.</li>
 <li>Providers hold no per-request state: one instance serves every request and worker thread.</li>
 <li>Hinoki does not create users, sessions or permission rules: those remain your application's data and policy.</li>
+<li>A refusal by an access policy emits an <code>AuthRejected</code> <a href="../events/#authentication-and-rate-limit-events">event</a> (<code>missing</code>, <code>invalid</code> or <code>forbidden</code>, the route template and the method; never credentials or the requested path) when the application has a handler for it. The handler cannot change the answer. On Kiso, a route that Rust would authenticate is authenticated by Python while such a handler is registered, so the event can fire.</li>
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
@@ -739,7 +744,7 @@ that lacks the permission it is <code>403</code>.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

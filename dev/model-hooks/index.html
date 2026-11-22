@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,8 +475,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:15:13 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
+            <span>3 min read</span>
           </p>
           
         </header>
@@ -564,6 +568,11 @@ them; an exception in one is logged and does not undo the commit. See
 <ul>
 <li>Hooks belong to instances: <code>QuerySet.aupdate</code>, <code>adelete</code>, <code>Model.aupdate</code>,
   <code>aupdate_where</code> and raw SQL do not run them.</li>
+<li>Events complete hooks for code that is not the model: <code>Created</code>, <code>Updated</code>
+  and <code>Deleted</code> <a href="../events/#model-events">model events</a> fire from the same
+  writes (and from <code>adelete</code>), with handlers registered per application
+  instead of overridden on the class. <code>after_commit</code> on a model and
+  <code>db.after_commit</code> keep working unchanged.</li>
 <li>Sync hooks run inline on the event loop: keep them short and use
   <code>async def</code> for I/O.</li>
 <li><code>is_new</code>, <code>is_dirty</code>, <code>changes</code>, <code>was_changed</code>, <code>after_commit</code> and the four
@@ -591,7 +600,7 @@ them; an exception in one is logged and does not undo the commit. See
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../queries/"><small>Previous</small><span>Query and write rows</span></a>
-        <a class="pager__link pager__link--next" href="../migrations/"><small>Next</small><span>Migrations</span></a>
+        <a class="pager__link pager__link--next" href="../events/"><small>Next</small><span>Events</span></a>
       </nav>
     </main>
 
@@ -608,7 +617,7 @@ them; an exception in one is logged and does not undo the commit. See
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:15:13 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-hooks.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

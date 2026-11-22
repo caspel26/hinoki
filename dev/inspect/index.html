@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:16:30 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -581,6 +585,15 @@ the reason. The access log's <code>lane</code> field means something narrower: a
 for a <code>native</code> route here still logs <code>python</code> unless Rust runs a generated CRUD
 plan for it. JSON always has <code>method</code>, <code>path</code>, <code>handler</code>, <code>access</code>, <code>status</code>,
 <code>lane</code> and <code>lane_reason</code>.</p>
+<h2 id="events">List event handlers with <code>events</code><a class="headerlink" href="#events" title="Permanent link">&para;</a></h2>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>events
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>events<span class="w"> </span>notes.main:app<span class="w"> </span>--format<span class="w"> </span>json
+</code></pre></div>
+<p>Prints each registered <a href="../events/#seeing-what-is-registered">event handler</a> in
+execution order (event, phase, collection, <code>async</code> or <code>sync</code>, handler), the
+<code>events</code> limits, and the <code>events</code> target each app declares in <code>hinoki.toml</code>.
+<code>--format json</code> has <code>handlers</code>, <code>limits</code> and <code>apps</code>. It reads the application
+and the manifest only; an unloadable target exits 2.</p>
 <h2 id="openapi">Export the OpenAPI document with <code>openapi</code><a class="headerlink" href="#openapi" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>--output<span class="w"> </span>openapi.json
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>openapi<span class="w"> </span>--check<span class="w"> </span>openapi.json
@@ -649,12 +662,12 @@ values with no printable default (secrets, unset values). See
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#doctor">Diagnose a project with doctor</a></li><li><a href="#check">Check the rules with check</a></li><li><a href="#routes">List routes with routes</a></li><li><a href="#openapi">Export the OpenAPI document with openapi</a></li><li><a href="#settings">Show settings with settings</a></li><li><a href="#version">Report versions with version</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#doctor">Diagnose a project with doctor</a></li><li><a href="#check">Check the rules with check</a></li><li><a href="#routes">List routes with routes</a></li><li><a href="#events">List event handlers with events</a></li><li><a href="#openapi">Export the OpenAPI document with openapi</a></li><li><a href="#settings">Show settings with settings</a></li><li><a href="#version">Report versions with version</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 19:16:30 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/inspect.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

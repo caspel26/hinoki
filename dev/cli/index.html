@@ -238,6 +238,10 @@
               
             
               
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
               
             
@@ -471,7 +475,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -536,6 +540,12 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <td><code>hinoki routes</code></td>
 <td>Every route with its access policy and server lane.</td>
 <td><a href="../inspect/#routes">Inspect</a></td>
+</tr>
+<tr>
+<td></td>
+<td><code>hinoki events</code></td>
+<td>Every event handler in execution order, the event limits and the apps' <code>events</code> targets.</td>
+<td><a href="../inspect/#events">Inspect</a></td>
 </tr>
 <tr>
 <td></td>
@@ -623,12 +633,12 @@ hinoki<span class="w"> </span>completion<span class="w"> </span>fish<span class=
 </code></pre></div>
 <p>This creates <code>NAME/apps/billing/{models.py,routes.py,migrations/}</code> and registers the model, migration and routes modules in <code>hinoki.toml</code> (<code>routes = "NAME.apps.billing.routes:routes"</code>, <code>prefix = "/billing"</code>). Cross-app foreign keys require the referencing app to list the referenced app in <code>requires</code> in <code>hinoki.toml</code>; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.</p>
 <p>Both commands report <code>hinoki.toml</code>: <code>hinoki new</code> lists it among the generated files and <code>app create</code> says it registered the app there.</p>
-<p><code>--prefix</code> and <code>--requires</code> (comma-separated) set the mount prefix and dependencies directly. In a terminal, <code>app create</code> asks for whatever is not given — the name, the prefix (default <code>/NAME</code>) and, when other apps exist, <code>requires</code> — with the same prompts, Esc-to-cancel (exit 130, nothing created) and <code>NO_COLOR</code> handling as <code>hinoki new</code>. Without a terminal or with <code>--no-input</code> it never asks: the name is required (exit 2) and the defaults are <code>/NAME</code> and no <code>requires</code>.</p>
+<p><code>--prefix</code> and <code>--requires</code> (comma-separated) set the mount prefix and dependencies directly. <code>--events</code> also writes <code>events.py</code> with an empty <code>Handlers</code> and sets the app's <code>events</code> key (see <a href="../events/#declaring-handlers-in-hinokitoml">Events</a>). In a terminal, <code>app create</code> asks for whatever is not given — the name, the prefix (default <code>/NAME</code>) and, when other apps exist, <code>requires</code> — with the same prompts, Esc-to-cancel (exit 130, nothing created) and <code>NO_COLOR</code> handling as <code>hinoki new</code>. Without a terminal or with <code>--no-input</code> it never asks: the name is required (exit 2) and the defaults are <code>/NAME</code> and no <code>requires</code>.</p>
 <p>To register a package that already exists, name its modules. Nothing is created or imported; only <code>hinoki.toml</code> changes:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>billing<span class="w"> </span>--models<span class="w"> </span>legacy.billing.models
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>invoices<span class="w"> </span>--models<span class="w"> </span>legacy.invoices.models<span class="w"> </span>--migrations<span class="w"> </span>legacy.db.invoices<span class="w"> </span>--routes<span class="w"> </span>legacy.invoices.routes:routes<span class="w"> </span>--prefix<span class="w"> </span>/invoices<span class="w"> </span>--requires<span class="w"> </span>billing
 </code></pre></div>
-<p><code>--migrations</code> defaults to the <code>migrations</code> package next to the models module (<code>legacy.billing.migrations</code>); a models module without a parent package needs it explicitly. <code>--prefix</code> defaults to <code>/NAME</code> once <code>--routes</code> is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic <code>--requires</code>, or a malformed module name leaves <code>hinoki.toml</code> untouched and exits 2. Whether the modules import is checked later, when a command such as <code>hinoki migrations plan</code> loads the app.</p>
+<p><code>--migrations</code> defaults to the <code>migrations</code> package next to the models module (<code>legacy.billing.migrations</code>); <code>--events module:attribute</code> registers the app's event <code>Handlers</code>; a models module without a parent package needs it explicitly. <code>--prefix</code> defaults to <code>/NAME</code> once <code>--routes</code> is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic <code>--requires</code>, or a malformed module name leaves <code>hinoki.toml</code> untouched and exits 2. Whether the modules import is checked later, when a command such as <code>hinoki migrations plan</code> loads the app.</p>
 <p>List the registered apps from the project root or any subdirectory:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>app<span class="w"> </span>list<span class="w"> </span>--format<span class="w"> </span>json
@@ -791,7 +801,7 @@ its target when you run the command from the <code>examples/</code> project dire
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:06:00 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
