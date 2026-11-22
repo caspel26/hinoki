@@ -5,9 +5,11 @@ and refresh the hashes (a test compares them).
 
 | File | Project | Version | Licence | sha256 |
 | --- | --- | --- | --- | --- |
-| `swagger-ui-bundle.js`, `swagger-ui.css` | [Swagger UI](https://github.com/swagger-api/swagger-ui) (`swagger-ui-dist`) | 5.17.14 | Apache-2.0 (`LICENSE-swagger-ui`) | `c2e4a9ef08144839ff47c14202063ecfe4e59e70a4e7154a26bd50d880c88ba1`, `40170f0ee859d17f92131ba707329a88a070e4f66874d11365e9a77d232f6117` |
-| `redoc.standalone.js` | [ReDoc](https://github.com/Redocly/redoc) | 2.1.5 | MIT (`LICENSE-redoc`) | `be5c3330c8c35b8fceb29a5b7552ad45bffc2fd9494fe2e1a82fa94179eb5f8f` |
+| `swagger-ui-bundle.js`, `swagger-ui.css` | [Swagger UI](https://github.com/swagger-api/swagger-ui) (`swagger-ui-dist`) | 5.35.1 | Apache-2.0 (`LICENSE-swagger-ui`) | `d0e0bee93732408c91fbad05cb0c2812e9ad37e94d12799c5503a9fe7afa2b82`, `5ed08757e53da3e026d6cbecc61fe5d43585c9560b302d534ad56692519a273d` |
+| `redoc.standalone.js` | [ReDoc](https://github.com/Redocly/redoc) | 3.2.0 | MIT (`LICENSE-redoc`) | `c82174cbccc3a141f8d8fc7722dbb9e73cc70716b46ba3c897bc4bce06ece1b6` |
 
-Obtained from the jsDelivr copies of the npm packages on 2026-11-13. Both bundles
-contain further third-party code under their own licences, listed in the
-upstream packages.
+Obtained from the npm packages `swagger-ui-dist` and `redoc` on 2026-11-22. Both
+bundles contain further third-party code under their own licences, listed in the
+upstream packages. Swagger UI 5.35.1 and ReDoc 3.2.0 read OpenAPI 3.2 documents;
+the earlier 5.17.14 and 2.1.5 refuse them. ReDoc 3 is an ES module (`export { init }`),
+so its page loads it with `type="module"`.

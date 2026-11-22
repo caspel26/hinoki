@@ -38,7 +38,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Middleware](middleware.md): typed `Middleware` around an action or the whole app, identical on Kiso and Granian.
 - [Pagination](pagination.md): page-number pagination with `PageNumberPagination` and keyset cursors with `CursorPagination`.
 - [Parsers and renderers](codecs.md): other body formats in and out.
-- [OpenAPI document](openapi.md): the OpenAPI 3.1 document generated from routes, signatures and `Schema` declarations.
+- [OpenAPI document](openapi.md): the OpenAPI 3.2 document (3.1 on request) generated from routes, signatures and `Schema` declarations.
 
 ## Security and checks
 

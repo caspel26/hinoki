@@ -11,7 +11,7 @@ from datetime import UTC, datetime, tzinfo
 from functools import partial
 from pathlib import Path
 from types import FrameType, ModuleType
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from hinoki.api import API
@@ -23,7 +23,7 @@ from hinoki.fields import UNSET, Unset
 from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
-from hinoki.openapi import OpenAPIBuilder, documented
+from hinoki.openapi import SPEC_VERSIONS, OpenAPIBuilder, documented
 from hinoki.pagination import (
     DEFAULT_MAX_PAGE_SIZE,
     DEFAULT_PAGE_SIZE,
@@ -182,6 +182,7 @@ class Hinoki:
         openapi_url: str | Unset | None = UNSET,
         docs_url: str | Unset | None = UNSET,
         redoc_url: str | Unset | None = UNSET,
+        openapi_version: Literal["3.1", "3.2"] | None = None,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
         waivers: str | Path | None = None,
@@ -199,7 +200,9 @@ class Hinoki:
         self.settings = settings
         self.middleware = check_middleware(middleware)
         self._configure_runtime(built_in, runtime)
-        self._configure_docs(docs, title, version, openapi_url, docs_url, redoc_url)
+        self._configure_docs(
+            docs, title, version, openapi_url, docs_url, redoc_url, openapi_version
+        )
         self._configure_policy(built_in, rules, enforce_rules, parsers, renderers)
         # An explicit waiver file wins over the project's ``hinoki-rules.toml``.
         self.waiver_file: Path | None = None if waivers is None else Path(waivers)
@@ -243,9 +246,18 @@ class Hinoki:
         openapi_url: str | Unset | None,
         docs_url: str | Unset | None,
         redoc_url: str | Unset | None,
+        openapi_version: str | None,
     ) -> None:
         self.title = title if title is not None else docs.title
         self.version = version if version is not None else docs.version
+        self.openapi_version = (
+            openapi_version if openapi_version is not None else docs.openapi_version
+        )
+        if self.openapi_version not in SPEC_VERSIONS:
+            raise ValueError(
+                f"openapi_version must be one of {sorted(SPEC_VERSIONS)}, "
+                f"not {self.openapi_version!r}"
+            )
         # ``None`` disables a page even when the settings enable it; unset defers.
         openapi_url = (
             docs.openapi_url if isinstance(openapi_url, Unset) else openapi_url
@@ -592,8 +604,10 @@ class Hinoki:
         return None
 
     def openapi(self) -> dict[str, Any]:
-        """The OpenAPI 3.1 document for the registered routes."""
-        return OpenAPIBuilder(self, self.title, self.version).build()
+        """The OpenAPI document (3.2 by default, 3.1 with ``openapi_version``)."""
+        return OpenAPIBuilder(
+            self, self.title, self.version, self.openapi_version
+        ).build()
 
     def asgi(self) -> ASGIAdapter:
         """The ASGI adapter for this worker; builds and validates bindings once."""

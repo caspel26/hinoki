@@ -185,7 +185,7 @@ get `1001` and a client is expected to reconnect, which reaches the new worker.
 
 ## OpenAPI
 
-OpenAPI 3.1 has no WebSocket operation, so the document describes the actions
+OpenAPI 3.1 and 3.2 have no WebSocket operation, so the document describes the actions
 under the vendor extension `x-hinoki-websockets`, keyed by path: the handler
 docstring, the `message` and `reply` schema components, the subprotocols, the
 origins and the handshake's security requirement. They are not listed under

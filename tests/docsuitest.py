@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from hinoki import Hinoki, Request, http
-from hinoki.docsui import STATIC
+from hinoki.docsui import STATIC, asset
 from tests.harness import Client, Pool
 
 
@@ -33,11 +33,12 @@ async def test_swagger_ui_page_and_assets(pool: Pool) -> None:
     status, headers, html = await raw(client, "/docs")
     assert status == 200 and headers["content-type"] == "text/html; charset=utf-8"
     assert "frame-ancestors 'none'" in headers["content-security-policy"]
-    assert "<script>" not in html and "/docs/assets/swagger-ui-bundle.js" in html
+    assert "<script>" not in html
+    assert f"/docs/assets/{asset('swagger-ui-bundle.js')}" in html
     status, headers, init = await raw(client, "/docs/assets/init.js")
     assert 'url: "/openapi.json"' in init
     assert headers["content-type"].startswith("text/javascript")
-    status, headers, _ = await raw(client, "/docs/assets/swagger-ui.css")
+    status, headers, _ = await raw(client, f"/docs/assets/{asset('swagger-ui.css')}")
     assert status == 200 and headers["content-type"].startswith("text/css")
     assert headers["cache-control"] == "public, max-age=86400"
     status, _, _ = await raw(client, "/docs/assets/../../etc/passwd")
@@ -48,10 +49,16 @@ async def test_swagger_ui_page_and_assets(pool: Pool) -> None:
 async def test_redoc_page_and_bundle(pool: Pool) -> None:
     client = await pool.start(app(redoc_url="/redoc"))
     status, _, html = await raw(client, "/redoc")
-    assert status == 200 and '<redoc spec-url="/openapi.json">' in html
-    status, _, bundle = await raw(client, "/redoc/assets/redoc.standalone.js")
+    assert status == 200 and 'type="module" src="/redoc/assets/init.js"' in html
+    assert "<script>" not in html and "googleapis" not in html
+    status, headers, init = await raw(client, "/redoc/assets/init.js")
+    assert status == 200 and headers["content-type"].startswith("text/javascript")
+    assert 'init("/openapi.json", {disableTelemetry: true}' in init
+    name = asset("redoc.standalone.js")
+    assert f'from "./{name}"' in init
+    status, _, bundle = await raw(client, f"/redoc/assets/{name}")
     assert status == 200 and len(bundle) > 100_000
-    assert "googleapis" not in html
+    assert (await raw(client, "/redoc/assets/redoc.standalone.js"))[0] == 404
 
 
 async def test_both_viewers_can_live_side_by_side(pool: Pool) -> None:
@@ -67,11 +74,12 @@ async def test_head_matches_openapi_viewers_and_assets(pool: Pool) -> None:
     for path in (
         "/openapi.json",
         "/docs",
-        "/docs/assets/swagger-ui.css",
-        "/docs/assets/swagger-ui-bundle.js",
+        f"/docs/assets/{asset('swagger-ui.css')}",
+        f"/docs/assets/{asset('swagger-ui-bundle.js')}",
         "/docs/assets/init.js",
         "/redoc",
-        "/redoc/assets/redoc.standalone.js",
+        f"/redoc/assets/{asset('redoc.standalone.js')}",
+        "/redoc/assets/init.js",
     ):
         get = await client.request("GET", path)
         head = await client.request("HEAD", path)
