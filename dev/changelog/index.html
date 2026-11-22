@@ -306,6 +306,10 @@
               
             
               
+                <li><a class="side__link" href="../metrics/"><span>Export Prometheus metrics</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -470,7 +474,12 @@
         </header>
         
 <p>Every user-facing change to Hinoki, newest first. Hinoki is pre-alpha: any release may change the API and the migration format, and no release has been tagged yet, so everything is listed under <strong>Unreleased</strong>. The same text lives in <a href="https://github.com/caspel26/hinoki/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>.</p>
-<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🌐 Per-route CORS</h4>
+<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>📈 Prometheus metrics on Kiso</h4>
+<blockquote>
+<p><code>crates/kiso/src/metrics.rs</code>, <code>crates/kiso/src/scrape.rs</code>, <code>crates/bindings/src/metrics.rs</code>, <code>python/hinoki/settings.py</code>, <code>python/hinoki/serve.py</code>, <code>python/hinoki/runtime/supervisor.py</code></p>
+</blockquote>
+<p>Kiso can serve request metrics in the Prometheus text format from a dedicated listener (<code>metrics.listen</code>, off by default; Kiso only, and <code>hinoki serve --server granian</code> refuses it). Requests by route pattern, method and status class, duration histograms, requests in flight, response bytes and errors are counted in Rust with atomics; with several workers each keeps its series, told apart by a <code>worker</code> label. A <code>listen</code> address off the loopback needs <code>metrics.allow</code> or <code>metrics.token</code>. See <a href="docs/metrics.md">export Prometheus metrics</a>.</p>
+<h4>🌐 Per-route CORS</h4>
 <blockquote>
 <p><code>python/hinoki/http/cors.py</code>, <code>python/hinoki/routing.py</code>, <code>python/hinoki/resources.py</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/origins.py</code>, <code>python/hinoki/runtime/servercore.py</code>, <code>crates/bindings/src/server.rs</code></p>
 </blockquote>

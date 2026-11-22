@@ -306,6 +306,10 @@
               
             
               
+                <li><a class="side__link" href="../metrics/"><span>Export Prometheus metrics</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -463,7 +467,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:25:02 UTC">November 22, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -674,7 +678,7 @@ because only <code>hinoki serve</code> applies it:</p>
 <div class="language-sh highlight"><pre><span></span><code>granian<span class="w"> </span>--interface<span class="w"> </span>asgi<span class="w"> </span>notes.main:app
 </code></pre></div>
 <h2 id="metrics-and-tracing">Metrics and tracing<a class="headerlink" href="#metrics-and-tracing" title="Permanent link">&para;</a></h2>
-<p>Hinoki ships no metrics registry, exporter or tracing integration, and no health route besides the optional <a href="#optional-startup-probe">startup probe</a>. On an ASGI server the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:</p>
+<p>Kiso exports Prometheus metrics (off by default; see <a href="../metrics/">export Prometheus metrics</a>). Hinoki ships no tracing integration and no health route besides the optional <a href="#optional-startup-probe">startup probe</a>. On an ASGI server such as Granian there is no built-in exporter, and the application is a plain ASGI callable, so wrap it with the instrumentation you already use, or with a few lines of your own:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/metrics.py</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 
@@ -708,10 +712,8 @@ because only <code>hinoki serve</code> applies it:</p>
 <span class="n">app</span> <span class="o">=</span> <span class="n">Timing</span><span class="p">(</span><span class="n">notes_app</span><span class="p">,</span> <span class="n">record</span><span class="o">=</span><span class="n">my_metrics</span><span class="o">.</span><span class="n">observe</span><span class="p">)</span>  <span class="c1"># serve with any ASGI server</span>
 </code></pre></div>
 <p>What this measures is the time from the ASGI call to the last byte handed to the server, not what a client perceives. Keep method and status as labels; do <strong>not</strong> label by <code>scope["path"]</code> (it holds ids and has unbounded cardinality), the request ID (it is for correlating logs: <code>logging.include_request_id</code> adds it to each Hinoki log line) or the caller. Hinoki does not currently expose the matched route template to a wrapper, so per-route metrics need an application-level counter inside the handler or a gap report so a hook can be designed.</p>
-<p>Kiso has no ASGI boundary, so this wrapper does not apply to it and it has no
-instrumentation seam today. Use the server's own limits and access log and the
-request log of your proxy, or serve with Granian when you need to wrap the
-application.</p>
+<p>Kiso has no ASGI boundary, so this wrapper does not apply to it. Use its
+built-in <a href="../metrics/">Prometheus metrics</a> instead.</p>
 <h2 id="streamed-responses">Streamed responses<a class="headerlink" href="#streamed-responses" title="Permanent link">&para;</a></h2>
 <p>Actions that return <code>Stream</code>, <code>EventStream</code> or <code>File</code> work on both servers. Kiso sends them from its own queue, with its idle timeout, keep-alive comments and disconnect check, and sends a <code>File</code> without the bytes entering Python. Granian receives each piece as an ASGI message, and a <code>File</code> through <code>http.response.pathsend</code> when the server offers it; there Hinoki's own pump handles the idle timeout, the keep-alive and the disconnect. <code>execution.max_streams</code>, <code>execution.stream_idle_timeout</code> and <code>execution.sse_keepalive</code> apply to both (<a href="../settings/">settings</a>). Details and measured behavior: <a href="../streaming/">stream a response</a>. Response compression exists on Kiso only; <code>compression.enabled</code> with <code>--server granian</code> is refused (<a href="../compression/">compress responses</a>).</p>
 <h2 id="wsgi">WSGI<a class="headerlink" href="#wsgi" title="Permanent link">&para;</a></h2>
@@ -809,7 +811,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:25:02 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
