@@ -372,13 +372,11 @@ fn unmask(payload: &mut [u8], mask: [u8; 4]) {
     let wide = u64::from_ne_bytes([
         mask[0], mask[1], mask[2], mask[3], mask[0], mask[1], mask[2], mask[3],
     ]);
-    let mut chunks = payload.chunks_exact_mut(8);
-    for chunk in &mut chunks {
-        let mut word = [0; 8];
-        word.copy_from_slice(chunk);
-        chunk.copy_from_slice(&(u64::from_ne_bytes(word) ^ wide).to_ne_bytes());
+    let (words, rest) = payload.as_chunks_mut::<8>();
+    for chunk in words {
+        *chunk = (u64::from_ne_bytes(*chunk) ^ wide).to_ne_bytes();
     }
-    for (at, byte) in chunks.into_remainder().iter_mut().enumerate() {
+    for (at, byte) in rest.iter_mut().enumerate() {
         *byte ^= mask[at % 4];
     }
 }
