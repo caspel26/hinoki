@@ -67,6 +67,11 @@ A request now does less Python work with the same behaviour: a coroutine that fi
 
 Middleware, raw responses and the WSGI path are stricter: a path with a NUL byte or a dot segment is refused, and a WSGI stream whose application goes silent is reset.
 
+#### 🦀 Native page encoding and joined rows
+> `crates/bindings/src/request.rs`, `crates/bindings/src/schema.rs`, `crates/bindings/src/modelrows.rs`, `python/hinoki/orm/queryset.py`
+
+The JSON encoder writes a `Page` of `Schema` instances directly instead of building the dumped dicts first; a `Page` subclass or an item with a custom `dump` still goes through `dump()`. Encoding a `Schema` no longer raises and catches a `KeyError` per class lookup. Queries with `select_related(...)` now build the model and its joined instances in the native row builder whenever every involved model can already use it (no custom `from_row` or row hooks). The produced JSON and instances are unchanged. Indicative single-core runs gave about +21% on a paginated list of 20 rows, a further +4% on that list with a joined author, and +2% to +4% on a minimal action; the official comparative numbers are not yet re-measured.
+
 #### 🗄️ Database defaults and messages
 > `python/hinoki/db.py`, `crates/orm/src/database.rs` (#395, #397)
 
