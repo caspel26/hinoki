@@ -243,7 +243,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 23:53:08 UTC">November 21, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -268,7 +268,7 @@
 <li>The server adapter is ASGI. <code>hinoki.wsgi.WSGIAdapter</code> wraps an application for WSGI servers (buffered bodies; an application with a streamed action is refused at start); verified with Granian only, see <a href="../serving/#wsgi">serving</a>.</li>
 <li>Actions can stream: <code>Stream</code>, <code>EventStream</code> (server-sent events) and <code>File</code> are sent while they are produced, on Kiso and on Granian, with a bounded buffer, an idle timeout, keep-alive comments and a disconnect check; the stream count, the file lookup, the length check and the SSE frames are Rust on both servers; see <a href="../streaming/">stream a response</a> for what runs in Rust and what stays in Python. Streamed actions are not available through <code>WSGIAdapter</code>, <code>atomic=True</code>, MCP or the native lane. WebSockets are not available on any server.</li>
 <li>Kiso can compress response bodies with brotli or gzip (<code>compression.enabled</code>, off by default; Kiso only, and <code>hinoki serve --server granian</code> refuses it): negotiation of <code>accept-encoding</code>, <code>Vary</code>, size and content-type rules, <code>no-transform</code>, streams, event streams and files, a flush whenever a stream pauses, and a bound on concurrent compressions are Rust; only the settings are Python. See <a href="../compression/">compress responses</a>. No compression ratio or throughput claim is made beyond the measurement stated there.</li>
-<li>CORS is one application-wide policy in the <code>cors</code> settings group; there is no per-route CORS option. Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.</li>
+<li>CORS is an application-wide policy in the <code>cors</code> settings group, and an action, a <code>RouteGroup</code> or <code>crud(...)</code> can replace it with <code>cors=http.Cors(...)</code> (<a href="../web-security/#cors-per-route">per-route CORS</a>). Application MCP has its own allowed-origin check. Cursor pagination is not available; pagination currently uses page numbers.</li>
 <li>Pagination page-size defaults are <code>20</code> and <code>100</code>; the <code>pagination</code> settings group changes them for the whole app and an action's own <code>PageNumberPagination</code> values win. See <a href="../pagination/">pagination</a>.</li>
 <li>OpenAPI generation creates operation IDs and reads summary/description from handler docstrings. Per-action <code>tags</code>, <code>deprecated</code>, custom <code>operation_id</code> and <code>include_in_schema</code> controls are not available.</li>
 <li>There is no maintained Docker image or deployment recipe. <code>hinoki serve</code> runs the app on Kiso by default, or on Granian with <code>--server granian</code>; container packaging and process orchestration are application deployment choices.</li>
@@ -301,7 +301,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 21:13:39 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 23:53:08 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

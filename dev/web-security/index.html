@@ -463,8 +463,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 23:53:08 UTC">November 21, 2026</span></span>
+            <span>9 min read</span>
           </p>
           
         </header>
@@ -550,7 +550,26 @@ until you set them.</p>
 <li>A preflight (<code>OPTIONS</code> with <code>Origin</code> and <code>Access-Control-Request-Method</code>) is answered with <code>204</code>, the configured <code>methods</code>, <code>headers</code> and <code>max_age</code>, without reaching a route or its access policy. A preflight from an origin that is not listed receives <code>403 cors_origin_denied</code>.</li>
 </ul>
 <p>Origins are compared exactly, in lower case as browsers send them: <code>https://app.example.com</code> and <code>https://app.example.com:8443</code> are different origins, and a trailing slash or path is refused at load. Browsers leave a default port out of <code>Origin</code>, so list <code>https://app.example.com</code>, not <code>https://app.example.com:443</code>. The single entry <code>*</code> answers every origin with <code>access-control-allow-origin: *</code>; it cannot be combined with <code>credentials</code>, and browsers will not send cookies or HTTP authentication to it.</p>
-<p>The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option. An answer that already sets <code>access-control-allow-origin</code> itself (a <code>Response</code> with that header) is sent as it is, without the policy's headers.</p>
+<p>The application policy applies to every route that does not declare its own, including the ASGI and WSGI adapters (see <a href="#cors-per-route">per-route CORS</a> below). An answer that already sets <code>access-control-allow-origin</code> itself (a <code>Response</code> with that header) is sent as it is, without the policy's headers.</p>
+<h3 id="cors-per-route">Per-route CORS<a class="headerlink" href="#cors-per-route" title="Permanent link">&para;</a></h3>
+<p>An action can carry its own policy with <code>cors=http.Cors(...)</code>, for a public feed, a partner endpoint or a route that must not be readable from the origins the rest of the application allows. <code>http.Cors</code> takes the fields of <code>settings.CorsSettings</code> (<code>origins</code>, <code>methods</code>, <code>headers</code>, <code>expose_headers</code>, <code>credentials</code>, <code>max_age</code>) and requires at least one origin:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/feed/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">http</span>
+
+<span class="n">partner</span> <span class="o">=</span> <span class="n">http</span><span class="o">.</span><span class="n">Cors</span><span class="p">(</span><span class="n">origins</span><span class="o">=</span><span class="p">(</span><span class="s2">"https://partner.example"</span><span class="p">,),</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/feed/partner"</span><span class="p">,</span> <span class="n">cors</span><span class="o">=</span><span class="n">partner</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">partner_feed</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"feed"</span><span class="p">:</span> <span class="s2">"partner"</span><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li><strong>Precedence.</strong> The route's policy replaces the application's for that route; nothing is merged, so the application's origins do not apply to it. An action without <code>cors=</code> keeps the application policy, and a route with <code>cors=</code> works even while the application's <code>cors.origins</code> is empty.</li>
+<li><strong>Preflight.</strong> A preflight is answered for the route the browser asks about: <code>Access-Control-Request-Method</code> names the method, the request path names the route. A route with its own policy answers with its own <code>methods</code>, <code>headers</code>, <code>max_age</code> and origin check (<code>403 cors_origin_denied</code> for an origin it does not list). A method that no route has on that path is answered by the application policy. A preflight never runs the route's <code>access</code> policy, a transaction or the handler.</li>
+<li><strong>Answers.</strong> Every answer from a matched route, errors from <code>access</code> or validation included, carries that route's headers and <code>vary: origin</code>. Answers before a route is known (<code>404</code>, <code>405</code>) carry the application's.</li>
+<li><strong>Groups and generated CRUD.</strong> <code>RouteGroup("/feed", cors=http.Cors(...))</code> is the default of its actions (<code>cors=None</code> on an action returns it to the application policy), and <code>crud(..., cors=http.Cors(...))</code> gives all generated actions the policy.</li>
+</ul>
+<p>Kiso decides these natively; the ASGI and WSGI adapters apply the same rules in Python.</p>
 <h2 id="browser-security-headers-and-https">Security headers and HTTPS<a class="headerlink" href="#browser-security-headers-and-https" title="Permanent link">&para;</a></h2>
 <p>Every HTTP response gets <code>X-Content-Type-Options: nosniff</code>, the configured <code>X-Frame-Options</code> and <code>Referrer-Policy</code>, including errors, OpenAPI/docs and admin responses. Defaults are <code>SAMEORIGIN</code> and <code>same-origin</code>, preserving the admin's existing referrer privacy default. These fields are owned by the app security policy: configured values replace same-named headers returned by a route.</p>
 <p>The choices are enums rather than arbitrary strings, and environment/TOML values must match the listed wire values exactly. <code>FrameOptions</code> provides <code>deny</code> and <code>sameorigin</code>. <code>ReferrerPolicy</code> provides <code>no-referrer</code>, <code>no-referrer-when-downgrade</code>, <code>same-origin</code>, <code>origin</code>, <code>strict-origin</code>, <code>origin-when-cross-origin</code>, <code>strict-origin-when-cross-origin</code> and <code>unsafe-url</code>. <code>unsafe-url</code> can disclose the full referring URL to another origin; use it only when that is intended.</p>
@@ -623,13 +642,13 @@ until you set them.</p>
           
           
             <ul><li><a href="#debug-allowed-hosts-and-cors">Debug, allowed hosts and CORS</a>
-            <ul><li><a href="#debug">debug</a></li><li><a href="#allowed_hosts">allowed_hosts</a></li><li><a href="#cors">cors</a></li></ul>
+            <ul><li><a href="#debug">debug</a></li><li><a href="#allowed_hosts">allowed_hosts</a></li><li><a href="#cors">cors</a></li><li><a href="#cors-per-route">Per-route CORS</a></li></ul>
           </li><li><a href="#browser-security-headers-and-https">Security headers and HTTPS</a></li><li><a href="#reverse-proxies-and-request-ids">Reverse proxies and request IDs</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 23:53:08 UTC">November 21, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/web-security.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

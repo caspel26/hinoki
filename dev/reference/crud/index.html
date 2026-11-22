@@ -314,6 +314,7 @@ ownership, schema requirements and route replacement.</p>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">(),</span>
     <span class="n">omit</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CrudDeclaration</span>
 </code></pre></div>
 
@@ -325,7 +326,9 @@ class adds the hooks (<code>get_queryset</code>, <code>to_schema</code>, <code>w
 <code>store</code>, <code>change</code>, <code>remove</code>) and handwritten actions.
 A single <code>Access</code> protects every action; <code>CrudAccess</code> sets them apart.
 <code>name=</code> names the generated class (<code>"ArchiveCrud"</code>) or its module and
-class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP patterns match.</p>
+class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP patterns match.
+<code>cors=http.Cors(...)</code> gives every generated action that CORS policy instead
+of the application's.</p>
 
 
     </div>
