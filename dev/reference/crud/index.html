@@ -315,6 +315,9 @@ ownership, schema requirements and route replacement.</p>
     <span class="n">omit</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CrudDeclaration</span>
 </code></pre></div>
 
@@ -328,7 +331,10 @@ A single <code>Access</code> protects every action; <code>CrudAccess</code> sets
 <code>name=</code> names the generated class (<code>"ArchiveCrud"</code>) or its module and
 class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP patterns match.
 <code>cors=http.Cors(...)</code> gives every generated action that CORS policy instead
-of the application's.</p>
+of the application's. <code>include_in_schema=False</code> leaves every generated action
+out of the OpenAPI document; <code>include_in_schema={"delete": False}</code> leaves out
+only the named actions. <code>tags</code> and <code>deprecated</code> apply to every action.
+Left-out actions are still served and protected by their access.</p>
 
 
     </div>

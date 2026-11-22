@@ -467,7 +467,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -547,7 +547,9 @@ returns anything but a <code>Response</code> is a <code>500</code>.</p>
 <h2 id="cost">Cost<a class="headerlink" href="#cost" title="Permanent link">&para;</a></h2>
 <p>An action with middleware is served by Python for the whole request, so it
 leaves <a href="../kiso/#what-is-native-and-what-still-runs-in-python">the native lane</a>:
-<code>hinoki routes --lanes</code> shows <code>lane_reason</code> <code>middleware</code>. Actions without
+<code>hinoki routes --lanes</code> shows <code>lane_reason</code> <code>middleware</code>. A deprecated action
+(<a href="../openapi/#deprecate-an-action">deprecate an action</a>) leaves the lane the same
+way, with <code>lane_reason</code> <code>deprecated</code>. Actions without
 middleware keep their lane. A middleware that only needs to observe requests can
 use the <a href="../kiso/#the-native-handler-lane">access log</a> instead, which does not
 change the lane.</p>
@@ -591,7 +593,7 @@ change the lane.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:32:54 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/middleware.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -468,13 +468,29 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>8 min read</span>
+            <span>9 min read</span>
           </p>
           
         </header>
         
 <p>Every user-facing change to Hinoki, newest first. Hinoki is pre-alpha: any release may change the API and the migration format, and no release has been tagged yet, so everything is listed under <strong>Unreleased</strong>. The same text lives in <a href="https://github.com/caspel26/hinoki/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>.</p>
-<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🔄 Reload on SIGHUP in Kiso</h4>
+<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>📣 Deprecated actions tell their callers</h4>
+<blockquote>
+<p><code>python/hinoki/runtime/deprecation.py</code>, <code>python/hinoki/runtime/binding.py</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/servercore.py</code>, <code>python/hinoki/runtime/crudplan.py</code>, <code>python/hinoki/routing.py</code>, <code>python/hinoki/routescli.py</code></p>
+</blockquote>
+<p><code>deprecated=True</code> or <code>deprecated=date(2026, 11, 22)</code> on an action (or on <code>crud(...)</code>) now also adds a <code>Deprecation</code> header to its responses and logs a warning on the <code>hinoki.deprecated</code> logger when it is called, at most once a minute per action. The action leaves the native lane (<code>lane_reason</code> <code>deprecated</code>).</p>
+<pre><code class="language-python">@http.get(&quot;/v1/tasks&quot;, deprecated=date(2026, 11, 22))
+async def list_tasks_v1() -&gt; list[str]: ...
+</code></pre>
+<h4>🏷️ Per-action OpenAPI controls</h4>
+<blockquote>
+<p><code>python/hinoki/routing.py</code>, <code>python/hinoki/openapi.py</code>, <code>python/hinoki/resources.py</code>, <code>python/hinoki/app.py</code>, <code>python/hinoki/ai/mcpapp.py</code></p>
+</blockquote>
+<p><code>@http.get(..., include_in_schema=False)</code> leaves an action out of the OpenAPI document without changing how it is served or protected; <code>tags</code>, <code>deprecated</code> and <code>operation_id</code> describe it. <code>RouteGroup(...)</code> and <code>crud(...)</code> take the same controls, and a duplicate <code>operation_id</code> stops registration. MCP refuses an action that is left out.</p>
+<pre><code class="language-python">@http.get(&quot;/ops/reindex&quot;, access=admin_only, include_in_schema=False)
+async def reindex() -&gt; dict[str, str]: ...
+</code></pre>
+<h4>🔄 Reload on SIGHUP in Kiso</h4>
 <blockquote>
 <p><code>python/hinoki/runtime/supervisor.py</code>, <code>python/hinoki/runtime/kiso.py</code>, <code>python/hinoki/runtime/wsgiworker.py</code>, <code>python/hinoki/runtime/listener.py</code>, <code>python/hinoki/serve.py</code>, <code>python/hinoki/settings.py</code></p>
 </blockquote>

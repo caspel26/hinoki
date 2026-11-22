@@ -280,7 +280,7 @@
           <p class="page-meta" data-search-exclude>
             
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 20:05:56 UTC">November 21, 2026</span></span>
-            <span>22 min read</span>
+            <span>24 min read</span>
           </p>
           
         </header>
@@ -1111,6 +1111,8 @@ without a decorator removes the inherited route.</p>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -1137,7 +1139,9 @@ async def create(...): ...
 public), <code>atomic=True</code> makes POST/PUT/PATCH/DELETE transactional unless the
 action says <code>atomic=False</code>, <code>errors</code> are added to each action's own and
 <code>cors</code> is the default <code>http.Cors</code> (<code>cors=None</code> on an action keeps the
-application's policy).
+application's policy). <code>include_in_schema=False</code> leaves every action out of
+the OpenAPI document unless it says <code>include_in_schema=True</code>, and <code>tags</code> come
+before the tags of each action.
 The result is an ordinary action: rules, OpenAPI and the MCP see no difference.</p>
 
 
@@ -1260,6 +1264,52 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 <a href="#hinoki.routing.RouteGroup.cors" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">cors</span> <span class="o">=</span> <span class="n">check_cors</span><span class="p">(</span><span class="n">cors</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.routing.RouteGroup.include_in_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">include_in_schema</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.RouteGroup.include_in_schema" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">include_in_schema</span> <span class="o">=</span> <span class="n">check_flag</span><span class="p">(</span>
+    <span class="s2">"include_in_schema"</span><span class="p">,</span> <span class="n">include_in_schema</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.routing.RouteGroup.tags" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tags</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.RouteGroup.tags" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">tags</span> <span class="o">=</span> <span class="n">check_tags</span><span class="p">(</span><span class="n">tags</span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1589,6 +1639,10 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
     <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">middleware</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Middleware</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -1982,6 +2036,98 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
 
 
 
+<h3 id="hinoki.routing.Route.include_in_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">include_in_schema</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.Route.include_in_schema" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.routing.Route.tags" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tags</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.Route.tags" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">tags</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.routing.Route.deprecated" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">deprecated</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.Route.deprecated" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.routing.Route.operation_id" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">operation_id</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.routing.Route.operation_id" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.routing.Route.is_async" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">is_async</span>
 
@@ -2086,6 +2232,10 @@ the <a href="../crud/">CRUD API reference</a>.</p>
     <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">middleware</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Middleware</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2123,6 +2273,10 @@ MCP tool description then show.</p>
     <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">middleware</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Middleware</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2160,6 +2314,10 @@ MCP tool description then show.</p>
     <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">middleware</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Middleware</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2197,6 +2355,10 @@ MCP tool description then show.</p>
     <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">middleware</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Middleware</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2234,6 +2396,10 @@ MCP tool description then show.</p>
     <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">middleware</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Middleware</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -2271,6 +2437,10 @@ MCP tool description then show.</p>
     <span class="n">rate_limit</span><span class="p">:</span> <span class="n">RateLimitPolicy</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">middleware</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Middleware</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">operation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RouteDeclaration</span>
 </code></pre></div>
 
@@ -4257,11 +4427,11 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
           </li><li><a href="#hinoki.api.API">API</a>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
-            <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup.cors">cors</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li><li><a href="#hinoki.routing.RouteGroup.query">query</a></li></ul>
+            <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup.cors">cors</a></li><li><a href="#hinoki.routing.RouteGroup.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.RouteGroup.tags">tags</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li><li><a href="#hinoki.routing.RouteGroup.query">query</a></li></ul>
           </li><li><a href="#hinoki.routing.Includable">Includable</a></li><li><a href="#hinoki.routing.Mount">Mount</a>
             <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
-            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.middleware">middleware</a></li><li><a href="#hinoki.routing.Route.cors">cors</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li></ul>
+            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.middleware">middleware</a></li><li><a href="#hinoki.routing.Route.cors">cors</a></li><li><a href="#hinoki.routing.Route.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.Route.tags">tags</a></li><li><a href="#hinoki.routing.Route.deprecated">deprecated</a></li><li><a href="#hinoki.routing.Route.operation_id">operation_id</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li></ul>
           </li><li><a href="#hinoki.project.manifest_routes">manifest_routes</a></li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
             <ul><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.http.response.Response">Response</a>
