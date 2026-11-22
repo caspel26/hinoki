@@ -41,7 +41,7 @@ types live in the `hinoki.settings` namespace (`settings.AppSettings`,
 is not shadowed.
 
 `settings.AppSettings` brings the built-in groups: `execution`, `lifecycle`,
-`logging`, `docs`, `server`, `pagination`, `cors`, `compression`, `security` and `admin`, plus
+`logging`, `docs`, `server`, `pagination`, `cors`, `compression`, `metrics`, `security` and `admin`, plus
 `timezone`, `debug` and `allowed_hosts` (see [Hosts, CORS and HTTPS](web-security.md)).
 `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`; the
 generated `main.py` sets them with `Hinoki(...)` arguments, which win over settings.
@@ -102,6 +102,7 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `cors` | `credentials` | `false` | Allow cookies and HTTP authentication; refused together with `*` |
 | `cors` | `max_age` | `600` seconds | `0` to `86400`; how long a browser may cache a preflight |
 | `compression` | `enabled` | `false` | Compress responses with brotli or gzip; Kiso only (`serve --server granian` refuses it). The other `compression` fields are in [compress responses](compression.md#settings) |
+| `metrics` | `listen` | unset | `host:port` of the Prometheus metrics listener; Kiso only (`serve --server granian` refuses it). The other `metrics` fields are in [export Prometheus metrics](metrics.md#settings) |
 | `admin` | `secret` | unset | The server secret (32+ bytes, from the environment or `*_FILE`) that keys the admin's CSRF tokens; an admin without its own `secret=` needs it |
 | `admin` | `session_hours` | `12` | `1` to `720`; a signed-in admin session ends this long after sign-in, whatever else happens |
 | `admin` | `idle_minutes` | `120` | `1` to `session_hours * 60`; ... or this long after its last request |

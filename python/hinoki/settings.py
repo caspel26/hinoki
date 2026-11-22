@@ -66,6 +66,10 @@ KISO_ONLY = (
 )
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
+METRICS_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
+MAX_METRICS_BUCKETS = 32
+MIN_SNAPSHOT_INTERVAL = 0.1
+MAX_SNAPSHOT_INTERVAL = 60.0
 COMPRESSION_ENCODINGS = ("br", "gzip")
 COMPRESSION_TYPES = (
     "text/*",
@@ -1454,6 +1458,121 @@ class CompressionSettings(Settings):
         }
 
 
+class MetricsSettings(Settings):
+    """Prometheus metrics, kept and served by Kiso only (they are ignored under
+    another runner, and ``hinoki serve --server granian`` refuses ``listen``).
+
+    Off while ``listen`` is unset. ``listen`` is the ``host:port`` of a
+    dedicated listener (an IPv6 host goes in brackets) that serves only the
+    exposition at ``path``; it never shares the application's port. A listener
+    off the loopback needs ``allow`` (addresses or CIDRs of the peers that may
+    scrape) or a ``token`` (the bearer token a scrape sends). ``buckets`` are the
+    upper bounds, in seconds, of the duration histogram: 1 to 32 finite values,
+    strictly increasing. With several workers each one writes a snapshot every
+    ``snapshot_interval`` seconds and any worker's scrape reports them all, one
+    series per ``worker`` label.
+    """
+
+    listen: str | None = None
+    path: str = "/metrics"
+    allow: tuple[str, ...] = ()
+    token: Secret | None = None
+    buckets: tuple[float, ...] = METRICS_BUCKETS
+    snapshot_interval: float = 1.0
+
+    def address(self) -> tuple[str, int] | None:
+        """The host and port of ``listen``, or ``None`` while metrics are off."""
+        if self.listen is None:
+            return None
+        host, _, port = self.listen.rpartition(":")
+        return host.strip("[]"), int(port)
+
+    def validate(self) -> None:
+        if self.listen is not None:
+            self.validate_listen()
+        if not self.path.startswith("/") or any(c in self.path for c in "?# "):
+            raise ValueError("path must start with '/' and have no query or space")
+        for entry in self.allow:
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError("allow entries must be IP addresses or CIDRs") from exc
+        if self.token is not None and not self.token.reveal():
+            raise ValueError("token must not be empty")
+        valid = (
+            1 <= len(self.buckets) <= MAX_METRICS_BUCKETS
+            and all(math.isfinite(b) and b > 0 for b in self.buckets)
+            and all(a < b for a, b in zip(self.buckets, self.buckets[1:], strict=False))
+        )
+        if not valid:
+            raise ValueError(
+                f"buckets: 1 to {MAX_METRICS_BUCKETS} positive, finite, "
+                "strictly increasing seconds"
+            )
+        if not MIN_SNAPSHOT_INTERVAL <= self.snapshot_interval <= MAX_SNAPSHOT_INTERVAL:
+            raise ValueError(
+                f"snapshot_interval must be {MIN_SNAPSHOT_INTERVAL:g} to "
+                f"{MAX_SNAPSHOT_INTERVAL:g} seconds"
+            )
+
+    def validate_listen(self) -> None:
+        host, separator, port = (self.listen or "").rpartition(":")
+        if (
+            not separator
+            or not host
+            or not port.isdecimal()
+            or not 0 < int(port) < MAX_PORT
+        ):
+            raise ValueError("listen must be host:port (an IPv6 host in brackets)")
+        if not self.allow and self.token is None and not self.on_loopback(host):
+            raise ValueError(
+                "listen is not on the loopback: set allow (peer addresses or "
+                "CIDRs) or token so the metrics are not open to everyone"
+            )
+
+    @staticmethod
+    def on_loopback(host: str) -> bool:
+        name = host.strip("[]")
+        if name == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(name).is_loopback
+        except ValueError:
+            return False
+
+    def native_options(
+        self,
+        *,
+        version: str,
+        worker: int = 0,
+        fd: int | None = None,
+        directory: str | None = None,
+    ) -> dict[str, object] | None:
+        """What the Rust server takes, or ``None`` while metrics are off. With
+        an inherited descriptor ``fd`` the worker serves on it; without one it
+        binds ``listen``. ``directory`` is where the workers share snapshots."""
+        address = self.address()
+        if address is None:
+            return None
+        options: dict[str, object] = {
+            "worker": worker,
+            "version": version,
+            "buckets": list(self.buckets),
+            "path": self.path,
+            "allow": list(self.allow),
+            "snapshot_interval": self.snapshot_interval,
+        }
+        if self.token is not None:
+            options["token"] = self.token.reveal()
+        if fd is not None:
+            options["fd"] = fd
+        else:
+            options["host"], options["port"] = address
+        if directory is not None:
+            options["dir"] = directory
+        return options
+
+
 class AppSettings(Settings):
     """The built-in groups every application has; subclass to add your own."""
 
@@ -1469,6 +1588,7 @@ class AppSettings(Settings):
     compression: CompressionSettings = dataclasses.field(
         default_factory=CompressionSettings
     )
+    metrics: MetricsSettings = dataclasses.field(default_factory=MetricsSettings)
     security: SecuritySettings = dataclasses.field(default_factory=SecuritySettings)
     admin: AdminSettings = dataclasses.field(default_factory=AdminSettings)
     timezone: str = "UTC"

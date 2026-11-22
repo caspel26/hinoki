@@ -19,6 +19,7 @@ from hinoki.api import API
 from hinoki.auth import Caller
 from hinoki.errors import Forbidden, RegistrationError, ValidationError
 from hinoki.fields import UNSET, Unset
+from hinoki.http.cors import Cors
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
@@ -79,6 +80,7 @@ class _CrudConfig:
     pagination: PageNumberPagination = PageNumberPagination()  # noqa: RUF009
     actions: Mapping[str, Access | None] | None = None
     omit: frozenset[str] = frozenset()
+    cors: Cors | None = None
 
     def access_for(self, action: str) -> Access | None:
         """The policy of one generated action: its own entry when ``crud(...)``
@@ -617,9 +619,9 @@ def declare(
 
 def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
     page = Page[resource.read]  # type: ignore[name-defined]
-    listed = Options(access=resource.access_for("list"))
+    listed = Options(access=resource.access_for("list"), cors=resource.cors)
     listing = dataclasses.replace(listed, pagination=resource.pagination)
-    shown = Options(access=resource.access_for("retrieve"))
+    shown = Options(access=resource.access_for("retrieve"), cors=resource.cors)
     return {
         "list": declare(
             list_rows,
@@ -652,7 +654,9 @@ def caller_hint(resource: _CrudConfig, action: str) -> dict[str, Any]:
 
 def write_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
     def writes(action: str, status: int | None = None) -> Options:
-        options = Options(access=resource.access_for(action), atomic=True)
+        options = Options(
+            access=resource.access_for(action), atomic=True, cors=resource.cors
+        )
         return dataclasses.replace(options, status=status) if status else options
 
     found: dict[str, Callable[..., Any]] = {}
@@ -815,6 +819,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     pagination: PageNumberPagination = PageNumberPagination(),  # noqa: B008
     omit: tuple[str, ...] = (),
     name: str | None = None,
+    cors: Cors | None = None,
 ) -> CrudDeclaration:
     """Declare generated CRUD for ``model``.
 
@@ -824,6 +829,8 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     A single ``Access`` protects every action; ``CrudAccess`` sets them apart.
     ``name=`` names the generated class (``"ArchiveCrud"``) or its module and
     class (``"notes.apps.archive.ArchiveCrud"``) that rules and MCP patterns match.
+    ``cors=http.Cors(...)`` gives every generated action that CORS policy instead
+    of the application's.
     """
     unknown = sorted(set(omit) - {"list", "retrieve"})
     if unknown:
@@ -852,6 +859,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         pagination=pagination,
         actions=actions,
         omit=frozenset(omit),
+        cors=cors,
     )
     return CrudDeclaration(config, path, declaring_module(), name or "")
 

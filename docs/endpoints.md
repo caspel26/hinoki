@@ -38,6 +38,7 @@ Use `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@h
 | `parsers`, `renderers` | Body formats in and out ([codecs](codecs.md)) |
 | `errors` | `APIError` classes the action may raise ([errors](errors.md)) |
 | `rate_limit` | A rate-limit policy ([below](#rate-limit-an-action)) |
+| `cors` | `http.Cors(...)`: this action's own CORS policy, replacing the application's ([CORS](web-security.md#cors-per-route)) |
 | `validate_response` | `False` skips the [response check](#the-response-is-checked-against-the-annotation) |
 | `replaces` | Class form only ([class pitfalls](class-endpoints.md#pitfalls)) |
 

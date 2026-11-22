@@ -459,7 +459,7 @@ fn whole(sent: Sent) -> Answer {
     }
 }
 
-fn io_error(err: std::io::Error) -> PyErr {
+pub(crate) fn io_error(err: std::io::Error) -> PyErr {
     PyRuntimeError::new_err(err.to_string())
 }
 
@@ -470,7 +470,7 @@ fn io_error(err: std::io::Error) -> PyErr {
 /// (a negative number is the one value that is not taken, it names nothing).
 /// A descriptor that is not an IP stream socket is refused, and so is one that
 /// is not listening where the platform lets this crate tell (Linux).
-fn inherited_listener(fd: i32) -> PyResult<std::net::TcpListener> {
+pub(crate) fn inherited_listener(fd: i32) -> PyResult<std::net::TcpListener> {
     if fd < 0 {
         return Err(PyValueError::new_err("fd must be a descriptor"));
     }
@@ -670,7 +670,7 @@ impl KisoServer {
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
         access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false, compression=None
+        access_log_sink=None, server_timing=false, compression=None, metrics=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -694,10 +694,12 @@ impl KisoServer {
         access_log_sink: Option<Py<PyAny>>,
         server_timing: bool,
         compression: Option<&Bound<'_, PyDict>>,
+        metrics: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let compression = crate::compression::parse(compression)?;
+        let metrics = crate::metrics::parse(metrics, &core.route_patterns())?;
         let Shared {
-            config,
+            mut config,
             tls,
             listener,
             addr,
@@ -721,6 +723,7 @@ impl KisoServer {
             server_timing,
             compression,
         )?;
+        config.metrics = metrics.as_ref().map(|m| Arc::clone(&m.registry));
         let (reader, writer) = UnixStream::pair().map_err(io_error)?;
         reader.set_nonblocking(true).map_err(io_error)?;
         writer.set_nonblocking(true).map_err(io_error)?;
@@ -734,7 +737,8 @@ impl KisoServer {
         let _enter = runtime.enter();
         let listener = TcpListener::from_std(listener).map_err(io_error)?;
         let (stop, receiver) = watch::channel(false);
-        let task = runtime.spawn(serve(listener, backend, config, tls, receiver));
+        let main = serve(listener, backend, config, tls, receiver.clone());
+        let task = runtime.spawn(crate::metrics::alongside(main, metrics, receiver));
         // Responses the loop sends go to the connections once per iteration.
         if let Ok(event_loop) = py.import("asyncio")?.call_method0("get_running_loop") {
             crate::handoff::per_iteration(&event_loop);

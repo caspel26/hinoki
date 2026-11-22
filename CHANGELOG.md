@@ -8,6 +8,16 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 📈 Prometheus metrics on Kiso
+> `crates/kiso/src/metrics.rs`, `crates/kiso/src/scrape.rs`, `crates/bindings/src/metrics.rs`, `python/hinoki/settings.py`, `python/hinoki/serve.py`, `python/hinoki/runtime/supervisor.py`
+
+Kiso can serve request metrics in the Prometheus text format from a dedicated listener (`metrics.listen`, off by default; Kiso only, and `hinoki serve --server granian` refuses it). Requests by route pattern, method and status class, duration histograms, requests in flight, response bytes and errors are counted in Rust with atomics; with several workers each keeps its series, told apart by a `worker` label. A `listen` address off the loopback needs `metrics.allow` or `metrics.token`. See [export Prometheus metrics](docs/metrics.md).
+
+#### 🌐 Per-route CORS
+> `python/hinoki/http/cors.py`, `python/hinoki/routing.py`, `python/hinoki/resources.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/origins.py`, `python/hinoki/runtime/servercore.py`, `crates/bindings/src/server.rs`
+
+`@http.get(..., cors=http.Cors(origins=(...)))` gives one action its own CORS policy, which replaces the application's for that route; `RouteGroup(..., cors=...)` sets a default for its actions and `crud(..., cors=...)` for the generated ones. A preflight is answered for the route named by `Access-Control-Request-Method` and the path (Kiso decides it natively), without running `access`, a transaction or the handler. See [CORS per route](docs/web-security.md#cors-per-route).
+
 #### 🗜️ Response compression on Kiso
 > `crates/kiso/src/compress.rs`, `crates/kiso/src/encode.rs`, `crates/bindings/src/compression.rs`, `python/hinoki/settings.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/serve.py`
 

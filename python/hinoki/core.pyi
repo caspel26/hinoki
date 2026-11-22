@@ -535,6 +535,9 @@ class ServerCore:
         redirect_https: bool = False,
         static_pages: list[tuple[str, list[tuple[bytes, bytes]], bytes]] = ...,
         route_auth: list[tuple[int, _ClaimsAuth, bytes | None]] = ...,
+        route_cors: list[
+            tuple[int, tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]]]
+        ] = ...,
     ) -> None: ...
     def trusts(self, address: str) -> bool: ...
     def set_ready(self, ready: bool) -> None: ...
@@ -589,6 +592,7 @@ class KisoServer:
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
         compression: dict[str, object] | None = None,
+        metrics: dict[str, object] | None = None,
     ) -> KisoServer: ...
     @property
     def port(self) -> int: ...
@@ -645,6 +649,7 @@ class WsgiServer:
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
         compression: dict[str, object] | None = None,
+        metrics: dict[str, object] | None = None,
     ) -> WsgiServer: ...
     @property
     def port(self) -> int: ...

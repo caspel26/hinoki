@@ -33,6 +33,7 @@ from hinoki.runtime.crudplan import (
     native_claims_auth,
     select_crud_plan,
 )
+from hinoki.runtime.origins import CorsPolicy
 from hinoki.runtime.pipeline import Pipeline, docs_response
 from hinoki.runtime.responses import RETRY_LATER, HTTPError, Response, public_error
 
@@ -258,7 +259,12 @@ def cors_of(
     pipeline: Pipeline,
 ) -> tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]] | None:
     """The CORS policy as the classifier needs it to decorate its own answers."""
-    policy = pipeline.cors
+    return cors_spec(pipeline.cors)
+
+
+def cors_spec(
+    policy: CorsPolicy | None,
+) -> tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]] | None:
     if policy is None:
         return None
     origins = sorted(origin.encode("ascii") for origin in policy.origins)
@@ -269,6 +275,18 @@ def cors_of(
         policy.expose,
         list(policy.preflight),
     )
+
+
+def route_cors_of(
+    pipeline: Pipeline,
+) -> list[tuple[int, tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]]]]:
+    """The CORS policy of each route that declares its own, by action number."""
+    found = []
+    for action, policy in enumerate(pipeline.route_cors):
+        spec = cors_spec(policy)
+        if spec is not None:
+            found.append((action, spec))
+    return found
 
 
 def hosts_of(pipeline: Pipeline) -> tuple[list[bytes], list[bytes]] | None:
@@ -352,4 +370,5 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
         redirect_https=pipeline.security.redirect_https,
         static_pages=static_pages_of(pipeline),
         route_auth=route_auth_of(pipeline),
+        route_cors=route_cors_of(pipeline),
     )

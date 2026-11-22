@@ -488,7 +488,7 @@ impl WsgiServer {
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
         access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false, compression=None
+        access_log_sink=None, server_timing=false, compression=None, metrics=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -515,8 +515,11 @@ impl WsgiServer {
         access_log_sink: Option<Py<PyAny>>,
         server_timing: bool,
         compression: Option<&Bound<'_, PyDict>>,
+        metrics: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let compression = crate::compression::parse(compression)?;
+        // A WSGI callable has no Hinoki routes: every answer is route "".
+        let metrics = crate::metrics::parse(metrics, &[])?;
         let limits = WsgiLimits {
             threads: positive("threads", threads)?,
             queue: positive("queue", queue)?,
@@ -527,7 +530,7 @@ impl WsgiServer {
                 .ok_or_else(|| PyValueError::new_err("request_timeout must be > 0"))?,
         };
         let Shared {
-            config,
+            mut config,
             tls,
             listener,
             addr,
@@ -551,6 +554,7 @@ impl WsgiServer {
             server_timing,
             compression,
         )?;
+        config.metrics = metrics.as_ref().map(|m| Arc::clone(&m.registry));
         let drain = config.shutdown_timeout;
         let backend = Arc::new(
             WsgiBackend::start(bridge, limits)
@@ -561,7 +565,17 @@ impl WsgiServer {
         let listener = TcpListener::from_std(listener)
             .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
         let (stop, receiver) = watch::channel(false);
-        let task = runtime.spawn(serve(listener, Arc::clone(&backend), config, tls, receiver));
+        let task = runtime.spawn(crate::metrics::alongside(
+            serve(
+                listener,
+                Arc::clone(&backend),
+                config,
+                tls,
+                receiver.clone(),
+            ),
+            metrics,
+            receiver,
+        ));
         Ok(Self {
             addr,
             stop,

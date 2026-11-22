@@ -35,7 +35,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
-from hinoki import context, core
+from hinoki import __version__, context, core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.http.stream import EventStream, Sourced
@@ -182,6 +182,7 @@ class KisoWorker:
         access_log_sink: Callable[[Sequence[str]], None] | None = None,
         server_timing: bool = False,
         compression: dict[str, object] | None = None,
+        metrics: dict[str, object] | None = None,
     ) -> None:
         self.adapter = app.asgi()
         self.pipeline = self.adapter.pipeline
@@ -202,6 +203,7 @@ class KisoWorker:
         self.access_log_sink = access_log_sink
         self.server_timing = server_timing
         self.compression = compression
+        self.metrics = metrics
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -280,6 +282,7 @@ class KisoWorker:
                 self.access_log_sink,
                 self.server_timing,
                 self.compression,
+                self.metrics,
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -776,7 +779,7 @@ def access_sink(
     return deliver
 
 
-def build_worker(
+def build_worker(  # noqa: PLR0913 - the supervisor's descriptors and the metrics slot
     app: Hinoki,
     host: str,
     port: int,
@@ -785,9 +788,14 @@ def build_worker(
     listener_fd: int | None = None,
     parent: int | None = None,
     dev: bool = False,
+    metrics_fd: int | None = None,
+    metrics_dir: str | None = None,
+    slot: int = 0,
 ) -> KisoWorker:
     """A worker for ``app`` with the limits of its ``server`` settings group
-    (``None`` keeps the native default)."""
+    (``None`` keeps the native default). ``metrics_fd``, ``metrics_dir`` and
+    ``slot`` are what a supervisor gives a worker for the shared metrics
+    listener."""
     limits: dict[str, Any] = {
         name: getattr(settings, name)
         for name in RUST_ONLY
@@ -811,6 +819,13 @@ def build_worker(
         server_timing=dev if settings.server_timing is None else settings.server_timing,
         compression=(
             app_settings.compression.native_options()
+            if isinstance(app_settings, AppSettings)
+            else None
+        ),
+        metrics=(
+            app_settings.metrics.native_options(
+                version=__version__, worker=slot, fd=metrics_fd, directory=metrics_dir
+            )
             if isinstance(app_settings, AppSettings)
             else None
         ),
@@ -848,6 +863,9 @@ def run_wsgi_worker(args: argparse.Namespace, host: str, port: int) -> int:
         listener_fd=args.fd,
         parent=args.parent,
         dev=args.dev,
+        metrics_fd=args.metrics_fd,
+        metrics_dir=args.metrics_dir,
+        slot=args.slot,
     )
 
 
@@ -861,6 +879,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--parent", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--metrics-fd", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--metrics-dir", help=argparse.SUPPRESS)
+    parser.add_argument("--slot", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument(
         "--interface",
         choices=("asgi", "wsgi"),
@@ -874,6 +895,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1  # the supervisor died before this worker ran
     if args.fd is not None:
         os.set_inheritable(args.fd, False)  # nothing a handler starts keeps it
+    if args.metrics_fd is not None:
+        os.set_inheritable(args.metrics_fd, False)
     host, port = (
         inherited_address(args.fd) if args.fd is not None else (args.host, args.port)
     )
@@ -884,7 +907,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     settings = settings_of(app)
     core.configure_runtime(settings.runtime_threads)
     worker = build_worker(
-        app, host, port, settings, listener_fd=args.fd, parent=args.parent, dev=args.dev
+        app,
+        host,
+        port,
+        settings,
+        listener_fd=args.fd,
+        parent=args.parent,
+        dev=args.dev,
+        metrics_fd=args.metrics_fd,
+        metrics_dir=args.metrics_dir,
+        slot=args.slot,
     )
     return asyncio.run(worker.run())
 

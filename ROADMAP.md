@@ -28,7 +28,7 @@ These are directions, not commitments, and none of them is available today.
 - Cursor pagination.
 - WebSockets.
 - Per-route CORS policies.
-- Prometheus metrics and reload on `SIGHUP` in Kiso.
+- Reload on `SIGHUP` in Kiso.
 - Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 
 This roadmap is intentionally curated; detailed queue notes and owner decisions are maintained locally and are not part of the public repository.

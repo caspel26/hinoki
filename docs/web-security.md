@@ -90,7 +90,30 @@ CORS is off while `cors.origins` is empty: no header is added and `OPTIONS` requ
 
 Origins are compared exactly, in lower case as browsers send them: `https://app.example.com` and `https://app.example.com:8443` are different origins, and a trailing slash or path is refused at load. Browsers leave a default port out of `Origin`, so list `https://app.example.com`, not `https://app.example.com:443`. The single entry `*` answers every origin with `access-control-allow-origin: *`; it cannot be combined with `credentials`, and browsers will not send cookies or HTTP authentication to it.
 
-The policy applies to the whole application, including the ASGI and WSGI adapters; there is no per-route CORS option. An answer that already sets `access-control-allow-origin` itself (a `Response` with that header) is sent as it is, without the policy's headers.
+The application policy applies to every route that does not declare its own, including the ASGI and WSGI adapters (see [per-route CORS](#cors-per-route) below). An answer that already sets `access-control-allow-origin` itself (a `Response` with that header) is sent as it is, without the policy's headers.
+
+### Per-route CORS {#cors-per-route}
+
+An action can carry its own policy with `cors=http.Cors(...)`, for a public feed, a partner endpoint or a route that must not be readable from the origins the rest of the application allows. `http.Cors` takes the fields of `settings.CorsSettings` (`origins`, `methods`, `headers`, `expose_headers`, `credentials`, `max_age`) and requires at least one origin:
+
+```python
+# notes/apps/feed/api.py
+from hinoki import http
+
+partner = http.Cors(origins=("https://partner.example",), credentials=True)
+
+
+@http.get("/feed/partner", cors=partner)
+async def partner_feed() -> dict[str, str]:
+    return {"feed": "partner"}
+```
+
+- **Precedence.** The route's policy replaces the application's for that route; nothing is merged, so the application's origins do not apply to it. An action without `cors=` keeps the application policy, and a route with `cors=` works even while the application's `cors.origins` is empty.
+- **Preflight.** A preflight is answered for the route the browser asks about: `Access-Control-Request-Method` names the method, the request path names the route. A route with its own policy answers with its own `methods`, `headers`, `max_age` and origin check (`403 cors_origin_denied` for an origin it does not list). A method that no route has on that path is answered by the application policy. A preflight never runs the route's `access` policy, a transaction or the handler.
+- **Answers.** Every answer from a matched route, errors from `access` or validation included, carries that route's headers and `vary: origin`. Answers before a route is known (`404`, `405`) carry the application's.
+- **Groups and generated CRUD.** `RouteGroup("/feed", cors=http.Cors(...))` is the default of its actions (`cors=None` on an action returns it to the application policy), and `crud(..., cors=http.Cors(...))` gives all generated actions the policy.
+
+Kiso decides these natively; the ASGI and WSGI adapters apply the same rules in Python.
 
 ## Security headers and HTTPS {#browser-security-headers-and-https}
 
