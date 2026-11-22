@@ -38,6 +38,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Export Prometheus metrics](metrics.md): request counters and histograms on a dedicated listener, on Kiso only.
 - [Middleware](middleware.md): typed `Middleware` around an action or the whole app, identical on Kiso and Granian.
 - [Pagination](pagination.md): page-number pagination with `PageNumberPagination` and keyset cursors with `CursorPagination`.
+- [Filter, order and search a CRUD list](crud.md#filter-order-and-search-the-list): `FilterSet` with `Eq`, `In`, `Range`, `Search` and an ordering allow-list.
 - [Parsers and renderers](codecs.md): other body formats in and out.
 - [OpenAPI document](openapi.md): the OpenAPI 3.2 document (3.1 on request) generated from routes, signatures and `Schema` declarations.
 
