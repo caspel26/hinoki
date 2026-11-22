@@ -13,6 +13,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 `@http.websocket("/path/{param}")` declares a WebSocket action with `access=`, `message=` and `reply=` (`Schema` classes), `subprotocols=`, `origins=`, `max_message_bytes=` and `idle_timeout=`; the handler is an `async def` that takes an `http.WebSocket` and reads and sends text, binary or typed JSON messages. On Kiso the handshake, framing, masking, UTF-8 checks, ping and pong, the close handshake, message size limits, bounded queues and timers run in Rust; a refused handshake (`426`, `400`, `401`, `403`, an Origin that is not allowed, `503` over the connection limit) is an ordinary HTTP answer before the upgrade, and a server stop or reload closes open connections with `1001`. Granian serves the same actions through the ASGI `websocket` scope. New `execution` settings `max_websockets`, `ws_max_message_bytes`, `ws_queue`, `ws_ping_interval`, `ws_pong_timeout` and `ws_close_timeout`. The OpenAPI document describes the actions under `x-hinoki-websockets`. WebSocket over HTTP/2 and `permessage-deflate` are not provided. See [WebSockets](docs/websockets.md).
 
+#### 🌿 A branch banner for the CLI
+> `python/hinoki/terminal.py`, `python/hinoki/runtime/banner.py`, `python/hinoki/newcli.py`, `python/hinoki/shellui.py`
+
+The banner of `hinoki new`, `hinoki app create`, the shell and Kiso at start is now a branch (`╭─`, `│`, `╰─`) titled `Hinoki` or `Kiso`, with the tagline and the version, then aligned key and value rows: Kiso's mode, workers, scheme, access log and native lane; the Python version, documentation and source for `hinoki new`; the application, settings, models and Python version for the shell. Without colour the output is the same plain line. See [`hinoki new`](docs/new-project.md#how-it-looks-in-a-terminal) and [Kiso](docs/kiso.md).
+
 #### 🧭 Cursor (keyset) pagination
 > `crates/orm/src/query.rs`, `crates/bindings/src/cursor.rs`, `crates/bindings/src/rows.rs`, `crates/bindings/src/db.rs`, `python/hinoki/pagination.py`, `python/hinoki/orm/keyset.py`, `python/hinoki/resources.py`, `python/hinoki/settings.py`
 

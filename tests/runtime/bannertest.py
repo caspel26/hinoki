@@ -34,14 +34,14 @@ def test_dev_turns_the_access_log_on_and_the_settings_turn_the_lane_off() -> Non
 
 
 @pytest.mark.parametrize(
-    ("environment", "kiso"),
+    ("environment", "title"),
     [
-        ({"TERM": "xterm"}, "\x1b[1;35mK"),
-        ({"COLORTERM": "truecolor"}, "\x1b[1;38;2;185;160;231mK"),
+        ({"TERM": "xterm"}, "\x1b[1;39mKiso"),
+        ({"COLORTERM": "truecolor"}, "\x1b[1;38;2;238;237;242mKiso"),
     ],
 )
-def test_a_coloured_banner_is_the_hinoki_box_titled_kiso_without_a_mark(
-    monkeypatch: pytest.MonkeyPatch, environment: dict[str, str], kiso: str
+def test_a_coloured_banner_is_the_kiso_branch_with_the_tagline_and_the_facts(
+    monkeypatch: pytest.MonkeyPatch, environment: dict[str, str], title: str
 ) -> None:
     for name in ("TERM", "COLORTERM", "COLORFGBG"):
         monkeypatch.delenv(name, raising=False)
@@ -51,31 +51,28 @@ def test_a_coloured_banner_is_the_hinoki_box_titled_kiso_without_a_mark(
     text = line(ServerSettings(), colour=True)
     rows = [ANSI.sub("", row) for row in text.strip("\n").split("\n")]
 
-    assert rows[0].startswith("  \u256d\u2500 Kiso \u2500")
-    assert rows[-1] == "  \u2570" + "\u2500" * (len(rows[0]) - 4) + "\u256f"
-    assert {len(row) for row in rows} == {len(rows[0])}
-    assert "\u25e2" not in text and "\u25e4" not in text and "\x1b_G" not in text
-    inside = "\n".join(rows[1:-1])
-    assert "Hinoki's Rust server" in inside and "1.2.3" in inside
-    assert "serve \u00b7 1 worker \u00b7 http \u00b7 access log off" in inside
-    assert "native lane on" in inside
+    assert title in text and "\x1b_G" not in text
+    assert rows == [
+        "  \u256d\u2500 Kiso  Hinoki's Rust server  v1.2.3",
+        "  \u2502",
+        "  \u2502  mode         serve",
+        "  \u2502  workers      1",
+        "  \u2502  scheme       http",
+        "  \u2502  access log   off",
+        "  \u2502  native lane  on",
+        "  \u2570\u2500",
+    ]
 
 
-def test_the_facts_break_into_rows_that_fit_the_box(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COLUMNS", "50")
+def test_a_narrow_terminal_wraps_the_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COLUMNS", "44")
     text = line(ServerSettings(), colour=True, dev=True, workers=4)
     rows = [ANSI.sub("", row) for row in text.strip("\n").split("\n")]
 
-    assert {len(row) for row in rows} == {len(rows[0])} and len(rows[0]) <= 50
+    assert max(len(row) for row in rows) <= 43
+    assert not any("file changes" in row and "reloads" in row for row in rows)
+    assert any(row.endswith("changes") for row in rows)
     assert "\u2026" not in text
-    assert sum("\u00b7" in row for row in rows) >= 2
-
-
-def test_wrapped_keeps_every_fact_whole() -> None:
-    rows = banner.wrapped(["alpha", "beta", "gamma"], 12)
-    assert rows == ["alpha \u00b7 beta", "gamma"]
 
 
 def test_colour_needs_a_terminal_and_no_no_color(

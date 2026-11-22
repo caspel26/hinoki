@@ -74,9 +74,9 @@ what it had opened.
 
 ## How it looks
 
-On a colour terminal the shell opens with the Hinoki banner, a summary (the
-application title, the settings class and the loaded models) and a `hinoki ❯`
-prompt. `NO_COLOR`, `TERM=dumb` and `HINOKI_ANIMATE=0`
+On a colour terminal the shell opens with the Hinoki banner, which lists the
+application title, the settings class, the loaded models and the Python version,
+and a `hinoki ❯` prompt. `NO_COLOR`, `TERM=dumb` and `HINOKI_ANIMATE=0`
 behave as for [`hinoki new`](new-project.md#how-it-looks-in-a-terminal); without
 colour the shell prints `Hinoki interactive shell; use Ctrl-D or Ctrl-C to exit.`
 and Python's `>>>` / `...` prompts.
