@@ -4,7 +4,12 @@ import pytest
 
 from hinoki import RateLimitContext, errors
 from hinoki.admin.users import limits
-from hinoki.admin.users.limits import LoginWindow, window_key
+from hinoki.admin.users.limits import (
+    FREE_FAILURES,
+    LoginWindow,
+    UserBackoff,
+    window_key,
+)
 
 
 class Clock:
@@ -65,7 +70,27 @@ def test_the_table_never_exceeds_its_bound_and_drops_the_oldest(
         clock.now += 1
         policy.check(context(f"198.51.100.{index}"))
 
-    assert list(policy.windows) == ["198.51.100.2", "198.51.100.3", "198.51.100.4"]
+    assert list(policy.windows) == [
+        f"/admin/login|198.51.100.{index}" for index in (2, 3, 4)
+    ]
+
+
+def test_a_full_table_never_forgets_a_blocked_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(limits, "MAX_CLIENTS", 2)
+    clock = Clock()
+    policy = LoginWindow(limit=1, window=60, clock=clock)
+    policy.check(context("198.51.100.1"))  # now blocked
+    clock.now += 1
+    policy.check(context("198.51.100.2"))
+
+    with pytest.raises(errors.TooManyRequests):
+        policy.check(context("198.51.100.3"))  # would have evicted the block
+    with pytest.raises(errors.TooManyRequests):
+        policy.check(context("198.51.100.1"))
+    clock.now += 60
+    policy.check(context("198.51.100.3"))  # the oldest block has expired
 
 
 def test_expired_windows_leave_the_table() -> None:
@@ -76,4 +101,34 @@ def test_expired_windows_leave_the_table() -> None:
 
     policy.check(context("198.51.100.2"))
 
-    assert list(policy.windows) == ["198.51.100.2"]
+    assert list(policy.windows) == ["/admin/login|198.51.100.2"]
+
+
+def test_sign_in_and_password_change_count_apart() -> None:
+    policy = LoginWindow(limit=1, window=60, clock=Clock())
+    policy.check(context("203.0.113.1"))
+    other = RateLimitContext(
+        "POST", "/admin/password", "203.0.113.1", None, lambda kind: kind
+    )
+
+    policy.check(other)  # its own window
+    with pytest.raises(errors.TooManyRequests):
+        policy.check(context("203.0.113.1"))
+
+
+def test_a_user_is_delayed_after_repeated_failures_from_any_address() -> None:
+    clock = Clock()
+    backoff = UserBackoff(clock=clock)
+    for _ in range(FREE_FAILURES):
+        backoff.check("ada")
+        backoff.failed("ada")
+    backoff.check("ada")  # the free failures carry no delay
+    backoff.failed("ada")
+
+    with pytest.raises(errors.TooManyRequests):
+        backoff.check("ada")
+    backoff.check("grace")  # other names are unaffected
+    clock.now += 3
+    backoff.check("ada")
+    backoff.succeeded("ada")
+    assert "ada" not in backoff.failures

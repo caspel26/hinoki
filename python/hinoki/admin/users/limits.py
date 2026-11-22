@@ -25,6 +25,10 @@ MAX_CLIENTS = 10_000  # the table never holds more addresses than this
 UNKNOWN_FACTOR = 10  # clients with no known address share one, larger, window
 
 
+FREE_FAILURES = 5  # wrong passwords per user before the first delay
+MAX_DELAY = 300  # seconds: a delay never locks an account out for longer
+
+
 def window_key(client: str | None) -> str:
     """One window per address; an IPv6 address counts by its /64, because a
     single host controls a whole /64 of them."""
@@ -37,6 +41,41 @@ def window_key(client: str | None) -> str:
     if isinstance(address, ipaddress.IPv6Address):
         return str(ipaddress.ip_network(f"{address}/64", strict=False))
     return str(address)
+
+
+def scoped_key(context: RateLimitContext) -> str:
+    """The window of an address on one route: the sign-in and the password change
+    count apart, so a flood on one never spends the other's attempts."""
+    return f"{context.route}|{window_key(context.client)}"
+
+
+class UserBackoff:
+    """Delays further password checks for a user name after repeated failures.
+
+    The delay doubles with each failure past ``FREE_FAILURES`` up to
+    ``MAX_DELAY`` and is applied before any hashing, so a guesser who rotates
+    addresses still meets it. Unknown names are counted the same, so the delay
+    does not say who exists. Like ``LoginWindow`` it lives in one worker."""
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self.clock = clock
+        self.failures: OrderedDict[str, tuple[int, float]] = OrderedDict()
+
+    def check(self, name: str) -> None:
+        count, until = self.failures.get(name, (0, 0.0))
+        now = self.clock()
+        if count > FREE_FAILURES and now < until:
+            raise TooManyRequests(max(1, int(until - now) + 1))
+
+    def failed(self, name: str) -> None:
+        count = self.failures.pop(name, (0, 0.0))[0] + 1
+        delay = min(MAX_DELAY, 2 ** max(0, count - FREE_FAILURES))
+        if len(self.failures) >= MAX_CLIENTS:
+            self.failures.popitem(last=False)
+        self.failures[name] = (count, self.clock() + delay)
+
+    def succeeded(self, name: str) -> None:
+        self.failures.pop(name, None)
 
 
 class LoginWindow:
@@ -62,17 +101,26 @@ class LoginWindow:
 
     def check(self, context: RateLimitContext) -> None:
         now = self.clock()
-        key = window_key(context.client)
+        key = scoped_key(context)
         limit = self.limit * (UNKNOWN_FACTOR if context.client is None else 1)
         self.expire(now)
         started, count = self.windows.get(key, (now, 0))
         if count >= limit:
             raise TooManyRequests(max(1, int(started + self.window - now) + 1))
         if key not in self.windows and len(self.windows) >= MAX_CLIENTS:
-            self.windows.popitem(last=False)
+            self.make_room(now)
         if key not in self.windows or started == now:
             self.windows.pop(key, None)  # a new window goes to the back
         self.windows[key] = (started, count + 1)
+
+    def make_room(self, now: float) -> None:
+        """Evict the oldest window, unless it is a blocked address: forgetting
+        it would let a flood of new addresses reset a block. The table then
+        refuses new addresses until the oldest block expires."""
+        started, count = next(iter(self.windows.values()))
+        if count >= self.limit:
+            raise TooManyRequests(max(1, int(started + self.window - now) + 1))
+        self.windows.popitem(last=False)
 
     def expire(self, now: float) -> None:
         while self.windows:
@@ -104,7 +152,7 @@ class DatabaseLoginWindow:
 
     async def check(self, context: RateLimitContext) -> None:
         now = self.clock()
-        key = hashlib.sha256(window_key(context.client).encode()).hexdigest()
+        key = hashlib.sha256(scoped_key(context).encode()).hexdigest()
         limit = self.limit * (UNKNOWN_FACTOR if context.client is None else 1)
         await LoginWindowRow.adelete(
             started_at__lt=now - timedelta(seconds=self.window)
