@@ -311,6 +311,7 @@ def run_rust(
         return refuse(reason)
     address = (args.host or settings.host, args.port or settings.port)
     workers = 1 if reload else (getattr(args, "workers", None) or settings.workers)
+    warn_key_access(settings)
     try:
         check_port(address[1])  # before any lifespan or worker starts
         banner.show(
@@ -327,6 +328,23 @@ def run_rust(
         return refuse(f"cannot listen on {address[0]}:{address[1]}: {error}")
 
 
+def warn_key_access(settings: ServerSettings) -> None:
+    """Say so when the TLS private key can be read by any local user. Not an
+    error: a secret mounted by an orchestrator is often group-readable."""
+    if settings.tls_key_file is None:
+        return
+    try:
+        mode = Path(settings.tls_key_file).stat().st_mode
+    except OSError:
+        return
+    if mode & 0o004:
+        print(
+            f"warning: {settings.tls_key_file} is readable by every local user; "
+            "restrict it (chmod 600, or 640 for a service group)",
+            file=sys.stderr,
+        )
+
+
 def granian_tls(settings: ServerSettings) -> dict[str, Any]:
     """Granian's TLS options, matching the Rust server: the same files, TLS 1.2
     and up (Granian's own default is 1.3) and HTTP/1.1 only, or HTTP/1.1 and
@@ -334,6 +352,7 @@ def granian_tls(settings: ServerSettings) -> dict[str, Any]:
     application without TLS files."""
     if settings.tls_cert_file is None or settings.tls_key_file is None:
         return {}
+    warn_key_access(settings)
     from granian.constants import HTTPModes, SSLProtocols  # noqa: PLC0415
 
     return {
