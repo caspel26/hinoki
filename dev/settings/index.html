@@ -467,7 +467,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:25:02 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -706,6 +706,12 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>server_timing</code></td>
 <td>unset</td>
 <td>Kiso only: add a <code>Server-Timing</code> header with the time taken and the serving lane; unset means <code>hinoki dev</code> only, so browser developer tools show it</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>sighup</code></td>
+<td>unset</td>
+<td>Kiso only, <code>hinoki serve</code>: <code>"reload"</code> (also what unset means) replaces the workers one at a time on <code>SIGHUP</code>, <code>"stop"</code> stops the server instead; see <a href="../kiso/#reload-on-sighup">reload on <code>SIGHUP</code></a></td>
 </tr>
 <tr>
 <td><code>server</code></td>
@@ -1118,7 +1124,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:25:02 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

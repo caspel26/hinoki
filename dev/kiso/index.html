@@ -467,8 +467,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:46:12 UTC">November 22, 2026</span></span>
-            <span>22 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></span>
+            <span>24 min read</span>
           </p>
           
         </header>
@@ -547,14 +547,46 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 <h2 id="response-compression">Response compression<a class="headerlink" href="#response-compression" title="Permanent link">&para;</a></h2>
 <p>With <code>compression.enabled</code> Kiso compresses eligible bodies with brotli or gzip after the application has answered, on HTTP/1.1 and HTTP/2, for whole answers, streams, event streams and files. It negotiates <code>accept-encoding</code>, adds <code>Vary</code>, skips small or non-text bodies and answers with <code>cache-control: no-transform</code>, flushes a stream whenever its producer pauses, and sends an answer uncompressed when <code>compression.max_concurrent</code> compressions are already running. It is a Kiso feature: Granian does not compress. See <a href="../compression/">compress responses</a>.</p>
 <h2 id="workers-signals-and-restarts">Workers, signals and restarts<a class="headerlink" href="#workers-signals-and-restarts" title="Permanent link">&para;</a></h2>
-<p>With one worker <code>hinoki serve</code> runs the server in its own process. With several workers (and always under <code>hinoki dev</code>) it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
+<p>With one worker and <code>server.sighup = "stop"</code> (or where the system has no <code>SIGHUP</code>, as on Windows) <code>hinoki serve</code> runs the server in its own process. With several workers, with the default <code>sighup</code> (one extra supervisor process even for one worker) and always under <code>hinoki dev</code> it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
 <ul>
-<li><code>SIGTERM</code>, <code>SIGINT</code> (Ctrl-C) or <code>SIGHUP</code> stops accepting, lets running requests finish for up to <code>lifecycle.shutdown_timeout</code>, runs the lifespan shutdown and exits. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. <code>--workers</code> must be 1 to 256 (<code>0</code> uses <code>server.workers</code>).</li>
+<li><code>SIGTERM</code> or <code>SIGINT</code> (Ctrl-C) stops accepting, lets running requests finish for up to <code>lifecycle.shutdown_timeout</code>, runs the lifespan shutdown and exits. <code>SIGHUP</code> does the same when <code>server.sighup</code> is <code>"stop"</code> and <a href="#reload-on-sighup">reloads</a> otherwise. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. <code>--workers</code> must be 1 to 256 (<code>0</code> uses <code>server.workers</code>).</li>
 <li>A worker that exits on its own, whether it failed to start or crashed, is not restarted: the supervisor stops the other workers and exits with a non-zero status. Restart policy belongs to the process manager (systemd, a container runtime) that runs <code>hinoki serve</code>.</li>
 <li>The listening socket is opened before the lifespan startup of a supervised worker finishes, so connections wait in the backlog until a worker accepts them. With one worker the socket is opened after a successful startup.</li>
 <li>If the supervisor is killed without a chance to clean up, its workers notice within a second of finishing their startup and stop. The workers' copy of the listening socket is not inherited by processes a handler starts.</li>
 <li>A socket that cannot be opened (address in use, a bad port or host) is reported as <code>error: cannot listen on HOST:PORT: ...</code> with exit status 2, with one worker or several.</li>
 </ul>
+<h2 id="reload-on-sighup">Reload on <code>SIGHUP</code><a class="headerlink" href="#reload-on-sighup" title="Permanent link">&para;</a></h2>
+<p><code>kill -HUP &lt;supervisor pid&gt;</code> (or <code>ExecReload=/bin/kill -HUP $MAINPID</code> in a systemd unit) replaces the workers of a running <code>hinoki serve</code> with new ones, without closing the listening socket. The supervisor does this one worker at a time:</p>
+<ol>
+<li>It starts a new worker on the same socket. The new process imports the target and reads the settings, so changed code, <code>.env</code> and TOML files, TLS certificates, and CORS, host and security policies take effect.</li>
+<li>It waits until the new worker has run its lifespan startup and serves. The wait is <code>lifecycle.startup_timeout</code> plus five seconds.</li>
+<li>It sends <code>SIGTERM</code> to the old worker, which stops accepting, lets the requests it has finished (up to <code>lifecycle.shutdown_timeout</code>), runs its lifespan shutdown and exits. It is killed if it is still running five seconds after that.</li>
+<li>It moves to the next worker. At most one extra worker runs at a time, so the database connections of an application are at most <code>(workers + 1) × pool_max</code> while a reload runs.</li>
+</ol>
+<div class="language-text highlight"><pre><span></span><code>reloading: SIGHUP (generation 2)
+reloaded 4 workers (generation 2)
+</code></pre></div>
+<p>The supervisor's own settings are not reloaded: <code>host</code>, <code>port</code>, <code>backlog</code>, <code>workers</code>, <code>server</code>, <code>interface</code> and <code>metrics.listen</code> need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run <code>hinoki migrate</code> before sending the signal.</p>
+<ul>
+<li>A new worker that exits, fails its lifespan startup or is not ready in time is killed, and the reload stops with <code>error: reload stopped at worker K of N; the other workers keep running</code>. The workers not yet replaced keep serving the old code (workers already replaced stay new); another <code>SIGHUP</code> retries them all. The supervisor does not exit.</li>
+<li>A <code>SIGHUP</code> that arrives during a reload is remembered once and handled when it ends. <code>SIGTERM</code> or <code>SIGINT</code> during a reload stops everything, the new and the old workers, as usual.</li>
+<li>A worker that crashes outside a reload still stops the supervisor, as above.</li>
+<li><code>server.sighup = "stop"</code> keeps the earlier behavior (<code>SIGHUP</code> stops the server). <code>hinoki dev</code> always reloads on file changes and <code>SIGHUP</code> stops it. Windows has no <code>SIGHUP</code>, so there the setting has no effect and the server runs as for <code>"stop"</code>. Granian refuses <code>server.sighup</code>.</li>
+<li>A request that a client has already sent to the old worker when it is told to stop is answered, not refused with a <code>503</code>: the worker reports not ready only after its connections have drained.</li>
+<li>The reload is orchestrated by the supervisor, which is Python; the drain of the old worker and the TLS loading of the new one are Rust. With metrics, see <a href="../metrics/#several-workers">several workers</a>.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py: reload is on by default; "stop" turns it off</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ProjectSettings</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">AppSettings</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"NOTES_"</span><span class="p">,</span> <span class="n">dotenv</span><span class="o">=</span><span class="s2">".env"</span><span class="p">):</span>
+    <span class="n">server</span><span class="p">:</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">ServerSettings</span><span class="p">(</span>
+        <span class="n">workers</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">sighup</span><span class="o">=</span><span class="s2">"reload"</span>
+    <span class="p">)</span>
+</code></pre></div>
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>serve<span class="w"> </span>notes.main:app<span class="w"> </span><span class="p">&amp;</span>
+<span class="nb">kill</span><span class="w"> </span>-HUP<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s1">'hinoki serve'</span><span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
 <h2 id="reload-with-hinoki-dev">Reload with <code>hinoki dev</code><a class="headerlink" href="#reload-with-hinoki-dev" title="Permanent link">&para;</a></h2>
 <p>The supervisor watches the project directory (<code>*.py</code>, <code>*.toml</code> and <code>.env</code> files; <code>.venv</code>, <code>.git</code> and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short <code>error: cannot load ...</code> line for a missing module or name, a traceback for other failures), <code>waiting for changes</code> follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, <code>backlog</code> and the choice of server are read once when <code>hinoki dev</code> starts: change them and restart the command. The other <code>server</code> settings (limits, <code>trusted_proxies</code>, <code>runtime_threads</code>) are read again by every restarted worker. The watcher ignores <code>.venv</code> but not a virtual environment with another name, such as <code>venv/</code>: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. <code>dev</code> needs <code>watchfiles</code> (the <code>hinoki[server]</code> extra) and uses one worker.</p>
 <h2 id="behind-a-reverse-proxy">Behind a reverse proxy<a class="headerlink" href="#behind-a-reverse-proxy" title="Permanent link">&para;</a></h2>
@@ -598,12 +630,12 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#limits">Limits</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#response-compression">Response compression</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#reload-with-hinoki-dev">Reload with hinoki dev</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#limits">Limits</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#response-compression">Response compression</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#reload-on-sighup">Reload on SIGHUP</a></li><li><a href="#reload-with-hinoki-dev">Reload with hinoki dev</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:46:12 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -1694,6 +1694,10 @@ file that also receives each record as JSON, for <code>hinoki mcp</code>'s
 <code>recent_requests</code> tool. <code>server_timing</code> (Rust server only) adds a
 <code>Server-Timing</code> header with the time taken and the serving lane: unset
 means in <code>hinoki dev</code> only.
+<code>sighup</code> (Rust server only; <code>hinoki serve</code>, where the system has
+<code>SIGHUP</code>) says what the signal does: <code>"reload"</code>, which is also what unset
+means, replaces the workers one at a time with new processes that import the
+code and read the settings again, <code>"stop"</code> stops the server.
 <code>max_connections</code>, <code>header_read_timeout</code>,
 <code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code> and
 <code>access_log_format</code>, <code>access_log_skip</code> and <code>access_log_slow_ms</code> belong to

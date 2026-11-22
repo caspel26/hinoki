@@ -467,7 +467,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:25:02 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -614,7 +614,7 @@ hinoki_http_requests_in_flight{worker="0"} 0
 <p>A <code>listen</code> address off the loopback needs <code>allow</code> or <code>token</code>, so the metrics are never open to everyone by accident. The listener answers <code>GET</code> and <code>HEAD</code> only (<code>405</code> otherwise), <code>404</code> for another path, <code>403</code> for a peer outside <code>allow</code> and <code>401</code> with <code>www-authenticate: Bearer</code> for a missing or wrong token (compared in constant time). It takes at most 64 connections, waits 5 seconds for a request head and reads at most 8 KiB of headers. <a href="../authentication/"><code>Access</code></a> policies do not apply to it: it does not pass through application code.</p>
 <h2 id="several-workers">Several workers<a class="headerlink" href="#several-workers" title="Permanent link">&para;</a></h2>
 <p><code>hinoki serve --workers N</code> opens the metrics listener once, like the main one, and every worker accepts scrapes on it. Counters are not added up: each worker writes a snapshot of its own numbers to a private directory (created by the supervisor, readable only by its user, removed when it exits) every <code>snapshot_interval</code>, and the worker that receives a scrape answers with its live numbers and the fresh snapshots of the others. Each process keeps its own series, told apart by <code>worker</code>, so Prometheus can <code>sum without (worker)</code> them and handles a restarted worker's counter reset as usual. A peer's numbers are at most one interval old (and a snapshot older than five intervals, from a worker that is gone, is ignored); the answering worker's own are live. A snapshot that is unreadable, too large or not valid UTF-8 is skipped and counted in <code>hinoki_metrics_snapshot_errors_total</code>.</p>
-<p>With one worker nothing is written to disk: the worker binds <code>listen</code> itself and answers from memory. Under <code>hinoki dev</code> the supervisor owns the listener, so it stays open while the worker reloads, and the counters restart with the worker.</p>
+<p>With one worker nothing is written to disk when <code>server.sighup</code> is <code>"stop"</code>: the worker binds <code>listen</code> itself and answers from memory. Otherwise (the default) the supervisor owns the listener and the directory even for one worker, because a <a href="../kiso/#reload-on-sighup">reload on <code>SIGHUP</code></a> runs the old and the new worker side by side. A replacement worker takes the next free <code>worker</code> number (a reload of <code>worker="0"</code> continues as <code>worker="1"</code>), starts its counters at zero, and the snapshot of the worker it replaces is removed when that one has stopped. Under <code>hinoki dev</code> the supervisor owns the listener, so it stays open while the worker reloads, and the counters restart with the worker.</p>
 <h2 id="what-it-does-not-cover">What it does not cover<a class="headerlink" href="#what-it-does-not-cover" title="Permanent link">&para;</a></h2>
 <p>A worker's snapshot is limited to 4 MiB, which is roughly 2000 active route and method pairs with the default buckets and roughly 800 with 32 buckets (approximate figures). A worker whose snapshot would be larger keeps its previous file, logs the problem once to stderr, and its series leave the other workers' scrapes once that file is older than five intervals; its own scrape still shows live numbers.</p>
 <p>Pool and executor gauges, process metrics (<code>process_*</code>) and tracing are not exported. Metrics are not available under Granian or another ASGI server; wrap the ASGI application there as described in <a href="../serving/#metrics-and-tracing">serving</a>.</p>
@@ -645,7 +645,7 @@ hinoki_http_requests_in_flight{worker="0"} 0
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:25:02 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:01 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/metrics.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
