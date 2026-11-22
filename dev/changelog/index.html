@@ -468,7 +468,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>6 min read</span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -529,6 +529,11 @@
 <p><code>crates/kiso/src/conn.rs</code>, <code>crates/kiso/src/stream.rs</code>, <code>crates/bindings/src/wsgi.rs</code> (#389, #401, #402)</p>
 </blockquote>
 <p>Middleware, raw responses and the WSGI path are stricter: a path with a NUL byte or a dot segment is refused, and a WSGI stream whose application goes silent is reset.</p>
+<h4>🦀 Native page encoding and joined rows</h4>
+<blockquote>
+<p><code>crates/bindings/src/request.rs</code>, <code>crates/bindings/src/schema.rs</code>, <code>crates/bindings/src/modelrows.rs</code>, <code>python/hinoki/orm/queryset.py</code></p>
+</blockquote>
+<p>The JSON encoder writes a <code>Page</code> of <code>Schema</code> instances directly instead of building the dumped dicts first; a <code>Page</code> subclass or an item with a custom <code>dump</code> still goes through <code>dump()</code>. Encoding a <code>Schema</code> no longer raises and catches a <code>KeyError</code> per class lookup. Queries with <code>select_related(...)</code> now build the model and its joined instances in the native row builder whenever every involved model can already use it (no custom <code>from_row</code> or row hooks). The produced JSON and instances are unchanged. Indicative single-core runs gave about +21% on a paginated list of 20 rows, a further +4% on that list with a joined author, and +2% to +4% on a minimal action; the official comparative numbers are not yet re-measured.</p>
 <h4>🗄️ Database defaults and messages</h4>
 <blockquote>
 <p><code>python/hinoki/db.py</code>, <code>crates/orm/src/database.rs</code> (#395, #397)</p>
