@@ -57,39 +57,31 @@
   };
 
   /* ---------- Hero glow follows the pointer ---------- */
-  /* Fine pointers only. A tight core and a wider halo ease toward the pointer
-     with different time constants; the loop stops once both have settled and
-     the glow fades out when the pointer leaves the hero. */
-  const GLOW_TAU = [28, 110];
-
+  /* Fine pointers only. The glow eases toward the pointer on animation frames
+     and fades out when the pointer leaves the hero. */
   const setupGlow = (hero) => {
-    const discs = $$(".hn-hero__bg i", hero).map((el, n) => ({ el, tau: GLOW_TAU[n] ?? 110, x: 0, y: 0 }));
+    const glow = $(".hn-hero__bg i", hero);
     const fine = matchMedia("(pointer: fine) and (prefers-reduced-motion: no-preference)");
-    if (!discs.length || !fine.matches) return;
+    if (!glow || !fine.matches) return;
     let target = { x: 0, y: 0 };
+    let now = { x: 0, y: 0 };
     let frame = 0;
     let last = 0;
     const step = (time) => {
-      const dt = Math.min(time - last || 16, 48);
+      // Frame-rate independent easing: the same feel at 60 and 144 Hz.
+      const k = 1 - Math.exp(-Math.min(time - last || 16, 48) / 70);
       last = time;
-      let moving = false;
-      for (const d of discs) {
-        // Frame-rate independent easing: the same feel at 60 and 144 Hz.
-        const k = 1 - Math.exp(-dt / d.tau);
-        d.x += (target.x - d.x) * k;
-        d.y += (target.y - d.y) * k;
-        d.el.style.transform = `translate3d(${d.x.toFixed(2)}px, ${d.y.toFixed(2)}px, 0)`;
-        moving ||= Math.abs(target.x - d.x) > 0.2 || Math.abs(target.y - d.y) > 0.2;
-      }
-      frame = moving ? requestAnimationFrame(step) : 0;
-      if (!moving) last = 0;
+      now = { x: now.x + (target.x - now.x) * k, y: now.y + (target.y - now.y) * k };
+      glow.style.setProperty("--mx", `${now.x.toFixed(2)}px`);
+      glow.style.setProperty("--my", `${now.y.toFixed(2)}px`);
+      const settled = Math.abs(target.x - now.x) < 0.2 && Math.abs(target.y - now.y) < 0.2;
+      frame = settled ? 0 : requestAnimationFrame(step);
+      if (settled) last = 0;
     };
     hero.addEventListener("pointermove", (event) => {
       const box = hero.getBoundingClientRect();
       target = { x: event.clientX - box.left, y: event.clientY - box.top + 40 };
-      if (!hero.classList.contains("has-pointer")) {
-        for (const d of discs) Object.assign(d, target);
-      }
+      if (!hero.classList.contains("has-pointer")) now = target;
       hero.classList.add("has-pointer");
       if (!frame) frame = requestAnimationFrame(step);
     });

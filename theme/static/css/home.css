@@ -278,22 +278,20 @@
   opacity: 0.8;
 }
 
-/* The pointer glow is two layers: a small core that hugs the pointer and a wider,
-   fainter halo that follows with a little lag. JS writes only the transform. */
 .hn-hero__bg i {
+  --mx: 0px;
+  --my: 0px;
   inset-inline-start: 0;
   top: 0;
-  inline-size: var(--s);
+  inline-size: 300px;
   aspect-ratio: 1;
-  margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--hn-brand) var(--a), transparent), transparent);
+  margin: -150px 0 0 -150px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--hn-brand) 42%, transparent), transparent);
   opacity: 0;
+  transform: translate3d(var(--mx), var(--my), 0);
   will-change: transform;
-  transition: opacity var(--hn-dur-3) var(--hn-ease);
+  transition: opacity var(--hn-dur-2) var(--hn-ease);
 }
-
-.hn-hero__bg i:nth-of-type(1) { --s: 56px; --a: 70%; }
-.hn-hero__bg i:nth-of-type(2) { --s: 220px; --a: 30%; }
 
 .hn-hero.has-pointer .hn-hero__bg i {
   opacity: 1;
