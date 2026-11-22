@@ -520,6 +520,10 @@ async fn http_1_1_needs_exactly_one_host() {
         ),
         ("GET /x HTTP/1.1\r\nhost: a\r\n\r\n", "HTTP/1.1 200"),
         ("GET /x HTTP/1.0\r\n\r\n", "HTTP/1.0 200"),
+        (
+            "GET /x HTTP/1.0\r\nhost: a\r\nhost: b\r\n\r\n",
+            "HTTP/1.0 400",
+        ),
     ] {
         let mut stream = connect(&running).await;
         stream.write_all(request.as_bytes()).await.unwrap();
