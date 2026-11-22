@@ -152,8 +152,8 @@ def test_native_entries_are_cached_on_the_class() -> None:
     Cached.validate({"x": 1})
     Cached.validate_json(b'{"x": 1}')
     assert Cached.validate({"x": 1}).x == 1
-    assert type(Cached.__dict__["validate"]).__name__ == "_Cached"
-    assert type(Cached.__dict__["validate_json"]).__name__ == "_Cached"
+    assert type(Cached.__dict__["validate"]).__name__ == "Pinned"
+    assert type(Cached.__dict__["validate_json"]).__name__ == "Pinned"
 
 
 def test_validate_json_honours_a_validate_override() -> None:
@@ -288,6 +288,10 @@ def test_pickle_round_trips_nested_schemas() -> None:
         assert again.dump(exclude_unset=True) == built.dump(exclude_unset=True)
 
 
+def _rebuild(cls: type[Schema], values: dict[str, Any]) -> Schema:
+    return cls(**values)
+
+
 def test_a_class_with_its_own_copy_protocol_keeps_it() -> None:
     class Marked(Schema):
         x: int
@@ -296,7 +300,7 @@ def test_a_class_with_its_own_copy_protocol_keeps_it() -> None:
             return Marked(x=99)
 
         def __reduce__(self) -> tuple[Any, ...]:
-            return (Marked, (), None)
+            return (_rebuild, (Marked, {"x": self.x}))
 
     assert copy.copy(Marked(x=1)).x == 99
     assert copy.deepcopy(Marked(x=1)) == Marked(x=1)
@@ -309,3 +313,75 @@ def test_native_protocol_methods_follow_subclasses() -> None:
     built = Wide(name="n", price=1.0, extra=4)
     assert copy.copy(built) == built
     assert copy.deepcopy(built).extra == 4
+
+
+class Inner(Schema):
+    x: int
+
+
+class Outer(Schema):
+    inner: Inner
+    nums: list[int] = Field(default_factory=list)
+    items: list[Inner] = Field(default_factory=list)
+
+
+def test_validate_refuses_ready_instances_like_the_ordinary_path() -> None:
+    for data in (
+        {"inner": Inner(x=1)},
+        {"inner": {"x": 1}, "items": [Inner(x=2)]},
+    ):
+        with pytest.raises(ValidationError):
+            Outer._validate_ordinary(data)
+        with pytest.raises(ValidationError):
+            Outer.validate(data)
+
+
+def test_validate_does_not_keep_the_input_list() -> None:
+    nums = [1, 2]
+    built = Outer.validate({"inner": {"x": 1}, "nums": nums})
+    nums.append(3)
+    assert built.nums == [1, 2]
+
+
+def test_user_protocol_on_a_subclass_replaces_the_inherited_native_one() -> None:
+    class Base(Schema):
+        a: int
+
+    class Child(Base):
+        b: int = 0
+
+        def __getstate__(self) -> dict[str, int]:
+            return {"a": self.a, "b": self.b}
+
+    built = Child(a=1, b=2)
+    assert copy.copy(built).b == 2
+    assert copy.deepcopy(built).b == 2
+
+
+def test_a_user_reduce_is_used_by_copy() -> None:
+    calls: list[int] = []
+
+    class Money(Schema):
+        cents: int
+
+        def __reduce__(self) -> tuple[Any, ...]:
+            calls.append(self.cents)
+            return (_rebuild, (Money, {"cents": self.cents}))
+
+    copy.copy(Money(cents=5))
+    assert calls == [5]
+
+
+def test_super_validate_builds_the_calling_subclass() -> None:
+    class Parent2(Schema):
+        a: int
+
+    class Child2(Parent2):
+        b: int = 0
+
+        @classmethod
+        def validate(cls, data: object) -> Any:
+            return super().validate(data)
+
+    Parent2.validate({"a": 1})
+    assert type(Child2.validate({"a": 1, "b": 2})) is Child2
