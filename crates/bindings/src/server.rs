@@ -1895,7 +1895,7 @@ impl Core {
                 return self.answer(&asked, Early::UpgradeRequired, Vec::new())
             }
         }
-        if !self.origin_allowed(&head.headers, &asked.origin, plan) {
+        if !self.origin_allowed(&head.headers, &asked.origin, asked.https, plan) {
             return self.answer(&asked, Early::CorsOriginDenied, Vec::new());
         }
         let Ok(hold) = Arc::clone(&self.ws_slots).try_acquire_owned() else {
@@ -1924,11 +1924,17 @@ impl Core {
     }
 
     /// An absent `Origin` (not a browser) passes. Otherwise the origin must be the
-    /// host the request addressed, one of the route's, or one the application's
+    /// host and scheme the request addressed, one of the route's, or one the application's
     /// CORS policy lists. A CORS wildcard is not honoured: it is safe for HTTP
     /// because a browser hides a credentialed answer from other sites, but a
     /// WebSocket handshake carries cookies and has no such protection.
-    fn origin_allowed(&self, headers: &[Header], origin: &[u8], plan: &WsPlan) -> bool {
+    fn origin_allowed(
+        &self,
+        headers: &[Header],
+        origin: &[u8],
+        https: bool,
+        plan: &WsPlan,
+    ) -> bool {
         if origin.is_empty() {
             return true;
         }
@@ -1945,9 +1951,11 @@ impl Core {
             return true;
         }
         let host = joined_value(headers, b"host").map(|host| host.to_ascii_lowercase());
+        // Over TLS a page on plain http is another origin; where the scheme is
+        // not known to be https (a proxy that terminates TLS) either is accepted.
         let authority = origin
-            .strip_prefix(b"http://")
-            .or_else(|| origin.strip_prefix(b"https://"));
+            .strip_prefix(b"https://")
+            .or_else(|| origin.strip_prefix(b"http://").filter(|_| !https));
         matches!((host, authority), (Some(host), Some(authority)) if host == authority)
     }
 
