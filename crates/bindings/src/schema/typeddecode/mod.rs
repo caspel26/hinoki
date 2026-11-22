@@ -17,7 +17,7 @@
 mod nativeinit;
 
 pub use nativeinit::NativeInit;
-pub(crate) use nativeinit::{complete, replaced};
+pub(crate) use nativeinit::{complete, from_record, replaced};
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -107,6 +107,8 @@ struct PlanField {
     /// `"key":` as written in compact JSON, matched in one comparison.
     pattern: Box<[u8]>,
     name: Py<PyString>,
+    /// `key` as a `str`, to look it up in a mapping.
+    wire: Py<PyString>,
     required: bool,
     plan: Plan,
 }
@@ -215,6 +217,7 @@ fn class_plan(
                 format!("\"{}\":", field.wire_name).into_bytes().into()
             },
             name: PyString::intern(py, &field.name).unbind(),
+            wire: PyString::intern(py, &field.wire_name).unbind(),
             required: field.required,
             plan: plan_of(&shadow.node)?,
         });

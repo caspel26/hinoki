@@ -2979,6 +2979,11 @@ impl Compiled {
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        if let Some(typed) = self.typed.as_deref() {
+            if let Some(built) = typeddecode::from_record(typed, data) {
+                return Ok(built);
+            }
+        }
         let options = Options {
             construct: true,
             use_aliases: true,

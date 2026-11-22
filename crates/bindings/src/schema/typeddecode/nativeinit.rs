@@ -250,10 +250,14 @@ fn build<'py>(
     if matched != given {
         return Ok(false);
     }
-    if matched < class.fields.len() && !fill_omitted(py, ready, class, &mut values)? {
+    if matched < class.fields.len() && !fill_omitted(py, typed, class, &mut values)? {
         return Ok(false);
     }
-    write(py, class, instance, values, kwargs, matched)?;
+    let partial = matched < class.fields.len();
+    write(py, class, instance, values, partial, || match kwargs {
+        Some(found) => Ok(PyFrozenSet::new(py, found.keys())?.into_any()),
+        None => Ok(PyFrozenSet::empty(py)?.into_any()),
+    })?;
     Ok(true)
 }
 
@@ -261,7 +265,7 @@ fn build<'py>(
 /// can vouch for.
 fn fill_omitted<'py>(
     py: Python<'py>,
-    ready: &Ready,
+    typed: &Typed,
     class: &PlanClass,
     values: &mut [Option<Bound<'py, PyAny>>],
 ) -> PyResult<bool> {
@@ -272,7 +276,7 @@ fn fill_omitted<'py>(
         if value.is_some() {
             continue;
         }
-        match default_of(py, &ready.typed, field, default)? {
+        match default_of(py, typed, field, default)? {
             Some(found) => *value = Some(found),
             None => return Ok(false),
         }
@@ -280,13 +284,15 @@ fn fill_omitted<'py>(
     Ok(true)
 }
 
+/// Store the values in the slots; a partial instance records which fields it
+/// was given (`given`), a complete one all of them.
 fn write<'py>(
     py: Python<'py>,
     class: &PlanClass,
     instance: &Bound<'py, PyAny>,
     values: Vec<Option<Bound<'py, PyAny>>>,
-    kwargs: Option<&Bound<'py, PyDict>>,
-    matched: usize,
+    partial: bool,
+    given: impl FnOnce() -> PyResult<Bound<'py, PyAny>>,
 ) -> PyResult<()> {
     let Some(layout) = &class.layout else {
         return Ok(());
@@ -297,16 +303,95 @@ fn write<'py>(
         }
     }
     if let (Some(offset), Some(all)) = (layout.supplied, &class.supplied) {
-        let supplied = match kwargs {
-            Some(found) if matched < class.fields.len() => {
-                PyFrozenSet::new(py, found.keys())?.into_any()
-            }
-            None if matched < class.fields.len() => PyFrozenSet::empty(py)?.into_any(),
-            _ => all.bind(py).clone(),
+        let supplied = if partial {
+            given()?
+        } else {
+            all.bind(py).clone()
         };
         store(instance, offset, supplied);
     }
     Ok(())
+}
+
+/// The instance a mapping of wire names describes, built by writing the
+/// slots; `None` when anything is not vouched for (the general validator then
+/// runs on the same data and reports what it always reported).
+pub(crate) fn from_record<'py>(
+    typed: &Typed,
+    data: &Bound<'py, PyAny>,
+) -> Option<Bound<'py, PyAny>> {
+    record(typed, typed.root, data, 0)
+}
+
+fn record<'py>(
+    typed: &Typed,
+    index: usize,
+    data: &Bound<'py, PyAny>,
+    depth: usize,
+) -> Option<Bound<'py, PyAny>> {
+    let py = data.py();
+    let class = &typed.classes[index];
+    class.layout.as_ref()?;
+    let dict = data.cast_exact::<PyDict>().ok()?;
+    if depth >= MAX_DEPTH {
+        return None;
+    }
+    let mut values: Vec<Option<Bound<'py, PyAny>>> = Vec::with_capacity(class.fields.len());
+    let mut given = Vec::new();
+    for field in &class.fields {
+        match dict.get_item(field.wire.bind(py)).ok()? {
+            Some(value) => {
+                values.push(Some(read(typed, &field.plan, &value, depth + 1)?));
+                given.push(field.name.bind(py).clone());
+            }
+            None => values.push(None),
+        }
+    }
+    if given.len() != dict.len() {
+        return None;
+    }
+    let partial = given.len() < class.fields.len();
+    if partial && !fill_omitted(py, typed, class, &mut values).ok()? {
+        return None;
+    }
+    let instance = super::allocate(class.class.bind(py)).ok()?;
+    write(py, class, &instance, values, partial, || {
+        Ok(PyFrozenSet::new(py, given)?.into_any())
+    })
+    .ok()?;
+    Some(instance)
+}
+
+/// `value` for a field of `plan`, where a nested schema may be given as a
+/// mapping (built here) and a list may hold such mappings.
+fn read<'py>(
+    typed: &Typed,
+    plan: &Plan,
+    value: &Bound<'py, PyAny>,
+    depth: usize,
+) -> Option<Bound<'py, PyAny>> {
+    match &plan.shape {
+        Shape::Schema(index) if value.is_exact_instance_of::<PyDict>() => {
+            record(typed, *index, value, depth)
+        }
+        Shape::List { min, max, item } if value.is_exact_instance_of::<PyList>() => {
+            let list = value.cast_exact::<PyList>().ok()?;
+            within(list.len(), *min, *max).ok()?;
+            let mut members = Vec::with_capacity(list.len());
+            let mut same = true;
+            for member in list.iter() {
+                let read = read(typed, item, &member, depth)?;
+                same &= read.is(&member);
+                members.push(read);
+            }
+            if same {
+                Some(value.clone())
+            } else {
+                Some(PyList::new(value.py(), members).ok()?.into_any())
+            }
+        }
+        _ => accept(typed, plan, value, depth),
+    }
 }
 
 /// `instance` with `changes` applied, built by the class itself: the fields
