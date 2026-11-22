@@ -3,6 +3,9 @@
 //! Scope: the path router, the database bridge, the SQL compiler and request
 //! decoding / JSON (see `request.rs`).
 
+#[cfg(not(unix))]
+compile_error!("Hinoki supports Linux and macOS. On Windows, install and run it inside WSL2.");
+
 mod completion;
 mod compression;
 mod crudplan;

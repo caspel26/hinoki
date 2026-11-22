@@ -57,7 +57,7 @@ def test_manifest_and_scaffold_sources_quote_non_ascii_and_control_text() -> Non
     app = tomllib.loads(block)["apps"][0]
     assert (app["name"], app["requires"]) == (AWKWARD, [AWKWARD])
     source = tomllib.loads(git_source("https://example.com/é😀.git@v\x7f1"))
-    assert source["tool"]["uv"]["sources"]["hinoki"] == {
+    assert source["tool"]["uv"]["sources"]["hinoki-api"] == {
         "git": "https://example.com/é😀.git",
         "rev": "v\x7f1",
     }

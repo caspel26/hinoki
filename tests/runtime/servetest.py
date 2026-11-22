@@ -81,4 +81,4 @@ def test_dev_explains_a_missing_reload_dependency(
     monkeypatch.setattr(importlib.util, "find_spec", without_watchfiles)
     assert main(["dev", "tests.runtime.serveapp:create_app"]) == 2
     error = capsys.readouterr().err
-    assert "watchfiles" in error and "hinoki[server]" in error
+    assert "watchfiles" in error and "hinoki-api[server]" in error

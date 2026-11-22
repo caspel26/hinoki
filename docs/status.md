@@ -7,7 +7,7 @@ related:
 
 # Project status
 
-Hinoki is pre-alpha. The public API and migration format may change; this repository is not published on PyPI. The [`hinoki` project name](https://pypi.org/project/hinoki/) currently belongs to an unrelated legacy package. Use this repository's source checkout for evaluation and test against disposable data.
+Hinoki is pre-alpha. The public API and migration format may change; this repository is not published on PyPI yet (its package name will be `hinoki-api`). The [`hinoki` project name](https://pypi.org/project/hinoki/) currently belongs to an unrelated legacy package. Use this repository's source checkout for evaluation and test against disposable data.
 
 The [documentation site](documentation-versions.md) separates current development docs from release-tagged versions. Until the first release, the site root points to the `dev` docs.
 
