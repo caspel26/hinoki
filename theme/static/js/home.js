@@ -17,6 +17,8 @@
     const problems = $("[data-hn-problems]", panel);
     const count = $("[data-hn-count]", panel);
     const show = (button) => {
+      const hero = panel.closest(".hn-hero");
+      if (hero) hero.dataset.hnState = button.dataset.state;
       buttons.forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
       $$("[data-state-view]", panel).forEach((v) => {
         v.hidden = v.dataset.stateView !== button.dataset.state;
