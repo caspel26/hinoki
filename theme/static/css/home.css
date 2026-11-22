@@ -296,6 +296,62 @@
   opacity: 1;
 }
 
+.hn-hero__bg::before,
+.hn-hero__bg::after {
+  content: "";
+  inline-size: min(560px, 70vw);
+  aspect-ratio: 1;
+}
+
+.hn-hero__bg::before {
+  inset-inline-end: -4%;
+  top: 14%;
+  background: radial-gradient(closest-side, var(--orb-1), transparent);
+  opacity: 0.6;
+  /* A thin ring gives the drifting orb an edge the eye can follow. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hn-brand) 28%, transparent);
+}
+
+.hn-hero__bg::after {
+  inset-inline-end: 30%;
+  bottom: -30%;
+  background: radial-gradient(closest-side, var(--orb-3), transparent);
+  opacity: 0.7;
+}
+
+/* Dot grid: it moves by exactly one tile per loop, so the seam never shows.
+   The mask keeps it to the right of the headline. */
+.hn-hero__bg u {
+  position: absolute;
+  inset: -32px -32px -32px 0;
+  background: radial-gradient(circle, color-mix(in srgb, var(--hn-brand) 80%, transparent) 1.6px, transparent 2.1px) 0 0 / 32px 32px;
+  opacity: 0.6;
+  -webkit-mask-image: linear-gradient(to right, transparent 22%, #000 62%);
+  mask-image: linear-gradient(to right, transparent 22%, #000 62%);
+}
+
+/* Motes rise and fade; hidden unless motion is allowed. */
+.hn-dust s {
+  position: absolute;
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 50%;
+  background: var(--hn-brand);
+  box-shadow: 0 0 18px 4px color-mix(in srgb, var(--hn-brand) 70%, transparent);
+  opacity: 0;
+  inset-inline-start: var(--x);
+  inset-block-end: -4%;
+}
+
+.hn-dust s:nth-child(1) { --x: 52%; --d: 7s; --t: 0s; --h: -520px; }
+.hn-dust s:nth-child(2) { --x: 61%; --d: 9s; --t: -4s; --h: -640px; }
+.hn-dust s:nth-child(3) { --x: 70%; --d: 6s; --t: -2s; --h: -460px; }
+.hn-dust s:nth-child(4) { --x: 78%; --d: 8s; --t: -6s; --h: -600px; }
+.hn-dust s:nth-child(5) { --x: 86%; --d: 7s; --t: -1s; --h: -540px; }
+.hn-dust s:nth-child(6) { --x: 93%; --d: 10s; --t: -8s; --h: -660px; }
+.hn-dust s:nth-child(7) { --x: 97%; --d: 9s; --t: -5s; --h: -560px; }
+.hn-dust s:nth-child(8) { --x: 46%; --d: 11s; --t: -9s; --h: -700px; }
+
 /* Request-flow spine: a rail in the gap between the copy and the panel with one
    stage per step of the request. A pulse runs down it and lights each stage;
    the scenario switch (data-hn-state on the hero) decides how the run ends:
@@ -333,8 +389,8 @@
 
 .hn-flow li {
   place-self: center;
-  inline-size: 7px;
-  block-size: 7px;
+  inline-size: 5px;
+  block-size: 5px;
   border-radius: 50%;
   background: var(--hn-brand);
   opacity: 0.35;
@@ -350,9 +406,9 @@
   content: "";
   position: absolute;
   inset-inline-start: calc(50% - 1px);
-  top: -40px;
-  inline-size: 3px;
-  block-size: 40px;
+  top: -14px;
+  inline-size: 2px;
+  block-size: 14px;
   border-radius: 2px;
   background: linear-gradient(transparent, var(--hn-brand));
 }
@@ -369,7 +425,23 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .hn-hero__bg b {
-    animation: hn-breathe 13s ease-in-out infinite alternate;
+    animation: hn-breathe 9s ease-in-out infinite alternate;
+  }
+
+  .hn-hero__bg::before {
+    animation: hn-drift-a 11s ease-in-out infinite alternate;
+  }
+
+  .hn-hero__bg::after {
+    animation: hn-drift-b 13s ease-in-out infinite alternate;
+  }
+
+  .hn-hero__bg u {
+    animation: hn-grid 6s linear infinite;
+  }
+
+  .hn-dust s {
+    animation: hn-rise var(--d) linear var(--t) infinite;
   }
 
   .hn-flow__pulse {
@@ -398,15 +470,37 @@
 }
 
 @keyframes hn-breathe {
-  from { transform: translate3d(-16%, 10%, 0) scale(0.86); opacity: 0.55; }
-  to { transform: translate3d(16%, -10%, 0) scale(1.12); opacity: 0.95; }
+  from { transform: translate3d(-22%, 14%, 0) scale(0.82); opacity: 0.5; }
+  to { transform: translate3d(22%, -14%, 0) scale(1.16); opacity: 1; }
+}
+
+@keyframes hn-drift-a {
+  from { transform: translate3d(16%, -34%, 0) scale(0.84); opacity: 0.35; }
+  to { transform: translate3d(-44%, 18%, 0) scale(1.2); opacity: 0.95; }
+}
+
+@keyframes hn-drift-b {
+  from { transform: translate3d(-18%, 12%, 0) scale(1.16); opacity: 0.4; }
+  to { transform: translate3d(48%, -28%, 0) scale(0.86); opacity: 0.95; }
+}
+
+@keyframes hn-grid {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -32px, 0); }
+}
+
+@keyframes hn-rise {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  15% { opacity: 1; }
+  70% { opacity: 0.7; }
+  100% { transform: translate3d(14px, var(--h), 0); opacity: 0; }
 }
 
 @keyframes hn-run {
   0% { transform: translateY(0); opacity: 0; }
   6% { transform: translateY(0); opacity: 1; }
-  64% { transform: translateY(calc(100% + 40px)); opacity: 1; }
-  68%, 100% { transform: translateY(calc(100% + 40px)); opacity: 0; }
+  64% { transform: translateY(calc(100% + 14px)); opacity: 1; }
+  68%, 100% { transform: translateY(calc(100% + 14px)); opacity: 0; }
 }
 
 @keyframes hn-deny {
@@ -418,21 +512,25 @@
 
 @keyframes hn-stage {
   0%, 9%, 100% { opacity: 0.35; transform: scale(1); }
-  3% { opacity: 1; transform: scale(1.9); }
+  3% { opacity: 1; transform: scale(1.5); }
 }
 
 @keyframes hn-stage-keep {
   0%, 9%, 100% { opacity: 0.95; transform: scale(1); }
-  3% { opacity: 1; transform: scale(2.1); }
+  3% { opacity: 1; transform: scale(1.6); }
 }
 
 @keyframes hn-flag {
   0%, 22%, 70%, 100% { opacity: 0.35; transform: scale(1); }
-  26%, 52% { opacity: 1; transform: scale(2.1); }
+  26%, 52% { opacity: 1; transform: scale(1.6); }
 }
 
 /* Decorative loops stop while their section is off screen or the tab is hidden. */
 .hn-hero.is-idle .hn-hero__bg b,
+.hn-hero.is-idle .hn-hero__bg u,
+.hn-hero.is-idle .hn-hero__bg::before,
+.hn-hero.is-idle .hn-hero__bg::after,
+.hn-hero.is-idle .hn-dust s,
 .hn-hero.is-idle .hn-flow__pulse,
 .hn-hero.is-idle .hn-flow li,
 .hn-ticker.is-idle .hn-ticker__track {
