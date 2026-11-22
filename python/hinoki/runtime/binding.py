@@ -30,6 +30,7 @@ from hinoki.errors import (
     RegistrationError,
     ValidationError,
 )
+from hinoki.filters import FilterSet
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
 from hinoki.http.stream import Streamed
@@ -146,7 +147,7 @@ class Param:
     """One handler parameter and where its value comes from."""
 
     name: str
-    source: str  # "path", "query", "body", "principal" or "page"
+    source: str  # "path", "query", "body", "principal", "page" or "filters"
     convert: Callable[[str], object] | None = None
     schema: type[Schema] | None = None
     default: object = EMPTY
@@ -154,6 +155,7 @@ class Param:
     strategy: Pagination | None = None
     file_mode: str = ""
     text: bool = False  # a Schema read from a text source, converted before checking
+    filters: type[FilterSet] | None = None
 
     def extract(self, request: RequestData) -> object:
         """Value for this parameter, from the part of the request it belongs to."""
@@ -161,6 +163,12 @@ class Param:
 
     def from_principal(self, request: RequestData) -> object:
         return request.principal
+
+    def from_filters(self, request: RequestData) -> object:
+        if self.filters is None:
+            raise TypeError("filters parameter without a FilterSet")
+        reserved = self.strategy.names if self.strategy is not None else ()
+        return self.filters.parse(request.query, reserved)
 
     def from_page(self, request: RequestData) -> object:
         if self.strategy is None:
@@ -396,6 +404,15 @@ def checked_pagination(route: Route, name: str, annotation: type) -> Pagination:
     return route.pagination
 
 
+def listing_param(route: Route, name: str, annotation: object) -> Param | None:
+    """The page and filter parameters of a list action."""
+    if annotation is PageParams or annotation is CursorParams:
+        return Param(name, "page", strategy=checked_pagination(route, name, annotation))
+    if isinstance(annotation, type) and issubclass(annotation, FilterSet):
+        return Param(name, "filters", strategy=route.pagination, filters=annotation)
+    return None
+
+
 def special_param(
     route: Route,
     parameter: inspect.Parameter,
@@ -403,8 +420,9 @@ def special_param(
 ) -> Param | None:
     """Parameters that are not plain request values: page, principal, body."""
     name, where = parameter.name, route.name
-    if annotation is PageParams or annotation is CursorParams:
-        return Param(name, "page", strategy=checked_pagination(route, name, annotation))
+    listing = listing_param(route, name, annotation)
+    if listing is not None:
+        return listing
     if is_principal(annotation):
         if route.access is None:
             raise RegistrationError(
@@ -478,6 +496,28 @@ def check_query_schema(route: Route, params: tuple[Param, ...]) -> None:
             f"{route.name}: Query[...] reads the whole query string; declare the "
             "other query values as fields of its Schema"
         )
+
+
+def check_filters(route: Route, params: tuple[Param, ...]) -> None:
+    """A ``FilterSet`` reads the whole query string besides the pagination
+    parameters: one per GET action, and no other query values beside it. Its
+    produced names must not collide with the pagination parameters."""
+    found = [p for p in params if p.source == "filters"]
+    if not found:
+        return
+    if route.method != "GET":
+        raise RegistrationError(
+            f"{route.name}: a FilterSet parameter needs a GET action"
+        )
+    if len(found) > 1 or any(p.source in {"query", "queryschema"} for p in params):
+        raise RegistrationError(
+            f"{route.name}: a FilterSet reads the whole query string; declare the "
+            "other query values as filters of that FilterSet"
+        )
+    reserved = route.pagination.names if route.pagination is not None else ()
+    for param in found:
+        if param.filters is not None:
+            param.filters.check_reserved(reserved)
 
 
 def text_sources(route: Route) -> dict[str, TextSource]:
@@ -684,6 +724,7 @@ def bind(route: Route) -> Binding:
             f"{route.name}: pagination=... needs a PageParams or CursorParams parameter"
         )
     check_query_schema(route, params)
+    check_filters(route, params)
     if sum(p.source == "body" for p in params) > 1:
         raise RegistrationError(f"{route.name}: at most one body parameter")
     if any(p.source == "body" for p in params) and any(

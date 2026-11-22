@@ -18,14 +18,22 @@ from hinoki import context
 from hinoki.access import Access
 from hinoki.api import API
 from hinoki.auth import Caller
-from hinoki.errors import FieldError, Forbidden, RegistrationError, ValidationError
+from hinoki.errors import (
+    ErrorDetail,
+    FieldError,
+    Forbidden,
+    RegistrationError,
+    ValidationError,
+)
 from hinoki.fields import UNSET, Unset
+from hinoki.filters import FilterSet
 from hinoki.http.cors import Cors
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
 from hinoki.orm.keyset import CursorRequest, cursor_order, fetch_request, prepare
+from hinoki.orm.queryset import TEXT_DECIMAL_OPERATORS, decimal_columns
 from hinoki.pagination import (
     CursorPage,
     CursorPagination,
@@ -53,6 +61,7 @@ ACTIONS = ("list", "retrieve", "create", "update", "delete")
 WRITE_ACTIONS = ("create", "update", "delete")
 HOOKS = (
     "get_queryset",
+    "filter_queryset",
     "to_schema",
     "written_queryset",
     "store",
@@ -94,6 +103,7 @@ class _CrudConfig:
     identity_key: Callable[[Any], Any] = attrgetter("id")
     assign: Mapping[str, Callable[[Any], Any]] = dataclasses.field(default_factory=dict)
     pagination: Pagination = PageNumberPagination()  # noqa: RUF009
+    filters: type[FilterSet] | None = None
     actions: Mapping[str, Access | None] | None = None
     omit: frozenset[str] = frozenset()
     cors: Cors | None = None
@@ -148,6 +158,18 @@ class _CrudConfig:
             if column not in columns:
                 raise RegistrationError(f"{name} has no column {column!r} to assign")
         self.check_schemas(columns, custom_output=custom_output)
+        self.check_filters()
+
+    def check_filters(self) -> None:
+        if self.filters is None:
+            return
+        if "list" in self.omit:
+            raise RegistrationError(
+                f"{self.model.__name__}: filters=... apply to the list action, "
+                "which is omitted"
+            )
+        by_cursor = isinstance(self.pagination, CursorPagination)
+        self.filters.check(self.model, cursor=by_cursor, reserved=self.pagination.names)
 
     def check_schemas(self, columns: set[str], *, custom_output: bool) -> None:
         if self.read.__derived_model__ not in (None, self.model):
@@ -283,30 +305,72 @@ class _CrudConfig:
             raise Forbidden("You cannot change this item.")
 
 
+def check_filter_dialect_support(
+    model: type[Model], filters: FilterSet, dialect: str
+) -> None:
+    """SQLite keeps a Decimal column as text: only equality (and ``.null``)
+    filters compare it, and it cannot order a list. A client filter or
+    ``ordering`` that needs more fails with a named 422 ``unsupported``
+    detail instead of a database error at compile time."""
+    if dialect != "sqlite":
+        return
+    for column, op, _ in filters.conditions:
+        if op not in TEXT_DECIMAL_OPERATORS and decimal_columns(model, column):
+            raise ValidationError(
+                [ErrorDetail(column, "unsupported", "not supported on SQLite")]
+            )
+    for name in filters.order:
+        column = name.removeprefix("-")
+        if decimal_columns(model, column):
+            raise ValidationError(
+                [
+                    ErrorDetail(
+                        "ordering", "unsupported", "ordering is not supported on SQLite"
+                    )
+                ]
+            )
+
+
+async def narrowed(
+    self: CrudBase, query: QuerySet[Any], filters: FilterSet | None, principal: Any
+) -> QuerySet[Any]:
+    """What the client asked for, on top of ``get_queryset``: its filters (ANDed,
+    never wider), then ``filter_queryset``, then its ordering."""
+    if filters is None:
+        return query
+    check_filter_dialect_support(
+        self.resource.model, filters, current_database().dialect
+    )
+    narrower = await self.call_hook(
+        "filter_queryset", filters.apply(query), filters, principal
+    )
+    return filters.arrange(narrower)
+
+
 async def list_rows(
     self: CrudBase,
     request: Request,
     page: PageParams,
+    filters: FilterSet | None = None,
     principal: Any = None,
     _row_plan: RowWireSelection | None = None,
 ) -> Any:
-    if _row_plan is not None and _row_plan.valid_for(self):
-        query = await self.call_hook("get_queryset", principal)
-        if not _row_plan.valid_query(query):
-            return await python_list_rows(self, query, page)
-        if not query.order:
-            query = query.order_by(self.resource.model.__primary_key__)
+    base = await self.call_hook("get_queryset", principal)
+    query = await narrowed(self, base, filters, principal)
+    if not query.order:
+        query = query.order_by(self.resource.model.__primary_key__)
+    if (
+        _row_plan is not None
+        and _row_plan.valid_for(self)
+        and _row_plan.valid_query(base)
+    ):
         return await wire_list_rows(self, query, page, _row_plan)
-    query = await self.call_hook("get_queryset", principal)
     return await python_list_rows(self, query, page)
 
 
 async def python_list_rows(
     self: CrudBase, query: QuerySet[Any], page: PageParams
 ) -> Any:
-    resource = self.resource
-    if not query.order:
-        query = query.order_by(resource.model.__primary_key__)
     result = await query.apaginate(page)
     items = await schema_items(self, result.items)
     return Page(list(items), result.page, result.page_size, result.total)
@@ -346,17 +410,20 @@ async def list_cursor_rows(
     self: CrudBase,
     request: Request,
     page: CursorParams,
+    filters: FilterSet | None = None,
     principal: Any = None,
     _row_plan: RowWireSelection | None = None,
 ) -> Any:
     """The keyset list: the same ``get_queryset`` (ownership, tenant) as the
-    offset list, with the cursor bound on top of it."""
-    query = await self.call_hook("get_queryset", principal)
-    cursor = prepare(query, page)
+    offset list, the client's filters on top of it, and the cursor bound to
+    those filters and to the ordering."""
+    base = await self.call_hook("get_queryset", principal)
+    query = await narrowed(self, base, filters, principal)
+    cursor = prepare(query, page, b"" if filters is None else filters.scope)
     if (
         _row_plan is not None
         and _row_plan.valid_for(self)
-        and _row_plan.valid_query(query)
+        and _row_plan.valid_query(base)
         and _row_plan.valid_window(
             cursor.walk, order=cursor.walk.order, limit=page.limit + 1, offset=None
         )
@@ -556,6 +623,16 @@ class CrudBase(API):
         """Build the visible query; public routes receive ``None``."""
         return self.resource.model.all()
 
+    def filter_queryset(
+        self,
+        query: QuerySet[Any],
+        params: Any,  # noqa: ARG002
+        principal: Caller[Any] | None,  # noqa: ARG002
+    ) -> QuerySet[Any] | Awaitable[QuerySet[Any]]:
+        """Narrow the list further, after the client's filters; ``params`` is the
+        ``FilterSet`` instance declared by ``crud(filters=...)``."""
+        return query
+
     def written_queryset(
         self,
         principal: Caller[Any] | None,  # noqa: ARG002
@@ -646,9 +723,11 @@ class CrudBase(API):
 
     async def call_default_hook(self, name: str, *arguments: Any) -> Any:
         result = getattr(self, name)(*arguments)
-        if name not in {"get_queryset", "written_queryset"} and inspect.isawaitable(
-            result
-        ):
+        if name not in {
+            "get_queryset",
+            "filter_queryset",
+            "written_queryset",
+        } and inspect.isawaitable(result):
             return await result
         return result
 
@@ -718,6 +797,7 @@ def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]
             {
                 "request": Request,
                 "page": CursorParams if by_cursor else PageParams,
+                **({"filters": resource.filters} if resource.filters else {}),
                 **caller_hint(resource, "list"),
                 "return": page,
             },
@@ -909,6 +989,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     identity_key: Callable[[Any], Any] = attrgetter("id"),
     assign: Mapping[str, Callable[[Any], Any]] | None = None,
     pagination: Pagination = PageNumberPagination(),  # noqa: B008
+    filters: type[FilterSet] | None = None,
     omit: tuple[str, ...] = (),
     name: str | None = None,
     cors: Cors | None = None,
@@ -925,8 +1006,10 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     ``name=`` names the generated class (``"ArchiveCrud"``) or its module and
     class (``"notes.apps.archive.ArchiveCrud"``) that rules and MCP patterns match.
     ``cors=http.Cors(...)`` gives every generated action that CORS policy instead
-    of the application's. ``include_in_schema=False`` leaves every generated action
-    out of the OpenAPI document; ``include_in_schema={"delete": False}`` leaves out
+    of the application's. ``filters=`` takes a ``FilterSet`` subclass: the list then
+    accepts the filters, ordering and search it declares.
+    ``include_in_schema=False`` leaves every generated action out of the OpenAPI
+    document; ``include_in_schema={"delete": False}`` leaves out
     only the named actions. ``tags`` and ``deprecated`` apply to every action.
     Left-out actions are still served and protected by their access.
     """
@@ -937,6 +1020,10 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         )
     if name is not None:
         check_name(name)
+    if filters is not None and not (
+        isinstance(filters, type) and issubclass(filters, FilterSet)
+    ):
+        raise RegistrationError("crud(...) filters= takes a FilterSet subclass")
     try:
         check_tags(tags)
         check_deprecated(deprecated)
@@ -961,6 +1048,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         identity_key=identity_key,
         assign=assign or {},
         pagination=pagination,
+        filters=filters,
         actions=actions,
         omit=frozenset(omit),
         cors=cors,

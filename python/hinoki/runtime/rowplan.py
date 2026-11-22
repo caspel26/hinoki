@@ -21,6 +21,7 @@ from hinoki.resources import GENERATED, CrudBase, _CrudConfig
 from hinoki.runtime.binding import Binding
 from hinoki.schema import Schema, SchemaMeta, uses_generated_init
 
+CONDITION_PARTS = 3
 ROW_KINDS = frozenset({"str", "int", "float", "bool", "uuid", "datetime", "bytes"})
 OWNER_GUARD_NAMES = (
     "__init__",
@@ -308,7 +309,9 @@ def valid_base_query(
     }:
         return False
     expected = default_order(selection.model)
-    return valid_query_state(selection, query, order=expected, limit=None, offset=None)
+    return not attributes["filters"] and valid_query_state(
+        selection, query, order=expected, limit=None, offset=None
+    )
 
 
 def default_order(model: type[Model]) -> tuple[tuple[str, bool], ...]:
@@ -343,11 +346,23 @@ def valid_query_state(
         )
         and attributes["model"] is selection.model
         and type(attributes["filters"]) is tuple
-        and not attributes["filters"]
+        and all(plain_filter(item) for item in attributes["filters"])
         and attributes["order"] == order
         and attributes["limit_to"] == limit
         and attributes["offset_by"] == offset
         and valid_loading(attributes["loading"])
+    )
+
+
+def plain_filter(item: object) -> bool:
+    """A condition on one of the model's own columns: ``(column, op, values)``."""
+    return (
+        type(item) is tuple
+        and len(item) == CONDITION_PARTS
+        and type(item[0]) is str
+        and "." not in item[0]
+        and type(item[1]) is str
+        and type(item[2]) is list
     )
 
 
@@ -418,11 +433,11 @@ def is_generated_list(binding: Binding, owner: type | None) -> bool:
 
 
 def is_plain_binding(binding: Binding) -> bool:
+    sources = tuple(param.source for param in binding.params)
     return (
         binding.takes_request
         and not binding.needs_body
-        and len(binding.params) == 1
-        and binding.params[0].source == "page"
+        and sources in {("page",), ("page", "filters")}
         and binding.params[0].strategy is not None
     )
 
