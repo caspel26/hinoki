@@ -13,7 +13,7 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 
-const MAX_DEPTH: usize = 200;
+pub(crate) const MAX_DEPTH: usize = 200;
 
 pyo3::create_exception!(core, MultipartLimitError, PyValueError);
 pyo3::create_exception!(core, JsonDecodeError, PyValueError);
@@ -1149,7 +1149,7 @@ fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
 
 /// The bytes of a Python `str`: UTF-8, or with `surrogatepass` when it holds
 /// lone surrogates. That form sorts like code points.
-fn string_bytes<'a>(text: &'a Bound<'_, PyString>) -> PyResult<Cow<'a, [u8]>> {
+pub(crate) fn string_bytes<'a>(text: &'a Bound<'_, PyString>) -> PyResult<Cow<'a, [u8]>> {
     match text.to_str() {
         Ok(valid) => Ok(Cow::Borrowed(valid.as_bytes())),
         Err(_) => text
@@ -1194,21 +1194,21 @@ fn write_body(out: &mut Vec<u8>, valid: &[u8]) -> PyResult<()> {
     Ok(())
 }
 
-fn float_text(value: f64) -> PyResult<String> {
+pub(crate) fn float_text(value: f64) -> PyResult<String> {
     serde_json::Number::from_f64(value)
         .map(|number| number.to_string())
         .ok_or_else(|| PyValueError::new_err("out of range float values are not JSON compliant"))
 }
 
 /// Decimal text of a Python int, immune to a subclass overriding `__str__`.
-fn int_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
+pub(crate) fn int_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
     let repr = value.py().get_type::<PyInt>().getattr("__repr__")?;
     repr.call1((value,))?.extract()
 }
 
 /// The bytes a dict key is written as; `sort_keys` on string keys orders by
 /// them, which is the code point order `json.dumps` uses.
-fn key_text(key: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+pub(crate) fn key_text(key: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
     if let Ok(text) = key.cast::<PyString>() {
         return Ok(string_bytes(text)?.into_owned());
     }
@@ -1530,7 +1530,11 @@ impl<'py> Encoder<'py> {
     }
 }
 
-fn is_instance_of_named(value: &Bound<'_, PyAny>, module: &str, class: &str) -> PyResult<bool> {
+pub(crate) fn is_instance_of_named(
+    value: &Bound<'_, PyAny>,
+    module: &str,
+    class: &str,
+) -> PyResult<bool> {
     let wanted = value.py().import(module)?.getattr(class)?;
     value.is_instance(&wanted)
 }
