@@ -213,14 +213,14 @@ def test_the_catalogue_covers_what_the_framework_emits() -> None:
 def test_the_project_names_where_hinoki_comes_from(tmp_path: Path) -> None:
     git = create("one", tmp_path, "git+https://example.org/h.git@v1")
     assert (
-        'hinoki = { git = "https://example.org/h.git", rev = "v1" }'
+        'hinoki-api = { git = "https://example.org/h.git", rev = "v1" }'
         in (git / "pyproject.toml").read_text()
     )
     ssh = files("two", "ssh://git@example.org/h.git")["pyproject.toml"]
     assert 'git = "ssh://git@example.org/h.git" }' in ssh
     here = Path(__file__).resolve().parents[1]
     path = files("three", str(here))["pyproject.toml"]
-    assert f'hinoki = {{ path = "{here}", editable = true }}' in path
+    assert f'hinoki-api = {{ path = "{here}", editable = true }}' in path
     with pytest.raises(ScaffoldError, match="not a Hinoki source checkout"):
         create("four", tmp_path, str(tmp_path))
     assert not (tmp_path / "four").exists()  # nothing written on a bad source
@@ -233,11 +233,11 @@ def test_scaffold_toml_escapes_checkout_paths_and_git_values(tmp_path: Path) -> 
 
     path_project = create("pathapp", tmp_path, str(checkout))
     path_config = tomllib.loads((path_project / "pyproject.toml").read_text())
-    assert path_config["tool"]["uv"]["sources"]["hinoki"]["path"] == str(checkout)
+    assert path_config["tool"]["uv"]["sources"]["hinoki-api"]["path"] == str(checkout)
 
     git_project = create("gitapp", tmp_path, 'https://example.org/a"b.git@rev\\x')
     git_config = tomllib.loads((git_project / "pyproject.toml").read_text())
-    assert git_config["tool"]["uv"]["sources"]["hinoki"] == {
+    assert git_config["tool"]["uv"]["sources"]["hinoki-api"] == {
         "git": 'https://example.org/a"b.git',
         "rev": "rev\\x",
     }

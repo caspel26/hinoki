@@ -3,28 +3,39 @@ requires = ["maturin>=1.16.0,<2"]
 build-backend = "maturin"
 
 [project]
-name = "hinoki"
+name = "hinoki-api"
 version = "0.0.1"
 description = "Pre-alpha Python API framework with a Rust extension for routing, schemas, cryptography and SQL ORM."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Peppe" }]
+keywords = ["api", "framework", "asgi", "orm", "rust"]
 requires-python = ">=3.12"
 dependencies = []
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Web Environment",
+    "Framework :: AsyncIO",
     "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Rust",
+    "Topic :: Internet :: WWW/HTTP",
     "Typing :: Typed",
 ]
 
 [project.urls]
+Homepage = "https://hinoki.caspel.dev/"
+Documentation = "https://hinoki.caspel.dev/"
 Repository = "https://github.com/caspel26/hinoki"
+Issues = "https://github.com/caspel26/hinoki/issues"
+Changelog = "https://github.com/caspel26/hinoki/blob/main/CHANGELOG.md"
 
 [project.scripts]
 hinoki = "hinoki.__main__:main"

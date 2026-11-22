@@ -6,7 +6,7 @@ Status: Accepted · 2026-11-18 (proposed 2026-11-13)
 
 **Decision.** Each worker process owns one Tokio runtime for the ORM and native I/O, created lazily on the first native database call and sized by `server.runtime_threads` (default 1). It is bridged to the worker's running asyncio loop with `pyo3-async-runtimes`. Pools are created in the worker's lifespan and closed in its shutdown. Nothing is opened at import, in factories, or before fork. Blocking `block_on` from a runtime/loop thread is forbidden.
 
-**Consequences.** Each worker carries extra native threads (cost to be measured, V10). Pools are not shared between workers; the connection budget is `replicas × workers × pool_max`. Reusing Granian's internal runtime is rejected because it is not a public API.
+**Consequences.** Each worker carries extra native threads (cost to be measured, V10). Pools are not shared between workers; the connection budget is `replicas × workers × pool_max`, and `(workers + 1) × pool_max` per replica while a [reload on `SIGHUP`](../kiso.md#reload-on-sighup) runs one extra worker. Reusing Granian's internal runtime is rejected because it is not a public API.
 
 **Alternatives.** Reuse Granian's runtime (private, brittle); Python driver such as asyncpg (contradicts the Rust ORM requirement).
 

@@ -11,7 +11,7 @@ a function returning one; inside a project it defaults to ``project.application`
 from ``hinoki.toml``. The host, port, worker count and server come from the
 application's ``server`` settings group (``AppSettings.server``), and the
 flags below override them. Kiso is part of the native extension;
-Granian is an optional dependency (``pip install hinoki[server]``) and so is
+Granian is an optional dependency (``pip install hinoki-api[server]``) and so is
 ``watchfiles``, which ``hinoki dev`` reloads with.
 """
 
@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import importlib.util
 import inspect
+import signal
 import socket
 import sys
 from pathlib import Path
@@ -232,7 +233,7 @@ def rust_refusal(args: argparse.Namespace, reload: bool) -> str | None:
     if reload and importlib.util.find_spec("watchfiles") is None:
         return (
             "`hinoki dev` reloads with watchfiles, which is not installed; "
-            "install the server extra: pip install 'hinoki[server]' "
+            "install the server extra: pip install 'hinoki-api[server]' "
             "(or run `hinoki serve`, which does not reload)"
         )
     return None
@@ -265,6 +266,12 @@ def open_metrics(app: object, backlog: int) -> socket.socket | None:
         raise ListenError(f"metrics.listen {metrics.listen}: {error}") from error
 
 
+def rolls_on_hangup(settings: ServerSettings, reload: bool) -> bool:
+    """Whether ``hinoki serve`` replaces its workers on SIGHUP: unless
+    ``server.sighup`` is ``"stop"``, and where the system has the signal."""
+    return not reload and settings.sighup != "stop" and hasattr(signal, "SIGHUP")
+
+
 def run_supervised(
     args: argparse.Namespace,
     app: Hinoki,
@@ -286,6 +293,8 @@ def run_supervised(
         reload=reload,
         scheme=scheme,
         metrics=open_metrics(app, settings.backlog),
+        rolling=rolls_on_hangup(settings, reload),
+        startup_timeout=app.runtime.startup_timeout,
     )
     supervisor.docs = app.docs_url
     return supervisor.run()
@@ -311,7 +320,7 @@ def run_rust(
             workers=workers,
             scheme="https" if settings.tls_cert_file else "http",
         )
-        if workers == 1 and not reload:
+        if workers == 1 and not reload and not rolls_on_hangup(settings, reload):
             return run_inline(app, address, settings)
         return run_supervised(args, app, address, settings, reload)
     except ListenError as error:  # nothing was served
@@ -347,14 +356,14 @@ def run_granian(
     except ImportError:
         print(
             "error: Granian is not installed; install the server extra: "
-            "pip install 'hinoki[server]'",
+            "pip install 'hinoki-api[server]'",
             file=sys.stderr,
         )
         return 2
     if reload and importlib.util.find_spec("watchfiles") is None:
         print(
             "error: `hinoki dev` reloads with watchfiles, which is not installed; "
-            "install the server extra: pip install 'hinoki[server]' "
+            "install the server extra: pip install 'hinoki-api[server]' "
             "(or run `hinoki serve`, which does not reload)",
             file=sys.stderr,
         )
@@ -414,7 +423,7 @@ def run_wsgi_kiso(
             scheme=scheme,
             interface="wsgi",
         )
-        if workers == 1 and not reload:
+        if workers == 1 and not reload and not rolls_on_hangup(settings, reload):
             # Imported here: wsgiworker imports the Rust worker module.
             from hinoki.runtime import wsgiworker  # noqa: PLC0415
 
@@ -432,6 +441,8 @@ def run_wsgi_kiso(
             scheme=scheme,
             interface="wsgi",
             metrics=open_metrics(target, settings.backlog),
+            rolling=rolls_on_hangup(settings, reload),
+            startup_timeout=app_settings_of(target).lifecycle.startup_timeout,
         ).run()
     except ListenError as error:
         return refuse(f"cannot listen on {address[0]}:{address[1]}: {error}")

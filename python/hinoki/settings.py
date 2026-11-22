@@ -64,6 +64,7 @@ KISO_ONLY = (
     "access_log_slow_ms",
     "recent_requests",
     "server_timing",
+    "sighup",
 )
 QUOTED = 2  # shortest quoted value: the two quotes
 MAX_CORS_AGE = 86400
@@ -1161,6 +1162,10 @@ class ServerSettings(Settings):
     ``recent_requests`` tool. ``server_timing`` (Rust server only) adds a
     ``Server-Timing`` header with the time taken and the serving lane: unset
     means in ``hinoki dev`` only.
+    ``sighup`` (Rust server only; ``hinoki serve``, where the system has
+    ``SIGHUP``) says what the signal does: ``"reload"``, which is also what unset
+    means, replaces the workers one at a time with new processes that import the
+    code and read the settings again, ``"stop"`` stops the server.
     ``max_connections``, ``header_read_timeout``,
     ``body_read_timeout``, ``write_timeout``, ``native_dispatch`` and
     ``access_log_format``, ``access_log_skip`` and ``access_log_slow_ms`` belong to
@@ -1184,6 +1189,7 @@ class ServerSettings(Settings):
     access_log_slow_ms: float | None = None
     recent_requests: str | None = None
     server_timing: bool | None = None
+    sighup: Literal["reload", "stop"] | None = None
     trusted_proxies: tuple[str, ...] = ()
     request_id_header: str = "x-request-id"
     trust_request_id: bool = False

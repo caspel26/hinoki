@@ -14,7 +14,7 @@ use hyper::service::service_fn;
 use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{watch, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{watch, Notify, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 use tokio_rustls::TlsAcceptor;
@@ -185,8 +185,12 @@ async fn serve_h1<S, B>(
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
     };
-    let service =
-        service_fn(move |request| respond(Arc::clone(&backend), peer, transport.clone(), request));
+    let first = Arc::new(Notify::new());
+    let first_seen = Arc::clone(&first);
+    let service = service_fn(move |request| {
+        first_seen.notify_one();
+        respond(Arc::clone(&backend), peer, transport.clone(), request)
+    });
     let head_limit = config.max_header_bytes.saturating_add(REQUEST_LINE_MARGIN);
     let guarded = Guarded::new(
         stream,
@@ -209,6 +213,20 @@ async fn serve_h1<S, B>(
     tokio::select! {
         _ = connection.as_mut() => return,
         () = stopped(&mut stop) => {}
+    }
+    // `first` holds a permit once any request has reached the service. Without
+    // one, the connection was accepted before the stop but not yet read: answer
+    // its first request (with `Connection: close`) instead of resetting it.
+    // Bounded by the header timeout, like any client that sends nothing.
+    let arrived = timeout(config.header_read_timeout, async {
+        tokio::select! {
+            _ = connection.as_mut() => false,
+            () = first.notified() => true,
+        }
+    })
+    .await;
+    if arrived != Ok(true) {
+        return;
     }
     connection.as_mut().graceful_shutdown();
     let _ = connection.await;
@@ -312,6 +330,7 @@ pub async fn serve<B: Backend>(
     let mut connections = JoinSet::new();
     loop {
         tokio::select! {
+            biased;
             () = stopped(&mut stop) => break,
             Some(_) = connections.join_next() => {}
             Some((slot, accepted)) = next_client(&listener, &slots) => match accepted {

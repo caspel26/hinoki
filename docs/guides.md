@@ -86,3 +86,4 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Documentation versions](documentation-versions.md): how `dev` and release docs are published.
 - [Troubleshooting](troubleshooting.md): common errors by their message.
 - [Toolchain and CI](toolchain.md): local and CI commands for contributors.
+- [Release checklist](release.md): build, check and publish a release.

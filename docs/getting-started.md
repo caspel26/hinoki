@@ -29,10 +29,11 @@ The last command confirms the installation:
 hinoki 0.0.1
 ```
 
-!!! warning "Not on PyPI"
-    The [`hinoki` name on PyPI](https://pypi.org/project/hinoki/) belongs to an
-    unrelated legacy package: do not install Hinoki by name. A project created
-    with `hinoki new` points `uv` at this checkout in `pyproject.toml`
-    (`[tool.uv.sources]`), so `uv sync` never fetches that package.
+!!! warning "Not on PyPI yet"
+    Hinoki's package name is `hinoki-api` and it is not published yet. The
+    [`hinoki` name on PyPI](https://pypi.org/project/hinoki/) belongs to an
+    unrelated legacy package: do not install it. A project created with
+    `hinoki new` points `uv` at this checkout in `pyproject.toml`
+    (`[tool.uv.sources]`), so `uv sync` never fetches either package by name.
 
 Next: the [Quick start](quick-start.md) creates and serves a project.

@@ -367,7 +367,7 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile
 
-          wheel = next(Path("dist").glob("hinoki-*.whl"))
+          wheel = next(Path("dist").glob("hinoki_api-*.whl"))
           with ZipFile(wheel) as archive:
               files = set(archive.namelist())
           assert "hinoki/core.pyi" in files

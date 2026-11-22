@@ -9,6 +9,7 @@ listener on ``::`` is dual-stack where the system makes it so).
 
 from __future__ import annotations
 
+import os
 import socket
 
 MAX_PORT = 65535
@@ -77,3 +78,12 @@ def inherited_address(fd: int) -> tuple[str, int]:
     finally:
         sock.detach()
     return str(host), int(port)
+
+
+def signal_ready(fd: int) -> None:
+    """Tell the supervisor that this worker serves: one byte on its pipe, then
+    close it. A worker that fails closes the pipe without the byte."""
+    try:
+        os.write(fd, b"1")
+    finally:
+        os.close(fd)

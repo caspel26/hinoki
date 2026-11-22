@@ -97,8 +97,8 @@ def test_serve_runs_workers_and_stops_gracefully_with_a_request_in_flight(
     server = start("serve", TARGET, port, "--server", "kiso", "--workers", str(workers))
     served.append(server)
     wait_ready(port, "/health")
-    # One process when workers == 1 (no supervisor); a process per worker otherwise.
-    assert len(children(server.pid)) == (0 if workers == 1 else workers)
+    # A supervisor and one process per worker, also for one worker (SIGHUP reload).
+    assert len(children(server.pid)) == workers
     assert '"ok"' in fetch(port, "/health")
     request = urllib.request.Request(f"http://127.0.0.1:{port}/health", method="HEAD")
     with urllib.request.urlopen(request, timeout=10) as head:
@@ -453,20 +453,6 @@ def test_a_client_arriving_during_a_graceful_stop_is_refused(
     time.sleep(0.15)  # the workers are draining the request still running
     with pytest.raises(OSError, match="refused"):
         socket.create_connection(("127.0.0.1", port), timeout=2).close()
-    thread.join(timeout=10)
-    assert result == ['{"slow":"done"}']
-    assert server.wait(timeout=20) == 0
-
-
-def test_sighup_stops_gracefully(served: list[subprocess.Popen[str]]) -> None:
-    port = free_port()
-    server = start("serve", TARGET, port, "--server", "kiso", "--workers", "2")
-    served.append(server)
-    wait_ready(port, "/health")
-    result: list[str] = []
-    thread = slow_request(port, result)
-    time.sleep(0.1)
-    server.send_signal(signal.SIGHUP)
     thread.join(timeout=10)
     assert result == ['{"slow":"done"}']
     assert server.wait(timeout=20) == 0

@@ -13,6 +13,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 `pagination=CursorPagination()` pages generated lists and handwritten routes by position: the response carries signed, tamper-proof but readable (not encrypted) `next` and `previous` cursors that clients should treat as opaque, runs no `COUNT`, and costs the same at any depth when the sort columns are indexed. The keyset `WHERE`, the signature and, for generated lists, the JSON page are built in Rust. The cursor holds only a position, so `get_queryset`, ownership and tenant policies apply to every page; a tampered, foreign or expired cursor answers `422`. A secret of at least 32 bytes is required (`CursorPagination(secret=...)` or `pagination.cursor_secret`); `cursor_ttl_seconds` is optional. See [cursor pagination](docs/pagination.md#cursor-keyset-pagination).
 
+#### 🔄 Reload on SIGHUP in Kiso
+> `python/hinoki/runtime/supervisor.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/runtime/wsgiworker.py`, `python/hinoki/runtime/listener.py`, `python/hinoki/serve.py`, `python/hinoki/settings.py`
+
+`kill -HUP` on the supervisor of `hinoki serve` replaces the workers one at a time on the same listening socket: a new worker imports the code and reads the settings again, reports once its lifespan has started and it serves, and only then is the old one stopped gracefully. A new worker that does not start keeps the old ones running and the reload stops with an error. New setting `server.sighup` (`"reload"`, the default, or `"stop"` for the earlier behavior; Kiso only). `hinoki serve` now runs a supervisor even with one worker unless `sighup` is `"stop"`; on Windows, which has no `SIGHUP`, nothing changes. A worker that is stopping now answers requests already sent to it instead of refusing them with `503`, and a replacement worker's metrics use the next free `worker` number. See [reload on `SIGHUP`](docs/kiso.md#reload-on-sighup).
+
 #### 📈 Prometheus metrics on Kiso
 > `crates/kiso/src/metrics.rs`, `crates/kiso/src/scrape.rs`, `crates/bindings/src/metrics.rs`, `python/hinoki/settings.py`, `python/hinoki/serve.py`, `python/hinoki/runtime/supervisor.py`
 
@@ -56,6 +61,11 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 ---
 
 ### 🔧 Improvements
+
+#### 📦 Release build and package name
+> `pyproject.toml`, `crates/bindings/src/lib.rs`, `.github/workflows/release-build.yml`, `scripts/smoke_wheel.py`, `python/hinoki/scaffold.py`, `python/hinoki/serve.py`, `docs/release.md`
+
+The PyPI package is now named `hinoki-api` (the module is still `import hinoki`, the command still `hinoki`), because the `hinoki` name belongs to an unrelated project. Generated projects depend on `hinoki-api[server]` and name it under `[tool.uv.sources]`. A new `Release build` workflow builds manylinux x86_64/aarch64 and macOS arm64/x86_64 wheels and the sdist, smoke-tests each wheel and keeps them as artifacts; it publishes nothing. Windows is not supported natively: building the extension there stops with a message that points to WSL2. `docs/release.md` is the release checklist.
 
 #### 🧾 XML responses written in Rust
 > `crates/bindings/src/xml_encode.rs`, `python/hinoki/renderers.py`, `python/hinoki/core.pyi`, `docs/codecs.md`

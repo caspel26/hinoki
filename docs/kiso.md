@@ -102,17 +102,56 @@ With `compression.enabled` Kiso compresses eligible bodies with brotli or gzip a
 
 ## Workers, signals and restarts
 
-With one worker `hinoki serve` runs the server in its own process. With several workers (and always under `hinoki dev`) it starts a supervisor that opens the listening socket once (honouring `backlog`), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.
+With one worker and `server.sighup = "stop"` (or where the system has no `SIGHUP`, as on Windows) `hinoki serve` runs the server in its own process. With several workers, with the default `sighup` (one extra supervisor process even for one worker) and always under `hinoki dev` it starts a supervisor that opens the listening socket once (honouring `backlog`), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.
 
-* `SIGTERM`, `SIGINT` (Ctrl-C) or `SIGHUP` stops accepting, lets running requests finish for up to `lifecycle.shutdown_timeout`, runs the lifespan shutdown and exits. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. `--workers` must be 1 to 256 (`0` uses `server.workers`).
+* `SIGTERM` or `SIGINT` (Ctrl-C) stops accepting, lets running requests finish for up to `lifecycle.shutdown_timeout`, runs the lifespan shutdown and exits. `SIGHUP` does the same when `server.sighup` is `"stop"` and [reloads](#reload-on-sighup) otherwise. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. `--workers` must be 1 to 256 (`0` uses `server.workers`).
 * A worker that exits on its own, whether it failed to start or crashed, is not restarted: the supervisor stops the other workers and exits with a non-zero status. Restart policy belongs to the process manager (systemd, a container runtime) that runs `hinoki serve`.
 * The listening socket is opened before the lifespan startup of a supervised worker finishes, so connections wait in the backlog until a worker accepts them. With one worker the socket is opened after a successful startup.
 * If the supervisor is killed without a chance to clean up, its workers notice within a second of finishing their startup and stop. The workers' copy of the listening socket is not inherited by processes a handler starts.
 * A socket that cannot be opened (address in use, a bad port or host) is reported as `error: cannot listen on HOST:PORT: ...` with exit status 2, with one worker or several.
 
+## Reload on `SIGHUP`
+
+`kill -HUP <supervisor pid>` (or `ExecReload=/bin/kill -HUP $MAINPID` in a systemd unit) replaces the workers of a running `hinoki serve` with new ones, without closing the listening socket. The supervisor does this one worker at a time:
+
+1. It starts a new worker on the same socket. The new process imports the target and reads the settings, so changed code, `.env` and TOML files, TLS certificates, and CORS, host and security policies take effect.
+2. It waits until the new worker has run its lifespan startup and serves. The wait is `lifecycle.startup_timeout` plus five seconds.
+3. It sends `SIGTERM` to the old worker, which stops accepting, lets the requests it has finished (up to `lifecycle.shutdown_timeout`), runs its lifespan shutdown and exits. It is killed if it is still running five seconds after that.
+4. It moves to the next worker. At most one extra worker runs at a time, so the database connections of an application are at most `(workers + 1) × pool_max` while a reload runs.
+
+```text
+reloading: SIGHUP (generation 2)
+reloaded 4 workers (generation 2)
+```
+
+The supervisor's own settings are not reloaded: `host`, `port`, `backlog`, `workers`, `server`, `interface` and `metrics.listen` need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run `hinoki migrate` before sending the signal.
+
+* A new worker that exits, fails its lifespan startup or is not ready in time is killed, and the reload stops with `error: reload stopped at worker K of N; the other workers keep running`. The workers not yet replaced keep serving the old code (workers already replaced stay new); another `SIGHUP` retries them all. The supervisor does not exit.
+* A `SIGHUP` that arrives during a reload is remembered once and handled when it ends. `SIGTERM` or `SIGINT` during a reload stops everything, the new and the old workers, as usual.
+* A worker that crashes outside a reload still stops the supervisor, as above.
+* `server.sighup = "stop"` keeps the earlier behavior (`SIGHUP` stops the server). `hinoki dev` always reloads on file changes and `SIGHUP` stops it. Windows has no `SIGHUP`, so there the setting has no effect and the server runs as for `"stop"`. Granian refuses `server.sighup`.
+* A request that a client has already sent to the old worker when it is told to stop is answered, not refused with a `503`: the worker reports not ready only after its connections have drained.
+* The reload is orchestrated by the supervisor, which is Python; the drain of the old worker and the TLS loading of the new one are Rust. With metrics, see [several workers](metrics.md#several-workers).
+
+```python
+# notes/settings.py: reload is on by default; "stop" turns it off
+from hinoki import settings
+
+
+class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
+    server: settings.ServerSettings = settings.ServerSettings(
+        workers=4, sighup="reload"
+    )
+```
+
+```sh
+hinoki serve notes.main:app &
+kill -HUP "$(pgrep -f 'hinoki serve')"
+```
+
 ## Reload with `hinoki dev`
 
-The supervisor watches the project directory (`*.py`, `*.toml` and `.env` files; `.venv`, `.git` and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short `error: cannot load ...` line for a missing module or name, a traceback for other failures), `waiting for changes` follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, `backlog` and the choice of server are read once when `hinoki dev` starts: change them and restart the command. The other `server` settings (limits, `trusted_proxies`, `runtime_threads`) are read again by every restarted worker. The watcher ignores `.venv` but not a virtual environment with another name, such as `venv/`: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. `dev` needs `watchfiles` (the `hinoki[server]` extra) and uses one worker.
+The supervisor watches the project directory (`*.py`, `*.toml` and `.env` files; `.venv`, `.git` and caches are ignored) and, on a change, stops the worker gracefully and starts a new one on the same socket, so a client connecting during the restart waits instead of being refused. If the new code fails to import or start, the error is printed (a short `error: cannot load ...` line for a missing module or name, a traceback for other failures), `waiting for changes` follows, and the next edit starts the worker again; connections wait in the meantime. The host, port, `backlog` and the choice of server are read once when `hinoki dev` starts: change them and restart the command. The other `server` settings (limits, `trusted_proxies`, `runtime_threads`) are read again by every restarted worker. The watcher ignores `.venv` but not a virtual environment with another name, such as `venv/`: keep it outside the project directory or it triggers reloads. The first import of the target happens in the command itself, so an error there stops it with a message instead of waiting. `dev` needs `watchfiles` (the `hinoki-api[server]` extra) and uses one worker.
 
 ## Behind a reverse proxy
 
