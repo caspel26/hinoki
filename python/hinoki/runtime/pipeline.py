@@ -1104,7 +1104,7 @@ class Pipeline:
             return self.cors
         raw_path = scope.get("raw_path")
         try:
-            path = scope["path"] if raw_path is None else self._raw_target(raw_path)
+            path = scope["path"] if raw_path is None else self.raw_target(raw_path)
         except HTTPError:
             return self.cors
         found = self.app.lookup(asked, path)
@@ -1119,7 +1119,7 @@ class Pipeline:
 
     def _route(self, scope: Scope) -> tuple[int, dict[str, str]]:
         raw_path = scope.get("raw_path")
-        path = scope["path"] if raw_path is None else self._raw_target(raw_path)
+        path = scope["path"] if raw_path is None else self.raw_target(raw_path)
         found = self.app.lookup(scope["method"], path)
         if found is None:
             raise HTTPError(HTTPStatus.NOT_FOUND, "not_found")
@@ -1132,7 +1132,7 @@ class Pipeline:
         return found.action, params
 
     @staticmethod
-    def _raw_target(raw_path: bytes) -> str:
+    def raw_target(raw_path: bytes) -> str:
         try:
             return raw_path.split(b"?", 1)[0].decode("ascii")
         except UnicodeDecodeError:
