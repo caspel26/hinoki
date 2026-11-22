@@ -131,7 +131,7 @@ max-branches = 8
 "python/hinoki/app.py" = ["PLR0913"]  # Hinoki takes keyword-only options
 "python/hinoki/routing.py" = ["PLR0913"]  # each decorator mirrors the Options fields
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
-"examples/*/*_tests/**" = ["S101", "PLR2004", "ARG001", "ARG002"]
+"examples/*/*_tests/**" = ["S101", "S105", "S106", "PLR2004", "ARG001", "ARG002"]
 [tool.ruff.lint.isort]
 known-first-party = ["hinoki", "examples", "tests"]
 
@@ -142,13 +142,13 @@ warn_unused_ignores = true
 files = ["python/hinoki", "tests", "examples"]
 # Playwright is a development tool run with uvx, not a project dependency.
 exclude = ["tests/browser/", "tests/mcpclient/"]
-mypy_path = "python:examples/notes:examples"
+mypy_path = "python:examples/notes:examples/tracker:examples/tracker/tracker_tests:examples"
 explicit_package_bases = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "examples/notes/notes_tests"]
+testpaths = ["tests", "examples/notes/notes_tests", "examples/tracker/tracker_tests"]
 python_files = ["*test.py"]
-pythonpath = ["examples/notes", "examples"]
+pythonpath = ["examples/notes", "examples/tracker", "examples"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers"
