@@ -144,16 +144,6 @@ from hinoki import Includable
 routes: list[Includable] = []
 '''
 
-APP_EVENTS = '''"""Event handlers of the {name} app, listed in hinoki.toml (`events = ...`)."""
-
-from hinoki import events
-
-handlers = events.Handlers("{name}")
-
-# @handlers.after_commit(SomeEvent)
-# async def on_some_event(event: SomeEvent) -> None: ...
-'''
-
 TEST = """from hinoki.testing import ASGIClient
 
 from {name}.main import app

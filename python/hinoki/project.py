@@ -13,6 +13,7 @@ from types import FrameType
 from typing import cast
 
 from hinoki.events import Handlers
+from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.migrations import models_of
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
@@ -34,6 +35,7 @@ class ProjectApp:
     routes: str = ""  # ``module:attribute`` of the app's list of routes
     prefix: str = ""  # where the routes are mounted, ``/<name>`` when empty
     events: str = ""  # ``module:attribute`` of the app's ``Handlers``
+    middleware: str = ""  # ``module:attribute`` of the app's sequence of Middleware
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -177,6 +179,37 @@ class ProjectManifest:
                 "hinoki.events.Handlers"
             )
         return handlers
+
+    def middleware_list(self) -> list[Middleware]:
+        """Each app's middleware in dependency order, flattened; an app without
+        ``middleware`` adds nothing. Importing the modules is the only effect."""
+        add_project_root(self)
+        found: list[Middleware] = []
+        for app in self.ordered_apps():
+            if app.middleware:
+                found.extend(self._middleware(app))
+        return found
+
+    def _middleware(self, app: ProjectApp) -> tuple[Middleware, ...]:
+        module_name, _, attribute = app.middleware.partition(":")
+        try:
+            items = getattr(importlib.import_module(module_name), attribute)
+        except (ImportError, AttributeError) as error:
+            raise ProjectError(
+                f"cannot load the middleware of app {app.name!r} "
+                f"({app.middleware}): {error}"
+            ) from None
+        if not isinstance(items, (list, tuple)):
+            raise ProjectError(
+                f"the middleware of app {app.name!r} ({app.middleware}) must be "
+                "a list or tuple of Middleware"
+            )
+        try:
+            return check_middleware(items)
+        except TypeError as error:
+            raise ProjectError(
+                f"the middleware of app {app.name!r} ({app.middleware}): {error}"
+            ) from None
 
     def _route_list(self, target: str, owner: str) -> list[Includable]:
         module_name, _, attribute = target.partition(":")
@@ -363,6 +396,15 @@ def manifest_events(start: Path | None = None) -> list[Handlers]:
     return _manifest_from(directory).event_handlers()
 
 
+def manifest_middleware(start: Path | None = None) -> list[Middleware]:
+    """The middleware each app of ``hinoki.toml`` declares, flattened in dependency
+    order (the first listed runs outermost), for
+    ``Hinoki(middleware=manifest_middleware())``. The manifest is found as for
+    ``manifest_routes``; outside a project this raises ``ProjectError``."""
+    directory = start if start is not None else _caller_directory(sys._getframe(1))
+    return _manifest_from(directory).middleware_list()
+
+
 def manifest_routes(start: Path | None = None) -> list[Includable]:
     """The routes ``hinoki.toml`` declares: the project's, then each app's at its
     prefix, for ``Hinoki(include=manifest_routes())``.
@@ -454,10 +496,18 @@ def _parse_app(value: object) -> ProjectApp:
     if len(set(requires)) != len(requires):
         raise ProjectError(f"app {name!r} repeats a dependency")
     routes, prefix = _parse_app_routes(name, value)
-    events = value.get("events", "")
-    if not isinstance(events, str) or (events and not _valid_target(events)):
-        raise ProjectError(f"app {name!r} events must be a module:attribute target")
-    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix, events)
+    events = _parse_target(name, value, "events")
+    middleware = _parse_target(name, value, "middleware")
+    return ProjectApp(
+        name, models, migrations, tuple(requires), routes, prefix, events, middleware
+    )
+
+
+def _parse_target(name: str, value: dict[str, object], key: str) -> str:
+    target = value.get(key, "")
+    if not isinstance(target, str) or (target and not _valid_target(target)):
+        raise ProjectError(f"app {name!r} {key} must be a module:attribute target")
+    return target
 
 
 def _parse_app_routes(name: str, value: dict[str, object]) -> tuple[str, str]:
