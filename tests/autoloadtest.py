@@ -1,4 +1,4 @@
-"""``Hinoki()`` loads the events and middleware hinoki.toml declares."""
+"""``Hinoki()`` loads the events, middleware and rules hinoki.toml declares."""
 
 import importlib
 import sys
@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from hinoki.http.middleware import Middleware
+from hinoki.rules import RuleSet
 
 MODULES = {
     "events.py": """from dataclasses import dataclass
@@ -33,26 +34,36 @@ class Stamp(Middleware): ...
 
 middleware = [Stamp()]
 """,
+    "rules.py": """from hinoki import Actions
+from hinoki.rules import RuleSet
+
+project_rules = RuleSet(Actions.require_access())
+""",
 }
 MANIFEST = """[project]
 application = "{package}.app:{attribute}"
+middleware = ["{package}.mw:middleware"]
+rules = ["{package}.rules:project_rules"]
 
 [[apps]]
 name = "posts"
 models = "{package}.models"
 migrations = "{package}.migrations"
 events = "{package}.events:handlers"
-middleware = "{package}.mw:middleware"
 requires = []
 """
 APPS = {
     "app": "from hinoki import Hinoki\n\napp = Hinoki()\n",
-    "explicit": "from hinoki import Hinoki\n\napp = Hinoki(events=(), middleware=())\n",
+    "explicit": (
+        "from hinoki import Hinoki\n"
+        "from hinoki.rules import RuleSet\n\n"
+        "app = Hinoki(events=(), middleware=(), rules=RuleSet())\n"
+    ),
 }
 
 
 @pytest.mark.parametrize(("name", "loaded"), [("app", 1), ("explicit", 0)])
-def test_hinoki_reads_events_and_middleware_unless_given(
+def test_hinoki_reads_the_manifest_lists_unless_given(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, loaded: int
 ) -> None:
     package = f"autoload_{name}"
@@ -73,3 +84,5 @@ def test_hinoki_reads_events_and_middleware_unless_given(
     middleware: tuple[Middleware, ...] = tuple(app.middleware)
     assert len(middleware) == loaded
     assert len(app.events.registrations) == loaded
+    assert isinstance(app.rules, RuleSet)
+    assert len(app.rules.rules) == loaded
