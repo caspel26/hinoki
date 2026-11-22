@@ -74,12 +74,11 @@ events = "shop.apps.notes.events:handlers"
 
 ```python
 from hinoki import Hinoki
-from hinoki.project import manifest_events, manifest_routes
 
-app = Hinoki(include=manifest_routes(), events=manifest_events())
+app = Hinoki()  # reads routes, events and middleware from hinoki.toml
 ```
 
-`manifest_events()` imports each app's `Handlers` in dependency order (`requires`) and fails with a message naming the app when the target does not import or is not a `Handlers`. Hinoki does not generate the module: you create it yourself (for example `shop/apps/notes/events.py` with `handlers = events.Handlers("notes")`, as in the example on this page) and name it in the key, so there is no template to copy and a mistyped target is only reported when `manifest_events()` runs. `hinoki app add notes --models ... --events pkg.events:handlers` registers an existing one; `hinoki app list` shows it.
+When the manifest's `project.application` names the module that builds the app, `Hinoki()` loads each key you did not pass: `include=`, `events=` and `middleware=` are independent, and an explicit argument (even `()`) wins and skips that key. `manifest_events()` does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's `Handlers` in dependency order (`requires`) and fails with a message naming the app when the target does not import or is not a `Handlers`. Hinoki does not generate the module: you create it yourself (for example `shop/apps/notes/events.py` with `handlers = events.Handlers("notes")`, as in the example on this page) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. `hinoki app add notes --models ... --events pkg.events:handlers` registers an existing one; `hinoki app list` shows it.
 
 ## Testing
 

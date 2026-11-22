@@ -67,12 +67,11 @@ middleware = "shop.apps.notes.middleware:middleware"
 
 ```python
 from hinoki import Hinoki
-from hinoki.project import manifest_middleware, manifest_routes
 
-app = Hinoki(include=manifest_routes(), middleware=manifest_middleware())
+app = Hinoki()  # reads routes, events and middleware from hinoki.toml
 ```
 
-`manifest_middleware()` imports each app's list in dependency order
+When the manifest's `project.application` names the module that builds the app, `Hinoki()` loads each key you did not pass; an explicit `middleware=` (even `()`) wins and skips the key. `manifest_middleware()` is the explicit form, to combine lists. It imports each app's list in dependency order
 (`requires`) and flattens them, so a required app's middleware runs
 before the dependent app's, and within an app in the order listed. The result is
 the application's own middleware: it runs before an action's and obeys
