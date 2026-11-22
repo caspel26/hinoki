@@ -247,8 +247,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 12:00:24 UTC">November 22, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -312,6 +312,12 @@ the isolated build-system requirement.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="measuring-coverage">Measuring coverage<a class="headerlink" href="#measuring-coverage" title="Permanent link">&para;</a></h3>
+<p>Coverage also measures child processes (<code>patch = ["subprocess"]</code> with <code>parallel</code> and <code>sigterm</code> in <code>[tool.coverage.run]</code>), so the supervisor, worker and <code>hinoki serve</code> tests count. CI runs two phases and merges them: the main suite with <code>pytest -n 4 --cov</code>, then the server suites (<code>tests/runtime</code>, <code>tests/kisoservertest.py</code>, <code>tests/kisoclitest.py</code>, <code>tests/wsgitest.py</code>) with <code>--cov --cov-append</code>. Locally:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pytest<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span><span class="w"> </span>--cov<span class="w"> </span>--cov-report<span class="o">=</span>term-missing
+uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>coverage<span class="w"> </span>report<span class="w"> </span>--precision<span class="o">=</span><span class="m">2</span><span class="w"> </span>--skip-covered<span class="w"> </span>-m
+</code></pre></div>
+<p>Without the database URLs below, the database-backed tests (most of the admin, parts of the ORM and the migrator) are skipped and their lines show as uncovered. A few unreachable guards carry <code># pragma: no cover</code> with the reason next to it.</p>
 <h3 id="database-tests">Database tests<a class="headerlink" href="#database-tests" title="Permanent link">&para;</a></h3>
 <p>The binding tests embed Python. Select the interpreter explicitly and add its
 shared-library directory when running the workspace suite locally:</p>
@@ -443,13 +449,13 @@ test gate.</p>
           
           
             <ul><li><a href="#setup">Setup</a></li><li><a href="#gates">Gates</a>
-            <ul><li><a href="#database-tests">Database tests</a></li></ul>
+            <ul><li><a href="#measuring-coverage">Measuring coverage</a></li><li><a href="#database-tests">Database tests</a></li></ul>
           </li><li><a href="#decisions">Decisions</a></li><li><a href="#two-environments-two-responsibilities">Two environments, two responsibilities</a></li><li><a href="#ci-workflow-hygiene">CI workflow hygiene</a></li><li><a href="#native-extension-editable-install-rebuild-wheel">Native extension: editable install, rebuild, wheel</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 12:00:24 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
