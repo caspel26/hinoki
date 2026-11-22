@@ -162,6 +162,7 @@ The command line, the migration state files, the JSON log format, the MCP server
 
 ### 🐛 Fixes
 
+- **Security review fixes:** WebSocket handshakes over ASGI route on the raw path and honour `allowed_hosts` and trusted proxies, and the same-origin check compares the scheme (also on Kiso over HTTPS); a duplicate `Host` on HTTP/1.0 is refused; a non-numeric `Host` port no longer breaks WSGI; the admin form uses the admin timezone; documentation URLs are escaped; a full sign-in table keeps blocked addresses, sign-in and password change count apart, and a user name is delayed after repeated failures; MySQL `require_ssl` precedes a URL fragment; Kiso's WSGI host bounds the body bytes being read; a remote PostgreSQL URL without `sslmode` and a world-readable TLS key log a warning.
 - **Manifests and scaffolds:** names and paths with characters above the Basic Multilingual Plane (for example emoji) are written as valid TOML; they used to be written as surrogate-pair escapes, which TOML rejects (`python/hinoki/projectcli.py`, `python/hinoki/scaffold.py`).
 - **`hinoki check`:** it imports the manifest's models before running the rules and warns when it ran no rules (`python/hinoki/checkcli.py`, #391, #393).
 - **Migrations:** a plan error no longer suggests running `migrations plan` (#392).
