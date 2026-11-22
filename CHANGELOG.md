@@ -62,6 +62,8 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 A request now does less Python work with the same behaviour: a coroutine that finishes without suspending runs inline with no task and no timer, the `Request` object is built only when the action, a renderer or a body needs it, response header shapes are computed once per route shape, and a `Schema` whose fields hold exactly the declared types is accepted by a compiled per-class check instead of the full validation. A `Schema` that overrides `_validate_instance`, `native_schema` or `specs` keeps the full validation. Indicative single-core runs on a loaded host gave about +40% to +70% on a minimal action and +28% on a one-row read; the official comparative numbers are not yet re-measured.
 
+On Kiso, an ORM read chain that uses `select_related(...)` now stays on the native handler lane, since the join is part of the same single query; `prefetch_related` still runs in an asyncio task (`python/hinoki/runtime/nativeproof.py`). An indicative single-core run of a one-row joined read gave about +14%.
+
 #### 🔒 Hardened HTTP and WSGI edges
 > `crates/kiso/src/conn.rs`, `crates/kiso/src/stream.rs`, `crates/bindings/src/wsgi.rs` (#389, #401, #402)
 
