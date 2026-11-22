@@ -467,13 +467,13 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
-            <span>2 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
+            <span>5 min read</span>
           </p>
           
         </header>
         
-<p>An action opts into page-number pagination with <code>pagination=PageNumberPagination()</code>. A size you leave out comes from the application's <code>pagination</code> settings group; without settings the defaults are <code>page_size=20</code> and <code>max_page_size=100</code>. The framework parses and validates <code>page</code> and <code>page_size</code>, injects a <code>PageParams</code> value, and documents both query parameters in OpenAPI.</p>
+<p>An action opts into page-number pagination with <code>pagination=PageNumberPagination()</code>, or into <a href="#cursor-keyset-pagination">cursor pagination</a> with <code>pagination=CursorPagination()</code>. A size you leave out comes from the application's <code>pagination</code> settings group; without settings the defaults are <code>page_size=20</code> and <code>max_page_size=100</code>. The framework parses and validates <code>page</code> and <code>page_size</code>, injects a <code>PageParams</code> value, and documents both query parameters in OpenAPI.</p>
 <p>The Billing app lists invoices a page at a time. The handler asks the model for one page, and <code>Page.map()</code> turns its rows into schemas:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">RouteGroup</span>
@@ -508,6 +508,30 @@
 <p>The application in <code>notes/main.py</code> reads them through <code>Hinoki(settings=ProjectSettings, ...)</code>.</p>
 <p>Precedence, from strongest to weakest: a size set on the action's <code>PageNumberPagination(...)</code>, the application's <code>pagination</code> settings, then 20 and 100. Each size is resolved separately, so <code>PageNumberPagination(page_size=10)</code> keeps its 10 and takes its maximum from the settings. The result must satisfy <code>1 &lt;= page_size &lt;= max_page_size</code>: invalid settings fail when they load, and an action whose own size does not fit the resolved other one (for example <code>PageNumberPagination(max_page_size=10)</code> under a settings <code>page_size</code> of 25) fails when it is included, naming the action. The generated OpenAPI parameters show the resolved values.</p>
 <p>Use the queryset's <code>apaginate</code>/<code>paginate</code> methods for database rows. They append the primary key as the last sort key (after any <code>order_by</code>), so rows with equal sort values keep one position across pages. <code>Page.of(rows, params)</code> slices an in-memory sequence and counts that sequence; it is not a substitute for database pagination on large tables.</p>
+<h2 id="cursor-keyset-pagination">Cursor (keyset) pagination<a class="headerlink" href="#cursor-keyset-pagination" title="Permanent link">&para;</a></h2>
+<p><code>pagination=CursorPagination(...)</code> pages by position instead of by offset. A response carries <code>next</code> and <code>previous</code> cursors that clients should treat as opaque; the database starts each page at the cursor's row through the sort index, so a page costs the same at any depth, and no <code>COUNT</code> runs. Use it for long, growing lists or feeds; keep page numbers when users jump to page <em>n</em> or need a total.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">CursorPage</span><span class="p">,</span> <span class="n">CursorPagination</span><span class="p">,</span> <span class="n">CursorParams</span>
+
+
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/feed"</span><span class="p">,</span> <span class="n">pagination</span><span class="o">=</span><span class="n">CursorPagination</span><span class="p">(</span><span class="n">page_size</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">feed</span><span class="p">(</span><span class="n">page</span><span class="p">:</span> <span class="n">CursorParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CursorPage</span><span class="p">[</span><span class="n">InvoiceOut</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">(</span><span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">apaginate_cursor</span><span class="p">(</span><span class="n">page</span><span class="p">))</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="o">.</span><span class="n">from_model</span><span class="p">)</span>
+</code></pre></div>
+<div class="language-sh highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">NOTES_PAGINATION__CURSOR_SECRET</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
+<p><code>GET /invoices/feed?limit=20</code> answers <code>{"items": [...], "next": "&lt;cursor&gt;", "previous": null, "page_size": 20}</code>. Pass <code>next</code> as <code>cursor</code> to read forward and <code>previous</code> to read back. <code>next</code> is <code>null</code> on the last page; <code>previous</code> is <code>null</code> on the first. Generated lists switch with <code>crud(..., pagination=CursorPagination())</code> and return the same envelope.</p>
+<ul>
+<li><strong>Ordering.</strong> The page follows the query's <code>order_by</code> (or the model's <code>ordered_by</code>), with the primary key appended as the final tie-break, so rows with equal sort values are never skipped or repeated. Sort columns must be non-null <code>int</code>, <code>str</code>, <code>uuid</code>, <code>datetime</code> or <code>float</code> columns; anything else raises a <code>FieldError</code>, and a <code>crud(...)</code> whose model ordering is invalid fails at registration with a <code>RegistrationError</code> naming the model and column (an ordering added by a custom <code>get_queryset</code> is checked on each request). A <code>str</code> sort value is bounded: at most 1024 bytes per value, and a whole cursor at most 4096 characters, the same limit for issuing and reading. A page whose boundary row exceeds it, and whose link is needed, answers <code>422</code> with the field <code>cursor</code> and the code <code>unencodable</code> (it never answers <code>500</code>); order by a shorter column when values can be long. The queryset's own <code>limit</code> and <code>offset</code> are ignored.</li>
+<li><strong>Filters and scope.</strong> The cursor only holds a position. Filters, <code>get_queryset</code>, ownership and tenant policies are applied to every page exactly as for the first one, so a cursor cannot reach rows its holder could not list.</li>
+<li><strong>Signing.</strong> Cursors are signed with HMAC-SHA256 in Rust and bound to the table and the ordering they were issued for, so they are tamper-proof. They are not encrypted: a cursor is base64 and readable, and it contains the sort-key values of the boundary row. Do not order a cursor list by a column whose value must stay private, even when the read schema hides it. The secret comes from <code>CursorPagination(secret=...)</code> or <code>pagination.cursor_secret</code> and must have at least 32 bytes; without one, including the action fails with a <code>RegistrationError</code>. Changing the secret invalidates outstanding cursors.</li>
+<li><strong>Expiry.</strong> <code>cursor_ttl_seconds</code> (setting) or <code>CursorPagination(ttl=...)</code> makes a cursor expire; the default never does.</li>
+<li><strong>Errors.</strong> A tampered, malformed, foreign or differently ordered cursor answers <code>422</code> with the field <code>cursor</code> and the code <code>invalid</code>; an expired one answers <code>422</code> with <code>expired</code>; an unencodable boundary value answers <code>422</code> with <code>unencodable</code>. <code>limit</code> follows the same bounds as <code>page_size</code>.</li>
+<li><strong>Rust path.</strong> The keyset <code>WHERE</code>, the signature, the direction handling and, for a generated plain list, the JSON page are produced in Rust.</li>
+<li><strong>Indexes.</strong> Index the sort columns in the sort order (for example <code>(rank DESC, id)</code>) to get the constant-time pages; without one the database sorts the table for every page.</li>
+<li><strong>Admin.</strong> The admin lists keep page-number pagination.</li>
+</ul>
+<p>The <code>pagination</code> settings group also takes <code>cursor_secret</code> and <code>cursor_ttl_seconds</code>; sizes resolve as described above, and <code>page_size</code>/<code>max_page_size</code> apply to <code>limit</code>. The measurements are in <code>benchmarks/README.md</code> (<code>cursorbench.py</code>).</p>
         
       </article>
 
@@ -525,12 +549,12 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#defaults-for-the-whole-application">Defaults for the whole application</a></li></ul>
+            <ul><li><a href="#defaults-for-the-whole-application">Defaults for the whole application</a></li><li><a href="#cursor-keyset-pagination">Cursor (keyset) pagination</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/pagination.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

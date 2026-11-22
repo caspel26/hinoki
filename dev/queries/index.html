@@ -467,7 +467,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -518,7 +518,8 @@ the supported comparison and membership operators (<code>ne</code>, <code>in</co
   literally. SQLite folds ASCII case only; MySQL and MariaDB assume the
   <code>NO_BACKSLASH_ESCAPES</code> mode is off (the default).</li>
 <li><code>apaginate</code> runs the count and the page as two statements; concurrent writes
-  can make <code>total</code> and <code>items</code> disagree slightly.</li>
+  can make <code>total</code> and <code>items</code> disagree slightly. <code>apaginate_cursor</code> runs one
+  statement and no count; see <a href="../pagination/#cursor-keyset-pagination">cursor pagination</a>.</li>
 <li><code>@db.ordered_by</code> applies only when a query has no <code>order_by</code>. Counts and bulk
   updates ignore it.</li>
 </ul>
@@ -712,7 +713,7 @@ declare a field named <code>returning</code>.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

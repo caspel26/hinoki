@@ -467,7 +467,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:06:16 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -541,7 +541,7 @@
 </tr>
 </tbody>
 </table>
-<p>Writes run in a transaction. <code>pagination=</code> selects the page-number policy of the list route (default <code>PageNumberPagination()</code>). <code>omit=("list",)</code> or <code>omit=("retrieve",)</code> drops a read so that you can write it yourself. The generated actions are ordinary routes, visible to OpenAPI, <code>hinoki routes</code> and the route registry; nothing is registered at import time.</p>
+<p>Writes run in a transaction. <code>pagination=</code> selects the pagination policy of the list route: <code>PageNumberPagination()</code> (the default) or <code>CursorPagination()</code> for keyset <a href="../pagination/#cursor-keyset-pagination">cursor pagination</a>. <code>omit=("list",)</code> or <code>omit=("retrieve",)</code> drops a read so that you can write it yourself. The generated actions are ordinary routes, visible to OpenAPI, <code>hinoki routes</code> and the route registry; nothing is registered at import time.</p>
 <h3 id="access-per-action">Access per action<a class="headerlink" href="#access-per-action" title="Permanent link">&para;</a></h3>
 <p><code>access=</code> takes one <code>Access</code>, which protects <strong>every</strong> generated action including reads, or <code>CrudAccess</code> to set actions apart. An action without its own entry uses <code>default</code>; <code>None</code> means public:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py (variant)</span>
@@ -719,7 +719,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:06:16 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

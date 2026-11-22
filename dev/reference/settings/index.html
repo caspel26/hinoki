@@ -2296,7 +2296,9 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
 
 
 
-        <p>Defaults for <code>PageNumberPagination</code> that an action does not set itself.</p>
+        <p>Defaults for <code>PageNumberPagination</code> and <code>CursorPagination</code> that an
+action does not set itself. <code>cursor_secret</code> (at least 32 bytes) signs
+cursors; <code>cursor_ttl_seconds</code> makes them expire (<code>None</code>: they do not).</p>
 
 
 

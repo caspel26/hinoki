@@ -279,8 +279,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
-            <span>22 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
+            <span>24 min read</span>
           </p>
           
         </header>
@@ -2971,7 +2971,10 @@ change the number of rows.</p>
 
 <a href="#hinoki.orm.QuerySet.compile" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">compile</span><span class="p">(</span>
-    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"select"</span><span class="p">,</span> <span class="n">dialect</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"postgres"</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"select"</span><span class="p">,</span>
+    <span class="n">dialect</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"postgres"</span><span class="p">,</span>
+    <span class="n">keyset</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]],</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
+    <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
 </code></pre></div>
 
@@ -3153,6 +3156,32 @@ model must go through <code>from_row</code>.</p>
     <div class="doc doc-contents ">
 
         <p>Run the query and build the rows; what <code>await queryset</code> returns.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.QuerySet.fetch_compiled" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fetch_compiled</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.orm.QuerySet.fetch_compiled" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">fetch_compiled</span><span class="p">(</span>
+    <span class="n">database</span><span class="p">:</span> <span class="n">Database</span><span class="p">,</span> <span class="n">sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Run <code>sql</code> compiled from this query and build its rows.</p>
 
 
     </div>
@@ -3539,6 +3568,50 @@ equal sort values keep a fixed position from one page to the next.</p>
 
         <p>One page plus the total. The primary key is the final sort key so
 pages are stable.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.QuerySet.apaginate_cursor" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">apaginate_cursor</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.orm.QuerySet.apaginate_cursor" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">apaginate_cursor</span><span class="p">(</span><span class="n">params</span><span class="p">:</span> <span class="n">CursorParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CursorPage</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>One keyset page: ordered like this query with the primary key as the
+final sort key, bounded by the signed cursor in <code>params</code>, without a
+COUNT. This query's filters apply; its limit and offset do not.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.QuerySet.paginate_cursor" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">paginate_cursor</span>
+
+
+<a href="#hinoki.orm.QuerySet.paginate_cursor" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">paginate_cursor</span><span class="p">(</span><span class="n">params</span><span class="p">:</span> <span class="n">CursorParams</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CursorPage</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
 
 
     </div>
@@ -3952,6 +4025,333 @@ sizes set on it are kept. Raises <code>ValueError</code> when the result is inva
 
 
 
+<h2 id="hinoki.pagination.CursorParams" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.pagination.CursorParams</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.pagination.CursorParams" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">CursorParams</span><span class="p">(</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">CursorPagination</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Validated request for one keyset page: the size and the raw token.</p>
+<p>The token is only decoded when the query runs, because the signature binds
+it to the ordering of that query.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.pagination.CursorPage" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.pagination.CursorPage</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.pagination.CursorPage" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">CursorPage</span><span class="p">(</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">],</span>
+    <span class="nb">next</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">previous</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">page_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>One keyset page: <code>next</code>/<code>previous</code> are cursors, or <code>None</code> at an end.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.pagination.CursorPage.items" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">items</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.pagination.CursorPage.items" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">T</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.pagination.CursorPage.next" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">next</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.pagination.CursorPage.next" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nb">next</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.pagination.CursorPage.previous" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">previous</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.pagination.CursorPage.previous" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">previous</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.pagination.CursorPage.page_size" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">page_size</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.pagination.CursorPage.page_size" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">page_size</span><span class="p">:</span> <span class="nb">int</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.pagination.CursorPage.map" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">map</span>
+
+
+<a href="#hinoki.pagination.CursorPage.map" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">map</span><span class="p">(</span><span class="n">convert</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">T</span><span class="p">],</span> <span class="n">U</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">CursorPage</span><span class="p">[</span><span class="n">U</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.pagination.CursorPage.dump" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">dump</span>
+
+
+<a href="#hinoki.pagination.CursorPage.dump" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">dump</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.pagination.CursorPagination" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.pagination.CursorPagination</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.pagination.CursorPagination" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">CursorPagination</span><span class="p">(</span>
+    <span class="n">page_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_page_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">secret</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">ttl</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Strategy: <code>?cursor=TOKEN&amp;limit=N</code>, keyset pages with signed cursors.</p>
+<p>The cursor is signed with <code>secret</code> (at least 32 bytes) and bound to the
+table and ordering of the query, so a changed or foreign token is a 422,
+never a 500. It is signed, not encrypted: it carries the sort-key values of
+the boundary row in readable form, so do not order by a column whose value
+must stay private. Clients should treat it as opaque. <code>ttl</code> (seconds)
+makes cursors expire. Anything left
+out comes from the application's <code>pagination</code> settings when the action is
+included; values given here win.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.pagination.CursorPagination.resolved" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolved</span>
+
+
+<a href="#hinoki.pagination.CursorPagination.resolved" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">resolved</span><span class="p">(</span>
+    <span class="n">page_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_PAGE_SIZE</span><span class="p">,</span>
+    <span class="n">max_page_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_PAGE_SIZE</span><span class="p">,</span>
+    <span class="n">secret</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">ttl</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CursorPagination</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>This strategy with everything left out filled from the defaults given.
+Raises <code>ValueError</code> when the result is invalid or has no secret.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="hinoki.orm.Related" class="doc doc-heading">
             <span class="doc doc-object-name doc-class-name">hinoki.orm.Related</span>
 
@@ -4041,11 +4441,15 @@ articles: ClassVar[Related[list[Article]]]
           </li><li><a href="#hinoki.orm.field">field</a></li><li><a href="#hinoki.orm.pk">pk</a></li><li><a href="#hinoki.orm.foreign_key">foreign_key</a></li><li><a href="#hinoki.orm.OnDelete">OnDelete</a>
             <ul><li><a href="#hinoki.orm.OnDelete.RESTRICT">RESTRICT</a></li><li><a href="#hinoki.orm.OnDelete.CASCADE">CASCADE</a></li><li><a href="#hinoki.orm.OnDelete.SET_NULL">SET_NULL</a></li><li><a href="#hinoki.orm.OnDelete.NO_ACTION">NO_ACTION</a></li></ul>
           </li><li><a href="#hinoki.orm.unique">unique</a></li><li><a href="#hinoki.orm.indexed">indexed</a></li><li><a href="#hinoki.orm.table">table</a></li><li><a href="#hinoki.orm.ordered_by">ordered_by</a></li><li><a href="#hinoki.orm.timestamps">timestamps</a></li><li><a href="#hinoki.orm.QuerySet">QuerySet</a>
-            <ul><li><a href="#hinoki.orm.QuerySet.model">model</a></li><li><a href="#hinoki.orm.QuerySet.filters">filters</a></li><li><a href="#hinoki.orm.QuerySet.order">order</a></li><li><a href="#hinoki.orm.QuerySet.limit_to">limit_to</a></li><li><a href="#hinoki.orm.QuerySet.offset_by">offset_by</a></li><li><a href="#hinoki.orm.QuerySet.loading">loading</a></li><li><a href="#hinoki.orm.QuerySet.derive">derive</a></li><li><a href="#hinoki.orm.QuerySet.filter">filter</a></li><li><a href="#hinoki.orm.QuerySet.with_condition">with_condition</a></li><li><a href="#hinoki.orm.QuerySet.select_related">select_related</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_related">prefetch_related</a></li><li><a href="#hinoki.orm.QuerySet.relation">relation</a></li><li><a href="#hinoki.orm.QuerySet.forward">forward</a></li><li><a href="#hinoki.orm.QuerySet.order_by">order_by</a></li><li><a href="#hinoki.orm.QuerySet.limit">limit</a></li><li><a href="#hinoki.orm.QuerySet.offset">offset</a></li><li><a href="#hinoki.orm.QuerySet.joins">joins</a></li><li><a href="#hinoki.orm.QuerySet.compile">compile</a></li><li><a href="#hinoki.orm.QuerySet.build">build</a></li><li><a href="#hinoki.orm.QuerySet.load">load</a></li><li><a href="#hinoki.orm.QuerySet.prefetch">prefetch</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_forward">prefetch_forward</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_reverse">prefetch_reverse</a></li><li><a href="#hinoki.orm.QuerySet.uses_stock_builders">uses_stock_builders</a></li><li><a href="#hinoki.orm.QuerySet.joined_plan">joined_plan</a></li><li><a href="#hinoki.orm.QuerySet.fetch">fetch</a></li><li><a href="#hinoki.orm.QuerySet.afirst">afirst</a></li><li><a href="#hinoki.orm.QuerySet.aget">aget</a></li><li><a href="#hinoki.orm.QuerySet.aupdate">aupdate</a></li><li><a href="#hinoki.orm.QuerySet.adelete">adelete</a></li><li><a href="#hinoki.orm.QuerySet.refuse_window">refuse_window</a></li><li><a href="#hinoki.orm.QuerySet.acount">acount</a></li><li><a href="#hinoki.orm.QuerySet.aexists">aexists</a></li><li><a href="#hinoki.orm.QuerySet.list">list</a></li><li><a href="#hinoki.orm.QuerySet.first">first</a></li><li><a href="#hinoki.orm.QuerySet.get">get</a></li><li><a href="#hinoki.orm.QuerySet.update">update</a></li><li><a href="#hinoki.orm.QuerySet.delete">delete</a></li><li><a href="#hinoki.orm.QuerySet.count">count</a></li><li><a href="#hinoki.orm.QuerySet.exists">exists</a></li><li><a href="#hinoki.orm.QuerySet.paginate">paginate</a></li><li><a href="#hinoki.orm.QuerySet.stably_ordered">stably_ordered</a></li><li><a href="#hinoki.orm.QuerySet.apaginate">apaginate</a></li></ul>
+            <ul><li><a href="#hinoki.orm.QuerySet.model">model</a></li><li><a href="#hinoki.orm.QuerySet.filters">filters</a></li><li><a href="#hinoki.orm.QuerySet.order">order</a></li><li><a href="#hinoki.orm.QuerySet.limit_to">limit_to</a></li><li><a href="#hinoki.orm.QuerySet.offset_by">offset_by</a></li><li><a href="#hinoki.orm.QuerySet.loading">loading</a></li><li><a href="#hinoki.orm.QuerySet.derive">derive</a></li><li><a href="#hinoki.orm.QuerySet.filter">filter</a></li><li><a href="#hinoki.orm.QuerySet.with_condition">with_condition</a></li><li><a href="#hinoki.orm.QuerySet.select_related">select_related</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_related">prefetch_related</a></li><li><a href="#hinoki.orm.QuerySet.relation">relation</a></li><li><a href="#hinoki.orm.QuerySet.forward">forward</a></li><li><a href="#hinoki.orm.QuerySet.order_by">order_by</a></li><li><a href="#hinoki.orm.QuerySet.limit">limit</a></li><li><a href="#hinoki.orm.QuerySet.offset">offset</a></li><li><a href="#hinoki.orm.QuerySet.joins">joins</a></li><li><a href="#hinoki.orm.QuerySet.compile">compile</a></li><li><a href="#hinoki.orm.QuerySet.build">build</a></li><li><a href="#hinoki.orm.QuerySet.load">load</a></li><li><a href="#hinoki.orm.QuerySet.prefetch">prefetch</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_forward">prefetch_forward</a></li><li><a href="#hinoki.orm.QuerySet.prefetch_reverse">prefetch_reverse</a></li><li><a href="#hinoki.orm.QuerySet.uses_stock_builders">uses_stock_builders</a></li><li><a href="#hinoki.orm.QuerySet.joined_plan">joined_plan</a></li><li><a href="#hinoki.orm.QuerySet.fetch">fetch</a></li><li><a href="#hinoki.orm.QuerySet.fetch_compiled">fetch_compiled</a></li><li><a href="#hinoki.orm.QuerySet.afirst">afirst</a></li><li><a href="#hinoki.orm.QuerySet.aget">aget</a></li><li><a href="#hinoki.orm.QuerySet.aupdate">aupdate</a></li><li><a href="#hinoki.orm.QuerySet.adelete">adelete</a></li><li><a href="#hinoki.orm.QuerySet.refuse_window">refuse_window</a></li><li><a href="#hinoki.orm.QuerySet.acount">acount</a></li><li><a href="#hinoki.orm.QuerySet.aexists">aexists</a></li><li><a href="#hinoki.orm.QuerySet.list">list</a></li><li><a href="#hinoki.orm.QuerySet.first">first</a></li><li><a href="#hinoki.orm.QuerySet.get">get</a></li><li><a href="#hinoki.orm.QuerySet.update">update</a></li><li><a href="#hinoki.orm.QuerySet.delete">delete</a></li><li><a href="#hinoki.orm.QuerySet.count">count</a></li><li><a href="#hinoki.orm.QuerySet.exists">exists</a></li><li><a href="#hinoki.orm.QuerySet.paginate">paginate</a></li><li><a href="#hinoki.orm.QuerySet.stably_ordered">stably_ordered</a></li><li><a href="#hinoki.orm.QuerySet.apaginate">apaginate</a></li><li><a href="#hinoki.orm.QuerySet.apaginate_cursor">apaginate_cursor</a></li><li><a href="#hinoki.orm.QuerySet.paginate_cursor">paginate_cursor</a></li></ul>
           </li><li><a href="#hinoki.pagination.PageParams">PageParams</a></li><li><a href="#hinoki.pagination.Page">Page</a>
             <ul><li><a href="#hinoki.pagination.Page.items">items</a></li><li><a href="#hinoki.pagination.Page.page">page</a></li><li><a href="#hinoki.pagination.Page.page_size">page_size</a></li><li><a href="#hinoki.pagination.Page.total">total</a></li><li><a href="#hinoki.pagination.Page.pages">pages</a></li><li><a href="#hinoki.pagination.Page.of">of</a></li><li><a href="#hinoki.pagination.Page.map">map</a></li><li><a href="#hinoki.pagination.Page.dump">dump</a></li></ul>
           </li><li><a href="#hinoki.pagination.PageNumberPagination">PageNumberPagination</a>
             <ul><li><a href="#hinoki.pagination.PageNumberPagination.sizes">sizes</a></li><li><a href="#hinoki.pagination.PageNumberPagination.resolved">resolved</a></li><li><a href="#hinoki.pagination.PageNumberPagination.parse">parse</a></li></ul>
+          </li><li><a href="#hinoki.pagination.CursorParams">CursorParams</a></li><li><a href="#hinoki.pagination.CursorPage">CursorPage</a>
+            <ul><li><a href="#hinoki.pagination.CursorPage.items">items</a></li><li><a href="#hinoki.pagination.CursorPage.next">next</a></li><li><a href="#hinoki.pagination.CursorPage.previous">previous</a></li><li><a href="#hinoki.pagination.CursorPage.page_size">page_size</a></li><li><a href="#hinoki.pagination.CursorPage.map">map</a></li><li><a href="#hinoki.pagination.CursorPage.dump">dump</a></li></ul>
+          </li><li><a href="#hinoki.pagination.CursorPagination">CursorPagination</a>
+            <ul><li><a href="#hinoki.pagination.CursorPagination.resolved">resolved</a></li></ul>
           </li><li><a href="#hinoki.orm.Related">Related</a>
             <ul><li><a href="#hinoki.orm.Related.stale">stale</a></li></ul>
           </li></ul>
@@ -4053,7 +4457,7 @@ articles: ClassVar[Related[list[Article]]]
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/orm.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

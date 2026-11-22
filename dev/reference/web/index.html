@@ -768,6 +768,24 @@ where the action did not choose its own.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.app.Hinoki.resolved_pagination" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolved_pagination</span>
+
+
+<a href="#hinoki.app.Hinoki.resolved_pagination" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">resolved_pagination</span><span class="p">(</span><span class="n">strategy</span><span class="p">:</span> <span class="n">Pagination</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Pagination</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.app.Hinoki.install" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">install</span>
 
@@ -1630,7 +1648,7 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
     <span class="n">owner</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Parser</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_PARSERS</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Renderer</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_RENDERERS</span><span class="p">,</span>
@@ -1839,7 +1857,7 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
   </span>
 
 <a href="#hinoki.routing.Route.pagination" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2223,7 +2241,7 @@ the <a href="../crud/">CRUD API reference</a>.</p>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2264,7 +2282,7 @@ MCP tool description then show.</p>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2305,7 +2323,7 @@ MCP tool description then show.</p>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2346,7 +2364,7 @@ MCP tool description then show.</p>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2387,7 +2405,7 @@ MCP tool description then show.</p>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2428,7 +2446,7 @@ MCP tool description then show.</p>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">pagination</span><span class="p">:</span> <span class="n">PageNumberPagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -4423,7 +4441,7 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
           
           
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
-            <ul><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.middleware">middleware</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li></ul>
+            <ul><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.middleware">middleware</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.resolved_pagination">resolved_pagination</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
             <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
