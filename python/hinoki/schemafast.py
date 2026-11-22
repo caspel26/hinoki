@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import inspect
+import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -191,7 +192,7 @@ def int_check(constraints: dict[str, object]) -> Check | None:
 def float_check(constraints: dict[str, object]) -> Check | None:
     if constraints:
         return None
-    return lambda value: type(value) is float and value - value == 0.0
+    return lambda value: type(value) is float and math.isfinite(value)
 
 
 def bool_check(constraints: dict[str, object]) -> Check | None:
