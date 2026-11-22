@@ -13,6 +13,7 @@ import pytest
 from hinoki import Access, Caller, Hinoki, Schema, core, http
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.errors import APIError, Forbidden, TooManyRequests, Unauthorized
+from hinoki.events import AuthRejected, Handlers
 from hinoki.ratelimit import RateLimitContext
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.pipeline import Pipeline
@@ -274,6 +275,16 @@ def test_only_the_plain_claims_provider_is_authenticated_by_rust() -> None:
     assert len(route_auth_of(plain)) == 3
     overridden = Pipeline(Hinoki(include=[custom]))
     assert route_auth_of(overridden) == []
+
+
+def test_auth_rejected_handlers_send_authentication_back_to_python() -> None:
+    watching = Handlers()
+
+    @watching.after_commit(AuthRejected)
+    async def seen(event: AuthRejected) -> None: ...
+
+    app = Hinoki(include=[guarded, guarded_post, guarded_limited], events=[watching])
+    assert route_auth_of(Pipeline(app)) == []
 
 
 @pytest.mark.parametrize("change", ["keys", "issuer", "audience", "leeway"])
