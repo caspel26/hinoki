@@ -430,12 +430,15 @@ def test_styling_is_used_only_on_a_capable_terminal() -> None:
     assert "\u2714" not in ascii_only.ok("done")
 
 
-def box_lines(text: str) -> list[str]:
+FACTS = [("python", "3.14.0"), ("folder", "~/code"), ("docs", "hinoki.caspel.dev")]
+
+
+def branch_lines(text: str) -> list[str]:
     return [line for line in ANSI.sub("", text).split("\n") if line.strip()]
 
 
-@pytest.mark.parametrize("columns", [40, 60, 80, 120])
-def test_the_banner_is_a_rounded_box_with_the_wordmark_that_fits_the_terminal(
+@pytest.mark.parametrize("columns", [60, 80, 120])
+def test_the_banner_is_a_branch_with_the_title_the_tagline_and_the_facts(
     monkeypatch: pytest.MonkeyPatch, columns: int
 ) -> None:
     class Tty:
@@ -446,45 +449,64 @@ def test_the_banner_is_a_rounded_box_with_the_wordmark_that_fits_the_terminal(
 
     monkeypatch.setenv("COLUMNS", str(columns))
     style = Style.detect(Tty(), {"TERM": "xterm-256color"})  # type: ignore[arg-type]
-    lines = box_lines(style.banner("new project", "v1.2.3"))
 
-    assert lines[0].startswith("  \u256d\u2500 Hinoki \u2500")
-    assert lines[0].endswith("\u256e")
-    assert lines[-1] == "  \u2570" + "\u2500" * (len(lines[0]) - 4) + "\u256f"
-    assert "\u25e2" not in "".join(lines) and "\u25e4" not in "".join(lines)
-    assert {len(line) for line in lines} == {len(lines[0])}
-    assert len(lines[0]) <= min(columns, 62)
-    row = next(line for line in lines if "Python API framework" in line)
-    assert row.startswith("  \u2502") and "v1.2.3" in row
+    assert branch_lines(style.banner("new project", "v1.2.3", FACTS)) == [
+        "  \u256d\u2500 Hinoki  Python API framework  v1.2.3",
+        "  \u2502",
+        "  \u2502  python  3.14.0",
+        "  \u2502  folder  ~/code",
+        "  \u2502  docs    hinoki.caspel.dev",
+        "  \u2570\u2500",
+    ]
 
 
-def test_the_ascii_banner_box_names_the_command_without_unicode() -> None:
+def test_the_ascii_branch_names_the_command_without_unicode() -> None:
     style = Style(color=True, unicode=False, width=80)
-    text = style.banner("new project", "v1.2.3")
-    lines = box_lines(text)
+    text = style.banner("new project", "v1.2.3", FACTS)
 
     assert text.isascii()
-    assert lines[0].startswith("  +- Hinoki -") and lines[-1].startswith("  +--")
-    assert {len(line) for line in lines} == {len(lines[0])}
-    assert "new project" in text and "v1.2.3" in text
+    assert branch_lines(text)[0] == (
+        "  +- Hinoki  Python API framework  new project - v1.2.3"
+    )
+    assert branch_lines(text)[-1] == "  +-"
 
 
-def test_a_long_detail_moves_to_its_own_row_instead_of_being_cut() -> None:
-    style = Style(color=True, unicode=False, width=40)
-    lines = box_lines(style.banner("interactive shell", "v1.2.3"))
+def test_a_narrow_terminal_drops_the_tagline_under_the_title_and_wraps_values() -> None:
+    style = Style(color=True, unicode=True, width=40)
+    lines = branch_lines(
+        style.banner("new project", "v1.2.3", [("docs", "a long value " * 4)])
+    )
 
-    assert {len(line) for line in lines} == {len(lines[0])} and len(lines[0]) <= 40
-    assert any("interactive shell - v1.2.3" in line for line in lines)
-    assert "\u2026" not in "".join(lines)
+    assert lines[:2] == [
+        "  \u256d\u2500 Hinoki  v1.2.3",
+        "  \u2502  Python API framework",
+    ]
+    assert all(len(line) <= 39 for line in lines)
+    assert sum(line.startswith("  \u2502  docs") for line in lines) == 1
 
 
-def test_the_wordmark_keeps_the_terminal_foreground_on_a_light_16_colour_theme() -> (
-    None
-):
-    style = Style(color=True, unicode=True, depth="16", light=True)
-    text = style.banner("new project", "v1.2.3")
+def test_a_word_too_long_for_its_row_loses_its_start() -> None:
+    style = Style(color=True, unicode=True, width=40)
+    text = ANSI.sub("", style.banner("t", "v1", [("path", "~/" + "x" * 60)]))
 
-    assert "97m" not in text and "\x1b[1;39mH" in text
+    assert "\u2026" + "x" * 20 in text and "x" * 40 not in text
+
+
+@pytest.mark.parametrize(
+    ("style", "title"),
+    [
+        (
+            Style(color=True, unicode=True, depth="truecolor"),
+            "\x1b[1;38;2;238;237;242m",
+        ),
+        (Style(color=True, unicode=True, depth="256"), "\x1b[1;38;5;"),
+        (Style(color=True, unicode=True, depth="16", light=True), "\x1b[1;39mHinoki"),
+    ],
+)
+def test_the_title_is_bold_primary_text_at_every_depth(
+    style: Style, title: str
+) -> None:
+    assert title in style.banner("new project", "v1.2.3", FACTS)
 
 
 @pytest.mark.parametrize(
@@ -495,7 +517,7 @@ def test_the_wordmark_keeps_the_terminal_foreground_on_a_light_16_colour_theme()
         {"KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"},
     ],
 )
-def test_image_terminals_get_the_same_box_as_any_other(env: dict[str, str]) -> None:
+def test_image_terminals_get_the_same_branch_as_any_other(env: dict[str, str]) -> None:
     class Tty(io.StringIO):
         encoding = "utf-8"
 
@@ -504,7 +526,8 @@ def test_image_terminals_get_the_same_box_as_any_other(env: dict[str, str]) -> N
 
     text = Style.detect(Tty(), env).banner("new project", "v1.2.3")
 
-    assert "\u256d" in text and "\x1b_G" not in text and "\x1b]1337" not in text
+    assert "\u256d" in text
+    assert "\x1b_G" not in text and "\x1b]1337" not in text
     assert not hasattr(Style(), "images")
 
 
@@ -518,13 +541,12 @@ def test_the_shimmer_settles_on_exactly_the_static_banner(
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
     style = Style(color=True, unicode=True, depth="truecolor", width=72)
     out = io.StringIO()
-    style.shimmer("new project", "v1.2.3", out)
+    style.shimmer("new project", "v1.2.3", FACTS, out)
 
     frames = out.getvalue()
     assert frames.count("\r") > len("Python API framework")
-    assert (
-        re.sub(r"[^\n]*\r", "", frames) == style.banner("new project", "v1.2.3") + "\n"
-    )
+    static = style.banner("new project", "v1.2.3", FACTS)
+    assert re.sub(r"[^\n]*\r", "", frames) == static + "\n"
 
 
 def test_the_guide_rail_opens_with_the_branded_prefix() -> None:
