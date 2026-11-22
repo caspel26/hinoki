@@ -14,7 +14,7 @@ related:
 hinoki mcp
 ```
 
-The application defaults to `project.application` in `hinoki.toml`, the rules to the app's own `Hinoki(rules=...)` and the package to the application's package; pass `--models` to describe models. Projects made by `hinoki new` contain a `.mcp.json` that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.
+The application defaults to `project.application` in `hinoki.toml`, the rules to the app's own rules (`Hinoki(rules=...)`, else the `[project] rules` of `hinoki.toml`) and the package to the application's package; pass `--models` to describe models. Projects made by `hinoki new` contain a `.mcp.json` that starts this server for the agent. Protocol messages go to stdout as newline-delimited JSON-RPC; diagnostics go to stderr.
 
 ## Options
 

@@ -57,7 +57,7 @@ uv run hinoki check --phase static
 
 | Option | Effect | Default |
 | --- | --- | --- |
-| `--rules MODULE:ATTRIBUTE` | the `RuleSet` to run | the application's `rules=` |
+| `--rules MODULE:ATTRIBUTE` | the `RuleSet` to run | the application's own rules: `Hinoki(rules=...)`, else the `[project] rules` of `hinoki.toml` ([which rules run](rules.md#which-rules-run)) |
 | `--package PACKAGE` | package for the static import checks; repeat for several | the package that contains the target |
 | `--phase startup\|static` | run one phase | both |
 | `--waivers PATH` | waiver file; must exist | the app's `waivers=`, else `hinoki-rules.toml` at the project root ([which file](rules.md#which-waiver-file)) |

@@ -41,7 +41,15 @@ project_rules = RuleSet(
 )
 ```
 
-`notes/main.py` passes the set to the application with `rules=project_rules`.
+`hinoki.toml` lists the set under `[project]`, and `Hinoki()` loads it (see
+[which rules run](#which-rules-run)):
+
+```toml
+[project]
+application = "notes.main:app"
+rules = ["notes.rules:project_rules"]
+```
+
 Check it at any time:
 
 ```sh
@@ -106,11 +114,33 @@ found without importing them from the application module. `require_access` and
 report unverifiable when a pattern other than `*` matches no action. Neither
 passes silently.
 
+## Which rules run
+
+The application's rules are, in this order of precedence:
+
+1. `Hinoki(rules=...)`, when you pass it. An explicit argument wins, even an
+   empty `RuleSet()`, and the manifest is not read for rules.
+2. The `[project] rules` list of `hinoki.toml`, when `rules=` is omitted and the
+   manifest's `project.application` names the module that builds the app.
+3. Otherwise none.
+
+`rules` is a list of `module:attribute` entries, each a `RuleSet`. The sets are
+merged in the order listed into one `RuleSet`, so the report keeps that order.
+The same rule (same id and summary) listed by two entries is a `ProjectError`
+naming both entries, never a silent override; rules that share an id but differ
+in their arguments, such as two `Imports.forbid(...)`, are different rules. An entry that does not import, is not a `RuleSet`, or
+a list of anything else is rejected the same way. You edit the list by hand;
+no command writes it. `manifest_rules()` (from `hinoki.project`) is the explicit
+form, for `Hinoki(rules=manifest_rules())` or a test.
+
+`hinoki check` and `hinoki mcp` run `--rules MODULE:ATTRIBUTE` when you give it
+and otherwise the app's own rules, which are the two sources above.
+
 ## When rules run
 
 | Where | Rules | Waivers | On failure |
 | --- | --- | --- | --- |
-| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of `rules=` | the [waiver file](#which-waiver-file) | startup fails with `RegistrationError` listing every failing diagnostic |
+| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of the [application's rules](#which-rules-run) | the [waiver file](#which-waiver-file) | startup fails with `RegistrationError` listing every failing diagnostic |
 | `hinoki check` | both phases (or `--phase`) | the waiver file, or `--waivers` | exit code `1` |
 | `hinoki mcp` | both phases | the waiver file, or `--waivers` | reported to the agent |
 

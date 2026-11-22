@@ -92,13 +92,14 @@ Open `http://127.0.0.1:8000/docs` for the generated OpenAPI UI, or run
 
 ## What the manifest does
 
-`hinoki.toml` names the application and where its routes live; each app you
-create adds its own models, migrations and routes:
+`hinoki.toml` names the application, where its routes live and which rules it
+runs; each app you create adds its own models, migrations and routes:
 
 ```toml
 [project]
 application = "notes.main:app"
 routes = "notes.routes:routes"
+rules = ["notes.rules:project_rules"]
 ```
 
 `notes/main.py` declares the application:
@@ -108,7 +109,6 @@ routes = "notes.routes:routes"
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
@@ -117,12 +117,12 @@ app = Hinoki(
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    rules=project_rules,
-)
+)  # the rules come from `rules` in hinoki.toml
 ```
 
 `manifest_routes()` reads `hinoki.toml`, so the application lists no routes of
-its own. Commands read the same file, so inside the project they need no module
+its own, and `Hinoki()` loads the `rules` list the same way unless you pass
+`rules=`. Commands read the same file, so inside the project they need no module
 paths.
 
 ## Where the database is configured

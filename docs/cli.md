@@ -80,7 +80,7 @@ On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a 
 
 ## `app` {#app}
 
-The generated `hinoki.toml` registers no app unless `hinoki new` created one (the last question in a terminal, or `--app NAME`): the project package keeps `main.py`, settings, rules and the health route, and models live in apps. Create each one with:
+The generated `hinoki.toml` registers no app unless `hinoki new` created one (the last question in a terminal, or `--app NAME`): the project package keeps `main.py`, settings, rules and the health route, and models live in apps. It lists the generated rules in `[project] rules = ["NAME.rules:project_rules"]`, so `main.py` passes no `rules=`. Create each one with:
 
 ```sh
 uv run hinoki app create billing
@@ -90,7 +90,7 @@ This creates `NAME/apps/billing/{models.py,routes.py,migrations/}` and registers
 
 Both commands report `hinoki.toml`: `hinoki new` lists it among the generated files and `app create` says it registered the app there.
 
-`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. `app create` writes no events or middleware module: to add them, create the module yourself and use `app add --events` / `--middleware` or the `events` / `middleware` keys (see [Events](events.md#declaring-handlers-in-hinokitoml) and [Middleware](middleware.md#declaring-middleware-in-hinokitoml)). In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
+`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. `app create` writes no events module: to add one, create the module yourself and use `app add --events` or the app's `events` key (see [Events](events.md#declaring-handlers-in-hinokitoml)). Middleware and rules are project-wide lists in the `[project]` table that you edit by hand (see [Middleware](middleware.md#declaring-middleware-in-hinokitoml) and [Rules](rules.md#which-rules-run)). In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`. `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
 
 To register a package that already exists, name its modules. Nothing is created or imported; only `hinoki.toml` changes:
 
@@ -99,7 +99,7 @@ uv run hinoki app add billing --models legacy.billing.models
 uv run hinoki app add invoices --models legacy.invoices.models --migrations legacy.db.invoices --routes legacy.invoices.routes:routes --prefix /invoices --requires billing
 ```
 
-`--migrations` defaults to the `migrations` package next to the models module (`legacy.billing.migrations`); `--events module:attribute` registers the app's event `Handlers` and `--middleware module:attribute` its sequence of [middleware](middleware.md#declaring-middleware-in-hinokitoml); a models module without a parent package needs it explicitly. `--prefix` defaults to `/NAME` once `--routes` is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic `--requires`, or a malformed module name leaves `hinoki.toml` untouched and exits 2. Whether the modules import is checked later, when a command such as `hinoki migrations plan` loads the app.
+`--migrations` defaults to the `migrations` package next to the models module (`legacy.billing.migrations`); `--events module:attribute` registers the app's event `Handlers`; a models module without a parent package needs it explicitly. `--prefix` defaults to `/NAME` once `--routes` is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic `--requires`, or a malformed module name leaves `hinoki.toml` untouched and exits 2. Whether the modules import is checked later, when a command such as `hinoki migrations plan` loads the app.
 
 List the registered apps from the project root or any subdirectory:
 
@@ -108,7 +108,7 @@ uv run hinoki app list
 uv run hinoki app list --format json
 ```
 
-The text output shows each app in dependency order with its model module, migration package, routes and prefix, `events` and `middleware` targets when set, and prerequisites. JSON contains the same fields under an `apps` key (`routes` and `prefix` are empty strings for an app without routes; `events` and `middleware` are empty strings when unset). The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
+The text output shows each app in dependency order with its model module, migration package, routes and prefix, the `events` target when set, and prerequisites. JSON contains the same fields under an `apps` key (`routes` and `prefix` are empty strings for an app without routes; `events` is an empty string when unset). The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
 
 ## `admin` {#admin}
 
