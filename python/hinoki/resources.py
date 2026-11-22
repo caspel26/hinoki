@@ -9,7 +9,7 @@ import enum
 import inspect
 import types
 import typing
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from operator import attrgetter
 from typing import Any, ClassVar, NoReturn, cast
 
@@ -25,7 +25,7 @@ from hinoki.http.response import Response
 from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.routing import Options, RouteDeclaration
+from hinoki.routing import Options, RouteDeclaration, check_flag, check_tags
 from hinoki.schema import Schema
 
 if typing.TYPE_CHECKING:
@@ -81,6 +81,17 @@ class _CrudConfig:
     actions: Mapping[str, Access | None] | None = None
     omit: frozenset[str] = frozenset()
     cors: Cors | None = None
+    schema_shown: Mapping[str, bool] = dataclasses.field(default_factory=dict)
+    tags: tuple[str, ...] = ()
+    deprecated: bool = False
+
+    def documentation(self, action: str) -> dict[str, Any]:
+        """The OpenAPI options of one generated action."""
+        return {
+            "include_in_schema": self.schema_shown.get(action, True),
+            "tags": self.tags,
+            "deprecated": self.deprecated,
+        }
 
     def access_for(self, action: str) -> Access | None:
         """The policy of one generated action: its own entry when ``crud(...)``
@@ -619,9 +630,17 @@ def declare(
 
 def read_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
     page = Page[resource.read]  # type: ignore[name-defined]
-    listed = Options(access=resource.access_for("list"), cors=resource.cors)
+    listed = Options(
+        access=resource.access_for("list"),
+        cors=resource.cors,
+        **resource.documentation("list"),
+    )
     listing = dataclasses.replace(listed, pagination=resource.pagination)
-    shown = Options(access=resource.access_for("retrieve"), cors=resource.cors)
+    shown = Options(
+        access=resource.access_for("retrieve"),
+        cors=resource.cors,
+        **resource.documentation("retrieve"),
+    )
     return {
         "list": declare(
             list_rows,
@@ -655,7 +674,10 @@ def caller_hint(resource: _CrudConfig, action: str) -> dict[str, Any]:
 def write_routes(resource: _CrudConfig, key: Any) -> dict[str, Callable[..., Any]]:
     def writes(action: str, status: int | None = None) -> Options:
         options = Options(
-            access=resource.access_for(action), atomic=True, cors=resource.cors
+            access=resource.access_for(action),
+            atomic=True,
+            cors=resource.cors,
+            **resource.documentation(action),
         )
         return dataclasses.replace(options, status=status) if status else options
 
@@ -820,6 +842,9 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     omit: tuple[str, ...] = (),
     name: str | None = None,
     cors: Cors | None = None,
+    include_in_schema: bool | Mapping[str, bool] = True,
+    tags: Sequence[str] = (),
+    deprecated: bool = False,
 ) -> CrudDeclaration:
     """Declare generated CRUD for ``model``.
 
@@ -830,7 +855,10 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     ``name=`` names the generated class (``"ArchiveCrud"``) or its module and
     class (``"notes.apps.archive.ArchiveCrud"``) that rules and MCP patterns match.
     ``cors=http.Cors(...)`` gives every generated action that CORS policy instead
-    of the application's.
+    of the application's. ``include_in_schema=False`` leaves every generated action
+    out of the OpenAPI document; ``include_in_schema={"delete": False}`` leaves out
+    only the named actions. ``tags`` and ``deprecated`` apply to every action.
+    Left-out actions are still served and protected by their access.
     """
     unknown = sorted(set(omit) - {"list", "retrieve"})
     if unknown:
@@ -839,6 +867,12 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         )
     if name is not None:
         check_name(name)
+    try:
+        check_tags(tags)
+        check_flag("deprecated", deprecated)
+        shown = schema_visibility(include_in_schema)
+    except ValueError as exc:
+        raise RegistrationError(f"crud(...) {exc}") from exc
     actions = (
         access.resolve()
         if isinstance(access, CrudAccess)
@@ -860,8 +894,21 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         actions=actions,
         omit=frozenset(omit),
         cors=cors,
+        schema_shown=shown,
+        tags=check_tags(tags),
+        deprecated=deprecated,
     )
     return CrudDeclaration(config, path, declaring_module(), name or "")
+
+
+def schema_visibility(value: bool | Mapping[str, bool]) -> dict[str, bool]:
+    """``include_in_schema`` of ``crud(...)`` as one flag per generated action."""
+    if isinstance(value, Mapping):
+        unknown = sorted(set(value) - set(ACTIONS))
+        if unknown:
+            raise ValueError(f"include_in_schema= names unknown actions {unknown}")
+        return {a: check_flag("include_in_schema", value.get(a, True)) for a in ACTIONS}
+    return dict.fromkeys(ACTIONS, check_flag("include_in_schema", value))
 
 
 def check_name(name: str) -> None:
