@@ -10,6 +10,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 
@@ -1439,7 +1440,9 @@ impl<'py> Encoder<'py> {
         } else if let Some(member) = self.member_value(value)? {
             self.replace(&member, depth)?;
         } else if value.hasattr("dump")? {
-            self.replace(&value.call_method0("dump")?, depth)?;
+            if !self.page(value, depth)? {
+                self.replace(&value.call_method0("dump")?, depth)?;
+            }
         } else if let Some(hook) = self.default.clone() {
             let replacement = hook.call1((value,))?;
             if replacement.is(value) {
@@ -1481,6 +1484,33 @@ impl<'py> Encoder<'py> {
             return Ok(None);
         }
         crate::pytypes::enum_value(value)
+    }
+
+    /// A `Page` (exactly that class) whose items are all schema instances the
+    /// encoder writes itself: its `dump()` keys with the items left as they are,
+    /// so they are written once instead of first being dumped to dicts. The
+    /// bytes are the same; anything else answers `false` and is dumped.
+    fn page(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<bool> {
+        let py = value.py();
+        if !value.get_type().is(crate::pytypes::page_class(py)?) {
+            return Ok(false);
+        }
+        let items = value.getattr(intern!(py, "items"))?;
+        let Ok(rows) = items.cast::<PyList>() else {
+            return Ok(false);
+        };
+        for row in rows.iter() {
+            if crate::schema::instance_fields(&row, true, true, true)?.is_none() {
+                return Ok(false);
+            }
+        }
+        let shown = PyDict::new(py);
+        shown.set_item(intern!(py, "items"), rows)?;
+        for key in ["page", "page_size", "total", "pages"] {
+            shown.set_item(key, value.getattr(key)?)?;
+        }
+        self.replace(shown.as_any(), depth)?;
+        Ok(true)
     }
 
     fn schema_object(

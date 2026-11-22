@@ -15,10 +15,17 @@ static PATH: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PURE_PATH: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static SECRET: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static ENUM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
 
 pub fn uuid_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     UUID.import(py, "uuid", "UUID")
+}
+
+/// `hinoki.pagination.Page`: only asked for a value that has a `dump()` method,
+/// so the module is already imported.
+pub fn page_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PAGE.import(py, "hinoki.pagination", "Page")
 }
 
 pub fn datetime_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
