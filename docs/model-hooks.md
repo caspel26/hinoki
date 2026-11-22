@@ -72,6 +72,11 @@ them; an exception in one is logged and does not undo the commit. See
 
 * Hooks belong to instances: `QuerySet.aupdate`, `adelete`, `Model.aupdate`,
   `aupdate_where` and raw SQL do not run them.
+* Events complete hooks for code that is not the model: `Created`, `Updated`
+  and `Deleted` [model events](events.md#model-events) fire from the same
+  writes (and from `adelete`), with handlers registered per application
+  instead of overridden on the class. `after_commit` on a model and
+  `db.after_commit` keep working unchanged.
 * Sync hooks run inline on the event loop: keep them short and use
   `async def` for I/O.
 * `is_new`, `is_dirty`, `changes`, `was_changed`, `after_commit` and the four

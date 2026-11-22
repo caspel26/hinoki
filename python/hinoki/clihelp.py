@@ -14,7 +14,10 @@ from hinoki.terminal import Style
 
 GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Start", ("new", "app", "dev", "serve", "shell")),
-    ("Inspect", ("check", "doctor", "routes", "settings", "openapi", "version")),
+    (
+        "Inspect",
+        ("check", "doctor", "routes", "events", "settings", "openapi", "version"),
+    ),
     ("Data", ("migrations", "admin")),
     ("Integrate", ("mcp", "skills", "manage", "completion")),
 )

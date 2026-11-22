@@ -92,6 +92,7 @@ nav:
           - Relations: relations.md
           - Query and write rows: queries.md
           - Lifecycle hooks: model-hooks.md
+          - Events: events.md
           - Migrations: migrations.md
           - Schemas: schemas.md
           - Scalar field types: schema-types.md

@@ -386,7 +386,10 @@ async def test_crud_hook_type_and_readback_boundaries(
 @pytest.mark.asyncio
 async def test_refused_update_and_owner_race_messages() -> None:
     item = SimpleNamespace(
-        id=uuid4(), owner="bob", __primary_key__="id", write_hooks=lambda: ()
+        id=uuid4(),
+        owner="bob",
+        __primary_key__="id",
+        has_save_effects=lambda: False,
     )
 
     class Query:

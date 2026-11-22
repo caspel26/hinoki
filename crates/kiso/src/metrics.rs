@@ -27,6 +27,11 @@ pub const DEFAULT_BUCKETS: [f64; 11] = [
 /// Most buckets a histogram may have.
 pub const MAX_BUCKETS: usize = 32;
 
+/// Outcomes of an event handler run, in the order of the `outcome` index.
+pub const EVENT_OUTCOMES: [&str; 3] = ["ok", "error", "timeout"];
+/// Most event series (event and phase pairs) a registry may have.
+pub const MAX_EVENT_SERIES: usize = 4096;
+
 const NO_SLOT: u32 = u32::MAX;
 
 /// Something that went wrong beyond the status of the answer.
@@ -58,6 +63,9 @@ pub struct Config {
     pub version: String,
     /// Upper bounds of the latency histogram, in seconds, strictly increasing.
     pub buckets: Vec<f64>,
+    /// The (event, phase) label pairs of the event handlers, known at start. The
+    /// index of a pair is the slot [`Registry::observe_event`] takes.
+    pub events: Vec<(String, String)>,
 }
 
 impl Default for Config {
@@ -66,6 +74,28 @@ impl Default for Config {
             worker: 0,
             version: String::new(),
             buckets: DEFAULT_BUCKETS.to_vec(),
+            events: Vec::new(),
+        }
+    }
+}
+
+struct EventSeries {
+    event: String,
+    phase: String,
+    outcomes: [AtomicU64; 3],
+    /// Handler runs per bucket, not cumulative, whatever the outcome.
+    buckets: Box<[AtomicU64]>,
+    sum_micros: AtomicU64,
+}
+
+impl EventSeries {
+    fn new((event, phase): (String, String), buckets: usize) -> Self {
+        Self {
+            event,
+            phase,
+            outcomes: Default::default(),
+            buckets: (0..=buckets).map(|_| AtomicU64::new(0)).collect(),
+            sum_micros: AtomicU64::new(0),
         }
     }
 }
@@ -100,6 +130,7 @@ pub struct Registry {
     series: Vec<Series>,
     bytes: Vec<AtomicU64>,
     errors: Vec<[AtomicU64; 2]>,
+    events: Vec<EventSeries>,
     in_flight: AtomicI64,
     snapshot_errors: AtomicU64,
 }
@@ -156,6 +187,9 @@ impl Registry {
     /// share one pattern, e.g. `GET` and `DELETE` of `/items/{id}`).
     pub fn new(config: Config, routes: &[(u32, Arc<str>)]) -> Result<Self, String> {
         check_buckets(&config.buckets)?;
+        if config.events.len() > MAX_EVENT_SERIES {
+            return Err(format!("at most {MAX_EVENT_SERIES} event series"));
+        }
         let mut patterns: Vec<Arc<str>> = Vec::new();
         let mut slots = Vec::new();
         for (action, pattern) in routes {
@@ -188,6 +222,11 @@ impl Registry {
                 .collect(),
             bytes: (0..count).map(|_| AtomicU64::new(0)).collect(),
             errors: (0..count).map(|_| Default::default()).collect(),
+            events: config
+                .events
+                .into_iter()
+                .map(|pair| EventSeries::new(pair, buckets))
+                .collect(),
             in_flight: AtomicI64::new(0),
             snapshot_errors: AtomicU64::new(0),
         })
@@ -235,6 +274,23 @@ impl Registry {
         self.errors[slot][kind as usize].fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Record one run of the event handlers of series `slot` (the index of its
+    /// pair in [`Config::events`]): `outcome` indexes [`EVENT_OUTCOMES`]. A slot
+    /// or outcome out of range is ignored.
+    pub fn observe_event(&self, slot: usize, outcome: usize, elapsed: Duration) {
+        let Some(series) = self.events.get(slot) else {
+            return;
+        };
+        let Some(count) = series.outcomes.get(outcome) else {
+            return;
+        };
+        count.fetch_add(1, Ordering::Relaxed);
+        let micros = u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
+        let bucket = self.bounds_micros.partition_point(|bound| *bound < micros);
+        series.buckets[bucket].fetch_add(1, Ordering::Relaxed);
+        series.sum_micros.fetch_add(micros, Ordering::Relaxed);
+    }
+
     /// A peer's snapshot that could not be used.
     pub fn snapshot_error(&self) {
         self.snapshot_errors.fetch_add(1, Ordering::Relaxed);
@@ -264,6 +320,7 @@ impl Registry {
         );
         self.render_bytes(&mut out);
         self.render_errors(&mut out);
+        self.render_events(&mut out);
         family(
             &mut out,
             "hinoki_metrics_snapshot_errors_total",
@@ -337,38 +394,96 @@ impl Registry {
             "Time from the request head to the backend's answer, in seconds.",
         );
         for (index, series) in self.series.iter().enumerate() {
-            let counts: Vec<u64> = series
-                .buckets
-                .iter()
-                .map(|bucket| bucket.load(Ordering::Relaxed))
-                .collect();
-            let total: u64 = counts.iter().sum();
-            if total == 0 {
-                continue;
-            }
             let route = escaped(self.route(index / METHODS.len()));
             let method = METHODS[index % METHODS.len()];
-            let labels = format!("route=\"{route}\",method=\"{method}\"");
-            let mut running = 0;
-            for (count, bound) in counts.iter().zip(&self.bounds) {
-                running += count;
-                let _ = writeln!(
-                    out,
-                    "hinoki_http_request_duration_seconds_bucket{{{labels},le=\"{bound}\",\
-                     worker=\"{}\"}} {running}",
-                    self.worker
-                );
-            }
-            let sum = series.sum_micros.load(Ordering::Relaxed) as f64 / 1e6;
-            let _ = writeln!(
+            self.render_histogram(
                 out,
-                "hinoki_http_request_duration_seconds_bucket{{{labels},le=\"+Inf\",\
-                 worker=\"{w}\"}} {total}\n\
-                 hinoki_http_request_duration_seconds_sum{{{labels},worker=\"{w}\"}} {sum}\n\
-                 hinoki_http_request_duration_seconds_count{{{labels},worker=\"{w}\"}} {total}",
-                w = self.worker
+                "hinoki_http_request_duration_seconds",
+                &format!("route=\"{route}\",method=\"{method}\""),
+                (&series.buckets, &series.sum_micros),
             );
         }
+    }
+
+    fn render_events(&self, out: &mut String) {
+        if self.events.is_empty() {
+            return;
+        }
+        family(
+            out,
+            "hinoki_events_total",
+            "counter",
+            "Event handler runs, by event, phase and outcome.",
+        );
+        for series in &self.events {
+            for (outcome, count) in EVENT_OUTCOMES.iter().zip(&series.outcomes) {
+                let count = count.load(Ordering::Relaxed);
+                if count > 0 {
+                    let _ = writeln!(
+                        out,
+                        "hinoki_events_total{{event=\"{}\",phase=\"{}\",outcome=\"{outcome}\",\
+                         worker=\"{}\"}} {count}",
+                        escaped(&series.event),
+                        escaped(&series.phase),
+                        self.worker
+                    );
+                }
+            }
+        }
+        family(
+            out,
+            "hinoki_event_handler_duration_seconds",
+            "histogram",
+            "Time an event handler ran, in seconds, whatever its outcome.",
+        );
+        for series in &self.events {
+            let labels = format!(
+                "event=\"{}\",phase=\"{}\"",
+                escaped(&series.event),
+                escaped(&series.phase)
+            );
+            self.render_histogram(
+                out,
+                "hinoki_event_handler_duration_seconds",
+                &labels,
+                (&series.buckets, &series.sum_micros),
+            );
+        }
+    }
+
+    /// The bucket, sum and count lines of one histogram series; nothing while
+    /// it has no observation.
+    fn render_histogram(
+        &self,
+        out: &mut String,
+        name: &str,
+        labels: &str,
+        (buckets, sum_micros): (&[AtomicU64], &AtomicU64),
+    ) {
+        let counts: Vec<u64> = buckets
+            .iter()
+            .map(|bucket| bucket.load(Ordering::Relaxed))
+            .collect();
+        let total: u64 = counts.iter().sum();
+        if total == 0 {
+            return;
+        }
+        let w = self.worker;
+        let mut running = 0;
+        for (count, bound) in counts.iter().zip(&self.bounds) {
+            running += count;
+            let _ = writeln!(
+                out,
+                "{name}_bucket{{{labels},le=\"{bound}\",worker=\"{w}\"}} {running}"
+            );
+        }
+        let sum = sum_micros.load(Ordering::Relaxed) as f64 / 1e6;
+        let _ = writeln!(
+            out,
+            "{name}_bucket{{{labels},le=\"+Inf\",worker=\"{w}\"}} {total}\n\
+             {name}_sum{{{labels},worker=\"{w}\"}} {sum}\n\
+             {name}_count{{{labels},worker=\"{w}\"}} {total}"
+        );
     }
 
     fn render_bytes(&self, out: &mut String) {
@@ -518,8 +633,59 @@ mod tests {
             worker: 3,
             version: "0.0.1".to_owned(),
             buckets: vec![0.01, 0.1, 1.0],
+            events: vec![
+                ("Created[Note]".to_owned(), "after_commit".to_owned()),
+                ("Noted".to_owned(), "in_transaction".to_owned()),
+            ],
         };
         Arc::new(Registry::new(config, &routes).unwrap())
+    }
+
+    #[test]
+    fn event_runs_are_counted_by_outcome_and_timed() {
+        let registry = registry();
+        registry.observe_event(0, 0, Duration::from_millis(5));
+        registry.observe_event(0, 0, Duration::from_millis(50));
+        registry.observe_event(0, 2, Duration::from_secs(30));
+        registry.observe_event(1, 1, Duration::from_millis(5));
+        registry.observe_event(7, 0, Duration::ZERO);
+        registry.observe_event(0, 9, Duration::ZERO);
+        let text = registry.render();
+        let total = |event: &str, phase: &str, outcome: &str, count: u32| {
+            format!(
+                "hinoki_events_total{{event=\"{event}\",phase=\"{phase}\",\
+                 outcome=\"{outcome}\",worker=\"3\"}} {count}"
+            )
+        };
+        assert!(text.contains(&total("Created[Note]", "after_commit", "ok", 2)));
+        assert!(text.contains(&total("Created[Note]", "after_commit", "timeout", 1)));
+        assert!(text.contains(&total("Noted", "in_transaction", "error", 1)));
+        assert!(!text.contains("outcome=\"error\",worker=\"3\"} 2"));
+        let labels = "event=\"Created[Note]\",phase=\"after_commit\"";
+        assert!(text.contains(&format!(
+            "hinoki_event_handler_duration_seconds_bucket{{{labels},le=\"0.01\",worker=\"3\"}} 1"
+        )));
+        assert!(text.contains(&format!(
+            "hinoki_event_handler_duration_seconds_bucket{{{labels},le=\"+Inf\",worker=\"3\"}} 3"
+        )));
+        assert!(text.contains(&format!(
+            "hinoki_event_handler_duration_seconds_sum{{{labels},worker=\"3\"}} 30.055"
+        )));
+    }
+
+    #[test]
+    fn no_event_family_without_registered_events() {
+        let text = Registry::new(Config::default(), &[]).unwrap().render();
+        assert!(!text.contains("hinoki_event"));
+    }
+
+    #[test]
+    fn too_many_event_series_are_refused() {
+        let config = Config {
+            events: vec![(String::new(), String::new()); MAX_EVENT_SERIES + 1],
+            ..Config::default()
+        };
+        assert!(Registry::new(config, &[]).is_err());
     }
 
     #[test]

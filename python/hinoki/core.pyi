@@ -701,6 +701,9 @@ class ServerCore:
         https: bool = False,
     ) -> Submission: ...
 
+class EventMetrics:
+    def record(self, slot: int, outcome: int, seconds: float) -> None: ...
+
 class KisoServer:
     @staticmethod
     def start(
@@ -725,6 +728,7 @@ class KisoServer:
         compression: dict[str, object] | None = None,
         metrics: dict[str, object] | None = None,
     ) -> KisoServer: ...
+    def event_metrics(self) -> EventMetrics | None: ...
     @property
     def port(self) -> int: ...
     @property

@@ -232,6 +232,7 @@ Rust verifies the token on these routes too: a handler route protected by an unm
 - `JWTAuth` leeway must be 0–120 seconds; another value fails when the provider is built.
 - Providers hold no per-request state: one instance serves every request and worker thread.
 - Hinoki does not create users, sessions or permission rules: those remain your application's data and policy.
+- A refusal by an access policy emits an `AuthRejected` [event](events.md#authentication-and-rate-limit-events) (`missing`, `invalid` or `forbidden`, the route template and the method; never credentials or the requested path) when the application has a handler for it. The handler cannot change the answer. On Kiso, a route that Rust would authenticate is authenticated by Python while such a handler is registered, so the event can fire.
 
 ## See also
 

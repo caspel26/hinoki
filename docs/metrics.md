@@ -54,6 +54,8 @@ Every sample carries a `worker` label: the number of the process that counted it
 | `hinoki_http_requests_in_flight` | gauge | none | Requests the backend has not answered yet |
 | `hinoki_http_response_bytes_total` | counter | `route` | Body bytes handed to the connection, after compression |
 | `hinoki_http_errors_total` | counter | `route`, `kind` | `invalid_response`: the backend's answer could not be sent as given and became a `500`. `stream_aborted`: a stream failed after its head |
+| `hinoki_events_total` | counter | `event`, `phase`, `outcome` | [Event handler](events.md#metrics) runs. `outcome` is `ok`, `error` or `timeout` |
+| `hinoki_event_handler_duration_seconds` | histogram | `event`, `phase` | Time a handler ran, whatever its outcome |
 | `hinoki_build_info` | gauge | `version`, `server` | Always `1` |
 | `hinoki_worker_start_time_seconds` | gauge | none | Start of the worker, in Unix seconds |
 | `hinoki_metrics_snapshot_errors_total` | counter | none | Snapshots of other workers that were unreadable, too large or not valid UTF-8 |
@@ -64,6 +66,24 @@ Every sample carries a `worker` label: the number of the process that counted it
 * Bytes are counted as the pieces are handed to the connection: a stream's pieces one by one, a `File` as it is read, a compressed body at its compressed size. A `HEAD` counts none. The exposition itself is never compressed and never counted.
 
 The duration buckets are `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10` seconds. Set `metrics.buckets` to change them.
+
+## Event handlers
+
+The two event families exist only when the application registers [event handlers](events.md). Their series are created at startup, one per registered (event, phase) pair (`Created[Note]`, `after_commit`), in a fixed table in Rust; Python records each run with one call that adds to a counter and a histogram bucket, so nothing grows with traffic and no label comes from a payload. The histogram uses the same buckets as the request duration. A series with no run yet is not printed. Handler runs of events emitted inside a request, a startup hook or a command are all counted by the worker that ran them, under the same `worker` label; the table is built from the handlers of the Hinoki application served by the ASGI path of Kiso; Kiso's WSGI mode records none.
+
+Example from a real run (three emits of an event with an `ok`, a failing and a timed-out handler, `events.handler_timeout=0.05`):
+
+```text
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="ok",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="error",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="timeout",worker="0"} 3
+hinoki_event_handler_duration_seconds_bucket{event="NoteSaved",phase="after_commit",le="0.05",worker="0"} 6
+hinoki_event_handler_duration_seconds_bucket{event="NoteSaved",phase="after_commit",le="0.1",worker="0"} 9
+hinoki_event_handler_duration_seconds_sum{event="NoteSaved",phase="after_commit",worker="0"} 0.153349
+hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commit",worker="0"} 9
+```
+
+Measured cost of recording on one Apple-silicon laptop (an `after_commit` handler that returns at once, 200,000 emits per sample, 15 interleaved samples per variant, medians over three runs): about 3.3 µs per emit with metrics off and 3.4 to 3.5 µs with them on, that is roughly 50 to 110 ns (about 2 %) more; the extension was a debug build. A handler that does real work makes the share smaller.
 
 ## Settings
 

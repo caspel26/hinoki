@@ -892,6 +892,22 @@ class LifecycleSettings(Settings):
                 raise ValueError("timeouts must be positive and finite")
 
 
+class EventsSettings(Settings):
+    """Limits of the typed event handlers (see ``hinoki.events``): the time one
+    handler may take, how many handlers one event and phase may have, and how
+    deep a handler that emits events may nest."""
+
+    handler_timeout: float = 5.0
+    max_handlers: int = 16
+    max_depth: int = 4
+
+    def validate(self) -> None:
+        if not math.isfinite(self.handler_timeout) or self.handler_timeout <= 0:
+            raise ValueError("handler_timeout must be positive and finite")
+        if self.max_handlers < 1 or self.max_depth < 1:
+            raise ValueError("max_handlers and max_depth must be at least 1")
+
+
 class JsonFormatter(logging.Formatter):
     """One JSON object per line: time, level, logger, message, exception."""
 
@@ -1627,6 +1643,7 @@ class AppSettings(Settings):
         default_factory=CompressionSettings
     )
     metrics: MetricsSettings = dataclasses.field(default_factory=MetricsSettings)
+    events: EventsSettings = dataclasses.field(default_factory=EventsSettings)
     security: SecuritySettings = dataclasses.field(default_factory=SecuritySettings)
     admin: AdminSettings = dataclasses.field(default_factory=AdminSettings)
     timezone: str = "UTC"

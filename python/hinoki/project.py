@@ -12,6 +12,7 @@ from pathlib import Path
 from types import FrameType
 from typing import cast
 
+from hinoki.events import Handlers
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.migrations import models_of
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
@@ -32,6 +33,7 @@ class ProjectApp:
     requires: tuple[str, ...]
     routes: str = ""  # ``module:attribute`` of the app's list of routes
     prefix: str = ""  # where the routes are mounted, ``/<name>`` when empty
+    events: str = ""  # ``module:attribute`` of the app's ``Handlers``
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -154,6 +156,27 @@ class ProjectManifest:
                 if mine:
                     items.append(Mount(app.prefix or f"/{app.name}", *mine))
         return items
+
+    def event_handlers(self) -> list[Handlers]:
+        """Each app's ``Handlers`` in dependency order; an app without ``events``
+        adds nothing. Importing the event modules is the only effect."""
+        add_project_root(self)
+        return [self._handlers(app) for app in self.ordered_apps() if app.events]
+
+    def _handlers(self, app: ProjectApp) -> Handlers:
+        module_name, _, attribute = app.events.partition(":")
+        try:
+            handlers = getattr(importlib.import_module(module_name), attribute)
+        except (ImportError, AttributeError) as error:
+            raise ProjectError(
+                f"cannot load the events of app {app.name!r} ({app.events}): {error}"
+            ) from None
+        if not isinstance(handlers, Handlers):
+            raise ProjectError(
+                f"the events of app {app.name!r} ({app.events}) must be a "
+                "hinoki.events.Handlers"
+            )
+        return handlers
 
     def _route_list(self, target: str, owner: str) -> list[Includable]:
         module_name, _, attribute = target.partition(":")
@@ -332,6 +355,14 @@ def load_manifest(path: Path | None = None) -> ProjectManifest:
     return manifest
 
 
+def manifest_events(start: Path | None = None) -> list[Handlers]:
+    """The ``Handlers`` each app of ``hinoki.toml`` declares, in dependency order,
+    for ``Hinoki(events=manifest_events())``. The manifest is found as for
+    ``manifest_routes``; outside a project this raises ``ProjectError``."""
+    directory = start if start is not None else _caller_directory(sys._getframe(1))
+    return _manifest_from(directory).event_handlers()
+
+
 def manifest_routes(start: Path | None = None) -> list[Includable]:
     """The routes ``hinoki.toml`` declares: the project's, then each app's at its
     prefix, for ``Hinoki(include=manifest_routes())``.
@@ -341,6 +372,10 @@ def manifest_routes(start: Path | None = None) -> list[Includable]:
     project this raises ``ProjectError``.
     """
     directory = start if start is not None else _caller_directory(sys._getframe(1))
+    return _manifest_from(directory).route_items()
+
+
+def _manifest_from(directory: Path | None) -> ProjectManifest:
     written = (directory if directory is not None else Path.cwd()).absolute()
     resolved = written.resolve()
     path = find_manifest_or_none(resolved) or _manifest_along(written)
@@ -349,7 +384,7 @@ def manifest_routes(start: Path | None = None) -> list[Includable]:
         if resolved != written:
             searched += f" (resolved: {shown_path(resolved)})"
         raise ProjectError(f"no hinoki.toml found in {searched} or above it")
-    return load_manifest(path).route_items()
+    return load_manifest(path)
 
 
 def _manifest_along(directory: Path) -> Path | None:
@@ -419,13 +454,16 @@ def _parse_app(value: object) -> ProjectApp:
     if len(set(requires)) != len(requires):
         raise ProjectError(f"app {name!r} repeats a dependency")
     routes, prefix = _parse_app_routes(name, value)
-    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix)
+    events = value.get("events", "")
+    if not isinstance(events, str) or (events and not _valid_target(events)):
+        raise ProjectError(f"app {name!r} events must be a module:attribute target")
+    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix, events)
 
 
 def _parse_app_routes(name: str, value: dict[str, object]) -> tuple[str, str]:
     routes = value.get("routes", "")
     prefix = value.get("prefix", "")
-    if routes and (not isinstance(routes, str) or not _valid_target(routes)):
+    if not isinstance(routes, str) or (routes and not _valid_target(routes)):
         raise ProjectError(f"app {name!r} routes must be a module:attribute target")
     if not isinstance(prefix, str) or (
         prefix and (not prefix.startswith("/") or prefix.endswith("/"))
