@@ -243,9 +243,6 @@ class _CrudConfig:
         found = {name: getattr(data, name) for name in data.specs()}
         return {name: value for name, value in found.items() if value is not UNSET}
 
-    def present(self, row: Any) -> Any:
-        return self.read(**{name: getattr(row, name) for name in self.read.specs()})
-
     def owner_of(self, principal: Any) -> Any:
         """The caller's owner value; a caller without one may change nothing,
         or ``None`` would match every ownerless row."""
@@ -284,12 +281,6 @@ class _CrudConfig:
         row = await self.fetch(key)
         if self.owner and getattr(row, self.owner) != self.owner_of(principal):
             raise Forbidden("You cannot change this item.")
-
-    async def refuse(self, key: Any) -> Forbidden:
-        """A write matched no row: 404 if the row is gone or hidden by now,
-        otherwise the owner changed under the caller."""
-        await self.fetch(key)
-        return Forbidden("You cannot change this item.")
 
 
 async def list_rows(
