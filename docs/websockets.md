@@ -97,8 +97,12 @@ origin the application's CORS policy lists by name. A CORS wildcard
 (`cors` origins `*`) is not honoured here: a browser sends cookies on a
 WebSocket handshake and does not hide the answer from other sites, so an open
 policy would let any site use a cookie-authenticated action. Anything else is
-refused with `403` before the upgrade. On Granian the check covers the route
-list and the same host.
+refused with `403` before the upgrade. On Granian the check covers the same
+sources. Where the connection is known to be `https` (direct TLS, a trusted
+proxy reporting `https`, or `wss` on Granian), the same-host match also
+requires an `https://` origin. Granian handshakes also go through
+`allowed_hosts` and trusted-proxy handling, and the route is matched on the raw
+path, as for HTTP requests.
 
 ## Subprotocols
 

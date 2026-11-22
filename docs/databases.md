@@ -212,7 +212,9 @@ certificate chain and hostname: `require`, `verify-ca` and `verify-full` all
 require TLS, and Hinoki's `verify-ca` also verifies the hostname. Trust uses
 Mozilla WebPKI roots plus any PEM certificates in `sslrootcert` (at most
 1 MiB), so `sslmode=require` needs a trusted certificate too. `sslmode=allow`
-is unsupported. Mount the CA file where each worker can read it.
+is unsupported. A URL to a remote host without `sslmode` logs a warning at
+connect: `prefer` lets a network attacker strip TLS, so use `verify-full`.
+Mount the CA file where each worker can read it.
 
 Hinoki does not create the PostgreSQL role or database: create them once with
 your usual tools before the first `hinoki migrations apply`.
