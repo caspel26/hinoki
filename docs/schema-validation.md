@@ -124,6 +124,79 @@ path and, for most schemas, on the GIL-free JSON path. The decorators are
 Python callables: they run only on values that passed the Rust stage. Checks of
 nested `Schema` values run through lists and dicts at any depth.
 
+## One-pass JSON body
+
+On Kiso, a JSON request body for a `Schema` parameter is read straight into
+the instance's fields in Rust, without building the intermediate dict and list
+tree. It applies to plain schemas: strings, integers, floats, booleans, lists
+and nested `Schema` fields with length and numeric bounds, without `pattern`,
+`normalize`, `one_of`, collections, `@before_validate` or checks. Anything else
+runs the lane above on the same bytes, so the result and the error messages
+(`path`, `code`, `message`) are the same either way: the one-pass reader
+declines every invalid body and every unusual input (duplicate or unknown keys,
+escapes in keys, NUL, lone surrogates, integers beyond 64 bits, nesting of 100
+levels or more) and never reports an error itself.
+
+`Schema.validate_json(raw)` exposes it: it returns the instance, or `None`
+when the ordinary `core.decode_json` and `Schema.validate` must run.
+
+```python
+from hinoki import Schema
+
+
+class Ticket(Schema):
+    title: str
+    seats: int
+
+
+Ticket.validate_json(b'{"title": "Opera", "seats": 2}')  # a Ticket
+Ticket.validate_json(b'{"title": "Opera"}')  # None: validate() reports it
+```
+
+### Native constructor and `validate`
+
+For the same plain schemas, `Schema(...)`, `Schema.validate(data)`,
+`Schema.validate_text(data)`, `instance.replace(...)` and `instance.dump()` run
+in Rust: the arguments are checked and written to the slots without a Python
+frame, defaults and `default_factory` values included. The result, the
+exceptions and `dump(exclude_unset=True)` are the same as on the Python path.
+Anything the plan does not vouch for (positional arguments, a value of a
+subclass type, an unknown or missing argument, a class that overrides
+`_validate_instance`, a `validate` of its own, or a graph with checks,
+normalizers or `@before_validate`) runs the ordinary Python code. A
+`default_factory` whose result is rejected may be called a second time by that
+fallback. `Schema.validate(data)` reads a plain `dict` (and nested dicts and
+lists of plain schemas) straight into the slots; a dict it does not fully
+recognise, for instance with an unknown key, goes through the general validator.
+`copy.copy`, `copy.deepcopy` and pickling of an instance also run in Rust over
+the slots; a class that defines `__copy__`, `__deepcopy__`, `__reduce__`,
+`__reduce_ex__` or `__getstate__` itself keeps its own.
+
+### Where fields live
+
+A `Schema` subclass keeps its fields in `__slots__` (the instance still has a
+`__dict__` for attributes you set yourself), which lets Rust fill them without a
+lookup per field. Consequences: field values are not in `vars(instance)`, and a
+class made with `model=` keeps its fields in the instance dict. A class can
+combine only one base that declares fields with slots; declare the others with
+`slots=False`:
+
+```python
+class Audited(Schema, slots=False):
+    created_by: str
+
+
+class Ticket(Audited):
+    title: str
+```
+
+Without it, two field-bearing bases raise a `RegistrationError` that names
+`slots=False`.
+
+`Schema` has its own metaclass, so a schema cannot also inherit from a class
+whose metaclass is `abc.ABCMeta` (`abc.ABC`, a `Protocol`): Python reports a
+metaclass conflict. Keep such a base out of the schema's bases.
+
 ## Text that cannot be stored
 
 A string or dict key containing NUL (`\u0000`) is refused with `nul` or

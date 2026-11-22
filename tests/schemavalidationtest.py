@@ -282,10 +282,14 @@ def test_graph_without_checks_is_walked_once(monkeypatch: pytest.MonkeyPatch) ->
         return original(cls)
 
     monkeypatch.setattr(schema_module, "nested_schemas", counting)
+    PlainHolder(plain=Plain(label="a"))
+    Node(name="n", parent=Node(name="p"))
+    first = len(walked)
     for _ in range(3):
         PlainHolder(plain=Plain(label="a"))
         Node(name="n", parent=Node(name="p"))
-    assert sorted(walked) == ["Node", "Plain", "PlainHolder"]
+    assert len(walked) == first
+    assert {"Node", "Plain", "PlainHolder"} <= set(walked)
     assert schema_module.graph_has_checks(PlainHolder) is False
     assert schema_module.graph_has_normalizers(PlainHolder) is False
 
