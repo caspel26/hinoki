@@ -33,7 +33,6 @@ requires = []
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
@@ -42,8 +41,7 @@ app = Hinoki(
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    rules=project_rules,
-)
+)  # rules, events and middleware come from hinoki.toml as well
 ```
 
 `manifest_routes()` finds `hinoki.toml` from the calling file's directory upwards and returns, in order:
@@ -51,7 +49,7 @@ app = Hinoki(
 1. the project's `routes` list, at its own paths;
 2. each app's `routes` list under the app's `prefix`, apps in dependency order (`requires`).
 
-An app without a `routes` key, or with an empty list, adds nothing. Outside a project it raises `ProjectError`. `hinoki app create billing` writes the `routes.py` and the manifest keys; `hinoki app create billing --prefix /payments` chooses another prefix. `hinoki app list` prints each app with its routes and prefix.
+An app without a `routes` key, or with an empty list, adds nothing. Outside a project it raises `ProjectError`. `include=manifest_routes()` is the explicit form that `hinoki new` writes: when the module named by `project.application` builds `Hinoki(...)` without `include=`, it loads the same list itself, as the [Tracker example](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/main.py) does (an explicit `include=`, even empty, wins). `hinoki app create billing` writes the `routes.py` and the manifest keys; `hinoki app create billing --prefix /payments` chooses another prefix. `hinoki app list` prints each app with its routes and prefix.
 
 ## One place for each prefix
 

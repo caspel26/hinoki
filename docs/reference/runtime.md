@@ -24,6 +24,24 @@
 
 ::: hinoki.errors.RegistrationError
 
+## Events
+
+The [events guide](../events.md) explains the two moments a handler runs in.
+A handler collection is listed on the application, or in an app's `events`
+entry of `hinoki.toml`.
+
+::: hinoki.events.Handlers
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.events.Created
+
+::: hinoki.events.Updated
+
+::: hinoki.events.Deleted
+
+::: hinoki.events.emit
+
 ::: hinoki.wsgi.WSGIAdapter
     options:
       members: [start, close]

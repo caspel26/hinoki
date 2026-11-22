@@ -1,0 +1,8 @@
+# Exceptions the owner accepts, each with a reason. `hinoki check` and startup
+# report a waiver that matches nothing (HNK-WVR-001) or has expired (HNK-WVR-002).
+
+[[waiver]]
+rule = "HNK-TXN-001"
+target = "blog.apps.blog.accounts.*.login"
+reason = "login only reads; a transaction held open during a password hash would tie up a connection for nothing"
+owner = "blog-maintainers"

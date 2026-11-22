@@ -54,7 +54,10 @@ A project created with `hinoki new` enforces `Transactions.require_atomic()`
 you record the decision. List the action in `except_` in `notes/rules.py`:
 
 ```python
-# notes/rules.py
+# notes/rules.py, listed in `rules` of hinoki.toml
+from hinoki import Transactions
+from hinoki.rules import RuleSet
+
 project_rules = RuleSet(
     # ... the other rules
     Transactions.require_atomic(except_=["notes.apps.billing.api.remind"]),

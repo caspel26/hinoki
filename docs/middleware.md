@@ -26,21 +26,27 @@ class Tenant(Middleware):
         return response.with_header("x-served-by", "tenant")
 ```
 
-Declare it on an action, or for the whole application:
+Declare it on an action, or for the whole application. `middleware=` on
+`Hinoki(...)` is the explicit form; a project lists it in `hinoki.toml`
+instead ([below](#declaring-middleware-in-hinokitoml)):
 
 ```python
 # notes/main.py
-from hinoki import Hinoki, http
+from hinoki import Hinoki, Schema, http
 
 from .middleware import Tenant
 
 
-@http.get("/items")
-async def items() -> list[str]:
-    return []
+class Pong(Schema):
+    ok: bool
 
 
-app = Hinoki(include=[items], middleware=[Tenant()])
+@http.get("/ping")
+async def ping() -> Pong:
+    return Pong(ok=True)
+
+
+app = Hinoki(include=[ping], middleware=[Tenant()])
 ```
 
 `RouteGroup` actions take the same option. The application's middleware runs
@@ -49,9 +55,12 @@ one returned unless it answers itself.
 
 ## Declaring middleware in `hinoki.toml`
 
-The `[project]` table can list middleware for the whole application, like
-Django's `MIDDLEWARE`. Hinoki does not generate the module: you create it
-yourself, and you edit the list by hand (there is no command for it).
+The `[project]` table can list middleware for the whole application. Hinoki does not generate the module: you create it
+yourself, and you edit the list by hand (there is no command for it). The
+Tracker example does this with one middleware that adds a version header
+([`middleware.py`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/middleware.py),
+listed on line 4 of its
+[`hinoki.toml`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/hinoki.toml)).
 
 ```python
 # shop/middleware.py

@@ -176,7 +176,10 @@ requires = ["accounts"]
 
 `hinoki app create billing` asks for `requires`; `hinoki app add NAME --models
 MODULE` registers an existing package. Each app's tables belong only to its
-own migration state.
+own migration state. The Tracker example has three such apps
+([`hinoki.toml` lines 14-27](https://github.com/caspel26/hinoki/blob/main/examples/tracker/hinoki.toml)):
+`tasks` requires `members`, and `activity` requires both, so `apply` runs them
+in that order.
 
 ### Cross-app migration safety
 

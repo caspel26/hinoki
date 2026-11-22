@@ -23,8 +23,10 @@ from collections.abc import AsyncIterator
 from hinoki import http
 from hinoki.http import Stream
 
+from notes.security import reader  # an `Access` policy
 
-@http.get("/export.csv")
+
+@http.get("/export.csv", access=reader)
 async def export() -> Stream:
     async def rows() -> AsyncIterator[str]:
         yield "id,title\n"
@@ -70,8 +72,10 @@ from collections.abc import AsyncIterator
 from hinoki import Request, http
 from hinoki.http import Event, EventStream
 
+from notes.security import reader
 
-@http.get("/notes/events")
+
+@http.get("/notes/events", access=reader)
 async def note_events(request: Request) -> EventStream:
     after = request.headers.get("last-event-id")
 
@@ -110,10 +114,12 @@ from pathlib import Path
 from hinoki import http
 from hinoki.http import File
 
+from notes.security import reader
+
 REPORTS = Path("/srv/notes/reports")
 
 
-@http.get("/reports/q3.pdf")
+@http.get("/reports/q3.pdf", access=reader)
 async def report() -> File:
     return File("q3.pdf", root=REPORTS, filename="q3-report.pdf")
 ```
@@ -255,7 +261,7 @@ These were checked with a running server (see `tests/kisostreamingtest.py` and
 * Closing the server with an open event stream ends the stream normally on Kiso.
   This was not measured on Granian.
 
-`Range` requests and WebSockets are not provided. Kiso can compress these bodies
+`Range` requests are not provided. Kiso can compress these bodies
 when asked; see [compress responses](compression.md).
 
 ## Test a stream
@@ -265,7 +271,7 @@ the block simulates a disconnect:
 
 ```python
 async with ASGIClient(app) as client:
-    async with client.stream("GET", "/notes/events") as reply:
+    async with client.stream("GET", "/notes/events", token="t") as reply:
         first = await anext(reply.chunks())
 ```
 

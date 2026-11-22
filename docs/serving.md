@@ -58,8 +58,16 @@ hinoki serve --server granian
 from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    server: settings.ServerSettings = settings.ServerSettings(server="granian")
+class ProjectSettings(
+    settings.AppSettings, prefix="NOTES_", dotenv=".env", toml="settings.toml"
+):
+    pass
+```
+
+```toml
+# settings.toml
+[server]
+server = "granian"
 ```
 
 `hinoki new --server granian` (or the server question of `hinoki new`) writes the

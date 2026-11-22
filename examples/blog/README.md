@@ -1,55 +1,84 @@
 # Blog
 
-The reference app: typed settings, bearer authentication, generated CRUD
-routes, handwritten publication actions, explicit relation loading,
-transactions, startup rules and the optional admin. `main.py` declares the
-application from the shared list in `routes.py`; the project package holds only
-that wiring, the settings and the rules, and the `apps/blog/` app owns the models,
-schemas, endpoints and migrations. `apps/blog/accounts.py` adds password
-login only when a JWT secret is set.
+The complete example: everything the other two leave out, wired as a
+production project would be. It adds to [Tracker](../tracker/README.md) a
+tenant (the publication), password login with JWT sessions, an admin with its own
+sign-in and migrations, an application MCP tool, a streamed CSV export, an audit
+trail written by event handlers, a rule waiver and optional Prometheus metrics.
+
+## Read it in this order
+
+| # | File | What to see |
+| --- | --- | --- |
+| 1 | [`hinoki.toml`](hinoki.toml) | The `blog` app (models, migrations, `events`, lines 4-9) and the admin's own `admin` app with its migrations (lines 12-16): the admin is an optional extra that needs its tables and an explicit activation |
+| 2 | [`blog/apps/blog/models.py`](blog/apps/blog/models.py) | `Publication` is the tenant (line 17); `User` and `Post` each point to one (lines 24 and 39); `AuditEntry` is written by events (line 57) |
+| 3 | [`blog/apps/blog/schemas.py`](blog/apps/blog/schemas.py) | Request bodies and responses are `Schema` classes, separate from the models; the author and publication are never accepted from a client |
+| 4 | [`blog/apps/blog/security.py`](blog/apps/blog/security.py) | `TokenAuth` resolves an opaque bearer token to a `User`; the `editor` and `reader` policies (lines 27-28) |
+| 5 | [`blog/apps/blog/api.py`](blog/apps/blog/api.py) | `@crud` generates create and delete with `owner` and a server-assigned `publication_id` (lines 72-82); `get_queryset` is the tenant boundary (line 86); handwritten `listing` (98), `drafts` (112), a streamed CSV `export` (122) and `publish` with `atomic=True`, which emits `PostPublished` (144) |
+| 6 | [`blog/apps/blog/events.py`](blog/apps/blog/events.py) | An in-transaction handler audits `Created[Post]` (line 24) and `PostPublished` (line 29); an after-commit handler runs once the data is safe (line 34). Declared in `hinoki.toml`, so `hinoki events` lists them |
+| 7 | [`blog/apps/blog/accounts.py`](blog/apps/blog/accounts.py) and [`limits.py`](blog/apps/blog/limits.py) | Password login and `/auth/me` with a JWT (lines 74 and 91), a bounded rate limit per client (`limits.py` line 19) |
+| 8 | [`blog/rules.py`](blog/rules.py) | The architecture rules (lines 19-40); `require_atomic` exempts only the MCP endpoint (line 30) |
+| 9 | [`hinoki-rules.toml`](hinoki-rules.toml) | A waiver with a reason and an owner: login only reads, so it is not atomic on purpose. `hinoki check` shows it as `[waived]` when `BLOG_JWT_SECRET` is set, and warns when it matches nothing |
+| 10 | [`blog/apps/blog/adminsite.py`](blog/apps/blog/adminsite.py) | The admin: model admins, an action, stats and a dashboard (`site` at line 56, `PostAdmin` at 72). `routes.py` mounts it at `/admin` |
+| 11 | [`blog/main.py`](blog/main.py) | `build_app` assembles the app: routes, rules and the waiver file, the hasher closed at shutdown, and `expose_as_mcp` for `Posts.drafts` (line 57) |
+| 12 | [`blog/settings.py`](blog/settings.py) | The environment variables (`BLOG_*`), including the Kiso-only `BLOG_METRICS__LISTEN` |
+| 13 | [`blog/apps/blog/seed.py`](blog/apps/blog/seed.py) | Synthetic demo data for a disposable database |
+| 14 | [`blog_tests/`](blog_tests/) | API and tenant, accounts, limits, rules and waiver, shutdown, audit events, CSV, MCP and admin; [`conftest.py`](blog_tests/conftest.py) migrates a SQLite file per test |
+
+[`blog/apps/blog/migrations/`](blog/apps/blog/migrations/) holds one reviewed SQL
+migration; the admin's own are shipped with Hinoki.
 
 ## Run
 
-From `examples/`. The admin needs a signing secret:
+From this directory. The admin needs a signing secret of at least 32 bytes:
 
 ```sh
 export BLOG_ADMIN__SECRET=a-local-development-secret-with-32-bytes
 uv run hinoki migrations apply
 uv run hinoki admin create-superuser ada
-uv run hinoki dev blog.main:app
+uv run hinoki dev
 ```
 
-`migrations apply` creates the Blog tables and the admin's user tables, in
-dependency order. The checked-in SQL is in [`apps/blog/migrations/`](apps/blog/migrations/).
-The database is `.hinoki/local.sqlite3`; for another one, set
-`BLOG_DATABASE__URL` and `EXAMPLES_DATABASE__URL` (read by the migration
-commands) to the same URL before applying.
+`migrations apply` creates the Blog tables and the admin's user tables in
+`.hinoki/local.sqlite3`. For another database export `BLOG_DATABASE__URL`;
+`hinoki migrations` and `hinoki dev` both read it.
 
-## Sign in
-
-Open `/admin` and sign in as the superuser; add editors in its Users section and
-tick what each may do. The admin's theme (`studio`, `console`, `paper` or `bento`)
-is set where the site is built, in `apps/blog/adminsite.py`. Open `/docs` for the OpenAPI
-UI. `BLOG_JWT_SECRET`
-enables `POST /auth/login`, which is rate limited by `limits.LoginAttempts`
-(a fixed window per client address, in one worker's memory; see
-[rate limit an action](../../docs/endpoints.md#rate-limit-an-action)).
+Open `/admin` and sign in as the superuser; `/docs` shows the OpenAPI UI.
+`BLOG_JWT_SECRET` switches on `POST /auth/login`.
 
 ## Demo data
 
 ```sh
 uv run python -m blog.apps.blog.seed
+uv run hinoki migrations apply admin
 ```
 
-The seed applies the Blog migrations itself and inserts fixed synthetic users
-and posts; the editor's bearer token is `demo-editor-token`. Run it once,
-against a fresh disposable database instead of `migrations apply` (it fails on
-tables that already exist), then `uv run hinoki migrations apply admin` for the
-admin's tables. The demo records are unique and not a resettable fixture. Never
-use real credentials or user data with it.
+The seed applies the Blog migrations itself (use it instead of
+`migrations apply` on a fresh disposable database), then inserts two
+publications, three users and twelve posts. The first publication's editor
+token is `demo-editor-token` and the second's is `demo-other-token`: each sees
+only its own drafts.
 
-## Rules
+```sh
+curl localhost:8000/posts/drafts -H "authorization: Bearer demo-editor-token"
+curl localhost:8000/posts/export.csv -H "authorization: Bearer demo-editor-token"
+```
 
-All eleven built-in rules are on in `rules.py`
-([rules](../../docs/rules.md)): `hinoki check blog.main:app` exits 0, and
-a worker refuses to start while one is violated.
+## Check, MCP and metrics
+
+```sh
+uv run hinoki check            # add BLOG_JWT_SECRET=... to see the waiver
+uv run hinoki events
+uv run hinoki routes
+```
+
+`POST /mcp` serves one read-only tool (`Posts.drafts`) to a caller holding an
+editor token. With the Kiso server, `BLOG_METRICS__LISTEN=127.0.0.1:9100` serves
+Prometheus metrics on that address, and `uv run hinoki serve --server kiso`
+starts it; Granian refuses the setting.
+
+## Test
+
+```sh
+uv run pytest examples/blog/blog_tests
+```

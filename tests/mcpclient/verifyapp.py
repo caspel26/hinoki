@@ -1,16 +1,17 @@
-"""Drives the tracker's application MCP endpoint over HTTP with the official client.
+"""Drives the blog's application MCP endpoint over HTTP with the official client.
 
     uvx --with-editable . --from mcp python tests/mcpclient/verifyapp.py
 
-Needs a disposable PostgreSQL in HINOKI_TEST_DATABASE_URL. Starts the tracker
-under Granian, creates its tables, one member and one task, then lists tools and
-calls one with the member's bearer token. Not part of pytest.
+Starts the blog under Granian on a disposable SQLite file, creates its tables, one
+publication, one editor and one draft, then lists tools and calls one with the
+editor's bearer token. Not part of pytest.
 """
 
 import asyncio
 import os
 import signal
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -19,27 +20,27 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 ROOT = Path(__file__).resolve().parents[2]
-URL = os.environ["HINOKI_TEST_DATABASE_URL"]
 PORT = 8807
 SETUP = """
 import asyncio, os
 from pathlib import Path
-from tracker.apps.tracker.models import Member, Task
-from tracker.apps.tracker import operations
-from tracker.apps.tracker.schemas import TaskIn
+from blog.apps.blog.models import Post, Publication, User
 from hinoki.orm import migrator
 from hinoki.db import Database
 from hinoki.orm import use_database
 
 async def main():
-    db = await Database.connect(os.environ["HINOKI_TEST_DATABASE_URL"], max_size=2)
-    for s in ("DROP TABLE IF EXISTS tracker_tasks", "DROP TABLE IF EXISTS tracker_members",
-              "DROP TABLE IF EXISTS hinoki_migrations"):
-        await db.execute(s)
-    await migrator.apply(db, Path("tracker/apps/tracker/migrations"))
+    db = await Database.connect(os.environ["BLOG_DATABASE__URL"], max_size=1)
+    await migrator.apply(db, Path("blog/apps/blog/migrations"))
     with use_database(db):
-        ann = await Member.acreate(name="Ann", token="ann-token")
-        await operations.create_task(ann.id, TaskIn(title="write the MCP guide"))
+        press = await Publication.acreate(name="Press", slug="press")
+        ann = await User.acreate(
+            publication_id=press.id, name="Ann", token="ann-token", is_editor=True
+        )
+        await Post.acreate(
+            publication_id=press.id, author_id=ann.id,
+            title="write the MCP guide", slug="mcp-guide", body="b",
+        )
     db.close()
 
 asyncio.run(main())
@@ -47,10 +48,12 @@ asyncio.run(main())
 
 
 async def main() -> None:
-    project = ROOT / "examples"
+    project = ROOT / "examples" / "blog"
+    database = Path(tempfile.mkdtemp()) / "blog.sqlite3"
     env = {
         **os.environ,
-        "TRACKER_DATABASE__URL": URL,
+        "BLOG_DATABASE__URL": f"sqlite://{database}",
+        "BLOG_ADMIN__SECRET": "m" * 40,
         "PYTHONPATH": str(project),
     }
     subprocess.run(
@@ -62,7 +65,7 @@ async def main() -> None:
     server = subprocess.Popen(
         [
             *("uv", "run", "--locked", "granian", "--interface", "asgi"),
-            *("--port", str(PORT), "tracker.main:app"),
+            *("--port", str(PORT), "blog.main:app"),
         ],
         cwd=project,
         env=env,

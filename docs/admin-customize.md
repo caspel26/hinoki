@@ -10,10 +10,13 @@ related:
 A `ModelAdmin` states only what the model does not already say. Class attributes shape the list and the form; methods change behaviour; templates and themes change the look.
 
 ```python
-# blog/adminsite.py
+# blog/apps/blog/adminsite.py
+from typing import Any
+
+from hinoki import Caller
 from hinoki.admin import Admin, ModelAdmin, Tone, action
 
-from blog.models import Post
+from .models import Post
 
 site = Admin(site="Blog Studio", per_page=8)
 
@@ -28,7 +31,7 @@ class PostAdmin(ModelAdmin[Post]):
     fieldsets = {"Organization": ("author_id", "published")}
 
     @action(confirm="Publish the selected posts?")
-    async def publish(self, posts, principal):
+    async def publish(self, posts: tuple[Post, ...], principal: Caller[Any]) -> None:
         await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
 ```
 
@@ -60,33 +63,45 @@ Datetime fields use the app's `settings.timezone` (UTC without built-in settings
 Each method below is called by the framework; override what you need and call `super()` for the rest.
 
 ```python
-# blog/adminsite.py
-from hinoki.admin import Avatar, ModelAdmin, Refusal
+# blog/apps/blog/adminsite.py
+from typing import Any
 
-from blog.models import Post
+from hinoki import Caller
+from hinoki.admin import Avatar, ModelAdmin, Refusal
+from hinoki.orm import QuerySet
+
+from .models import Post
 
 
 @site.admin(Post)  # the site created above
 class PostAdmin(ModelAdmin[Post]):
-    def queryset(self, principal):  # rows this caller sees, in every statement
+    def queryset(
+        self, principal: Caller[Any]
+    ) -> QuerySet[Post]:  # rows this caller sees, in every statement
         return Post.filter(author_id=principal.user.id).select_related("author")
 
-    def can(self, principal, action, row=None):  # narrows a grant, never widens it
+    def can(
+        self, principal: Caller[Any], action: str, row: Post | None = None
+    ) -> bool:  # narrows a grant, never widens it
         if action == "delete" and row is not None and row.published:
             return False
         return super().can(principal, action, row)
 
-    def display(self, row, column):  # a list cell: text, a Badge or an Avatar
+    def display(
+        self, row: Post, column: str
+    ) -> Any:  # a list cell: text, a Badge or an Avatar
         if column == "author_id":
             return Avatar(row.author.name)
         return super().display(row, column)
 
-    async def check(self, values, principal, row):  # {field: message} refuses
+    async def check(
+        self, values: dict[str, Any], principal: Caller[Any], row: Post | None
+    ) -> dict[str, str]:  # {field: message} refuses
         if values.get("published") and not (values.get("title") or (row and row.title)):
             return {"title": "A published post needs a title."}
         return {}
 
-    async def remove(self, row, principal):
+    async def remove(self, row: Post, principal: Caller[Any]) -> None:
         if row.published:
             raise Refusal("Unpublish the post first.")  # shown on the page
         await super().remove(row, principal)
@@ -111,13 +126,13 @@ They reach `check` and `save` next to the columns, so `save` takes them out befo
 Mark an async method with `@action`. The list shows the button once rows are selected:
 
 ```python
-# blog/adminsite.py
+# blog/apps/blog/adminsite.py
 from typing import Any
 
 from hinoki import Caller
 from hinoki.admin import ModelAdmin, action
 
-from blog.models import Post
+from .models import Post
 
 
 @site.admin(Post)
@@ -179,7 +194,7 @@ Four built-in styles, each with light and dark modes; the system preference pick
 A `Theme` is a set of `--hn-*` design tokens for both schemes, plus `edit` (`"drawer"`, `"page"`), `layout` (`"sidebar"`, `"topbar"`, `"index"`, `"rail"`) and `list_style` (`"table"`, `"rows"`, `"cards"`). Start from a built-in one:
 
 ```python
-# blog/adminsite.py
+# blog/apps/blog/adminsite.py
 import dataclasses
 
 from hinoki.admin import THEMES, Admin

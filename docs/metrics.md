@@ -13,23 +13,26 @@ related:
 
 ```python
 # notes/main.py
-from hinoki import Hinoki, http
+from hinoki import Hinoki, Schema, http
 from hinoki.settings import AppSettings, MetricsSettings
+
+
+class Note(Schema):
+    id: int
+
+
+@http.get("/notes/{note_id}")
+async def note(note_id: int) -> Note:
+    return Note(id=note_id)
+
 
 app = Hinoki(
     settings=AppSettings(
         allowed_hosts=("localhost", "127.0.0.1"),
         metrics=MetricsSettings(listen="127.0.0.1:9100"),
-    )
+    ),
+    include=[note],
 )
-
-
-@http.get("/notes/{note_id}")
-async def note(note_id: int) -> dict[str, int]:
-    return {"id": note_id}
-
-
-app.include(note)
 ```
 
 Run `hinoki serve notes.main:app --server kiso --port 8765`, request `/notes/1`, `/notes/2` and `/nope`, then scrape `http://127.0.0.1:9100/metrics`. The lines for those requests (comments and the other families left out) are:
@@ -37,8 +40,9 @@ Run `hinoki serve notes.main:app --server kiso --port 8765`, request `/notes/1`,
 ```text
 hinoki_http_requests_total{route="/notes/{note_id}",method="GET",status="2xx",worker="0"} 2
 hinoki_http_requests_total{route="",method="GET",status="4xx",worker="0"} 1
-hinoki_http_response_bytes_total{route="/notes/{note_id}",worker="0"} 16
 hinoki_http_requests_in_flight{worker="0"} 0
+hinoki_http_response_bytes_total{route="/notes/{note_id}",worker="0"} 16
+hinoki_http_response_bytes_total{route="",worker="0"} 69
 ```
 
 The application's own port answers `/metrics` like any other unknown path (`404`).

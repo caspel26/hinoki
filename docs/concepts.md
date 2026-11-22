@@ -27,10 +27,9 @@ A server process serves one `Hinoki` object: the one `project.application` in `h
 import stripe
 from hinoki import Hinoki, errors
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
-app = Hinoki(settings=ProjectSettings, title="Notes", rules=project_rules)
+app = Hinoki(settings=ProjectSettings, title="Notes")
 
 
 @app.error_handler(stripe.CardError)
@@ -38,7 +37,7 @@ def card_error(error: stripe.CardError) -> errors.APIError:
     return errors.APIError(error.user_message, status=402, code="card_declined")
 ```
 
-`Hinoki(...)` includes the routes listed in `hinoki.toml` (`include=manifest_routes()`) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
+`Hinoki(...)` loads the routes, events, middleware and rules that `hinoki.toml` declares (each of `include=`, `events=`, `middleware=` and `rules=` you pass replaces its manifest value; the [Notes example](https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/main.py) passes `include=` because its manifest lists no routes) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
 
 ## One request
 

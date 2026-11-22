@@ -30,13 +30,11 @@ All three URLs are disabled by default. Set `openapi_url` to serve JSON; add `do
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
     include=manifest_routes(),
-    rules=project_rules,
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -127,23 +125,32 @@ async def get_task(task_id: UUID) -> TaskOutput:
 `include_in_schema`, `tags`, `deprecated` and `operation_id` are options of `@http.get`, `post`, `put`, `patch`, `delete` and `query`:
 
 ```python
-from hinoki import Access, Hinoki, http
+from hinoki import Access, Hinoki, Schema, http
+
+from notes.security import staff_auth  # any authentication provider
 
 admin_only = Access(auth=staff_auth, permissions=["ops:run"])
 
 
+class Started(Schema):
+    status: str
+
+
+class Totals(Schema):
+    tasks: int
+
+
 @http.get("/ops/reindex", access=admin_only, include_in_schema=False)
-async def reindex() -> dict[str, str]:
-    return {"status": "started"}
+async def reindex() -> Started:
+    return Started(status="started")
 
 
-@http.get("/v1/tasks", tags=["tasks"], deprecated=True, operation_id="listTasksV1")
-async def list_tasks() -> list[str]:
-    return []
+@http.get("/v1/totals", tags=["tasks"], deprecated=True, operation_id="totalsV1")
+async def totals() -> Totals:
+    return Totals(tasks=0)
 
 
-app = Hinoki()
-app.include(reindex, list_tasks)
+app = Hinoki(include=[reindex, totals])
 ```
 
 * `include_in_schema=False` leaves the action out of `Hinoki.openapi()`, `hinoki openapi` and `/openapi.json`. The action is still registered, served and protected by its `Access` exactly as before: leaving it out neither hides it from a caller who knows the path nor authorizes anything. A path whose actions are all left out is not listed, and a `Schema` or security scheme used only by left-out actions does not appear under `components`.
@@ -159,19 +166,23 @@ app.include(reindex, list_tasks)
 ```python
 from datetime import date
 
-from hinoki import http
+from hinoki import Schema, http
 
 
-@http.get("/v1/tasks", deprecated=date(2026, 11, 22))
-async def list_tasks_v1() -> list[str]:
-    return []
+class Totals(Schema):
+    tasks: int
+
+
+@http.get("/v1/totals", deprecated=date(2026, 11, 22))
+async def totals_v1() -> Totals:
+    return Totals(tasks=0)
 ```
 
 `deprecated` takes `True`, `False` or the `datetime.date` the action was deprecated on (a `datetime` is refused). It does three things:
 
 * The document marks the operation `deprecated: true`.
 * Every response, success or error, carries a `Deprecation` header: `@<unix seconds>` for a date (the form of RFC 9745, midnight UTC), `true` when no date is given.
-* The `hinoki.deprecated` logger warns `deprecated action called: GET /v1/tasks (N call(s) since the last report)`. An action is reported at most once per minute, with the calls it stayed quiet about, so a busy action does not flood the log; the state is one entry per deprecated action. Nothing is logged at startup.
+* The `hinoki.deprecated` logger warns `deprecated action called: GET /v1/totals (N call(s) since the last report)`. An action is reported at most once per minute, with the calls it stayed quiet about, so a busy action does not flood the log; the state is one entry per deprecated action. Nothing is logged at startup.
 
 The header and the warning are produced by the Python pipeline, so a deprecated action leaves [the native lane](kiso.md#what-is-native-and-what-still-runs-in-python) (`hinoki routes --lanes` shows `lane_reason` `deprecated`) and, for generated CRUD, the native CRUD plan. The response and the access check do not change. There is no `Sunset` header.
 

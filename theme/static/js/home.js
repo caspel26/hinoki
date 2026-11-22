@@ -17,6 +17,8 @@
     const problems = $("[data-hn-problems]", panel);
     const count = $("[data-hn-count]", panel);
     const show = (button) => {
+      const hero = panel.closest(".hn-hero");
+      if (hero) hero.dataset.hnState = button.dataset.state;
       buttons.forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
       $$("[data-state-view]", panel).forEach((v) => {
         v.hidden = v.dataset.stateView !== button.dataset.state;
@@ -64,12 +66,17 @@
     let target = { x: 0, y: 0 };
     let now = { x: 0, y: 0 };
     let frame = 0;
-    const step = () => {
-      now = { x: now.x + (target.x - now.x) * 0.12, y: now.y + (target.y - now.y) * 0.12 };
-      glow.style.setProperty("--mx", `${now.x.toFixed(1)}px`);
-      glow.style.setProperty("--my", `${now.y.toFixed(1)}px`);
-      const settled = Math.abs(target.x - now.x) < 0.5 && Math.abs(target.y - now.y) < 0.5;
+    let last = 0;
+    const step = (time) => {
+      // Frame-rate independent easing: the same feel at 60 and 144 Hz.
+      const k = 1 - Math.exp(-Math.min(time - last || 16, 48) / 70);
+      last = time;
+      now = { x: now.x + (target.x - now.x) * k, y: now.y + (target.y - now.y) * k };
+      glow.style.setProperty("--mx", `${now.x.toFixed(2)}px`);
+      glow.style.setProperty("--my", `${now.y.toFixed(2)}px`);
+      const settled = Math.abs(target.x - now.x) < 0.2 && Math.abs(target.y - now.y) < 0.2;
       frame = settled ? 0 : requestAnimationFrame(step);
+      if (settled) last = 0;
     };
     hero.addEventListener("pointermove", (event) => {
       const box = hero.getBoundingClientRect();

@@ -28,7 +28,7 @@
   <a href="https://hinoki.caspel.dev/dev/">Documentation</a> ·
   <a href="https://hinoki.caspel.dev/dev/quick-start/">Quick start</a> ·
   <a href="https://hinoki.caspel.dev/dev/tutorial/">Tutorial</a> ·
-  <a href="examples">Examples</a> ·
+  <a href="examples/README.md">Examples</a> ·
   <a href="https://hinoki.caspel.dev/dev/status/">Status</a>
 </p>
 
@@ -72,7 +72,7 @@ Every request goes through the same steps, in this order. Validation, access and
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/readme/flow-dark.svg">
-    <img src="assets/readme/flow-light.svg" alt="Request flow: the server accepts the request, Hinoki routes and binds it, validates the input, checks access, opens a transaction, calls the handler, renders the response and commits. On an error an open transaction rolls back first, and the error response carries a request ID." width="860">
+    <img src="assets/readme/flow-light.svg" alt="Request flow: the server accepts the request, Hinoki routes it, checks access, binds and validates the input, opens a transaction, calls the handler, renders the response and commits. On an error an open transaction rolls back first, and the error response carries a request ID." width="860">
   </picture>
 </p>
 
@@ -121,6 +121,8 @@ routes = "notes.routes:routes"
 rules = ["notes.rules:project_rules"]
 ```
 
+A `Hinoki(...)` built in the module `project.application` names reads whatever its arguments leave out from this file: routes, each app's `events`, and the project-wide `middleware` and `rules` lists (`module:attribute` entries you add by hand). So `include=manifest_routes()` above is the explicit form of the default, and the [Tracker example](examples/tracker/hinoki.toml) wires everything from `hinoki.toml` with none of them ([middleware](docs/middleware.md), [rules](docs/rules.md)).
+
 ```sh
 hinoki dev      # serve on Kiso, reload on changes
 hinoki check    # run the project's rules
@@ -135,17 +137,36 @@ The project package holds no models. Answer yes to the last question of `hinoki 
 hinoki app create notes
 ```
 
-Endpoints are plain functions. A `RouteGroup` shares a path, an access policy and a transaction across its actions:
+A model, the `Schema` classes that cross the API boundary, and the client filters of a list:
 
 ```python
-# notes/apps/notes/api.py
+# notes/apps/notes/models.py
+from uuid import UUID, uuid4
+
+from hinoki import db
+from hinoki.orm import Model, field, pk
+
+
+@db.table("notes")
+class Note(Model):
+    id: UUID = pk(default_factory=uuid4)
+    title: str = field(max_length=80, index=True)
+    body: str = ""
+
+
+@db.table("notes_editors")
+class Editor(Model):
+    id: UUID = pk(default_factory=uuid4)
+    token: str = field(unique=True)
+```
+
+```python
+# notes/apps/notes/schemas.py
 from typing import Annotated
+from uuid import UUID
 
-from hinoki import Field, RouteGroup, Schema, derive
-from hinoki.pagination import Page, PageNumberPagination, PageParams
-
-from notes.apps.notes.models import Note
-from notes.apps.notes.security import editors
+from hinoki import Field, Schema
+from hinoki.filters import Eq, FilterSet, Search
 
 
 class NoteIn(Schema):
@@ -153,59 +174,94 @@ class NoteIn(Schema):
     body: Annotated[str, Field(max_length=2000)] = ""
 
 
-@derive(Note)
-class NoteOut(Schema): ...
+class NoteOut(Schema):
+    id: UUID
+    title: str
+    body: str
 
 
-notes = RouteGroup("/notes", access=editors, atomic=True)
+class NoteFilters(FilterSet):
+    title: Eq[str]
+    search = Search("title", "body")
+    ordering = ("title",)
+```
+
+An `Access` policy pairs a token check with the permissions it requires ([Authentication](docs/authentication.md)); `crud` generates the actions, applies the policy to each and wraps writes in a transaction:
+
+```python
+# notes/apps/notes/security.py
+from hinoki import Access, BearerAuth, Caller, Permission
+
+from notes.apps.notes.models import Editor
 
 
-@notes.get("/", pagination=PageNumberPagination(page_size=20))
-async def list_notes(page: PageParams) -> Page[NoteOut]:
-    return (await Note.all().apaginate(page)).map(NoteOut.from_model)
+class NotePermission(Permission):
+    WRITE = "notes:write"
 
 
-@notes.post("/", status=201)
-async def create_note(data: NoteIn) -> NoteOut:
-    return NoteOut.from_model(await Note.acreate(data))
+class EditorTokens(BearerAuth[Editor]):
+    async def resolve_token(self, token: str) -> Caller[Editor] | None:
+        editor = await Editor.aget_or_none(token=token)
+        if editor is None:
+            return None
+        return Caller(
+            id=str(editor.id), user=editor, permissions={NotePermission.WRITE}
+        )
+
+
+editors = Access(auth=EditorTokens(), permissions=[NotePermission.WRITE])
 ```
 
 ```python
-# notes/apps/notes/models.py
-from uuid import UUID, uuid4
+# notes/apps/notes/api.py
+from hinoki import crud
 
-from hinoki.orm import Model, field, pk
+from notes.apps.notes.models import Note
+from notes.apps.notes.schemas import NoteFilters, NoteIn, NoteOut
+from notes.apps.notes.security import editors
 
-
-class Note(Model):
-    id: UUID = pk(default_factory=uuid4)
-    title: str = field(max_length=80)
-    body: str = ""
+notes = crud(
+    Note,
+    path="",
+    read=NoteOut,
+    create=NoteIn,
+    access=editors,
+    filters=NoteFilters,
+)
 ```
 
-`editors` is an `Access` policy: a token check and the permissions it requires ([Authentication](docs/authentication.md)). List the endpoints in `notes/apps/notes/routes.py` (`routes = [notes]`); `main.py` does not change.
+List `notes` in `notes/apps/notes/routes.py` (`routes = [notes]`, imported from `notes.apps.notes.api`); `main.py` does not change. The app's routes are mounted at its `prefix`, `/notes` here.
 
 ```console
 $ hinoki routes
-GET     /health  public                   notes.api.health
-GET     /notes   Tokens[notes:write]      notes.apps.notes.api.list_notes
-POST    /notes   Tokens[notes:write]      notes.apps.notes.api.create_note
+GET     /health           public                    notes.api.health
+GET     /notes            EditorTokens[notes:write] notes.apps.notes.api.NoteCrud.list
+POST    /notes            EditorTokens[notes:write] notes.apps.notes.api.NoteCrud.create
+GET     /notes/{item_id}  EditorTokens[notes:write] notes.apps.notes.api.NoteCrud.retrieve
 ```
 
-Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `hinoki migrations plan notes` writes the migration, `hinoki migrations apply` runs it. For CRUD, `crud(Note, path=..., read=..., create=...)` generates the routes, and a class-based `API` adds hooks and handwritten actions ([CRUD](docs/crud.md), [class-based APIs](docs/class-endpoints.md)).
+The list accepts `?title=...`, `?search=...` and `?ordering=title` from the `FilterSet`, and pages by number. Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `hinoki migrations plan notes` writes the migration, `hinoki migrations apply` runs it. For logic that is not CRUD, write plain functions on a `RouteGroup`, which shares a path, an access policy and a transaction across its actions, or a class-based `API` with hooks ([function-based APIs](docs/function-endpoints.md), [CRUD](docs/crud.md), [class-based APIs](docs/class-endpoints.md)).
 
 ## What you get
 
 | Area | What it gives you |
 | --- | --- |
-| **Contracts** | `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client. |
+| **Contracts** | `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client. Generated lists take client filters, ordering and search from a `FilterSet`. |
 | **Rules** | `hinoki check` has eleven built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes and import direction. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason. |
 | **Data** | SQLite, PostgreSQL, MySQL and MariaDB, explicit relation loading, and SQL migration files you review. Importing an app never connects to a database. |
-| **Tools** | Typed settings, generated CRUD, a CLI, MCP servers for the application and for development, and an optional admin. |
+| **Tools** | Typed settings, generated CRUD, typed events, project-wide middleware, a CLI, MCP servers for the application and for development, and an optional admin. |
+
+## Examples
+
+Three self-contained projects in [`examples/`](examples/README.md), each with its own `hinoki.toml`, tests and a README with a reading order:
+
+* [**Notes**](examples/notes/README.md) (easy): one app, one model and generated CRUD, in five minutes.
+* [**Tracker**](examples/tracker/README.md) (medium): several apps with explicit dependencies, access policies, transactions, a filtered list, events, and project-wide middleware and rules.
+* [**Blog**](examples/blog/README.md) (complete): tenant, login, admin, MCP, migrations, streaming, events, a rule waiver and metrics.
 
 ## Interactive API docs
 
-With `docs_url="/docs"` (set by `hinoki new`), the app serves interactive API docs generated from the same declarations: paths, request bodies, responses and declared errors. This is the Notes example from the [examples](examples) folder; see the [OpenAPI guide](docs/openapi.md).
+With `docs_url="/docs"` (set by `hinoki new`), the app serves interactive API docs generated from the same declarations: paths, request bodies, responses and declared errors. This is the [Notes example](examples/notes/README.md); see the [OpenAPI guide](docs/openapi.md).
 
 <p align="center">
   <img src="assets/readme/docs.png" alt="The interactive API docs of the Notes example, with POST /notes expanded to show its required JSON request body, with a title and a body, and its 201 response" width="75%">
@@ -217,7 +273,7 @@ The optional admin is mounted explicitly, and installing or importing it never t
 
 * **Access:** its own users, a sign-in page and per-model permissions by default; it can use your application's access policy instead.
 * **Look:** four themes, each with light and dark modes.
-* **Overview:** stat cards and recent records, as in the [Blog example](examples/blog).
+* **Overview:** stat cards and recent records, as in the [Blog example](examples/blog/README.md).
 
 <p align="center">
   <picture>
@@ -241,7 +297,7 @@ Pre-alpha, tested in CI on Linux with Python 3.12–3.14. The [status page](http
 <p align="center">
   <a href="https://hinoki.caspel.dev/dev/guides/">Guides</a> ·
   <a href="https://hinoki.caspel.dev/dev/reference/">Reference</a> ·
-  <a href="examples">Examples</a> ·
+  <a href="examples/README.md">Examples</a> ·
   <a href="ROADMAP.md">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="LICENSE">MIT license</a>

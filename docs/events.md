@@ -14,6 +14,10 @@ class NoteSaved(Schema):
     text: str
 
 
+class Saved(Schema):
+    status: str
+
+
 handlers = events.Handlers("notes")
 
 
@@ -22,14 +26,16 @@ async def tell_search(event: NoteSaved) -> None:
     print("index", event.text)
 
 
-@http.post("/notes")
-async def save() -> dict[str, str]:
+@http.post("/notes", access=None)
+async def save() -> Saved:
     await events.emit(NoteSaved(text="hello"))
-    return {"status": "saved"}
+    return Saved(status="saved")
 
 
 app = Hinoki(events=[handlers], include=[save])
 ```
+
+`events=` and `include=` are passed by hand here because the example is one file. A project lists the collection in `hinoki.toml` instead ([below](#declaring-handlers-in-hinokitoml)). The [Tracker example](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/activity/events.py) keeps its handlers in `tracker/apps/activity/events.py`, and the [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/events.py) also emits its own event from an action.
 
 Your own events can be a `Schema` (as above: frozen, keyword-only and validated when built) or a frozen `dataclass`; registration accepts any class. A `Schema` costs a validation per event, and it cannot hold a model class or instance, so the built-in model events below (`subject: type[M]`, `instance: M`) are dataclasses and an event that carries a row should carry its identifier instead.
 
@@ -66,10 +72,12 @@ An `in_transaction` failure or timeout propagates to the writer, which rolls bac
 
 ```toml
 [[apps]]
-name = "notes"
-models = "shop.apps.notes.models"
-migrations = "shop.apps.notes.migrations"
-events = "shop.apps.notes.events:handlers"
+name = "activity"
+models = "tracker.apps.activity.models"
+migrations = "tracker.apps.activity.migrations"
+routes = "tracker.apps.activity.api:routes"
+events = "tracker.apps.activity.events:handlers"
+requires = ["tasks", "members"]
 ```
 
 ```python
@@ -78,7 +86,7 @@ from hinoki import Hinoki
 app = Hinoki()  # reads routes, events, middleware and rules from hinoki.toml
 ```
 
-Events stay per app because a handler belongs to the models and behaviour of one app and runs in dependency order, whereas [middleware](middleware.md#declaring-middleware-in-hinokitoml) and [rules](rules.md#which-rules-run) are project-wide lists. When the manifest's `project.application` names the module that builds the app, `Hinoki()` loads `events=` if you did not pass it (independently of `include=`, `middleware=` and `rules=`); an explicit argument (even `()`) wins and skips that key. `manifest_events()` does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's `Handlers` in dependency order (`requires`) and fails with a message naming the app when the target does not import or is not a `Handlers`. Hinoki does not generate the module: you create it yourself (for example `shop/apps/notes/events.py` with `handlers = events.Handlers("notes")`, as in the example on this page) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. `hinoki app add notes --models ... --events pkg.events:handlers` registers an existing one; `hinoki app list` shows it.
+Events stay per app because a handler belongs to the models and behaviour of one app and runs in dependency order, whereas [middleware](middleware.md#declaring-middleware-in-hinokitoml) and [rules](rules.md#which-rules-run) are project-wide lists. When the manifest's `project.application` names the module that builds the app, `Hinoki()` loads `events=` if you did not pass it (independently of `include=`, `middleware=` and `rules=`); an explicit argument (even `()`) wins and skips that key. `manifest_events()` does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's `Handlers` in dependency order (`requires`) and fails with a message naming the app when the target does not import or is not a `Handlers`. Hinoki does not generate the module: you create it yourself (for example `tracker/apps/activity/events.py` with `handlers = events.Handlers("activity")`, as in the Tracker example) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. `hinoki app add notes --models ... --events pkg.events:handlers` registers an existing one; `hinoki app list` shows it.
 
 ## Testing
 
@@ -97,16 +105,18 @@ with app.events.muted():
 
 `hinoki events` lists every handler of the application without starting a server, opening a database or writing anything. It builds the application the way `hinoki routes` does and takes the same optional target (default: the project's `application`).
 
+From `examples/tracker`:
+
 ```sh
-uv run hinoki events notes_events_sample:app
+uv run hinoki events
 ```
 
 ```text
-Created[Note]  in_transaction  notes        async  notes_events_sample.audit
-Updated[Note]  after_commit    notes        sync   notes_events_sample.reindex
-AuthRejected   after_commit    notes        async  notes_events_sample.count_rejections
+Created[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_created
+Updated[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_updated
 
 limits: events.handler_timeout=5.0, events.max_handlers=16, events.max_depth=4
+declared in hinoki.toml: activity -> tracker.apps.activity.events:handlers
 ```
 
 Each row is the event (`Event` or `Event[Model]`), the phase, the name of the `Handlers` collection (`-` when it has none), `async` or `sync`, and the handler as `module.qualname`, in execution order. The last line shows the `events` limits in force. In a project, a line `declared in hinoki.toml: APP -> module:attribute` follows for each app that sets `events` in `hinoki.toml`. An application with no handlers prints `no event handlers registered` and exits `0`. `--format json` prints an object with `handlers` (`event`, `phase`, `handler`, `collection`, `async`), `limits` (`handler_timeout`, `max_handlers`, `max_depth`) and `apps` (`app`, `events`). A target that cannot be loaded prints `error: cannot load TARGET: ...` and exits `2`. The listing shows what is registered, not whether a handler will run: that depends on the code that emits.

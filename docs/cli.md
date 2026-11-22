@@ -90,7 +90,7 @@ This creates `NAME/apps/billing/{models.py,routes.py,migrations/}` and registers
 
 Both commands report `hinoki.toml`: `hinoki new` lists it among the generated files and `app create` says it registered the app there.
 
-`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. `app create` writes no events module: to add one, create the module yourself and use `app add --events` or the app's `events` key (see [Events](events.md#declaring-handlers-in-hinokitoml)). Middleware and rules are project-wide lists in the `[project]` table that you edit by hand (see [Middleware](middleware.md#declaring-middleware-in-hinokitoml) and [Rules](rules.md#which-rules-run)). In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`. `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
+`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. `app create` writes no events module: to add one, create the module yourself and use `app add --events` or the app's `events` key (see [Events](events.md#declaring-handlers-in-hinokitoml)). Middleware and rules are project-wide lists in the `[project]` table that you edit by hand (see [Middleware](middleware.md#declaring-middleware-in-hinokitoml) and [Rules](rules.md#which-rules-run)). In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
 
 To register a package that already exists, name its modules. Nothing is created or imported; only `hinoki.toml` changes:
 
@@ -209,7 +209,7 @@ uv run hinoki manage greet Peppe
 Commands are declared on the app with `Hinoki(commands=[...])`. Each command subclasses `hinoki.management.Command`, gives itself a lower-case name, and adds arguments through `add_arguments(parser)`. In a scaffolded project, `hinoki manage` lists commands and `hinoki manage greet Peppe` runs one; the manifest's `project.application` supplies the app target. Outside a registered project, use `hinoki manage TARGET COMMAND`. `--help` after a command shows its arguments.
 
 ```python
-# examples/project/app.py
+# app.py, with `application = "app:app"` in hinoki.toml
 from argparse import ArgumentParser, Namespace
 
 from hinoki import Hinoki
@@ -230,8 +230,10 @@ class Greet(Command):
 app = Hinoki(commands=[Greet])
 ```
 
-The same example is in `examples/project/app.py`; the examples manifest supplies
-its target when you run the command from the `examples/` project directory.
+The Tracker example declares a real command, `Seed`, in
+[`examples/tracker/tracker/commands.py`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/commands.py);
+`uv run hinoki manage seed` creates a demo member from its directory, after
+`uv run hinoki migrations apply`.
 
 `handle(context, args)` may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read `context.settings` and retrieve resources with `context.get(Type)` or `context.find(Type)`. Declare module classes in the command's `requires` tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.
 

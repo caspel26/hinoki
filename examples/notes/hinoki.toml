@@ -1,0 +1,8 @@
+[project]
+application = "notes.main:app"
+
+[[apps]]
+name = "notes"
+models = "notes.apps.notes.models"
+migrations = "notes.apps.notes.migrations"
+requires = []

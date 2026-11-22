@@ -2,26 +2,20 @@
 
 import asyncio
 import json
-import os
 import signal
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import pytest
-from blog.apps.blog.models import User
+from blog.apps.blog import models
 
 from hinoki.db import Database
-from hinoki.orm import use_database
-from tests.blogschema import drop, reset
+from hinoki.orm import migrator, use_database
 from tests.runtime.harness import free_port, spawn, wait_ready
 
-URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
-pytestmark = [
-    pytest.mark.runtime,
-    pytest.mark.skipif(URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"),
-]
-ROOT = Path(__file__).resolve().parents[2]
+pytestmark = pytest.mark.runtime
+BLOG = Path(__file__).resolve().parents[2] / "examples" / "blog"
 
 
 def call(
@@ -47,20 +41,24 @@ def call(
 
 
 async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
-    assert URL is not None
-    admin = await Database.connect(URL, max_size=1)
-    await reset(admin)
+    url = f"sqlite://{tmp_path / 'blog.sqlite3'}"
+    admin = await Database.connect(url, max_size=1)
+    await migrator.apply(admin, Path(models.__file__).parent / "migrations")
     with use_database(admin):
-        await User.acreate(name="Ada", token="editor-token", is_editor=True)
+        press = await models.Publication.acreate(name="Press", slug="press")
+        await models.User.acreate(
+            publication_id=press.id, name="Ada", token="editor-token", is_editor=True
+        )
+    admin.close()
     port = free_port()
     proc = spawn(
         "blog.main:app",
         tmp_path / "events.log",
         port,
-        cwd=ROOT / "examples",
-        BLOG_DATABASE__URL=URL,
+        cwd=BLOG,
+        BLOG_DATABASE__URL=url,
         BLOG_ADMIN__SECRET="g" * 40,
-        PYTHONPATH=str(ROOT / "examples"),
+        PYTHONPATH=str(BLOG),
     )
     try:
         await asyncio.to_thread(wait_ready, port, "/health")
@@ -84,5 +82,3 @@ async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
         if proc.poll() is None:
             proc.kill()
         proc.wait()
-        await drop(admin)
-        admin.close()
