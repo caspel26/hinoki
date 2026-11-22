@@ -2,7 +2,8 @@
 
 BLOG_DATABASE__URL=postgres://... uv run python -m blog.apps.blog.seed
 
-Applies the migrations and inserts three users and twelve posts. The editor's
+Applies the blog's migrations and inserts two publications, three users and twelve
+posts (the first publication's). The editor's
 token is ``demo-editor-token`` (users ``ada`` and ``rae`` can also log in with
 ``demo-password-change-me`` when the app has ``BLOG_JWT_SECRET``); use it as
 a bearer token for the API. The admin has its own sign-in: create a superuser with
@@ -17,7 +18,7 @@ from hinoki.db import Database
 from hinoki.orm import migrator, use_database
 from hinoki.settings import DatabaseSettings
 
-from .models import Post, User
+from .models import Post, Publication, User
 
 MIGRATIONS = Path(__file__).parent / "migrations"
 DEMO_PASSWORD = "demo-password-change-me"  # noqa: S105 - synthetic; the demo users are fake
@@ -44,7 +45,10 @@ async def seed(url: str) -> None:
         await migrator.apply(database, MIGRATIONS)
         with use_database(database):
             hashed = await hasher.hash(DEMO_PASSWORD)
+            press = await Publication.acreate(name="Hinoki Press", slug="hinoki-press")
+            other = await Publication.acreate(name="Cedar Weekly", slug="cedar-weekly")
             ada = await User.acreate(
+                publication_id=press.id,
                 name="Ada Editor",
                 token="demo-editor-token",
                 is_editor=True,
@@ -52,16 +56,21 @@ async def seed(url: str) -> None:
                 password_hash=hashed,
             )
             await User.acreate(
+                publication_id=press.id,
                 name="Rae Reader",
                 token="demo-reader-token",
                 username="rae",
                 password_hash=hashed,
             )
             await User.acreate(
-                name="Bob Editor", token="demo-other-token", is_editor=True
+                publication_id=other.id,
+                name="Bob Editor",
+                token="demo-other-token",
+                is_editor=True,
             )
             for index, title in enumerate(TITLES):
                 await Post.acreate(
+                    publication_id=press.id,
                     author_id=ada.id,
                     title=title,
                     slug=f"post-{index + 1}",

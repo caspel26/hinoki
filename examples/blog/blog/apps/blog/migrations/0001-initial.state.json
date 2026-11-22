@@ -1,5 +1,32 @@
 {
   "tables": {
+    "blog_publications": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "name": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "slug": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": []
+    },
     "blog_users": {
       "columns": {
         "id": {
@@ -8,6 +35,17 @@
           "primary_key": true,
           "unique": false,
           "references": null
+        },
+        "publication_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_publications",
+            "column": "id",
+            "on_delete": "restrict"
+          }
         },
         "name": {
           "type": "varchar(80)",
@@ -46,7 +84,11 @@
         }
       },
       "unique": [],
-      "indexes": []
+      "indexes": [
+        [
+          "publication_id"
+        ]
+      ]
     },
     "blog_posts": {
       "columns": {
@@ -56,6 +98,17 @@
           "primary_key": true,
           "unique": false,
           "references": null
+        },
+        "publication_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_publications",
+            "column": "id",
+            "on_delete": "restrict"
+          }
         },
         "author_id": {
           "type": "uuid",
@@ -108,6 +161,51 @@
       "indexes": [
         [
           "author_id"
+        ],
+        [
+          "publication_id"
+        ]
+      ]
+    },
+    "blog_audit": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "post_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_posts",
+            "column": "id",
+            "on_delete": "cascade"
+          }
+        },
+        "kind": {
+          "type": "varchar(40)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "post_id"
         ]
       ]
     }
