@@ -119,7 +119,7 @@ def test_invalid_data_is_still_rejected() -> None:
         Outer.validate({"title": 1, "inner": {"name": "a", "size": 1}, "tags": []})
 
 
-def test_complete_records_skip_the_python_constructor(
+def test_records_skip_the_python_constructor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
@@ -137,6 +137,5 @@ def test_complete_records_skip_the_python_constructor(
 
         monkeypatch.setattr(cls, "__hinoki_construct_validated__", classmethod(spy))
     Inner.validate({"name": "a", "size": 1})
-    assert calls == []
     Defaulted.validate({"name": "a"})
-    assert calls == ["Defaulted"]
+    assert calls == []

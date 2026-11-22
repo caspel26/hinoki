@@ -92,7 +92,7 @@ def test_a_str_subclass_with_dump_is_still_replaced_by_its_dump() -> None:
         value: str
 
     holder = Holder(value="x")
-    holder.__dict__["value"] = Marked("raw")
+    object.__setattr__(holder, "value", Marked("raw"))
 
     assert core.dump_instance(holder, True) == {"value": "dumped"}
 

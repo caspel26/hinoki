@@ -53,6 +53,15 @@ async def reindex() -> dict[str, str]: ...
 
 `kill -HUP` on the supervisor of `hinoki serve` replaces the workers one at a time on the same listening socket: a new worker imports the code and reads the settings again, reports once its lifespan has started and it serves, and only then is the old one stopped gracefully. A new worker that does not start keeps the old ones running and the reload stops with an error. New setting `server.sighup` (`"reload"`, the default, or `"stop"` for the earlier behavior; Kiso only). `hinoki serve` now runs a supervisor even with one worker unless `sighup` is `"stop"`; on Windows, which has no `SIGHUP`, nothing changes. A worker that is stopping now answers requests already sent to it instead of refusing them with `503`, and a replacement worker's metrics use the next free `worker` number. See [reload on `SIGHUP`](docs/kiso.md#reload-on-sighup).
 
+#### ⚡ One-pass JSON bodies for plain schemas
+> `crates/bindings/src/schema/typeddecode.rs`, `crates/bindings/src/schema.rs`, `python/hinoki/schema.py`, `python/hinoki/runtime/pipeline.py`
+
+On Kiso, the JSON body of a `Schema` parameter without `pattern`, `normalize`, `one_of`, collections, `@before_validate` or checks is read by Rust straight into the instance's fields, without the intermediate dict and list tree. Any invalid or unusual body falls back to the ordinary decode and validation on the same bytes, so errors do not change. `Schema.validate_json(raw)` returns the instance, or `None` when the ordinary path must run. See [one-pass JSON body](docs/schema-validation.md#one-pass-json-body).
+
+Schema fields now live in `__slots__`: they are no longer in `vars(instance)`, and a class that combines two bases that declare fields needs `slots=False` on all but one (a `RegistrationError` says so). Classes made with `model=` keep their fields in the instance dict. `Schema` now has a metaclass, so it cannot be combined with an `abc.ABC` or `Protocol` base.
+
+The same plain schemas now construct (`Item(...)`), `validate`, `validate_text`, `replace` and `dump` in Rust, with the same results and errors; anything outside the plan runs the Python code. A `default_factory` whose value is rejected may be called twice. `validate` reads a plain dict straight into the slots, and `copy`, `deepcopy` and pickling of an instance run in Rust. See [native constructor and `validate`](docs/schema-validation.md#native-constructor-and-validate).
+
 #### 📈 Prometheus metrics on Kiso
 > `crates/kiso/src/metrics.rs`, `crates/kiso/src/scrape.rs`, `crates/bindings/src/metrics.rs`, `python/hinoki/settings.py`, `python/hinoki/serve.py`, `python/hinoki/runtime/supervisor.py`
 

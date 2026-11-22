@@ -255,7 +255,7 @@ def test_lists_and_discriminated_variants_keep_their_own_policies() -> None:
 
 
 def test_config_inheritance_requires_explicit_resolution_for_conflicts() -> None:
-    class ForbidBase(Schema):
+    class ForbidBase(Schema, slots=False):
         left: str
 
     class IgnoreBase(Schema, config=SchemaConfig(extra=SchemaExtra.IGNORE)):
