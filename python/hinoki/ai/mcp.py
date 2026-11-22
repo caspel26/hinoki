@@ -226,7 +226,7 @@ def tool_explain_action(project: DevProject, args: dict[str, Any]) -> dict[str, 
     operation = (
         project.app.openapi()["paths"]
         .get(route.path, {})
-        .get(operation_key(route.method), {})
+        .get(operation_key(route.method, project.app.openapi_version), {})
     )
     diagnostics, _ = project.diagnostics(None)
     subject = qualified(route)

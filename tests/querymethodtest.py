@@ -6,9 +6,13 @@ import pytest
 from openapi_spec_validator import validate
 
 from hinoki import API, Access, Hinoki, Request, RouteGroup, Schema, http
+from hinoki.ai.mcp import DevProject, tool_explain_action
 from hinoki.ai.mcpapp import expose_as_mcp
+from hinoki.ai.samples import request_cases
 from hinoki.errors import RegistrationError
+from hinoki.rules import RuleSet
 from hinoki.scenario import ScenarioError, run_scenario
+from hinoki.settings import AppSettings, DocsSettings
 from hinoki.testing import ASGIClient, SyncClient
 from hinoki.wsgi import WSGIAdapter
 from tests.providers import TokenAuth
@@ -82,8 +86,8 @@ class Library(API):
         return Found(text=data.text, limit=data.limit, via="class")
 
 
-def build() -> Hinoki:
-    app = Hinoki()
+def build(**options: Any) -> Hinoki:
+    app = Hinoki(**options)
     app.include(search, search_page, raw, only_get, group, Library)
     return app
 
@@ -164,21 +168,48 @@ def test_a_schema_parameter_is_still_refused_on_a_get_action() -> None:
         app.include(bad)
 
 
-def test_openapi_stays_valid_and_describes_query_under_an_extension() -> None:
+def test_openapi_32_describes_query_as_a_first_class_method() -> None:
     document = build().openapi()
     validate(document)
-    assert document["openapi"] == "3.1.0"
+    assert document["openapi"] == "3.2.0"
     item = document["paths"]["/search"]
-    assert set(item) == {"get", "x-query"}
-    operation = item["x-query"]
+    assert set(item) == {"get", "query"}
+    operation = item["query"]
     assert operation["summary"] == "Search with a structured body."
     body = operation["requestBody"]["content"]["application/json"]["schema"]
     assert body == {"$ref": "#/components/schemas/Search"}
     assert "200" in operation["responses"] and "422" in operation["responses"]
+    assert not any("x-query" in path for path in document["paths"].values())
+
+
+def test_openapi_31_describes_query_under_an_extension() -> None:
+    document = build(openapi_version="3.1").openapi()
+    validate(document)
+    assert document["openapi"] == "3.1.0"
+    item = document["paths"]["/search"]
+    assert set(item) == {"get", "x-query"}
+    assert item["x-query"] == build().openapi()["paths"]["/search"]["query"]
+
+
+def test_both_versions_name_every_query_operation_once() -> None:
+    def ids(document: dict[str, Any], key: str) -> list[str]:
+        return [
+            item[key]["operationId"]
+            for item in document["paths"].values()
+            if key in item
+        ]
+
+    new = ids(build().openapi(), "query")
+    old = ids(build(openapi_version="3.1").openapi(), "x-query")
+    assert new == old and len(new) == len(set(new)) == 4
 
 
 async def test_the_application_mcp_exposes_query_as_a_read() -> None:
-    app = build()
+    for options in ({}, {"openapi_version": "3.1"}):
+        await check_mcp_exposes_query(build(**options))
+
+
+async def check_mcp_exposes_query(app: Hinoki) -> None:
     app.include(*expose_as_mcp(app, tools=["*.books", "*.make"], access=reader))
     async with ASGIClient(app) as client:
 
@@ -218,3 +249,22 @@ def test_the_sync_client_and_the_wsgi_adapter_carry_query() -> None:
         assert status.startswith("405") and headers["allow"] == "GET, HEAD"
     finally:
         adapter.close()
+
+
+@pytest.mark.parametrize("version", ["3.1", "3.2"])
+def test_explain_action_and_request_cases_find_query_in_either_version(
+    version: str,
+) -> None:
+    app = build(openapi_version=version)
+    project = DevProject(app, RuleSet())
+    described = tool_explain_action(project, {"action": "search"})
+    assert described["operation"]["operationId"] == "search"
+    cases = [c for c in request_cases(app.openapi()) if c.method == "QUERY"]
+    assert "/search" in {c.path for c in cases}
+
+
+def test_the_docs_setting_chooses_the_version_and_the_argument_wins() -> None:
+    settings = AppSettings(docs=DocsSettings(openapi_version="3.1"))
+    assert Hinoki(settings=settings).openapi()["openapi"] == "3.1.0"
+    explicit = Hinoki(settings=settings, openapi_version="3.2")
+    assert explicit.openapi()["openapi"] == "3.2.0"

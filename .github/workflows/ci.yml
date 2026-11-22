@@ -398,7 +398,7 @@ jobs:
           assert core.DatabaseError.__module__ == "hinoki.core"
           assert core.encode_json(T(name="x")) == b'{"name":"x"}'
           assert len(Templates(theme="console").stylesheet()) > 1000
-          assert len(pages("/o", "/d", "/r")) == 6
+          assert len(pages("/o", "/d", "/r")) == 7
           assert core.verify_password("a", core.hash_password("a", 19456, 2, 1))
           print("wheel smoke ok")
           PY
