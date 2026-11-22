@@ -15,3 +15,9 @@ Status: Accepted · 2026-11-18 (proposed 2026-11-13)
 ## Amendment (2026-11-18)
 
 Accepted. Since this ADR was proposed, Hinoki also ships a first-party Rust server selected with `--server kiso` or `server.server = "kiso"` (`docs/serving.md`). The Rust server is now the default server and Granian with the ASGI adapter remains selectable with `--server granian`, so "no second HTTP server" no longer holds for the first release. Requests the Rust server does not answer natively still cross Python, and no ASGI-versus-RSGI measurement exists yet, so the revisit condition above stands.
+
+## Amendment (2026-11-22): RSGI measured, not adopted
+
+Measured on Granian 2.8.8 (one worker, `/health`, bombardier with 100 connections, alternating rounds, indicative load): a minimal ASGI app reaches about 38k requests/s and a minimal RSGI app about 41k, but Hinoki on its real ASGI adapter reaches about 13.8k. A shim that feeds the same pipeline through RSGI with the same inputs as the ASGI adapter is only 1.8% faster, and the ASGI protocol itself costs about 1.75 µs of roughly 72 µs per request (about 2.4%). The framework's own work dominates, so an RSGI adapter is not worth a second code path.
+
+RSGI also cannot match ASGI semantics: it exposes only the already decoded path, so `%2F`, `%25` and invalid UTF-8 cannot be routed as the ASGI adapter routes them. **Decision:** keep the ASGI adapter on Granian; revisit only if the framework's per-request cost falls far enough for the protocol share to exceed about 10%.
