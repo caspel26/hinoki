@@ -8,6 +8,26 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 📣 Deprecated actions tell their callers
+> `python/hinoki/runtime/deprecation.py`, `python/hinoki/runtime/binding.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/servercore.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/routing.py`, `python/hinoki/routescli.py`
+
+`deprecated=True` or `deprecated=date(2026, 11, 22)` on an action (or on `crud(...)`) now also adds a `Deprecation` header to its responses and logs a warning on the `hinoki.deprecated` logger when it is called, at most once a minute per action. The action leaves the native lane (`lane_reason` `deprecated`).
+
+```python
+@http.get("/v1/tasks", deprecated=date(2026, 11, 22))
+async def list_tasks_v1() -> list[str]: ...
+```
+
+#### 🏷️ Per-action OpenAPI controls
+> `python/hinoki/routing.py`, `python/hinoki/openapi.py`, `python/hinoki/resources.py`, `python/hinoki/app.py`, `python/hinoki/ai/mcpapp.py`
+
+`@http.get(..., include_in_schema=False)` leaves an action out of the OpenAPI document without changing how it is served or protected; `tags`, `deprecated` and `operation_id` describe it. `RouteGroup(...)` and `crud(...)` take the same controls, and a duplicate `operation_id` stops registration. MCP refuses an action that is left out.
+
+```python
+@http.get("/ops/reindex", access=admin_only, include_in_schema=False)
+async def reindex() -> dict[str, str]: ...
+```
+
 #### 🔄 Reload on SIGHUP in Kiso
 > `python/hinoki/runtime/supervisor.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/runtime/wsgiworker.py`, `python/hinoki/runtime/listener.py`, `python/hinoki/serve.py`, `python/hinoki/settings.py`
 

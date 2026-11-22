@@ -13,6 +13,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypeVar
 
 from hinoki.access import Access
@@ -58,6 +59,10 @@ class Route:
     rate_limit: RateLimitPolicy | None = None
     middleware: tuple[Middleware, ...] = ()
     cors: Cors | None = None
+    include_in_schema: bool = True
+    tags: tuple[str, ...] = ()
+    deprecated: bool | date = False
+    operation_id: str | None = None
 
     @property
     def is_async(self) -> bool:
@@ -84,6 +89,10 @@ class Options:
     rate_limit: RateLimitPolicy | None = None
     middleware: Sequence[Middleware] = ()
     cors: Cors | None = None
+    include_in_schema: bool = True
+    tags: Sequence[str] = ()
+    deprecated: bool | date = False
+    operation_id: str | None = None
 
 
 class RouteDeclaration:
@@ -130,9 +139,51 @@ class RouteDeclaration:
             rate_limit=options.rate_limit,
             middleware=check_middleware(options.middleware),
             cors=check_cors(options.cors),
+            include_in_schema=check_flag(
+                "include_in_schema", options.include_in_schema
+            ),
+            tags=check_tags(options.tags),
+            deprecated=check_deprecated(options.deprecated),
+            operation_id=check_operation_id(options.operation_id),
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
+
+
+def check_flag(name: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{name}=... takes True or False, got {value!r}")
+    return value
+
+
+def check_deprecated(value: object) -> bool | date:
+    """``True``, ``False`` or the ``datetime.date`` the action was deprecated on."""
+    if isinstance(value, datetime) or not isinstance(value, bool | date):
+        raise ValueError(f"deprecated=... takes True, False or a date, got {value!r}")
+    return value
+
+
+def check_tags(tags: Sequence[str]) -> tuple[str, ...]:
+    """The declared OpenAPI tags: non-empty strings, in order, without repeats."""
+    if isinstance(tags, str):
+        raise ValueError(f"tags=... takes a list of names, not the string {tags!r}")
+    found: list[str] = []
+    for tag in tags:
+        if not isinstance(tag, str) or not tag.strip():
+            raise ValueError(f"tags=... takes non-empty strings, got {tag!r}")
+        if tag not in found:
+            found.append(tag)
+    return tuple(found)
+
+
+def check_operation_id(operation_id: str | None) -> str | None:
+    if operation_id is not None and (
+        not isinstance(operation_id, str) or not operation_id.strip()
+    ):
+        raise ValueError(
+            f"operation_id=... takes a non-empty string, got {operation_id!r}"
+        )
+    return operation_id
 
 
 def check_cors(cors: Cors | None) -> Cors | None:
@@ -178,6 +229,10 @@ def get(
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
     cors: Cors | None = None,
+    include_in_schema: bool = True,
+    tags: Sequence[str] = (),
+    deprecated: bool | date = False,
+    operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a GET action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -195,6 +250,10 @@ def get(
         rate_limit,
         middleware,
         cors,
+        include_in_schema,
+        tags,
+        deprecated,
+        operation_id,
     )
     return RouteDeclaration("GET", path, options)
 
@@ -214,6 +273,10 @@ def post(
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
     cors: Cors | None = None,
+    include_in_schema: bool = True,
+    tags: Sequence[str] = (),
+    deprecated: bool | date = False,
+    operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a POST action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -231,6 +294,10 @@ def post(
         rate_limit,
         middleware,
         cors,
+        include_in_schema,
+        tags,
+        deprecated,
+        operation_id,
     )
     return RouteDeclaration("POST", path, options)
 
@@ -250,6 +317,10 @@ def put(
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
     cors: Cors | None = None,
+    include_in_schema: bool = True,
+    tags: Sequence[str] = (),
+    deprecated: bool | date = False,
+    operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a PUT action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -267,6 +338,10 @@ def put(
         rate_limit,
         middleware,
         cors,
+        include_in_schema,
+        tags,
+        deprecated,
+        operation_id,
     )
     return RouteDeclaration("PUT", path, options)
 
@@ -286,6 +361,10 @@ def patch(
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
     cors: Cors | None = None,
+    include_in_schema: bool = True,
+    tags: Sequence[str] = (),
+    deprecated: bool | date = False,
+    operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a PATCH action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -303,6 +382,10 @@ def patch(
         rate_limit,
         middleware,
         cors,
+        include_in_schema,
+        tags,
+        deprecated,
+        operation_id,
     )
     return RouteDeclaration("PATCH", path, options)
 
@@ -322,6 +405,10 @@ def delete(
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
     cors: Cors | None = None,
+    include_in_schema: bool = True,
+    tags: Sequence[str] = (),
+    deprecated: bool | date = False,
+    operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a DELETE action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
@@ -339,6 +426,10 @@ def delete(
         rate_limit,
         middleware,
         cors,
+        include_in_schema,
+        tags,
+        deprecated,
+        operation_id,
     )
     return RouteDeclaration("DELETE", path, options)
 
@@ -358,6 +449,10 @@ def query(
     rate_limit: RateLimitPolicy | None = None,
     middleware: Sequence[Middleware] = (),
     cors: Cors | None = None,
+    include_in_schema: bool = True,
+    tags: Sequence[str] = (),
+    deprecated: bool | date = False,
+    operation_id: str | None = None,
 ) -> RouteDeclaration:
     """Declare a QUERY action: a safe, idempotent request that carries a body
     (a search too large or too structured for a query string). It binds its
@@ -378,6 +473,10 @@ def query(
         rate_limit,
         middleware,
         cors,
+        include_in_schema,
+        tags,
+        deprecated,
+        operation_id,
     )
     return RouteDeclaration("QUERY", path, options)
 
@@ -427,7 +526,9 @@ class RouteGroup:
     public), ``atomic=True`` makes POST/PUT/PATCH/DELETE transactional unless the
     action says ``atomic=False``, ``errors`` are added to each action's own and
     ``cors`` is the default ``http.Cors`` (``cors=None`` on an action keeps the
-    application's policy).
+    application's policy). ``include_in_schema=False`` leaves every action out of
+    the OpenAPI document unless it says ``include_in_schema=True``, and ``tags`` come
+    before the tags of each action.
     The result is an ordinary action: rules, OpenAPI and the MCP see no difference.
     """
 
@@ -439,6 +540,8 @@ class RouteGroup:
         atomic: bool = False,
         errors: Sequence[type[APIError]] = (),
         cors: Cors | None = None,
+        include_in_schema: bool = True,
+        tags: Sequence[str] = (),
     ) -> None:
         if prefix and (not prefix.startswith("/") or prefix.endswith("/")):
             raise ValueError("a prefix starts with '/' and does not end with one")
@@ -447,6 +550,8 @@ class RouteGroup:
         self.atomic = atomic
         self.errors = tuple(errors)
         self.cors = check_cors(cors)
+        self.include_in_schema = check_flag("include_in_schema", include_in_schema)
+        self.tags = check_tags(tags)
         self._handlers: list[Callable[..., object]] = []
         self._included = False
 
@@ -494,6 +599,10 @@ class RouteGroup:
             rate_limit=options.pop("rate_limit", None),
             middleware=options.pop("middleware", ()),
             cors=self.cors if isinstance(cors, Unset) else cors,
+            include_in_schema=options.pop("include_in_schema", self.include_in_schema),
+            tags=(*self.tags, *options.pop("tags", ())),
+            deprecated=options.pop("deprecated", False),
+            operation_id=options.pop("operation_id", None),
         )
         if options:
             raise TypeError(f"unknown action options {sorted(options)}")

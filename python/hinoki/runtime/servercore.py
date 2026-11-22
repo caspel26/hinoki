@@ -215,7 +215,8 @@ def native_handler_eligible(binding: Binding) -> bool:
     for a body method with one ``Schema`` body and only built-in parsers."""
     route = binding.route
     if (
-        binding.streams
+        route.deprecated  # the Python pipeline adds its header and its reminder
+        or binding.streams
         or route.middleware
         or (
             route.owner is not None

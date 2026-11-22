@@ -27,6 +27,7 @@ from hinoki.schema import Schema, SchemaExtra
 if TYPE_CHECKING:
     from hinoki.access import Access
     from hinoki.app import Hinoki
+    from hinoki.routing import Route
 
 SCALAR_TYPES: dict[type, dict[str, Any]] = {
     str: {"type": "string"},
@@ -90,6 +91,24 @@ INPUTS = {"path", "query", "page", "queryschema"}
 BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
+def documented(route: Route) -> bool:
+    """Whether the OpenAPI document lists ``route``. Leaving it out changes only
+    the document: the action is still served and its access still applies."""
+    if getattr(route.owner, "hide_from_docs", False):
+        return False  # HTML pages (the admin) are not part of the API contract
+    return route.include_in_schema
+
+
+def labels(route: Route) -> dict[str, Any]:
+    """The ``tags`` and ``deprecated`` keys an operation declares."""
+    found: dict[str, Any] = {}
+    if route.tags:
+        found["tags"] = list(route.tags)
+    if route.deprecated:
+        found["deprecated"] = True
+    return found
+
+
 def operation_key(method: str) -> str:
     """The path item field holding a method's operation. OpenAPI 3.1 has no
     ``query`` operation (3.2 adds it), so QUERY uses the ``x-query`` extension
@@ -121,15 +140,19 @@ class OpenAPIBuilder:
         self.version = version
         self.components: dict[str, dict[str, Any]] = {}
         self.owners: dict[str, type[Schema]] = {}
-        self.operation_ids: set[str] = set()
+        self.operation_ids: set[str] = {
+            route.operation_id
+            for route in app.routes
+            if route.operation_id and documented(route)
+        }
         self.security_schemes: dict[str, dict[str, Any]] = {}
 
     def build(self) -> dict[str, Any]:
         paths: dict[str, dict[str, Any]] = {}
         for binding in self.app.bindings:
             route = binding.route
-            if getattr(route.owner, "hide_from_docs", False):
-                continue  # HTML pages (the admin) are not part of the API contract
+            if not documented(route):
+                continue
             path = paths.setdefault(route.path, {})
             path[operation_key(route.method)] = self.operation(binding)
         document: dict[str, Any] = {
@@ -149,6 +172,7 @@ class OpenAPIBuilder:
     def operation(self, binding: Binding) -> dict[str, Any]:
         route = binding.route
         operation: dict[str, Any] = {"operationId": self.operation_id(binding)}
+        operation.update(labels(route))
         summary, description = split_docstring(route.handler)
         if summary:
             operation["summary"] = summary
@@ -246,6 +270,8 @@ class OpenAPIBuilder:
             responses["403"] = {"description": "Missing required scope"}
 
     def operation_id(self, binding: Binding) -> str:
+        if binding.route.operation_id:
+            return binding.route.operation_id
         base = re.sub(r"\W+", "_", binding.route.name.replace("<locals>.", "")).strip(
             "_"
         )

@@ -80,6 +80,8 @@ def lanes_of(app: Hinoki) -> dict[int, tuple[str, str]]:
         lane = "native" if selection else "python"
         if binding.route.middleware:
             reason = "middleware"
+        elif binding.route.deprecated:
+            reason = "deprecated"
         lanes[id(binding.route)] = (lane, reason)
     return lanes
 
