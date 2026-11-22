@@ -101,7 +101,9 @@ Security, CORS and request-id headers are added after the middleware returns.
 
 An action with middleware is served by Python for the whole request, so it
 leaves [the native lane](kiso.md#what-is-native-and-what-still-runs-in-python):
-`hinoki routes --lanes` shows `lane_reason` `middleware`. Actions without
+`hinoki routes --lanes` shows `lane_reason` `middleware`. A deprecated action
+([deprecate an action](openapi.md#deprecate-an-action)) leaves the lane the same
+way, with `lane_reason` `deprecated`. Actions without
 middleware keep their lane. A middleware that only needs to observe requests can
 use the [access log](kiso.md#the-native-handler-lane) instead, which does not
 change the lane.

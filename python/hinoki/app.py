@@ -23,7 +23,7 @@ from hinoki.fields import UNSET, Unset
 from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
-from hinoki.openapi import OpenAPIBuilder
+from hinoki.openapi import OpenAPIBuilder, documented
 from hinoki.pagination import (
     DEFAULT_MAX_PAGE_SIZE,
     DEFAULT_PAGE_SIZE,
@@ -366,6 +366,7 @@ class Hinoki:
         self._check_mutable()
         pending, groups = self._collect_routes(items)
         refuse_shared_names([*self._routes, *pending])
+        refuse_duplicate_operation_ids([*self._routes, *pending])
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
         # CRUD row plans must be scoped to this app's resolved renderers and binding.
@@ -611,6 +612,20 @@ class Hinoki:
     def _check_mutable(self) -> None:
         if self._adapter is not None:
             raise RegistrationError("application is already serving; it is frozen")
+
+
+def refuse_duplicate_operation_ids(routes: Sequence[Route]) -> None:
+    """An ``operation_id`` names one operation in the OpenAPI document."""
+    seen: dict[str, Route] = {}
+    for route in routes:
+        if not route.operation_id or not documented(route):
+            continue
+        first = seen.setdefault(route.operation_id, route)
+        if first is not route:
+            raise RegistrationError(
+                f"operation_id {route.operation_id!r} is declared by "
+                f"{first.name} and {route.name}; it must be unique"
+            )
 
 
 def refuse_shared_names(routes: Sequence[Route]) -> None:
