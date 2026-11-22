@@ -56,18 +56,14 @@
     });
   };
 
-  /* ---------- Hero glow trails the pointer ---------- */
-  /* Fine pointers only. Each disc eases toward the pointer with its own time
-     constant, so together they leave a fading trail; the loop stops once every
-     disc has settled and the discs fade out when the pointer leaves the hero. */
+  /* ---------- Hero glow follows the pointer ---------- */
+  /* Fine pointers only. A tight core and a wider halo ease toward the pointer
+     with different time constants; the loop stops once both have settled and
+     the glow fades out when the pointer leaves the hero. */
+  const GLOW_TAU = [28, 110];
+
   const setupGlow = (hero) => {
-    const discs = $$(".hn-hero__bg i", hero).map((el, n) => ({
-      el,
-      tau: 45 + n * 50,
-      scale: 1 - n * 0.12,
-      x: 0,
-      y: 0,
-    }));
+    const discs = $$(".hn-hero__bg i", hero).map((el, n) => ({ el, tau: GLOW_TAU[n] ?? 110, x: 0, y: 0 }));
     const fine = matchMedia("(pointer: fine) and (prefers-reduced-motion: no-preference)");
     if (!discs.length || !fine.matches) return;
     let target = { x: 0, y: 0 };
@@ -82,7 +78,7 @@
         const k = 1 - Math.exp(-dt / d.tau);
         d.x += (target.x - d.x) * k;
         d.y += (target.y - d.y) * k;
-        d.el.style.transform = `translate3d(${d.x.toFixed(2)}px, ${d.y.toFixed(2)}px, 0) scale(${d.scale})`;
+        d.el.style.transform = `translate3d(${d.x.toFixed(2)}px, ${d.y.toFixed(2)}px, 0)`;
         moving ||= Math.abs(target.x - d.x) > 0.2 || Math.abs(target.y - d.y) > 0.2;
       }
       frame = moving ? requestAnimationFrame(step) : 0;
