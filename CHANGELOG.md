@@ -73,7 +73,7 @@ The database pool defaults to the settings size of 10, and a URL scheme that lac
 The command line, the migration state files, the JSON log format, the MCP server and the test client no longer use Python's `json` module. Output is the same data with compact separators (`{"a":1}`) where it was not indented, and floats such as `1e-07` print as `1e-7`. Command-line, log, MCP and migration-state output stays ASCII. What changes for callers:
 
 - `NaN` and infinities are refused when written or read.
-- Reading refuses nesting deeper than 128 levels (the standard library allowed about 1000); this applies to MCP input and to the test client.
+- Reading refuses more than 128 nested arrays or objects (the standard library allowed about 1000); this applies to MCP input and to the test client.
 - The test client's `json=` also accepts `datetime` and `UUID` values.
 - A JSON column whose bytes start with a UTF-8 byte order mark raises `FieldError`.
 
@@ -86,6 +86,7 @@ The command line, the migration state files, the JSON log format, the MCP server
 - **Migrations:** a plan error no longer suggests running `migrations plan` (#392).
 - **Model validation:** text length errors count characters, not items (`python/hinoki/orm/model.py`, #396).
 - **WSGI:** a plain WSGI callable reads its settings from the environment (`python/hinoki/runtime/wsgiworker.py`, #400).
+- **JSON nesting limits:** reading accepts exactly 128 nested arrays or objects and writing exactly 200, as documented; the 129th and the 201st are refused. An empty innermost array or object used to count as one more, and a `Schema` object is now counted as a container (`crates/bindings/src/request.rs`).
 
 ---
 
