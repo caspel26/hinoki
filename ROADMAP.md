@@ -27,7 +27,6 @@ These are directions, not commitments, and none of them is available today.
 
 - Moving more of the request path into the Rust core, before new features.
 - Cursor pagination.
-- WebSockets.
 - Per-route CORS policies.
 - Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 

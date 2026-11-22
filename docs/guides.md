@@ -32,6 +32,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Generate CRUD routes](crud.md): list, retrieve and write actions from a model, with access and ownership rules.
 - [Errors](errors.md): malformed requests, authentication failures and declared application errors.
 - [Stream a response](streaming.md): `Stream`, `EventStream` and `File` answers sent while they are produced, on Kiso and Granian.
+- [WebSockets](websockets.md): `@ws.route` actions with `Access`, typed JSON messages, limits and back-pressure, on Kiso and Granian.
 - [Compress responses](compression.md): optional brotli and gzip compression of bodies, on Kiso only.
 - [Export Prometheus metrics](metrics.md): request counters and histograms on a dedicated listener, on Kiso only.
 - [Middleware](middleware.md): typed `Middleware` around an action or the whole app, identical on Kiso and Granian.

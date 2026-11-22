@@ -59,6 +59,12 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `execution` | `max_streams` | `64` | `1` or greater; streams open at once per worker, more answer `503` with `Retry-After: 1` before the handler runs |
 | `execution` | `stream_idle_timeout` | `None` (uses `request_timeout`) | Must be positive; seconds a `Stream` may stay silent before it is cut |
 | `execution` | `sse_keepalive` | `15.0` seconds | Must be positive; quiet seconds before an `EventStream` sends a comment (`keepalive=None` on the stream turns it off) |
+| `execution` | `max_websockets` | `1000` | `1` or greater; open [WebSocket](websockets.md) connections per worker (Kiso), more are refused with `503` before the upgrade |
+| `execution` | `ws_max_message_bytes` | `1048576` (1 MiB) | `1` to `1073741824`; a larger WebSocket message closes the connection with `1009` |
+| `execution` | `ws_queue` | `64` | `1` or greater; messages queued in each direction of a WebSocket (Kiso) |
+| `execution` | `ws_ping_interval` | `20.0` seconds | Must be positive, or `None` to send no pings (Kiso) |
+| `execution` | `ws_pong_timeout` | `20.0` seconds | Must be positive; a peer that does not answer a ping in time is dropped (Kiso) |
+| `execution` | `ws_close_timeout` | `5.0` seconds | Must be positive; how long a WebSocket close handshake may take (Kiso) |
 | `lifecycle` | `startup_timeout` | `30.0` seconds | Must be positive |
 | `lifecycle` | `shutdown_timeout` | `10.0` seconds | Must be positive |
 | `logging` | `level` | `info` | `debug`, `info`, `warning`, `error` or `critical` |

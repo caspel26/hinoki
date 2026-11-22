@@ -38,7 +38,19 @@ uv run --no-sync python benchmarks/jsonencodebench.py --output result.json
 
 Numbers depend on the machine and are not retained here. Results are isolated function calls, not request-path results.
 
+## `websocketbench.py` — WebSocket echo and plain GET through Kiso
+
+Question: what does an echo round trip of a 64-byte text message over a WebSocket cost, and does a build that has WebSocket support still serve plain HTTP GETs as fast as one without? Server and client share one process and event loop; 16 clients, 500 rounds each, 7 samples after a warm-up.
+
+```sh
+uv run --locked python benchmarks/websocketbench.py --mode ws
+uv run --locked python benchmarks/websocketbench.py --mode http
+```
+
+Run `--mode http` on both builds to compare them; numbers depend on the machine and the build profile and are not retained here.
+
 ## `requestbench.py` — JSON and query parsing, Python vs Rust
+
 
 Question: what does decoding a JSON body, encoding a response and parsing a query string cost through `hinoki.core` compared with `json.loads` / `json.dumps` / `urllib.parse.parse_qs`? One payload (about 1.2 KB: nested object, 20-item list, strings, numbers, booleans, null), 7 samples × 20 000 calls.
 
