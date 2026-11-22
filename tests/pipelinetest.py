@@ -1,15 +1,15 @@
 """The shared request pipeline, driven without the ASGI protocol."""
 
 import json
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 
-from hinoki import Hinoki, Request, http
+from hinoki import Field, Hinoki, Request, Schema, http
 from hinoki.db import UniqueViolation
 from hinoki.errors import Conflict
 from hinoki.runtime.executor import ExecutorSaturated
-from hinoki.runtime.pipeline import Pipeline, native_input_exception
+from hinoki.runtime.pipeline import NativeBody, Pipeline, native_input_exception
 from hinoki.runtime.responses import Response
 
 
@@ -236,3 +236,46 @@ def test_startup_probe_rejects_a_missing_prebuilt_response() -> None:
     built.startup_response = None
     with pytest.raises(RuntimeError, match="startup response was not initialized"):
         built._startup_response(scope("GET", "/health"), {})
+
+
+class Ticket(Schema):
+    title: Annotated[str, Field(min_length=2)]
+    seats: Annotated[int, Field(ge=1)]
+
+
+@http.post("/tickets", status=201)
+async def book(ticket: Ticket) -> dict[str, object]:
+    return {"title": ticket.title, "seats": ticket.seats}
+
+
+async def post_ticket(
+    monkeypatch: pytest.MonkeyPatch, raw: bytes, typed: bool
+) -> Response:
+    if not typed:
+        monkeypatch.setattr(Ticket, "validate_json", staticmethod(lambda _raw: None))
+    app = Hinoki()
+    app.include(book)
+    built = Pipeline(app)
+    built.lifespan._started = True
+    headers = [(b"content-type", b"application/json")]
+    body = NativeBody(FakeBody(raw), headers, b"", None)
+    return await built.handle_native(built.bindings[0], "r" * 32, {}, None, body)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"title": "Opera", "seats": 2}',
+        b'{"title": "O", "seats": 2}',
+        b'{"title": "Opera", "seats": 0}',
+        b'{"title": "Opera"}',
+        b'{"title": "Opera", "seats": 2, "x": 1}',
+        b'{"title": "Opera", "seats": 2',
+    ],
+)
+async def test_typed_body_lane_answers_like_the_ordinary_path(
+    monkeypatch: pytest.MonkeyPatch, raw: bytes
+) -> None:
+    fast = await post_ticket(monkeypatch, raw, True)
+    slow = await post_ticket(monkeypatch, raw, False)
+    assert (fast.status, fast.body) == (slow.status, slow.body)
