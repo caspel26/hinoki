@@ -13,9 +13,10 @@ import pytest
 from hinoki import Access, Caller, Hinoki, Schema, core, http
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.errors import APIError, Forbidden, TooManyRequests, Unauthorized
-from hinoki.events import AuthRejected, Handlers
+from hinoki.events import AuthRejected, Handlers, RateLimited
 from hinoki.ratelimit import RateLimitContext
 from hinoki.runtime.kiso import KisoWorker
+from hinoki.runtime.nativelane import lane_refusal
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.servercore import route_auth_of
 from tests.kisoservertest import Received, fetch, record_lanes
@@ -332,3 +333,39 @@ async def test_a_provider_changed_by_a_startup_hook_is_decided_by_python(
         assert (old.status, new.status) == (401, 200)
     finally:
         await worker.stop()
+
+
+@pytest.mark.asyncio
+async def test_guard_events_are_delivered_with_native_dispatch(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    seen: list[tuple[str, object]] = []
+    watching = Handlers()
+
+    @watching.after_commit(AuthRejected)
+    async def rejected(event: AuthRejected) -> None:
+        seen.append(("auth", event.reason))
+
+    @watching.after_commit(RateLimited)
+    async def limited(event: RateLimited) -> None:
+        seen.append(("limit", event.retry_after))
+
+    app = Hinoki(include=[guarded, guarded_post, guarded_limited], events=[watching])
+    worker = KisoWorker(app, "127.0.0.1", 0, native_dispatch=True)
+    port = await worker.start()
+    try:
+        missing = await fetch(port, "GET", "/guarded-limited")
+        forbidden = await fetch(
+            port,
+            "GET",
+            "/guarded-limited",
+            bearer(token(good(scopes=["other"]))),
+        )
+        limit = await fetch(port, "GET", "/guarded-limited", bearer(token(good())))
+    finally:
+        await worker.stop()
+    assert (missing.status, forbidden.status, limit.status) == (401, 403, 429)
+    assert seen == [("auth", "missing"), ("auth", "forbidden"), ("limit", 9)]
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+    binding = next(b for b in worker.pipeline.bindings if b.route.path == "/guarded")
+    assert "AuthRejected" in (lane_refusal(binding, worker.pipeline.events) or "")
