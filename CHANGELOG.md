@@ -21,7 +21,7 @@ The generated document is now OpenAPI `3.2.0`, and an `@http.query` action is wr
 #### 🧱 Middleware declared per app in `hinoki.toml`
 > `python/hinoki/project.py`, `python/hinoki/projectcli.py`
 
-An app can set `middleware = "module:attribute"` (a list or tuple of `Middleware`). `manifest_middleware()` returns each app's list in dependency order, flattened, for `Hinoki(middleware=manifest_middleware())`; a target that does not import or has the wrong type is a `ProjectError` naming the app. `hinoki app add --middleware` registers one and `hinoki app list` (text and JSON `middleware` key) shows it. Hinoki generates no events or middleware module: you write it. See [Middleware](docs/middleware.md#declaring-middleware-in-hinokitoml).
+An app can set `middleware = "module:attribute"` (a list or tuple of `Middleware`). `manifest_middleware()` returns each app's list in dependency order, flattened, for `Hinoki(middleware=manifest_middleware())`; `Hinoki()` now loads the manifest's routes, events and middleware on its own for each of `include=`, `events=` and `middleware=` you leave out (an explicit value, even `()`, wins); a target that does not import or has the wrong type is a `ProjectError` naming the app. `hinoki app add --middleware` registers one and `hinoki app list` (text and JSON `middleware` key) shows it. Hinoki generates no events or middleware module: you write it. See [Middleware](docs/middleware.md#declaring-middleware-in-hinokitoml).
 
 #### 🔌 WebSockets
 > `crates/kiso/src/ws.rs`, `crates/kiso/src/wsrun.rs`, `crates/bindings/src/websocket.rs`, `crates/bindings/src/server.rs`, `python/hinoki/websocket.py`, `python/hinoki/runtime/websockets.py`, `python/hinoki/runtime/asgisocket.py`, `python/hinoki/openapi.py`, `python/hinoki/settings.py`
