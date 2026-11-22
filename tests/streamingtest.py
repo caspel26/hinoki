@@ -4,6 +4,7 @@ import asyncio
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -22,13 +23,23 @@ from hinoki.http import (
     Response,
     Stream,
 )
+from hinoki.runtime.executor import ExecutorSaturated
 from hinoki.runtime.nativelane import lane_refusal
 from hinoki.runtime.streaming import (
+    KEEPALIVE_FRAME,
     FileReader,
+    Guard,
     Pace,
     SourceReader,
     StreamAborted,
+    Streams,
     feed_asgi,
+    keeping_alive,
+    next_piece,
+    pump_asgi,
+    pump_sink,
+    reader_for,
+    within,
 )
 from hinoki.settings import AppSettings, ExecutionSettings
 from hinoki.testing import ASGIClient, BodyTooLarge, SyncClient
@@ -528,3 +539,302 @@ def _app(*handlers: object) -> Hinoki:
     app = Hinoki()
     app.include(*handlers)  # type: ignore[arg-type]
     return app
+
+
+class Saturated:
+    """An executor that refuses or fails every call with ``error``."""
+
+    def __init__(self, error: BaseException) -> None:
+        self.error = error
+
+    async def run(self, fn: Callable[..., Any], *args: Any) -> Any:
+        raise self.error
+
+
+class Gated:
+    """A reader that waits for ``gate`` before each piece, then ends."""
+
+    def __init__(self, pieces: list[bytes] | None = None) -> None:
+        self.gate = asyncio.Event()
+        self.pieces = pieces or []
+        self.closed = False
+        self.cancelled = False
+
+    async def next(self) -> bytes | None:
+        try:
+            await self.gate.wait()
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+        return self.pieces.pop(0) if self.pieces else None
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class FakeSink:
+    def __init__(self, accepts: bool = True) -> None:
+        self.accepts = accepts
+        self.sent: list[bytes] = []
+        self.ended: str | None = None
+        self.gone: asyncio.Future[bool] = asyncio.Future()
+
+    def try_send(self, piece: bytes) -> bool:
+        self.sent.append(piece)
+        return self.accepts
+
+    async def ready(self) -> bool:
+        return self.accepts
+
+    async def closed(self) -> bool:
+        return await self.gone
+
+    def finish(self) -> None:
+        self.ended = "finish"
+
+    def abort(self) -> None:
+        self.ended = "abort"
+
+
+async def test_a_source_still_running_or_an_executor_full_does_not_fail_the_close(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("DEBUG", logger="hinoki.runtime")
+
+    def pieces() -> Iterator[bytes]:
+        yield b"a"
+
+    busy = SourceReader(Stream(pieces()), Saturated(ValueError("running")))  # type: ignore[arg-type]
+    await busy.close()
+    assert "still running when it was closed" in caplog.text
+    full = SourceReader(Stream(pieces()), Saturated(ExecutorSaturated()))  # type: ignore[arg-type]
+    await full.close()
+    assert "not closed: the executor is full" in caplog.text
+
+
+async def test_a_file_reader_that_never_opened_has_nothing_to_close(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    unopened = FileReader("x", 1, Saturated(ExecutorSaturated()))  # type: ignore[arg-type]
+    await unopened.close()
+    assert caplog.text == ""
+    opened = FileReader("x", 1, Saturated(ExecutorSaturated()))  # type: ignore[arg-type]
+    opened.file = SimpleNamespace(close=lambda: None)
+    await opened.close()
+    assert "a file was not closed" in caplog.text
+
+
+def test_a_file_without_a_location_cannot_be_read() -> None:
+    handle = SimpleNamespace(answer=object(), location=None)
+    with pytest.raises(RuntimeError, match="must be located"):
+        reader_for(handle, Inline())  # type: ignore[arg-type]
+
+
+async def test_a_guard_needs_a_running_task() -> None:
+    outcome: asyncio.Future[BaseException | None] = asyncio.Future()
+
+    def from_a_callback() -> None:
+        try:
+            Guard()
+        except RuntimeError as error:
+            outcome.set_result(error)
+
+    asyncio.get_running_loop().call_soon(from_a_callback)
+    assert "pumped from a task" in str(await outcome)
+
+
+async def test_an_event_stream_that_starts_during_shutdown_ends_at_once() -> None:
+    streams = Streams(1)
+    streams.stop_events()
+    seen: list[Guard] = []
+
+    async def start() -> None:
+        guard = Guard()
+        seen.append(guard)
+        streams.enroll(guard)
+        await asyncio.sleep(10)
+
+    task = asyncio.ensure_future(start())
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert seen[0].clean
+
+
+async def test_a_pumped_body_starts_with_its_preamble_and_ends_finished() -> None:
+    sink, reader = FakeSink(), Gated([b"a", b"b"])
+    reader.gate.set()
+    await pump_sink(sink, reader, b"pre", None)  # type: ignore[arg-type]
+    assert sink.sent == [b"pre", b"a", b"b"]
+    assert sink.ended == "finish" and reader.closed
+
+
+async def test_shutdown_cancelling_a_pump_aborts_the_sink_and_propagates() -> None:
+    sink, reader = FakeSink(), Gated()
+    task = asyncio.ensure_future(pump_sink(sink, reader, b"", None))  # type: ignore[arg-type]
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert sink.ended == "abort" and reader.closed and reader.cancelled
+
+
+async def test_a_stream_idle_for_too_long_is_aborted_but_a_reader_timeout_is_not() -> (
+    None
+):
+    with pytest.raises(StreamAborted, match="nothing for too long"):
+        await within(0.01, Gated())  # type: ignore[arg-type]
+
+    class Failing(Gated):
+        async def next(self) -> bytes | None:
+            raise TimeoutError("the source's own")
+
+    with pytest.raises(TimeoutError, match="the source's own"):
+        await within(5, Failing())  # type: ignore[arg-type]
+
+
+async def test_a_quiet_event_stream_sends_comments_until_the_next_event() -> None:
+    reader = Gated([b"event"])
+    sent: list[dict[str, Any]] = []
+    quiet = asyncio.Event()
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+        quiet.set()
+
+    pace = Pace(b"", None, 0.01, True)
+    task = asyncio.ensure_future(next_piece(send, reader, pace))  # type: ignore[arg-type]
+    await asyncio.wait_for(quiet.wait(), timeout=5)
+    reader.gate.set()
+    assert await task == b"event"
+    assert sent[0]["body"] == KEEPALIVE_FRAME and sent[0]["more_body"] is True
+
+
+async def test_cancelling_a_keep_alive_wait_cancels_the_pending_piece() -> None:
+    reader = Gated()
+
+    async def send(message: dict[str, Any]) -> None:
+        return None
+
+    task = asyncio.ensure_future(keeping_alive(reader, 5, send))  # type: ignore[arg-type]
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert reader.cancelled
+
+
+async def never() -> dict[str, Any]:
+    await asyncio.Event().wait()
+    return {}
+
+
+async def test_shutdown_ends_an_asgi_event_stream_with_a_final_empty_body() -> None:
+    reader, streams = Gated(), Streams(1)
+    sent: list[dict[str, Any]] = []
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    pace = Pace(b"", None, None, True)
+    task = asyncio.ensure_future(pump_asgi(send, never, reader, pace, streams))  # type: ignore[arg-type]
+    await asyncio.sleep(0)
+    streams.stop_events()
+    await task
+    assert sent[-1]["more_body"] is False and reader.closed
+
+
+async def test_cancelling_an_asgi_pump_from_outside_propagates() -> None:
+    reader, streams = Gated(), Streams(1)
+
+    async def send(message: dict[str, Any]) -> None:
+        return None
+
+    pace = Pace(b"", None, None, False)
+    task = asyncio.ensure_future(pump_asgi(send, never, reader, pace, streams))  # type: ignore[arg-type]
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert reader.closed
+
+
+async def test_an_aborted_asgi_body_reaches_the_server_unchanged() -> None:
+    class Aborting(Gated):
+        async def next(self) -> bytes | None:
+            raise StreamAborted("cut")
+
+    async def send(message: dict[str, Any]) -> None:
+        return None
+
+    pace = Pace(b"", None, None, False)
+    with pytest.raises(StreamAborted, match="cut"):
+        await pump_asgi(send, never, Aborting(), pace, Streams(1))  # type: ignore[arg-type]
+
+
+async def test_shutdown_finishes_a_pumped_event_stream_cleanly() -> None:
+    sink, reader, streams = FakeSink(), Gated(), Streams(1)
+    task = asyncio.ensure_future(pump_sink(sink, reader, b"", streams))  # type: ignore[arg-type]
+    await asyncio.sleep(0)
+    streams.stop_events()
+    await task
+    assert sink.ended == "finish" and not streams.events and reader.closed
+
+
+async def test_a_client_that_leaves_aborts_the_pump_without_cancelling_the_caller() -> (
+    None
+):
+    sink, reader = FakeSink(), Gated()
+    task = asyncio.ensure_future(pump_sink(sink, reader, b"", None))  # type: ignore[arg-type]
+    await asyncio.sleep(0)
+    sink.gone.set_result(True)
+    await task
+    assert sink.ended == "abort" and reader.closed
+
+
+async def test_a_sink_closed_while_a_piece_waits_ends_the_pump_quietly() -> None:
+    sink, reader = FakeSink(accepts=False), Gated([b"a"])
+    reader.gate.set()
+    await pump_sink(sink, reader, b"", None)  # type: ignore[arg-type]
+    assert sink.ended is None and reader.closed
+
+
+async def test_a_failing_source_cuts_the_response_after_the_head(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class Failing(Gated):
+        async def next(self) -> bytes | None:
+            raise ValueError("source broke")
+
+    sink, reader = FakeSink(), Failing()
+    await pump_sink(sink, reader, b"", None)  # type: ignore[arg-type]
+    assert sink.ended == "abort" and "the response was cut" in caplog.text
+
+
+async def test_a_guard_whose_pump_is_done_ignores_a_late_stop() -> None:
+    survived = asyncio.Event()
+
+    async def pump() -> None:
+        guard = Guard()
+        guard.done = True
+        guard.stop_clean()
+        await asyncio.sleep(0)
+        survived.set()
+
+    await asyncio.ensure_future(pump())
+    assert survived.is_set()
+
+
+async def test_closing_a_source_waits_for_its_pending_piece() -> None:
+    async def source() -> AsyncIterator[bytes]:
+        yield b"a"
+
+    reader = SourceReader(Stream(source()), Inline())  # type: ignore[arg-type]
+    ran = asyncio.Event()
+
+    async def slow() -> None:
+        await asyncio.sleep(0)
+        ran.set()
+
+    reader.pending = asyncio.ensure_future(slow())
+    await reader.close()
+    assert ran.is_set() and reader.pending is None
