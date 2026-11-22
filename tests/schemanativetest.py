@@ -144,6 +144,17 @@ def test_omitted_int_default_of_a_float_field_is_a_float_on_every_path() -> None
     assert partial.dump(exclude_unset=True) == {"page": 2}
 
 
+def test_native_entries_are_cached_on_the_class() -> None:
+    class Cached(Schema):
+        x: int
+
+    Cached.validate({"x": 1})
+    Cached.validate_json(b'{"x": 1}')
+    assert Cached.validate({"x": 1}).x == 1
+    assert type(Cached.__dict__["validate"]).__name__ == "_Cached"
+    assert type(Cached.__dict__["validate_json"]).__name__ == "_Cached"
+
+
 def test_validate_json_honours_a_validate_override() -> None:
     class Guarded(Schema):
         x: int
