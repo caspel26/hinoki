@@ -3,6 +3,7 @@ behave exactly like the Python paths they replace."""
 
 from __future__ import annotations
 
+import copy
 import inspect
 import pickle
 from typing import Annotated, Any
@@ -242,3 +243,69 @@ def test_direct_validate_keeps_the_input_untouched() -> None:
     assert data == {"name": "a", "age": 3, "home": {"city": "x"}, "marks": [1, 2]}
     assert built.marks == [1.0, 2.0]
     assert built.home is not data["home"]
+
+
+class Basket(Schema):
+    owner: Person
+    items: list[Item]
+
+
+def _basket() -> Basket:
+    return Basket(
+        owner=Person(name="a", age=3, home=Address(city="x")),
+        items=[Item(name="n", price=1.5, tags=["t"])],
+    )
+
+
+def test_copy_keeps_values_and_supplied_fields() -> None:
+    built = Item(name="n", price=1.0)
+    twin = copy.copy(built)
+    assert twin == built
+    assert twin is not built
+    assert twin.dump(exclude_unset=True) == built.dump(exclude_unset=True)
+
+
+def test_deepcopy_copies_what_is_mutable() -> None:
+    built = _basket()
+    twin = copy.deepcopy(built)
+    assert twin == built
+    assert twin.items is not built.items
+    assert twin.items[0].tags is not built.items[0].tags
+    assert twin.dump(exclude_unset=True) == built.dump(exclude_unset=True)
+
+
+def test_deepcopy_shares_a_value_seen_twice() -> None:
+    shared = Item(name="n", price=1.0)
+    twin = copy.deepcopy([shared, shared])
+    assert twin[0] is twin[1]
+
+
+def test_pickle_round_trips_nested_schemas() -> None:
+    built = _basket()
+    for protocol in range(2, pickle.HIGHEST_PROTOCOL + 1):
+        again = pickle.loads(pickle.dumps(built, protocol))  # noqa: S301 - our own bytes
+        assert again == built
+        assert again.dump(exclude_unset=True) == built.dump(exclude_unset=True)
+
+
+def test_a_class_with_its_own_copy_protocol_keeps_it() -> None:
+    class Marked(Schema):
+        x: int
+
+        def __copy__(self) -> Marked:
+            return Marked(x=99)
+
+        def __reduce__(self) -> tuple[Any, ...]:
+            return (Marked, (), None)
+
+    assert copy.copy(Marked(x=1)).x == 99
+    assert copy.deepcopy(Marked(x=1)) == Marked(x=1)
+
+
+def test_native_protocol_methods_follow_subclasses() -> None:
+    class Wide(Item):
+        extra: int = 0
+
+    built = Wide(name="n", price=1.0, extra=4)
+    assert copy.copy(built) == built
+    assert copy.deepcopy(built).extra == 4
