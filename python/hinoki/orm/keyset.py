@@ -53,12 +53,14 @@ def cursor_order(query: QuerySet[Any]) -> Order:
     return tuple(order)
 
 
-def fingerprint(table: str, order: Order) -> bytes:
-    """What a cursor is bound to: the table and the ordering it was issued for."""
+def fingerprint(table: str, order: Order, scope: bytes = b"") -> bytes:
+    """What a cursor is bound to: the table, the ordering it was issued for and,
+    when the client filtered, those filters (``scope``, built in Rust)."""
     keys = ",".join(
         f"{column}{'-' if descending else '+'}" for column, descending in order
     )
-    return f"{table}|{keys}".encode()
+    bound = f"{table}|{keys}".encode()
+    return bound + b"|" + scope if scope else bound
 
 
 def invalid(code: str) -> ValidationError:
@@ -111,10 +113,13 @@ class CursorRequest:
             raise invalid("unencodable") from None
 
 
-def prepare(query: QuerySet[Any], params: CursorParams) -> CursorRequest:
-    """Validate the token against this query's ordering and build the walk."""
+def prepare(
+    query: QuerySet[Any], params: CursorParams, scope: bytes = b""
+) -> CursorRequest:
+    """Validate the token against this query's ordering (and the client filters
+    in ``scope``) and build the walk."""
     order = cursor_order(query)
-    codec = params.strategy.codec(fingerprint(query.model.__table__, order))
+    codec = params.strategy.codec(fingerprint(query.model.__table__, order, scope))
     backward, values = False, None
     if params.token is not None:
         try:

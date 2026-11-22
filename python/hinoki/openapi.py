@@ -16,6 +16,13 @@ from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from hinoki.errors import MAX_RETRY_AFTER, APIError, RegistrationError, TooManyRequests
 from hinoki.fieldtypes import FieldType, is_union
+from hinoki.filters import (
+    MAX_IN_ITEMS,
+    MAX_SEARCH_CHARS,
+    MAX_TEXT_CHARS,
+    FilterField,
+    FilterSet,
+)
 from hinoki.handlerhints import hints_of
 from hinoki.http.response import Response
 from hinoki.http.stream import EventStream, Streamed
@@ -94,7 +101,7 @@ VALIDATION_ERROR = "ValidationError"
 ERROR = "Error"
 DICT_ARGS = 2
 SIMPLE_DEFAULTS = (str, int, float, bool)
-INPUTS = {"path", "query", "page", "queryschema"}
+INPUTS = {"path", "query", "page", "queryschema", "filters"}
 # The ``openapi`` field of each version the document can be written as.
 SPEC_VERSIONS = {"3.1": "3.1.0", "3.2": "3.2.0"}
 DEFAULT_SPEC_VERSION = "3.2"
@@ -345,6 +352,8 @@ class OpenAPIBuilder:
     def parameter(self, param: Param) -> list[dict[str, Any]]:
         if param.source == "page" and param.strategy is not None:
             return page_parameters(param.strategy)
+        if param.source == "filters" and param.filters is not None:
+            return filter_parameters(param.filters)
         if param.source == "queryschema" and param.schema is not None:
             return [
                 {
@@ -622,6 +631,92 @@ def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
         return fixed
     low, high = LENGTH_KEYWORDS[schema["type"]]
     return low if name == "min_length" else high
+
+
+def filter_value_schema(item: FilterField) -> dict[str, Any]:
+    schema = dict(KIND_SCHEMAS[item.kind])
+    if item.choices:
+        schema["enum"] = list(item.choices)
+    elif item.kind == "str":
+        schema["maxLength"] = MAX_TEXT_CHARS
+    return schema
+
+
+def query_parameter(
+    name: str, schema: dict[str, Any], description: str = ""
+) -> dict[str, Any]:
+    found: dict[str, Any] = {
+        "name": name,
+        "in": "query",
+        "required": False,
+        "schema": schema,
+    }
+    if description:
+        found["description"] = description
+    return found
+
+
+def list_parameter(
+    name: str, items: dict[str, Any], description: str, limit: int
+) -> dict[str, Any]:
+    """A comma-separated list: ``?name=a,b``."""
+    found = query_parameter(
+        name,
+        {"type": "array", "items": items, "minItems": 1, "maxItems": limit},
+        description,
+    )
+    return {**found, "style": "form", "explode": False}
+
+
+def field_parameters(item: FilterField) -> list[dict[str, Any]]:
+    value = filter_value_schema(item)
+    if item.shape == "in":
+        found = [
+            list_parameter(
+                item.name, value, "Comma-separated values; any may match.", MAX_IN_ITEMS
+            )
+        ]
+    elif item.shape == "range":
+        found = [
+            query_parameter(f"{item.name}.from", value, "Inclusive lower bound."),
+            query_parameter(f"{item.name}.to", value, "Inclusive upper bound."),
+        ]
+    else:
+        found = [query_parameter(item.name, value)]
+    if item.nullable:
+        found.append(
+            query_parameter(
+                f"{item.name}.null",
+                {"type": "boolean"},
+                "`true` for rows without a value, `false` for rows with one.",
+            )
+        )
+    return found
+
+
+def filter_parameters(filters: type[FilterSet]) -> list[dict[str, Any]]:
+    """The typed query parameters one ``FilterSet`` accepts."""
+    found = [param for item in filters.fields for param in field_parameters(item)]
+    if filters.search is not None:
+        columns = ", ".join(filters.search.columns)
+        found.append(
+            query_parameter(
+                "search",
+                {"type": "string", "minLength": 1, "maxLength": MAX_SEARCH_CHARS},
+                f"Case-insensitive text contained in any of: {columns}.",
+            )
+        )
+    if filters.ordering:
+        names = [*filters.ordering, *(f"-{name}" for name in filters.ordering)]
+        found.append(
+            list_parameter(
+                "ordering",
+                {"type": "string", "enum": names},
+                "Comma-separated sort keys; a leading `-` sorts descending.",
+                len(filters.ordering),
+            )
+        )
+    return found
 
 
 def page_parameters(strategy: Pagination) -> list[dict[str, Any]]:

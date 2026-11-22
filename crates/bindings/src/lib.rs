@@ -15,6 +15,7 @@ mod db;
 mod disposition;
 mod driver;
 mod filelocate;
+mod filters;
 mod handoff;
 mod jwt;
 mod kiso;
@@ -110,6 +111,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_class::<PyRouter>()?;
     m.add_class::<crudplan::PyCrudPlan>()?;
+    m.add_class::<filters::PyFilterPlan>()?;
     db::register(m)?;
     server::register(m)?;
     kiso::register(m)?;

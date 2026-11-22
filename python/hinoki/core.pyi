@@ -86,6 +86,35 @@ class _RowPlan:
         fields: list[tuple[str, str, str, bool]],
     ) -> None: ...
 
+class _FilterPlan:
+    """The declared client filters of one ``FilterSet``: checks a query string
+    against the allow-list and returns typed values and conditions."""
+
+    def __init__(
+        self,
+        fields: list[tuple[str, str, str, bool, list[str]]],
+        search: list[str],
+        ordering: list[str],
+        max_in: int,
+        max_text: int,
+        max_search: int,
+    ) -> None: ...
+    def parse(
+        self, query: dict[str, list[str]], reserved: list[str]
+    ) -> tuple[list[tuple[str, str, str]], FilterParsed | None]:
+        """``(problems, parsed)``: ``problems`` holds ``(path, code, message)``
+        and ``parsed`` is ``None`` unless it is empty."""
+
+type FilterEntry = tuple[str, object, list[object] | None, object, object, bool | None]
+type FilterCondition = tuple[str, str, list[object]]
+type FilterParsed = tuple[
+    list[FilterEntry],
+    tuple[FilterCondition, ...],
+    list[tuple[str, bool]] | None,
+    str | None,
+    bytes,
+]
+
 class _CursorCodec:
     """Signed keyset cursors for one ordering; ``ValueError("invalid" |
     "expired" | "unencodable")`` on a bad token or key."""
