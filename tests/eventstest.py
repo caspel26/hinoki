@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, events, http
+from hinoki import Hinoki, Schema, events, http
 from hinoki.db import Database
 from hinoki.errors import EventError, EventRegistrationError, EventTimeout
 from hinoki.management import Command, CommandContext
@@ -360,3 +360,20 @@ async def test_startup_and_shutdown_hooks_can_emit_to_sync_handlers() -> None:
     async with ASGIClient(app):
         assert seen == ["hook"]
     assert seen == ["hook", "hook"]
+
+
+class Pinged(Schema):
+    text: str
+
+
+async def test_a_schema_is_an_event_class() -> None:
+    seen: list[str] = []
+    handlers = events.Handlers()
+
+    @handlers.after_commit(Pinged)
+    async def record(event: Pinged) -> None:
+        seen.append(event.text)
+
+    with events.use(bus_of(handlers)):
+        await events.emit(Pinged(text="x"))
+    assert seen == ["x"]
