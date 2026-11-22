@@ -51,6 +51,8 @@ pub struct Signals {
     pub close: AtomicBool,
     /// Request bytes were left unread: drain before the socket is dropped.
     pub linger: AtomicBool,
+    /// The connection is a WebSocket now: its bytes are not HTTP and are not scanned.
+    pub upgraded: AtomicBool,
 }
 
 const HEAD_END: &[u8] = b"\r\n\r\n";
@@ -293,7 +295,9 @@ impl<T: AsyncRead + Unpin> AsyncRead for Guarded<T> {
         let before = buf.filled().len();
         let polled = Pin::new(&mut this.inner).poll_read(cx, buf);
         if let Poll::Ready(Ok(())) = polled {
-            this.framing.feed(&mut buf.filled_mut()[before..]);
+            if !this.signals.upgraded.load(Ordering::Acquire) {
+                this.framing.feed(&mut buf.filled_mut()[before..]);
+            }
         }
         polled
     }

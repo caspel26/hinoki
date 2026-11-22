@@ -21,6 +21,12 @@ class RuntimeConfig:
     max_streams: int = 64
     stream_idle_timeout: float | None = None  # None: `request_timeout`
     sse_keepalive: float = 15.0
+    max_websockets: int = 1000
+    ws_max_message_bytes: int = 1024 * 1024
+    ws_queue: int = 64
+    ws_ping_interval: float | None = 20.0
+    ws_pong_timeout: float = 20.0
+    ws_close_timeout: float = 5.0
 
     @property
     def idle_timeout(self) -> float:
@@ -44,6 +50,9 @@ class RuntimeConfig:
             self.shutdown_timeout,
             self.sse_keepalive,
             self.stream_idle_timeout or 1.0,
+            self.ws_ping_interval or 1.0,
+            self.ws_pong_timeout,
+            self.ws_close_timeout,
         )
         if not all(math.isfinite(value) and value > 0 for value in timeouts):
             raise ValueError("timeouts must be positive and finite")

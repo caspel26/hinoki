@@ -445,6 +445,11 @@ impl Backend for WsgiBackend {
                 headers,
                 body: Vec::new(),
             },
+            Delivery::Upgrade(_) => Answer {
+                status: 500,
+                headers: Vec::new(),
+                body: Vec::new(),
+            },
         }
     }
 
@@ -645,6 +650,7 @@ mod tests {
             refusal: None,
             body: None,
             trace: Arc::new(Trace::default()),
+            upgrade: kiso::ws::Upgrade::Absent,
         }
     }
 

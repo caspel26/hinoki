@@ -23,6 +23,8 @@ use kiso::early::TemplateError;
 use kiso::headers::{final_headers, head_headers, is_bodyless, Header};
 use kiso::hosts::Hosts;
 use kiso::queue::Push;
+use kiso::ws::Upgrade;
+use kiso::wsrun::Accepted;
 use kiso::{
     convert, proxy, requestid, Converted, Early, EarlyBodies, InFlight, InputKind, InputParam,
     InputValue, Limits, NativeJobs, Networks, Pace, Permit, Plan, Queue, RoutePlan, Streamed,
@@ -32,7 +34,7 @@ use kiso::{Answer, BodyError, BodyReader};
 use pyo3::exceptions::{PyException, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Semaphore};
 
 use crate::completion;
 use crate::crudplan::{CrudPlan, PyCrudPlan};
@@ -42,6 +44,7 @@ use crate::jwt::{Admission, ClaimsAuth, PyClaimsAuth};
 use crate::request;
 use crate::router::{Match, Router};
 use crate::sink::{ResponseSink, CHANNEL_SLOTS};
+use crate::websocket::{self, WebSocketSpec, WsHandshake, WsPlan};
 use kiso::redirect;
 
 // `args[0]` is `too_large`, `disconnected` or `timeout`.
@@ -57,6 +60,8 @@ pub(crate) enum Sent {
     Whole(Reply),
     Streamed(Streamed),
     File(FileReply),
+    /// The handshake was accepted: the connection switches to WebSocket.
+    Upgrade(Box<Accepted>),
 }
 
 /// A file answer before the file is opened. The head carries no
@@ -82,6 +87,7 @@ fn reply_to_py<'py>(py: Python<'py>, sent: &Sent) -> PyResult<Bound<'py, PyAny>>
         Sent::Whole(reply) => answer_to_py(py, reply.status, &reply.headers, &reply.body),
         Sent::Streamed(stream) => answer_to_py(py, stream.status, &stream.headers, &[]),
         Sent::File(file) => answer_to_py(py, file.status, &file.headers, &[]),
+        Sent::Upgrade(accepted) => answer_to_py(py, 101, &accepted.headers, &[]),
     }
 }
 
@@ -189,6 +195,7 @@ pub struct PreparedRequest {
     native_body_consumed: Arc<AtomicBool>,
     native_failure: Mutex<Option<NativeFailure>>,
     native_rows: Mutex<Option<NativeRows>>,
+    websocket: Mutex<Option<WsHandshake>>,
 }
 
 impl PreparedRequest {
@@ -650,6 +657,30 @@ impl PreparedRequest {
         Py::new(py, ResponseSink::new(sender)).map(Some)
     }
 
+    /// Accept the WebSocket handshake: the connection answers 101 with the
+    /// negotiated `subprotocol` and `headers`, and the returned object carries
+    /// the messages. `None` when the request was answered already or nobody
+    /// waits for it.
+    #[pyo3(signature = (subprotocol=None, headers=Vec::new()))]
+    pub(crate) fn accept_websocket(
+        &self,
+        subprotocol: Option<String>,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+    ) -> PyResult<Option<websocket::WebSocket>> {
+        let handshake = self
+            .websocket
+            .lock()
+            .map_err(|_| poisoned())?
+            .take()
+            .ok_or_else(|| PyRuntimeError::new_err("not a WebSocket handshake"))?;
+        let Some(tx) = self.reply.lock().ok().and_then(|mut slot| slot.take()) else {
+            return Ok(None);
+        };
+        let (accepted, socket) = websocket::open(handshake, subprotocol, headers);
+        self.release_admission();
+        Ok(tx.send(Sent::Upgrade(accepted)).ok().map(|()| socket))
+    }
+
     /// Answer with the file at `path`, whose size becomes the `content-length`.
     /// The connection opens it: a missing or non-regular file answers 404 and
     /// any other failure 500. Returns `False` when the request was already
@@ -1093,12 +1124,30 @@ fn kind_of(name: &str) -> PyResult<Early> {
         "unauthorized" => Early::Unauthorized,
         "invalid_credentials" => Early::InvalidCredentials,
         "forbidden" => Early::Forbidden,
+        "bad_upgrade" => Early::BadUpgrade,
+        "upgrade_required" => Early::UpgradeRequired,
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown early kind {other:?}"
             )))
         }
     })
+}
+
+/// The WebSocket routes by declaration order, which is their action number.
+fn build_websockets(specs: &[Py<WebSocketSpec>]) -> PyResult<(Router, HashMap<u32, WsPlan>)> {
+    let mut router = Router::new();
+    let mut plans = HashMap::new();
+    for (number, spec) in specs.iter().enumerate() {
+        let spec = spec.get();
+        let action = u32::try_from(number)
+            .map_err(|_| PyValueError::new_err("too many WebSocket routes"))?;
+        router
+            .add("GET", spec.template(), action)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        plans.insert(action, spec.plan()?);
+    }
+    Ok((router, plans))
 }
 
 enum Resolved {
@@ -1147,6 +1196,10 @@ pub struct Core {
     static_pages: Vec<StaticPage>,
     route_auth: HashMap<u32, RouteAuth>,
     startup_probe: Option<StartupProbe>,
+    ws_router: Router,
+    ws_plans: HashMap<u32, WsPlan>,
+    /// Open WebSocket connections the worker allows; a session holds one permit.
+    ws_slots: Arc<Semaphore>,
 }
 
 impl Core {
@@ -1279,7 +1332,7 @@ impl ServerCore {
         trust_request_id=false, python_paths=Vec::new(),
         cors=None, trusted_proxies=Vec::new(), startup_path=None, startup_body=Vec::new(),
         hosts=None, redirect_https=false, static_pages=Vec::new(), route_auth=Vec::new(),
-        route_cors=Vec::new()
+        route_cors=Vec::new(), websockets=Vec::new(), ws_connections=1000
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1303,6 +1356,8 @@ impl ServerCore {
         static_pages: Vec<StaticSpec>,
         route_auth: Vec<RouteAuthSpec>,
         route_cors: Vec<RouteCorsSpec>,
+        websockets: Vec<Py<WebSocketSpec>>,
+        ws_connections: usize,
     ) -> PyResult<Self> {
         if redirect_https && hosts.is_none() {
             return Err(PyValueError::new_err(
@@ -1337,6 +1392,7 @@ impl ServerCore {
             PyValueError::new_err(format!("early body has {n} sentinels, expected 1"))
         })?;
         let (max_query_bytes, max_header_bytes, max_body_bytes, max_in_flight) = limits;
+        let (ws_router, ws_plans) = build_websockets(&websockets)?;
         Ok(Self {
             core: Arc::new(Core {
                 router,
@@ -1394,6 +1450,9 @@ impl ServerCore {
                     })
                     .collect(),
                 startup_probe,
+                ws_router,
+                ws_plans,
+                ws_slots: Arc::new(Semaphore::new(ws_connections)),
             }),
         })
     }
@@ -1551,6 +1610,7 @@ impl ServerCore {
             peer: None,
             refusal: None,
             body: None,
+            upgrade: Upgrade::Absent,
         };
         let outcome = self
             .core
@@ -1611,6 +1671,8 @@ pub struct Head<'a> {
     pub refusal: Option<Early>,
     /// The request body, still unread.
     pub body: Option<BodyReader>,
+    /// What the request asks for in the way of a WebSocket upgrade (HTTP/1 only).
+    pub upgrade: Upgrade,
 }
 
 /// What the classifier decided.
@@ -1739,6 +1801,17 @@ impl Core {
         if let Some(page) = self.static_page(head.method, head.path) {
             return Ok(self.static_response(&asked, page));
         }
+        if head.method == "GET" && head.path.is_ascii() && !self.ws_plans.is_empty() {
+            if let Match::Found { action, params } = self.ws_router.find("GET", head.path) {
+                // A plain GET that an HTTP route also matches (`/rooms/stats`
+                // beside `/rooms/{room}`) is that route's, not a refused upgrade.
+                let plain_http = matches!(head.upgrade, Upgrade::Absent)
+                    && matches!(self.resolve("GET", head.path), Resolved::Route(..));
+                if !plain_http {
+                    return self.websocket(head, asked, action, params);
+                }
+            }
+        }
         let (action, params) = match self.resolve(head.method, head.path) {
             // A raw target the server cannot read as a plain path, and the
             // documentation pages, are the Python pipeline's to answer.
@@ -1767,7 +1840,7 @@ impl Core {
                     (action, Vec::new()),
                     true,
                     None,
-                    (NativeInput::default(), false),
+                    (NativeInput::default(), false, None),
                 )
             }
         };
@@ -1790,8 +1863,85 @@ impl Core {
             (action, params),
             plan.needs_headers(),
             prepared_path_params,
-            (native_input, native_execution),
+            (native_input, native_execution, None),
         )
+    }
+
+    /// A request for a WebSocket route: refuse what is not a valid upgrade or
+    /// comes from a disallowed origin, take a connection slot, then queue it for
+    /// the handshake that Python (access, subprotocol) decides.
+    fn websocket(
+        &self,
+        head: Head<'_>,
+        asked: Asked,
+        action: u32,
+        params: Vec<(String, String)>,
+    ) -> Result<Outcome, String> {
+        let plan = self
+            .ws_plans
+            .get(&action)
+            .ok_or_else(|| format!("no WebSocket plan for action {action}"))?;
+        match &head.upgrade {
+            Upgrade::Offer(_) => {}
+            Upgrade::BadKey => return self.answer(&asked, Early::BadUpgrade, Vec::new()),
+            Upgrade::Absent | Upgrade::BadVersion => {
+                return self.answer(&asked, Early::UpgradeRequired, Vec::new())
+            }
+        }
+        if !self.origin_allowed(&head.headers, &asked.origin, plan) {
+            return self.answer(&asked, Early::CorsOriginDenied, Vec::new());
+        }
+        let Ok(hold) = Arc::clone(&self.ws_slots).try_acquire_owned() else {
+            return self.answer(&asked, Early::Overloaded, Vec::new());
+        };
+        let handshake = WsHandshake {
+            config: plan.config.clone(),
+            queue: plan.queue,
+            hold: Some(hold),
+        };
+        let mut asked = asked;
+        asked.action = None;
+        let prepared = Some(prepare_python_path_params(&params));
+        let head = Head {
+            method: "WS",
+            ..head
+        };
+        self.enqueue(
+            head,
+            asked,
+            (Some(action), params),
+            true,
+            prepared,
+            (NativeInput::default(), false, Some(handshake)),
+        )
+    }
+
+    /// An absent `Origin` (not a browser) passes. Otherwise the origin must be the
+    /// host the request addressed, one of the route's, or one the application's
+    /// CORS policy lists. A CORS wildcard is not honoured: it is safe for HTTP
+    /// because a browser hides a credentialed answer from other sites, but a
+    /// WebSocket handshake carries cookies and has no such protection.
+    fn origin_allowed(&self, headers: &[Header], origin: &[u8], plan: &WsPlan) -> bool {
+        if origin.is_empty() {
+            return true;
+        }
+        let origin = origin.to_ascii_lowercase();
+        let listed = |allowed: &[Vec<u8>]| allowed.iter().any(|o| o == b"*" || *o == origin);
+        if listed(&plan.origins) {
+            return true;
+        }
+        if self
+            .cors
+            .as_ref()
+            .is_some_and(|cors| cors.origins.contains(&origin))
+        {
+            return true;
+        }
+        let host = joined_value(headers, b"host").map(|host| host.to_ascii_lowercase());
+        let authority = origin
+            .strip_prefix(b"http://")
+            .or_else(|| origin.strip_prefix(b"https://"));
+        matches!((host, authority), (Some(host), Some(authority)) if host == authority)
     }
 
     /// Authenticate a native route that uses a claims-only provider, in the order
@@ -2052,7 +2202,7 @@ impl Core {
         (action, params): (Option<u32>, Vec<(String, String)>),
         needs_headers: bool,
         prepared_path_params: Option<PreparedPathParams>,
-        (native_input, native_execution): (NativeInput, bool),
+        (native_input, native_execution, websocket): (NativeInput, bool, Option<WsHandshake>),
     ) -> Result<Outcome, String> {
         let Some(permit) = self.in_flight.try_acquire() else {
             return self.answer(&asked, Early::Overloaded, Vec::new());
@@ -2097,6 +2247,7 @@ impl Core {
             native_body_consumed: Arc::new(AtomicBool::new(false)),
             native_failure: Mutex::new(None),
             native_rows: Mutex::new(None),
+            websocket: Mutex::new(websocket),
         };
         let accepts_native_crud = route_plan.is_some_and(|route| {
             let accept = joined_value(&request.headers, b"accept").unwrap_or_default();

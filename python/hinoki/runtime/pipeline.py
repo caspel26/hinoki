@@ -88,8 +88,12 @@ from hinoki.runtime.streaming import (
     discard,
     discard_answer,
 )
+from hinoki.runtime.websockets import Admitted
+from hinoki.runtime.websockets import admit as admit_handshake
+from hinoki.runtime.websockets import run as run_session
 from hinoki.schema import Schema, encode
 from hinoki.settings import AppSettings, SecuritySettings
+from hinoki.ws import Transport, WebSocketRoute
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
@@ -180,6 +184,7 @@ class Pipeline:
     def __init__(self, app: Hinoki) -> None:
         self.app = app
         self.bindings = app.bindings
+        self.websockets = app.websockets
         self.crud_plan_selections: list[Any] = []
         self.crud_plan_reasons: list[str] = []
         self.startup_url = app.startup_url
@@ -330,6 +335,61 @@ class Pipeline:
             rid, self._respond_native_failure(action, rid, failure)
         )
 
+    async def admit_websocket(
+        self,
+        rid: str,
+        route: WebSocketRoute,
+        scope: Scope,
+        params: dict[str, str] | None,
+    ) -> Admitted | Response:
+        """Judge a WebSocket handshake as an HTTP action is judged: the caller,
+        the subprotocol and the arguments. A refusal is the HTTP answer to send
+        instead of the upgrade, with the same error mapping as any action.
+        ``params`` is ``None`` for a path that is not valid percent-encoding."""
+        headers, _ = core.request_headers(scope.get("headers", []))
+        return await self._in_request_context(
+            rid, self._admit_websocket(rid, route, scope, headers, params)
+        )
+
+    async def _admit_websocket(
+        self,
+        rid: str,
+        route: WebSocketRoute,
+        scope: Scope,
+        headers: dict[str, str],
+        params: dict[str, str] | None,
+    ) -> Admitted | Response:
+        try:
+            if params is None:
+                raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding")
+            return await run_inline(
+                admit_handshake(route, headers, scope.get("query_string", b""), params),
+                self.app.runtime.request_timeout,
+            )
+        except RequestDeadline:
+            return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
+        except ExecutorSaturated:
+            return HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
+            ).response
+        except Exception as exc:
+            return await error_response(
+                self._default_error(exc), rid, self.app.errors, self.debug
+            )
+
+    async def run_websocket(
+        self,
+        rid: str,
+        route: WebSocketRoute,
+        transport: Transport,
+        admitted: Admitted,
+        path: str,
+    ) -> None:
+        """Run the handler of an accepted connection in the request context."""
+        await self._in_request_context(
+            rid, run_session(route, transport, admitted, path)
+        )
+
     async def handle_native_rows(
         self, action: int, rid: str, fallback: core.NativeRows
     ) -> Response:
@@ -435,9 +495,7 @@ class Pipeline:
             exception.sqlstate = sqlstate
         return exception
 
-    async def _in_request_context(
-        self, rid: str, response: Awaitable[Response]
-    ) -> Response:
+    async def _in_request_context[T](self, rid: str, response: Awaitable[T]) -> T:
         token = request_id.set(rid)
         context.route_headers.set(())
         context.route_cors.set(None)
@@ -594,6 +652,11 @@ class Pipeline:
             ):
                 log.warning("ignored invalid request ID from trusted proxy")
         return incoming or self._new_request_id()
+
+    def new_request_id(self) -> str:
+        """A fresh request id, for a connection that has no HTTP request to
+        take one from."""
+        return self._new_request_id()
 
     def _new_request_id(self) -> str:
         """32 hex characters, unique within the process (random per-worker

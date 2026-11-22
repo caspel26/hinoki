@@ -31,6 +31,7 @@ mod server;
 mod sink;
 mod streamlimit;
 mod tally;
+mod websocket;
 mod wsgi;
 mod xml;
 mod xml_encode;
@@ -112,6 +113,8 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     server::register(m)?;
     kiso::register(m)?;
     wsgi::register(m)?;
+    m.add_class::<websocket::WebSocketSpec>()?;
+    m.add_class::<websocket::WebSocket>()?;
     m.add_class::<sink::ResponseSink>()?;
     m.add_function(wrap_pyfunction!(filelocate::locate_file, m)?)?;
     m.add(

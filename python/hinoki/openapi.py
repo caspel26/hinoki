@@ -137,6 +137,8 @@ class OpenAPIBuilder:
             "info": {"title": self.title, "version": self.version},
             "paths": paths,
         }
+        if self.app.websockets:
+            document["x-hinoki-websockets"] = self.websockets()
         components: dict[str, Any] = {}
         if self.components:
             components["schemas"] = dict(sorted(self.components.items()))
@@ -145,6 +147,33 @@ class OpenAPIBuilder:
         if components:
             document["components"] = components
         return document
+
+    def websockets(self) -> dict[str, Any]:
+        """OpenAPI 3.1 has no WebSocket operation, so the actions are described
+        under a vendor extension: the handshake is an HTTP GET, the messages
+        are the ``Schema`` the route declares."""
+        described: dict[str, Any] = {}
+        for route in self.app.websockets:
+            entry: dict[str, Any] = {"operationId": route.name}
+            summary, description = split_docstring(route.handler)
+            if summary:
+                entry["summary"] = summary
+            if description:
+                entry["description"] = description
+            if route.message is not None:
+                entry["message"] = self.component(route.message)
+            if route.reply is not None:
+                entry["reply"] = self.component(route.reply)
+            if route.subprotocols:
+                entry["subprotocols"] = [name for name, _ in route.subprotocols]
+            if route.origins:
+                entry["origins"] = list(route.origins)
+            if route.access is not None:
+                handshake: dict[str, Any] = {"responses": {}}
+                self.secure(handshake, route.access)
+                entry["handshake"] = handshake
+            described[route.path] = entry
+        return described
 
     def operation(self, binding: Binding) -> dict[str, Any]:
         route = binding.route

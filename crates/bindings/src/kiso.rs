@@ -85,6 +85,7 @@ impl CoreBackend {
             Ok(Sent::Whole(reply)) => Delivery::Whole(reply),
             Ok(Sent::Streamed(streamed)) => Delivery::Streamed(streamed),
             Ok(Sent::File(file)) => self.file_delivery(&asked, file).await,
+            Ok(Sent::Upgrade(accepted)) => Delivery::Upgrade(accepted),
             Err(_) => Delivery::Whole(self.not_ready(&asked)),
         }
     }
@@ -132,6 +133,7 @@ impl CoreBackend {
             refusal,
             body,
             trace,
+            upgrade,
         } = request;
         let (trusted, forwarded) = self.core.peer_view(peer, &headers);
         // A trusted proxy's scheme wins, like the Python resolution does.
@@ -147,6 +149,7 @@ impl CoreBackend {
             peer: Some(peer),
             refusal,
             body,
+            upgrade,
         };
         let outcome = self.core.classify(head, true, &trace).ok()?;
         trace.set(match outcome {
@@ -455,7 +458,7 @@ impl Backend for CoreBackend {
 fn whole(sent: Sent) -> Answer {
     match sent {
         Sent::Whole(reply) => reply,
-        Sent::Streamed(_) | Sent::File(_) => internal_error(),
+        Sent::Streamed(_) | Sent::File(_) | Sent::Upgrade(_) => internal_error(),
     }
 }
 
