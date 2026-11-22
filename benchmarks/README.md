@@ -26,6 +26,18 @@ A one-off release-profile build (`uvx maturin develop --release --uv`) gave a st
 
 Not yet measured (RUNTIME-DESIGN V10): ASGI vs RSGI, extra Tokio threads per worker, full request path under load.
 
+## `jsondecodebench.py` and `jsonencodebench.py` — native JSON codec against the standard library
+
+Question: how long does one `hinoki.core.decode_json` / `encode_json` call take compared with `json.loads` / `json.dumps` (compact separators, `ensure_ascii=False`, same bytes) across payload sizes? Decoding: seven cases (lists of objects at about 60 B, 145 B, 740 B, 20 KB and 1 MB; lists of numbers at about 20 KB and 1 MB). Encoding: object-, number-, string- and nesting-heavy payloads at about 740 B, 20 KB and 1 MB, a UUID/datetime payload and two small objects. Seven samples per case; the report gives the median, the coefficient of variation, the min/max and the ratio to the standard library. Build the extension in release mode first; a debug build is meaningless.
+
+```sh
+uv run --locked --with maturin maturin develop --release
+uv run --no-sync python benchmarks/jsondecodebench.py
+uv run --no-sync python benchmarks/jsonencodebench.py --output result.json
+```
+
+Numbers depend on the machine and are not retained here. Results are isolated function calls, not request-path results.
+
 ## `requestbench.py` — JSON and query parsing, Python vs Rust
 
 Question: what does decoding a JSON body, encoding a response and parsing a query string cost through `hinoki.core` compared with `json.loads` / `json.dumps` / `urllib.parse.parse_qs`? One payload (about 1.2 KB: nested object, 20-item list, strings, numbers, booleans, null), 7 samples × 20 000 calls.
