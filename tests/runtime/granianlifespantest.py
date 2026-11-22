@@ -38,10 +38,17 @@ def test_each_worker_runs_its_own_lifespan(
     tmp_path: Path, server: tuple[subprocess.Popen[bytes], int]
 ) -> None:
     _, port = server
+    log = tmp_path / "events.log"
+
+    def started_workers() -> set[str]:
+        return {pid for pid, event in events(log) if event == "startup"}
+
+    # wait_ready returns as soon as one worker answers; the other may still start.
+    deadline = time.monotonic() + 15
+    while len(started_workers()) < 2 and time.monotonic() < deadline:
+        time.sleep(0.05)
     pids = {fetch(port) for _ in range(40)}
-    started = {
-        pid for pid, event in events(tmp_path / "events.log") if event == "startup"
-    }
+    started = started_workers()
     assert len(started) == 2
     assert pids <= started
 
