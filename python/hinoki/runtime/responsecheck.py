@@ -21,7 +21,7 @@ from uuid import UUID
 from hinoki.errors import RegistrationError
 from hinoki.http.response import Response
 from hinoki.orm.model import Model
-from hinoki.pagination import Page
+from hinoki.pagination import CursorPage, Page
 from hinoki.schema import Schema
 
 Check = Callable[[object], bool]
@@ -132,16 +132,19 @@ def collection_check(name: str, arm: object) -> Check:
             isinstance(value, dict)
             and all(type(key) is str and values(item) for key, item in value.items())
         )
-    if origin not in {list, Page} or len(args) != 1:
+    if origin not in {list, Page, CursorPage} or len(args) != 1:
         raise RegistrationError(
             f"{name}: the return type {arm!r} cannot be checked; use a Schema, "
-            "Model, list, Page, dict[str, ...], a scalar, None or a union, or "
-            "declare the action with validate_response=False"
+            "Model, list, Page, CursorPage, dict[str, ...], a scalar, None or a "
+            "union, or declare the action with validate_response=False"
         )
     item = compile_item(name, args[0])
     if origin is list:
         return lambda value: isinstance(value, list) and all(item(v) for v in value)
-    return lambda value: isinstance(value, Page) and all(item(v) for v in value.items)
+    container = origin
+    return lambda value: (
+        isinstance(value, container) and all(item(v) for v in value.items)
+    )
 
 
 def compile_item(name: str, annotation: object) -> Check:

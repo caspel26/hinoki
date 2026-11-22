@@ -151,7 +151,7 @@ The fix line each rule prints:
 | `HNK-ACC-002` | name at least one permission in the Access policy of the action |
 | `HNK-API-001` | return a Schema (for example PostOut.from_model(row)) instead of the Model |
 | `HNK-API-002` | annotate the action's return type (a Schema, or None for status 204) |
-| `HNK-API-003` | return Page[Item] and paginate the action instead of returning a list |
+| `HNK-API-003` | return Page[Item] or CursorPage[Item] and paginate the action |
 | `HNK-SCH-001` | remove the field from the response Schema, or return a Schema that does not carry it |
 | `HNK-SCH-002` | bound the field: Annotated[str, Field(max_length=...)] or one_of=... |
 | `HNK-DB-001` | name the table with @db.table(...) or table=... on the model |

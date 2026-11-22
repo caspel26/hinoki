@@ -10,6 +10,7 @@ mod completion;
 mod compression;
 mod crudplan;
 mod crypto;
+mod cursor;
 mod db;
 mod disposition;
 mod driver;

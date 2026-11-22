@@ -197,6 +197,11 @@ def select(
                 f"{qualified(route)} streams its response; an MCP tool returns "
                 "one complete result, so it cannot be exposed"
             )
+        if not route.include_in_schema:
+            raise ExposureError(
+                f"{qualified(route)} sets include_in_schema=False; an MCP tool is "
+                "built from the OpenAPI document, so it cannot be exposed"
+            )
         operation = document["paths"].get(route.path, {}).get(key)
         if operation is None:
             raise ExposureError(f"{qualified(route)} is not in the OpenAPI document")

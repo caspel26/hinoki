@@ -4,7 +4,7 @@
 
 use hinoki_orm::query::{
     compile_delete_with, compile_insert_with, compile_select_with, compile_update_with,
-    like_pattern, Delete, Dialect, Filter, Insert, Join, Op, QueryError, Select, Update,
+    like_pattern, Delete, Dialect, Filter, Insert, Join, Keyset, Op, QueryError, Select, Update,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -12,6 +12,7 @@ use pyo3::types::PyString;
 
 type RawJoin = (String, String, String, String, bool, Vec<String>);
 type RawFilter = (String, String, Vec<Py<PyAny>>);
+type RawKeyset = (Vec<(String, bool)>, Vec<Py<PyAny>>);
 
 fn error(err: QueryError) -> PyErr {
     PyValueError::new_err(err.to_string())
@@ -97,7 +98,7 @@ fn prebuild_pattern(
 /// `delete`; unused arguments are ignored. Returns `(sql, params)` with
 /// placeholders for the requested dialect in the order of `params`.
 #[pyfunction]
-#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None, dialect="postgres"))]
+#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None, keyset=None, dialect="postgres"))]
 #[allow(clippy::too_many_arguments)]
 pub fn compile_query(
     py: Python<'_>,
@@ -111,6 +112,7 @@ pub fn compile_query(
     limit: Option<u64>,
     offset: Option<u64>,
     joins: Option<Vec<RawJoin>>,
+    keyset: Option<RawKeyset>,
     dialect: &str,
 ) -> PyResult<(String, Vec<Py<PyAny>>)> {
     let dialect = match dialect {
@@ -125,6 +127,10 @@ pub fn compile_query(
     };
     let mut store = Store::default();
     let filters = store.filters(py, dialect, filters.unwrap_or_default())?;
+    let keyset = keyset.map(|(columns, values)| Keyset {
+        columns,
+        values: values.into_iter().map(|value| store.add(value)).collect(),
+    });
     let assignments = store.assignments(assignments.unwrap_or_default());
     let returning = returning.unwrap_or_default();
     let compiled = match kind {
@@ -145,6 +151,7 @@ pub fn compile_query(
                     })
                     .collect(),
                 filters,
+                keyset,
                 order: order.unwrap_or_default(),
                 limit,
                 offset,

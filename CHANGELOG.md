@@ -13,6 +13,31 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 `@ws.route("/path/{param}")` declares a WebSocket action with `access=`, `message=` and `reply=` (`Schema` classes), `subprotocols=`, `origins=`, `max_message_bytes=` and `idle_timeout=`; the handler is an `async def` that takes a `ws.Socket` and reads and sends text, binary or typed JSON messages. On Kiso the handshake, framing, masking, UTF-8 checks, ping and pong, the close handshake, message size limits, bounded queues and timers run in Rust; a refused handshake (`426`, `400`, `401`, `403`, an Origin that is not allowed, `503` over the connection limit) is an ordinary HTTP answer before the upgrade, and a server stop or reload closes open connections with `1001`. Granian serves the same actions through the ASGI `websocket` scope. New `execution` settings `max_websockets`, `ws_max_message_bytes`, `ws_queue`, `ws_ping_interval`, `ws_pong_timeout` and `ws_close_timeout`. The OpenAPI document describes the actions under `x-hinoki-websockets`. WebSocket over HTTP/2 and `permessage-deflate` are not provided. See [WebSockets](docs/websockets.md).
 
+#### 🧭 Cursor (keyset) pagination
+> `crates/orm/src/query.rs`, `crates/bindings/src/cursor.rs`, `crates/bindings/src/rows.rs`, `crates/bindings/src/db.rs`, `python/hinoki/pagination.py`, `python/hinoki/orm/keyset.py`, `python/hinoki/resources.py`, `python/hinoki/settings.py`
+
+`pagination=CursorPagination()` pages generated lists and handwritten routes by position: the response carries signed, tamper-proof but readable (not encrypted) `next` and `previous` cursors that clients should treat as opaque, runs no `COUNT`, and costs the same at any depth when the sort columns are indexed. The keyset `WHERE`, the signature and, for generated lists, the JSON page are built in Rust. The cursor holds only a position, so `get_queryset`, ownership and tenant policies apply to every page; a tampered, foreign or expired cursor answers `422`. A secret of at least 32 bytes is required (`CursorPagination(secret=...)` or `pagination.cursor_secret`); `cursor_ttl_seconds` is optional. See [cursor pagination](docs/pagination.md#cursor-keyset-pagination).
+
+#### 📣 Deprecated actions tell their callers
+> `python/hinoki/runtime/deprecation.py`, `python/hinoki/runtime/binding.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/servercore.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/routing.py`, `python/hinoki/routescli.py`
+
+`deprecated=True` or `deprecated=date(2026, 11, 22)` on an action (or on `crud(...)`) now also adds a `Deprecation` header to its responses and logs a warning on the `hinoki.deprecated` logger when it is called, at most once a minute per action. The action leaves the native lane (`lane_reason` `deprecated`).
+
+```python
+@http.get("/v1/tasks", deprecated=date(2026, 11, 22))
+async def list_tasks_v1() -> list[str]: ...
+```
+
+#### 🏷️ Per-action OpenAPI controls
+> `python/hinoki/routing.py`, `python/hinoki/openapi.py`, `python/hinoki/resources.py`, `python/hinoki/app.py`, `python/hinoki/ai/mcpapp.py`
+
+`@http.get(..., include_in_schema=False)` leaves an action out of the OpenAPI document without changing how it is served or protected; `tags`, `deprecated` and `operation_id` describe it. `RouteGroup(...)` and `crud(...)` take the same controls, and a duplicate `operation_id` stops registration. MCP refuses an action that is left out.
+
+```python
+@http.get("/ops/reindex", access=admin_only, include_in_schema=False)
+async def reindex() -> dict[str, str]: ...
+```
+
 #### 🔄 Reload on SIGHUP in Kiso
 > `python/hinoki/runtime/supervisor.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/runtime/wsgiworker.py`, `python/hinoki/runtime/listener.py`, `python/hinoki/serve.py`, `python/hinoki/settings.py`
 

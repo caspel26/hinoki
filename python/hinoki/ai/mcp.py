@@ -32,6 +32,7 @@ from hinoki.handlerhints import signature_of
 from hinoki.openapi import operation_key
 from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
+from hinoki.pagination import CursorPagination
 from hinoki.routing import Route
 from hinoki.rules import (
     Diagnostic,
@@ -100,6 +101,13 @@ def describe_action(route: Route) -> dict[str, Any]:
         "access": describe_access(route),
         "atomic": route.atomic,
         "pagination": route.pagination is not None,
+        "pagination_kind": (
+            None
+            if route.pagination is None
+            else "cursor"
+            if isinstance(route.pagination, CursorPagination)
+            else "page"
+        ),
         "parsers": [p.media_type for p in route.parsers],
         "renderers": [r.media_type for r in route.renderers],
         "location": where(route.handler),

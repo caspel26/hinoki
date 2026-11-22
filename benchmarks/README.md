@@ -401,6 +401,31 @@ Raw Oha JSON, load averages, server logs, environment metadata and paired
 summaries are retained in the selected output directory. Interpret only the
 measured local run; do not copy these results into the comparative report.
 
+## Offset against cursor pages (`cursorbench.py`)
+
+Question: what does one list page cost with `apaginate` (offset plus COUNT) against `apaginate_cursor` (keyset, no COUNT) as the page gets deeper? In process, through the ORM, on a disposable SQLite file of 1 000 000 rows ordered `rank DESC, id`, page size 20, one warm-up call and 7 timed samples per cell (median and range). The script checks that both strategies return the same rows before timing.
+
+```sh
+uv run python benchmarks/cursorbench.py            # sort order indexed
+uv run python benchmarks/cursorbench.py --no-index # sort order not indexed
+```
+
+Observed (2026-11-22, one macOS laptop under a load average of 6 to 13, **debug-profile** extension as built by `uv sync`; medians in ms):
+
+| Depth (offset) | Offset, indexed | Cursor, indexed | Offset, no index | Cursor, no index |
+| --- | --- | --- | --- | --- |
+| 0 % (0) | 1.73 | 0.066 | 24.4 | 21.7 |
+| 1 % (10 000) | 1.82 | 0.107 | 41.8 | 31.7 |
+| 10 % (100 000) | 2.68 | 0.114 | 250.4 | 30.2 |
+| 50 % (500 000) | 7.00 | 0.099 | 1394.4 | 24.2 |
+| 90 % (900 000) | 11.30 | 0.108 | 1842.9 | 16.8 |
+
+Consequences and limits:
+
+* With an index on the sort order the cursor page stays at about 0.1 ms at every depth while the offset page grows with it; without an index both sort the table, and the cursor still avoids the growing offset scan.
+* Each run's own range is in the script output; the unindexed 50 % and 90 % offset maxima were above 2 s, so those cells are noisy.
+* SQLite only, one connection, no HTTP; numbers on PostgreSQL or MySQL, a release build and a quiet host were not measured. They are not a statement about any other framework.
+
 ## Native handler lane (`nativelanebench.py`)
 
 This script runs the Rust server in process with `native_dispatch` on or off

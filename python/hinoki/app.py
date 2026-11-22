@@ -23,8 +23,13 @@ from hinoki.fields import UNSET, Unset
 from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
-from hinoki.openapi import OpenAPIBuilder
-from hinoki.pagination import DEFAULT_MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE
+from hinoki.openapi import OpenAPIBuilder, documented
+from hinoki.pagination import (
+    DEFAULT_MAX_PAGE_SIZE,
+    DEFAULT_PAGE_SIZE,
+    CursorPagination,
+    Pagination,
+)
 from hinoki.parsers import (
     DEFAULT_PARSERS,
     SOURCE_DEFAULTS,
@@ -272,6 +277,11 @@ class Hinoki:
             if built_in
             else (DEFAULT_PAGE_SIZE, DEFAULT_MAX_PAGE_SIZE)
         )
+        cursor_secret = built_in.pagination.cursor_secret if built_in else None
+        self.cursor_defaults = (
+            None if cursor_secret is None else cursor_secret.reveal(),
+            built_in.pagination.cursor_ttl_seconds if built_in else None,
+        )
 
     def _initialize_registries(
         self,
@@ -364,6 +374,7 @@ class Hinoki:
         pending, groups, sockets = self._collect_routes(items)
         refuse_shared_names([*self._routes, *pending])
         ws_router = self._stage_websockets(sockets, pending)
+        refuse_duplicate_operation_ids([*self._routes, *pending])
         pending = [self.with_defaults(route) for route in pending]
         bound = [bind(route) for route in pending]  # bad signatures fail here
         # CRUD row plans must be scoped to this app's resolved renderers and binding.
@@ -517,14 +528,17 @@ class Hinoki:
             changes["renderers"] = self.default_renderers
         if route.pagination is not None:
             try:
-                changes["pagination"] = route.pagination.resolved(
-                    *self.pagination_defaults
-                )
+                changes["pagination"] = self.resolved_pagination(route.pagination)
             except ValueError as exc:
                 raise RegistrationError(f"{route.name}: pagination {exc}") from exc
         if self.middleware:
             changes["middleware"] = (*self.middleware, *route.middleware)
         return dataclasses.replace(route, **changes) if changes else route
+
+    def resolved_pagination(self, strategy: Pagination) -> Pagination:
+        if isinstance(strategy, CursorPagination):
+            return strategy.resolved(*self.pagination_defaults, *self.cursor_defaults)
+        return strategy.resolved(*self.pagination_defaults)
 
     def install(self, *modules: Module) -> None:
         """Install modules and include their APIs.
@@ -646,6 +660,20 @@ class Hinoki:
     def _check_mutable(self) -> None:
         if self._adapter is not None:
             raise RegistrationError("application is already serving; it is frozen")
+
+
+def refuse_duplicate_operation_ids(routes: Sequence[Route]) -> None:
+    """An ``operation_id`` names one operation in the OpenAPI document."""
+    seen: dict[str, Route] = {}
+    for route in routes:
+        if not route.operation_id or not documented(route):
+            continue
+        first = seen.setdefault(route.operation_id, route)
+        if first is not route:
+            raise RegistrationError(
+                f"operation_id {route.operation_id!r} is declared by "
+                f"{first.name} and {route.name}; it must be unique"
+            )
 
 
 def refuse_shared_names(routes: Sequence[Route]) -> None:

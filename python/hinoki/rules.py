@@ -523,10 +523,10 @@ def returns_plain_list(annotation: object) -> bool:
 
 class RequirePagination(Rule):
     id = "HNK-API-003"
-    fix = "return Page[Item] and paginate the action instead of returning a list"
+    fix = "return Page[Item] or CursorPage[Item] and paginate the action"
     explanation = (
-        "A GET that returns a plain list grows with the table. A Page bounds the "
-        "response and tells the client the total."
+        "A GET that returns a plain list grows with the table. A Page or a "
+        "CursorPage bounds the response."
     )
 
     def __init__(self, match: str = "*", except_: Iterable[str] = ()) -> None:

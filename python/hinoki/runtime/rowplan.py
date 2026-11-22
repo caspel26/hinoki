@@ -112,7 +112,7 @@ class RowWireSelection:
         *,
         order: tuple[tuple[str, bool], ...],
         limit: int,
-        offset: int,
+        offset: int | None,
     ) -> TypeGuard[QuerySet[Any]]:
         return valid_query_state(self, query, order=order, limit=limit, offset=offset)
 
@@ -247,6 +247,9 @@ def build_selection(
     fields: list[tuple[str, str, str, bool]],
 ) -> RowWireSelection:
     plan = core._RowPlan(list(model.__columns__), fields)
+    # Compile the validator now: the first compile later (the native CRUD lane
+    # does it at startup) must not look like a patched ``__native__``.
+    schema.native_schema()
     return RowWireSelection(
         plan=plan,
         owner=owner,

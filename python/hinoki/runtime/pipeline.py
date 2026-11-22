@@ -55,6 +55,7 @@ from hinoki.renderers import (
 )
 from hinoki.routing import Found, MethodNotAllowed
 from hinoki.runtime.binding import BODY_METHODS, Binding, RequestData, parse_query
+from hinoki.runtime.deprecation import Reminders
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.inline import RequestDeadline, run_inline
 from hinoki.runtime.lifespan import Lifespan
@@ -214,6 +215,7 @@ class Pipeline:
             for b in self.bindings
         ]
         self.has_route_cors = any(policy is not None for policy in self.route_cors)
+        self.reminders = Reminders([b.route for b in self.bindings])
         settings = app.settings if isinstance(app.settings, AppSettings) else None
         self.security = settings.security if settings else SecuritySettings()
         self.trusted_proxies = tuple(
@@ -950,6 +952,7 @@ class Pipeline:
         binding = self.bindings[action]
         context.route_headers.set(binding.owner_headers)
         context.route_cors.set(self.route_cors[action])
+        self.reminders.called(binding.route)
         return binding, path_params
 
     async def _dispatch_request(

@@ -19,7 +19,14 @@ from hinoki.fieldtypes import FieldType, is_union
 from hinoki.handlerhints import hints_of
 from hinoki.http.response import Response
 from hinoki.http.stream import EventStream, Streamed
-from hinoki.pagination import MAX_NUMBER, Page, PageNumberPagination
+from hinoki.pagination import (
+    MAX_NUMBER,
+    MAX_TOKEN,
+    CursorPage,
+    CursorPagination,
+    Page,
+    Pagination,
+)
 from hinoki.runtime.binding import Binding, Param
 from hinoki.runtime.responsecheck import union_arms
 from hinoki.schema import Schema, SchemaExtra
@@ -27,6 +34,7 @@ from hinoki.schema import Schema, SchemaExtra
 if TYPE_CHECKING:
     from hinoki.access import Access
     from hinoki.app import Hinoki
+    from hinoki.routing import Route
 
 SCALAR_TYPES: dict[type, dict[str, Any]] = {
     str: {"type": "string"},
@@ -90,6 +98,24 @@ INPUTS = {"path", "query", "page", "queryschema"}
 BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
+def documented(route: Route) -> bool:
+    """Whether the OpenAPI document lists ``route``. Leaving it out changes only
+    the document: the action is still served and its access still applies."""
+    if getattr(route.owner, "hide_from_docs", False):
+        return False  # HTML pages (the admin) are not part of the API contract
+    return route.include_in_schema
+
+
+def labels(route: Route) -> dict[str, Any]:
+    """The ``tags`` and ``deprecated`` keys an operation declares."""
+    found: dict[str, Any] = {}
+    if route.tags:
+        found["tags"] = list(route.tags)
+    if route.deprecated:
+        found["deprecated"] = True
+    return found
+
+
 def operation_key(method: str) -> str:
     """The path item field holding a method's operation. OpenAPI 3.1 has no
     ``query`` operation (3.2 adds it), so QUERY uses the ``x-query`` extension
@@ -121,15 +147,19 @@ class OpenAPIBuilder:
         self.version = version
         self.components: dict[str, dict[str, Any]] = {}
         self.owners: dict[str, type[Schema]] = {}
-        self.operation_ids: set[str] = set()
+        self.operation_ids: set[str] = {
+            route.operation_id
+            for route in app.routes
+            if route.operation_id and documented(route)
+        }
         self.security_schemes: dict[str, dict[str, Any]] = {}
 
     def build(self) -> dict[str, Any]:
         paths: dict[str, dict[str, Any]] = {}
         for binding in self.app.bindings:
             route = binding.route
-            if getattr(route.owner, "hide_from_docs", False):
-                continue  # HTML pages (the admin) are not part of the API contract
+            if not documented(route):
+                continue
             path = paths.setdefault(route.path, {})
             path[operation_key(route.method)] = self.operation(binding)
         document: dict[str, Any] = {
@@ -178,6 +208,7 @@ class OpenAPIBuilder:
     def operation(self, binding: Binding) -> dict[str, Any]:
         route = binding.route
         operation: dict[str, Any] = {"operationId": self.operation_id(binding)}
+        operation.update(labels(route))
         summary, description = split_docstring(route.handler)
         if summary:
             operation["summary"] = summary
@@ -275,6 +306,8 @@ class OpenAPIBuilder:
             responses["403"] = {"description": "Missing required scope"}
 
     def operation_id(self, binding: Binding) -> str:
+        if binding.route.operation_id:
+            return binding.route.operation_id
         base = re.sub(r"\W+", "_", binding.route.name.replace("<locals>.", "")).strip(
             "_"
         )
@@ -372,11 +405,29 @@ class OpenAPIBuilder:
     def generic(self, origin: object, args: tuple[Any, ...]) -> dict[str, Any] | None:
         if origin is list and args:
             return {"type": "array", "items": self.annotation(args[0])}
-        if origin is Page and args:
-            return self.page_schema(args[0])
+        if origin in {Page, CursorPage} and args:
+            build = self.page_schema if origin is Page else self.cursor_page_schema
+            return build(args[0])
         if origin is dict and len(args) == DICT_ARGS:
             return {"type": "object", "additionalProperties": self.annotation(args[1])}
         return None
+
+    def cursor_page_schema(self, item: object) -> dict[str, Any]:
+        items = self.annotation(item)
+        name = "CursorPage_" + str(items.get("$ref", "item")).rsplit("/", 1)[-1]
+        if name not in self.components:
+            cursor: dict[str, Any] = {"type": ["string", "null"]}
+            self.components[name] = {
+                "type": "object",
+                "properties": {
+                    "items": {"type": "array", "items": items},
+                    "next": cursor,
+                    "previous": cursor,
+                    "page_size": {"type": "integer"},
+                },
+                "required": ["items", "next", "previous", "page_size"],
+            }
+        return ref(name)
 
     def page_schema(self, item: object) -> dict[str, Any]:
         items = self.annotation(item)
@@ -548,7 +599,29 @@ def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
     return low if name == "min_length" else high
 
 
-def page_parameters(strategy: PageNumberPagination) -> list[dict[str, Any]]:
+def page_parameters(strategy: Pagination) -> list[dict[str, Any]]:
+    if isinstance(strategy, CursorPagination):
+        size, upper = strategy.limits
+        return [
+            {
+                "name": "cursor",
+                "in": "query",
+                "required": False,
+                "description": "Opaque cursor from `next` or `previous`.",
+                "schema": {"type": "string", "minLength": 1, "maxLength": MAX_TOKEN},
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": False,
+                "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": upper,
+                    "default": size,
+                },
+            },
+        ]
     return [
         {
             "name": "page",
