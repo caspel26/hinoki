@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 from collections.abc import Collection
 
 from hinoki import __version__
@@ -22,19 +23,14 @@ def prompts(style: Style) -> tuple[str, str]:
     return primary, style.dim("  \u00b7\u00b7\u00b7 ")
 
 
-def model_summary(style: Style, names: Collection[str]) -> str:
+def model_summary(names: Collection[str]) -> str:
     """The first few model names, then how many more there are."""
     ordered = sorted(names)
     if not ordered:
-        return style.dim("none")
+        return "none"
     shown = ", ".join(ordered[:SHOWN_MODELS])
     extra = len(ordered) - SHOWN_MODELS
-    more = style.dim(f"  +{extra} more") if extra > 0 else ""
-    return f"{style.text(shown)}{more}"
-
-
-def row(style: Style, label: str, value: str) -> str:
-    return style.line("rail", f"{style.dim(f'{label:<10}')}{value}")
+    return f"{shown}  +{extra} more" if extra > 0 else shown
 
 
 def greeting(
@@ -43,13 +39,15 @@ def greeting(
     """The lines printed before the first prompt."""
     if not style.fancy:
         return [PLAIN_GREETING]
+    facts = [
+        ("app", title),
+        ("settings", settings),
+        ("models", model_summary(models)),
+        ("python", platform.python_version()),
+    ]
     return [
-        style.banner("interactive shell", f"v{__version__}"),
+        style.banner("interactive shell", f"v{__version__}", facts),
         style.rail_head("shell", "ctrl-d to exit"),
-        style.line("rail"),
-        row(style, "app", style.text(title)),
-        row(style, "settings", style.text(settings)),
-        row(style, "models", model_summary(style, models)),
         style.line("rail"),
         style.line(
             "end",

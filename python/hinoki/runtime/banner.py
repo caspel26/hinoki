@@ -1,8 +1,8 @@
 """What Kiso says on stderr when it starts: its name, version and how it runs.
 
 The ``listening on`` line stays on stdout, where tools wait for it; this is the
-box before it, the one ``hinoki new`` draws, titled ``Kiso``: the tagline and the
-version, then the facts about how the server runs. It is drawn when stderr is a
+branch before it, the one ``hinoki new`` draws, titled ``Kiso``: the tagline and
+the version, then the facts about how the server runs. It is drawn when stderr is a
 terminal that takes colour (and ``NO_COLOR`` is unset); otherwise it is one plain
 line.
 """
@@ -17,7 +17,6 @@ from hinoki.settings import ServerSettings
 from hinoki.terminal import Style, color_depth, light_background
 
 TAGLINE = "Hinoki's Rust server"
-SEPARATOR = " \u00b7 "
 
 
 def wants_colour() -> bool:
@@ -35,38 +34,35 @@ def brand_style() -> Style:
     )
 
 
-def wrapped(facts: list[str], room: int) -> list[str]:
-    """``facts`` joined with dots, broken into rows of at most ``room`` columns."""
-    rows = [facts[0]]
-    for fact in facts[1:]:
-        if len(rows[-1]) + len(SEPARATOR) + len(fact) <= room:
-            rows[-1] += SEPARATOR + fact
-        else:
-            rows.append(fact)
-    return rows
-
-
-def details(
+def facts(
     settings: ServerSettings,
     *,
     dev: bool,
     workers: int,
     scheme: str,
     interface: str = "asgi",
-) -> list[str]:
-    """The facts worth knowing at a glance, in the order they are shown."""
+) -> list[tuple[str, str]]:
+    """The facts worth knowing at a glance, as key and value, in the order
+    they are shown."""
     lane = (
-        "WSGI, Python threads"
+        ("interface", "WSGI, Python threads")
         if interface == "wsgi"
-        else f"native lane {'off' if settings.native_dispatch is False else 'on'}"
+        else ("native lane", "off" if settings.native_dispatch is False else "on")
     )
     return [
-        "dev, reloads on file changes" if dev else "serve",
-        f"{workers} worker{'s' if workers != 1 else ''}",
-        scheme,
-        f"access log {'on' if settings.logs_access(dev) else 'off'}",
+        ("mode", "dev, reloads on file changes" if dev else "serve"),
+        ("workers", str(workers)),
+        ("scheme", scheme),
+        ("access log", "on" if settings.logs_access(dev) else "off"),
         lane,
     ]
+
+
+def plain_fact(key: str, value: str) -> str:
+    """One fact as the plain line says it."""
+    if key == "workers":
+        return f"{value} worker{'s' if value != '1' else ''}"
+    return f"{key} {value}" if key in {"access log", "native lane"} else value
 
 
 def banner(
@@ -80,14 +76,13 @@ def banner(
     interface: str = "asgi",
 ) -> str:
     """The banner for ``style``: plain on one line when it is ``None``."""
-    facts = details(
+    shown = facts(
         settings, dev=dev, workers=workers, scheme=scheme, interface=interface
     )
     if style is None:
-        return f"Kiso {version} ({TAGLINE}): {', '.join(facts)}"
-    rows = [(style.paint(TAGLINE, "brand"), style.dim(version)), ("", "")]
-    rows += [(style.dim(row), "") for row in wrapped(facts, style.box_room())]
-    return style.framed("Kiso", rows)
+        plain = ", ".join(plain_fact(key, value) for key, value in shown)
+        return f"Kiso {version} ({TAGLINE}): {plain}"
+    return style.lockup("Kiso", TAGLINE, f"v{version}", shown)
 
 
 def show(

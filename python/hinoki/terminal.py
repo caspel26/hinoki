@@ -13,7 +13,7 @@ import shutil
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TextIO
@@ -87,6 +87,27 @@ def visible_width(text: str) -> int:
     return len(ANSI.sub("", text))
 
 
+def clip_start(word: str, room: int, ellipsis: str) -> str:
+    """``word`` cut to ``room`` columns, losing its start."""
+    if len(word) <= room:
+        return word
+    return ellipsis + word[len(word) - room + len(ellipsis) :]
+
+
+def wrap_value(value: str, room: int, ellipsis: str = "\u2026") -> list[str]:
+    """``value`` broken at spaces into rows of at most ``room`` columns; one
+    word that is too long loses its start."""
+    rows = [""]
+    for text in value.split(" "):
+        word = clip_start(text, room, ellipsis)
+        joined = f"{rows[-1]} {word}".strip()
+        if len(joined) <= room or not rows[-1]:
+            rows[-1] = joined
+        else:
+            rows.append(word)
+    return rows
+
+
 def fit(text: str, width: int) -> str:
     """``text`` cut to ``width`` visible columns, keeping its escape sequences."""
     if visible_width(text) <= width:
@@ -128,13 +149,12 @@ SPINNER_COLORS = ("shade", "brand", "light", "brand")
 TAGLINE = "Python API framework"
 GLINT_FADE = 3
 LABEL_WIDTH = 10
-# The banner box: corners top-left, top-right, bottom-left, bottom-right, then
-# the horizontal and vertical edges.
-BOX_UNICODE = ("\u256d", "\u256e", "\u2570", "\u256f", "\u2500", "\u2502")
-BOX_ASCII = ("+", "+", "+", "+", "-", "|")
-BOX_MIN = 34
-BOX_MAX = 60
-BOX_PAD = 2
+# The banner branch: its top, its side and its bottom, in Unicode and ASCII, and
+# the widest and narrowest value column of its facts.
+BRANCH_UNICODE = ("\u256d\u2500", "\u2502", "\u2570\u2500")
+BRANCH_ASCII = ("+-", "|", "+-")
+FACTS_MAX = 72
+FACTS_MIN = 20
 
 
 def light_background(env: Mapping[str, str]) -> bool:
@@ -239,14 +259,8 @@ class Style:
         return f"  {self.glyph(kind)}  {text}".rstrip()
 
     def wordmark(self, name: str = "Hinoki") -> str:
-        """The name in ivory letters with violet dots on the i's (just the bold
-        name without Unicode)."""
-        if not self.unicode:
-            return self.bold(name)
-        return "".join(
-            self.paint(letter, "dot", bold=True) if letter == "i" else self.bold(letter)
-            for letter in name
-        )
+        """The name in bold primary text."""
+        return self.bold(name)
 
     def prefix(self) -> str:
         """``hinoki`` and an arrow: the brand name that leads the guide rail."""
@@ -262,71 +276,68 @@ class Style:
         text = self.paint(TAGLINE, "brand") if glint is None else self.glint(glint)
         return f"{text}  {self.dim(detail)}" if detail else text
 
-    def box_width(self) -> int:
-        """Outer width of the banner box: it fits the terminal with a spare
-        column, and stays between ``BOX_MIN`` and ``BOX_MAX``."""
-        return max(BOX_MIN, min(BOX_MAX, self.width - BOX_PAD - 1))
+    def branch(self) -> tuple[str, str, str]:
+        """The top, the side and the bottom of the branch that frames the banner."""
+        top, side, bottom = (
+            self.paint(self.symbol(fancy, plain), "shade")
+            for fancy, plain in zip(BRANCH_UNICODE, BRANCH_ASCII, strict=True)
+        )
+        return top, side, bottom
 
-    def edge(self, text: str) -> str:
-        return self.paint(text, "shade")
+    def fact_rows(self, facts: Sequence[tuple[str, str]]) -> list[str]:
+        """The ``facts`` as aligned key and value rows under the branch's side.
+        A value that does not fit wraps at spaces, or loses its start."""
+        side = self.branch()[1]
+        key = max(len(name) for name, _ in facts) + 2
+        room = max(FACTS_MIN, min(FACTS_MAX, self.width - 5 - key) - 1)
+        rows = []
+        for name, value in facts:
+            label = self.dim(f"{name:<{key}}")
+            for part in wrap_value(value, room, self.symbol("\u2026", "...")):
+                rows.append(f"  {side}  {label}{self.text(part)}")
+                label = " " * key
+        return rows
 
-    def box_row(self, inner: int, left: str, right: str = "") -> str:
-        """One row inside the box: ``left`` and ``right`` aligned to its sides."""
-        vertical = self.edge(self.symbol(BOX_UNICODE[5], BOX_ASCII[5]))
-        room = inner - 2 * BOX_PAD
-        gap = max(1, room - visible_width(left) - visible_width(right))
-        body = fit(f"{left}{' ' * gap}{right}", room)
-        fill = " " * (room - visible_width(body))
-        return f"  {vertical}{' ' * BOX_PAD}{body}{fill}{' ' * BOX_PAD}{vertical}"
-
-    def box_top(self, width: int, name: str = "Hinoki") -> str:
-        corner, end, _, _, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
-        title = self.wordmark(name)
-        rule = line * (width - visible_width(title) - 5)
-        return f"  {self.edge(corner + line)} {title} {self.edge(rule + end)}"
-
-    def box_bottom(self, width: int) -> str:
-        _, _, corner, end, line, _ = BOX_UNICODE if self.unicode else BOX_ASCII
-        return f"  {self.edge(corner + line * (width - 2) + end)}"
-
-    def framed(self, name: str, rows: list[tuple[str, str]]) -> str:
-        """A box titled with the wordmark of ``name``; each row has a left and
-        a right part, and a row must already fit ``box_room()`` columns."""
-        width = self.box_width()
-        blank = self.box_row(width - 2, "")
-        body = "\n".join(self.box_row(width - 2, left, right) for left, right in rows)
-        top = self.box_top(width, name)
-        return f"\n{top}\n{blank}\n{body}\n{blank}\n{self.box_bottom(width)}"
-
-    def box_room(self) -> int:
-        """Columns of text that fit on one row inside the box."""
-        return self.box_width() - 2 - 2 * BOX_PAD
-
-    def boxed(self, title: str, detail: str) -> tuple[str, Row, str]:
-        """The banner as a box: what is above the tagline row, the row, and
-        what is below it."""
-        width = self.box_width()
-        inner = width - 2
-        blank = self.box_row(inner, "")
-        right = detail if self.unicode else f"{title} - {detail}"
-        shown = self.dim(right)
-        room = inner - 2 * BOX_PAD - len(TAGLINE) - 2
-        beside = shown if len(right) <= room else ""
-        below = "" if beside else f"{self.box_row(inner, shown)}\n"
+    def header(
+        self, name: str, tagline: str, version: str, facts: Sequence[tuple[str, str]]
+    ) -> tuple[str, Row, str]:
+        """The banner as a branch: what is above the tagline row, the row, and
+        what is below it. The tagline drops under the title when it would not
+        fit beside it."""
+        top, side, bottom = self.branch()
+        beside = 5 + len(name) + 2 + len(tagline) + 2 + len(version) < self.width
+        title = f"  {top} {self.wordmark(name)}"
+        above = "\n" if beside else f"\n{title}  {self.dim(version)}\n"
+        lead = f"{title}  " if beside else f"  {side}  "
+        tail = f"  {self.dim(version)}" if beside else ""
 
         def row(glint: int | None) -> str:
-            text = self.paint(TAGLINE, "brand") if glint is None else self.glint(glint)
-            return self.box_row(inner, text, beside)
+            text = self.paint(tagline, "brand") if glint is None else self.glint(glint)
+            return f"{lead}{text}{tail}"
 
-        above = f"\n{self.box_top(width)}\n{blank}\n"
-        return above, row, f"\n{below}{blank}\n{self.box_bottom(width)}\n"
+        rows = self.fact_rows(facts) if facts else []
+        body = "".join(f"\n{line}" for line in [f"  {side}", *rows] if rows)
+        return above, row, f"{body}\n  {bottom}\n"
 
-    def banner(self, title: str, detail: str = "") -> str:
-        """The wordmark box with the tagline."""
+    def lockup(
+        self, name: str, tagline: str, version: str, facts: Sequence[tuple[str, str]]
+    ) -> str:
+        """The branch with the tagline, the version and the ``facts``."""
+        above, row, below = self.header(name, tagline, version, facts)
+        return f"{above}{row(None)}{below}"
+
+    def banner(
+        self, title: str, detail: str = "", facts: Sequence[tuple[str, str]] = ()
+    ) -> str:
+        """The Hinoki branch with the tagline."""
         if not self.color:
             return f"hinoki {detail} - {title}" if detail else f"hinoki - {title}"
-        above, row, below = self.boxed(title, detail)
-        return f"{above}{row(None)}{below}"
+        return self.lockup("Hinoki", TAGLINE, self.shown_detail(title, detail), facts)
+
+    def shown_detail(self, title: str, detail: str) -> str:
+        """The detail beside the tagline: with Unicode the guide rail names the
+        command, so only the version; without it, both."""
+        return detail if self.unicode else f"{title} - {detail}"
 
     def intro(self, title: str) -> str:
         """The top of the guide rail, under the banner (empty without it)."""
@@ -343,10 +354,18 @@ class Style:
             letters.append(self.paint(letter, name, bold=near <= 1))
         return "".join(letters)
 
-    def shimmer(self, title: str, detail: str, out: TextIO | None = None) -> None:
+    def shimmer(
+        self,
+        title: str,
+        detail: str,
+        facts: Sequence[tuple[str, str]] = (),
+        out: TextIO | None = None,
+    ) -> None:
         """Draw the banner, sweeping a highlight across the tagline."""
         out = out or sys.stdout
-        above, row, below = self.boxed(title, detail)
+        above, row, below = self.header(
+            "Hinoki", TAGLINE, self.shown_detail(title, detail), facts
+        )
         out.write(above)
         for step in range(len(TAGLINE) + GLINT_FADE + 1):
             out.write(f"\r{row(step - 2)}")
