@@ -15,7 +15,7 @@ from hinoki import Hinoki, http
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ModelValidationError, RegistrationError
 from hinoki.http.request import Request
-from hinoki.orm import Model, field, timestamps, use_database
+from hinoki.orm import Model, field, queryset, timestamps, use_database
 from hinoki.utils import utc_now
 from tests.harness import Client, Pool
 
@@ -322,3 +322,71 @@ async def test_sync_twins_take_the_same_option(client: Client) -> None:
         "query": 2,
         "listed": [6, 6],
     }
+
+
+class LockingMySQLDouble(MySQLDouble):
+    """Answers the key lock with ``keys`` and the read-back with the stored row."""
+
+    def __init__(self, row: dict[str, Any], keys: list[dict[str, Any]]) -> None:
+        super().__init__(row)
+        self.keys = keys
+
+    async def fetch(self, sql: str, *params: Any) -> list[dict[str, Any]]:
+        self.calls.append(f"fetch {sql}")
+        return self.keys if sql.endswith("FOR UPDATE") else [self.row]
+
+
+@pytest.fixture
+def locking_mysql() -> Iterator[LockingMySQLDouble]:
+    note = Note(title="m")
+    row = {c: getattr(note, c) for c in Note.__columns__}
+    double = LockingMySQLDouble(row, [{"id": row["id"]}])
+    with use_database(cast(Database, double)):
+        yield double
+
+
+async def test_mysql_update_by_a_non_key_filter_locks_the_keys_before_writing(
+    locking_mysql: LockingMySQLDouble,
+) -> None:
+    rows = await Note.filter(title="m").aupdate({"title": "renamed"})
+
+    assert [row.id for row in rows] == [locking_mysql.row["id"]]
+    kinds = [call.split(" ")[:2] for call in locking_mysql.calls]
+    assert kinds == [
+        ["atomic"],
+        ["fetch", "SELECT"],
+        ["execute", "UPDATE"],
+        ["fetch", "SELECT"],
+    ]
+    assert locking_mysql.calls[1].endswith("ORDER BY `id` ASC FOR UPDATE")
+    assert "`id` IN" in locking_mysql.calls[3]
+
+
+async def test_mysql_update_matching_nothing_writes_nothing(
+    locking_mysql: LockingMySQLDouble,
+) -> None:
+    locking_mysql.keys = []
+
+    assert await Note.filter(title="none").aupdate({"title": "renamed"}) == []
+    assert [call.split(" ")[:2] for call in locking_mysql.calls] == [
+        ["atomic"],
+        ["fetch", "SELECT"],
+    ]
+
+
+async def test_mysql_reads_back_many_locked_keys_in_bounded_chunks(
+    locking_mysql: LockingMySQLDouble, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(queryset, "IN_CHUNK", 2)
+    locking_mysql.keys = [{"id": uuid4()} for _ in range(5)]
+
+    await Note.filter(title="m").aupdate({"title": "renamed"})
+
+    reads = [call for call in locking_mysql.calls if "FOR UPDATE" not in call]
+    assert [call.split(" ")[:2] for call in reads] == [
+        ["atomic"],
+        ["execute", "UPDATE"],
+        ["fetch", "SELECT"],
+        ["fetch", "SELECT"],
+        ["fetch", "SELECT"],
+    ]

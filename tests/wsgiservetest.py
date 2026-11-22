@@ -4,7 +4,10 @@ import argparse
 import importlib.util
 import os
 import signal
+import socket
 import threading
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -18,7 +21,12 @@ from hinoki.serve import (
     wanted_interface,
     wsgi_refusal,
 )
-from hinoki.settings import AppSettings, ExecutionSettings, ServerSettings
+from hinoki.settings import (
+    AppSettings,
+    ExecutionSettings,
+    MetricsSettings,
+    ServerSettings,
+)
 from hinoki.wsgi import WSGIAdapter
 
 PLAIN = "tests.runtime.wsgiscenarios:app"
@@ -323,3 +331,130 @@ def test_wait_for_stop_returns_when_the_supervisor_is_gone() -> None:
         signal.signal(signal.SIGTERM, previous)
         signal.signal(signal.SIGINT, signal.default_int_handler)
         signal.signal(signal.SIGHUP, signal.SIG_DFL)
+
+
+def fire_when_waiting(action: Any) -> threading.Timer:
+    timer = threading.Timer(0.1, action)
+    timer.start()
+    return timer
+
+
+def restore_signals(previous: Any) -> None:
+    signal.signal(signal.SIGTERM, previous)
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+
+
+def test_a_supervised_worker_tells_it_is_ready_and_ignores_interrupts() -> None:
+    previous = signal.getsignal(signal.SIGTERM)
+    reader, writer = os.pipe()
+    seen: list[object] = []
+
+    def stop() -> None:
+        interrupt = signal.getsignal(signal.SIGINT)
+        assert callable(interrupt)
+        assert interrupt is signal.getsignal(signal.SIGHUP)
+        seen.append(interrupt(signal.SIGINT, None))
+        term = signal.getsignal(signal.SIGTERM)
+        assert callable(term)
+        term(signal.SIGTERM, None)
+        term(signal.SIGTERM, None)  # a second one waits for the drain
+
+    timer = fire_when_waiting(stop)
+    try:
+        wsgiworker.wait_for_stop(os.getppid(), writer)
+        assert os.read(reader, 1) == b"1"
+    finally:
+        timer.cancel()
+        os.close(reader)
+        restore_signals(previous)
+    assert seen == [None]
+
+
+def test_a_second_signal_ends_an_unsupervised_worker_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    previous = signal.getsignal(signal.SIGTERM)
+    exits: list[int] = []
+    monkeypatch.setattr(os, "_exit", exits.append)
+
+    def stop() -> None:
+        term = signal.getsignal(signal.SIGTERM)
+        assert callable(term)
+        term(signal.SIGTERM, None)
+        assert exits == []
+        term(signal.SIGTERM, None)
+
+    timer = fire_when_waiting(stop)
+    try:
+        wsgiworker.wait_for_stop(None)
+    finally:
+        timer.cancel()
+        restore_signals(previous)
+    assert exits == [1]
+
+
+def test_without_an_inherited_listener_the_server_binds_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    given: dict[str, Any] = {}
+
+    def start(*_args: object, **kwargs: Any) -> str:
+        given.update(kwargs)
+        return "server"
+
+    monkeypatch.setattr(
+        wsgiworker, "core", SimpleNamespace(WsgiServer=SimpleNamespace(start=start))
+    )
+    settings = ServerSettings()
+    server = wsgiworker.start_server(
+        load_wsgi_target(PLAIN), "127.0.0.1", 0, settings, listener_fd=None, dev=False
+    )
+    assert server == "server"  # type: ignore[comparison-overlap]
+    try:
+        listener = socket.socket(fileno=given["fd"])
+        assert listener.getsockname()[0] == "127.0.0.1"
+        listener.close()
+    except OSError:
+        os.close(given["fd"])
+        raise
+
+
+def test_an_adapter_target_whose_settings_say_wsgi_is_served_as_wsgi(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki(settings=AppSettings(server=ServerSettings(interface="wsgi")))
+    monkeypatch.setattr(serve, "import_target", lambda _target: WSGIAdapter(app))
+    assert wanted_interface(args("any:target")) == "wsgi"
+
+
+def test_a_wsgi_target_with_metrics_is_refused_on_granian(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("METRICS__LISTEN", "127.0.0.1:9100")
+    asked = argparse.Namespace(target=PLAIN, interface="wsgi", server="granian")
+    assert serve.run_wsgi(asked, reload=False) == 2
+    assert "metrics.listen" in capsys.readouterr().err
+
+
+def test_a_callable_without_a_readable_signature_is_not_a_factory() -> None:
+    class Opaque:
+        __signature__ = "not a signature"
+
+        def __call__(self) -> None:
+            return None
+
+    assert not serve.is_factory(Opaque())
+
+
+def test_a_metrics_listener_that_cannot_open_names_the_setting() -> None:
+    taken = socket.socket()
+    try:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen(1)
+        listen = f"127.0.0.1:{taken.getsockname()[1]}"
+        app = Hinoki(settings=AppSettings(metrics=MetricsSettings(listen=listen)))
+        with pytest.raises(ListenError, match=f"metrics.listen {listen}"):
+            serve.open_metrics(app, 1)
+    finally:
+        taken.close()

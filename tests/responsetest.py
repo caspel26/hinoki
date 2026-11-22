@@ -144,3 +144,10 @@ def test_response_is_public_from_package_and_http_module() -> None:
 def test_unsafe_cookies_are_refused(arguments: dict[str, object]) -> None:
     with pytest.raises(ValueError):  # noqa: PT011
         set_cookie(**arguments)  # type: ignore[arg-type]
+
+
+def test_a_raw_response_checks_the_status_and_the_body() -> None:
+    with pytest.raises(ValueError, match="invalid HTTP status"):
+        Response.raw(99, b"", [])
+    with pytest.raises(ValueError, match="cannot have a body"):
+        Response.raw(204, b"x", [])

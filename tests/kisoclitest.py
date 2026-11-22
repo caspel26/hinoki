@@ -242,6 +242,13 @@ def test_an_inherited_descriptor_that_is_not_a_socket_is_refused() -> None:
         os.close(writer)
 
 
+def test_an_inherited_datagram_socket_is_not_a_listener() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as datagram:
+        with pytest.raises(OSError, match="not a listening TCP socket"):
+            inherited_address(datagram.fileno())
+        assert datagram.fileno() >= 0  # the refusal left the descriptor open
+
+
 async def test_the_native_server_refuses_a_descriptor_that_is_not_a_listener() -> None:
     reader, writer = os.pipe()
     worker = KisoWorker(Hinoki(), "127.0.0.1", 0, listener_fd=reader)

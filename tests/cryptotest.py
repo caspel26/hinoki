@@ -18,6 +18,7 @@ import pytest
 
 from hinoki import Access, Caller, Hinoki, Request, core, http
 from hinoki.crypto import (
+    ClaimsJWTAuth,
     HashingBusy,
     JWTAuth,
     JWTKey,
@@ -448,3 +449,35 @@ def test_private_jwt_verifier_binding_reuses_keys_with_current_rules() -> None:
     attribute = "keys"
     with pytest.raises(AttributeError):
         setattr(verifier, attribute, specs)
+
+
+class ClaimsOnly(ClaimsJWTAuth):
+    keys: ClassVar[Sequence[JWTKey]] = (JWTKey("k1", "HS256", SECRET),)
+
+    def now(self) -> int:
+        return 1_000
+
+
+def test_claims_auth_builds_the_caller_from_a_valid_subject_and_scopes() -> None:
+    caller = ClaimsOnly().resolve_claims({"sub": "ann", "scopes": ["r", 7]})
+    assert caller is not None
+    assert (caller.id, caller.user, caller.permissions) == (
+        "ann",
+        None,
+        frozenset({"r"}),
+    )
+
+
+@pytest.mark.parametrize(
+    "claims",
+    [
+        {},
+        {"sub": ""},
+        {"sub": 5},
+        {"sub": "ann", "scopes": "r"},
+    ],
+)
+def test_claims_auth_refuses_an_unusable_subject_or_scope_claim(
+    claims: dict[str, Any],
+) -> None:
+    assert ClaimsOnly().resolve_claims(claims) is None

@@ -8,6 +8,7 @@ import logging
 import runpy
 import sys
 import warnings
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -796,3 +797,129 @@ def test_log_access_attaches_the_parsed_record(
         kiso.log_access([json.dumps(record)])
     assert caplog.records[0].getMessage() == "10.0.0.1:5 GET /x 200 1.2ms"
     assert caplog.records[0].access == record  # type: ignore[attr-defined]
+
+
+def test_a_route_auth_snapshot_that_cannot_be_checked_is_stale() -> None:
+    worker: Any = _worker()
+    worker.pipeline = SimpleNamespace(bindings={0: object()})
+    assert worker._route_auth_stale(0, (None, ())) is True
+
+
+def _recording_fail(worker: Any, monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    failed: list[Any] = []
+    monkeypatch.setattr(worker, "_fail", failed.append)
+    return failed
+
+
+@pytest.mark.asyncio
+async def test_a_websocket_request_without_an_action_is_failed_not_dropped(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker: Any = _worker()
+    failed = _recording_fail(worker, monkeypatch)
+    request = _Request(method="WS", action=None, id_ignored=True)
+    await worker._serve_websocket(cast(Any, request))
+    assert failed == [request]
+    assert "ignored invalid request ID" in caplog.text
+    assert "request rid-1 failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_translated_native_failure_is_sent_or_failed(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker: Any = _worker()
+    failed = _recording_fail(worker, monkeypatch)
+    response = SimpleNamespace(status=409, headers=[(b"x", b"1")], body=b"conflict")
+    worker._serve_native_failure = lambda *_args: asyncio.sleep(0, result=response)
+    sent = _Request(id_ignored=True)
+    await worker._serve_failure(cast(Any, sent), cast(Any, None))
+    assert sent.responses == [(409, [(b"x", b"1")], b"conflict")]
+    assert "ignored invalid request ID" in caplog.text
+
+    async def broken(*_args: Any) -> Any:
+        raise RuntimeError("translation failed")
+
+    worker._serve_native_failure = broken
+    lost = _Request()
+    await worker._serve_failure(cast(Any, lost), cast(Any, None))
+    assert failed == [lost]
+
+
+def test_a_native_failure_is_answered_in_place_only_when_nothing_can_match(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    worker: Any = _worker()
+    failed = _recording_fail(worker, monkeypatch)
+    failure = cast(Any, None)
+    assert worker._answer_failure(cast(Any, _Request(action=None)), failure) is False
+
+    answers: list[Any] = [RuntimeError("boom"), None]
+
+    def crud_failure_now(*_args: Any) -> Any:
+        answer = answers.pop(0) if answers else response
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    response = SimpleNamespace(status=503, headers=[], body=b"later")
+    worker.pipeline = SimpleNamespace(crud_failure_now=crud_failure_now)
+    raising = _Request(action=1)
+    assert worker._answer_failure(cast(Any, raising), failure) is True
+    assert failed == [raising]
+    assert worker._answer_failure(cast(Any, _Request(action=1)), failure) is False
+
+    answered = _Request(action=1, id_ignored=True)
+    assert worker._answer_failure(cast(Any, answered), failure) is True
+    assert answered.responses == [(503, [], b"later")]
+    assert "ignored invalid request ID" in caplog.text
+
+    class Gone(_Request):
+        def respond_final(self, *values: Any) -> None:
+            raise OSError("client gone")
+
+    gone = Gone(action=1)
+    assert worker._answer_failure(cast(Any, gone), failure) is True
+    assert failed == [raising, gone]
+    assert "could not be answered" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_request_queued_during_the_lane_drain_is_cancelled_too() -> None:
+    worker: Any = _worker()
+    late: list[asyncio.Task[None]] = []
+
+    async def pending() -> None:
+        await asyncio.Event().wait()
+
+    async def drain() -> None:
+        task = asyncio.create_task(pending())
+        late.append(task)
+        worker.tasks.add(task)
+
+    worker.lane = SimpleNamespace(cancel_all=lambda: None, unwinding=set(), drain=drain)
+    await worker._cancel_requests()
+    assert late[0].cancelled()
+
+
+def test_access_records_reach_the_logger_and_the_recent_requests_file(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    recent = tmp_path / "recent.jsonl"
+    settings = ServerSettings(access_log_format="logger", recent_requests=str(recent))
+    sink = kiso.access_sink(settings, False)
+    assert sink is not None
+    line = json.dumps(
+        {
+            "peer": "10.0.0.1:5",
+            "method": "GET",
+            "path": "/x",
+            "status": 200,
+            "duration_ms": 1.0,
+            "lane": "native",
+        }
+    )
+    with caplog.at_level(logging.INFO, logger="hinoki.access"):
+        sink([line])
+    assert recent.read_text().splitlines() == [line]
+    assert [r.getMessage() for r in caplog.records] == ["10.0.0.1:5 GET /x 200 1.0ms"]

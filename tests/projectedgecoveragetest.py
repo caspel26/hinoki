@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import threading
 from argparse import Namespace
@@ -164,3 +165,22 @@ def test_app_management_run_reports_project_errors(
     )
     assert projectcli.run(args) == 2
     assert capsys.readouterr().err == "error: invalid project\n"
+
+
+def test_posix_lock_closes_the_file_when_waiting_for_it_is_interrupted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fcntl = pytest.importorskip("fcntl")
+    manifest = tmp_path / "hinoki.toml"
+    manifest.touch()
+    descriptors: list[int] = []
+
+    def interrupted(descriptor: int, _operation: int) -> None:
+        descriptors.append(descriptor)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(fcntl, "flock", interrupted)
+    with pytest.raises(KeyboardInterrupt), projectcli._manifest_lock(manifest):
+        pytest.fail("the lock must not be granted")
+    with pytest.raises(OSError, match="Bad file descriptor"):
+        os.fstat(descriptors[0])

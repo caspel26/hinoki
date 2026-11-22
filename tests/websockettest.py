@@ -16,8 +16,10 @@ from hinoki import Access, Caller, Hinoki, Schema, core, http
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.errors import RegistrationError
 from hinoki.runtime.kiso import KisoWorker
+from hinoki.runtime.responses import HTTPError
+from hinoki.runtime.websockets import Admitted, run, value_of
 from hinoki.settings import AppSettings, CorsSettings, ExecutionSettings
-from hinoki.websocket import Param, WebSocketClosed, convert
+from hinoki.websocket import Param, WebSocketClosed, WebSocketRoute, convert
 
 GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 SECRET = b"k" * 32
@@ -512,6 +514,11 @@ class FakeTransport:
         return True
 
 
+async def test_receive_bytes_returns_a_binary_message() -> None:
+    socket = http.WebSocket(FakeTransport([("bytes", b"\x00\x01")]), path="/x")
+    assert await socket.receive_bytes() == b"\x00\x01"
+
+
 @pytest.mark.parametrize(
     ("kind", "method", "reason"),
     [
@@ -587,3 +594,35 @@ def test_an_unresolvable_annotation_is_a_registration_error() -> None:
 
     with pytest.raises(RegistrationError, match="cannot resolve annotations"):
         http.websocket("/x")(handler)
+
+
+def test_a_repeated_or_missing_query_parameter_is_refused_before_the_upgrade() -> None:
+    size = Param("size", int, path=False, required=True)
+    with pytest.raises(HTTPError, match="invalid_parameter") as twice:
+        value_of(size, {}, {"size": ["1", "2"]})
+    assert twice.value.response.status == 400
+    with pytest.raises(HTTPError, match="invalid_parameter") as missing:
+        value_of(size, {}, {})
+    assert b"is required" in missing.value.response.body
+    assert value_of(size, {}, {"size": ["3"]}) == 3
+
+
+async def test_a_cancelled_handler_propagates_without_closing_the_connection() -> None:
+    async def handler(socket: http.WebSocket) -> None:
+        raise asyncio.CancelledError
+
+    route = WebSocketRoute(
+        "/x", handler, None, None, None, (), (), None, None, (), "socket", None
+    )
+    closes: list[int] = []
+
+    class FakeTransport:
+        closed = None
+
+        async def close(self, code: int = 1000, reason: str = "") -> bool:
+            closes.append(code)
+            return True
+
+    with pytest.raises(asyncio.CancelledError):
+        await run(route, FakeTransport(), Admitted({}, None), "/x")  # type: ignore[arg-type]
+    assert closes == []

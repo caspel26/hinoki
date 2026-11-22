@@ -12,7 +12,7 @@ import pytest
 
 from hinoki.db import Database
 from hinoki.errors import FieldError, ModelValidationError
-from hinoki.orm import Model, field, ordered_by, use_database
+from hinoki.orm import Model, OnDelete, field, foreign_key, ordered_by, use_database
 from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.runtime.crudplan import orders_decimal_as_text
 
@@ -209,3 +209,45 @@ def test_a_default_decimal_ordering_is_kept_off_the_native_sqlite_plan() -> None
     with pytest.raises(FieldError, match="price"):
         Priced.all().compile(dialect="sqlite")
     assert "ORDER BY" in Priced.all().compile(dialect="postgres")[0]
+
+
+@pytest.fixture
+async def sqlite_entries(tmp_path: Path) -> AsyncIterator[Database]:
+    database = await Database.connect(f"sqlite://{tmp_path / 'stored.sqlite3'}")
+    await database.execute(
+        create_table_sql(Entry.__table__, table_state(Entry), "sqlite")
+    )
+    with use_database(database):
+        yield database
+    database.close()
+
+
+@pytest.mark.parametrize(
+    ("column", "value"),
+    [
+        ("price", "'NaN'"),  # text that is not a finite Decimal
+        ("price", "X'3135'"),  # a blob where the column holds Decimal text
+        ("span", "'long'"),  # text where the column holds whole microseconds
+        ("span", "1.5"),
+    ],
+)
+async def test_sqlite_stored_values_of_the_wrong_kind_are_a_field_error(
+    sqlite_entries: Database, column: str, value: str
+) -> None:
+    await Entry.acreate(day=dt.date(2026, 1, 1))
+    await sqlite_entries.execute(f"UPDATE scalar_entries SET {column} = {value}")  # noqa: S608
+
+    with pytest.raises(FieldError, match=column):
+        await Entry.all().afirst()
+
+
+class Basket(Model, table="scalar_baskets"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    entry_id: UUID = foreign_key(Entry, on_delete=OnDelete.CASCADE)
+
+
+def test_sqlite_refuses_ordered_decimal_comparisons_across_a_relation() -> None:
+    assert Basket.filter(entry__price=Decimal(1)).compile(dialect="sqlite")
+    with pytest.raises(FieldError, match=r"rel_entry\.price is a Decimal column"):
+        Basket.filter(entry__price__gt=Decimal(1)).compile(dialect="sqlite")
+    assert Basket.filter(entry__day=dt.date(2026, 1, 1)).compile(dialect="sqlite")

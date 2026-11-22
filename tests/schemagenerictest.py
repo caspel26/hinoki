@@ -137,3 +137,12 @@ async def test_http_and_openapi_use_the_parameterized_schema() -> None:
     assert reply.body["doubled"] == 4
     assert good.status == 200
     assert bad.status == 422
+
+
+def test_a_generic_schema_with_an_unresolved_annotation_is_refused() -> None:
+    class Dangling[T](Schema):
+        data: T
+        other: "NotDefinedAnywhere"  # type: ignore[name-defined]  # noqa: F821
+
+    with pytest.raises(RegistrationError, match="NotDefinedAnywhere"):
+        Dangling[int]

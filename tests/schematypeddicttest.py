@@ -139,3 +139,20 @@ async def test_the_request_lanes_validate_the_nested_object() -> None:
     assert good.status == 200
     assert good.body["address"] == {"street": "1 Main"}
     assert bad.status == 422
+
+
+class Marked(TypedDict):
+    code: Annotated[str, Field(min_length=2)]
+    note: NotRequired[Annotated[str, Field(max_length=5)]]
+
+
+def test_an_annotated_typeddict_key_keeps_its_requirement_and_constraints() -> None:
+    class Holder(Schema):
+        marked: Marked
+
+    marked: Any = Holder.validate({"marked": {"code": "ab"}}).marked
+    assert marked.code == "ab"
+    with pytest.raises(ValidationError):
+        Holder.validate({"marked": {"code": "a"}})
+    with pytest.raises(ValidationError):
+        Holder.validate({"marked": {}})

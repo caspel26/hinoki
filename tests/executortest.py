@@ -259,6 +259,22 @@ def test_abandoned_result_ignores_live_or_non_abandoned_futures() -> None:
     abandoned.discard(future)
 
 
+def test_abandoned_result_closes_a_coroutine_and_tolerates_a_failed_call() -> None:
+    abandoned: AbandonedResult[Coroutine[Any, Any, int]] = AbandonedResult()
+    abandoned.abandon()
+    coroutine = coroutine_result()
+    done: Future[Coroutine[Any, Any, int]] = Future()
+    done.set_result(coroutine)
+    abandoned.discard(done)
+    assert inspect.getcoroutinestate(coroutine) == inspect.CORO_CLOSED
+
+    failed: AbandonedResult[int] = AbandonedResult()
+    failed.abandon()
+    broken: Future[int] = Future()
+    broken.set_exception(ValueError("late failure"))
+    failed.discard(broken)
+
+
 async def test_submit_base_exception_releases_capacity() -> None:
     class Fatal(BaseException):
         pass

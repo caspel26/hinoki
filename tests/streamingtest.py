@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from hinoki import Hinoki, Schema, core, http
+from hinoki import testing as testing_module
 from hinoki.ai.mcpapp import ExposureError, select
 from hinoki.db import DatabaseModule
 from hinoki.errors import Conflict, RegistrationError
@@ -42,7 +43,7 @@ from hinoki.runtime.streaming import (
     within,
 )
 from hinoki.settings import AppSettings, ExecutionSettings
-from hinoki.testing import ASGIClient, BodyTooLarge, SyncClient
+from hinoki.testing import ASGIClient, BodyTooLarge, Feed, SyncClient, _StreamRun
 from hinoki.wsgi import WSGIAdapter, WSGIStartupError
 
 closed: list[str] = []
@@ -838,3 +839,134 @@ async def test_closing_a_source_waits_for_its_pending_piece() -> None:
     reader.pending = asyncio.ensure_future(slow())
     await reader.close()
     assert ran.is_set() and reader.pending is None
+
+
+@pytest.mark.parametrize(
+    ("make", "message"),
+    [
+        (lambda: Stream(iter([b"a"]), status=204), "cannot have a body"),
+        (
+            lambda: Stream(
+                iter([b"a"]),
+                headers=[("Content-Type", "text/plain")],
+                content_type="text/csv",
+            ),
+            "content-type is given twice",
+        ),
+        (lambda: Stream("text"), "iterable or async iterable"),
+        (lambda: Stream(iter([b"a"]), length=-1), "length must be"),
+        (lambda: Stream(iter([b"a"]), length=True), "length must be"),
+        (lambda: Event("x", retry=-1), "retry must be"),
+        (lambda: Event("x", retry=True), "retry must be"),
+        (lambda: EventStream(iter(["a"]), keepalive=0), "keepalive must be"),
+        (lambda: EventStream(iter(["a"]), keepalive=True), "keepalive must be"),
+    ],
+)
+def test_a_malformed_stream_declaration_is_refused(
+    make: Callable[[], object], message: str
+) -> None:
+    with pytest.raises((ValueError, TypeError), match=message):
+        make()
+
+
+def test_a_piece_of_the_wrong_type_is_refused_when_encoded() -> None:
+    with pytest.raises(TypeError, match="bytes or str"):
+        Stream(iter([b"a"])).encode(1)
+    with pytest.raises(TypeError, match="Event or str"):
+        EventStream(iter(["a"])).encode(b"raw")
+    assert EventStream(iter(["a"])).encode("a") == Event("a").wire
+
+
+async def test_middleware_keeps_the_file_when_it_adds_a_header(files: Path) -> None:
+    @http.get("/marked-file", middleware=[Mark()])
+    async def marked_file() -> File:
+        return File("a.txt", root=files)
+
+    async with ASGIClient(_app(marked_file)) as client:
+        reply = await client.get("/marked-file")
+        assert (reply.body, reply.headers["x-mark"]) == ("hello", "1")
+
+
+async def test_reading_a_stream_reply_past_the_byte_limit_fails() -> None:
+    async with (
+        ASGIClient(build()) as client,
+        client.stream("GET", "/count") as reply,
+    ):
+        with pytest.raises(BodyTooLarge, match="passed 5 bytes"):
+            await reply.read(max_bytes=5)
+
+
+def test_the_sync_client_chunks_end_with_the_stream() -> None:
+    with SyncClient(build()) as client, client.stream("GET", "/count") as reply:
+        assert list(reply.chunks()) == [b"count0;", b"count1;", b"count2;"]
+
+
+async def _quiet_app(
+    scope: dict[str, Any],
+    receive: Callable[[], Any],
+    send: Callable[[dict[str, Any]], Any],
+) -> None:
+    return None
+
+
+async def test_a_stream_run_without_a_response_reports_it() -> None:
+    run = _StreamRun(_quiet_app, {}, Feed(b""))
+    with pytest.raises(RuntimeError, match="sent no response"):
+        await run.head()
+    await run.close()
+
+
+async def test_a_stream_run_re_raises_the_error_that_stopped_the_application() -> None:
+    async def failing(
+        scope: dict[str, Any],
+        receive: Callable[[], Any],
+        send: Callable[[dict[str, Any]], Any],
+    ) -> None:
+        raise ValueError("application broke")
+
+    run = _StreamRun(failing, {}, Feed(b""))
+    with pytest.raises(ValueError, match="application broke"):
+        await run.head()
+    await run.close()
+
+
+async def test_a_response_that_just_stops_ends_the_reply() -> None:
+    async def unfinished(
+        scope: dict[str, Any],
+        receive: Callable[[], Any],
+        send: Callable[[dict[str, Any]], Any],
+    ) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"a", "more_body": True})
+
+    run = _StreamRun(unfinished, {}, Feed(b""))
+    reply = await run.head()
+    assert [piece async for piece in reply.chunks()] == [b"a"]
+    await run.close()
+
+
+async def test_closing_cancels_an_application_that_ignores_the_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def deaf(
+        scope: dict[str, Any],
+        receive: Callable[[], Any],
+        send: Callable[[dict[str, Any]], Any],
+    ) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    monkeypatch.setattr(testing_module, "STREAM_CLOSE_TIMEOUT", 0.01)
+    run = _StreamRun(deaf, {}, Feed(b""))
+    await run.head()
+    await started.wait()
+    await run.close()
+    assert cancelled.is_set()
