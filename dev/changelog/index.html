@@ -513,7 +513,12 @@
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>⚡ Less work per request</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>🧾 XML responses written in Rust</h4>
+<blockquote>
+<p><code>crates/bindings/src/xml_encode.rs</code>, <code>python/hinoki/renderers.py</code>, <code>python/hinoki/core.pyi</code>, <code>docs/codecs.md</code></p>
+</blockquote>
+<p><code>XMLRenderer</code> now writes through <code>core.encode_xml</code> instead of Python. It takes the same values as <code>JSONRenderer</code> and shares its depth limit (200) and its rules for UUIDs, datetimes, <code>Schema</code> instances and <code>dump()</code> objects. Behavior changes: a bare <code>Decimal</code>, <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>bytes</code>, <code>set</code> or <code>frozenset</code>, IP address or network (<code>IPv4Address</code>, <code>IPv6Address</code>, <code>IPv4Network</code>, <code>IPv6Network</code>), <code>PurePath</code> or <code>SecretStr</code> outside a <code>Schema</code> instance now raises <code>TypeError</code> (500), as it does for JSON, instead of being converted; and a float exponent is no longer zero-padded (<code>1e-7</code>, not <code>1e-07</code>). Everything else is byte-identical. <code>docs/codecs.md</code> now states the exact round-trip rules (<code>None</code>, <code>""</code>, <code>{}</code> and <code>[]</code> all read back as <code>None</code>).</p>
+<h4>⚡ Less work per request</h4>
 <blockquote>
 <p><code>python/hinoki/schemafast.py</code>, <code>python/hinoki/schema.py</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/binding.py</code></p>
 </blockquote>

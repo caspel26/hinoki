@@ -1066,7 +1066,8 @@ as is: escape untrusted data before putting it in.</p>
 
 
 
-        <p>The JSON-compatible result as XML (UTF-8, with an XML declaration).</p>
+        <p>The result as XML (UTF-8, with an XML declaration), written by the Rust
+encoder, which accepts what the JSON encoder accepts.</p>
 <p>A mapping becomes child elements named by its keys, a list becomes repeated
 <code>item</code> elements, <code>None</code> an empty element, and <code>true</code>/<code>false</code> are
 written in lower case. Keys are spelled as JSON spells them (<code>None</code> as

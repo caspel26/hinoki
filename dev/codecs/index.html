@@ -467,8 +467,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:59:06 UTC">November 22, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -540,8 +540,8 @@
 </tr>
 <tr>
 <td><code>XMLRenderer</code></td>
-<td>—</td>
-<td>Writes the JSON-compatible result as UTF-8 XML in Python; <code>root</code>, <code>item</code></td>
+<td>Encodes what <code>JSONRenderer</code> encodes (<code>dict</code>, <code>list</code>, <code>Schema</code>, UUID, datetime, <code>dump()</code> objects) as UTF-8 XML, with the GIL held; ASCII element names, U+FFFD for characters XML 1.0 forbids, depth limit 200</td>
+<td><code>root</code>, <code>item</code></td>
 </tr>
 </tbody>
 </table>
@@ -580,7 +580,7 @@
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">hook</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HookReceipt</span><span class="p">:</span> <span class="o">...</span>  <span class="c1"># request.data is a dict or a str</span>
 </code></pre></div>
 <h2 id="answer-xml">Answer XML<a class="headerlink" href="#answer-xml" title="Permanent link">&para;</a></h2>
-<p><code>XMLRenderer</code> renders the handler's result in its JSON-compatible form, as <code>application/xml; charset=utf-8</code> with an XML declaration. That is the data a default <code>JSONRenderer()</code> writes: a <code>Schema</code> or <code>dump()</code> object becomes its mapping, a UUID or datetime its text, and a tuple a list, at any depth. A <code>JSONRenderer</code>'s own options (<code>default</code>, <code>prepare</code>, <code>sort_keys</code>) do not apply to it:</p>
+<p><code>XMLRenderer</code> renders the handler's result as <code>application/xml; charset=utf-8</code> with an XML declaration. It is written by the Rust encoder, which accepts what the JSON encoder accepts: <code>dict</code>, <code>list</code>, <code>tuple</code>, <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>None</code>, <code>Schema</code> instances, UUIDs, datetimes and <code>dump()</code> objects, at any depth. <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code>, <code>bytes</code>, sets and frozensets, IP addresses and networks, <code>PurePath</code> and <code>SecretStr</code> (written masked) and enum members have a wire form only inside a <code>Schema</code> instance; anywhere else they raise <code>TypeError</code> (<code>500</code>), exactly as in <code>JSONRenderer</code> (give the handler a <code>Schema</code>, or convert them first). A <code>JSONRenderer</code>'s own options (<code>default</code>, <code>prepare</code>, <code>sort_keys</code>) do not apply to it:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">JSONRenderer</span><span class="p">,</span> <span class="n">XMLRenderer</span>
 
 
@@ -588,7 +588,48 @@
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">report</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]:</span>
     <span class="k">return</span> <span class="p">{</span><span class="s2">"id"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"tags"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="s2">"note"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
 </code></pre></div>
-<p><code>Accept: application/xml</code> answers <code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;report&gt;&lt;id&gt;1&lt;/id&gt;&lt;tags&gt;&lt;item&gt;a&lt;/item&gt;&lt;item&gt;b&lt;/item&gt;&lt;/tags&gt;&lt;note/&gt;&lt;/report&gt;</code>; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated <code>item</code> elements (<code>item=</code> renames them), <code>None</code> an empty element and booleans <code>true</code>/<code>false</code>. Keys are spelled as the JSON encoder spells them: a string as is, an integer in decimal, <code>None</code> as <code>null</code> and booleans as <code>true</code>/<code>false</code>; any other key (a float, a UUID, a tuple) raises an error (<code>500</code>), as it does for JSON. A key that is not a valid XML name (a space, a leading digit, a name starting with <code>xml</code>, so also an integer key) is written as <code>&lt;item key="..."&gt;</code>, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats, which JSON refuses, are written <code>NaN</code>, <code>INF</code> and <code>-INF</code>. Nesting deeper than 200 levels (the JSON encoder's limit), an integer of more than 4300 digits or a value that is not JSON-compatible raises an error (<code>500</code>). The renderer runs in Python, but it never reads the request, so an action that lists it stays on the native handler lane.</p>
+<p><code>Accept: application/xml</code> answers <code>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;report&gt;&lt;id&gt;1&lt;/id&gt;&lt;tags&gt;&lt;item&gt;a&lt;/item&gt;&lt;item&gt;b&lt;/item&gt;&lt;/tags&gt;&lt;note/&gt;&lt;/report&gt;</code>; without it the first renderer (JSON) answers. A mapping becomes child elements named by its keys, a list becomes repeated <code>item</code> elements (<code>item=</code> renames them), <code>None</code> an empty element and booleans <code>true</code>/<code>false</code>. Keys are spelled as the JSON encoder spells them: a string as is, an integer in decimal, <code>None</code> as <code>null</code> and booleans as <code>true</code>/<code>false</code>; any other key (a float, a UUID, a tuple) raises an error (<code>500</code>), as it does for JSON. A key that is not a valid XML name (a space, a leading digit, a name starting with <code>xml</code>, so also an integer key) is written as <code>&lt;item key="..."&gt;</code>, escaped, instead of failing the request. Tab and line breaks are written as character references so a parser keeps them, and characters XML 1.0 cannot carry are replaced by U+FFFD. Non-finite floats, which JSON refuses, are written <code>NaN</code>, <code>INF</code> and <code>-INF</code>; finite floats are spelled as the JSON encoder spells them (<code>1e-7</code>, <code>1e+16</code>). Element names are ASCII (<code>[A-Za-z_][A-Za-z0-9_.-]*</code>, not starting with <code>xml</code> in any case, no colon), so <code>root=</code> and <code>item=</code> that do not match raise <code>ValueError</code> when the renderer is created. Nesting deeper than 200 levels (the JSON encoder's limit; the reading limit is separate: <code>XMLParser(max_depth=)</code>, default 32, at most 1000), an integer of more than 4300 digits or a value it cannot write raises an error (<code>500</code>) whose message names the type or the limit. The encoder holds the GIL, as the JSON encoder does, because it reads Python objects as it writes; it never reads the request, so an action that lists the renderer stays on the native handler lane.</p>
+<h3 id="what-a-round-trip-keeps">What a round trip keeps<a class="headerlink" href="#what-a-round-trip-keeps" title="Permanent link">&para;</a></h3>
+<p><code>XMLParser</code> is not the inverse of <code>XMLRenderer</code>. Reading back what was written, with <code>XMLParser</code> or <code>XML[Schema]</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Written</th>
+<th>Read back</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>None</code>, <code>""</code>, <code>{}</code> and <code>[]</code> (all an empty element)</td>
+<td><code>None</code></td>
+</tr>
+<tr>
+<td><code>1</code>, <code>1.5</code>, <code>true</code></td>
+<td>the strings <code>"1"</code>, <code>"1.5"</code> and <code>"true"</code> (use <code>XML[Schema]</code> to convert per field)</td>
+</tr>
+<tr>
+<td>a list of one item</td>
+<td><code>{"item": "1"}</code> (a mapping with the item name as its key)</td>
+</tr>
+<tr>
+<td>a list of two or more items</td>
+<td><code>{"item": ["1", "2"]}</code></td>
+</tr>
+<tr>
+<td>a key written as <code>&lt;item key="..."&gt;</code></td>
+<td>the key <code>item</code></td>
+</tr>
+<tr>
+<td>the root element's name</td>
+<td>lost</td>
+</tr>
+<tr>
+<td>a character XML 1.0 cannot carry</td>
+<td>U+FFFD</td>
+</tr>
+</tbody>
+</table>
+<p>Attributes and namespace prefixes are ignored on reading, and mixed text and elements are refused. A document of more than 32 levels needs <code>XMLParser(max_depth=...)</code>. Use XML for interchange, not to store Python values.</p>
 <h2 id="configure-the-rust-json-encoder">Configure the Rust JSON encoder<a class="headerlink" href="#configure-the-rust-json-encoder" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="n">JSONRenderer</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># pretty, stable output</span>
 <span class="n">JSONRenderer</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>  <span class="c1"># Decimal, Path, ... become text</span>
@@ -628,12 +669,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#upload-files">Upload files</a></li><li><a href="#choose-them">Choose them</a></li><li><a href="#answer-xml">Answer XML</a></li><li><a href="#configure-the-rust-json-encoder">Configure the Rust JSON encoder</a></li><li><a href="#inherit-and-override">Inherit and override</a></li></ul>
+            <ul><li><a href="#upload-files">Upload files</a></li><li><a href="#choose-them">Choose them</a></li><li><a href="#answer-xml">Answer XML</a>
+            <ul><li><a href="#what-a-round-trip-keeps">What a round trip keeps</a></li></ul>
+          </li><li><a href="#configure-the-rust-json-encoder">Configure the Rust JSON encoder</a></li><li><a href="#inherit-and-override">Inherit and override</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 00:59:06 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
