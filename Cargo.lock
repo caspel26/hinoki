@@ -953,6 +953,7 @@ dependencies = [
  "hyper-util",
  "rustls",
  "rustls-pki-types",
+ "sha1",
  "tokio",
  "tokio-rustls",
 ]

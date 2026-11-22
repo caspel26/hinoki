@@ -21,11 +21,12 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::accesslog::{AccessLog, LogFilter};
 use crate::compress::Compression;
-use crate::conn::{respond, Backend, Transport};
+use crate::conn::{respond, Backend, Handover, Switched, Transport};
 use crate::framing::{Framing, Guarded, Signals};
 use crate::metrics::Registry;
 use crate::stall::StallGuard;
 use crate::streams::{track, Close, Streams};
+use crate::wsrun;
 
 /// Stop signal: `true` (or a dropped sender) means stop.
 pub type Stop = watch::Receiver<bool>;
@@ -174,6 +175,7 @@ async fn serve_h1<S, B>(
     B: Backend,
 {
     let signals = Arc::new(Signals::default());
+    let handover = Handover::default();
     let transport = Transport {
         secure,
         max_headers: config.max_headers,
@@ -184,6 +186,7 @@ async fn serve_h1<S, B>(
         metrics: config.metrics.clone(),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::clone(&signals),
+        handover: Arc::clone(&handover),
     };
     let first = Arc::new(Notify::new());
     let first_seen = Arc::clone(&first);
@@ -208,10 +211,11 @@ async fn serve_h1<S, B>(
         // The guard refuses the same bound, so both agree on what a head is.
         .max_header_size(head_limit)
         .max_headers(config.max_headers)
-        .serve_connection(TokioIo::new(guarded), service);
+        .serve_connection(TokioIo::new(guarded), service)
+        .with_upgrades();
     tokio::pin!(connection);
     tokio::select! {
-        _ = connection.as_mut() => return,
+        _ = connection.as_mut() => return switched(&handover, &config, stop).await,
         () = stopped(&mut stop) => {}
     }
     // `first` holds a permit once any request has reached the service. Without
@@ -226,10 +230,27 @@ async fn serve_h1<S, B>(
     })
     .await;
     if arrived != Ok(true) {
-        return;
+        return switched(&handover, &config, stop).await;
     }
     connection.as_mut().graceful_shutdown();
     let _ = connection.await;
+    switched(&handover, &config, stop).await;
+}
+
+/// Run the WebSocket session an upgrade left in `handover`, if one did. A stop
+/// that came first closes it right away with 1001.
+async fn switched(handover: &Handover, config: &ServerConfig, stop: Stop) {
+    let taken = handover
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .take();
+    let Some(Switched { on, session }) = taken else {
+        return;
+    };
+    let Ok(Ok(upgraded)) = timeout(config.write_timeout, on).await else {
+        return;
+    };
+    wsrun::run(TokioIo::new(upgraded), session, stop).await;
 }
 
 /// One HTTP/2 connection (TLS only). The HTTP/1 text guards do not apply: h2
@@ -258,6 +279,7 @@ async fn serve_h2<S, B>(
         metrics: config.metrics.clone(),
         body_read_timeout: config.body_read_timeout,
         signals: Arc::new(Signals::default()),
+        handover: Handover::default(),
     };
     let streams = Streams::new();
     let counted = Arc::clone(&streams);

@@ -29,6 +29,10 @@ pub enum Early {
     InvalidCredentials,
     /// An authenticated caller without the route's permissions.
     Forbidden,
+    /// A WebSocket upgrade with a missing or malformed key.
+    BadUpgrade,
+    /// A WebSocket route reached without an upgrade, or with a version other than 13.
+    UpgradeRequired,
 }
 
 impl Early {
@@ -43,6 +47,8 @@ impl Early {
             Early::NotAcceptable => 406,
             Early::BadHost => 400,
             Early::DisallowedHost => 400,
+            Early::BadUpgrade => 400,
+            Early::UpgradeRequired => 426,
             Early::CorsOriginDenied | Early::Forbidden => 403,
             Early::Unauthorized | Early::InvalidCredentials => 401,
         }
@@ -52,6 +58,7 @@ impl Early {
     pub fn headers(&self) -> &'static [(&'static str, &'static str)] {
         match self {
             Early::NotReady | Early::Overloaded => &[("retry-after", "1")],
+            Early::UpgradeRequired => &[("upgrade", "websocket"), ("sec-websocket-version", "13")],
             _ => &[],
         }
     }

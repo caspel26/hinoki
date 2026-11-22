@@ -35,6 +35,8 @@ pub mod stall;
 pub mod stream;
 pub mod streams;
 pub mod tls;
+pub mod ws;
+pub mod wsrun;
 
 #[cfg(test)]
 mod compress_tests;

@@ -452,6 +452,61 @@ class PreparedRequest:
         `ValueError` for a bodyless status.
         """
 
+    def accept_websocket(
+        self,
+        subprotocol: str | None = None,
+        headers: list[tuple[bytes, bytes]] = ...,
+    ) -> WebSocket | None:
+        """Accept the handshake of a WebSocket request (method `"WS"`).
+
+        The connection answers 101 with the negotiated `subprotocol` (one the
+        client offered) and `headers`, then carries messages through the
+        returned object. `None` when the request was already answered or nobody
+        is waiting.
+        """
+
+class WebSocketSpec:
+    """A WebSocket route and the limits Rust enforces on its connections."""
+
+    def __init__(
+        self,
+        path: str,
+        origins: list[bytes],
+        max_message: int,
+        queue: int,
+        ping_interval: float | None,
+        pong_timeout: float,
+        idle_timeout: float | None,
+        close_timeout: float,
+        write_timeout: float,
+    ) -> None: ...
+    @property
+    def path(self) -> str: ...
+
+class WebSocket:
+    """One open WebSocket: whole messages through two bounded queues.
+
+    Framing, ping and pong, close, size limits and the timers run in Rust.
+    """
+
+    def receive(self) -> Awaitable[tuple[str, str | bytes] | None]:
+        """`("text", str)` or `("bytes", bytes)`; `None` once the connection is
+        closed and everything it delivered was read."""
+
+    def send_text(self, text: str) -> Awaitable[bool]:
+        """Queue a text message, waiting for room; `False` once closed."""
+
+    def send_bytes(self, data: bytes) -> Awaitable[bool]:
+        """Queue a binary message, waiting for room; `False` once closed."""
+
+    def close(self, code: int = 1000, reason: str = "") -> Awaitable[bool]:
+        """Close after the messages queued before it. `ValueError` for a code
+        that cannot be sent; `False` when the connection is closed already."""
+
+    @property
+    def closed(self) -> tuple[int, str] | None:
+        """`(code, reason)` once the connection ended, else `None`."""
+
 class ResponseSink:
     """The producer's end of a streamed response.
 
@@ -595,6 +650,8 @@ class ServerCore:
         route_cors: list[
             tuple[int, tuple[bool, list[bytes], bool, bytes, list[tuple[bytes, bytes]]]]
         ] = ...,
+        websockets: list[WebSocketSpec] = ...,
+        ws_connections: int = 1000,
     ) -> None: ...
     def trusts(self, address: str) -> bool: ...
     def set_ready(self, ready: bool) -> None: ...

@@ -836,6 +836,12 @@ class ExecutionSettings(Settings):
     max_streams: int = 64
     stream_idle_timeout: float | None = None
     sse_keepalive: float = 15.0
+    max_websockets: int = 1000
+    ws_max_message_bytes: int = 1024 * 1024
+    ws_queue: int = 64
+    ws_ping_interval: float | None = 20.0
+    ws_pong_timeout: float = 20.0
+    ws_close_timeout: float = 5.0
 
     def validate(self) -> None:
         if self.sync_workers < 1 or self.sync_queue < 0:
@@ -843,6 +849,7 @@ class ExecutionSettings(Settings):
         if self.request_timeout <= 0:
             raise ValueError("request_timeout must be positive")
         self._validate_streams()
+        self._validate_websockets()
         if not 1 <= self.max_body_bytes <= MAX_BODY_LIMIT:
             raise ValueError(f"max_body_bytes must be 1 to {MAX_BODY_LIMIT}")
         if not 1 <= self.max_query_bytes <= MAX_REQUEST_INPUT_BYTES:
@@ -851,6 +858,19 @@ class ExecutionSettings(Settings):
             raise ValueError(f"max_header_bytes must be 1 to {MAX_REQUEST_INPUT_BYTES}")
         if self.sync_workers > MAX_SYNC_WORKERS:
             raise ValueError(f"sync_workers must be at most {MAX_SYNC_WORKERS}")
+
+    def _validate_websockets(self) -> None:
+        if self.max_websockets < 1 or self.ws_queue < 1:
+            raise ValueError("max_websockets and ws_queue must be at least 1")
+        if not 1 <= self.ws_max_message_bytes <= MAX_BODY_LIMIT:
+            raise ValueError(f"ws_max_message_bytes must be 1 to {MAX_BODY_LIMIT}")
+        for value in (
+            self.ws_ping_interval,
+            self.ws_pong_timeout,
+            self.ws_close_timeout,
+        ):
+            if value is not None and (not math.isfinite(value) or value <= 0):
+                raise ValueError("ws_* timeouts must be positive and finite")
 
     def _validate_streams(self) -> None:
         if self.max_streams < 1:
@@ -1643,4 +1663,10 @@ class AppSettings(Settings):
             max_streams=self.execution.max_streams,
             stream_idle_timeout=self.execution.stream_idle_timeout,
             sse_keepalive=self.execution.sse_keepalive,
+            max_websockets=self.execution.max_websockets,
+            ws_max_message_bytes=self.execution.ws_max_message_bytes,
+            ws_queue=self.execution.ws_queue,
+            ws_ping_interval=self.execution.ws_ping_interval,
+            ws_pong_timeout=self.execution.ws_pong_timeout,
+            ws_close_timeout=self.execution.ws_close_timeout,
         )
