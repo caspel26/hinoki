@@ -47,7 +47,7 @@ from hinoki.runtime.rowplan import (
     static_state,
     static_state_matches,
 )
-from hinoki.schema import Schema, uses_generated_init
+from hinoki.schema import Schema, SchemaMeta, uses_generated_init
 from hinoki.utils import utc_now
 
 ACTION_ROUTES = {
@@ -782,7 +782,7 @@ def schemas_are_plain(
 
 def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bool:
     compatible = (
-        type(schema) is type
+        type(schema) is SchemaMeta
         and uses_generated_init(schema)
         and all(
             class_static(schema, name) is original

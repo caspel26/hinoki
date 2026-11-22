@@ -36,6 +36,7 @@ use crate::request::{Json, JsonObject};
 mod coerce;
 mod internet;
 mod scalars;
+mod typeddecode;
 
 use internet::NetKind;
 pub(crate) use scalars::wire_text;
@@ -123,6 +124,16 @@ pub(crate) enum Number {
 pub(crate) struct NativeLimit {
     value: LimitValue,
     shown: String,
+}
+
+impl NativeLimit {
+    /// The bound as a number, `None` for a `Decimal` bound.
+    fn number(&self) -> Option<Number> {
+        match self.value {
+            LimitValue::Number(number) => Some(number),
+            LimitValue::Decimal(_) => None,
+        }
+    }
 }
 
 /// A bound of a number field, or of a `Decimal` field (compared exactly).
@@ -241,6 +252,8 @@ pub struct Compiled {
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
     native: Option<Arc<NativeSchema>>,
+    /// The one-pass body decode of this schema, when it is inside its subset.
+    typed: Option<typeddecode::Typed>,
 }
 
 /// The GIL-free copy of a [`Compiled`] schema.
@@ -570,6 +583,9 @@ pub fn compile_schemas(
         }
     }
     let native = lower_schemas(py, &built, root);
+    let typed = native
+        .as_deref()
+        .and_then(|lowered| typeddecode::typed(py, &built, lowered, root));
     Ok(Compiled {
         definitions: built,
         root,
@@ -577,6 +593,7 @@ pub fn compile_schemas(
         from_iso,
         unset,
         native,
+        typed,
     })
 }
 
@@ -2839,6 +2856,20 @@ impl NativeSchema {
 
 #[pymethods]
 impl Compiled {
+    /// The instance a JSON body describes, built in one pass from the bytes,
+    /// or `None` when the ordinary decode and validate must run on them (a
+    /// syntax error, a problem, or anything outside the typed subset).
+    fn decode_typed<'py>(
+        &self,
+        py: Python<'py>,
+        raw: &[u8],
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let Some(typed) = &self.typed else {
+            return Ok(None);
+        };
+        typeddecode::decode(py, typed, raw)
+    }
+
     /// The tree of a text source (form fields, query pairs, XML) with its text
     /// leaves converted to the scalar types this schema declares, ready for the
     /// strict `validate`. What does not convert is left for `validate` to refuse.
@@ -2896,11 +2927,15 @@ fn build_direct<'py>(
     record: &Bound<'py, PyDict>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let instance = py.get_type::<PyAny>().call_method1("__new__", (class,))?;
-    let attributes = instance.getattr("__dict__")?;
-    let attributes = attributes.cast::<PyDict>()?;
-    attributes.update(record.as_mapping())?;
+    for (key, value) in record.iter() {
+        typeddecode::assign(&instance, key.cast::<PyString>()?, &value)?;
+    }
     if let Some(supplied) = &direct.supplied {
-        attributes.set_item("__hinoki_supplied_fields__", supplied)?;
+        typeddecode::assign(
+            &instance,
+            &PyString::intern(py, "__hinoki_supplied_fields__"),
+            supplied.bind(py),
+        )?;
     }
     Ok(instance)
 }
@@ -4344,14 +4379,14 @@ impl ModelPlan {
                 .getattr("object")?
                 .getattr("__new__")?;
             let instance = object_new.call1((class,))?;
-            instance
-                .getattr("__dict__")?
-                .cast::<PyDict>()?
-                .update(values.as_mapping())?;
-            instance
-                .getattr("__dict__")?
-                .cast::<PyDict>()?
-                .set_item("__hinoki_supplied_fields__", true)?;
+            for (key, value) in values.iter() {
+                typeddecode::assign(&instance, key.cast::<PyString>()?, &value)?;
+            }
+            typeddecode::assign(
+                &instance,
+                &PyString::intern(py, "__hinoki_supplied_fields__"),
+                &PyBool::new(py, true).to_owned().into_any(),
+            )?;
             return Ok(instance);
         }
         class.call_method1("__hinoki_construct_from_model__", (values,))

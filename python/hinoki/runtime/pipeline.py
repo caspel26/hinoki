@@ -45,7 +45,7 @@ from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
 from hinoki.pagination import Page as ResultPage
-from hinoki.parsers import choose
+from hinoki.parsers import JSONParser, Parser, choose, is_native_parser
 from hinoki.ratelimit import RateLimitContext
 from hinoki.renderers import (
     JSONRenderer,
@@ -54,7 +54,13 @@ from hinoki.renderers import (
     negotiate,
 )
 from hinoki.routing import Found, MethodNotAllowed
-from hinoki.runtime.binding import BODY_METHODS, Binding, RequestData, parse_query
+from hinoki.runtime.binding import (
+    BODY_METHODS,
+    Binding,
+    Param,
+    RequestData,
+    parse_query,
+)
 from hinoki.runtime.deprecation import Reminders
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.inline import RequestDeadline, run_inline
@@ -1271,13 +1277,16 @@ class Pipeline:
             raise native_input_exception(input_error)
         content_type = headers.get("content-type", "")
         parser = choose(binding.route.parsers, media_type(content_type))
-        parsed = parser.parse(raw, content_type)
-        tree = parsed.fields if param.text and parser.forms else parsed.data
         errors = (
             [ErrorDetail(*item) for item in input_error[3]]
             if invalid and input_error
             else []
         )
+        typed = self._typed_body(param, parser, raw) if not errors else None
+        if typed is not None:
+            return binding.complete_native_args(args, (param.name, typed))
+        parsed = parser.parse(raw, content_type)
+        tree = parsed.fields if param.text and parser.forms else parsed.data
         value: object = None
         try:
             value = param.from_body(RequestData(body=tree))
@@ -1288,6 +1297,18 @@ class Pipeline:
             errors.sort(key=lambda d: order.get(d.path.split(".", 1)[0], 0))
             raise ValidationError(errors)
         return binding.complete_native_args(args, (param.name, value))
+
+    @staticmethod
+    def _typed_body(param: Param, parser: Parser, raw: bytes) -> object | None:
+        """The body parameter read from the bytes in one pass by Rust, or
+        ``None`` when the ordinary parse and validation must run (a custom or
+        non-JSON parser, a form source, invalid input, hooks or checks)."""
+        schema = param.schema
+        if schema is None or param.text or type(parser) is not JSONParser:
+            return None
+        if not is_native_parser(parser):
+            return None
+        return schema.validate_json(raw)
 
     async def _call_native(
         self,

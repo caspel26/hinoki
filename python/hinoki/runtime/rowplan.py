@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+import types
 from dataclasses import dataclass
 from typing import Any, TypeGuard, cast
 
@@ -18,7 +19,7 @@ from hinoki.orm.queryset import (
 from hinoki.renderers import is_default_json_renderer
 from hinoki.resources import GENERATED, CrudBase, _CrudConfig
 from hinoki.runtime.binding import Binding
-from hinoki.schema import Schema, uses_generated_init
+from hinoki.schema import Schema, SchemaMeta, uses_generated_init
 
 ROW_KINDS = frozenset({"str", "int", "float", "bool", "uuid", "datetime", "bytes"})
 OWNER_GUARD_NAMES = (
@@ -207,7 +208,7 @@ def select_row_wire(binding: Binding) -> RowWireSelection | None:
     owner, resource = candidate
     model = resource.model
     schema = resource.read
-    if type(model) is not type or type(schema) is not type:
+    if type(model) is not type or type(schema) is not SchemaMeta:
         return None
     if not is_plain_model(model) or not is_plain_schema(schema):
         return None
@@ -489,15 +490,20 @@ def generated_model_init(model: type[Model]) -> bool:
 
 def plain_column(owner: type, name: str) -> bool:
     descriptor = inspect.getattr_static(owner, name, None)
-    return descriptor is None or all(
-        inspect.getattr_static(type(descriptor), slot, None) is None
-        for slot in ("__get__", "__set__", "__delete__")
+    # A field's own slot is the schema's storage, not a customization.
+    return (
+        descriptor is None
+        or type(descriptor) is types.MemberDescriptorType
+        or all(
+            inspect.getattr_static(type(descriptor), slot, None) is None
+            for slot in ("__get__", "__set__", "__delete__")
+        )
     )
 
 
 def is_plain_schema(schema: type[Schema]) -> bool:
     return bool(
-        type(schema) is type
+        type(schema) is SchemaMeta
         and uses_generated_init(schema)
         and schema.dump is Schema.dump
         and inspect.getattr_static(schema, "_validate_instance")
