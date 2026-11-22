@@ -584,7 +584,7 @@ trait Builder {
 
     fn null(&mut self) -> Self::Value;
     fn boolean(&mut self, value: bool) -> Self::Value;
-    fn string(&mut self, text: String) -> Self::Value;
+    fn string(&mut self, text: &str) -> Self::Value;
     fn integer(&mut self, value: i64) -> Self::Value;
     /// An integer outside `i64`, as its decimal JSON text.
     fn big_integer(&mut self, text: &str) -> Parsed<Self::Value>;
@@ -592,16 +592,61 @@ trait Builder {
     fn object(&mut self) -> Self::Object;
     /// Store `key`; a repeated key keeps its first position and takes the
     /// last value (Python `dict` semantics).
-    fn insert(&mut self, object: &mut Self::Object, key: String, value: Self::Value) -> Parsed<()>;
+    fn insert(&mut self, object: &mut Self::Object, key: &str, value: Self::Value) -> Parsed<()>;
     fn close_object(&mut self, object: Self::Object) -> Self::Value;
     fn array(&mut self) -> Self::Array;
     fn push(&mut self, array: &mut Self::Array, value: Self::Value) -> Parsed<()>;
     fn close_array(&mut self, array: Self::Array) -> Self::Value;
 }
 
-/// Builds Python objects (`decode_json`).
+/// Slots in the per-call key cache. A fixed size bounds its memory.
+const KEY_CACHE_SLOTS: usize = 128;
+/// Longer keys are rarely repeated, so they are never cached.
+const KEY_CACHE_MAX_LEN: usize = 32;
+/// Keys seen before the cache starts, so a tiny document pays nothing for it.
+const KEY_CACHE_AFTER: usize = 16;
+
+/// Builds Python objects (`decode_json`). Like `json.loads`, it reuses one
+/// `str` object for a key repeated within a call. The cache is direct-mapped
+/// by a hash of the key (a colliding key replaces the older one) and dies
+/// with the call, so it is not an intern table and holds at most
+/// `KEY_CACHE_SLOTS` short keys.
 struct PyBuilder<'py> {
     py: Python<'py>,
+    keys: Vec<Option<(Box<str>, Bound<'py, PyString>)>>,
+    seen: usize,
+}
+
+impl<'py> PyBuilder<'py> {
+    fn new(py: Python<'py>) -> Self {
+        Self {
+            py,
+            keys: Vec::new(),
+            seen: 0,
+        }
+    }
+
+    fn key(&mut self, key: &str) -> Bound<'py, PyString> {
+        self.seen += 1;
+        if key.len() > KEY_CACHE_MAX_LEN || self.seen <= KEY_CACHE_AFTER {
+            return PyString::new(self.py, key);
+        }
+        if self.keys.is_empty() {
+            self.keys.resize_with(KEY_CACHE_SLOTS, || None);
+        }
+        let hash = key.bytes().fold(0xcbf2_9ce4_u32, |h, b| {
+            (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
+        });
+        let slot = &mut self.keys[hash as usize % KEY_CACHE_SLOTS];
+        if let Some((cached, object)) = slot {
+            if &**cached == key {
+                return object.clone();
+            }
+        }
+        let object = PyString::new(self.py, key);
+        *slot = Some((key.into(), object.clone()));
+        object
+    }
 }
 
 impl<'py> Builder for PyBuilder<'py> {
@@ -617,8 +662,8 @@ impl<'py> Builder for PyBuilder<'py> {
         PyBool::new(self.py, value).to_owned().into_any()
     }
 
-    fn string(&mut self, text: String) -> Self::Value {
-        PyString::new(self.py, &text).into_any()
+    fn string(&mut self, text: &str) -> Self::Value {
+        PyString::new(self.py, text).into_any()
     }
 
     fn integer(&mut self, value: i64) -> Self::Value {
@@ -640,9 +685,9 @@ impl<'py> Builder for PyBuilder<'py> {
         PyDict::new(self.py)
     }
 
-    fn insert(&mut self, object: &mut Self::Object, key: String, value: Self::Value) -> Parsed<()> {
+    fn insert(&mut self, object: &mut Self::Object, key: &str, value: Self::Value) -> Parsed<()> {
         object
-            .set_item(key, value)
+            .set_item(self.key(key), value)
             .map_err(|e| ParseError::python(&e))
     }
 
@@ -722,14 +767,14 @@ impl JsonObject {
 /// The Python object `decode_json` builds for the same document.
 #[cfg(test)]
 pub(crate) fn json_to_python<'py>(py: Python<'py>, value: &Json) -> PyResult<Bound<'py, PyAny>> {
-    let mut builder = PyBuilder { py };
+    let mut builder = PyBuilder::new(py);
     Ok(match value {
         Json::Null => builder.null(),
         Json::Bool(flag) => builder.boolean(*flag),
         Json::Int(int) => builder.integer(*int),
         Json::BigInt(text) => builder.big_integer(text).map_err(ParseError::into_py)?,
         Json::Float(float) => builder.float(*float),
-        Json::Str(text) => builder.string(text.clone()),
+        Json::Str(text) => builder.string(text),
         Json::List(items) => {
             let list = builder.array();
             for item in items {
@@ -776,8 +821,8 @@ impl Builder for DomBuilder {
         Json::Bool(value)
     }
 
-    fn string(&mut self, text: String) -> Json {
-        Json::Str(text)
+    fn string(&mut self, text: &str) -> Json {
+        Json::Str(text.to_owned())
     }
 
     fn integer(&mut self, value: i64) -> Json {
@@ -797,8 +842,8 @@ impl Builder for DomBuilder {
         JsonObject::default()
     }
 
-    fn insert(&mut self, object: &mut JsonObject, key: String, value: Json) -> Parsed<()> {
-        object.insert(key, value);
+    fn insert(&mut self, object: &mut JsonObject, key: &str, value: Json) -> Parsed<()> {
+        object.insert(key.to_owned(), value);
         Ok(())
     }
 
@@ -904,7 +949,7 @@ impl<'a, B: Builder> Parser<'a, B> {
             Some(b'[') => self.array(depth),
             Some(b'"') => {
                 let text = self.string()?;
-                Ok(self.builder.string(text))
+                Ok(self.builder.string(&text))
             }
             Some(b't') => self.expect(b"true").map(|()| self.builder.boolean(true)),
             Some(b'f') => self.expect(b"false").map(|()| self.builder.boolean(false)),
@@ -935,7 +980,7 @@ impl<'a, B: Builder> Parser<'a, B> {
             }
             self.at += 1;
             let item = self.value(depth + 1)?;
-            self.builder.insert(&mut object, key, item)?;
+            self.builder.insert(&mut object, &key, item)?;
             self.skip_space();
             match self.peek() {
                 Some(b',') => self.at += 1,
@@ -1021,20 +1066,30 @@ impl<'a, B: Builder> Parser<'a, B> {
         Ok(())
     }
 
-    fn string(&mut self) -> Parsed<String> {
+    /// The next run of plain string bytes, validated as UTF-8.
+    fn plain_run(&mut self) -> Parsed<&'a str> {
+        let input = self.input;
+        let start = self.at;
+        self.at += special_at(&input[start..]);
+        std::str::from_utf8(&input[start..self.at]).map_err(|_| "invalid UTF-8".into())
+    }
+
+    /// A string without escapes borrows the input; one with escapes is copied.
+    fn string(&mut self) -> Parsed<Cow<'a, str>> {
         self.at += 1;
-        let mut out = String::new();
-        loop {
-            let start = self.at;
-            while let Some(byte) = self.peek() {
-                if byte == b'"' || byte == b'\\' || byte < 0x20 {
-                    break;
-                }
+        let run = self.plain_run()?;
+        match self.peek() {
+            Some(b'"') => {
                 self.at += 1;
+                Ok(Cow::Borrowed(run))
             }
-            out.push_str(
-                std::str::from_utf8(&self.input[start..self.at]).map_err(|_| "invalid UTF-8")?,
-            );
+            _ => self.escaped_string(run).map(Cow::Owned),
+        }
+    }
+
+    fn escaped_string(&mut self, first: &str) -> Parsed<String> {
+        let mut out = String::from(first);
+        loop {
             match self.peek() {
                 Some(b'"') => {
                     self.at += 1;
@@ -1047,30 +1102,28 @@ impl<'a, B: Builder> Parser<'a, B> {
                 Some(_) => return self.fail("control character in string"),
                 None => return self.fail("unterminated string"),
             }
+            out.push_str(self.plain_run()?);
         }
     }
 
-    fn digits(&mut self) -> Parsed<()> {
+    /// Digits to the end of the run, with their value when it fits `u64`.
+    fn digits(&mut self) -> Parsed<Option<u64>> {
         let start = self.at;
-        while matches!(self.peek(), Some(b'0'..=b'9')) {
+        let mut value = Some(0u64);
+        while let Some(digit @ b'0'..=b'9') = self.peek() {
+            value = value
+                .and_then(|so_far| so_far.checked_mul(10))
+                .and_then(|so_far| so_far.checked_add(u64::from(digit - b'0')));
             self.at += 1;
         }
         if self.at == start {
             return self.fail("expected digits");
         }
-        Ok(())
+        Ok(value)
     }
 
-    fn number(&mut self) -> Parsed<B::Value> {
-        let start = self.at;
-        if self.peek() == Some(b'-') {
-            self.at += 1;
-        }
-        if self.peek() == Some(b'0') {
-            self.at += 1;
-        } else {
-            self.digits()?;
-        }
+    /// The `.fraction` and `e±exponent` parts; true when either is present.
+    fn fraction_and_exponent(&mut self) -> Parsed<bool> {
         let mut real = false;
         if self.peek() == Some(b'.') {
             real = true;
@@ -1085,6 +1138,34 @@ impl<'a, B: Builder> Parser<'a, B> {
             }
             self.digits()?;
         }
+        Ok(real)
+    }
+
+    fn number(&mut self) -> Parsed<B::Value> {
+        let start = self.at;
+        let negative = self.peek() == Some(b'-');
+        if negative {
+            self.at += 1;
+        }
+        let magnitude = if self.peek() == Some(b'0') {
+            self.at += 1;
+            Some(0)
+        } else {
+            self.digits()?
+        };
+        let real = self.fraction_and_exponent()?;
+        if !real {
+            let signed = magnitude.map(|m| {
+                if negative {
+                    -i128::from(m)
+                } else {
+                    i128::from(m)
+                }
+            });
+            if let Some(int) = signed.and_then(|n| i64::try_from(n).ok()) {
+                return Ok(self.builder.integer(int));
+            }
+        }
         let text =
             std::str::from_utf8(&self.input[start..self.at]).map_err(|_| "invalid number")?;
         if real {
@@ -1093,9 +1174,6 @@ impl<'a, B: Builder> Parser<'a, B> {
                 return self.fail("number out of range");
             }
             return Ok(self.builder.float(float));
-        }
-        if let Ok(int) = text.parse::<i64>() {
-            return Ok(self.builder.integer(int));
         }
         self.builder.big_integer(text)
     }
@@ -1138,13 +1216,76 @@ pub(crate) fn decode_json_document(raw: &[u8]) -> Result<JsonDocument, String> {
 /// when Python refuses a value (an integer over its digit limit).
 #[pyfunction]
 pub fn decode_json<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Bound<'py, PyAny>> {
-    parse_document(PyBuilder { py }, raw)
+    parse_document(PyBuilder::new(py), raw)
         .map(|(value, _)| value)
         .map_err(ParseError::into_py)
 }
 
 fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
-    serde_json::to_writer(out, text).map_err(|e| PyValueError::new_err(e.to_string()))
+    out.push(b'"');
+    push_escaped(out, text);
+    out.push(b'"');
+    Ok(())
+}
+
+/// The JSON-escaped contents of `text`, without quotes: `"`, `\`, and control
+/// characters are escaped (`\n`-style where JSON has one, `\u00xx` otherwise);
+/// everything else, DEL and `/` included, is copied as is.
+fn push_escaped(out: &mut Vec<u8>, text: &str) {
+    let bytes = text.as_bytes();
+    let mut start = 0;
+    while start < bytes.len() {
+        let at = start + special_at(&bytes[start..]);
+        out.extend_from_slice(&bytes[start..at]);
+        let Some(&byte) = bytes.get(at) else { return };
+        push_escape(out, byte);
+        start = at + 1;
+    }
+}
+
+/// The offset of the first byte of `bytes` that a JSON string cannot hold
+/// as is (`"`, `\` or a control character), or `bytes.len()`. Eight bytes are
+/// tested per step with plain integer arithmetic.
+fn special_at(bytes: &[u8]) -> usize {
+    const ONES: u64 = 0x0101_0101_0101_0101;
+    const HIGH: u64 = 0x8080_8080_8080_8080;
+    let mut at = 0;
+    for chunk in bytes.as_chunks::<8>().0 {
+        let word = u64::from_le_bytes(*chunk);
+        let quote = word ^ (ONES * 0x22);
+        let slash = word ^ (ONES * 0x5c);
+        let found = (word.wrapping_sub(ONES * 0x20) & !word)
+            | (quote.wrapping_sub(ONES) & !quote)
+            | (slash.wrapping_sub(ONES) & !slash);
+        if found & HIGH != 0 {
+            return at + (found & HIGH).trailing_zeros() as usize / 8;
+        }
+        at += 8;
+    }
+    bytes[at..]
+        .iter()
+        .position(|&byte| byte < 0x20 || byte == b'"' || byte == b'\\')
+        .map_or(bytes.len(), |found| at + found)
+}
+
+fn push_escape(out: &mut Vec<u8>, byte: u8) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let short = match byte {
+        b'"' => b'"',
+        b'\\' => b'\\',
+        0x08 => b'b',
+        0x0c => b'f',
+        b'\n' => b'n',
+        b'\r' => b'r',
+        b'\t' => b't',
+        _ => {
+            out.extend_from_slice(b"\\u00");
+            out.push(HEX[usize::from(byte >> 4)]);
+            out.push(HEX[usize::from(byte & 0x0f)]);
+            return;
+        }
+    };
+    out.extend_from_slice(&[b'\\', short]);
 }
 
 /// The bytes of a Python `str`: UTF-8, or with `surrogatepass` when it holds
@@ -1188,12 +1329,51 @@ fn write_text(out: &mut Vec<u8>, bytes: &[u8]) -> PyResult<()> {
 /// The escaped contents of a valid UTF-8 run, without the quotes.
 fn write_body(out: &mut Vec<u8>, valid: &[u8]) -> PyResult<()> {
     let text = std::str::from_utf8(valid).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let mut quoted = Vec::with_capacity(valid.len() + 2);
-    write_string(&mut quoted, text)?;
-    out.extend_from_slice(&quoted[1..quoted.len() - 1]);
+    push_escaped(out, text);
     Ok(())
 }
 
+/// A Python `str` as a JSON string. A valid one is written from the borrowed
+/// UTF-8; one with lone surrogates takes the `surrogatepass` path.
+fn write_pystring(out: &mut Vec<u8>, text: &Bound<'_, PyString>) -> PyResult<()> {
+    match text.to_str() {
+        Ok(valid) => write_string(out, valid),
+        Err(_) => write_text(out, &string_bytes(text)?),
+    }
+}
+
+/// Append a finite float in the same text `serde_json` gives a `Number`
+/// (shortest round-trip digits, `1e+21`-style exponents, `1.0` for whole values).
+fn push_float(out: &mut Vec<u8>, value: f64) -> PyResult<()> {
+    if !value.is_finite() {
+        return Err(PyValueError::new_err(
+            "out of range float values are not JSON compliant",
+        ));
+    }
+    serde_json::to_writer(out, &value).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+/// Append the decimal text of `number`.
+fn push_i64(out: &mut Vec<u8>, number: i64) {
+    let mut digits = [0u8; 20];
+    let mut at = digits.len();
+    let mut rest = number.unsigned_abs();
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (rest % 10) as u8;
+        rest /= 10;
+        if rest == 0 {
+            break;
+        }
+    }
+    if number < 0 {
+        out.push(b'-');
+    }
+    out.extend_from_slice(&digits[at..]);
+}
+
+/// The text of a finite float, as `serde_json` writes a `Number`; the XML
+/// encoder shares it.
 pub(crate) fn float_text(value: f64) -> PyResult<String> {
     serde_json::Number::from_f64(value)
         .map(|number| number.to_string())
@@ -1258,6 +1438,8 @@ struct Encoder<'py> {
     /// Schema instances being written: only inside one do `date`, `time`,
     /// `timedelta`, `Decimal` and `bytes` values have a wire form.
     schemas: usize,
+    /// Dict entries being written, one slice per open dict.
+    pairs: Vec<(Bound<'py, PyAny>, Bound<'py, PyAny>)>,
 }
 
 impl<'py> Encoder<'py> {
@@ -1284,6 +1466,19 @@ impl<'py> Encoder<'py> {
         self.out.push(bracket);
     }
 
+    /// An exact `int` that fits `i64` is formatted here; big ints and subclasses
+    /// (which may override `__str__`) take the `int.__repr__` path.
+    fn int(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
+        if value.is_exact_instance_of::<PyInt>() {
+            if let Ok(number) = value.extract::<i64>() {
+                push_i64(&mut self.out, number);
+                return Ok(());
+            }
+        }
+        self.out.extend_from_slice(int_text(value)?.as_bytes());
+        Ok(())
+    }
+
     /// A container at `depth` is the `depth + 1`th around the innermost value.
     fn enter(depth: usize) -> PyResult<()> {
         if depth >= MAX_DEPTH {
@@ -1293,22 +1488,32 @@ impl<'py> Encoder<'py> {
     }
 
     fn write(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        if let Ok(text) = value.cast::<PyString>() {
+            write_pystring(&mut self.out, text)
+        } else if value.is_exact_instance_of::<PyInt>() {
+            self.int(value)
+        } else if value.is_exact_instance_of::<PyFloat>() {
+            push_float(&mut self.out, value.cast::<PyFloat>()?.value())
+        } else if let Ok(dict) = value.cast::<PyDict>() {
+            self.mapping(dict, depth)
+        } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
+            self.sequence(value, depth)
+        } else {
+            self.scalar(value, depth)
+        }
+    }
+
+    /// `None`, `bool`, `int` and `float`, then anything else through [`Self::object`].
+    fn scalar(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         if value.is_none() {
             self.out.extend_from_slice(b"null");
         } else if let Ok(flag) = value.cast::<PyBool>() {
             self.out
                 .extend_from_slice(if flag.is_true() { b"true" } else { b"false" });
         } else if value.is_instance_of::<PyInt>() {
-            self.out.extend_from_slice(int_text(value)?.as_bytes());
+            self.int(value)?;
         } else if let Ok(float) = value.cast::<PyFloat>() {
-            self.out
-                .extend_from_slice(float_text(float.value())?.as_bytes());
-        } else if let Ok(text) = value.cast::<PyString>() {
-            write_text(&mut self.out, &string_bytes(text)?)?;
-        } else if let Ok(dict) = value.cast::<PyDict>() {
-            self.mapping(dict, depth)?;
-        } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
-            self.sequence(value, depth)?;
+            push_float(&mut self.out, float.value())?;
         } else {
             self.object(value, depth)?;
         }
@@ -1351,18 +1556,43 @@ impl<'py> Encoder<'py> {
 
     fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
         Self::enter(depth)?;
+        if self.sort_keys {
+            return self.sorted_mapping(dict, depth);
+        }
+        // Entries go on a shared stack first: writing a value may run Python
+        // code (`default`, `dump()`) that mutates the dict being walked.
+        let start = self.pairs.len();
+        self.pairs.extend(dict.iter());
+        let end = self.pairs.len();
+        self.open(b'{');
+        for at in start..end {
+            let (key, item) = self.pairs[at].clone();
+            if at > start {
+                self.out.push(b',');
+            }
+            self.newline(depth + 1);
+            self.write_key(&key)?;
+            self.colon();
+            self.write(&item, depth + 1)?;
+        }
+        self.pairs.truncate(start);
+        self.close(b'}', depth, start == end);
+        Ok(())
+    }
+
+    fn write_key(&mut self, key: &Bound<'py, PyAny>) -> PyResult<()> {
+        match key.cast::<PyString>() {
+            Ok(text) => write_pystring(&mut self.out, text),
+            Err(_) => write_text(&mut self.out, &key_text(key)?),
+        }
+    }
+
+    fn sorted_mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
         let mut items = Vec::with_capacity(dict.len());
         for (key, item) in dict.iter() {
             items.push((key_text(&key)?, key, item));
         }
-        let items = if self.sort_keys {
-            self.sorted_entries(items)?
-        } else {
-            items
-                .into_iter()
-                .map(|(text, _, item)| (text, item))
-                .collect()
-        };
+        let items = self.sorted_entries(items)?;
         self.open(b'{');
         let empty = items.is_empty();
         for (index, (key, item)) in items.into_iter().enumerate() {
@@ -1378,20 +1608,42 @@ impl<'py> Encoder<'py> {
         Ok(())
     }
 
+    /// A list or tuple, read by position; a list's length is re-read on every
+    /// step, so a hook that resizes it cannot make the walk run out of bounds.
     fn sequence(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         Self::enter(depth)?;
         self.open(b'[');
-        let mut empty = true;
-        for (index, item) in value.try_iter()?.enumerate() {
-            empty = false;
-            if index > 0 {
-                self.out.push(b',');
+        let mut count = 0;
+        if value.is_exact_instance_of::<PyList>() {
+            // Read by position: a hook that mutates the list cannot invalidate it.
+            let list = value.cast::<PyList>()?;
+            while let Ok(item) = list.get_item(count) {
+                self.element(&item, count, depth)?;
+                count += 1;
             }
-            self.newline(depth + 1);
-            self.write(&item?, depth + 1)?;
+        } else if value.is_exact_instance_of::<PyTuple>() {
+            let tuple = value.cast::<PyTuple>()?;
+            while let Ok(item) = tuple.get_item(count) {
+                self.element(&item, count, depth)?;
+                count += 1;
+            }
+        } else {
+            // Subclasses keep their own `__iter__`, as `json.dumps` does.
+            for item in value.try_iter()? {
+                self.element(&item?, count, depth)?;
+                count += 1;
+            }
         }
-        self.close(b']', depth, empty);
+        self.close(b']', depth, count == 0);
         Ok(())
+    }
+
+    fn element(&mut self, item: &Bound<'py, PyAny>, index: usize, depth: usize) -> PyResult<()> {
+        if index > 0 {
+            self.out.push(b',');
+        }
+        self.newline(depth + 1);
+        self.write(item, depth + 1)
     }
 
     /// Write what `dump()` or the `default` hook returned in place of a value: at
@@ -1425,9 +1677,9 @@ impl<'py> Encoder<'py> {
         }
         if let Some((names, unset, _)) = crate::schema::instance_fields(value, true, true, true)? {
             self.schema_object(value, names, &unset, depth)?;
-        } else if is_instance_of_named(value, "uuid", "UUID")? {
+        } else if value.is_instance(crate::pytypes::uuid_class(value.py())?)? {
             write_string(&mut self.out, &value.str()?.to_string())?;
-        } else if is_instance_of_named(value, "datetime", "datetime")? {
+        } else if value.is_instance(crate::pytypes::datetime_class(value.py())?)? {
             write_string(
                 &mut self.out,
                 &value.call_method0("isoformat")?.str()?.to_string(),
@@ -1530,6 +1782,8 @@ impl<'py> Encoder<'py> {
     }
 }
 
+/// Whether `value` is an instance of `module.class`, imported on demand; the
+/// XML encoder uses it for UUIDs and datetimes.
 pub(crate) fn is_instance_of_named(
     value: &Bound<'_, PyAny>,
     module: &str,
@@ -1561,12 +1815,13 @@ pub fn encode_json<'py>(
         )));
     }
     let mut encoder = Encoder {
-        out: Vec::with_capacity(128),
+        out: Vec::with_capacity(512),
         indent,
         sort_keys,
         default,
         hops: 0,
         schemas: 0,
+        pairs: Vec::new(),
     };
     encoder.write(value, 0)?;
     if ensure_ascii {
@@ -1581,6 +1836,31 @@ mod tests {
 
     fn pair(a: &str, b: &str) -> (String, String) {
         (a.to_owned(), b.to_owned())
+    }
+
+    #[test]
+    fn the_word_scan_finds_the_first_special_byte_like_a_byte_loop() {
+        let naive = |bytes: &[u8]| {
+            bytes
+                .iter()
+                .position(|&b| b < 0x20 || b == b'"' || b == b'\\')
+                .unwrap_or(bytes.len())
+        };
+        for length in 0..20 {
+            for position in 0..length {
+                for byte in 0..=255u8 {
+                    let mut bytes = vec![b'a'; length];
+                    bytes[position] = byte;
+                    bytes[length - 1] = if position + 1 < length { b'\\' } else { byte };
+                    assert_eq!(special_at(&bytes), naive(&bytes), "{bytes:?}");
+                }
+            }
+        }
+        assert_eq!(special_at(b""), 0);
+        assert_eq!(
+            special_at("é日本語 plain".as_bytes()),
+            "é日本語 plain".len()
+        );
     }
 
     #[test]
@@ -1807,7 +2087,7 @@ mod tests {
         r#"{"é": "\u00e9", "": ""}"#,
     ];
 
-    const REFUSED: [&str; 32] = [
+    const REFUSED: [&str; 34] = [
         "",
         " ",
         "nul",
@@ -1835,6 +2115,8 @@ mod tests {
         "\"\\u12\"",
         "\"\\u12g4\"",
         "\"abc",
+        "\"a\\n",
+        "\"a\\nb\u{1}\"",
         "\"a\u{1}b\"",
         "\u{feff}{}",
         "{} {}",
