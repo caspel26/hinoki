@@ -23,12 +23,14 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import ipaddress
 import logging
 from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, overload
+from urllib.parse import parse_qsl, urlsplit
 
 from hinoki import core
 from hinoki.blocking import run_sync
@@ -116,6 +118,32 @@ current: ContextVar[ActiveTransaction | None] = ContextVar(
 )
 
 
+def warn_unverified_tls(url: str) -> None:
+    """Warn when a PostgreSQL URL to a remote host leaves ``sslmode`` at its
+    default (``prefer``): a network attacker can strip TLS or impersonate the
+    server. The URL is not logged, it holds the password."""
+    if not url.startswith(("postgres://", "postgresql://")):
+        return
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname or ""
+    except ValueError:
+        return
+    if any(key == "sslmode" for key, _ in parse_qsl(parts.query)):
+        return
+    try:
+        local = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        local = host in {"", "localhost"} or host.lower().startswith(("/", "%2f"))
+    if not local:
+        log.warning(
+            "database host %r is remote and sslmode is not set (it defaults to "
+            "prefer, which a network attacker can downgrade); use "
+            "sslmode=verify-full",
+            host,
+        )
+
+
 class Database:
     """A connection pool for one configured database backend."""
 
@@ -127,6 +155,7 @@ class Database:
         cls, url: str, *, max_size: int = 10, wait: float = 5.0
     ) -> Database:
         """Open the pool and check the server; PostgreSQL URLs may configure TLS."""
+        warn_unverified_tls(url)
         engine = await core.Database.connect(url, max_size, int(wait * 1000))
         return cls(engine)
 
