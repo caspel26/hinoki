@@ -4,8 +4,8 @@ Reference for Hinoki's public Python surface. Public names are imported from `hi
 
 | Area | Package | Reference |
 | --- | --- | --- |
-| Application, routes and HTTP | `hinoki` / `hinoki.project` | [Core API](web.md) |
-| Generated model-backed routes | `hinoki.resources` | [CRUD](crud.md) |
+| Application, routes, HTTP and middleware | `hinoki` / `hinoki.project` / `hinoki.http` | [Core API](web.md) |
+| Generated model-backed routes and their filters | `hinoki.resources` / `hinoki.filters` | [CRUD](crud.md) |
 | Validation and serialization | `hinoki` | [Schemas](schemas.md) |
 | Models, columns and queries | `hinoki.orm` | [ORM](orm.md) |
 | Parsers and response rendering | `hinoki.parsers` / `hinoki.renderers` | [Codecs](codecs.md) |
@@ -13,7 +13,7 @@ Reference for Hinoki's public Python surface. Public names are imported from `hi
 | Database and transactions | `hinoki.db` | [Database](database.md) |
 | Typed configuration | `hinoki` | [Settings](settings.md) |
 | Rules and diagnostics | `hinoki.rules` | [Rules](rules.md) |
-| Modules and runtime | `hinoki.modules` | [Runtime](runtime.md) |
+| Modules, events and runtime | `hinoki.modules` / `hinoki.events` | [Runtime](runtime.md) |
 | MCP and project scaffold | `hinoki.ai.mcpapp` / `hinoki.ai.mcp` | [Tools](tools.md) |
 | Admin | `hinoki.admin` | [Admin](admin.md) |
 | Tests | `hinoki.testing` | [Testing](testing.md) |
