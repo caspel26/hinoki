@@ -472,7 +472,7 @@
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 02:54:23 UTC">November 21, 2026</span></span>
-            <span>11 min read</span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -514,6 +514,13 @@ async def reindex() -&gt; dict[str, str]: ...
 <p><code>python/hinoki/runtime/supervisor.py</code>, <code>python/hinoki/runtime/kiso.py</code>, <code>python/hinoki/runtime/wsgiworker.py</code>, <code>python/hinoki/runtime/listener.py</code>, <code>python/hinoki/serve.py</code>, <code>python/hinoki/settings.py</code></p>
 </blockquote>
 <p><code>kill -HUP</code> on the supervisor of <code>hinoki serve</code> replaces the workers one at a time on the same listening socket: a new worker imports the code and reads the settings again, reports once its lifespan has started and it serves, and only then is the old one stopped gracefully. A new worker that does not start keeps the old ones running and the reload stops with an error. New setting <code>server.sighup</code> (<code>"reload"</code>, the default, or <code>"stop"</code> for the earlier behavior; Kiso only). <code>hinoki serve</code> now runs a supervisor even with one worker unless <code>sighup</code> is <code>"stop"</code>; on Windows, which has no <code>SIGHUP</code>, nothing changes. A worker that is stopping now answers requests already sent to it instead of refusing them with <code>503</code>, and a replacement worker's metrics use the next free <code>worker</code> number. See <a href="docs/kiso.md#reload-on-sighup">reload on <code>SIGHUP</code></a>.</p>
+<h4>⚡ One-pass JSON bodies for plain schemas</h4>
+<blockquote>
+<p><code>crates/bindings/src/schema/typeddecode.rs</code>, <code>crates/bindings/src/schema.rs</code>, <code>python/hinoki/schema.py</code>, <code>python/hinoki/runtime/pipeline.py</code></p>
+</blockquote>
+<p>On Kiso, the JSON body of a <code>Schema</code> parameter without <code>pattern</code>, <code>normalize</code>, <code>one_of</code>, collections, <code>@before_validate</code> or checks is read by Rust straight into the instance's fields, without the intermediate dict and list tree. Any invalid or unusual body falls back to the ordinary decode and validation on the same bytes, so errors do not change. <code>Schema.validate_json(raw)</code> returns the instance, or <code>None</code> when the ordinary path must run. See <a href="docs/schema-validation.md#one-pass-json-body">one-pass JSON body</a>.</p>
+<p>Schema fields now live in <code>__slots__</code>: they are no longer in <code>vars(instance)</code>, and a class that combines two bases that declare fields needs <code>slots=False</code> on all but one (a <code>RegistrationError</code> says so). Classes made with <code>model=</code> keep their fields in the instance dict. <code>Schema</code> now has a metaclass, so it cannot be combined with an <code>abc.ABC</code> or <code>Protocol</code> base.</p>
+<p>The same plain schemas now construct (<code>Item(...)</code>), <code>validate</code>, <code>validate_text</code>, <code>replace</code> and <code>dump</code> in Rust, with the same results and errors; anything outside the plan runs the Python code. A <code>default_factory</code> whose value is rejected may be called twice. <code>validate</code> reads a plain dict straight into the slots, and <code>copy</code>, <code>deepcopy</code> and pickling of an instance run in Rust. See <a href="docs/schema-validation.md#native-constructor-and-validate">native constructor and <code>validate</code></a>.</p>
 <h4>📈 Prometheus metrics on Kiso</h4>
 <blockquote>
 <p><code>crates/kiso/src/metrics.rs</code>, <code>crates/kiso/src/scrape.rs</code>, <code>crates/bindings/src/metrics.rs</code>, <code>python/hinoki/settings.py</code>, <code>python/hinoki/serve.py</code>, <code>python/hinoki/runtime/supervisor.py</code></p>

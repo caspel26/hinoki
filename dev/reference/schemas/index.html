@@ -499,6 +499,33 @@ compiled on first use and cached on the class.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.schema.Schema.validate_json" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validate_json</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.schema.Schema.validate_json" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">validate_json</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The instance a JSON body describes, built by Rust in one pass,
+or <code>None</code> when the ordinary <code>decode_json</code> and <code>validate</code>
+must run on the same bytes (invalid input, or a schema with hooks
+or checks).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.schema.Schema.validate" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">validate</span>
 
@@ -1284,7 +1311,7 @@ deprecated; it requires the legacy <code>model=</code> Schema class keyword.</p>
           
           
             <ul><li><a href="#hinoki.schema.Schema">Schema</a>
-            <ul><li><a href="#hinoki.schema.Schema.is_generic">is_generic</a></li><li><a href="#hinoki.schema.Schema.computed_fields">computed_fields</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema.validate_text">validate_text</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.replace">replace</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
+            <ul><li><a href="#hinoki.schema.Schema.is_generic">is_generic</a></li><li><a href="#hinoki.schema.Schema.computed_fields">computed_fields</a></li><li><a href="#hinoki.schema.Schema.apply_default">apply_default</a></li><li><a href="#hinoki.schema.Schema.specs">specs</a></li><li><a href="#hinoki.schema.Schema.build_specs">build_specs</a></li><li><a href="#hinoki.schema.Schema.validate_normalizers">validate_normalizers</a></li><li><a href="#hinoki.schema.Schema.native_schema">native_schema</a></li><li><a href="#hinoki.schema.Schema.validate_json">validate_json</a></li><li><a href="#hinoki.schema.Schema.validate">validate</a></li><li><a href="#hinoki.schema.Schema.validate_text">validate_text</a></li><li><a href="#hinoki.schema.Schema.fields">fields</a></li><li><a href="#hinoki.schema.Schema.to_dict">to_dict</a></li><li><a href="#hinoki.schema.Schema.replace">replace</a></li><li><a href="#hinoki.schema.Schema.from_models">from_models</a></li><li><a href="#hinoki.schema.Schema.from_model">from_model</a></li><li><a href="#hinoki.schema.Schema.dump">dump</a></li></ul>
           </li><li><a href="#hinoki.schemaconfig.SchemaConfig">SchemaConfig</a></li><li><a href="#hinoki.schemaconfig.SchemaExtra">SchemaExtra</a></li><li><a href="#hinoki.fields.Field">Field</a></li><li><a href="#hinoki.schema.Invalid">Invalid</a></li><li><a href="#hinoki.schema.Unset">Unset</a></li><li><a href="#hinoki.schema.field_check">field_check</a></li><li><a href="#hinoki.schema.field_normalize">field_normalize</a></li><li><a href="#hinoki.schema.object_check">object_check</a></li><li><a href="#hinoki.schema.before_validate">before_validate</a></li><li><a href="#hinoki.computed.computed_field">computed_field</a></li><li><a href="#hinoki.fields.SecretStr">SecretStr</a></li><li><a href="#hinoki.errors.ValidationError">ValidationError</a></li><li><a href="#hinoki.fields.UNSET">UNSET</a></li><li><a href="#hinoki.derive.derive">derive</a></li></ul>
           
         </nav>

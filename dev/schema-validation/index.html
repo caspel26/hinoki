@@ -471,8 +471,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
-            <span>4 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:26:37 UTC">November 22, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -610,6 +610,66 @@ normalization.</p>
 path and, for most schemas, on the GIL-free JSON path. The decorators are
 Python callables: they run only on values that passed the Rust stage. Checks of
 nested <code>Schema</code> values run through lists and dicts at any depth.</p>
+<h2 id="one-pass-json-body">One-pass JSON body<a class="headerlink" href="#one-pass-json-body" title="Permanent link">&para;</a></h2>
+<p>On Kiso, a JSON request body for a <code>Schema</code> parameter is read straight into
+the instance's fields in Rust, without building the intermediate dict and list
+tree. It applies to plain schemas: strings, integers, floats, booleans, lists
+and nested <code>Schema</code> fields with length and numeric bounds, without <code>pattern</code>,
+<code>normalize</code>, <code>one_of</code>, collections, <code>@before_validate</code> or checks. Anything else
+runs the lane above on the same bytes, so the result and the error messages
+(<code>path</code>, <code>code</code>, <code>message</code>) are the same either way: the one-pass reader
+declines every invalid body and every unusual input (duplicate or unknown keys,
+escapes in keys, NUL, lone surrogates, integers beyond 64 bits, nesting of 100
+levels or more) and never reports an error itself.</p>
+<p><code>Schema.validate_json(raw)</code> exposes it: it returns the instance, or <code>None</code>
+when the ordinary <code>core.decode_json</code> and <code>Schema.validate</code> must run.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Schema</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Ticket</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">seats</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="n">Ticket</span><span class="o">.</span><span class="n">validate_json</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"title": "Opera", "seats": 2}'</span><span class="p">)</span>  <span class="c1"># a Ticket</span>
+<span class="n">Ticket</span><span class="o">.</span><span class="n">validate_json</span><span class="p">(</span><span class="sa">b</span><span class="s1">'{"title": "Opera"}'</span><span class="p">)</span>  <span class="c1"># None: validate() reports it</span>
+</code></pre></div>
+<h3 id="native-constructor-and-validate">Native constructor and <code>validate</code><a class="headerlink" href="#native-constructor-and-validate" title="Permanent link">&para;</a></h3>
+<p>For the same plain schemas, <code>Schema(...)</code>, <code>Schema.validate(data)</code>,
+<code>Schema.validate_text(data)</code>, <code>instance.replace(...)</code> and <code>instance.dump()</code> run
+in Rust: the arguments are checked and written to the slots without a Python
+frame, defaults and <code>default_factory</code> values included. The result, the
+exceptions and <code>dump(exclude_unset=True)</code> are the same as on the Python path.
+Anything the plan does not vouch for (positional arguments, a value of a
+subclass type, an unknown or missing argument, a class that overrides
+<code>_validate_instance</code>, a <code>validate</code> of its own, or a graph with checks,
+normalizers or <code>@before_validate</code>) runs the ordinary Python code. A
+<code>default_factory</code> whose result is rejected may be called a second time by that
+fallback. <code>Schema.validate(data)</code> reads a plain <code>dict</code> (and nested dicts and
+lists of plain schemas) straight into the slots; a dict it does not fully
+recognise, for instance with an unknown key, goes through the general validator.
+<code>copy.copy</code>, <code>copy.deepcopy</code> and pickling of an instance also run in Rust over
+the slots; a class that defines <code>__copy__</code>, <code>__deepcopy__</code>, <code>__reduce__</code>,
+<code>__reduce_ex__</code> or <code>__getstate__</code> itself keeps its own.</p>
+<h3 id="where-fields-live">Where fields live<a class="headerlink" href="#where-fields-live" title="Permanent link">&para;</a></h3>
+<p>A <code>Schema</code> subclass keeps its fields in <code>__slots__</code> (the instance still has a
+<code>__dict__</code> for attributes you set yourself), which lets Rust fill them without a
+lookup per field. Consequences: field values are not in <code>vars(instance)</code>, and a
+class made with <code>model=</code> keeps its fields in the instance dict. A class can
+combine only one base that declares fields with slots; declare the others with
+<code>slots=False</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Audited</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">created_by</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Ticket</span><span class="p">(</span><span class="n">Audited</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+<p>Without it, two field-bearing bases raise a <code>RegistrationError</code> that names
+<code>slots=False</code>.</p>
+<p><code>Schema</code> has its own metaclass, so a schema cannot also inherit from a class
+whose metaclass is <code>abc.ABCMeta</code> (<code>abc.ABC</code>, a <code>Protocol</code>): Python reports a
+metaclass conflict. Keep such a base out of the schema's bases.</p>
 <h2 id="text-that-cannot-be-stored">Text that cannot be stored<a class="headerlink" href="#text-that-cannot-be-stored" title="Permanent link">&para;</a></h2>
 <p>A string or dict key containing NUL (<code>\u0000</code>) is refused with <code>nul</code> or
 <code>key_nul</code> on both lanes, after the length checks and before <code>pattern</code>:
@@ -643,12 +703,14 @@ lone surrogate) is refused with <code>type</code>.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li><li><a href="#normalize-text">Normalize text</a></li><li><a href="#reshape-input-with-before_validate">Reshape input with @before_validate</a></li><li><a href="#which-lane-runs-what">Which lane runs what</a></li><li><a href="#text-that-cannot-be-stored">Text that cannot be stored</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#built-in-and-custom-validation">Built-in and custom validation</a></li><li><a href="#normalize-text">Normalize text</a></li><li><a href="#reshape-input-with-before_validate">Reshape input with @before_validate</a></li><li><a href="#which-lane-runs-what">Which lane runs what</a></li><li><a href="#one-pass-json-body">One-pass JSON body</a>
+            <ul><li><a href="#native-constructor-and-validate">Native constructor and validate</a></li><li><a href="#where-fields-live">Where fields live</a></li></ul>
+          </li><li><a href="#text-that-cannot-be-stored">Text that cannot be stored</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:26:37 UTC">November 22, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schema-validation.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
