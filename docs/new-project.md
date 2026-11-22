@@ -86,13 +86,15 @@ notes/
 `hinoki.toml` names the application, so project commands find it on their own.
 `notes/main.py` binds the routes the manifest lists with
 `include=manifest_routes()`: `project.routes` first, then each app's `routes`
-under its `prefix`.
+under its `prefix`. The `rules` list in the same table is how the application
+gets `notes/rules.py` (see [which rules run](rules.md#which-rules-run)).
 
 ```toml
 # hinoki.toml
 [project]
 application = "notes.main:app"
 routes = "notes.routes:routes"
+rules = ["notes.rules:project_rules"]
 ```
 
 The project package holds no models and registers no app. Models live in apps:

@@ -75,10 +75,10 @@ events = "shop.apps.notes.events:handlers"
 ```python
 from hinoki import Hinoki
 
-app = Hinoki()  # reads routes, events and middleware from hinoki.toml
+app = Hinoki()  # reads routes, events, middleware and rules from hinoki.toml
 ```
 
-When the manifest's `project.application` names the module that builds the app, `Hinoki()` loads each key you did not pass: `include=`, `events=` and `middleware=` are independent, and an explicit argument (even `()`) wins and skips that key. `manifest_events()` does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's `Handlers` in dependency order (`requires`) and fails with a message naming the app when the target does not import or is not a `Handlers`. Hinoki does not generate the module: you create it yourself (for example `shop/apps/notes/events.py` with `handlers = events.Handlers("notes")`, as in the example on this page) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. `hinoki app add notes --models ... --events pkg.events:handlers` registers an existing one; `hinoki app list` shows it.
+Events stay per app because a handler belongs to the models and behaviour of one app and runs in dependency order, whereas [middleware](middleware.md#declaring-middleware-in-hinokitoml) and [rules](rules.md#which-rules-run) are project-wide lists. When the manifest's `project.application` names the module that builds the app, `Hinoki()` loads `events=` if you did not pass it (independently of `include=`, `middleware=` and `rules=`); an explicit argument (even `()`) wins and skips that key. `manifest_events()` does the same load explicitly, for combining lists or building an app elsewhere. It imports each app's `Handlers` in dependency order (`requires`) and fails with a message naming the app when the target does not import or is not a `Handlers`. Hinoki does not generate the module: you create it yourself (for example `shop/apps/notes/events.py` with `handlers = events.Handlers("notes")`, as in the example on this page) and name it in the key, so there is no template to copy and a mistyped target is reported when the application is built. `hinoki app add notes --models ... --events pkg.events:handlers` registers an existing one; `hinoki app list` shows it.
 
 ## Testing
 

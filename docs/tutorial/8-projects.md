@@ -140,7 +140,6 @@ app never repeat the prefix:
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
@@ -149,11 +148,10 @@ app = Hinoki(
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    rules=project_rules,
-)
+)  # the rules come from `rules` in hinoki.toml
 ```
 
-The project's rules require every action to name an
+The project's rules (listed in `hinoki.toml`) require every action to name an
 `Access` policy with permissions; build one as in [chapter 4](4-endpoints.md).
 
 ## Recap

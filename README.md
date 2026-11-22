@@ -101,7 +101,6 @@ The [Quick start](docs/quick-start.md) walks through the prompts.
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
@@ -110,16 +109,16 @@ app = Hinoki(
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    rules=project_rules,
-)
+)  # the rules come from `rules` in hinoki.toml
 ```
 
-`hinoki.toml` names that application and its routes, so commands inside the project take no target:
+`hinoki.toml` names that application, its routes and its rules, so commands inside the project take no target:
 
 ```toml
 [project]
 application = "notes.main:app"
 routes = "notes.routes:routes"
+rules = ["notes.rules:project_rules"]
 ```
 
 ```sh

@@ -49,36 +49,40 @@ one returned unless it answers itself.
 
 ## Declaring middleware in `hinoki.toml`
 
-An app can name a sequence of middleware in its `[[apps]]` table. Hinoki does
-not generate the module: you create it yourself.
+The `[project]` table can list middleware for the whole application, like
+Django's `MIDDLEWARE`. Hinoki does not generate the module: you create it
+yourself, and you edit the list by hand (there is no command for it).
 
 ```python
-# shop/apps/notes/middleware.py
-middleware = [Tenant()]
+# shop/middleware.py
+tenant = Tenant()
+timing = [Timing(), Audit()]  # a list or tuple is flattened
 ```
 
 ```toml
-[[apps]]
-name = "notes"
-models = "shop.apps.notes.models"
-migrations = "shop.apps.notes.migrations"
-middleware = "shop.apps.notes.middleware:middleware"
+[project]
+application = "shop.main:app"
+middleware = ["shop.middleware:tenant", "shop.middleware:timing"]
 ```
 
 ```python
 from hinoki import Hinoki
 
-app = Hinoki()  # reads routes, events and middleware from hinoki.toml
+app = Hinoki()  # reads routes, events, middleware and rules from hinoki.toml
 ```
 
-When the manifest's `project.application` names the module that builds the app, `Hinoki()` loads each key you did not pass; an explicit `middleware=` (even `()`) wins and skips the key. `manifest_middleware()` is the explicit form, to combine lists. It imports each app's list in dependency order
-(`requires`) and flattens them, so a required app's middleware runs
-before the dependent app's, and within an app in the order listed. The result is
+Each entry is `module:attribute` and resolves to one object with an
+`async def __call__` or a list or tuple of them. The listed order is the
+execution order: the first one listed runs outermost. There is no dependency
+ordering. When the manifest's `project.application` names the module that
+builds the app, `Hinoki()` loads the list if you did not pass `middleware=`; an
+explicit `middleware=` (even `()`) wins and skips the manifest.
+`manifest_middleware()` is the explicit form, to combine lists. The result is
 the application's own middleware: it runs before an action's and obeys
-[the order below](#order-and-what-stays-outside). A target that does not import,
-or that is not a list or tuple of objects with an `async def __call__`, raises a
-`ProjectError` naming the app. `hinoki app add notes --models ... --middleware
-pkg.middleware:middleware` registers one and `hinoki app list` shows it.
+[the order below](#order-and-what-stays-outside). `project.middleware` that is
+not a list of `module:attribute` strings is rejected when the manifest loads,
+and a target that does not import or does not hold middleware raises a
+`ProjectError` naming the entry.
 
 ## What a middleware sees
 

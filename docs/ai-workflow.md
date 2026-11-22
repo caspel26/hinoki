@@ -25,7 +25,7 @@ The generated tests pass and `hinoki check` exits 0; this repository's own test 
 | File | Purpose |
 | --- | --- |
 | `AGENTS.md` | Commands, conventions and where the agent's authority ends; `CLAUDE.md` points to it |
-| `rules.py` | Eight rules on from the start (below); the model rules `HNK-DB-001` and `HNK-DB-002` commented out until the first model exists, because a model rule that matches no model fails |
+| `rules.py` | Eight rules on from the start (below), listed in `hinoki.toml` as `[project] rules = ["<package>.rules:project_rules"]` so the application loads them without a `rules=` argument; the model rules `HNK-DB-001` and `HNK-DB-002` commented out until the first model exists, because a model rule that matches no model fails |
 | `.mcp.json` | Starts the [development MCP](dev-mcp.md) |
 | `hinoki-rules.toml` | The owner's waivers |
 
