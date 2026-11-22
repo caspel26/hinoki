@@ -37,7 +37,7 @@ from hinoki.errors import (
     TooManyRequests,
     ValidationError,
 )
-from hinoki.events import events_var
+from hinoki.events import RateLimited, events_var, listener
 from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
@@ -54,7 +54,7 @@ from hinoki.renderers import (
     is_default_json_renderer,
     negotiate,
 )
-from hinoki.routing import Found, MethodNotAllowed
+from hinoki.routing import Found, MethodNotAllowed, Route
 from hinoki.runtime.binding import (
     BODY_METHODS,
     Binding,
@@ -981,7 +981,13 @@ class Pipeline:
         if access is not None:
             # Parsed once: authentication and the request share the result.
             query = parse_query(scope.get("query_string", b""))
-            principal = await authorize(access, headers, query)
+            principal = await authorize(
+                access,
+                headers,
+                query,
+                route=binding.route.path,
+                method=binding.route.method,
+            )
         if binding.route.rate_limit is not None:
             await self._rate_limit(binding, scope.get("client"), principal)
         renderer = negotiate(headers.get("accept", ""), binding.route.renderers)
@@ -1039,6 +1045,7 @@ class Pipeline:
                     "rate_limit_unavailable",
                     RETRY_LATER,
                 ) from None
+            await announce_rate_limited(policy, route, refusal)
             raise
         except ExecutorSaturated:
             raise HTTPError(
@@ -1256,7 +1263,13 @@ class Pipeline:
             principal = Caller(subject, None, frozenset(scopes))
         elif access is not None:
             query = parse_query(native.query)
-            principal = await authorize(access, core.header_dict(native.headers), query)
+            principal = await authorize(
+                access,
+                core.header_dict(native.headers),
+                query,
+                route=binding.route.path,
+                method=binding.route.method,
+            )
         if binding.route.rate_limit is not None:
             client = effective_client(
                 native.client, native.headers, self.trusted_proxies
@@ -1487,6 +1500,20 @@ def enforce_response(binding: Binding, result: object) -> None:
         f"{binding.route.name} returned a {type(result).__name__} that does not "
         f"match its return annotation {binding.response_annotation}"
     )
+
+
+async def announce_rate_limited(
+    policy: object, route: Route, refusal: TooManyRequests
+) -> None:
+    """Tell the application's ``RateLimited`` handlers, when it has any; the
+    429 does not depend on them."""
+    bus = listener(RateLimited)
+    if bus is not None:
+        await bus.notify(
+            RateLimited(
+                type(policy).__qualname__, route.path, route.method, refusal.retry_after
+            )
+        )
 
 
 def valid_refusal(error: TooManyRequests) -> bool:

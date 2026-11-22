@@ -94,10 +94,14 @@ async def admit(
     query = parse_query(query_string)
     caller: Caller[Any] | None = None
     if route.access is not None:
-        caller = await authorize(route.access, headers, query)
+        caller = await authorize(
+            route.access, headers, query, route=route.path, method="WEBSOCKET"
+        )
     subprotocol, sub_access = choose(route, headers)
     if sub_access is not None:
-        caller = await authorize(sub_access, headers, query)
+        caller = await authorize(
+            sub_access, headers, query, route=route.path, method="WEBSOCKET"
+        )
     kwargs = {param.name: value_of(param, params, query) for param in route.params}
     if route.caller is not None:
         kwargs[route.caller] = caller

@@ -16,7 +16,7 @@ from hinoki import pagination as pagination_module
 from hinoki.crypto import ClaimsJWTAuth
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ErrorDetail, ErrorRegistry
-from hinoki.events import Created, Deleted, EventBus, Updated
+from hinoki.events import AuthRejected, Created, Deleted, EventBus, Updated
 from hinoki.fields import UNSET
 from hinoki.orm import Model, QuerySet
 from hinoki.orm import queryset as queryset_module
@@ -312,6 +312,11 @@ def select_crud_plan(
         (
             not action_has_event_handlers(pipeline.app.events, model, action),
             "model_event_handlers",
+        ),
+        (
+            binding.route.access is None
+            or not pipeline.app.events.listening(AuthRejected),
+            "auth_event_handlers",
         ),
     )
     reason = next((label for passed, label in checks if not passed), "")

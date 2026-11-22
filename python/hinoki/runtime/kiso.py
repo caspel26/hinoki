@@ -221,7 +221,8 @@ class KisoWorker:
         self._route_auth = {
             action: (access, route_auth_state(access))
             for action, binding in enumerate(self.pipeline.bindings)
-            if (access := claims_route_access(binding)) is not None
+            if (access := claims_route_access(binding, self.pipeline.events))
+            is not None
         }
         self.server: core.KisoServer | None = None
         self.address = (host, port)
@@ -400,7 +401,9 @@ class KisoWorker:
         self, action: int, held: tuple[Any, tuple[object, ...]]
     ) -> bool:
         try:
-            return route_auth_stale(self.pipeline.bindings[action], *held)
+            return route_auth_stale(
+                self.pipeline.bindings[action], *held, self.pipeline.events
+            )
         except Exception:
             return True
 

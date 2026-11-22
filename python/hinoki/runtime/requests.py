@@ -13,6 +13,7 @@ from hinoki.auth import Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.context import request_id
 from hinoki.errors import Forbidden, InvalidBody, Unauthorized
+from hinoki.events import AuthRejected, listener
 from hinoki.http.request import Headers, Request
 from hinoki.parsers import Parsed, UploadedFile
 from hinoki.runtime.binding import (
@@ -62,19 +63,39 @@ def header_map(scope: Scope) -> dict[str, str]:
 
 
 async def authorize(
-    access: Access, headers: dict[str, str], query: dict[str, list[str]]
+    access: Access,
+    headers: dict[str, str],
+    query: dict[str, list[str]],
+    *,
+    route: str = "",
+    method: str = "",
 ) -> Caller[Any]:
     """Authenticate and check permissions for a protected action. ``query`` is
-    the parsed query string, shared with the request built afterwards."""
-    principal: Caller[Any] | None = await call_hook(
-        access.auth.authenticate, Credentials(headers, query)
-    )
+    the parsed query string, shared with the request built afterwards. ``route``
+    and ``method`` name the action in an ``AuthRejected`` event."""
+    try:
+        principal: Caller[Any] | None = await call_hook(
+            access.auth.authenticate, Credentials(headers, query)
+        )
+    except Unauthorized:
+        await rejected("invalid", route, method)
+        raise
     if principal is None:
+        await rejected("missing", route, method)
         challenge = access.auth.challenge
         raise Unauthorized(headers={"www-authenticate": challenge} if challenge else {})
     if not access.permissions <= principal.permissions:
+        await rejected("forbidden", route, method)
         raise Forbidden()
     return principal
+
+
+async def rejected(reason: str, route: str, method: str) -> None:
+    """Tell the application's ``AuthRejected`` handlers, when it has any; the
+    answer to the request does not depend on them."""
+    bus = listener(AuthRejected)
+    if bus is not None:
+        await bus.notify(AuthRejected(reason, route, method))
 
 
 def body_value(request: Request, text: bool) -> object:

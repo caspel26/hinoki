@@ -22,7 +22,7 @@ from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hinoki import context
 from hinoki.errors import EventError, EventRegistrationError, EventTimeout
@@ -50,6 +50,7 @@ class Registration:
     key: EventKey
     name: str
     order: int = 0
+    collection: str = ""
 
     @property
     def is_async(self) -> bool:
@@ -167,9 +168,21 @@ class Handlers:
     ) -> Callable[[F], F]:
         key = event_key(kind)
 
+        if phase is Phase.IN_TRANSACTION and not getattr(
+            key[0], "has_transaction", True
+        ):
+            raise EventRegistrationError(
+                f"{key_name(key)} is emitted outside any transaction: register "
+                "it with after_commit"
+            )
+
         def decorate(handler: F) -> F:
             check_handler(handler, key, phase)
-            self._items.append(Registration(handler, phase, key, handler_name(handler)))
+            self._items.append(
+                Registration(
+                    handler, phase, key, handler_name(handler), collection=self.name
+                )
+            )
             return handler
 
         return decorate
@@ -203,6 +216,41 @@ class Deleted[M]:
 
     subject: type[M]
     count: int
+
+
+@dataclass(frozen=True, slots=True)
+class AuthRejected:
+    """A route's access policy refused a request (HTTP 401 or 403).
+
+    ``reason`` is ``"missing"`` (no credentials), ``"invalid"`` (credentials the
+    provider rejected) or ``"forbidden"`` (a caller without a required
+    permission). ``route`` is the path template (``/notes/{note_id}``), never the
+    requested path; ``method`` is the HTTP method, or ``WEBSOCKET``. The payload
+    holds no credential, caller, address or query string. Delivered through
+    ``EventBus.notify``, so it needs ``after_commit`` handlers."""
+
+    has_transaction: ClassVar[bool] = False
+
+    reason: str
+    route: str
+    method: str
+
+
+@dataclass(frozen=True, slots=True)
+class RateLimited:
+    """A route's rate-limit policy refused a request (HTTP 429).
+
+    ``policy`` is the class name of the route's policy, ``retry_after`` the whole
+    seconds the client was told to wait. The payload holds no key, caller,
+    address or path. Delivered through ``EventBus.notify``, so it needs
+    ``after_commit`` handlers."""
+
+    has_transaction: ClassVar[bool] = False
+
+    policy: str
+    route: str
+    method: str
+    retry_after: int
 
 
 # Shared by the helpers of one emit: how deep the handlers are nested.
@@ -279,13 +327,13 @@ class EventBus:
         write paths use before they build an event."""
         return kind in self._by_kind or _captured.get() is not None
 
-    def registered(self, kind: type, subject: type) -> bool:
+    def registered(self, kind: type, subject: type | None) -> bool:
         """Whether a handler (any phase) is registered for ``kind`` with this
         subject: ``Kind[subject]`` or bare ``Kind``. Ignores ``capture()``."""
         subjects = self._subjects.get(kind)
         return subjects is not None and (None in subjects or subject in subjects)
 
-    def wants(self, kind: type, subject: type) -> bool:
+    def wants(self, kind: type, subject: type | None) -> bool:
         """Whether a write should build and emit ``kind`` for ``subject``: a
         handler is registered for it or the context is capturing events."""
         return self.registered(kind, subject) or _captured.get() is not None
@@ -305,6 +353,17 @@ class EventBus:
         items = self._by_kind.get(type(event), ())
         subject = getattr(event, "subject", None)
         return [r for r in items if r.key[1] is None or r.key[1] is subject]
+
+    async def notify(self, event: object) -> None:
+        """Emit ``event`` for a decision that must not change because somebody
+        listens (a refused request): no failure of a handler or of the event
+        machinery propagates, and the whole delivery takes at most
+        ``handler_timeout`` seconds."""
+        try:
+            async with asyncio.timeout(self.handler_timeout):
+                await self.emit(event)
+        except Exception:
+            log.exception("delivering %s failed", type(event).__qualname__)
 
     async def emit(self, event: object) -> None:
         """Deliver ``event``: ``in_transaction`` handlers now, in order (the
@@ -466,10 +525,11 @@ def use(bus: EventBus) -> Iterator[EventBus]:
         events_var.reset(token)
 
 
-def listener(kind: type, subject: type) -> EventBus | None:
-    """The current bus when a write of ``subject`` must emit ``kind``, else
-    ``None``: the guard of the model write paths (one context-variable read
-    when no application bus is current)."""
+def listener(kind: type, subject: type | None = None) -> EventBus | None:
+    """The current bus when a write of ``subject`` (or, for an event with no
+    subject, any emitter) must emit ``kind``, else ``None``: the guard of the
+    emitting code paths (one context-variable read when no application bus is
+    current)."""
     bus = events_var.get()
     if bus is None or not bus.wants(kind, subject):
         return None
@@ -482,6 +542,7 @@ async def emit(event: object) -> None:
 
 
 __all__ = [
+    "AuthRejected",
     "Created",
     "Deleted",
     "EventBus",
@@ -489,6 +550,7 @@ __all__ = [
     "EventTimeout",
     "Handlers",
     "Phase",
+    "RateLimited",
     "Registration",
     "Updated",
     "current_events",
