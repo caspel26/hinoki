@@ -246,6 +246,47 @@ async def test_a_slow_handler_times_out(database: Database) -> None:
     assert bus.stats()[("Noted", "in_transaction", "timeout")] == 1
 
 
+class Recorder:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, int]] = []
+
+    def record(self, slot: int, outcome: int, seconds: float) -> None:
+        assert seconds >= 0
+        self.calls.append((slot, outcome))
+
+
+async def test_an_attached_recorder_gets_the_slot_and_outcome_of_each_run() -> None:
+    handlers = events.Handlers()
+
+    @handlers.after_commit(Noted)
+    async def first(event: Noted) -> None:
+        return None
+
+    @handlers.after_commit(Noted)
+    async def second(event: Noted) -> None:
+        raise RuntimeError("no")
+
+    @handlers.after_commit(About[Note])
+    async def about(event: About[Note]) -> None:
+        return None
+
+    bus = bus_of(handlers)
+    assert bus.metric_series() == [
+        ("Noted", "after_commit"),
+        ("About[Note]", "after_commit"),
+    ]
+    await bus.emit(Noted("a"))
+    recorder = Recorder()
+    bus.attach_metrics(recorder)
+    with events.use(bus):
+        await bus.emit(Noted("a"))
+        await bus.emit(About(Note))
+    assert recorder.calls == [(0, 0), (0, 1), (1, 0)]
+    bus.attach_metrics(None)
+    await bus.emit(Noted("a"))
+    assert len(recorder.calls) == 3
+
+
 async def test_nested_emits_stop_at_the_depth_limit(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

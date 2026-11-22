@@ -10,16 +10,23 @@ import subprocess
 import sys
 import time
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, http
+from hinoki import Hinoki, events, http
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.listener import open_listener
 from hinoki.runtime.supervisor import Supervisor
 from hinoki.serve import choose_server
-from hinoki.settings import AppSettings, MetricsSettings, Secret, ServerSettings
+from hinoki.settings import (
+    AppSettings,
+    EventsSettings,
+    MetricsSettings,
+    Secret,
+    ServerSettings,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -226,3 +233,50 @@ def test_several_workers_share_one_listener_and_report_every_worker() -> None:
     finally:
         process.send_signal(signal.SIGTERM)
         process.wait(timeout=30)
+
+
+@dataclass(frozen=True)
+class Noted:
+    text: str
+
+
+async def test_a_scrape_shows_event_handler_runs_by_outcome() -> None:
+    handlers = events.Handlers()
+
+    @handlers.after_commit(Noted)
+    async def fine(event: Noted) -> None:
+        return None
+
+    @handlers.after_commit(Noted)
+    async def broken(event: Noted) -> None:
+        raise RuntimeError(event.text)
+
+    @handlers.after_commit(Noted)
+    async def slow(event: Noted) -> None:
+        await asyncio.sleep(5)
+
+    listener = open_listener("127.0.0.1", 0, 16)
+    metrics_port = listener.getsockname()[1]
+    options = MetricsSettings(listen=f"127.0.0.1:{metrics_port}").native_options(
+        version="test", fd=listener.detach()
+    )
+    app = Hinoki(
+        events=[handlers],
+        settings=AppSettings(events=EventsSettings(handler_timeout=0.05)),
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0, metrics=options)
+    await worker.start()
+    try:
+        with events.use(app.events):
+            await events.emit(Noted("private text"))
+            await events.emit(Noted("private text"))
+        page = await fetch(metrics_port, "/metrics")
+        total = 'hinoki_events_total{event="Noted",phase="after_commit",outcome='
+        assert f'{total}"ok",worker="0"}} 2' in page
+        assert f'{total}"error",worker="0"}} 2' in page
+        assert f'{total}"timeout",worker="0"}} 2' in page
+        duration = 'hinoki_event_handler_duration_seconds_count{event="Noted",'
+        assert f'{duration}phase="after_commit",worker="0"}} 6' in page
+        assert "private text" not in page
+    finally:
+        await worker.stop()
