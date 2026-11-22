@@ -15,11 +15,18 @@ starts its runtime after it starts. The supervisor never starts tokio itself.
   crash are handled the same way). Under ``dev`` the worker is instead restarted
   when a source file changes, on the same socket, so connections wait in the
   backlog during the restart.
+* Reload (``serve`` with ``server.sighup`` not ``"stop"``): the supervisor keeps
+  the listener open, and SIGHUP replaces the workers one at a time. A new worker
+  is started on the same socket and reports once its lifespan has started and it
+  serves (a byte on a pipe, ``--ready-fd``; an end of file without it means it
+  failed). Only then is the old worker stopped gracefully. A new worker that does
+  not become ready is killed and the reload stops, the others keep running.
 """
 
 from __future__ import annotations
 
 import os
+import select
 import shutil
 import signal
 import socket
@@ -36,9 +43,16 @@ from typing import Any
 from hinoki.terminal import Style
 
 POLL = 0.25
-SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+# Windows has no SIGHUP, so a reload there is never offered (``serve`` checks).
+HANGUP: int | None = getattr(signal, "SIGHUP", None)
+SIGNALS = tuple(
+    number for number in (signal.SIGINT, signal.SIGTERM, HANGUP) if number is not None
+)
 # Seconds past ``shutdown_timeout`` before a worker is killed.
 KILL_MARGIN = 5.0
+# Seconds past the lifespan startup timeout that a new worker has to report ready
+# (importing the target comes before the lifespan).
+READY_MARGIN = 5.0
 
 
 def docs_line(url: str, style: Style) -> str:
@@ -61,15 +75,25 @@ class Supervisor:
         scheme: str = "http",
         interface: str = "asgi",
         metrics: socket.socket | None = None,
+        rolling: bool = False,
+        startup_timeout: float = 30.0,
     ) -> None:
         self.target = target
         self.interface = interface
+        # SIGHUP replaces the workers one by one (never under ``dev``).
+        self.rolling = rolling and not reload and HANGUP is not None
+        self.ready_wait = startup_timeout + READY_MARGIN
+        self.hangup = threading.Event()  # a SIGHUP waiting to be served
+        self.generation = 1
+        self.next_worker = workers  # the numbers 0 to workers - 1 are taken
+        self.worker_of: dict[int, int] = {}  # pid -> worker number
         # The shared metrics listener, opened here like the main one, and the
-        # private directory where the workers leave their snapshots.
+        # private directory where the workers leave their snapshots. During a
+        # reload two workers serve at once, so a single worker needs one too.
         self.metrics = metrics
         self.metrics_dir = (
             tempfile.mkdtemp(prefix="hinoki-metrics-")
-            if metrics and workers > 1
+            if metrics and (workers > 1 or self.rolling)
             else None
         )
         self.docs: str | None = None  # path of the docs page, announced on start
@@ -79,10 +103,12 @@ class Supervisor:
         self.reload = reload
         self.scheme = scheme
         self.processes: list[subprocess.Popen[bytes]] = []
+        # Replaced workers that are still finishing their requests.
+        self.draining: list[subprocess.Popen[bytes]] = []
         self.stop = threading.Event()
         self.signals = 0
 
-    def command(self, slot: int = 0) -> list[str]:
+    def command(self, slot: int = 0, ready_fd: int | None = None) -> list[str]:
         return [
             sys.executable,
             "-m",
@@ -94,6 +120,7 @@ class Supervisor:
             str(os.getpid()),
             *(["--interface", self.interface] if self.interface != "asgi" else []),
             *(["--dev"] if self.reload else []),
+            *(["--ready-fd", str(ready_fd)] if ready_fd is not None else []),
             *self.metrics_arguments(slot),
         ]
 
@@ -108,7 +135,9 @@ class Supervisor:
             str(slot),
         ]
 
-    def spawn(self, slot: int = 0) -> subprocess.Popen[bytes]:
+    def spawn(
+        self, slot: int = 0, ready_fd: int | None = None
+    ) -> subprocess.Popen[bytes]:
         """Start a worker with SIGINT blocked: a terminal Ctrl-C reaches the
         whole process group, and while the worker still imports Hinoki it
         would end it with a traceback. The supervisor owns the stop (SIGTERM);
@@ -118,29 +147,40 @@ class Supervisor:
         inherited = [self.listener.fileno()]
         if self.metrics is not None:
             inherited.append(self.metrics.fileno())
+        if ready_fd is not None:
+            inherited.append(ready_fd)
         try:
-            return subprocess.Popen(  # noqa: S603 - our own interpreter and module
-                self.command(slot), pass_fds=tuple(inherited)
+            process = subprocess.Popen(  # noqa: S603 - our own interpreter and module
+                self.command(slot, ready_fd), pass_fds=tuple(inherited)
             )
         finally:
             signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+        self.worker_of[process.pid] = slot
+        return process
 
-    def on_signal(self, _number: int, _frame: FrameType | None) -> None:
-        """First signal: stop gracefully. Another one: kill the workers now."""
+    def on_signal(self, number: int, _frame: FrameType | None) -> None:
+        """First signal: stop gracefully (SIGHUP reloads instead, when the
+        supervisor rolls). Another one: kill the workers now."""
+        if self.rolling and number == HANGUP:
+            # A second one meanwhile is the same request; while stopping it is
+            # ignored and never counts toward the kill.
+            if not self.stop.is_set():
+                self.hangup.set()
+            return
         self.signals += 1
         self.stop.set()
         if self.signals > 1:
             self.terminate(signal.SIGKILL)
 
     def terminate(self, number: signal.Signals) -> None:
-        for process in self.processes:
+        for process in (*self.processes, *self.draining):
             if process.poll() is None:
                 process.send_signal(number)
 
     def wait_all(self) -> None:
         """Wait for the workers up to the grace period, then kill the rest."""
         deadline = time.monotonic() + self.grace
-        for process in self.processes:
+        for process in (*self.processes, *self.draining):
             try:
                 process.wait(max(0.0, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
@@ -151,6 +191,7 @@ class Supervisor:
         self.terminate(signal.SIGTERM)
         self.wait_all()
         self.processes = []
+        self.draining = []
 
     def ticks(self) -> Iterator[set[tuple[Any, str]]]:
         while not self.stop.wait(POLL):
@@ -196,7 +237,7 @@ class Supervisor:
             self.discard_snapshots()
             return 0
         self.processes = [self.spawn(slot) for slot in range(self.count)]
-        if not self.reload:
+        if not self.reload and not self.rolling:
             # No worker is ever started again: only the workers listen, so a
             # client that arrives while they stop is refused, not left waiting.
             self.release()
@@ -224,6 +265,9 @@ class Supervisor:
 
     def supervise(self, events: Iterator[set[tuple[Any, str]]]) -> int:
         for _ in events:
+            if self.hangup.is_set():
+                self.hangup.clear()
+                self.roll()
             code = self.failed()
             if code is not None:
                 print(
@@ -233,6 +277,105 @@ class Supervisor:
                 )
                 return code
         return 0
+
+    def roll(self) -> None:
+        """Replace the workers one at a time, each only once its successor
+        serves. A successor that fails ends the reload: the others keep running."""
+        target = self.generation + 1
+        total = len(self.processes)
+        print(f"reloading: SIGHUP (generation {target})", flush=True)
+        for index in range(total):
+            if self.stop.is_set():
+                return
+            worker = self.next_worker
+            self.next_worker += 1
+            fresh = self.start_ready(worker)
+            if fresh is None:
+                if not self.stop.is_set():
+                    print(
+                        f"error: reload stopped at worker {index + 1} of {total}; "
+                        "the other workers keep running",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                return
+            old, self.processes[index] = self.processes[index], fresh
+            self.generation = target
+            self.retire(old)
+        print(f"reloaded {total} workers (generation {target})", flush=True)
+
+    def start_ready(self, worker: int) -> subprocess.Popen[bytes] | None:
+        """Start a worker and wait until it serves; ``None`` (and it is gone)
+        when it did not, or when the supervisor is stopping."""
+        reader, writer = os.pipe()
+        try:
+            process = self.spawn(worker, ready_fd=writer)
+        except OSError as error:
+            os.close(reader)
+            print(
+                f"error: the new worker could not start ({error})",
+                file=sys.stderr,
+                flush=True,
+            )
+            return None
+        finally:
+            os.close(writer)
+        try:
+            problem = self.await_ready(reader)
+        finally:
+            os.close(reader)
+        if problem is None:
+            return process
+        if self.stop.is_set():
+            self.draining.append(process)  # stopped with the others, gracefully
+            return None
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        print(f"error: the new worker {problem}", file=sys.stderr, flush=True)
+        return None
+
+    def await_ready(self, reader: int) -> str | None:
+        """``None`` once the worker wrote its byte, else why it never did."""
+        deadline = time.monotonic() + self.ready_wait
+        while not self.stop.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return f"was not ready after {self.ready_wait:g} seconds"
+            if select.select([reader], [], [], min(POLL, remaining))[0]:
+                if os.read(reader, 1):
+                    return None
+                return "exited before it was ready"
+        return "was interrupted"
+
+    def retire(self, old: subprocess.Popen[bytes]) -> None:
+        """Stop a replaced worker gracefully, killing it past the grace period."""
+        self.draining.append(old)
+        if old.poll() is None:
+            old.send_signal(signal.SIGTERM)
+        deadline = time.monotonic() + self.grace
+        while old.poll() is None and not self.stop.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                old.kill()
+                break
+            try:
+                old.wait(min(POLL, remaining))
+            except subprocess.TimeoutExpired:
+                continue
+        if self.stop.is_set():
+            return  # ``stop_workers`` waits for it with the rest
+        old.wait()
+        self.draining.remove(old)
+        self.discard_snapshot(self.worker_of.pop(old.pid, None))
+
+    def discard_snapshot(self, worker: int | None) -> None:
+        """Remove the snapshot a replaced worker left, so its numbers leave the
+        scrapes at once."""
+        if self.metrics_dir is None or worker is None:
+            return
+        for name in (f"worker-{worker}.prom", f"worker-{worker}.tmp"):
+            Path(self.metrics_dir, name).unlink(missing_ok=True)
 
     def watch(self, events: Iterator[set[tuple[Any, str]]]) -> int:
         """``dev``: restart the worker when a file changes; when it exits by

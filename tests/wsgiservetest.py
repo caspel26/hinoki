@@ -113,6 +113,7 @@ def no_listener(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         seen.append("banner")
 
     monkeypatch.setattr(serve, "check_port", check)
+    monkeypatch.setattr(serve, "rolls_on_hangup", lambda *_a: False)
     monkeypatch.setattr(banner, "show", show)
     return seen
 
@@ -275,7 +276,7 @@ def test_the_worker_serves_until_stopped_then_drains(
     server = FakeServer(aborted=2)
     monkeypatch.setattr(core, "configure_runtime", lambda _threads: None)
     monkeypatch.setattr(wsgiworker, "start_server", lambda *_a, **_k: server)
-    monkeypatch.setattr(wsgiworker, "wait_for_stop", lambda _parent: None)
+    monkeypatch.setattr(wsgiworker, "wait_for_stop", lambda *_a: None)
     assert (
         wsgiworker.run(load_wsgi_target(PLAIN), "127.0.0.1", 0, ServerSettings()) == 0
     )
@@ -297,7 +298,7 @@ def test_an_adapter_is_started_before_listening_and_closed_after(
 
     monkeypatch.setattr(core, "configure_runtime", lambda _threads: None)
     monkeypatch.setattr(wsgiworker, "start_server", start_server)
-    monkeypatch.setattr(wsgiworker, "wait_for_stop", lambda _parent: None)
+    monkeypatch.setattr(wsgiworker, "wait_for_stop", lambda *_a: None)
     wsgiworker.run(adapter, "::1", 0, ServerSettings(), parent=1)
     assert events == ["start", "listen", "close"]
 
