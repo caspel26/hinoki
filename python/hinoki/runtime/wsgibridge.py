@@ -90,9 +90,11 @@ def split_host(value: str, scheme: str) -> tuple[str, str]:
     default = str(DEFAULT_PORTS[scheme])
     if value.startswith("["):
         name, _, rest = value.partition("]")
-        return f"{name}]", rest.removeprefix(":") or default
+        port = rest.removeprefix(":")
+        return f"{name}]", port if port.isascii() and port.isdigit() else default
     name, _, port = value.partition(":")
-    return name, port or default
+    # A non-numeric port is not a port: SERVER_PORT must stay parseable.
+    return name, port if port.isascii() and port.isdigit() else default
 
 
 def build_environ(
