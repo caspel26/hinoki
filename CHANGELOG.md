@@ -55,7 +55,7 @@ On Kiso, the JSON body of a `Schema` parameter without `pattern`, `normalize`, `
 
 Schema fields now live in `__slots__`: they are no longer in `vars(instance)`, and a class that combines two bases that declare fields needs `slots=False` on all but one (a `RegistrationError` says so). Classes made with `model=` keep their fields in the instance dict. `Schema` now has a metaclass, so it cannot be combined with an `abc.ABC` or `Protocol` base.
 
-The same plain schemas now construct (`Item(...)`), `validate`, `validate_text`, `replace` and `dump` in Rust, with the same results and errors; anything outside the plan runs the Python code. A `default_factory` whose value is rejected may be called twice. See [native constructor and `validate`](docs/schema-validation.md#native-constructor-and-validate).
+The same plain schemas now construct (`Item(...)`), `validate`, `validate_text`, `replace` and `dump` in Rust, with the same results and errors; anything outside the plan runs the Python code. A `default_factory` whose value is rejected may be called twice. `validate` reads a plain dict straight into the slots, and `copy`, `deepcopy` and pickling of an instance run in Rust. See [native constructor and `validate`](docs/schema-validation.md#native-constructor-and-validate).
 
 #### 📈 Prometheus metrics on Kiso
 > `crates/kiso/src/metrics.rs`, `crates/kiso/src/scrape.rs`, `crates/bindings/src/metrics.rs`, `python/hinoki/settings.py`, `python/hinoki/serve.py`, `python/hinoki/runtime/supervisor.py`

@@ -168,6 +168,9 @@ normalizers or `@before_validate`) runs the ordinary Python code. A
 fallback. `Schema.validate(data)` reads a plain `dict` (and nested dicts and
 lists of plain schemas) straight into the slots; a dict it does not fully
 recognise, for instance with an unknown key, goes through the general validator.
+`copy.copy`, `copy.deepcopy` and pickling of an instance also run in Rust over
+the slots; a class that defines `__copy__`, `__deepcopy__`, `__reduce__`,
+`__reduce_ex__` or `__getstate__` itself keeps its own.
 
 ### Where fields live
 
