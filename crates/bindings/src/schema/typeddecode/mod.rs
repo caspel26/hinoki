@@ -1092,8 +1092,9 @@ fn plain_run(bytes: &[u8]) -> usize {
     const LOW: u64 = 0x0101_0101_0101_0101;
     const HIGH: u64 = 0x8080_8080_8080_8080;
     let mut at = 0;
-    for chunk in bytes.chunks_exact(8) {
-        let word = u64::from_le_bytes(chunk.try_into().unwrap_or([0; 8]));
+    let (words, _) = bytes.as_chunks::<8>();
+    for chunk in words {
+        let word = u64::from_le_bytes(*chunk);
         let quote = word ^ (LOW * u64::from(b'"'));
         let slash = word ^ (LOW * u64::from(b'\\'));
         let flagged = (word.wrapping_sub(LOW * 0x20) & !word)
@@ -1117,20 +1118,13 @@ fn same(left: &[u8], right: &[u8]) -> bool {
     if left.len() != right.len() {
         return false;
     }
-    let mut lefts = left.chunks_exact(8);
-    let mut rights = right.chunks_exact(8);
-    for (a, b) in lefts.by_ref().zip(rights.by_ref()) {
-        if u64::from_ne_bytes(a.try_into().unwrap_or([0; 8]))
-            != u64::from_ne_bytes(b.try_into().unwrap_or([0; 8]))
-        {
-            return false;
-        }
-    }
+    let (lefts, left_rest) = left.as_chunks::<8>();
+    let (rights, right_rest) = right.as_chunks::<8>();
     lefts
-        .remainder()
         .iter()
-        .zip(rights.remainder())
-        .all(|(a, b)| a == b)
+        .zip(rights)
+        .all(|(a, b)| u64::from_ne_bytes(*a) == u64::from_ne_bytes(*b))
+        && left_rest == right_rest
 }
 
 /// The position of the field read from `key`, trying the one after the last
