@@ -93,7 +93,7 @@ with app.events.muted():
     ...  # events emitted here run no handler
 ```
 
-`capture()` records every event emitted in the block and still runs the handlers; `muted()` records nothing and runs none. `app.events.stats()` returns the counters of `(event, phase, outcome)`, which are low-cardinality by construction. `app.events.registrations` lists what is registered.
+`capture()` records every event emitted in the block and still runs the handlers; `muted()` runs no handler (`capture()` still records what is emitted). `app.events.stats()` returns the counters of `(event, phase, outcome)`, which are low-cardinality by construction. `app.events.registrations` lists what is registered.
 
 ## What events do not do
 
