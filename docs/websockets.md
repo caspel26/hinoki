@@ -10,17 +10,17 @@ related:
 
 # WebSockets
 
-`@ws.route` declares a WebSocket action the way `@http.get` declares an HTTP one.
-The handler is an `async def` that receives a `Socket` and exchanges whole
+`@http.websocket` declares a WebSocket action the way `@http.get` declares an HTTP one.
+The handler is an `async def` that receives an `http.WebSocket` and exchanges whole
 messages with the client: text, binary or JSON checked against a `Schema`.
 
 ```python
 # chat/echo.py
-from hinoki import ws
+from hinoki import http
 
 
-@ws.route("/echo")
-async def echo(socket: ws.Socket) -> None:
+@http.websocket("/echo")
+async def echo(socket: http.WebSocket) -> None:
     async for text in socket:
         await socket.send_text(text)
 ```
@@ -62,7 +62,7 @@ A WebSocket path may not also be an HTTP `GET` route with the same pattern. On
 Kiso a plain `GET` that a more specific HTTP route matches (`/rooms/stats`
 beside `/rooms/{room}`) goes to the HTTP route; only upgrade requests reach the
 WebSocket action. A path with a
-parameter is declared as in HTTP: `@ws.route("/rooms/{room}")`. Path and query
+parameter is declared as in HTTP: `@http.websocket("/rooms/{room}")`. Path and query
 values are bound to handler parameters typed `str`, `int`, `float`, `bool` or
 `UUID`; a parameter with a default is optional. A malformed value is refused
 with `400` before the upgrade.
@@ -78,13 +78,13 @@ handler, which is also where tenant or ownership checks belong; WebSocket
 actions are not part of generated CRUD.
 
 ```python
-from hinoki import Access, Caller, ws
+from hinoki import Access, Caller, http
 
 READ = Access(tokens, permissions=["chat:read"])
 
 
-@ws.route("/inbox", access=READ)
-async def inbox(who: Caller[None], socket: ws.Socket) -> None:
+@http.websocket("/inbox", access=READ)
+async def inbox(who: Caller[None], socket: http.WebSocket) -> None:
     await socket.send_text(f"hello {who.id}")
 ```
 
@@ -110,8 +110,8 @@ A mapping gives each subprotocol its own `Access`, which runs after the
 action's:
 
 ```python
-@ws.route("/feed", subprotocols={"public.v1": None, "staff.v1": STAFF})
-async def feed(socket: ws.Socket) -> None:
+@http.websocket("/feed", subprotocols={"public.v1": None, "staff.v1": STAFF})
+async def feed(socket: http.WebSocket) -> None:
     await socket.send_text(socket.subprotocol or "")
 ```
 
@@ -127,12 +127,12 @@ async def feed(socket: ws.Socket) -> None:
 | `await socket.close(code=1000, reason="")` | close after the queued messages |
 | `async for message in socket` | each message, until the connection ends; with `message=` on the route, each is a validated `Schema` instance |
 
-Reading or sending on a closed connection raises `ws.Closed` (with `code` and
+Reading or sending on a closed connection raises `http.WebSocketClosed` (with `code` and
 `reason`); a handler may let it propagate, since it is not an error. Text that
 is not JSON closes with `1007`, JSON that fails validation with `1008`.
 
 ```python
-from hinoki import Schema, ws
+from hinoki import Schema, http
 
 
 class Move(Schema):
@@ -146,8 +146,8 @@ class Position(Schema):
     by: str
 
 
-@ws.route("/board", message=Move, reply=Position)
-async def board(socket: ws.Socket) -> None:
+@http.websocket("/board", message=Move, reply=Position)
+async def board(socket: http.WebSocket) -> None:
     async for move in socket:
         await socket.send_json({"x": move.x + 1, "y": move.y, "by": "server"})
 ```
@@ -178,7 +178,7 @@ connection.
 
 When the server stops, Kiso closes every open connection with `1001` and the
 handler's `receive` and `send` calls end (`async for` stops, the explicit calls
-raise `ws.Closed`). Connections are part of the graceful drain, so they
+raise `http.WebSocketClosed`). Connections are part of the graceful drain, so they
 get the shutdown timeout to finish and are aborted after it. A `SIGHUP`
 reload replaces a worker through the same graceful stop, so its connections
 get `1001` and a client is expected to reconnect, which reaches the new worker.
@@ -193,5 +193,5 @@ origins and the handshake's security requirement. They are not listed under
 
 ## Not provided
 
-WebSocket over HTTP/2, `permessage-deflate`, class-based `@ws.route` on an
+WebSocket over HTTP/2, `permessage-deflate`, class-based `@http.websocket` on an
 `API`, and a native (GIL-free) handler lane for WebSockets.
