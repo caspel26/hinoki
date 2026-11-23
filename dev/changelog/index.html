@@ -294,6 +294,10 @@
               
             
               
+                <li><a class="side__link" href="../storage/"><span>Store uploaded files</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../crud/"><span>Generate CRUD routes</span></a></li>
               
             
@@ -354,6 +358,10 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Application sessions</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../web-security/"><span>Hosts, CORS and HTTPS</span></a></li>
               
             
@@ -371,6 +379,10 @@
             
               
                 <li><a class="side__link" href="../modules/"><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache values</span></a></li>
               
             
               
@@ -483,13 +495,18 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>23 min read</span>
+            <span>24 min read</span>
           </p>
           
         </header>
         
 <p>Every user-facing change to Hinoki, newest first. Hinoki is pre-alpha and no release has been tagged yet, so changes are listed under <strong>Unreleased</strong>. In the planned <code>0.1.x</code> line, documented Python, CLI, settings and runtime contracts, plus migration files, stay compatible across patch releases. A later <code>0.y.0</code> may include breaking changes, described in its release notes. The same text lives in <a href="https://github.com/caspel26/hinoki/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>.</p>
-<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🧭 Typed <code>Caller</code> hooks and <code>from_user</code> in <code>@crud</code></h4>
+<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🧩 Typed handler resources, storage, sessions and cache</h4>
+<blockquote>
+<p><code>python/hinoki/modules.py</code>, <code>python/hinoki/runtime/binding.py</code>, <code>python/hinoki/storage.py</code>, <code>python/hinoki/sessions.py</code>, <code>python/hinoki/cache.py</code>, <code>docs/modules.md</code>, <code>docs/storage.md</code>, <code>docs/sessions.md</code>, <code>docs/cache.md</code></p>
+</blockquote>
+<p>Handlers can declare concrete <code>Resource</code> parameters provided by application <code>Module</code>s; a missing provider is reported during startup. File storage offers bounded in-memory and local-disk backends, sessions offer memory and database stores with <code>SessionAuth</code>, and cache offers worker-local memory and shared-database backends. Each feature documents its resource ownership, cross-worker behavior, limits and errors; in-memory state remains local to its owning worker. See <a href="docs/modules.md">modules</a>, <a href="docs/storage.md">file storage</a>, <a href="docs/sessions.md">sessions</a> and <a href="docs/cache.md">cache</a>.</p>
+<h4>🧭 Typed <code>Caller</code> hooks and <code>from_user</code> in <code>@crud</code></h4>
 <blockquote>
 <p><code>python/hinoki/resources.py</code>, <code>python/hinoki/runtime/crudplan.py</code>, <code>python/hinoki/__init__.py</code>, <code>examples/tracker/tracker/apps/tasks/api.py</code>, <code>examples/blog/blog/apps/blog/api.py</code>, <code>docs/crud.md</code></p>
 </blockquote>

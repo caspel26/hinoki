@@ -294,6 +294,10 @@
               
             
               
+                <li><a class="side__link" href="../storage/"><span>Store uploaded files</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../crud/"><span>Generate CRUD routes</span></a></li>
               
             
@@ -354,6 +358,10 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Application sessions</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../web-security/"><span>Hosts, CORS and HTTPS</span></a></li>
               
             
@@ -371,6 +379,10 @@
             
               
                 <li><a class="side__link" href="../modules/"><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache values</span></a></li>
               
             
               
@@ -482,7 +494,7 @@
           <h1 id="explore-an-application-in-the-shell">Explore an application in the shell<a class="headerlink" href="#explore-an-application-in-the-shell" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:25:08 UTC">November 23, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -543,11 +555,11 @@ order and closes when the session ends. The application's <code>on_startup</code
 <code>on_shutdown</code> hooks do not run, so nothing sends mail or seeds data behind your
 back, and migrations are never applied: run
 <a href="../migrations/"><code>hinoki migrations apply</code></a> yourself.</p>
-<p>Unmanaged asyncio tasks are cancelled on exit; cleanup is bounded by the
-<code>lifecycle.shutdown_timeout</code> setting (10 seconds by default), and a task that ignores cancellation is abandoned at
-that deadline. Startup is bounded too: if a module suppresses cancellation while
-opening, the shell stops the loop and cannot guarantee that the module released
-what it had opened.</p>
+<p>Unmanaged asyncio tasks are cancelled on exit. Each task gets up to two waits of
+<code>lifecycle.shutdown_timeout</code> (10 seconds by default); a task still running after
+the second cancellation is abandoned. Startup is bounded too: if a module
+suppresses cancellation while opening, the shell stops the loop and cannot
+guarantee that the module released what it had opened.</p>
 <div class="admonition warning">
 <p class="admonition-title">Real data, your privileges</p>
 <p>Code at the prompt runs with your user's privileges against the configured
@@ -607,7 +619,7 @@ and Python's <code>&gt;&gt;&gt;</code> / <code>...</code> prompts.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:25:08 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/shell.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

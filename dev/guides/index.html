@@ -294,6 +294,10 @@
               
             
               
+                <li><a class="side__link" href="../storage/"><span>Store uploaded files</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../crud/"><span>Generate CRUD routes</span></a></li>
               
             
@@ -354,6 +358,10 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Application sessions</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../web-security/"><span>Hosts, CORS and HTTPS</span></a></li>
               
             
@@ -371,6 +379,10 @@
             
               
                 <li><a class="side__link" href="../modules/"><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache values</span></a></li>
               
             
               
@@ -482,7 +494,7 @@
           <h1 id="guides">Guides<a class="headerlink" href="#guides" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 21:02:21 UTC">November 23, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -512,6 +524,7 @@
 <li><a href="../class-endpoints/">Class-based APIs</a><span class="hn-card__desc"><code>API</code> classes for <code>@crud</code> resources with hooks, inheritance and resources you ship to others.</span></li>
 <li><a href="../routes/">Register routes</a><span class="hn-card__desc">how <code>routes.py</code> and <code>hinoki.toml</code> build the route map, with <code>Mount</code>, <code>include=</code> in tests and <code>hinoki routes</code>.</span></li>
 <li><a href="../endpoints/">Requests and responses</a><span class="hn-card__desc">what an action receives (path, query, body, forms, XML, files) and how its result is checked.</span></li>
+<li><a href="../storage/">Store uploaded files</a><span class="hn-card__desc">bounded memory or local-disk storage with opaque keys and streamed downloads.</span></li>
 <li><a href="../crud/">Generate CRUD routes</a><span class="hn-card__desc">list, retrieve and write actions from a model, with access and ownership rules.</span></li>
 <li><a href="../errors/">Errors</a><span class="hn-card__desc">malformed requests, authentication failures and declared application errors.</span></li>
 <li><a href="../streaming/">Stream a response</a><span class="hn-card__desc"><code>Stream</code>, <code>EventStream</code> and <code>File</code> answers sent while they are produced, on Kiso and Granian.</span></li>
@@ -527,12 +540,14 @@
 <h2 id="security-and-checks">Security and checks<a class="headerlink" href="#security-and-checks" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../authentication/">Authentication and access</a><span class="hn-card__desc">providers resolve a <code>Caller</code>; <code>Access</code> policies check permissions.</span></li>
+<li><a href="../sessions/">Application sessions</a><span class="hn-card__desc">server-side state, cookie lifecycle, CSRF checks, session authentication and explicit stores.</span></li>
 <li><a href="../web-security/">Hosts, CORS and HTTPS</a><span class="hn-card__desc">restrict the host names an app answers to, which browser origins may read it, browser security headers, HTTPS redirects and trusted proxies.</span></li>
 <li><a href="../rules/">Rules</a><span class="hn-card__desc">typed promises about your application, checked with a stable ID, a location and an explanation.</span></li>
 </ul>
 <h2 id="runtime">Runtime<a class="headerlink" href="#runtime" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../modules/">Application modules</a><span class="hn-card__desc">resources that live as long as a worker, such as a database pool.</span></li>
+<li><a href="../cache/">Cache values</a><span class="hn-card__desc">bounded Rust memory cache or a shared database backend with explicit TTL and failure behavior.</span></li>
 <li><a href="../transactions/">Transactions</a><span class="hn-card__desc"><code>atomic=True</code> on actions, <code>db.atomic</code> in application code.</span></li>
 <li><a href="../settings/">Settings</a><span class="hn-card__desc">typed, immutable settings from the environment, dotenv and TOML, with redacted secrets.</span></li>
 <li><a href="../serving/">Serve an application</a><span class="hn-card__desc"><code>hinoki dev</code> while you work, <code>hinoki serve</code> in production, on Kiso (the default) or Granian.</span></li>
@@ -598,7 +613,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 21:02:21 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/guides.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

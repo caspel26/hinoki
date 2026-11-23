@@ -294,6 +294,10 @@
               
             
               
+                <li><a class="side__link" href="../storage/"><span>Store uploaded files</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../crud/"><span>Generate CRUD routes</span></a></li>
               
             
@@ -354,6 +358,10 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Application sessions</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../web-security/"><span>Hosts, CORS and HTTPS</span></a></li>
               
             
@@ -371,6 +379,10 @@
             
               
                 <li><a class="side__link" href="../modules/"><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache values</span></a></li>
               
             
               
@@ -482,7 +494,7 @@
           <h1 id="stream-a-response">Stream a response<a class="headerlink" href="#stream-a-response" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></span>
             <span>9 min read</span>
           </p>
           
@@ -515,10 +527,11 @@ the request timeout all happen before the first byte.</p>
         <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"content-disposition"</span><span class="p">:</span> <span class="s1">'attachment; filename="notes.csv"'</span><span class="p">},</span>
     <span class="p">)</span>
 </code></pre></div>
-<p>The return annotation must name the class: <code>-&gt; Stream</code>, <code>-&gt; EventStream</code> or
-<code>-&gt; File</code>, alone or in a union (<code>-&gt; Stream | NoteOut</code>). That is how Hinoki knows
-at startup which actions stream. An action that returns one of them without
-saying so answers <code>500</code>, and the stream is closed.</p>
+<p>The return annotation can name <code>-&gt; Stream</code>, <code>-&gt; EventStream</code> or <code>-&gt; File</code>, alone
+or in a union (<code>-&gt; Stream | NoteOut</code>). The base annotation <code>-&gt; Response</code> also
+allows these streamed response subtypes. That is how Hinoki knows at startup
+which actions may stream. An action that returns one of them without an
+annotation that allows it answers <code>500</code>, and the stream is closed.</p>
 <h2 id="stream"><code>Stream</code><a class="headerlink" href="#stream" title="Permanent link">&para;</a></h2>
 <p><code>Stream(body, *, status=200, headers=(), content_type=None, length=None)</code>.</p>
 <ul>
@@ -806,7 +819,7 @@ stops with <code>BodyTooLarge</code> after <code>max_bytes</code> (10 MiB by def
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/streaming.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

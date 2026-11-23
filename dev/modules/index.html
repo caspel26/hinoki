@@ -294,6 +294,10 @@
               
             
               
+                <li><a class="side__link" href="../storage/"><span>Store uploaded files</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../crud/"><span>Generate CRUD routes</span></a></li>
               
             
@@ -354,6 +358,10 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Application sessions</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../web-security/"><span>Hosts, CORS and HTTPS</span></a></li>
               
             
@@ -371,6 +379,10 @@
             
               
                 <li><a class="side__link is-active" href="./" aria-current="page"><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache values</span></a></li>
               
             
               
@@ -482,8 +494,8 @@
           <h1 id="own-resources-with-modules">Own resources with modules<a class="headerlink" href="#own-resources-with-modules" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -582,8 +594,56 @@ The value is reachable from:</p>
 </code></pre></div>
 <p>With <code>commands=[HashPassword]</code> on the application, <code>hinoki manage hash-password s3cret</code>
 starts only <code>Passwords</code> (and what it requires), runs the command and closes it.
-Request handlers do not receive module values as parameters; the database is the
-exception, because model methods find the worker's <code>Database</code> themselves.</p>
+Request handlers can receive a module-provided value as a parameter when its
+type inherits <code>Resource</code>. Model methods also find the worker's <code>Database</code>
+through the ORM context. Ordinary module values remain available through
+<code>ModuleContext</code> in lifespans, hooks and commands, and through the policy context
+where supported.</p>
+<h2 id="inject-a-worker-resource-into-a-handler">Inject a worker resource into a handler<a class="headerlink" href="#inject-a-worker-resource-into-a-handler" title="Permanent link">&para;</a></h2>
+<p>Declare a concrete <code>Resource</code> type, provide its instance from a module, then use
+that type as a handler parameter. Hinoki resolves the annotation when routes are
+registered and injects the worker's instance for each request:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">asynccontextmanager</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Module</span><span class="p">,</span> <span class="n">ModuleContext</span><span class="p">,</span> <span class="n">Resource</span><span class="p">,</span> <span class="n">http</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Mailer</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">send</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">address</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MailerModule</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="s2">"mailer"</span>
+
+    <span class="nd">@asynccontextmanager</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ModuleContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="kc">None</span><span class="p">]:</span>
+        <span class="n">mailer</span> <span class="o">=</span> <span class="n">Mailer</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">provide</span><span class="p">(</span><span class="n">Mailer</span><span class="p">,</span> <span class="n">mailer</span><span class="p">)</span>
+        <span class="k">yield</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/welcome"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">welcome</span><span class="p">(</span><span class="n">email</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mailer</span><span class="p">:</span> <span class="n">Mailer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+    <span class="k">await</span> <span class="n">mailer</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">email</span><span class="p">,</span> <span class="s2">"Welcome"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"sent"</span><span class="p">}</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">welcome</span><span class="p">],</span> <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">MailerModule</span><span class="p">()])</span>
+</code></pre></div>
+<p>The same annotation works on function handlers, synchronous <code>def</code> handlers and
+methods on an <code>API</code> class. A resource parameter does not cause Hinoki to build a
+<code>Request</code>; declare <code>request: Request</code> only when the handler needs request data.
+Resource parameters are not client inputs, so they do not appear in the OpenAPI
+document or MCP tool schema. Kiso also leaves them out of the Rust route input
+list; a route can keep its native route specification when its other inputs and
+handler behavior meet the native-path requirements.</p>
+<p>Resources are mandatory worker contracts. A default value, a name that collides
+with a <code>{path}</code> parameter, or two parameters requesting the same resource type
+raises <code>RegistrationError</code> during registration. After all modules start and
+before startup hooks run, Hinoki checks every required type with
+<code>ModuleContext.get</code>. A missing provider fails startup with the route and type in
+the error; the worker does not become ready.</p>
 <h2 id="the-database-module">The database module<a class="headerlink" href="#the-database-module" title="Permanent link">&para;</a></h2>
 <p>A <code>database: settings.DatabaseSettings</code> field on your settings class is enough:
 Hinoki installs <code>DatabaseModule</code> (from <code>hinoki.db</code>) before any declared module, so
@@ -691,7 +751,7 @@ application instead of writing a module (<code>ProjectSettings</code> here decla
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../rules/"><small>Previous</small><span>Rules</span></a>
-        <a class="pager__link pager__link--next" href="../transactions/"><small>Next</small><span>Transactions</span></a>
+        <a class="pager__link pager__link--next" href="../cache/"><small>Next</small><span>Cache values</span></a>
       </nav>
     </main>
 
@@ -703,13 +763,13 @@ application instead of writing a module (<code>ProjectSettings</code> here decla
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#use-what-a-module-provides">Use what a module provides</a></li><li><a href="#the-database-module">The database module</a></li><li><a href="#the-email-module">The email module</a></li><li><a href="#declare-modules">Declare modules</a></li><li><a href="#startup-and-shutdown-hooks">Startup and shutdown hooks</a></li><li><a href="#scripts-outside-the-server">Scripts outside the server</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#use-what-a-module-provides">Use what a module provides</a></li><li><a href="#inject-a-worker-resource-into-a-handler">Inject a worker resource into a handler</a></li><li><a href="#the-database-module">The database module</a></li><li><a href="#the-email-module">The email module</a></li><li><a href="#declare-modules">Declare modules</a></li><li><a href="#startup-and-shutdown-hooks">Startup and shutdown hooks</a></li><li><a href="#scripts-outside-the-server">Scripts outside the server</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/modules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
