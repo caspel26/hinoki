@@ -21,7 +21,9 @@ async def main(url: str, limit: int, hits: int) -> int:
         lambda kind: database if kind is Database else kind,
     )
     clock = ManualClock(datetime(2030, 1, 1, tzinfo=UTC))
-    policy = RateLimit(limit, 3600, storage=DatabaseLimits(), clock=clock)
+    # SQLite has one writer; allow this deliberately concurrent process test the
+    # documented maximum storage wait instead of the 0.5s production default.
+    policy = RateLimit(limit, 3600, storage=DatabaseLimits(timeout=5), clock=clock)
     decisions = await asyncio.gather(*(policy.decide(context) for _ in range(hits)))
     database.close()
     return sum(decision.allowed for decision in decisions)

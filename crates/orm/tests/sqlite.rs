@@ -68,3 +68,25 @@ async fn execute_scalar_returns_the_first_returning_value() {
     assert_eq!(miss, None);
     let _ = std::fs::remove_file(path);
 }
+
+#[tokio::test]
+async fn a_large_pool_wait_does_not_overflow_sqlite_busy_timeout() {
+    let path = std::env::temp_dir().join(format!("hinoki-orm-{}.sqlite3", Uuid::new_v4()));
+    let db = Database::connect(
+        &format!("sqlite://{}", path.display()),
+        2,
+        Duration::from_secs(3_000_000),
+    )
+    .unwrap();
+    db.execute("CREATE TABLE notes (id integer PRIMARY KEY)", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.execute_scalar("SELECT count(*) FROM notes", &[])
+            .await
+            .unwrap(),
+        Some(0)
+    );
+    db.close();
+    let _ = std::fs::remove_file(path);
+}
