@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Once};
 use std::time::Duration;
 
+use hinoki_orm::links::{apply, Canon, LinkOp, LinkWrite};
 use hinoki_orm::{Database, DbError, ErrorKind, Transaction, Value};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -12,6 +13,7 @@ use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use tokio::sync::Mutex;
 
 use crate::cursor::{CursorQuery, CursorWire, PyCursorCodec};
+use crate::links::{outcome_to_py, raw_keys, scope_of, PyLinkSpec, RawScope};
 use crate::modelrows::{models_to_py, PyModelRows};
 use crate::rows::{PageWireResult, PyRowPlan};
 
@@ -417,6 +419,19 @@ impl PyDatabase {
     }
 }
 
+fn coerce_one(kind: &hinoki_orm::links::KeyKind, key: &Bound<'_, PyAny>) -> PyResult<Canon> {
+    let list = PyList::new(key.py(), [key])?;
+    coerce_all(kind, &list)?
+        .pop()
+        .ok_or_else(|| PyValueError::new_err("invalid link key"))
+}
+
+/// Keys already coerced by `coerce_link_keys`, checked again against `kind`.
+fn coerce_all(kind: &hinoki_orm::links::KeyKind, keys: &Bound<'_, PyList>) -> PyResult<Vec<Canon>> {
+    hinoki_orm::links::coerce_keys(*kind, &raw_keys(keys)?, hinoki_orm::links::MAX_LINK_ITEMS)
+        .map_err(|_| PyValueError::new_err("invalid link keys"))
+}
+
 /// A transaction owning one connection. One statement at a time: concurrent
 /// use raises instead of interleaving. Dropping it unfinished discards the
 /// connection.
@@ -456,6 +471,51 @@ impl PyTransaction {
             tx.fetch(&sql, &values).await
         };
         bridge!(py, fut, |py2, rows| models_to_py(py2, &rows, &plan))
+    }
+
+    /// Add, remove or replace links of one owner (see `hinoki_orm::links`).
+    /// `op` is `add`, `remove` or `set`; `keys` are the target keys already
+    /// coerced by `coerce_link_keys`; `scope` is `(joins, filters, subfilters)`.
+    /// Resolves to `("done", added, removed)`, `("owner_missing",)`,
+    /// `("missing", count)` or `("limit",)`; only `done` may be committed.
+    #[pyo3(signature = (spec, dialect, op, request, scope, owner_scope=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn link_write<'py>(
+        &self,
+        py: Python<'py>,
+        spec: &PyLinkSpec,
+        dialect: &str,
+        op: &str,
+        request: (Bound<'py, PyAny>, Bound<'py, PyList>),
+        scope: RawScope,
+        owner_scope: Option<RawScope>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (owner, keys) = request;
+        let dialect = crate::query::parse_dialect(dialect)?;
+        let op = match op {
+            "add" => LinkOp::Add,
+            "remove" => LinkOp::Remove,
+            "set" => LinkOp::Set,
+            other => return Err(PyValueError::new_err(format!("unknown link op {other:?}"))),
+        };
+        let table = spec.table.clone();
+        let write = LinkWrite {
+            op,
+            owner: coerce_one(&table.owner_kind, &owner)?,
+            keys: coerce_all(&table.target_kind, &keys)?,
+            scope: scope_of(py, dialect, scope)?,
+            owner_scope: owner_scope
+                .map(|raw| scope_of(py, dialect, raw))
+                .transpose()?
+                .unwrap_or_default(),
+        };
+        let inner = self.inner.clone();
+        let fut = async move {
+            let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            let tx = guard.as_ref().ok_or_else(busy_error)?;
+            apply(tx, dialect, &table, &write, &mut uuid::Uuid::new_v4).await
+        };
+        bridge!(py, fut, |py2, outcome| outcome_to_py(py2, &outcome))
     }
 
     #[pyo3(signature = (sql, params, plan, page_info))]

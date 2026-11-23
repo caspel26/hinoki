@@ -126,6 +126,16 @@ def describe_model(model: type[Model]) -> dict[str, Any]:
             for name, rel in model.__relations__.items()
         },
         "unique": [list(group) for group in model.__unique__],
+        "many_to_many": {
+            side.declared: {
+                "to": side.target.__name__,
+                "bridge": side.bridge.__name__,
+                "ids_name": side.ids_name,
+                "max_items": side.max_items,
+            }
+            for side in model.__links__.values()
+            if side.forward
+        },
     }
 
 

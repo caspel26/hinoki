@@ -17,8 +17,8 @@ from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 
 from .events import PostPublished
-from .models import Post, User
-from .schemas import HealthOut, PostCreate, PostOut
+from .models import Post, Tag, User
+from .schemas import HealthOut, PostCreate, PostOut, TagCreate, TagOut
 from .security import editor
 
 EXPORT_LIMIT = 1000  # a bounded export: the newest posts of the publication
@@ -35,8 +35,15 @@ def to_out(post: Post) -> PostOut:
 
 
 def with_author(query: QuerySet[Post]) -> QuerySet[Post]:
-    """Relations are never lazy: every response that shows the author loads it."""
-    return query.select_related("author")
+    """Relations are never lazy: a response loads the author and the tag ids."""
+    return query.select_related("author").prefetch_related("tags")
+
+
+def tags_of(user: User | None) -> QuerySet[Tag]:
+    """The tags a user may link and see: their publication's, none if anonymous."""
+    if user is None:
+        return Tag.filter(id__in=[])
+    return Tag.filter(publication_id=user.publication_id)
 
 
 def in_publication(principal: Caller[User]) -> QuerySet[Post]:
@@ -70,6 +77,21 @@ def health() -> HealthOut:
 
 
 @crud(
+    Tag,
+    path="/tags",
+    read=TagOut,
+    create=TagCreate,
+    access=editor,
+    assign={"publication_id": attrgetter("publication_id")},
+)
+class Tags(API):
+    """Tags of the caller's publication: listed and created by its editors."""
+
+    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Tag]:
+        return tags_of(None if principal is None else principal.user)
+
+
+@crud(
     Post,
     path="/posts",
     read=PostOut,
@@ -79,6 +101,7 @@ def health() -> HealthOut:
     owner="author_id",
     assign={"publication_id": attrgetter("publication_id")},
     omit=("list", "retrieve"),
+    links={"tags": tags_of},
 )
 class Posts(API):
     """Generated create and delete (owner and tenant enforced), handwritten reads."""

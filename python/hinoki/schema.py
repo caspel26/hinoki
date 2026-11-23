@@ -1792,6 +1792,9 @@ class Schema(metaclass=_SchemaMeta):
             if unknown:
                 raise TypeError(f"{cls.__name__} has no fields {sorted(unknown)}")
         queue, token, owns_queue = begin_normalization_queue(cls)
+        links = getattr(type(row), "__links__", None)
+        if links:
+            extra = with_link_ids(cls, row, links, extra)
         try:
             instance = cast(Self, model_plan(cls).build(row, extra))
             if owns_queue and queue is not None:
@@ -1891,7 +1894,8 @@ def chosen_columns(
     chosen = (
         list(fields) if fields is not None else [c for c in columns if c not in exclude]
     )
-    unknown = [n for n in [*chosen, *exclude] if n not in columns]
+    known = {*columns, *link_id_fields(model)}
+    unknown = [n for n in [*chosen, *exclude] if n not in known]
     if unknown:
         raise RegistrationError(
             f"{cls.__name__}: {model.__name__} has no columns {unknown}"
@@ -2389,22 +2393,60 @@ def derive_from_model(
     by_name = {f.name: f for f in dataclasses.fields(cast(Any, model))}
     derived: dict[str, Any] = {}
     defaults: dict[str, Any] = {}
+    links = link_id_fields(model)
     for name in (n for n in chosen if n not in own):  # declared by hand: left alone
-        item = by_name[name]
-        meta = item.metadata.get(MARK, FieldMeta())
-        annotation = hints[name]
-        if meta.max_length is not None:
-            annotation = Annotated[annotation, Field(max_length=meta.max_length)]
+        if name in links:
+            annotation, default = links[name], dataclasses.MISSING
+        else:
+            item = by_name[name]
+            annotation = bounded_annotation(
+                hints[name], item.metadata.get(MARK, FieldMeta())
+            )
+            default = item.default
         if everything or name in some:
             derived[name], defaults[name] = annotation | Unset, UNSET
         else:
             derived[name] = annotation
-            if item.default is not dataclasses.MISSING:
-                defaults[name] = item.default
+            if default is not dataclasses.MISSING:
+                defaults[name] = default
     cls.__annotations__ = {**derived, **own}
     cls.__model_fields__ = frozenset(derived)  # type: ignore[attr-defined]
     for name, value in defaults.items():
         setattr(cls, name, value)
+
+
+def bounded_annotation(annotation: Any, meta: Any) -> Any:
+    """A column's annotation, carrying its ``max_length`` as a bound."""
+    if meta.max_length is None:
+        return annotation
+    return Annotated[annotation, Field(max_length=meta.max_length)]
+
+
+def with_link_ids(
+    cls: type[Schema], row: object, links: Mapping[str, Any], extra: dict[str, Any]
+) -> dict[str, Any]:
+    """``extra`` plus each ids field of ``row``'s many-to-many relations the
+    schema declares, as a set (the stored value is an immutable tuple)."""
+    specs = cls.specs()
+    found = {
+        side.ids_name: set(getattr(row, side.ids_name))
+        for side in links.values()
+        if side.forward and side.ids_name in specs and side.ids_name not in extra
+    }
+    return {**extra, **found} if found else extra
+
+
+def link_id_fields(model: Any) -> dict[str, Any]:
+    """The ids field of each many-to-many relation ``model`` declares, with its
+    type: a set of target keys bounded by the relation's ``max_items``."""
+    found: dict[str, Any] = {}
+    for side in getattr(model, "__links__", {}).values():
+        if side.forward and side.ids_name:
+            target = side.target
+            key = typing.get_type_hints(target)[target.__primary_key__]
+            keys = cast(Any, set)[key]
+            found[side.ids_name] = Annotated[keys, Field(max_length=side.max_items)]
+    return found
 
 
 def model_fields(cls: type) -> frozenset[str]:

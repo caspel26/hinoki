@@ -9,7 +9,15 @@ from typing import ClassVar
 from uuid import UUID, uuid4
 
 from hinoki import db
-from hinoki.orm import Model, OnDelete, field, foreign_key, pk
+from hinoki.orm import (
+    ManyToMany,
+    Model,
+    OnDelete,
+    field,
+    foreign_key,
+    many_to_many,
+    pk,
+)
 from hinoki.orm.relations import Related
 from hinoki.utils import utc_now
 
@@ -34,6 +42,18 @@ class User(Model, table="blog_users"):
     posts: ClassVar["Related[list[Post]]"]
 
 
+@db.indexed("publication_id")
+@db.unique("publication_id", "name")
+class Tag(Model, table="blog_tags"):
+    """A label of one publication; posts link to tags of their own publication."""
+
+    id: UUID = pk(default_factory=uuid4)
+    publication_id: UUID = foreign_key(
+        Publication, on_delete=OnDelete.RESTRICT, related_name="tags"
+    )
+    name: str = field(max_length=40)
+
+
 @db.indexed("author_id")
 @db.indexed("publication_id")
 class Post(Model, table="blog_posts"):
@@ -50,6 +70,9 @@ class Post(Model, table="blog_posts"):
     published: bool = False
     created_at: datetime = field(default_factory=utc_now)
     author: ClassVar[Related[User]]
+    tags: ClassVar[ManyToMany[Tag]] = many_to_many(
+        Tag, related_name="posts", max_items=10, ids_name="tag_ids"
+    )
 
 
 @db.indexed("post_id")

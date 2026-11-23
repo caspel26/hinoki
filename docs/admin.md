@@ -173,6 +173,7 @@ The `Mount` prefix decides where the admin lives; links, assets and the cookie p
 | `register` with a slug that is taken or reserved (`static`, `search`, `login`, `logout`, `password`) | `RegistrationError` |
 | `DatabaseLoginWindow` before `0003-rate-limits` is applied | Sign-in fails with `503 rate_limit_unavailable` on the missing table; apply the migration first |
 | One address racing many sign-ins at the same instant | `429` rather than an uncounted attempt |
+| A form posting a many-to-many key that is unknown, outside the user's view or too long | The form is shown again with one generic message and nothing is saved ([details](admin-customize.md#many-to-many-fields)) |
 
 ## See also
 

@@ -556,14 +556,33 @@ def plain_schema_setattr(schema: type[Schema]) -> bool:
 
 
 def schema_fields(
-    model: type[Model], schema: type[Schema]
+    model: type[Model],
+    schema: type[Schema],
+    links: frozenset[str] = frozenset(),
 ) -> list[tuple[str, str, str, bool]] | None:
+    """The fields of ``schema`` the row plan writes. ``links`` names the ids
+    fields of many-to-many relations, which the plan fills from the bridge
+    instead of a column."""
     fields: list[tuple[str, str, str, bool]] = []
     columns = set(model.__columns__)
     model_types = model.__field_types__
     schema_fields = {item.name: item for item in dataclasses.fields(cast(Any, schema))}
     for name, spec in schema.specs().items():
         field_type = spec.ftype
+        if name in links:
+            item = field_type.item
+            if (
+                field_type.nullable
+                or field_type.allows_unset
+                or item is None
+                or set(field_type.info.constraints()) != {"max_length"}
+                or item.info.constraints()
+                or item.enum_class is not None
+                or item.variants
+            ):
+                return None
+            fields.append((name, spec.wire_name, "ids", False))
+            continue
         if (
             name not in columns
             or field_type.kind not in ROW_KINDS

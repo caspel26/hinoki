@@ -34,7 +34,7 @@ Each result is JSON in `structuredContent` and in a text block, with a `tool_ver
 
 | Tool | Input | Result |
 | --- | --- | --- |
-| `inspect_project` | `{}` | App title and version; each action's `id`, `method`, `path`, `status`, `access`, `atomic`, `pagination`, `parsers`, `renderers` and `location`; model metadata (with `--models`); the enabled rule count |
+| `inspect_project` | `{}` | App title and version; each action's `id`, `method`, `path`, `status`, `access`, `atomic`, `pagination`, `parsers`, `renderers` and `location`; model metadata (with `--models`, including a `many_to_many` entry per relation: `to`, `bridge`, `ids_name`, `max_items`); the enabled rule count |
 | `list_rules` | `{}` | Enabled rules and the waivers with their file, target, reason, owner and expiry |
 | `explain_action` | `{"action": "module.function"}` | Signature, docstring, access and `atomic`, the OpenAPI operation and the action's diagnostics. A class method or a unique bare handler name also works |
 | `explain_error` | `{"code": "validation_error"}` | Meaning and fix of a framework error code, HTTP error code or rule ID |

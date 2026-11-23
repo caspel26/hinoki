@@ -245,7 +245,13 @@ impl CoreBackend {
             } else {
                 let result = match tokio::time::timeout(
                     core.request_timeout(),
-                    crate::nativecrud::execute_read(&plan, &database, &params, &query),
+                    crate::nativecrud::execute_read(
+                        &plan,
+                        &database,
+                        &params,
+                        &query,
+                        caller.as_deref(),
+                    ),
                 )
                 .await
                 {

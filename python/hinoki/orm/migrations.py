@@ -296,12 +296,15 @@ def state_of(
 
 
 def _unique_model_classes(models: list[type[Model]]) -> list[type[Model]]:
+    """The models once each, every generated bridge right after its owner so the
+    tables it references come first."""
     unique: list[type[Model]] = []
     seen: set[int] = set()
-    for model in models:
-        if id(model) not in seen:
-            seen.add(id(model))
-            unique.append(model)
+    for owner in models:
+        for model in (owner, *owner.__bridges__):
+            if id(model) not in seen:
+                seen.add(id(model))
+                unique.append(model)
     return unique
 
 

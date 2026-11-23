@@ -10,6 +10,7 @@ use time::{OffsetDateTime, UtcOffset};
 use uuid::Uuid;
 
 use crate::crudplan::{CrudPlan, ModelDefault, ModelDefaultValue};
+use crate::nativelinks::{self, InTransaction, LinkWork, Refused};
 use crate::request::{decode_json_document, decode_path_parameter, parse_query, Json};
 use crate::schema::{NativeSchema, Options, Validated};
 use crate::server::PreparedRequest;
@@ -38,6 +39,7 @@ enum TransactionResult {
     Reply { status: u16, body: Vec<u8> },
     NotFound(String),
     Forbidden(Vec<u8>),
+    Unprocessable(Vec<u8>),
     Replay,
 }
 
@@ -56,11 +58,12 @@ impl OwnerScope {
 }
 
 enum PreparedWrite {
-    Create(Vec<(String, Value)>),
+    Create(Vec<(String, Value)>, LinkWork),
     Update {
         id: Value,
         values: Vec<(String, Value)>,
         owner: Option<OwnerScope>,
+        links: LinkWork,
     },
     Delete {
         id: Value,
@@ -120,10 +123,10 @@ fn validation_body(request_id: &str, problems: Vec<crate::schema::Problem>) -> O
     .ok()
 }
 
-type FetchFuture<'a> =
+pub(crate) type FetchFuture<'a> =
     Pin<Box<dyn Future<Output = Result<Vec<Vec<(String, Value)>>, DbError>> + Send + 'a>>;
 
-trait ReadDatabase {
+pub(crate) trait ReadDatabase {
     fn dialect(&self) -> &str;
     fn fetch<'a>(&'a self, sql: &'a str, values: &'a [Value]) -> FetchFuture<'a>;
 }
@@ -150,8 +153,9 @@ pub(crate) async fn execute_read(
     database: &Database,
     path_params: &[(String, String)],
     raw_query: &[u8],
+    caller: Option<&str>,
 ) -> NativeRead {
-    execute_read_with(plan, database, path_params, raw_query).await
+    execute_read_with(plan, database, path_params, raw_query, caller).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -185,7 +189,7 @@ pub(crate) async fn execute_write(
         path_params,
         raw_query,
         body.as_deref(),
-        owner,
+        (owner, caller),
     ) {
         Ok(prepared) => prepared,
         Err(result) => return result,
@@ -273,7 +277,7 @@ fn prepare_write(
     path_params: &[(String, String)],
     raw_query: &[u8],
     body: Option<&[u8]>,
-    owner: Option<OwnerScope>,
+    (owner, caller): (Option<OwnerScope>, Option<&str>),
 ) -> Result<PreparedWrite, NativeWrite> {
     if parse_query(raw_query, 1000).is_err() {
         return Err(http_error(
@@ -283,14 +287,20 @@ fn prepare_write(
             Some("malformed query string"),
         ));
     }
+    let caller = caller.map(str::to_owned);
     match plan.action.as_str() {
-        "create" => prepare_create(plan, request, body.ok_or(NativeWrite::Defer(None))?, owner),
+        "create" => prepare_create(
+            plan,
+            request,
+            body.ok_or(NativeWrite::Defer(None))?,
+            (owner, caller),
+        ),
         "update" => prepare_update(
             plan,
             request,
             path_params,
             body.ok_or(NativeWrite::Defer(None))?,
-            owner,
+            (owner, caller),
         ),
         "delete" => {
             let id = write_path_id(plan, path_params).ok_or(NativeWrite::Defer(None))?;
@@ -304,14 +314,14 @@ fn prepare_create(
     plan: &CrudPlan,
     request: &PreparedRequest,
     body: &[u8],
-    owner: Option<OwnerScope>,
+    (owner, caller): (Option<OwnerScope>, Option<String>),
 ) -> Result<PreparedWrite, NativeWrite> {
     let json = decode_body(request, body)?;
     let schema = plan
         .create_schema()
         .ok_or(NativeWrite::Defer(Some(body.to_vec())))?;
-    let values = validate_body(plan, schema, &json, request)?;
-    let Some(mut values) = values else {
+    let parsed = validate_body(plan, schema, &json, request)?;
+    let Some((mut values, sets)) = parsed else {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     };
     if !append_defaults(&mut values, plan.create_defaults(), plan) {
@@ -323,7 +333,7 @@ fn prepare_create(
     }
     order_schema_values(&mut values, schema);
     ensure_create_requirements(plan, &values, body)?;
-    Ok(PreparedWrite::Create(values))
+    Ok(PreparedWrite::Create(values, LinkWork { sets, caller }))
 }
 
 fn prepare_update(
@@ -331,21 +341,26 @@ fn prepare_update(
     request: &PreparedRequest,
     path_params: &[(String, String)],
     body: &[u8],
-    owner: Option<OwnerScope>,
+    (owner, caller): (Option<OwnerScope>, Option<String>),
 ) -> Result<PreparedWrite, NativeWrite> {
     let id = write_path_id(plan, path_params).ok_or(NativeWrite::Defer(Some(body.to_vec())))?;
     let json = decode_body(request, body)?;
     let schema = plan
         .update_schema()
         .ok_or(NativeWrite::Defer(Some(body.to_vec())))?;
-    let Some(mut values) = validate_body(plan, schema, &json, request)? else {
+    let Some((mut values, sets)) = validate_body(plan, schema, &json, request)? else {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     };
     if !append_defaults(&mut values, plan.update_defaults(), plan) {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     }
     order_schema_values(&mut values, schema);
-    Ok(PreparedWrite::Update { id, values, owner })
+    Ok(PreparedWrite::Update {
+        id,
+        values,
+        owner,
+        links: LinkWork { sets, caller },
+    })
 }
 
 fn decode_body(request: &PreparedRequest, body: &[u8]) -> Result<Json, NativeWrite> {
@@ -385,12 +400,17 @@ fn decode_body(request: &PreparedRequest, body: &[u8]) -> Result<Json, NativeWri
     }
 }
 
+type ValidatedBody = (
+    Vec<(String, Value)>,
+    Vec<(usize, Vec<hinoki_orm::links::Canon>)>,
+);
+
 fn validate_body(
     plan: &CrudPlan,
     schema: &NativeSchema,
     json: &Json,
     request: &PreparedRequest,
-) -> Result<Option<Vec<(String, Value)>>, NativeWrite> {
+) -> Result<Option<ValidatedBody>, NativeWrite> {
     let options = Options {
         construct: false,
         use_aliases: true,
@@ -411,7 +431,15 @@ fn validate_body(
         return Ok(None);
     };
     let mut values = Vec::with_capacity(fields.len());
+    let mut sets = Vec::new();
     for (name, value) in fields {
+        if let Some(index) = nativelinks::link_index(plan, &name) {
+            let Some(keys) = nativelinks::keys_of(&plan.links[index], value) else {
+                return Ok(None);
+            };
+            sets.push((index, keys));
+            continue;
+        }
         let Some(kind) = plan.model_field_kind(&name) else {
             return Ok(None);
         };
@@ -420,7 +448,7 @@ fn validate_body(
         };
         values.push((name, value));
     }
-    Ok(Some(values))
+    Ok(Some((values, sets)))
 }
 
 fn order_schema_values(values: &mut [(String, Value)], schema: &NativeSchema) {
@@ -582,27 +610,25 @@ async fn execute_transaction(
                 Err(_) => NativeWrite::Timeout,
             }
         }
-        Ok(Ok(TransactionResult::NotFound(message))) => {
+        Ok(Ok(refused)) => {
+            let answer = refusal(refused, body);
             if rollback_before_deadline(transaction, deadline).await {
-                NativeWrite::NotFound(message)
+                answer
             } else {
                 NativeWrite::Timeout
             }
         }
-        Ok(Ok(TransactionResult::Forbidden(body))) => {
-            if rollback_before_deadline(transaction, deadline).await {
-                NativeWrite::Reply { status: 403, body }
-            } else {
-                NativeWrite::Timeout
-            }
-        }
-        Ok(Ok(TransactionResult::Replay)) => {
-            if rollback_before_deadline(transaction, deadline).await {
-                NativeWrite::Defer(body)
-            } else {
-                NativeWrite::Timeout
-            }
-        }
+    }
+}
+
+/// What the client gets once a transaction that did not succeed is rolled back.
+fn refusal(result: TransactionResult, body: Option<Vec<u8>>) -> NativeWrite {
+    match result {
+        TransactionResult::NotFound(message) => NativeWrite::NotFound(message),
+        TransactionResult::Forbidden(body) => NativeWrite::Reply { status: 403, body },
+        TransactionResult::Unprocessable(body) => NativeWrite::Reply { status: 422, body },
+        TransactionResult::Replay => NativeWrite::Defer(body),
+        TransactionResult::Reply { status, body } => NativeWrite::Reply { status, body },
     }
 }
 
@@ -624,16 +650,21 @@ async fn execute_in_transaction(
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     match prepared {
-        PreparedWrite::Create(values) => {
-            create_in_transaction(plan, dialect, transaction, values).await
+        PreparedWrite::Create(values, links) => {
+            create_in_transaction(plan, dialect, transaction, values, &links, request_id).await
         }
-        PreparedWrite::Update { id, values, owner } => {
+        PreparedWrite::Update {
+            id,
+            values,
+            owner,
+            links,
+        } => {
             update_in_transaction(
                 plan,
                 dialect,
                 transaction,
                 (id, owner.as_ref()),
-                values,
+                (values, &links),
                 request_id,
             )
             .await
@@ -650,6 +681,8 @@ async fn create_in_transaction(
     dialect: &str,
     transaction: &Transaction,
     supplied: Vec<(String, Value)>,
+    links: &LinkWork,
+    request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let values = materialize_create(plan, supplied)?;
     let primary_key = plan
@@ -675,6 +708,17 @@ async fn create_in_transaction(
         ));
     }
     write_rows.clear();
+    if let Some(refused) = nativelinks::write_links(
+        plan,
+        dialect,
+        transaction,
+        &primary_key,
+        (links, hinoki_orm::links::Scope::default()),
+    )
+    .await?
+    {
+        return refused_links(refused, request_id);
+    }
     let read_back_sql = plan
         .read_back_sql(dialect)
         .ok_or_else(|| DbError::new(ErrorKind::Other, "CRUD read-back SQL is unavailable"))?;
@@ -684,14 +728,60 @@ async fn create_in_transaction(
             "{} not found",
             plan.model_name
         ))),
-        [row] => match crate::rows::encode_item(row, plan.read_rows()) {
-            Some(body) => Ok(TransactionResult::Reply { status: 201, body }),
-            None => Ok(TransactionResult::Replay),
-        },
+        [row] => written_item(plan, (dialect, transaction), row, (201, links)).await,
         _ => Err(DbError::new(
             ErrorKind::Other,
             "database returned multiple rows for a primary key",
         )),
+    }
+}
+
+/// The written row with the ids its transaction left, or a replay when the
+/// row cannot be encoded natively.
+async fn written_item(
+    plan: &CrudPlan,
+    (dialect, transaction): (&str, &Transaction),
+    row: &[(String, Value)],
+    (status, links): (u16, &LinkWork),
+) -> Result<TransactionResult, DbError> {
+    let database = InTransaction {
+        transaction,
+        dialect,
+    };
+    let Some(ids) = nativelinks::read_ids(
+        plan,
+        &database,
+        std::slice::from_ref(&row.to_vec()),
+        links.caller.as_deref(),
+    )
+    .await?
+    else {
+        return Ok(TransactionResult::Replay);
+    };
+    Ok(
+        match crate::rows::encode_item_with(row, plan.read_rows(), &ids) {
+            Some(body) => TransactionResult::Reply { status, body },
+            None => TransactionResult::Replay,
+        },
+    )
+}
+
+fn refused_links(refused: Refused, request_id: &str) -> Result<TransactionResult, DbError> {
+    match refused {
+        Refused::OwnerMissing | Refused::OwnerGone => {
+            forbidden_result(request_id, "You cannot change this item.")
+        }
+        Refused::Replay => Ok(TransactionResult::Replay),
+        Refused::Unknown(field) => Ok(serde_json::to_vec(&ValidationBody {
+            error: "validation_error",
+            request_id: request_id.to_owned(),
+            details: vec![ValidationDetail {
+                path: field,
+                code: "unknown_reference",
+                message: "contains ids that do not exist".to_owned(),
+            }],
+        })
+        .map_or(TransactionResult::Replay, TransactionResult::Unprocessable)),
     }
 }
 
@@ -732,7 +822,7 @@ async fn update_in_transaction(
     dialect: &str,
     transaction: &Transaction,
     (id, owner): (Value, Option<&OwnerScope>),
-    supplied: Vec<(String, Value)>,
+    (supplied, links): (Vec<(String, Value)>, &LinkWork),
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
@@ -758,23 +848,27 @@ async fn update_in_transaction(
     }
     let values = add_update_timestamp(plan, supplied);
     if !values.is_empty() {
-        let columns = values
-            .iter()
-            .map(|(name, _)| name.clone())
-            .collect::<Vec<_>>();
-        let sql = plan
-            .update_sql(dialect, &columns)
-            .map_err(|_| DbError::new(ErrorKind::Other, "CRUD update SQL is unavailable"))?;
-        let parameters = update_parameters(values, &id, owner);
-        let written = if is_mysql(dialect) {
-            let scope = scope_parameters(&id, owner);
-            mysql_update(transaction, plan, &sql, (&parameters, &scope)).await?
-        } else {
-            transaction.fetch(&sql, &parameters).await?
-        };
+        let written = write_columns(plan, (dialect, transaction), (&id, owner), values).await?;
         if written.is_empty() {
             return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
         }
+    }
+    let owner_scope = owner.map_or_else(hinoki_orm::links::Scope::default, |scope| {
+        hinoki_orm::links::Scope::column_equals(&scope.column, Value::Text(scope.value.clone()))
+    });
+    if let Some(refused) =
+        nativelinks::write_links(plan, dialect, transaction, &id, (links, owner_scope)).await?
+    {
+        if matches!(refused, Refused::OwnerGone) {
+            return Ok(TransactionResult::NotFound(format!(
+                "{} not found",
+                plan.model_name
+            )));
+        }
+        if matches!(refused, Refused::OwnerMissing) {
+            return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
+        }
+        return refused_links(refused, request_id);
     }
     let read_back_sql = required_sql(plan.read_back_sql(dialect))?;
     let rows = transaction
@@ -785,14 +879,34 @@ async fn update_in_transaction(
             "{} not found",
             plan.model_name
         ))),
-        [row] => match crate::rows::encode_item(row, plan.read_rows()) {
-            Some(body) => Ok(TransactionResult::Reply { status: 200, body }),
-            None => Ok(TransactionResult::Replay),
-        },
+        [row] => written_item(plan, (dialect, transaction), row, (200, links)).await,
         _ => Err(DbError::new(
             ErrorKind::Other,
             "database returned multiple rows for a primary key",
         )),
+    }
+}
+
+/// The UPDATE of the changed columns; no rows come back when it matched none.
+async fn write_columns(
+    plan: &CrudPlan,
+    (dialect, transaction): (&str, &Transaction),
+    (id, owner): (&Value, Option<&OwnerScope>),
+    values: Vec<(String, Value)>,
+) -> Result<Vec<Vec<(String, Value)>>, DbError> {
+    let columns = values
+        .iter()
+        .map(|(name, _)| name.clone())
+        .collect::<Vec<_>>();
+    let sql = plan
+        .update_sql(dialect, &columns)
+        .map_err(|_| DbError::new(ErrorKind::Other, "CRUD update SQL is unavailable"))?;
+    let parameters = update_parameters(values, id, owner);
+    if is_mysql(dialect) {
+        let scope = scope_parameters(id, owner);
+        mysql_update(transaction, plan, &sql, (&parameters, &scope)).await
+    } else {
+        transaction.fetch(&sql, &parameters).await
     }
 }
 
@@ -972,10 +1086,11 @@ async fn execute_read_with<D: ReadDatabase>(
     database: &D,
     path_params: &[(String, String)],
     raw_query: &[u8],
+    caller: Option<&str>,
 ) -> NativeRead {
     match plan.action.as_str() {
-        "list" => execute_list(plan, database, raw_query).await,
-        "retrieve" => execute_retrieve(plan, database, path_params, raw_query).await,
+        "list" => execute_list(plan, database, raw_query, caller).await,
+        "retrieve" => execute_retrieve(plan, database, path_params, raw_query, caller).await,
         _ => NativeRead::Defer,
     }
 }
@@ -984,6 +1099,7 @@ async fn execute_list<D: ReadDatabase>(
     plan: &CrudPlan,
     database: &D,
     raw_query: &[u8],
+    caller: Option<&str>,
 ) -> NativeRead {
     let Some(page) = parse_page(raw_query, plan.page_size, plan.max_page_size) else {
         return NativeRead::Defer;
@@ -1016,9 +1132,16 @@ async fn execute_list<D: ReadDatabase>(
         Err(error) => return NativeRead::Failure(error),
     };
     let page_info = (page.number, page.size, total);
-    match crate::rows::encode_page(&rows, plan.read_rows(), page.number, page.size, total) {
+    let ids = match nativelinks::read_ids(plan, database, &rows, caller).await {
+        Ok(Some(ids)) => ids,
+        Ok(None) => return NativeRead::Defer,
+        Err(error) => return NativeRead::Failure(error),
+    };
+    let wire = (page.number, page.size, total);
+    match crate::rows::encode_page_with(&rows, plan.read_rows(), &ids, wire) {
         Some(body) => NativeRead::Reply { status: 200, body },
-        None => NativeRead::Rows(rows, Some(page_info)),
+        None if plan.links.is_empty() => NativeRead::Rows(rows, Some(page_info)),
+        None => NativeRead::Defer,
     }
 }
 
@@ -1027,6 +1150,7 @@ async fn execute_retrieve<D: ReadDatabase>(
     database: &D,
     path_params: &[(String, String)],
     raw_query: &[u8],
+    caller: Option<&str>,
 ) -> NativeRead {
     if parse_query(raw_query, 1000).is_err() {
         return NativeRead::Defer;
@@ -1054,9 +1178,15 @@ async fn execute_retrieve<D: ReadDatabase>(
     if rows.len() != 1 {
         return NativeRead::Defer;
     }
-    match crate::rows::encode_item(&rows[0], plan.read_rows()) {
+    let ids = match nativelinks::read_ids(plan, database, &rows, caller).await {
+        Ok(Some(ids)) => ids,
+        Ok(None) => return NativeRead::Defer,
+        Err(error) => return NativeRead::Failure(error),
+    };
+    match crate::rows::encode_item_with(&rows[0], plan.read_rows(), &ids) {
         Some(body) => NativeRead::Reply { status: 200, body },
-        None => NativeRead::Rows(rows, None),
+        None if plan.links.is_empty() => NativeRead::Rows(rows, None),
+        None => NativeRead::Defer,
     }
 }
 
@@ -1231,7 +1361,8 @@ mod tests {
         let database = StubDatabase {
             statements: Mutex::new(Vec::new()),
         };
-        let result = execute_read_with(&plan("list"), &database, &[], b"page=2&page_size=1").await;
+        let result =
+            execute_read_with(&plan("list"), &database, &[], b"page=2&page_size=1", None).await;
         let NativeRead::Reply { status, body } = result else {
             panic!("valid native list did not encode");
         };
@@ -1253,7 +1384,7 @@ mod tests {
             statements: Mutex::new(Vec::new()),
         };
         let params = vec![("item_id".to_owned(), "%37".to_owned())];
-        let result = execute_read_with(&plan("retrieve"), &database, &params, b"").await;
+        let result = execute_read_with(&plan("retrieve"), &database, &params, b"", None).await;
         let NativeRead::Reply { status, body } = result else {
             panic!("valid native retrieve did not encode");
         };
@@ -1307,11 +1438,12 @@ mod tests {
         };
         let params = vec![("item_id".to_owned(), "7".to_owned())];
         for query in [b"%FF".as_slice(), b"a=%FF", b"%C3"] {
-            let result = execute_read_with(&plan("retrieve"), &database, &params, query).await;
+            let result =
+                execute_read_with(&plan("retrieve"), &database, &params, query, None).await;
             assert!(matches!(result, NativeRead::Defer), "{query:?}");
         }
         assert!(database.statements.lock().unwrap().is_empty());
-        let valid = execute_read_with(&plan("retrieve"), &database, &params, b"a=1").await;
+        let valid = execute_read_with(&plan("retrieve"), &database, &params, b"a=1", None).await;
         assert!(matches!(valid, NativeRead::Reply { .. }));
     }
 

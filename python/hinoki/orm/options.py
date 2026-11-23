@@ -129,6 +129,10 @@ def table[M: type[Model]](name: str) -> Callable[[M], M]:
         model.__table_is_implicit__ = False
         model.__table_decorated__ = True
         model.__table_problem__ = ""  # an explicit name replaces the derived one
+        # Imported here: links.py imports the model module this one serves.
+        from hinoki.orm.links import retable  # noqa: PLC0415 - circular, see above
+
+        retable(model)
         return model
 
     return apply

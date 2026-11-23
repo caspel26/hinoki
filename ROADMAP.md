@@ -29,6 +29,7 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Cursor (keyset) pagination is available as `CursorPagination` for generated lists and handwritten routes (see [pagination](docs/pagination.md#cursor-keyset-pagination)); the admin lists keep page numbers.
 - Before the first release (`0.1.0`):
+    - many-to-many relations (`many_to_many(...)`, generated CRUD ids fields, admin multi-select, MCP description); routes with an ids field run on the native generated-CRUD lane when the targets are scoped with `all_rows(...)`/`own_rows(...)` (ids read by one extra query per page, writes in the row's transaction), and stay on the Python lane with a custom scope, hook or link event handler;
     - a stable CI on `main` and a clean quality gate;
     - a cache, sessions and file storage, each with a bounded, explicit backend and documented limits;
     - generated `crud(...)` filtered lists on the native Kiso lane (they take the Python path today);

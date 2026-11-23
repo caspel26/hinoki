@@ -61,7 +61,7 @@ from hinoki.orm.queryset import (
     write_transaction,
     written_rows,
 )
-from hinoki.orm.relations import OnDelete, Related, Relation
+from hinoki.orm.relations import LinkEnd, OnDelete, Related, Relation
 from hinoki.utils import Clock, utc_now
 
 if sys.version_info >= (3, 14):
@@ -706,6 +706,8 @@ class Model:
     __abstract__: ClassVar[bool] = False
     __inherited_options__: ClassVar[frozenset[str]] = frozenset()
     NotFound: ClassVar[type[ObjectNotFound]] = ObjectNotFound
+    __links__: ClassVar[dict[str, LinkEnd]] = {}
+    __bridges__: ClassVar[tuple[type[Model], ...]] = ()
 
     def __init_subclass__(
         cls,
@@ -794,6 +796,12 @@ class Model:
         cls.NotFound = type(
             "NotFound", (ObjectNotFound,), {"__qualname__": f"{cls.__name__}.NotFound"}
         )
+        cls.__links__ = {}
+        cls.__bridges__ = ()
+        # Imported here: links.py builds Models and imports this module.
+        from hinoki.orm.links import bind  # noqa: PLC0415 - circular, see above
+
+        bind(cls, abstract=abstract)
 
     @classmethod
     def check_field_conflicts(cls) -> None:

@@ -748,7 +748,7 @@ def test_statements_split_on_line_terminators() -> None:
 
 def test_models_of_finds_the_models_of_a_module() -> None:
     names = [m.__name__ for m in models_of("blog.apps.blog.models")]
-    assert names == ["Publication", "User", "Post", "AuditEntry"]
+    assert names == ["Publication", "User", "Tag", "Post", "AuditEntry"]
 
 
 def test_command_line_plans_and_prints(

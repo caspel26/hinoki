@@ -218,6 +218,10 @@ State files record logical types; files from older versions that recorded
 SQLite or MySQL type names are normalized, so switching the planner's backend
 is not reported as a type change.
 
+## Bridge tables of many-to-many relations
+
+A [`many_to_many`](relations.md#many-to-many) field adds its bridge model to the models module, right after its owner, so `plan` creates the bridge table in the same migration as the owner: the two foreign keys with `ON DELETE` rules, a unique pair and an index on the target column. Renaming the owner with `@db.table` before its first migration names the generated bridge `<owner table>_<field>` too. The planner does not plan table renames: changing the table of an already migrated owner drops the old bridge table and creates a new one (a destructive change `plan` refuses unless allowed), so move the data with a reviewed manual migration. An adopted bridge (`bridge="NoteLabel"`) is an ordinary model and migrates like one. Nothing runs against the database until you apply the migration.
+
 ## Without a manifest
 
 A project without `hinoki.toml` passes the models module and directory:

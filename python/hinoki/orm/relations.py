@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import TYPE_CHECKING, Any, Self, overload
+from typing import TYPE_CHECKING, Any, Protocol, Self, overload
 
 from hinoki.errors import RelationNotLoaded
 
 if TYPE_CHECKING:
-    from hinoki.orm import Model
+    from hinoki.orm import Model, QuerySet
+    from hinoki.orm.queryset import SubQuery
 
 
 class OnDelete(enum.Enum):
@@ -55,6 +56,42 @@ class Relation:
     column: str
     forward: bool
     one_to_one: bool = False
+
+
+class LinkEnd(Protocol):
+    """One end of a many-to-many relation, as the query layer uses it."""
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def source(self) -> type[Model]: ...
+
+    @property
+    def target(self) -> type[Model]: ...
+
+    @property
+    def bridge(self) -> type[Model]: ...
+
+    @property
+    def forward(self) -> bool: ...
+
+    @property
+    def max_items(self) -> int: ...
+
+    @property
+    def ids_name(self) -> str: ...
+
+    @property
+    def declared(self) -> str: ...
+
+    def subquery(self, items: list[tuple[str, Any]]) -> SubQuery: ...
+
+    def check_within(self, query: QuerySet[Any]) -> None: ...
+
+    async def prefetch(
+        self, instances: list[Any], within: QuerySet[Any] | None
+    ) -> None: ...
 
 
 class Related[T]:
