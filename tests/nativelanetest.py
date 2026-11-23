@@ -29,6 +29,7 @@ from hinoki import (
     core,
     http,
 )
+from hinoki.cli.routes import lanes_of
 from hinoki.context import request_id
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import TooManyRequests
@@ -36,7 +37,6 @@ from hinoki.modules import ModuleContext
 from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.orm.options import table
 from hinoki.orm.relations import Related
-from hinoki.routescli import lanes_of
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.nativelane import (
     NativeLane,

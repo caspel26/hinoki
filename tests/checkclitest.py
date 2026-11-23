@@ -9,7 +9,7 @@ import pytest
 
 from hinoki import scenario
 from hinoki.__main__ import main
-from hinoki.checkcli import load_object
+from hinoki.cli.check import load_object
 from hinoki.rules import Diagnostic, Phase, Severity, Status
 from hinoki.waivers import (
     EXPIRED,

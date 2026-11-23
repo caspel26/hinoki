@@ -15,11 +15,16 @@ from typing import Any, cast
 
 import pytest
 
-from hinoki import UNSET, checkcli, routescli, shellcli
+from hinoki import UNSET
 from hinoki.__main__ import main
 from hinoki.access import Access
 from hinoki.auth import BaseAuth, BearerAuth, Caller, Credentials, HeaderAuth
-from hinoki.checkcli import build_rules
+from hinoki.cli import check as checkcli
+from hinoki.cli import routes as routescli
+from hinoki.cli import shell as shellcli
+from hinoki.cli.check import build_rules
+from hinoki.cli.openapi import write_document
+from hinoki.cli.routes import access_of
 from hinoki.context import Handoff
 from hinoki.crypto import JWTAuth, JWTKey, check_key_set
 from hinoki.db import (
@@ -33,11 +38,9 @@ from hinoki.errors import InvalidBody, RegistrationError
 from hinoki.http.request import Headers
 from hinoki.management import Command
 from hinoki.modules import Module, ModuleContext
-from hinoki.openapicli import write_document
 from hinoki.orm.naming import _resolve_display_names, _words, resolve_model_names
 from hinoki.parsers import DEFAULT_PARSERS, Parser
 from hinoki.renderers import Renderer, TextRenderer
-from hinoki.routescli import access_of
 from hinoki.routing import Route
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.listener import is_listening
