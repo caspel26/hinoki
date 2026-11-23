@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from hinoki import jsontext
-from hinoki.checkcli import build_app
+from hinoki.cli.check import build_app
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import MigrationError
 from hinoki.orm import Model, migrator

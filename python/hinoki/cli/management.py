@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import sys
 
-from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.cli.check import USAGE_ERRORS, build_app
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.management import Command, CommandError
 from hinoki.project import ProjectError, find_manifest_or_none, load_manifest

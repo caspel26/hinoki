@@ -6,8 +6,8 @@ from datetime import UTC, date, datetime
 import pytest
 
 from hinoki import Hinoki, http
+from hinoki.cli.routes import lanes_of
 from hinoki.http.request import Request
-from hinoki.routescli import lanes_of
 from hinoki.runtime import deprecation
 from hinoki.runtime.deprecation import Reminders, header_of
 from hinoki.testing import ASGIClient

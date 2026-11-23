@@ -18,17 +18,18 @@ from typing import Any, cast
 
 import pytest
 
-from hinoki import Hinoki, shellcli
+from hinoki import Hinoki
 from hinoki.__main__ import parser
+from hinoki.cli import shell as shellcli
+from hinoki.cli.shell import _target_and_models, model_namespace, run
+from hinoki.cli.shellrun import ShellRuntime, run_console, terminal_reader
+from hinoki.cli.shellui import farewell, greeting, prompts
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.modules import Module, ModuleContext
 from hinoki.orm import Model, database_var, field
 from hinoki.project import ProjectError
 from hinoki.runtime.config import RuntimeConfig
-from hinoki.shell import ShellRuntime, run_console, terminal_reader
-from hinoki.shellcli import _target_and_models, model_namespace, run
-from hinoki.shellui import farewell, greeting, prompts
 from hinoki.terminal import ANSI, Style
 
 

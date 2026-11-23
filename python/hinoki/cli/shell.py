@@ -8,13 +8,13 @@ from collections.abc import Sequence
 from typing import TextIO
 
 from hinoki.app import Hinoki
-from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.cli.check import USAGE_ERRORS, build_app
+from hinoki.cli.shellrun import ShellRuntime, run_console, terminal_reader
+from hinoki.cli.shellui import farewell, greeting, prompts
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
 from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
-from hinoki.shell import ShellRuntime, run_console, terminal_reader
-from hinoki.shellui import farewell, greeting, prompts
 from hinoki.terminal import Style
 
 

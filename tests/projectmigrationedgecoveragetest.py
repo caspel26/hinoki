@@ -10,7 +10,8 @@ from typing import cast
 
 import pytest
 
-from hinoki import db, projectmigrations
+from hinoki import db
+from hinoki.cli import migrations as projectmigrations
 from hinoki.db import Database
 from hinoki.errors import MigrationError
 from hinoki.orm import Model, field, pk
@@ -381,8 +382,8 @@ async def test_run_database_project_applies_and_lists_status(
         calls.append(("status", path, namespace))
         return [("0001-initial", "applied")]
 
-    monkeypatch.setattr("hinoki.projectmigrations.migrator.apply", apply)
-    monkeypatch.setattr("hinoki.projectmigrations.migrator.status", status)
+    monkeypatch.setattr("hinoki.cli.migrations.migrator.apply", apply)
+    monkeypatch.setattr("hinoki.cli.migrations.migrator.status", status)
     await projectmigrations.run_database_project(
         argparse.Namespace(app=None, action="apply"),
         manifest,

@@ -11,7 +11,7 @@ from typing import Any, cast
 
 import pytest
 
-from hinoki import managementcli
+from hinoki.cli import management as managementcli
 from hinoki.errors import RegistrationError, ShutdownError, StartupError
 from hinoki.management import Command, CommandContext, CommandError, _normalize_commands
 from hinoki.modules import Module, ModuleContext

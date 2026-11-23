@@ -25,7 +25,7 @@ from pathlib import Path
 from uuid import UUID
 
 from hinoki import jsontext
-from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.cli.check import USAGE_ERRORS, build_app
 from hinoki.errors import ValidationError
 from hinoki.fieldtypes import FieldType
 from hinoki.mail import (

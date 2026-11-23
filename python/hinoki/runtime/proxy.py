@@ -1,162 +1,165 @@
-"""Resolve proxy metadata only when the immediate peer is explicitly trusted."""
+"""Resolve proxy metadata only when the immediate peer is explicitly trusted.
+
+Parsing and CIDR matching live in Rust (``hinoki.core.ProxyPolicy`` and
+``hinoki.core.inbound_request_id``, backed by ``kiso``) so Kiso and Granian
+share one policy implementation.
+"""
 
 from __future__ import annotations
 
+import functools
 import ipaddress
 import logging
 from collections.abc import Iterable, MutableMapping
-from typing import Any
+from typing import Any, Protocol, cast
+
+from hinoki import core
 
 Scope = MutableMapping[str, Any]
+ProxyNetworks = tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]
 MAX_FORWARDED_HOPS = 32
 MAX_REQUEST_ID_BYTES = 128
-VISIBLE_ASCII_MIN = 0x21
-VISIBLE_ASCII_MAX = 0x7E
-COMMA = ord(",")
 log = logging.getLogger("hinoki.runtime")
 
 
-def trusted_peer(
-    scope: Scope, networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]
-) -> bool:
-    """Whether the ASGI socket peer belongs to a configured proxy network."""
+class NativeProxyPolicy(Protocol):
+    """Compiled Rust proxy network matcher (``hinoki.core.ProxyPolicy``)."""
+
+    def __init__(self, networks: list[str]) -> None: ...
+    def is_empty(self) -> bool: ...
+    def trusts(self, peer: str) -> bool: ...
+    def forwarded_client(self, raw: bytes, peer: str) -> str | None: ...
+    def resolve(
+        self, peer: str | None, headers: Iterable[tuple[bytes, bytes]]
+    ) -> tuple[bool, str | None, str | None, str | None, str | None]: ...
+    def resolve_client(
+        self, peer: str | None, headers: Iterable[tuple[bytes, bytes]]
+    ) -> tuple[bool, str | None, str | None]: ...
+
+
+class _InboundRequestId(Protocol):
+    def __call__(
+        self, headers: Iterable[tuple[bytes, bytes]], name: bytes
+    ) -> tuple[str | None, bool]: ...
+
+
+_native = cast("Any", core)
+_ProxyPolicyCls = cast("type[NativeProxyPolicy]", _native.ProxyPolicy)
+_inbound_request_id = cast("_InboundRequestId", _native.inbound_request_id)
+
+
+def build_proxy_policy(networks: ProxyNetworks | Iterable[str]) -> NativeProxyPolicy:
+    """Compile trusted proxy networks once for reuse across requests."""
+    return _ProxyPolicyCls([str(network) for network in networks])
+
+
+@functools.lru_cache(maxsize=32)
+def _cached_policy(networks: ProxyNetworks) -> NativeProxyPolicy:
+    return build_proxy_policy(networks)
+
+
+def _as_policy(networks: ProxyNetworks | NativeProxyPolicy) -> NativeProxyPolicy:
+    if isinstance(networks, tuple):
+        return _cached_policy(networks)
+    return networks
+
+
+def _warn_forwarded(header: str, kind: str | None) -> None:
+    if kind is not None:
+        log.warning("ignored %s %s from trusted proxy", kind, header)
+
+
+def _peer_host(scope: Scope) -> str | None:
     client = scope.get("client")
     if not client or not client[0]:
+        return None
+    return str(client[0])
+
+
+def trusted_peer(scope: Scope, networks: ProxyNetworks | NativeProxyPolicy) -> bool:
+    """Whether the ASGI socket peer belongs to a configured proxy network."""
+    peer = _peer_host(scope)
+    if peer is None:
         return False
-    try:
-        address = ipaddress.ip_address(client[0])
-    except ValueError:
-        return False
-    return any(
-        address.version == network.version and address in network
-        for network in networks
-    )
+    return _as_policy(networks).trusts(peer)
 
 
 def effective_scope(
     scope: Scope,
-    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+    networks: ProxyNetworks | NativeProxyPolicy,
 ) -> tuple[Scope, bool]:
     """Copy a scope and apply valid forwarded proto/client values from a trusted peer.
 
     Host and all headers are preserved. Forwarded values are accepted only once;
     malformed or ambiguous values leave their corresponding socket value intact.
     """
-    if not networks or not trusted_peer(scope, networks):
+    policy = _as_policy(networks)
+    if policy.is_empty():
+        return scope, False
+    peer = _peer_host(scope)
+    if peer is None:
         return scope, False
     headers: Iterable[tuple[bytes, bytes]] = scope.get("headers", ())
-    proto_values = [
-        value for name, value in headers if name.lower() == b"x-forwarded-proto"
-    ]
+    trusted, proto, client, proto_warn, for_warn = policy.resolve(peer, headers)
+    if not trusted:
+        return scope, False
+    _warn_forwarded("X-Forwarded-Proto", proto_warn)
+    _warn_forwarded("X-Forwarded-For", for_warn)
     resolved: Scope = dict(scope)
-    proto = forwarded_proto(proto_values)
     if proto is not None:
         resolved["scheme"] = proto
-    resolved["client"] = trusted_client(scope["client"], headers, networks)
+    if client is not None:
+        resolved["client"] = (client, 0)
     return resolved, True
 
 
 def effective_client(
     client: tuple[str, int] | None,
     headers: Iterable[tuple[bytes, bytes]],
-    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+    networks: ProxyNetworks | NativeProxyPolicy,
 ) -> tuple[str, int] | None:
     """The client ``effective_scope`` would resolve for this socket peer and
     these headers, for a transport that has no scope to copy."""
-    if client is None or not trusted_peer({"client": client}, networks):
+    if client is None or not client[0]:
         return client
-    return trusted_client(client, headers, networks)
+    policy = _as_policy(networks)
+    if policy.is_empty():
+        return client
+    trusted, resolved, for_warn = policy.resolve_client(client[0], headers)
+    if not trusted:
+        return client
+    _warn_forwarded("X-Forwarded-For", for_warn)
+    return client if resolved is None else (resolved, 0)
 
 
 def trusted_client(
     peer: tuple[str, int],
     headers: Iterable[tuple[bytes, bytes]],
-    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+    networks: ProxyNetworks | NativeProxyPolicy,
 ) -> tuple[str, int]:
     """The forwarded client of a trusted peer, or the peer on ambiguity."""
-    for_values = [
-        value for name, value in headers if name.lower() == b"x-forwarded-for"
-    ]
-    client = forwarded_address(for_values, networks, peer[0])
-    return peer if client is None else (client, 0)
-
-
-def forwarded_proto(values: list[bytes]) -> str | None:
-    """One valid forwarded protocol value, or the socket scheme on ambiguity."""
-    if not values:
-        return None
-    if len(values) != 1:
-        log.warning("ignored repeated X-Forwarded-Proto from trusted proxy")
-        return None
-    try:
-        proto = values[0].decode("ascii").strip().lower()
-    except UnicodeDecodeError:
-        proto = ""
-    if proto not in {"http", "https"}:
-        log.warning("ignored invalid X-Forwarded-Proto from trusted proxy")
-        return None
-    return proto
-
-
-def forwarded_address(
-    values: list[bytes],
-    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
-    peer: str,
-) -> str | None:
-    """One valid forwarded client chain, or the socket peer on ambiguity."""
-    if not values:
-        return None
-    if len(values) != 1:
-        log.warning("ignored repeated X-Forwarded-For from trusted proxy")
-        return None
-    client = forwarded_client(values[0], networks, peer)
-    if client is None:
-        log.warning("ignored invalid X-Forwarded-For from trusted proxy")
-    return client
+    _, resolved, for_warn = _as_policy(networks).resolve_client(peer[0], headers)
+    _warn_forwarded("X-Forwarded-For", for_warn)
+    return peer if resolved is None else (resolved, 0)
 
 
 def forwarded_client(
     raw: bytes,
-    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+    networks: ProxyNetworks | NativeProxyPolicy,
     peer: str,
 ) -> str | None:
     """Walk an X-Forwarded-For chain from the trusted peer toward the client."""
-    try:
-        values = raw.decode("ascii").split(",")
-        if not 1 <= len(values) <= MAX_FORWARDED_HOPS:
-            return None
-        chain = [ipaddress.ip_address(value.strip()) for value in values]
-        current = ipaddress.ip_address(peer)
-    except (UnicodeDecodeError, ValueError):
-        return None
-    for address in reversed(chain):
-        if not is_trusted(current, networks):
-            break
-        current = address
-    if is_trusted(current, networks):
-        return None
-    return str(current)
+    return _as_policy(networks).forwarded_client(raw, peer)
 
 
-def is_trusted(
-    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
-    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
-) -> bool:
-    return any(
-        address.version == network.version and address in network
-        for network in networks
-    )
+def inbound_request_id_checked(
+    headers: Iterable[tuple[bytes, bytes]], name: bytes
+) -> tuple[str | None, bool]:
+    """Single-pass request ID check returning ``(valid_id, saw_header)``."""
+    return _inbound_request_id(headers, name)
 
 
-def inbound_request_id(headers: list[tuple[bytes, bytes]], name: str) -> str | None:
+def inbound_request_id(headers: Iterable[tuple[bytes, bytes]], name: str) -> str | None:
     """Accept one bounded, visible ASCII request ID; reject ambiguous values."""
-    found = [value for key, value in headers if key.lower() == name.encode("ascii")]
-    if len(found) != 1 or not 1 <= len(found[0]) <= MAX_REQUEST_ID_BYTES:
-        return None
-    value = found[0]
-    if any(
-        byte < VISIBLE_ASCII_MIN or byte > VISIBLE_ASCII_MAX or byte == COMMA
-        for byte in value
-    ):
-        return None
-    return value.decode("ascii")
+    value, _ = _inbound_request_id(headers, name.encode("ascii"))
+    return value

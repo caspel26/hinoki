@@ -217,6 +217,26 @@ component (`Envelope_CustomerOut_`). The bare `Envelope` cannot validate or be
 a field; self-referencing generics and generic subclasses of generic schemas
 raise `RegistrationError`.
 
+## Scope and non-goals
+
+`Schema` is designed for typed data at the HTTP/JSON and ORM boundary. The
+following are intentionally out of scope:
+
+* **Arbitrary Python types.** Every field type has a defined wire
+  representation and OpenAPI schema object. Application-only objects stay
+  outside the wire `Schema`.
+* **Implicit lossy coercion.** JSON input is validated strictly (`"1"` is not
+  `1`). Only explicit text sources (`validate_text()`, `Form[...]`,
+  `Query[...]`, `XML[...]`) convert text to typed fields; reshape legacy input
+  with [`@before_validate`](schema-validation.md#reshape-input-with-before_validate).
+* **Mutable instances.** Instances are frozen; call `replace(...)` for a
+  validated copy.
+* **Stateful or I/O-performing validation and serialization.** Checks,
+  normalizers, `@before_validate` and `@computed_field` are synchronous and
+  perform no I/O. Rules that depend on stored data belong in an operation.
+* **A validator plugin system.** Extend validation with `@before_validate`,
+  `@field_normalize`, `@field_check` and `@object_check` on the `Schema`.
+
 ## See also
 
 - [Validate input](schema-validation.md)

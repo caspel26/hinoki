@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🧭 Typed `Caller` hooks and `from_user` in `@crud`
+> `python/hinoki/resources.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/__init__.py`, `examples/tracker/tracker/apps/tasks/api.py`, `examples/blog/blog/apps/blog/api.py`, `docs/crud.md`
+
+`@crud` hooks (`get_queryset`, `filter_queryset`, `written_queryset`, `store`, `change`, `remove`) now accept a non-optional `Caller[User]` annotation when every generated action calling that hook is protected by an `Access` policy; declaring a non-optional `Caller` on a hook reachable by a public action, or mismatching `Caller[User]` against a parameterized `BaseAuth[User]`, fails at registration time with `RegistrationError`. `from_user("attr")` (also exported as `hinoki.from_user`) provides a declarative attribute extractor for `crud(..., assign=...)` as an alternative to `operator.attrgetter` while preserving full compatibility with arbitrary callables and the conservative Python-lane fallback. See [CRUD](docs/crud.md).
+
 #### 🚦 Shared rate limit
 > `python/hinoki/ratelimit.py`, `python/hinoki/ratelimit_store`, `python/hinoki/admin/users/limits.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/openapi.py`, `crates/ratelimit`, `crates/bindings/src/ratelimit.rs`, `crates/kiso/src/metrics.rs`, `crates/orm`
 

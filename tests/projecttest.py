@@ -12,8 +12,10 @@ from uuid import uuid4
 
 import pytest
 
-from hinoki import managementcli, projectcli, terminal
+from hinoki import terminal
 from hinoki.__main__ import main
+from hinoki.cli import management as managementcli
+from hinoki.cli import project as projectcli
 from hinoki.db import Database
 from hinoki.orm import migrator
 from hinoki.orm.migrations import plan
@@ -645,12 +647,12 @@ def test_manage_uses_the_manifest_application_from_nested_directory(
 TARGET_HANDLERS = {
     "check": "hinoki.__main__.run_check",
     "dev": "hinoki.serve.run_dev",
-    "events": "hinoki.eventscli.run_events",
+    "events": "hinoki.cli.events.run_events",
     "mcp": "hinoki.__main__.run_mcp_command",
-    "openapi": "hinoki.openapicli.run_openapi",
-    "routes": "hinoki.routescli.run_routes",
+    "openapi": "hinoki.cli.openapi.run_openapi",
+    "routes": "hinoki.cli.routes.run_routes",
     "serve": "hinoki.serve.run_serve",
-    "settings": "hinoki.settingscli.run_settings",
+    "settings": "hinoki.cli.settings.run_settings",
 }
 
 
@@ -780,7 +782,7 @@ def test_failed_manifest_replace_removes_only_the_new_app(
     def fail_replace(*_args: object, **_kwargs: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr("hinoki.projectcli.os.replace", fail_replace)
+    monkeypatch.setattr("hinoki.cli.project.os.replace", fail_replace)
     with pytest.raises(ProjectError, match="could not create app"):
         projectcli.create_app("billing", project)
 

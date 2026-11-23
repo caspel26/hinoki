@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import settingscli
+from hinoki.cli import settings as settingscli
 from hinoki.settings import Settings, SettingsError
 
 

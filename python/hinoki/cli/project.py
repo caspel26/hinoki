@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import BinaryIO
 
 from hinoki import jsontext
-from hinoki.appprompts import ask_app, report_app, split_requires
-from hinoki.newcli import interactive
+from hinoki.cli.appprompts import ask_app, report_app, split_requires
+from hinoki.cli.new import interactive
 from hinoki.project import (
     ProjectApp,
     ProjectError,

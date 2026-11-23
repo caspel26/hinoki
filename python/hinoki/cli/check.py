@@ -13,11 +13,11 @@ import sys
 
 from hinoki import jsontext
 from hinoki.app import Hinoki
+from hinoki.cli.new import add_arguments as add_new_arguments
+from hinoki.cli.reportui import check_summary, check_text
 from hinoki.errors import RegistrationError
 from hinoki.mail import TemplateError
-from hinoki.newcli import add_arguments as add_new_arguments
 from hinoki.project import find_manifest_or_none, load_manifest
-from hinoki.reportui import check_summary, check_text
 from hinoki.rules import (
     SCHEMA_VERSION,
     Diagnostic,

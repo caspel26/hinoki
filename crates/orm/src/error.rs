@@ -122,3 +122,10 @@ impl fmt::Display for DbError {
 }
 
 impl std::error::Error for DbError {}
+
+pub(crate) fn lease_released() -> DbError {
+    DbError::new(
+        ErrorKind::Other,
+        "database connection lease already released",
+    )
+}

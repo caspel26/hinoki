@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from hinoki import projectcli
+from hinoki.cli import project as projectcli
 from hinoki.project import ProjectApp, ProjectError, ProjectManifest
 
 
@@ -96,7 +96,7 @@ def test_create_app_keeps_existing_apps_init_and_rolls_back_on_manifest_failure(
     def fail_replace(*_args: object) -> None:
         raise OSError("replace failed")
 
-    monkeypatch.setattr("hinoki.projectcli.os.replace", fail_replace)
+    monkeypatch.setattr("hinoki.cli.project.os.replace", fail_replace)
     with pytest.raises(ProjectError, match="could not create app 'billing'"):
         projectcli.create_app("billing")
     assert init.read_text(encoding="utf-8") == "existing\n"

@@ -20,7 +20,7 @@ pub fn location(host: &[u8], path: &[u8], query: &[u8]) -> Option<Vec<u8>> {
     Some(target)
 }
 
-fn safe_host(host: &[u8]) -> bool {
+pub fn safe_host(host: &[u8]) -> bool {
     !host.is_empty() && host.iter().all(|byte| (0x21..0x7f).contains(byte))
 }
 

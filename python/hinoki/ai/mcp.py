@@ -27,7 +27,7 @@ from hinoki import jsontext
 from hinoki.ai.errorcatalog import CATALOG, explain
 from hinoki.ai.proposals import ProposalError, propose
 from hinoki.app import Hinoki
-from hinoki.checkcli import USAGE_ERRORS, build_app, build_rules, default_packages
+from hinoki.cli.check import USAGE_ERRORS, build_app, build_rules, default_packages
 from hinoki.handlerhints import signature_of
 from hinoki.openapi import operation_key
 from hinoki.orm import Model
