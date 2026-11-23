@@ -2,6 +2,7 @@
 
 mod database;
 mod error;
+pub mod links;
 mod mysql;
 mod numeric;
 pub mod query;

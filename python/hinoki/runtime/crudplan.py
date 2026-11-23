@@ -16,7 +16,15 @@ from hinoki import pagination as pagination_module
 from hinoki.crypto import ClaimsJWTAuth
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ErrorDetail, ErrorRegistry
-from hinoki.events import AuthRejected, Created, Deleted, EventBus, Updated
+from hinoki.events import (
+    AuthRejected,
+    Created,
+    Deleted,
+    EventBus,
+    Linked,
+    Unlinked,
+    Updated,
+)
 from hinoki.fields import UNSET
 from hinoki.orm import Model, QuerySet
 from hinoki.orm import queryset as queryset_module
@@ -27,7 +35,9 @@ from hinoki.renderers import is_default_json_renderer
 from hinoki.resources import (
     ACTIONS,
     GENERATED,
+    AllRows,
     CrudBase,
+    OwnedRows,
     _CrudConfig,
     caller_id,
     create_row,
@@ -74,6 +84,7 @@ OWNER_METHODS = (
     "get_queryset",
     "written_queryset",
     "reload_written",
+    "link_queryset",
     "to_schema",
     "check_written",
     "refuse",
@@ -310,7 +321,8 @@ def select_crud_plan(
         ),
         (plain_crud_model(model, resource, action), "custom_or_unsupported_model"),
         (
-            not action_has_event_handlers(pipeline.app.events, model, action),
+            not action_has_event_handlers(pipeline.app.events, model, action)
+            and not link_events_listened(pipeline.app.events, model, resource),
             "model_event_handlers",
         ),
         (
@@ -643,6 +655,16 @@ def action_has_event_handlers(bus: EventBus, model: type[Model], action: str) ->
     return kind is not None and bus.registered(kind, model)
 
 
+def link_events_listened(
+    bus: EventBus, model: type[Model], resource: _CrudConfig
+) -> bool:
+    """Whether a handler receives the ``Linked``/``Unlinked`` events of a
+    relation the routes write; the native plan writes the bridge without them."""
+    return bool(resource.link_ids) and (
+        bus.registered(Linked, model) or bus.registered(Unlinked, model)
+    )
+
+
 def plain_crud_model(model: type[Model], resource: _CrudConfig, action: str) -> bool:
     fields = model_fields(model)
     written = write_columns(model, resource, action)
@@ -793,17 +815,77 @@ def schemas_are_plain(
     model: type[Model],
     resource: _CrudConfig,
 ) -> bool:
+    links = native_links(resource)
+    if links is None:
+        return False
     roles = [(resource.read, "read")]
     if resource.create is not None:
         roles.append((resource.create, "create"))
     if resource.update is not None:
         roles.append((resource.update, "update"))
     return bool(schemas) and all(
-        plain_crud_schema(schema, model, role) for schema, role in roles
+        plain_crud_schema(schema, model, role, links) for schema, role in roles
     )
 
 
-def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bool:
+def native_links(resource: _CrudConfig) -> dict[str, tuple[Any, str | None]] | None:
+    """The relations the schemas expose, by ids field, each with the target
+    column the caller's id must match (``None`` for every target). ``None``
+    when one has a scope Rust cannot apply."""
+    shown = {
+        name
+        for schema in action_schemas(resource)
+        for name in schema.specs()
+        if name in resource.link_ids
+    }
+    found: dict[str, tuple[Any, str | None]] = {}
+    for name in sorted(shown):
+        side = resource.link_ids[name]
+        scope = resource.links.get(side.declared)
+        if type(scope) is AllRows and scope.model is side.target:
+            found[name] = (side, None)
+        elif type(scope) is OwnedRows and scope.model is side.target:
+            found[name] = (side, scope.column)
+        else:
+            return None
+    return found
+
+
+def link_field_is_plain(
+    spec: Any, side: Any, role: str, field: dataclasses.Field[Any]
+) -> bool:
+    """A bounded set of the target's keys that Rust reads and checks itself.
+    Anything else the schema says about the set or its items (other bounds,
+    patterns, enums, literals) stays with Python, which validates it."""
+    ftype = spec.ftype
+    item = ftype.item
+    key = side.target.__field_types__[side.target.__primary_key__]
+    bound = ftype.info.max_length
+    fits = bound is not None and (role != "read" or bound >= side.max_items)
+    return bool(
+        ftype.collection == "set"
+        and item is not None
+        and item.kind == key.kind
+        and key.kind in {"int", "uuid", "str"}
+        and not ftype.nullable
+        and fits
+        and set(ftype.info.constraints()) == {"max_length"}
+        and not item.info.constraints()
+        and item.enum_class is None
+        and not item.variants
+        and item.schema is None
+        and (role == "update") == ftype.allows_unset
+        and schema_default_is_plain(field, role)
+    )
+
+
+def plain_crud_schema(
+    schema: type[Schema],
+    model: type[Model],
+    role: str,
+    links: dict[str, tuple[Any, str | None]] | None = None,
+) -> bool:
+    ids = frozenset(links or ())
     compatible = (
         type(schema) is SchemaMeta
         and uses_generated_init(schema)
@@ -830,38 +912,55 @@ def plain_crud_schema(schema: type[Schema], model: type[Model], role: str) -> bo
         and not schema.__before__
         and not schema.__normalizers__
         and getattr(schema, "__post_init__", None) is None
-        and (role != "read" or schema_fields(model, schema) is not None)
+        and (role != "read" or schema_fields(model, schema, ids) is not None)
     )
-    if not compatible:
+    if not compatible or not schema_members_are_plain(schema, model, role, links or {}):
         return False
-    fields = {item.name: item for item in dataclasses.fields(cast(Any, schema))}
-    for name, spec in schema.specs().items():
-        kind = spec.ftype.kind
-        valid = name in model.__columns__ and (
-            kind in ROW_KINDS
-            and kind == model.__field_types__[name].kind
-            and spec.ftype.item is None
-            and spec.ftype.schema is None
-            and spec.ftype.discriminator is None
-            and not spec.ftype.variants
-            and (role == "update") == spec.ftype.allows_unset
-        )
-        if not valid or not schema_default_is_plain(fields[name], role):
-            return False
     return (
-        (role != "read" or read_schema_matches_rows(schema, model))
+        (role != "read" or read_schema_matches_rows(schema, model, ids))
         and static_state_matches(Schema, SCHEMA_METHODS, SCHEMA_METHODS_ORIGINAL)
         and schema.native_schema() is not None
     )
 
 
-def read_schema_matches_rows(schema: type[Schema], model: type[Model]) -> bool:
+def schema_members_are_plain(
+    schema: type[Schema],
+    model: type[Model],
+    role: str,
+    links: dict[str, tuple[Any, str | None]],
+) -> bool:
+    fields = {item.name: item for item in dataclasses.fields(cast(Any, schema))}
+    for name, spec in schema.specs().items():
+        if name in links:
+            valid = link_field_is_plain(spec, links[name][0], role, fields[name])
+        else:
+            kind = spec.ftype.kind
+            valid = (
+                name in model.__columns__
+                and kind in ROW_KINDS
+                and kind == model.__field_types__[name].kind
+                and spec.ftype.item is None
+                and spec.ftype.schema is None
+                and spec.ftype.discriminator is None
+                and not spec.ftype.variants
+                and (role == "update") == spec.ftype.allows_unset
+                and schema_default_is_plain(fields[name], role)
+            )
+        if not valid:
+            return False
+    return True
+
+
+def read_schema_matches_rows(
+    schema: type[Schema], model: type[Model], links: frozenset[str] = frozenset()
+) -> bool:
     """Stored rows are emitted as they are: no constraint may reject them and a
     non-null field must not be fed a nullable column."""
-    fields = schema_fields(model, schema)
+    fields = schema_fields(model, schema, links)
     return fields is not None and all(
         nullable == model.__field_types__[name].nullable
         for name, _wire, _kind, nullable in fields
+        if name not in links
     )
 
 
@@ -881,7 +980,11 @@ def write_columns(
     if action == "create":
         return tuple(model.__columns__)
     if action == "update":
-        names = list(resource.update.specs()) if resource.update is not None else []
+        names = [
+            name
+            for name in (resource.update.specs() if resource.update is not None else [])
+            if name not in resource.link_ids
+        ]
         timestamp = model.__updated_at__
         if timestamp is not None and timestamp not in names:
             names.append(timestamp)
@@ -1013,11 +1116,13 @@ def compile_selection(
     if page_size is None:
         return None
     schema_args = schema_plan_args(resource)
+    links = native_links(resource)
     create_defaults = schema_default_specs(resource.create)
     update_defaults = schema_default_specs(resource.update)
-    read_fields = schema_fields(model, resource.read)
+    read_fields = schema_fields(model, resource.read, frozenset(links or ()))
     if (
-        schema_args is None
+        links is None
+        or schema_args is None
         or create_defaults is None
         or update_defaults is None
         or read_fields is None
@@ -1048,6 +1153,9 @@ def compile_selection(
             validation_error=validation_error_template(),
             auth=native_claims_auth(binding.route.access),
             owner=resource.owner or None,
+            links=[
+                (name, side.spec(), column) for name, (side, column) in links.items()
+            ],
         )
     except (TypeError, ValueError):
         return None
@@ -1151,6 +1259,7 @@ def value_state(
         resource.omit,
         resource.owner,
         resource.identity_key,
+        tuple(resource.links.items()),
         tuple(resource.assign.items()),
         (resource.pagination.page_size, resource.pagination.max_page_size),
         model.__columns__,

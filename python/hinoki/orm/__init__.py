@@ -15,6 +15,7 @@ Everything most code needs is importable from ``hinoki.orm`` itself.
 """
 
 from hinoki.orm.context import current_database, database_var, use_database
+from hinoki.orm.links import LinkChange, LinkKey, LinkSet, ManyToMany, many_to_many
 from hinoki.orm.model import (
     MARK,
     SNAPSHOT,
@@ -45,7 +46,11 @@ __all__ = [
     "SNAPSHOT",
     "Change",
     "FieldMeta",
+    "LinkChange",
+    "LinkKey",
+    "LinkSet",
     "Loading",
+    "ManyToMany",
     "Model",
     "OnDelete",
     "QuerySet",
@@ -58,6 +63,7 @@ __all__ = [
     "field",
     "foreign_key",
     "indexed",
+    "many_to_many",
     "ordered_by",
     "pk",
     "table",

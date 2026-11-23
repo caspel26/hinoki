@@ -4,15 +4,35 @@
 
 use hinoki_orm::query::{
     compile_delete_with, compile_insert_with, compile_select_with, compile_update_with,
-    like_pattern, Delete, Dialect, Filter, Insert, Join, Keyset, Op, QueryError, Select, Update,
+    like_pattern, Delete, Dialect, Filter, Insert, Join, Keyset, Op, QueryError, Select, SubFilter,
+    Update,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-type RawJoin = (String, String, String, String, bool, Vec<String>);
-type RawFilter = (String, String, Vec<Py<PyAny>>);
+pub(crate) type RawJoin = (String, String, String, String, bool, Vec<String>);
+pub(crate) type RawFilter = (String, String, Vec<Py<PyAny>>);
 type RawKeyset = (Vec<(String, bool)>, Vec<Py<PyAny>>);
+
+/// `(table, column, joins, filters, subfilters)`: the select behind a subquery.
+#[derive(FromPyObject)]
+pub(crate) struct RawSelect(String, String, Vec<RawJoin>, Vec<RawFilter>, Vec<RawSub>);
+
+/// `(outer column, negated, select)`.
+#[derive(FromPyObject)]
+pub(crate) struct RawSub(String, bool, RawSelect);
+
+pub(crate) fn join_of((table, alias, local, remote, left, columns): RawJoin) -> Join {
+    Join {
+        table,
+        alias,
+        local,
+        remote,
+        left,
+        columns,
+    }
+}
 
 fn error(err: QueryError) -> PyErr {
     PyValueError::new_err(err.to_string())
@@ -20,7 +40,7 @@ fn error(err: QueryError) -> PyErr {
 
 /// Collects Python values and hands out stable indices for the compiler.
 #[derive(Default)]
-struct Store {
+pub(crate) struct Store {
     items: Vec<Py<PyAny>>,
 }
 
@@ -30,7 +50,7 @@ impl Store {
         self.items.len() - 1
     }
 
-    fn filters(
+    pub(crate) fn filters(
         &mut self,
         py: Python<'_>,
         dialect: Dialect,
@@ -45,6 +65,40 @@ impl Store {
                 Ok(Filter { column, op, values })
             })
             .collect()
+    }
+
+    pub(crate) fn subfilters(
+        &mut self,
+        py: Python<'_>,
+        dialect: Dialect,
+        raw: Vec<RawSub>,
+    ) -> PyResult<Vec<SubFilter<usize>>> {
+        raw.into_iter()
+            .map(|RawSub(column, negated, inner)| {
+                let RawSelect(table, selected, joins, filters, nested) = inner;
+                let select = Select {
+                    table,
+                    columns: vec![selected],
+                    joins: joins.into_iter().map(join_of).collect(),
+                    filters: self.filters(py, dialect, filters)?,
+                    subfilters: self.subfilters(py, dialect, nested)?,
+                    keyset: None,
+                    order: Vec::new(),
+                    limit: None,
+                    offset: None,
+                    count: false,
+                };
+                Ok(SubFilter {
+                    column,
+                    negated,
+                    select: Box::new(select),
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn item(&self, index: usize) -> &Py<PyAny> {
+        &self.items[index]
     }
 
     fn assignments(&mut self, raw: Vec<(String, Py<PyAny>)>) -> Vec<(String, usize)> {
@@ -94,11 +148,22 @@ fn prebuild_pattern(
     }
 }
 
+pub(crate) fn parse_dialect(name: &str) -> PyResult<Dialect> {
+    match name {
+        "postgres" => Ok(Dialect::Postgres),
+        "sqlite" => Ok(Dialect::Sqlite),
+        "mysql" | "mariadb" => Ok(Dialect::Mysql),
+        other => Err(PyValueError::new_err(format!(
+            "unknown SQL dialect {other:?}"
+        ))),
+    }
+}
+
 /// Compile one statement. `kind` is `select`, `count`, `insert`, `update` or
 /// `delete`; unused arguments are ignored. Returns `(sql, params)` with
 /// placeholders for the requested dialect in the order of `params`.
 #[pyfunction]
-#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None, keyset=None, dialect="postgres"))]
+#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None, keyset=None, subfilters=None, dialect="postgres"))]
 #[allow(clippy::too_many_arguments)]
 pub fn compile_query(
     py: Python<'_>,
@@ -113,20 +178,16 @@ pub fn compile_query(
     offset: Option<u64>,
     joins: Option<Vec<RawJoin>>,
     keyset: Option<RawKeyset>,
+    subfilters: Option<Vec<RawSub>>,
     dialect: &str,
 ) -> PyResult<(String, Vec<Py<PyAny>>)> {
-    let dialect = match dialect {
-        "postgres" => Dialect::Postgres,
-        "sqlite" => Dialect::Sqlite,
-        "mysql" | "mariadb" => Dialect::Mysql,
-        other => {
-            return Err(PyValueError::new_err(format!(
-                "unknown SQL dialect {other:?}"
-            )))
-        }
-    };
+    let dialect = parse_dialect(dialect)?;
     let mut store = Store::default();
     let filters = store.filters(py, dialect, filters.unwrap_or_default())?;
+    let subfilters = match subfilters {
+        Some(raw) => store.subfilters(py, dialect, raw)?,
+        None => Vec::new(),
+    };
     let keyset = keyset.map(|(columns, values)| Keyset {
         columns,
         values: values.into_iter().map(|value| store.add(value)).collect(),
@@ -138,19 +199,9 @@ pub fn compile_query(
             &Select {
                 table,
                 columns: columns.unwrap_or_default(),
-                joins: joins
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|(table, alias, local, remote, left, columns)| Join {
-                        table,
-                        alias,
-                        local,
-                        remote,
-                        left,
-                        columns,
-                    })
-                    .collect(),
+                joins: joins.unwrap_or_default().into_iter().map(join_of).collect(),
                 filters,
+                subfilters,
                 keyset,
                 order: order.unwrap_or_default(),
                 limit,
@@ -172,11 +223,20 @@ pub fn compile_query(
                 table,
                 assignments,
                 filters,
+                subfilters,
                 returning,
             },
             dialect,
         ),
-        "delete" => compile_delete_with(&Delete { table, filters }, dialect),
+        "delete" => compile_delete_with(
+            &Delete {
+                table,
+                filters,
+                subfilters,
+                returning: Vec::new(),
+            },
+            dialect,
+        ),
         other => {
             return Err(PyValueError::new_err(format!(
                 "unknown statement kind {other:?}"

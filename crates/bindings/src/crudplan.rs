@@ -11,8 +11,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::jwt::{ClaimsAuth, PyClaimsAuth};
+use crate::links::PyLinkSpec;
 use crate::rows::RowPlan;
 use crate::schema::{Compiled, NativeSchema};
+use hinoki_orm::links::{KeyKind, LinkTable};
 
 const REQUEST_ID_SENTINEL: &str = "0123456789abcdeffedcba9876543210";
 const DIALECTS: [(&str, Dialect); 4] = [
@@ -59,6 +61,17 @@ pub(crate) struct ModelDefault {
     pub(crate) value: ModelDefaultValue,
 }
 
+/// One many-to-many relation the route reads and writes through its ids field.
+#[derive(Clone, Debug)]
+pub(crate) struct PlanLink {
+    /// The ids field of the schemas.
+    pub(crate) field: String,
+    pub(crate) table: LinkTable,
+    /// The target column that must equal the caller's id, or `None` when the
+    /// caller may link every row of the target.
+    pub(crate) scope_column: Option<String>,
+}
+
 /// No Python object is retained by a plan; validator snapshots are Rust-owned.
 #[allow(
     dead_code,
@@ -86,6 +99,10 @@ pub(crate) struct CrudPlan {
     /// Text column holding the caller's id: set on create, and required to
     /// match on update and delete. Only present together with `auth`.
     pub(crate) owner: Option<String>,
+    /// The relations of the ids fields; `read_links[slot]` is the one the
+    /// `slot`-th ids field of the read plan shows.
+    pub(crate) links: Vec<PlanLink>,
+    pub(crate) read_links: Vec<usize>,
     templates: Vec<DialectTemplates>,
     validation_error: Vec<u8>,
     create_schema: Option<Arc<NativeSchema>>,
@@ -106,7 +123,7 @@ impl PyCrudPlan {
         updated_at,
         read_schema, read_fields,
         create_schema=None, update_schema=None, validation_error=Vec::new(), auth=None,
-        owner=None
+        owner=None, links=Vec::new()
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -133,6 +150,7 @@ impl PyCrudPlan {
         validation_error: Vec<u8>,
         auth: Option<Py<PyClaimsAuth>>,
         owner: Option<String>,
+        links: Vec<(String, Py<PyLinkSpec>, Option<String>)>,
     ) -> PyResult<Self> {
         if owner.is_some() && auth.is_none() {
             return Err(PyValueError::new_err(
@@ -165,6 +183,16 @@ impl PyCrudPlan {
             owner,
         )?;
         inner.auth = auth.map(|auth| Arc::clone(&auth.get().inner));
+        inner.attach_links(
+            links
+                .into_iter()
+                .map(|(field, spec, scope_column)| PlanLink {
+                    field,
+                    table: spec.get().table.clone(),
+                    scope_column,
+                })
+                .collect(),
+        )?;
         Ok(Self {
             inner: Arc::new(inner),
         })
@@ -392,6 +420,7 @@ impl CrudPlan {
                 table: self.table.clone(),
                 assignments,
                 filters: scoped_filters(&self.primary_key, self.owner.as_deref(), columns.len()),
+                subfilters: Vec::new(),
                 returning: returning_columns(&self.columns, dialect),
             },
             dialect,
@@ -421,6 +450,7 @@ impl CrudPlan {
                 columns: self.columns.clone(),
                 joins: Vec::new(),
                 filters: Vec::new(),
+                subfilters: Vec::new(),
                 keyset: None,
                 order,
                 limit: Some(page_size),
@@ -435,6 +465,35 @@ impl CrudPlan {
 
     pub(crate) fn read_rows(&self) -> &RowPlan {
         &self.read_rows
+    }
+
+    /// Attach the relations: every ids field of the read plan needs one, and a
+    /// route that writes them needs a claims-authenticated owner scope or none.
+    fn attach_links(&mut self, links: Vec<PlanLink>) -> PyResult<()> {
+        let mut read_links = Vec::new();
+        for name in self.read_rows.ids_names() {
+            let index = links
+                .iter()
+                .position(|link| link.field == name)
+                .ok_or_else(|| PyValueError::new_err(format!("no relation for {name:?}")))?;
+            read_links.push(index);
+        }
+        for (index, link) in links.iter().enumerate() {
+            link.table
+                .validate()
+                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            if links[..index].iter().any(|other| other.field == link.field) {
+                return Err(PyValueError::new_err("duplicate relation field"));
+            }
+            if link.scope_column.is_some() && self.auth.is_none() {
+                return Err(PyValueError::new_err(
+                    "an owned link scope needs native claims authentication",
+                ));
+            }
+        }
+        self.links = links;
+        self.read_links = read_links;
+        Ok(())
     }
 
     fn template(&self, dialect: &str) -> Option<&DialectTemplates> {
@@ -486,8 +545,19 @@ impl CrudPlan {
             updated_at.as_deref(),
         )?;
         validate_error_template(&validation_error)?;
+        let key_kind = match model_fields
+            .iter()
+            .find(|(name, _, _)| name == &primary_key)
+            .map(|(_, kind, _)| kind.as_str())
+        {
+            Some("uuid") => KeyKind::Uuid,
+            Some("str") => KeyKind::Text {
+                max_length: usize::MAX,
+            },
+            _ => KeyKind::Int,
+        };
         let read_rows = Arc::new(
-            RowPlan::new(columns.clone(), read_fields)
+            RowPlan::with_links(columns.clone(), read_fields, (&primary_key, key_kind))
                 .map_err(|error| PyValueError::new_err(error.to_string()))?,
         );
         let list_order = if ordering.is_empty() {
@@ -532,6 +602,8 @@ impl CrudPlan {
             read_rows,
             auth: None,
             owner,
+            links: Vec::new(),
+            read_links: Vec::new(),
             templates,
             validation_error,
             create_schema,
@@ -762,6 +834,7 @@ fn compile_templates(
                 table: table.to_owned(),
                 assignments: std::mem::take(&mut assignments),
                 filters: scoped_filters(primary_key, owner, filter_value),
+                subfilters: Vec::new(),
                 returning: returning_columns(columns, dialect),
             },
             dialect,
@@ -774,6 +847,8 @@ fn compile_templates(
         &Delete {
             table: table.to_owned(),
             filters: scoped_filters(primary_key, owner, 0),
+            subfilters: Vec::new(),
+            returning: Vec::new(),
         },
         dialect,
     )
@@ -818,6 +893,7 @@ fn select_write_sql(
             columns: columns.to_vec(),
             joins: Vec::new(),
             filters: scoped_filters(primary_key, owner, 0),
+            subfilters: Vec::new(),
             keyset: None,
             order: Vec::new(),
             limit: None,
@@ -845,6 +921,7 @@ fn select_sql(
             columns: columns.to_vec(),
             joins: Vec::new(),
             filters: Vec::new(),
+            subfilters: Vec::new(),
             keyset: None,
             order: order.to_vec(),
             limit,
@@ -871,6 +948,7 @@ fn select_filtered_sql(
             columns: columns.to_vec(),
             joins: Vec::new(),
             filters: vec![equality_filter(primary_key, 0)],
+            subfilters: Vec::new(),
             keyset: None,
             order: order.to_vec(),
             limit,

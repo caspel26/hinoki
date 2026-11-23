@@ -712,12 +712,19 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         None => None,
     };
     // A member is a Python object; the GIL-free walk cannot build one.
-    if node.member.is_some() || node.collection.is_some() || matches!(kind, Kind::Tuple(_)) {
+    // A set of scalars is built from the checked array without Python; any other
+    // container, like a tuple, needs one.
+    let collection = match node.collection {
+        None => None,
+        Some(kind @ (Collection::Set | Collection::Frozenset)) => Some(kind),
+        Some(Collection::Tuple) => return Err(Unlowerable),
+    };
+    if node.member.is_some() || matches!(kind, Kind::Tuple(_)) {
         return Err(Unlowerable);
     }
     Ok(Node {
         kind,
-        collection: None,
+        collection,
         nullable: node.nullable,
         min_length: node.min_length,
         max_length: node.max_length,
@@ -1811,8 +1818,28 @@ impl<'v> View for JsonView<'v> {
         Ok(value)
     }
 
-    fn collect(&self, _collection: Collection, _value: Validated) -> Result<Validated, Defer> {
-        Err(Defer("collection"))
+    /// A set or frozenset of scalar members, duplicates collapsed in first-seen
+    /// order; anything else is left to Python.
+    fn collect(&self, collection: Collection, value: Validated) -> Result<Validated, Defer> {
+        let (Collection::Set | Collection::Frozenset, Validated::List(members)) =
+            (collection, value)
+        else {
+            return Err(Defer("collection"));
+        };
+        let mut seen = HashSet::with_capacity(members.len());
+        let mut distinct: Vec<Validated> = Vec::with_capacity(members.len());
+        for member in members {
+            let key = match &member {
+                Validated::Int(number) => format!("i{number}"),
+                Validated::Str(text) => format!("s{text}"),
+                Validated::Uuid(id) => format!("u{id}"),
+                _ => return Err(Defer("collection")),
+            };
+            if seen.insert(key) {
+                distinct.push(member);
+            }
+        }
+        Ok(Validated::List(distinct))
     }
 
     fn anything(&self, _data: &&'v Json) -> Result<Validated, Defer> {

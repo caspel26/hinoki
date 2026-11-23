@@ -198,6 +198,7 @@ class _CrudPlan:
         validation_error: bytes = ...,
         auth: _ClaimsAuth | None = ...,
         owner: str | None = ...,
+        links: list[tuple[str, LinkSpec, str | None]] = ...,
     ) -> None: ...
     @property
     def action(self) -> str: ...
@@ -338,6 +339,16 @@ class Transaction:
         mode: int,
     ) -> bytes | tuple[list[Row], bool]: ...
     async def execute(self, sql: str, params: list[Param]) -> int: ...
+    async def link_write(
+        self,
+        spec: LinkSpec,
+        dialect: str,
+        op: str,
+        request: tuple[_LinkKey, list[_LinkKey]],
+        scope: tuple[list[_RawJoin], list[_RawFilter], list[_RawSub]],
+        owner_scope: tuple[list[_RawJoin], list[_RawFilter], list[_RawSub]]
+        | None = None,
+    ) -> tuple[str] | tuple[str, int] | tuple[str, list[_LinkKey], list[_LinkKey]]: ...
     async def commit(self) -> None: ...
     async def rollback(self) -> None: ...
 
@@ -386,8 +397,35 @@ def compile_query(
     offset: int | None = None,
     joins: list[tuple[str, str, str, str, bool, list[str]]] | None = None,
     keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
+    subfilters: list[_RawSub] | None = None,
     dialect: str = "postgres",
 ) -> tuple[str, list[Any]]: ...
+
+_RawJoin = tuple[str, str, str, str, bool, list[str]]
+_RawFilter = tuple[str, str, list[Any]]
+# (table, selected column, joins, filters, subfilters)
+_RawSelect = tuple[str, str, list[_RawJoin], list[_RawFilter], list["_RawSub"]]
+# (outer column, negated, select)
+_RawSub = tuple[str, bool, _RawSelect]
+_LinkKey = int | str | UUID
+_KeyEnd = tuple[str, str, str, str, int | None]
+
+class LinkSpec:
+    """Tables, columns and key types of one many-to-many relation; each end is
+    ``(table, primary key, bridge column, "uuid" | "int" | "text", max length)``."""
+    def __init__(
+        self,
+        bridge: str,
+        bridge_pk: str,
+        owner: _KeyEnd,
+        target: _KeyEnd,
+        max_items: int,
+        declared_max: int | None = None,
+    ) -> None: ...
+
+def coerce_link_keys(
+    spec: LinkSpec, keys: list[Any], target: bool
+) -> tuple[str, list[_LinkKey]] | tuple[str, int] | tuple[str]: ...
 
 class Submission:
     @property
