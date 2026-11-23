@@ -252,12 +252,19 @@ class Pipeline:
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
         self.streams = Streams(app.runtime.max_streams)
         needs_database = any(b.route.atomic for b in self.bindings)
+        required_resources = tuple(
+            (param.resource_type, binding.route.name)
+            for binding in self.bindings
+            for param in binding.resource_params
+            if param.resource_type is not None
+        )
         self.lifespan = Lifespan(
             app.modules,
             self.ctx,
             self.executor,
             app.runtime,
             needs_database=needs_database,
+            required_resources=required_resources,
             on_startup=app.on_startup,
             on_shutdown=(*app.on_shutdown, self._release_rate_limits),
             events=app.events,
@@ -1550,6 +1557,14 @@ class Pipeline:
     ) -> object:
         """Call an async handler in its task or a sync handler in the executor."""
         route = binding.route
+        kwargs = {
+            **kwargs,
+            **{
+                param.name: self.ctx.get(param.resource_type)
+                for param in binding.resource_params
+                if param.resource_type is not None
+            },
+        }
         if row_wire is not None:
             kwargs = {**kwargs, "_row_plan": row_wire}
         owner = (route.owner(),) if route.owner is not None else ()

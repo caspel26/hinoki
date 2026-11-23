@@ -413,7 +413,11 @@ class OpenAPIBuilder:
                 renderer.media_type: {"schema": schema} for renderer in route.renderers
             }
         responses: dict[str, Any] = {str(status): success}
-        if any(p.source != "principal" for p in binding.params):
+        has_inputs = any(
+            p.source in INPUTS or p.source in {"body", "file"}
+            for p in binding.params
+        )
+        if has_inputs:
             self.components.setdefault(VALIDATION_ERROR, validation_error_schema())
             responses["422"] = {
                 "description": "Validation error",

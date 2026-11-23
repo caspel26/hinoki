@@ -43,13 +43,18 @@ class StartupError(Exception):
     """A module or a startup hook failed. Carries its name (``module``; a hook
     is ``on_startup:<function>``), never settings values."""
 
-    def __init__(self, module: str, cause: BaseException) -> None:
+    def __init__(
+        self, module: str, cause: BaseException, *, detail: str | None = None
+    ) -> None:
         what = (
             f"startup hook {module.removeprefix(STARTUP_HOOK)!r}"
             if module.startswith(STARTUP_HOOK)
             else f"module {module!r}"
         )
-        super().__init__(f"{what} failed to start: {type(cause).__name__}")
+        message = f"{what} failed to start: {type(cause).__name__}"
+        if detail is not None:
+            message = f"{message}: {detail}"
+        super().__init__(message)
         self.module = module
         self.cause = cause
 

@@ -34,6 +34,7 @@ from hinoki.filters import FilterSet
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
 from hinoki.http.stream import Streamed
+from hinoki.modules import Resource
 from hinoki.pagination import (
     CursorPagination,
     CursorParams,
@@ -147,7 +148,7 @@ class Param:
     """One handler parameter and where its value comes from."""
 
     name: str
-    source: str  # "path", "query", "body", "principal", "page" or "filters"
+    source: str  # request data, principal, resource or pagination
     convert: Callable[[str], object] | None = None
     schema: type[Schema] | None = None
     default: object = EMPTY
@@ -156,6 +157,7 @@ class Param:
     file_mode: str = ""
     text: bool = False  # a Schema read from a text source, converted before checking
     filters: type[FilterSet] | None = None
+    resource_type: type[Resource] | None = None
 
     def extract(self, request: RequestData) -> object:
         """Value for this parameter, from the part of the request it belongs to."""
@@ -254,6 +256,7 @@ class Binding:
     has_files: bool = field(init=False, repr=False, compare=False)
     takes_text: bool = field(init=False, repr=False, compare=False)
     needs_request: bool = field(init=False, repr=False, compare=False)
+    resource_params: tuple[Param, ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Freeze handler execution shape with the request binding plan."""
@@ -261,7 +264,9 @@ class Binding:
             self, "is_async", inspect.iscoroutinefunction(self.route.handler)
         )
         object.__setattr__(
-            self, "native_input_names", tuple(p.name for p in self.params)
+            self,
+            "native_input_names",
+            tuple(p.name for p in self.params if p.source != "resource"),
         )
         renderers = self.route.renderers
         object.__setattr__(
@@ -275,6 +280,11 @@ class Binding:
         )
         has_files = any(p.source == "file" for p in self.params)
         object.__setattr__(self, "has_files", has_files)
+        object.__setattr__(
+            self,
+            "resource_params",
+            tuple(p for p in self.params if p.source == "resource"),
+        )
         object.__setattr__(
             self,
             "takes_text",
@@ -341,6 +351,8 @@ class Binding:
         values: dict[str, object] = {}
         errors: list[ErrorDetail] = []
         for param in self.params:
+            if param.source == "resource":
+                continue
             try:
                 values[param.name] = param.extract(request)
             except ValidationError as exc:
@@ -418,11 +430,13 @@ def special_param(
     parameter: inspect.Parameter,
     annotation: object,
 ) -> Param | None:
-    """Parameters that are not plain request values: page, principal, body."""
+    """Parameters that are not plain request values."""
     name, where = parameter.name, route.name
-    listing = listing_param(route, name, annotation)
-    if listing is not None:
-        return listing
+    special = listing_param(route, name, annotation)
+    if special is None:
+        special = resource_param(route, parameter, annotation)
+    if special is not None:
+        return special
     if is_principal(annotation):
         if route.access is None:
             raise RegistrationError(
@@ -439,6 +453,28 @@ def special_param(
         annotation.specs()  # unresolvable annotations fail now, not per request
         return Param(name, "body", schema=annotation)
     return None
+
+
+def resource_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Recognize a concrete worker resource and reject ambiguous declarations."""
+    if not isinstance(annotation, type) or not issubclass(annotation, Resource):
+        return None
+    name = parameter.name
+    if annotation is Resource or inspect.isabstract(annotation):
+        raise RegistrationError(
+            f"{route.name}: {name!r} must use a concrete Resource subclass"
+        )
+    if parameter.default is not EMPTY:
+        raise RegistrationError(
+            f"{route.name}: resource parameter {name!r} cannot have a default"
+        )
+    if name in PATH_PARAM.findall(route.path):
+        raise RegistrationError(
+            f"{route.name}: resource parameter {name!r} cannot also be a path parameter"
+        )
+    return Param(name, "resource", resource_type=annotation)
 
 
 SOURCE_PARSERS = {
@@ -719,6 +755,11 @@ def bind(route: Route) -> Binding:
     params = tuple(
         make_param(route, p, hints.get(p.name), sources.get(p.name)) for p in parameters
     )
+    resource_types = [p.resource_type for p in params if p.source == "resource"]
+    if len(resource_types) != len(set(resource_types)):
+        raise RegistrationError(
+            f"{route.name}: a Resource type may be requested only once per handler"
+        )
     if route.pagination is not None and not any(p.source == "page" for p in params):
         raise RegistrationError(
             f"{route.name}: pagination=... needs a PageParams or CursorParams parameter"
