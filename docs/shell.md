@@ -62,11 +62,11 @@ order and closes when the session ends. The application's `on_startup` and
 back, and migrations are never applied: run
 [`hinoki migrations apply`](migrations.md) yourself.
 
-Unmanaged asyncio tasks are cancelled on exit; cleanup is bounded by the
-`lifecycle.shutdown_timeout` setting (10 seconds by default), and a task that ignores cancellation is abandoned at
-that deadline. Startup is bounded too: if a module suppresses cancellation while
-opening, the shell stops the loop and cannot guarantee that the module released
-what it had opened.
+Unmanaged asyncio tasks are cancelled on exit. Each task gets up to two waits of
+`lifecycle.shutdown_timeout` (10 seconds by default); a task still running after
+the second cancellation is abandoned. Startup is bounded too: if a module
+suppresses cancellation while opening, the shell stops the loop and cannot
+guarantee that the module released what it had opened.
 
 !!! warning "Real data, your privileges"
     Code at the prompt runs with your user's privileges against the configured
