@@ -79,6 +79,8 @@ Generated CRUD plans can also execute public `create` (`POST`), `update` (`PATCH
 
 The measured phase 1 path is documented in the [native CRUD orientation run](rust-crud-orientation.md). It is a single-host, workload-specific measurement and does not establish general or production performance.
 
+Routes with a [many-to-many ids field](crud.md#many-to-many-fields) take the same path when each relation is scoped with `all_rows(Target)` or `own_rows(Target, column)` and no `Linked`/`Unlinked` handler is registered. Rust reads the ids of a page with one extra `SELECT` on the bridge table, and on create and update it parses the set, locks the owner row, checks the targets against the scope and writes the bridge in the row's transaction; the response is encoded before commit, with the ids read inside it. Python is entered only for a key Rust cannot read, which the Python lane then answers. A scope callable, a `link_queryset` override or a hook keeps the route on the Python lane.
+
 ## Limits
 
 * HTTP/1.1, plus HTTP/2 over TLS when `server.http2` is on (see below). WebSocket upgrades are accepted for the actions declared with `@http.websocket` (see [WebSockets](websockets.md)); any other `Upgrade` header is ignored and the request is answered as plain HTTP, and no other protocol is ever switched to. There is no cleartext HTTP/2 (neither prior knowledge nor `Upgrade: h2c`).

@@ -121,6 +121,12 @@ class PostAdmin(ModelAdmin[Post]):
 
 They reach `check` and `save` next to the columns, so `save` takes them out before writing the row; `extra_initial(row)` returns what the edit form shows. The Users section is built this way (`hinoki.admin.users.useradmin`).
 
+### Many-to-many fields
+
+A model's [`many_to_many`](relations.md#many-to-many) field appears in its add and edit forms as a multi-select named after its ids field (`<field>_ids`, or its `ids_name`) when the target model is registered with the same admin and the signed-in user may view it. The options are what that target's admin lists for the user (its `queryset`), at most 200, with the linked rows first. Saving replaces only the links to rows the user can see; links to rows outside that scope are kept. A key that is unknown, hidden from the user or longer than 200 characters is refused with one message (`Some choices are not available.`) and nothing is saved, so a hidden row cannot be told from a missing one. More than the field's `max_items` selections is refused the same way.
+
+When the options are truncated the form says so; narrow them with `?link_q_<ids_name>=text` on the form URL (the text is cut at 100 characters and matched against the target admin's `search` columns, or its primary key). A target that is not registered or not viewable leaves the field read-only: the form shows no count and ignores any posted value. A name in `readonly` shows the links without changing them. The row and its links are written in the request's transaction, so a refused link rolls the row back too.
+
 ## Add a bulk action
 
 Mark an async method with `@action`. The list shows the button once rows are selected:

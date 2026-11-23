@@ -235,6 +235,44 @@ staff_crud = partial(crud, access=billing_staff)
 
 `staff_crud(Invoice, path="/invoices", read=InvoiceOut)` works as a value and as a class decorator. A `@crud` class accepts no base other than `API`, so mixins do not apply.
 
+## Many-to-many fields
+
+A model with `many_to_many(...)` ([relations](relations.md#many-to-many)) exposes an ids field named `<field>_ids` by default: `tags` gives `tags_ids`. `ids_name=` overrides the default. The examples below declare `tags: ClassVar[ManyToMany[Tag]] = many_to_many(Tag, ids_name="tag_ids")`, so their schemas say `tag_ids`; without `ids_name` they would say `tags_ids`. The field is a bounded set of the target's keys. Declare it in the schemas and give the targets a scope with `links=`; `all_rows(Tag)` is the explicit way to allow every row:
+
+```python
+class PostOut(Schema):
+    id: UUID
+    title: str
+    tag_ids: Annotated[set[UUID], Field(max_length=20)]
+
+
+class PostPatch(Schema):
+    title: str | Unset = UNSET
+    tag_ids: Annotated[set[UUID], Field(max_length=20)] | Unset = UNSET
+
+
+@crud(
+    Post,
+    path="/posts",
+    read=PostOut,
+    update=PostPatch,
+    access=writer,
+    links={"tags": lambda user: Tag.filter(owner=user)},
+)
+class Posts(API): ...
+```
+
+* `links=` is required for every relation whose ids field appears in a schema; the callable receives `Caller.user` (`None` on public routes) and returns the targets a caller may link and see. The class form can override `link_queryset(relation, principal)` instead.
+* A write replaces the whole set; an omitted field keeps it and `[]` clears it. Only the links inside the scope are replaced, so links to targets the caller cannot see are neither shown nor removed.
+* An id that does not exist and an id outside the scope give the same `422` (type `unknown_reference`) without echoing the id; more ids than the field's `max_length` is a `422` too. The owner row is checked against `get_queryset` and the owner policy first, and the row and its links are written in one transaction.
+* A read schema includes the ids through a prefetch bounded by the field's limit: one more query per page and relation, not one per row.
+* The `max_length` of every ids field in a create or update schema is required.
+* `own_rows(Tag, "owner")` scopes the targets to those whose text `owner` column equals the caller's id (`Caller.id`); `all_rows(Tag)` allows every row. The owner value is checked again inside the write's transaction, after the owner row is locked.
+
+### Native lane
+
+A route with an ids field runs on the [native lane](kiso.md#generated-crud) when every relation it exposes is scoped with `all_rows(...)` or `own_rows(...)` (the latter needs `ClaimsJWTAuth`, and `identity_key=caller_id` when the resource also sets `owner=`), the target's key is an `int`, `UUID` or `str`, the read field is a non-nullable `set` whose only constraint is `max_length` (at least the relation's `max_items`), with plain items (no item constraints, enums or literals), the create field is required with a `max_length` and the update field is `... | Unset = UNSET`. Rust then reads the ids of a page with one `SELECT` on the bridge (a row with more links than `max_items` is a `500`: the stored data broke its bound), and on create and update it parses and bounds the set, locks the owner row, checks the targets inside the scope and replaces the links in the same transaction as the row; the answers (`403`, `404`, `422` `unknown_reference`, `max_length`) match the Python lane. A key Rust cannot read (a string longer than the key's `max_length`, for example) is answered by the Python lane. A scope callable, a `link_queryset` override, a model or lifecycle hook, or a `Linked`/`Unlinked` handler keeps the route on the Python lane, which accepts the same schemas and also an optional create field and any other rule the schema states.
+
 ## Security and validation
 
 Set `owner="author_id"` to assign that column from the authenticated caller on create and constrain update and delete. `identity_key` extracts the owner value from `Caller.user`; its default reads `.id`. `assign` maps additional server-owned columns to functions of the caller's user object. Client schemas cannot accept server-assigned fields. Generated writes require an access policy even when `owner` is configured.
