@@ -11,6 +11,7 @@ import threading
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -90,6 +91,17 @@ class SessionRecord:
     subject: str | None = None
 
 
+def _copy_record(record: SessionRecord) -> SessionRecord:
+    return SessionRecord(
+        deepcopy(record.data),
+        record.created_at,
+        record.expires_at,
+        record.idle_expires_at,
+        record.last_seen_at,
+        record.subject,
+    )
+
+
 class SessionStore(Resource):
     """Worker-owned store contract; records are keyed by token digest."""
 
@@ -150,7 +162,8 @@ class MemorySessionStore(SessionStore):
         with self._lock:
             if token_hash in self._revoked:
                 return None
-            return self._records.get(token_hash)
+            record = self._records.get(token_hash)
+            return _copy_record(record) if record is not None else None
 
     async def save(self, token_hash: str, record: SessionRecord) -> None:
         with self._lock:
@@ -171,7 +184,7 @@ class MemorySessionStore(SessionStore):
                 and len(self._records) >= self.max_sessions
             ):
                 raise SessionCapacityExceeded
-            self._records[token_hash] = record
+            self._records[token_hash] = _copy_record(record)
             self._records.move_to_end(token_hash)
 
     async def delete(self, token_hash: str) -> None:
@@ -329,8 +342,7 @@ class Session:
         self.store = store
         self.token = token
         self.record = record
-        self._data = dict(record.data) if record else {}
-        self._data_view = MappingProxyType(self._data)
+        self._data = deepcopy(record.data) if record else {}
         self.created_at = record.created_at if record else (now or utc_now())
         self.expires_at = (
             record.expires_at if record else self.created_at + settings.absolute_timeout
@@ -400,15 +412,15 @@ class Session:
         self.modified = True
 
     def get(self, key: str, default: T | None = None) -> object | T | None:
-        return self._data.get(key, default)
+        return deepcopy(self._data.get(key, default))
 
     @property
     def data(self) -> Mapping[str, object]:
         """Read-only state view for authentication resolvers."""
-        return self._data_view
+        return MappingProxyType(deepcopy(self._data))
 
     def __getitem__(self, key: str) -> object:
-        return self._data[key]
+        return deepcopy(self._data[key])
 
     def __setitem__(self, key: str, value: object) -> None:
         self._data[key] = value
