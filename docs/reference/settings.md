@@ -71,3 +71,12 @@
       show_if_no_docstring: true
 
 ::: hinoki.settings.DatabaseEngine
+
+::: hinoki.settings.EmailSettings
+    options:
+      members: [backend, default_sender, host, port, security, username, password, allow_insecure, tls_ca_file, helo_name, message_id_domain, connect_timeout, command_timeout, data_timeout, timeout, max_connections, pool_wait, idle_timeout, max_messages_per_connection, retries, backoff_base, backoff_max, max_recipients, max_message_bytes, max_attachments, memory_capacity, check_on_startup]
+      show_if_no_docstring: true
+
+::: hinoki.settings.EmailBackend
+
+::: hinoki.settings.EmailSecurity

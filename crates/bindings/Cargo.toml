@@ -19,6 +19,8 @@ crate-type = ["cdylib", "rlib"]
 pyo3 = { version = "0.30", features = ["abi3-py312"] }
 pyo3-async-runtimes = { version = "0.30", features = ["tokio-runtime"] }
 hinoki-orm = { path = "../orm" }
+hinoki-mail = { path = "../mail" }
+hinoki-ratelimit = { path = "../ratelimit" }
 kiso = { path = "../kiso" }
 socket2 = { version = "0.6", features = ["all"] }
 bytes = "1"

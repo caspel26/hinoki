@@ -102,6 +102,8 @@ max-branches = 8
 "tests/dbtest.py" = ["S608", "PT012"]
 "tests/ormtest.py" = ["PT012"]
 "tests/schemasecrettest.py" = ["S105", "S106"]  # synthetic secrets and the mask
+"tests/mail*.py" = ["S105", "S106", "S301"]  # synthetic secrets; pickling our own error
+"tests/mailserver.py" = ["PLR0911", "PLR0912"]  # a protocol dispatcher
 "tests/runtime/granianblogtest.py" = ["S106"]  # table names are test-controlled; blocks need setup
 "tests/browser/verify.py" = ["PLR0915", "S105", "E501", "SIM222", "RUF059"]  # a linear script with a demo token
 "examples/blog/blog/apps/blog/seed.py" = ["S106"]  # synthetic demo tokens
@@ -140,13 +142,13 @@ warn_unused_ignores = true
 files = ["python/hinoki", "tests", "examples"]
 # Playwright is a development tool run with uvx, not a project dependency.
 exclude = ["tests/browser/", "tests/mcpclient/"]
-mypy_path = "python:examples/notes:examples/tracker:examples/blog:examples/tracker/tracker_tests/support:examples/blog/blog_tests/support"
+mypy_path = "python:examples/notes:examples/tracker:examples/blog:examples/mailroom:examples/tracker/tracker_tests/support:examples/blog/blog_tests/support"
 explicit_package_bases = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "examples/notes/notes_tests", "examples/tracker/tracker_tests", "examples/blog/blog_tests"]
+testpaths = ["tests", "examples/notes/notes_tests", "examples/tracker/tracker_tests", "examples/blog/blog_tests", "examples/mailroom/mailroom_tests"]
 python_files = ["*test.py"]
-pythonpath = ["examples/notes", "examples/tracker", "examples/blog", "examples/tracker/tracker_tests/support", "examples/blog/blog_tests/support"]
+pythonpath = ["examples/notes", "examples/tracker", "examples/blog", "examples/mailroom", "examples/tracker/tracker_tests/support", "examples/blog/blog_tests/support"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers --ignore-glob=**/conftest.py"

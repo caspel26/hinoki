@@ -200,6 +200,20 @@ impl SqliteLease {
             .map_err(call_error)
     }
 
+    pub(crate) async fn scalar(&self, sql: &str, values: &[Value]) -> Result<Option<i64>, DbError> {
+        let sql = sql.to_owned();
+        let values = values.iter().map(encode).collect::<Result<Vec<_>, _>>()?;
+        self.conn()?
+            .call(move |conn| {
+                let mut statement = conn.prepare_cached(&sql)?;
+                let mut cursor = statement.query(params_from_iter(values.iter()))?;
+                let first = cursor.next()?.map(|row| row.get::<_, i64>(0)).transpose();
+                Ok(first?)
+            })
+            .await
+            .map_err(call_error)
+    }
+
     pub(crate) async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
         let sql = sql.to_owned();
         let values = values.iter().map(encode).collect::<Result<Vec<_>, _>>()?;

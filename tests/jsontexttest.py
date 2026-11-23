@@ -64,7 +64,24 @@ def test_manifest_and_scaffold_sources_quote_non_ascii_and_control_text() -> Non
 
 
 def test_migration_state_round_trips_through_its_file(tmp_path: Path) -> None:
-    state: Any = {"tables": {"é": {"columns": {"id": {"type": "bigint"}}}}}
+    state: Any = {
+        "format_version": 1,
+        "tables": {
+            "é": {
+                "columns": {
+                    "id": {
+                        "type": "bigint",
+                        "nullable": False,
+                        "primary_key": True,
+                        "unique": False,
+                        "references": None,
+                    }
+                },
+                "unique": [],
+                "indexes": [],
+            }
+        },
+    }
     (tmp_path / "0001-init.sql").write_text("-- x\n", encoding="utf-8")
     state_file = tmp_path / "0001-init.state.json"
     state_file.write_text(jsontext.dumps(state, indent=2) + "\n", encoding="utf-8")

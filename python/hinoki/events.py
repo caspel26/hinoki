@@ -227,6 +227,38 @@ class Deleted[M]:
 
 
 @dataclass(frozen=True, slots=True)
+class Linked[M]:
+    """Links were added to a many-to-many relation (``add`` or ``set`` of a
+    ``LinkSet``). ``subject`` is the model that declares ``relation``; ``key``
+    is the primary key of the owner that was written (the declaring model, or
+    the target when writing from the reverse side) and ``targets`` the keys of
+    the rows now linked to it, in ascending order. Emitted only when something
+    was added; needs ``after_commit`` handlers."""
+
+    has_transaction: ClassVar[bool] = False
+
+    subject: type[M]
+    relation: str
+    key: object
+    targets: tuple[object, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Unlinked[M]:
+    """Links were removed from a many-to-many relation (``remove`` or ``set``
+    of a ``LinkSet``); the fields are those of ``Linked``. Deleting a row that
+    has links removes them without this event, like ``Deleted``. Emitted only
+    when something was removed; needs ``after_commit`` handlers."""
+
+    has_transaction: ClassVar[bool] = False
+
+    subject: type[M]
+    relation: str
+    key: object
+    targets: tuple[object, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class AuthRejected:
     """A route's access policy refused a request (HTTP 401 or 403).
 
@@ -588,9 +620,11 @@ __all__ = [
     "EventError",
     "EventTimeout",
     "Handlers",
+    "Linked",
     "Phase",
     "RateLimited",
     "Registration",
+    "Unlinked",
     "Updated",
     "current_events",
     "emit",

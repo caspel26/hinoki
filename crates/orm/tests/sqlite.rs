@@ -46,3 +46,25 @@ async fn a_cancelled_statement_in_a_transaction_cannot_be_committed() {
     assert!(rows.is_empty());
     let _ = std::fs::remove_file(path);
 }
+
+#[tokio::test]
+async fn execute_scalar_returns_the_first_returning_value() {
+    let (db, path) = database();
+    db.execute("CREATE TABLE counters (k text PRIMARY KEY, n integer)", &[])
+        .await
+        .unwrap();
+    let upsert = "INSERT INTO counters (k, n) VALUES (?1, 1) \
+                  ON CONFLICT (k) DO UPDATE SET n = n + 1 RETURNING n";
+    let hit = || async { db.execute_scalar(upsert, &[Value::Text("a".into())]).await };
+    assert_eq!(hit().await.unwrap(), Some(1));
+    assert_eq!(hit().await.unwrap(), Some(2));
+    let miss = db
+        .execute_scalar(
+            "UPDATE counters SET n = 5 WHERE k = ?1 RETURNING n",
+            &[Value::Text("zz".into())],
+        )
+        .await
+        .unwrap();
+    assert_eq!(miss, None);
+    let _ = std::fs::remove_file(path);
+}

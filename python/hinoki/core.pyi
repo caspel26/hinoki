@@ -2,7 +2,7 @@ import asyncio
 import os
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 NativeFailure = tuple[str, str, str | None, str | None, str | None]
@@ -198,6 +198,7 @@ class _CrudPlan:
         validation_error: bytes = ...,
         auth: _ClaimsAuth | None = ...,
         owner: str | None = ...,
+        links: list[tuple[str, LinkSpec, str | None]] = ...,
     ) -> None: ...
     @property
     def action(self) -> str: ...
@@ -338,6 +339,16 @@ class Transaction:
         mode: int,
     ) -> bytes | tuple[list[Row], bool]: ...
     async def execute(self, sql: str, params: list[Param]) -> int: ...
+    async def link_write(
+        self,
+        spec: LinkSpec,
+        dialect: str,
+        op: str,
+        request: tuple[_LinkKey, list[_LinkKey]],
+        scope: tuple[list[_RawJoin], list[_RawFilter], list[_RawSub]],
+        owner_scope: tuple[list[_RawJoin], list[_RawFilter], list[_RawSub]]
+        | None = None,
+    ) -> tuple[str] | tuple[str, int] | tuple[str, list[_LinkKey], list[_LinkKey]]: ...
     async def commit(self) -> None: ...
     async def rollback(self) -> None: ...
 
@@ -386,8 +397,35 @@ def compile_query(
     offset: int | None = None,
     joins: list[tuple[str, str, str, str, bool, list[str]]] | None = None,
     keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
+    subfilters: list[_RawSub] | None = None,
     dialect: str = "postgres",
 ) -> tuple[str, list[Any]]: ...
+
+_RawJoin = tuple[str, str, str, str, bool, list[str]]
+_RawFilter = tuple[str, str, list[Any]]
+# (table, selected column, joins, filters, subfilters)
+_RawSelect = tuple[str, str, list[_RawJoin], list[_RawFilter], list["_RawSub"]]
+# (outer column, negated, select)
+_RawSub = tuple[str, bool, _RawSelect]
+_LinkKey = int | str | UUID
+_KeyEnd = tuple[str, str, str, str, int | None]
+
+class LinkSpec:
+    """Tables, columns and key types of one many-to-many relation; each end is
+    ``(table, primary key, bridge column, "uuid" | "int" | "text", max length)``."""
+    def __init__(
+        self,
+        bridge: str,
+        bridge_pk: str,
+        owner: _KeyEnd,
+        target: _KeyEnd,
+        max_items: int,
+        declared_max: int | None = None,
+    ) -> None: ...
+
+def coerce_link_keys(
+    spec: LinkSpec, keys: list[Any], target: bool
+) -> tuple[str, list[_LinkKey]] | tuple[str, int] | tuple[str]: ...
 
 class Submission:
     @property
@@ -733,6 +771,109 @@ class ServerCore:
 class EventMetrics:
     def record(self, slot: int, outcome: int, seconds: float) -> None: ...
 
+class MailMetrics: ...
+
+class RateLimitMetrics:
+    def record(self, decision: str) -> None: ...
+
+class RateLimitUnavailable(RuntimeError): ...
+
+class RateRule:
+    def __init__(
+        self,
+        limit: int,
+        window_s: int,
+        cost: int,
+        unknown_factor: int,
+        fail_open: bool,
+    ) -> None: ...
+
+class RateDecision:
+    @property
+    def allowed(self) -> bool: ...
+    @property
+    def limit(self) -> int: ...
+    @property
+    def remaining(self) -> int: ...
+    @property
+    def reset(self) -> int: ...
+    @property
+    def retry_after(self) -> int: ...
+    @property
+    def failed_open(self) -> bool: ...
+
+class RateLimiter:
+    @staticmethod
+    def database(
+        db: Database, table: str, max_rows: int, timeout_ms: int, sweep_every: int
+    ) -> RateLimiter: ...
+    @staticmethod
+    def memory(max_rows: int, sweep_every: int) -> RateLimiter: ...
+    def check(
+        self,
+        rule: RateRule,
+        route: str,
+        target: tuple[int, str | None],
+        tenant: str | None = None,
+        now_us: int | None = None,
+    ) -> Awaitable[RateDecision]: ...
+    def check_blocking(
+        self,
+        rule: RateRule,
+        route: str,
+        target: tuple[int, str | None],
+        tenant: str | None = None,
+        now_us: int | None = None,
+    ) -> RateDecision: ...
+    def attach_metrics(self, metrics: RateLimitMetrics) -> None: ...
+
+type _ShapeNode = (
+    Literal["s"] | tuple[Literal["l"], _ShapeNode] | tuple[Literal["x"], str] | _Shape
+)
+type _Shape = dict[str, _ShapeNode]
+
+class MailTemplate:
+    def __init__(
+        self,
+        name: str,
+        subject: str,
+        html: str,
+        text: str | None = None,
+        shape: _Shape | None = None,
+    ) -> None: ...
+    def render(self, context: object) -> tuple[str, str, str]: ...
+
+def describe_template_error(
+    template: str,
+    problems: Sequence[tuple[str, str | None, int | None, int | None, str | None]],
+    truncated: bool,
+) -> str: ...
+def template_reasons() -> list[str]: ...
+def template_limits() -> list[tuple[str, int]]: ...
+
+class _MailMessage(TypedDict):
+    sender: tuple[str, str | None]
+    to: list[tuple[str, str | None]]
+    cc: list[tuple[str, str | None]]
+    bcc: list[tuple[str, str | None]]
+    reply_to: list[tuple[str, str | None]]
+    subject: str
+    text: str | None
+    html: str | None
+    attachments: list[tuple[str, str, bytes]]
+    headers: list[tuple[str, str]]
+
+class Mailer:
+    def __init__(self, options: dict[str, object]) -> None: ...
+    def send(
+        self, message: _MailMessage
+    ) -> Awaitable[tuple[str, list[str], int, bytes | None]]: ...
+    def check(self) -> Awaitable[None]: ...
+    def refuse(self, kind: str) -> None: ...
+    def close(self) -> Awaitable[None]: ...
+    def stats(self) -> tuple[int, int, int, int, int]: ...
+    def attach_metrics(self, metrics: MailMetrics) -> bool: ...
+
 class KisoServer:
     @staticmethod
     def start(
@@ -758,6 +899,8 @@ class KisoServer:
         metrics: dict[str, object] | None = None,
     ) -> KisoServer: ...
     def event_metrics(self) -> EventMetrics | None: ...
+    def mail_metrics(self) -> MailMetrics | None: ...
+    def rate_limit_metrics(self) -> RateLimitMetrics | None: ...
     @property
     def port(self) -> int: ...
     @property

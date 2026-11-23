@@ -662,7 +662,9 @@ dependencies = [
  "bytes",
  "ed25519-dalek",
  "getrandom 0.4.3",
+ "hinoki-mail",
  "hinoki-orm",
+ "hinoki-ratelimit",
  "hmac",
  "kiso",
  "mimalloc",
@@ -678,6 +680,21 @@ dependencies = [
  "time",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "hinoki-mail"
+version = "0.0.1"
+dependencies = [
+ "base64",
+ "getrandom 0.4.3",
+ "idna",
+ "rustls",
+ "rustls-pki-types",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -699,6 +716,17 @@ dependencies = [
  "tokio-rusqlite",
  "uuid",
  "webpki-roots",
+]
+
+[[package]]
+name = "hinoki-ratelimit"
+version = "0.0.1"
+dependencies = [
+ "hinoki-orm",
+ "percent-encoding",
+ "sha2 0.11.1",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

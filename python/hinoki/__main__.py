@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from hinoki import serve
+from hinoki import mailcli, serve
 from hinoki.cli import (
     admin,
     completion,
@@ -50,7 +50,7 @@ def database_dialect(url: str) -> str:
 
 # Commands whose optional TARGET defaults to the manifest's ``project.application``.
 TARGETED = frozenset(
-    {"check", "dev", "events", "mcp", "openapi", "routes", "serve", "settings"}
+    {"check", "dev", "events", "mail", "mcp", "openapi", "routes", "serve", "settings"}
 )
 
 
@@ -64,6 +64,7 @@ def parser() -> argparse.ArgumentParser:
     settings.add_arguments(commands)
     routes.add_arguments(commands)
     events.add_arguments(commands)
+    mailcli.add_arguments(commands)
     openapi.add_arguments(commands)
     version.add_arguments(commands)
     project.add_arguments(commands)
@@ -391,6 +392,7 @@ def main(argv: list[str] | None = None) -> int:
         "app": project.run,
         "doctor": doctor.run_doctor,
         "events": events.run_events,
+        "mail": mailcli.run,
         "mcp": run_mcp_command,
         "migrations": run_migrations,
         "openapi": openapi.run_openapi,

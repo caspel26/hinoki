@@ -249,6 +249,24 @@ class Article(Keyed, Tracked):
 A foreign key in an abstract model needs a per-subclass reverse name; see
 [relations](relations.md#foreign-keys-in-abstract-models-and-mixins).
 
+## Relate models through a link table
+
+`many_to_many(...)` is a class attribute, not a column: the model keeps its own columns and Hinoki generates (or adopts) a bridge model that holds the links.
+
+```python
+# notes/apps/billing/models.py (continued)
+class Label(Model):
+    id: UUID = pk(default_factory=uuid4)
+    name: str = field(max_length=40)
+
+
+class Memo(Model):
+    id: UUID = pk(default_factory=uuid4)
+    labels: ClassVar[ManyToMany[Label]] = many_to_many(Label, related_name="memos")
+```
+
+`Memo.__bridges__` lists the generated bridge model, `MemoLabels` on the table `<memo table>_labels`; `@db.table` on `Memo` names the bridge after the new table (set it before the first migration: later table changes are not planned as renames, see [migrations](migrations.md#bridge-tables-of-many-to-many-relations)). Declaration, link writes, scopes and limits are in [relations](relations.md#many-to-many).
+
 ## See also
 
 - [Model options](model-options.md)

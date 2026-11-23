@@ -60,6 +60,10 @@ Every sample carries a `worker` label: the number of the process that counted it
 | `hinoki_http_errors_total` | counter | `route`, `kind` | `invalid_response`: the backend's answer could not be sent as given and became a `500`. `stream_aborted`: a stream failed after its head |
 | `hinoki_events_total` | counter | `event`, `phase`, `outcome` | [Event handler](events.md#metrics) runs. `outcome` is `ok`, `error` or `timeout` |
 | `hinoki_event_handler_duration_seconds` | histogram | `event`, `phase` | Time a handler ran, whatever its outcome |
+| `hinoki_email_messages_total` | counter | `backend`, `outcome` | [Email](email.md) sends. `outcome` is `sent` or the error kind (`invalid_address`, `invalid_header`, `invalid_message`, `limit_exceeded`, `closed`, `busy`, `connect`, `timeout`, `tls`, `auth`, `rejected`, `temporary`, `protocol`, `template`). `template` counts a `Template.message` that could not be rendered while a mailer is current (`Template.render` alone counts nothing, it is not a send); startup and compile failures are not sends and are not counted |
+| `hinoki_email_send_duration_seconds` | histogram | `backend` | Time of a `send`, whatever its outcome |
+| `hinoki_email_retries_total` | counter | `backend` | Delivery attempts made again after a transient failure |
+| `hinoki_rate_limit_decisions_total` | counter | `decision` | [Rate limit](endpoints.md#rate-limit-an-action) decisions. `decision` is `allowed`, `refused`, `unavailable` (storage could not answer, or the key, tenant or clock function failed) or `failed_open` (storage could not answer and the route admitted the request). A route's own policy is counted too, as `allowed`, `refused` or `unavailable`; a key, route or address is never a label |
 | `hinoki_build_info` | gauge | `version`, `server` | Always `1` |
 | `hinoki_worker_start_time_seconds` | gauge | none | Start of the worker, in Unix seconds |
 | `hinoki_metrics_snapshot_errors_total` | counter | none | Snapshots of other workers that were unreadable, too large or not valid UTF-8 |
@@ -88,6 +92,18 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
 ```
 
 Measured cost of recording on one Apple-silicon laptop (an `after_commit` handler that returns at once, 200,000 emits per sample, 15 interleaved samples per variant, medians over three runs): about 3.3 µs per emit with metrics off and 3.4 to 3.5 µs with them on, that is roughly 50 to 110 ns (about 2 %) more; the extension was a debug build. A handler that does real work makes the share smaller.
+
+## Email
+
+The three email families exist only when the application has an [email module](email.md) (an `email: settings.EmailSettings` field). The `backend` label is `smtp`, `console` or `memory` and every `outcome` series is created at startup, so no recipient, subject, host or error text becomes a label; a series with no send yet is not printed, except the retries counter. The send duration uses the same buckets as the request duration. Example from a real run of one send with the `memory` backend:
+
+```text
+hinoki_email_messages_total{backend="memory",outcome="sent",worker="0"} 1
+hinoki_email_send_duration_seconds_count{backend="memory",worker="0"} 1
+hinoki_email_retries_total{backend="memory",worker="0"} 0
+```
+
+Without metrics, or under Granian, `Mailer.stats()` still counts sent and failed messages, retries and connections per worker.
 
 ## Settings
 

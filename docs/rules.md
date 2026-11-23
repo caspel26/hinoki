@@ -77,6 +77,20 @@ with `validate_response=False`: any other action with an unusable return
 annotation already stops the app. `HNK-TXN-001` does not check the admin's own
 routes, which open their own short transactions.
 
+## An opt-in rule: email templates
+
+`EmailTemplatesMatch()` (`HNK-MAIL-001`, phase `static`) is not in the table above and runs only when you put it in your `RuleSet`. It reads every registered [email template](email-templates.md) (the files included) and checks it against its context `Schema`, reporting one diagnostic per template that is refused. Because it reads files it declares the effect `files`, so `hinoki check` reports it as unverifiable unless you pass `--allow-effects`:
+
+```python
+from hinoki.rules import EmailTemplatesMatch, RuleSet
+
+rules = RuleSet(EmailTemplatesMatch())
+```
+
+```sh
+hinoki check --rules myproject.rules:rules --allow-effects
+```
+
 ## Choose what a rule covers
 
 Action rules match `fnmatch` patterns against an action's qualified name:

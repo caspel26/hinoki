@@ -34,6 +34,7 @@ from hinoki.pagination import (
     Page,
     Pagination,
 )
+from hinoki.ratelimit import RateLimit
 from hinoki.runtime.binding import Binding, Param
 from hinoki.runtime.responsecheck import union_arms
 from hinoki.schema import Schema, SchemaExtra
@@ -283,7 +284,24 @@ class OpenAPIBuilder:
         if route.access is not None:
             self.secure(operation, route.access)
         self.declare_errors(operation["responses"], route.errors)
+        if isinstance(route.rate_limit, RateLimit):
+            self.document_rate_limit(operation["responses"], route.rate_limit)
         return operation
+
+    @staticmethod
+    def document_rate_limit(responses: dict[str, Any], limit: RateLimit) -> None:
+        """The built-in limiter's 429, and with ``headers=True`` its optional
+        ``RateLimit-*`` headers on every answer that is not an error."""
+        refused = responses.setdefault("429", {"description": "Too many requests"})
+        refused.setdefault("headers", {}).update(
+            retry_after_header([TooManyRequests]).get("headers", {})
+        )
+        if not limit.headers:
+            return
+        refused["headers"].update(RATE_LIMIT_HEADERS)
+        for status, response in responses.items():
+            if status.startswith("2"):
+                response.setdefault("headers", {}).update(RATE_LIMIT_HEADERS)
 
     @staticmethod
     def file_schema(many: bool) -> dict[str, Any]:
@@ -772,6 +790,25 @@ def split_docstring(handler: object) -> tuple[str, str]:
     doc = inspect.getdoc(handler) or ""
     summary, _, rest = doc.partition("\n")
     return summary.strip(), rest.strip()
+
+
+RATE_LIMIT_HEADERS: dict[str, Any] = {
+    "RateLimit-Limit": {
+        "description": "The quota of the route's limiter.",
+        "required": False,
+        "schema": {"type": "integer", "minimum": 1},
+    },
+    "RateLimit-Remaining": {
+        "description": "Requests left before a refusal.",
+        "required": False,
+        "schema": {"type": "integer", "minimum": 0},
+    },
+    "RateLimit-Reset": {
+        "description": "Seconds until the quota is whole again.",
+        "required": False,
+        "schema": {"type": "integer", "minimum": 0},
+    },
+}
 
 
 def retry_after_header(group: list[type[APIError]]) -> dict[str, Any]:

@@ -13,6 +13,7 @@ from hinoki import context
 from hinoki.db import Database
 from hinoki.errors import STARTUP_HOOK, ShutdownError, StartupError
 from hinoki.events import EventBus, events_var
+from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import Module, ModuleContext, order_modules
 from hinoki.orm import database_var
 from hinoki.runtime.config import RuntimeConfig
@@ -181,6 +182,7 @@ class Lifespan:
         # Models reach the worker's Database in a hook as they do in a request.
         token = database_var.set(self.ctx.find(Database))
         events_token = events_var.set(self.events)
+        mailer_token = mailer_var.set(self.ctx.find(Mailer))
         run_sync = self.executor.run_shutdown if shutdown else self.executor.run
         runner_token = context.sync_runner.set(run_sync)
         try:
@@ -201,6 +203,7 @@ class Lifespan:
                 raise _HookRaised(exc) from None
         finally:
             context.sync_runner.reset(runner_token)
+            mailer_var.reset(mailer_token)
             events_var.reset(events_token)
             database_var.reset(token)
 

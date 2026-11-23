@@ -24,6 +24,7 @@ from hinoki.schema.compile import (
     model_plan,
     set_model_normalization_paths,
     uses_generated_init,
+    with_link_ids,
 )
 from hinoki.schema.construct import (
     install_custom_init,
@@ -457,6 +458,9 @@ class Schema(metaclass=_SchemaMeta):
             if unknown:
                 raise TypeError(f"{cls.__name__} has no fields {sorted(unknown)}")
         queue, token, owns_queue = begin_normalization_queue(cls)
+        links = getattr(type(row), "__links__", None)
+        if links:
+            extra = with_link_ids(cls, row, links, extra)
         try:
             instance = cast(Self, model_plan(cls).build(row, extra))
             if owns_queue and queue is not None:

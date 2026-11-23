@@ -55,7 +55,8 @@ hinoki admin create-superuser alice    # asks for the password twice
 | `hinoki_admin_users` | `0001-initial` | Username, Argon2id password hash, active and superuser flags, last sign-in |
 | `hinoki_admin_sessions` | `0001-initial` | The SHA-256 of each session token, its user, expiry and last request |
 | `hinoki_admin_grants` | `0001-initial` | One row per user, model and action |
-| `hinoki_admin_login_windows` | `0002-login-windows` | Sign-in attempts per client, read only by `DatabaseLoginWindow` |
+| `hinoki_admin_login_windows` | `0002-login-windows` | Fixed-window counters of earlier versions; no policy reads it any more and it can stay empty |
+| `hinoki_admin_rate_limits` | `0003-rate-limits` | Buckets of `DatabaseLoginWindow`: a digest of the client and the route, and a counter state |
 
 Every other user is created from the admin's Users section. `hinoki admin set-password alice` resets a password from a shell; both commands are described in [`hinoki admin`](cli.md#admin).
 
@@ -143,7 +144,7 @@ The sign-in and password forms pass through a rate limit policy before any passw
 | Policy | Counts in | Behaviour |
 | --- | --- | --- |
 | `LoginWindow(limit=10, window=60)` (default) | One worker's memory | Each worker counts on its own and forgets on restart: a brake, not a shared limit. Holds at most 10,000 clients and drops the oldest. |
-| `DatabaseLoginWindow(limit=10, window=60)` | `hinoki_admin_login_windows` | One limit for every worker and host. Clients are stored as SHA-256 digests; expired windows are deleted on each attempt. |
+| `DatabaseLoginWindow(limit=10, window=60)` | `hinoki_admin_rate_limits` | One limit for every worker and host, the [`RateLimit`](endpoints.md#rate-limit-an-action) algorithm: a burst of `limit`, then one attempt every `window / limit` seconds, and a refused attempt costs nothing. Clients are stored as digests. |
 
 ```python
 # blog/apps/blog/adminsite.py
@@ -154,7 +155,7 @@ from hinoki.admin.users.limits import DatabaseLoginWindow
 site = Admin(users=AdminAccounts(login_limit=DatabaseLoginWindow()))
 ```
 
-Both count one window per client address and route (a flood on the sign-in never spends the password change's attempts). A full table never drops a blocked address: new addresses are refused until the oldest block expires. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.
+Both count per client address and route (a flood on the sign-in never spends the password change's attempts). `DatabaseLoginWindow` is a `RateLimit` subclass, so it keeps its table within a bound, deletes expired rows while counting, and refuses new addresses while the table is full of live ones. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.
 
 An IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set `server.trusted_proxies` behind a proxy. With `DatabaseLoginWindow`, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see [rate limit an action](endpoints.md#rate-limit-an-action).
 
@@ -170,8 +171,9 @@ The `Mount` prefix decides where the admin lives; links, assets and the cookie p
 | `Admin(access=..., users=...)` | `ValueError`: pass one or the other |
 | `register` of `AdminUser`, `AdminSession` or `AdminGrant` | `RegistrationError`: a plain model admin would show password hashes and let a grant holder promote itself |
 | `register` with a slug that is taken or reserved (`static`, `search`, `login`, `logout`, `password`) | `RegistrationError` |
-| `DatabaseLoginWindow` before `0002-login-windows` is applied | The first sign-in attempt fails on the missing table; apply the migration first |
+| `DatabaseLoginWindow` before `0003-rate-limits` is applied | Sign-in fails with `503 rate_limit_unavailable` on the missing table; apply the migration first |
 | One address racing many sign-ins at the same instant | `429` rather than an uncounted attempt |
+| A form posting a many-to-many key that is unknown, outside the user's view or too long | The form is shown again with one generic message and nothing is saved ([details](admin-customize.md#many-to-many-fields)) |
 
 ## See also
 

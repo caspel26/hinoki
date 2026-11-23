@@ -25,6 +25,9 @@ from hinoki.runtime.binding import to_float, to_int
 TEXTAREA_ABOVE = 200
 MAX_PASSWORD_FIELD = 1100  # the longest password the admin reads from a form
 MAX_TEXT = 100_000
+MAX_LINK_KEY = 200  # the longest key text a many-to-many field accepts
+LINK_REFUSAL = "Some choices are not available."
+MIN_LINK_ROWS, MAX_LINK_ROWS = 3, 10
 INT_MIN, INT_MAX = -(2**63), 2**63 - 1
 SIMPLE_KINDS: dict[Any, str] = {
     bool: "checkbox",
@@ -52,7 +55,7 @@ class FieldProblem(ValueError):
 class FormField:
     name: str
     label: str
-    kind: str  # text, textarea, number, checkbox, uuid, datetime or readonly
+    kind: str  # text, textarea, number, checkbox, uuid, datetime, links or readonly
     required: bool
     nullable: bool
     has_default: bool
@@ -290,10 +293,35 @@ def collect_extra(
             values[field.name] = raw
         return
     getlist = getattr(form, "getlist", None)
+    if field.kind == "links":
+        collect_links(
+            field, getlist(field.name) if getlist else [], original, values, errors
+        )
+        return
     sent = frozenset(getlist(field.name) if getlist else ())
     if not sent <= {value for value, _ in field.choices}:
         errors[field.name] = "choose only from the options shown"
     elif original is None or sent != frozenset(original.get(field.name, ())):
+        values[field.name] = sent
+
+
+def collect_links(
+    field: FormField,
+    raw: Sequence[str],
+    original: Mapping[str, Any] | None,
+    values: dict[str, Any],
+    errors: dict[str, str],
+) -> None:
+    """The chosen keys of a many-to-many field: bounded by the relation's
+    ``max_items`` (kept in ``max_length``) and left out when unchanged."""
+    if len(raw) > (field.max_length or 0) or any(len(k) > MAX_LINK_KEY for k in raw):
+        errors[field.name] = LINK_REFUSAL
+        return
+    sent = frozenset(raw)
+    if original is None:
+        if sent:
+            values[field.name] = sent
+    elif sent != frozenset(original.get(field.name, ())):
         values[field.name] = sent
 
 
@@ -350,6 +378,21 @@ def choices_control(field: FormField, value: Any) -> Raw:
     return Raw(f'<div class="hn-choices" id="f-{name}" role="group">{boxes}</div>')
 
 
+def links_control(
+    field: FormField, value: Any, error: str | None, options: Sequence[tuple[str, str]]
+) -> Raw:
+    """A bounded multi-select; ``value`` is the set of chosen keys."""
+    chosen = {str(v) for v in value} if isinstance(value, set | frozenset) else set()
+    attrs = attributes(dataclasses.replace(field, max_length=None), error)
+    rows = "".join(
+        f'<option value="{escape(key)}"{" selected" if key in chosen else ""}>'
+        f"{escape(label)}</option>"
+        for key, label in options
+    )
+    size = min(max(len(options), MIN_LINK_ROWS), MAX_LINK_ROWS)
+    return Raw(f'<select multiple size="{size}" {attrs}>{rows}</select>')
+
+
 def plain_control(field: FormField, value: Any, attrs: str, zone: tzinfo) -> Raw:
     """Inputs that are not selects."""
     text = escape(input_text(value, zone))
@@ -369,6 +412,14 @@ def plain_control(field: FormField, value: Any, attrs: str, zone: tzinfo) -> Raw
     return Raw(f'<input type="{kind}"{mode}{step} {attrs} value="{text}">')
 
 
+def collection_control(
+    field: FormField, value: Any, error: str | None, options: Sequence[tuple[str, str]]
+) -> Raw:
+    if field.kind == "choices":
+        return choices_control(field, value)
+    return links_control(field, value, error, options)
+
+
 def control(
     field: FormField,
     value: Any,
@@ -379,8 +430,8 @@ def control(
     attrs = attributes(field, error)
     if field.kind == "password":
         return password_control(attrs)
-    if field.kind == "choices":
-        return choices_control(field, value)
+    if field.kind in {"choices", "links"}:
+        return collection_control(field, value, error, options or ())
     if field.select and options is not None:
         return select_control(field, value, attrs, options, zone)
     return plain_control(field, value, attrs, zone)

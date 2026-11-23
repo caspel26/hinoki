@@ -19,6 +19,7 @@ from hinoki.admin.formpages import (
 from hinoki.admin.forms import (
     collect,
 )
+from hinoki.admin.linkfields import load_links, lock_unviewable, save_row, take_links
 from hinoki.admin.lists import (
     apply_state,
     list_page,
@@ -209,11 +210,14 @@ async def add_submit(
         return await site.problem(
             403, "The form expired or is invalid. Reload and try again."
         )
-    fields = form_fields(entry, creating=True)
+    fields = lock_unviewable(site, entry, form_fields(entry, creating=True))
     values, errors = collect(fields, request.POST, zone=site.admin.timezone)
+    links = take_links(fields, values)
     errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, None)
-    message = "" if errors else await guarded(entry.save(values, principal))
+    message = (
+        "" if errors else await guarded(save_row(site, entry, values, links, None))
+    )
     if errors or message:
         view = FormView(
             model, entry, None, fields, submitted(request, fields), errors, message, 422
@@ -247,6 +251,7 @@ async def edit_form(
         return await site.problem(404, "Not found.")
     fields = form_fields(entry, creating=False)
     values = await current_values(entry, row, fields)
+    await load_links(site, entry, row, fields, values)
     return await form_response(site, FormView(model, entry, row, fields, values))
 
 
@@ -261,12 +266,14 @@ async def edit_submit(
         return await site.problem(
             403, "The form expired or is invalid. Reload and try again."
         )
-    fields = form_fields(entry, creating=False)
+    fields = lock_unviewable(site, entry, form_fields(entry, creating=False))
     original = await current_values(entry, row, fields)
+    await load_links(site, entry, row, fields, original)
     values, errors = collect(fields, request.POST, original, site.admin.timezone)
+    links = take_links(fields, values)
     errors = errors or await check_references(site, fields, values)
     errors = errors or await entry.check(values, principal, row)
-    message = "" if errors else await guarded(entry.save(values, principal, row))
+    message = "" if errors else await guarded(save_row(site, entry, values, links, row))
     if errors or message:
         view = FormView(
             model, entry, row, fields, submitted(request, fields), errors, message, 422

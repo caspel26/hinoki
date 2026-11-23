@@ -193,13 +193,48 @@ Return a value matching the declared response type, or return `Response` (`from 
 
 ### Rate limit an action
 
-Hinoki ships no limiter. A route names a policy with `rate_limit=`, and the application owns the rule, the key and the storage, because a counter kept in one worker's memory is wrong across workers and after a restart:
+`RateLimit(limit, window)` admits `limit` requests per `window` seconds for one key. Its counters live in a database table that every worker and host shares, so the limit holds across workers and after a restart. A route names it with `rate_limit=`:
+
+```python
+# notes/apps/accounts/api.py
+from hinoki import RateLimit, http
+
+from .schemas import LoginIn, SessionOut
+
+
+@http.post("/auth/login", rate_limit=RateLimit(3, 3600, headers=True), atomic=True)
+async def login(data: LoginIn) -> SessionOut: ...
+```
+
+The default storage, `DatabaseLimits()`, uses the `Database` of the worker and the `hinoki_rate_limits` table. Hinoki never creates it at import or at startup: register the app that owns it and apply its migration once per deployment.
+
+```sh
+hinoki app add ratelimit --models hinoki.ratelimit_store.models --migrations hinoki.ratelimit_store.migrations
+hinoki migrations apply ratelimit
+```
+
+The algorithm is a cell rate (GCRA): a burst of `limit` is admitted at once, then one more request every `window / limit` seconds. A refused request uses up no quota. One statement counts each request, in the native core, on the async path and on the sync path alike. A route that otherwise runs on Kiso's native handler lane stays there.
+
+| Argument | Meaning |
+| --- | --- |
+| `key` | `"client"` (default, the trusted client address; an IPv6 address counts by its /64), `"caller"` (the authenticated caller's id; an anonymous request falls back to the client) or a plain function of the `RateLimitContext` returning a string |
+| `scope` | What the quota belongs to; the method and the route template (`GET /items`) by default, so one path under two methods has two quotas. Routes that give the same `scope` share one quota |
+| `tenant` | A plain function of the context returning an extra key segment, so tenants never share a bucket |
+| `cost` | What one request spends, at most `limit` |
+| `unknown_factor` | A request with no known client address shares one bucket `unknown_factor` times as large (default 10). Set `server.trusted_proxies` behind a proxy |
+| `headers` | `True` adds `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset` (whole seconds) to admitted and refused answers; the OpenAPI document lists them. Off by default |
+| `on_error` | `"closed"` (default) answers `503 rate_limit_unavailable` when the table is unreachable or missing; `"open"` admits the request, counts it as `failed_open` and logs once a minute |
+| `storage` | `DatabaseLimits(table=..., max_rows=..., timeout=..., sweep_every=...)` or `MemoryLimits(max_rows=..., sweep_every=...)`, which counts in one worker's memory and forgets on restart: for development and tests only. The buckets belong to the `MemoryLimits` instance, so routes given the same instance and the same `scope` and `tenant` count together |
+| `clock` | A function returning an aware `datetime`; `hinoki.testing.ManualClock` in tests |
+
+`window` is a whole number of seconds from 1 to 86,400. Arguments are checked when the route is declared: `limit` is a whole number from 1 to 4,294,967,295 and at most one request per microsecond of the `window`, and `timeout` is from 0.001 to 5 seconds; anything else is a `ValueError`. Keys are hashed in the native core and only the digest is stored: no address, user id or custom key reaches SQL, logs or metrics. The table holds at most `max_rows` buckets (default 1,000,000) and the migration indexes its `state` column; expired rows are deleted in small batches, oldest first, while requests are counted, and once the table is full of live rows new keys are refused with a retry of one `window` until rows expire. A key part is limited to 1,024 bytes, and an oversized one is answered `503`. One check, the wait for a connection, the sweep of expired rows and the count included, is bounded by `timeout` seconds (default 0.5, at most 5); the sweep gets at most half of it and runs before the count, so a stale "full" mark never refuses the first new key after rows expire. Hosts stamp buckets with their own clock, so keep host clocks in sync. A refusal and the unavailable and failed-open outcomes are counted in the [metrics](metrics.md#what-is-exported); an `unavailable` outcome also counts a key, tenant or clock function that raised.
+
+Any object with a `check` method is a policy too, when the application needs another store or rule:
 
 ```python
 # notes/apps/accounts/api.py
 from hinoki import RateLimitContext, errors, http
 
-from .schemas import LoginIn, SessionOut
 from .stores import RedisStore  # your module's resource
 
 

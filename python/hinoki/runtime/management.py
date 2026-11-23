@@ -6,7 +6,7 @@ import inspect
 from argparse import Namespace
 
 from hinoki import context as hinoki_context
-from hinoki import events
+from hinoki import events, mail
 from hinoki.app import Hinoki
 from hinoki.errors import ShutdownError
 from hinoki.management import Command, CommandContext, CommandError
@@ -49,7 +49,7 @@ async def run_command(app: Hinoki, command: Command, args: Namespace) -> int:
     await lifespan.startup()
     context = CommandContext(app.settings, module_context)
     try:
-        with events.use(app.events):
+        with events.use(app.events), mail.use(module_context.find(mail.Mailer)):
             runner_token = hinoki_context.sync_runner.set(executor.run)
             try:
                 result = await executor.run(command.handle, context, args)

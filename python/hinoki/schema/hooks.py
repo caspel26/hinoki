@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import inspect
+import typing
 from collections.abc import Iterable, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 from hinoki.errors import ErrorDetail, RegistrationError, ValidationError
-from hinoki.fields import UNSET
+from hinoki.fields import UNSET, Field
 from hinoki.fieldtypes import FieldType
 from hinoki.schema.decorators import (
     BEFORE_ATTR,
@@ -47,6 +48,19 @@ def normalize_selector(
     return names
 
 
+def link_id_fields(model: Any) -> dict[str, Any]:
+    """The ids field of each many-to-many relation ``model`` declares, with its
+    type: a set of target keys bounded by the relation's ``max_items``."""
+    found: dict[str, Any] = {}
+    for side in getattr(model, "__links__", {}).values():
+        if side.forward and side.ids_name:
+            target = side.target
+            key = typing.get_type_hints(target)[target.__primary_key__]
+            keys = cast(Any, set)[key]
+            found[side.ids_name] = Annotated[keys, Field(max_length=side.max_items)]
+    return found
+
+
 def chosen_columns(
     cls: type,
     model: Any,
@@ -61,7 +75,8 @@ def chosen_columns(
     chosen = (
         list(fields) if fields is not None else [c for c in columns if c not in exclude]
     )
-    unknown = [n for n in [*chosen, *exclude] if n not in columns]
+    known = {*columns, *link_id_fields(model)}
+    unknown = [n for n in [*chosen, *exclude] if n not in known]
     if unknown:
         raise RegistrationError(
             f"{cls.__name__}: {model.__name__} has no columns {unknown}"

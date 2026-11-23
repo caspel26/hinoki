@@ -366,3 +366,29 @@ async fn numeric_columns_round_trip_decimal_text_and_order_by_value() {
         .await;
     assert!(bad.is_err());
 }
+
+#[tokio::test]
+async fn execute_scalar_returns_the_first_returning_value() {
+    let Some(db) = database("rt_scalar", 2).await else {
+        return;
+    };
+    let upsert = "INSERT INTO rt_scalar (id, slug, n) VALUES ($1, $2, 1) \
+                  ON CONFLICT (slug) DO UPDATE SET n = rt_scalar.n + 1 RETURNING n::bigint";
+    let hit = || async {
+        db.execute_scalar(
+            upsert,
+            &[Value::Uuid(Uuid::new_v4()), Value::Text("a".into())],
+        )
+        .await
+    };
+    assert_eq!(hit().await.unwrap(), Some(1));
+    assert_eq!(hit().await.unwrap(), Some(2));
+    let miss = db
+        .execute_scalar(
+            "UPDATE rt_scalar SET n = 5 WHERE slug = $1 RETURNING n::bigint",
+            &[Value::Text("zz".into())],
+        )
+        .await
+        .unwrap();
+    assert_eq!(miss, None);
+}

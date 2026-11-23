@@ -259,12 +259,17 @@ class ModelAdmin[M: Model]:
     def validate_config(self, slug: str) -> None:
         self.normalize(slug)
         names = set(self.model.__columns__)
+        link_ids = {
+            side.ids_name
+            for side in getattr(self.model, "__links__", {}).values()
+            if side.forward
+        }
         for label, used in (
             ("columns", self.columns),
             ("search", self.search),
             ("ordering", [o.lstrip("-") for o in self.ordering]),
-            ("exclude", self.exclude),
-            ("readonly", self.readonly),
+            ("exclude", [n for n in self.exclude if n not in link_ids]),
+            ("readonly", [n for n in self.readonly if n not in link_ids]),
             ("assign", self.assign),
             ("badges", self.badges),
             ("modified_field", [self.modified_field] if self.modified_field else []),
@@ -284,7 +289,7 @@ class ModelAdmin[M: Model]:
             for column in tab.filters:
                 self.model.check_field(column.partition("__")[0])
         for fieldset in self.fieldset_list:
-            unknown = sorted(set(fieldset.fields) - names)
+            unknown = sorted(set(fieldset.fields) - names - link_ids)
             if unknown:
                 raise RegistrationError(
                     f"admin {slug!r}: fieldset {fieldset.title!r} names {unknown}"

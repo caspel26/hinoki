@@ -245,7 +245,13 @@ impl CoreBackend {
             } else {
                 let result = match tokio::time::timeout(
                     core.request_timeout(),
-                    crate::nativecrud::execute_read(&plan, &database, &params, &query),
+                    crate::nativecrud::execute_read(
+                        &plan,
+                        &database,
+                        &params,
+                        &query,
+                        caller.as_deref(),
+                    ),
                 )
                 .await
                 {
@@ -668,6 +674,24 @@ impl KisoServer {
         self.registry
             .as_ref()
             .map(|registry| crate::metrics::EventMetrics::new(Arc::clone(registry)))
+    }
+
+    /// The recorder of email sends, or `None` while metrics are off or the app
+    /// has no email backend (no `email` key in the metrics settings).
+    fn mail_metrics(&self) -> Option<crate::mail::MailMetrics> {
+        self.registry
+            .as_ref()
+            .filter(|registry| registry.has_email())
+            .map(|registry| crate::mail::MailMetrics::new(Arc::clone(registry)))
+    }
+
+    /// The recorder of rate limit decisions, or `None` while metrics are off or
+    /// the app does not use the built-in limiter (`rate_limits` unset).
+    fn rate_limit_metrics(&self) -> Option<crate::ratelimit::RateLimitMetrics> {
+        self.registry
+            .as_ref()
+            .filter(|registry| registry.has_rate_limits())
+            .map(|registry| crate::ratelimit::RateLimitMetrics::new(Arc::clone(registry)))
     }
 
     /// Serve on the listening socket `fd`, which the caller created and detached

@@ -110,6 +110,45 @@ class ModelValidationError(ValidationError, ModelError):
     """One or more Model field values failed before a database write."""
 
 
+class UnknownLinkTarget(ModelValidationError):
+    """Ids given to a many-to-many ``add`` or ``set`` do not name a row the
+    caller may link: they do not exist or are out of scope, and the error says
+    neither which nor why. Nothing was written."""
+
+    def __init__(self, name: str, count: int) -> None:
+        super().__init__(
+            [ErrorDetail(name, "unknown_reference", "contains ids that do not exist")]
+        )
+        self.count = count
+
+
+class LinkLimitExceeded(ModelValidationError):
+    """A many-to-many relation would hold more links than its ``max_items``,
+    or one call named more ids than that. Nothing was written."""
+
+    def __init__(self, name: str, limit: int) -> None:
+        super().__init__(
+            [ErrorDetail(name, "too_many_links", f"at most {limit} links")]
+        )
+        self.limit = limit
+
+
+class OwnerOutOfScope(ModelError):
+    """A link write waited for its owner row's lock and the row then no longer
+    met the conditions the caller passed (``owner_within``): generated CRUD
+    answers it like any write that lost a race. A deleted owner is
+    ``Model.NotFound`` instead."""
+
+
+class StoredLinksOverLimit(ModelError):
+    """The stored links of a many-to-many relation exceed its ``max_items``:
+    the data broke the bound, which is a server fault, not bad input."""
+
+    def __init__(self, name: str, limit: int) -> None:
+        super().__init__(f"{name} holds more than {limit} stored links")
+        self.limit = limit
+
+
 class RelationNotLoaded(ModelError, AttributeError):
     """A relation was read that the query did not load. Relations are never
     fetched lazily; name them in ``select_related`` or ``prefetch_related``."""

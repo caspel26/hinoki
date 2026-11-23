@@ -177,9 +177,8 @@
         <header class="page-head">
           {% if sec.active %}<p class="kicker" data-search-exclude><span class="i-tile">{{ m.icon(m.page_icon(page, sec.active.title), "m") }}</span><span>{{ sec.active.title }}{% if page.parent and page.parent.title != sec.active.title %}<span class="kicker__sep" aria-hidden="true">/</span>{{ page.parent.title }}{% endif %}</span></p>{% endif %}
           {% if parts[0] %}{{ parts[0] }}</h1>{% endif %}
-          {% if page.meta and (page.meta.status or page.meta.git_revision_date_localized or page.meta.reading_minutes) %}
+          {% if page.meta and (page.meta.git_revision_date_localized or page.meta.reading_minutes) %}
           <p class="page-meta" data-search-exclude>
-            {% if page.meta.status %}<span class="chip chip--{{ page.meta.status }}">{{ page.meta.status }}</span>{% endif %}
             {% if page.meta.git_revision_date_localized %}<span>Updated {{ page.meta.git_revision_date_localized }}</span>{% endif %}
             {% if page.meta.reading_minutes %}<span>{{ page.meta.reading_minutes }} min read</span>{% endif %}
           </p>
@@ -213,6 +212,7 @@
         </nav>
         {% endif %}
         <dl class="titleblock">
+          {% if page.meta and page.meta.status %}<div><dt>Status</dt><dd><span class="chip chip--{{ page.meta.status }}">{{ page.meta.status }}</span></dd></div>{% endif %}
           {% if page.meta and page.meta.git_revision_date_localized %}<div><dt>Updated</dt><dd>{{ page.meta.git_revision_date_localized }}</dd></div>{% endif %}
           {% if page.edit_url %}<div><dt>Source</dt><dd><a href="{{ page.edit_url }}">Edit on GitHub</a></dd></div>{% endif %}
         </dl>

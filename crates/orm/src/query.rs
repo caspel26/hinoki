@@ -16,6 +16,8 @@ pub enum Op {
     Lt,
     Lte,
     In,
+    /// `NOT IN`; an empty list excludes nothing.
+    NotIn,
     IsNull,
     NotNull,
     Contains,
@@ -83,12 +85,28 @@ pub struct Join {
     pub columns: Vec<String>,
 }
 
+/// `column [NOT] IN (SELECT ...)`: a condition on the outer statement that
+/// compares `column` with the single column `select` returns. The inner select
+/// shares the outer statement's placeholder numbering; it takes no ordering,
+/// limit, offset or keyset, and nests at most [`MAX_SUBQUERY_DEPTH`] deep.
+#[derive(Debug, Clone)]
+pub struct SubFilter<V> {
+    pub column: String,
+    pub negated: bool,
+    pub select: Box<Select<V>>,
+}
+
+/// Deepest nesting of subqueries: a many-to-many filter whose target is itself
+/// filtered across a reverse relation.
+pub const MAX_SUBQUERY_DEPTH: usize = 2;
+
 #[derive(Debug, Clone)]
 pub struct Select<V> {
     pub table: String,
     pub columns: Vec<String>,
     pub joins: Vec<Join>,
     pub filters: Vec<Filter<V>>,
+    pub subfilters: Vec<SubFilter<V>>,
     /// Keyset (cursor) condition, ANDed with `filters`.
     pub keyset: Option<Keyset<V>>,
     pub order: Vec<(String, bool)>,
@@ -110,6 +128,7 @@ pub struct Update<V> {
     pub table: String,
     pub assignments: Vec<(String, V)>,
     pub filters: Vec<Filter<V>>,
+    pub subfilters: Vec<SubFilter<V>>,
     pub returning: Vec<String>,
 }
 
@@ -117,6 +136,69 @@ pub struct Update<V> {
 pub struct Delete<V> {
     pub table: String,
     pub filters: Vec<Filter<V>>,
+    pub subfilters: Vec<SubFilter<V>>,
+    /// Columns of the deleted rows to return; not supported by MySQL.
+    pub returning: Vec<String>,
+}
+
+impl<V> Filter<V> {
+    /// The same filter with each value converted by `convert`.
+    pub fn try_map<W, E>(
+        self,
+        convert: &mut impl FnMut(V) -> Result<W, E>,
+    ) -> Result<Filter<W>, E> {
+        Ok(Filter {
+            column: self.column,
+            op: self.op,
+            values: self
+                .values
+                .into_iter()
+                .map(&mut *convert)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl<V> SubFilter<V> {
+    /// The same subquery with each value converted by `convert`.
+    pub fn try_map<W, E>(
+        self,
+        convert: &mut impl FnMut(V) -> Result<W, E>,
+    ) -> Result<SubFilter<W>, E> {
+        let select = *self.select;
+        Ok(SubFilter {
+            column: self.column,
+            negated: self.negated,
+            select: Box::new(Select {
+                table: select.table,
+                columns: select.columns,
+                joins: select.joins,
+                filters: map_filters(select.filters, convert)?,
+                subfilters: map_subfilters(select.subfilters, convert)?,
+                keyset: None,
+                order: Vec::new(),
+                limit: None,
+                offset: None,
+                count: false,
+            }),
+        })
+    }
+}
+
+/// Every filter with its values converted by `convert`.
+pub fn map_filters<V, W, E>(
+    filters: Vec<Filter<V>>,
+    convert: &mut impl FnMut(V) -> Result<W, E>,
+) -> Result<Vec<Filter<W>>, E> {
+    filters.into_iter().map(|f| f.try_map(convert)).collect()
+}
+
+/// Every subquery with its values converted by `convert`.
+pub fn map_subfilters<V, W, E>(
+    subfilters: Vec<SubFilter<V>>,
+    convert: &mut impl FnMut(V) -> Result<W, E>,
+) -> Result<Vec<SubFilter<W>>, E> {
+    subfilters.into_iter().map(|f| f.try_map(convert)).collect()
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -156,7 +238,7 @@ pub fn quote(name: &str) -> Result<String, QueryError> {
     quote_with(name, Dialect::Postgres)
 }
 
-fn quote_with(name: &str, dialect: Dialect) -> Result<String, QueryError> {
+pub(crate) fn quote_with(name: &str, dialect: Dialect) -> Result<String, QueryError> {
     let mut chars = name.chars();
     let valid = chars
         .next()
@@ -177,7 +259,11 @@ fn quote_with(name: &str, dialect: Dialect) -> Result<String, QueryError> {
 
 /// A column reference: `name` (qualified with `base` when given) or
 /// `alias.name` for a joined table.
-fn column_ref(name: &str, base: Option<&str>, dialect: Dialect) -> Result<String, QueryError> {
+pub(crate) fn column_ref(
+    name: &str,
+    base: Option<&str>,
+    dialect: Dialect,
+) -> Result<String, QueryError> {
     match name.split_once('.') {
         Some((alias, column)) => Ok(format!(
             "{}.{}",
@@ -243,25 +329,31 @@ fn quote_all(names: &[String], dialect: Dialect) -> Result<String, QueryError> {
         .join(", "))
 }
 
-struct Builder<V> {
-    sql: String,
-    params: Vec<V>,
+pub(crate) struct Builder<V> {
+    pub(crate) sql: String,
+    pub(crate) params: Vec<V>,
     /// Table that qualifies bare column names (set when the query joins).
-    base: Option<String>,
-    dialect: Dialect,
+    pub(crate) base: Option<String>,
+    pub(crate) dialect: Dialect,
+    /// Table an UPDATE or DELETE writes: MySQL refuses a subquery that reads
+    /// it, so those subqueries are materialized.
+    write_table: Option<String>,
+    depth: usize,
 }
 
 impl<V: Clone> Builder<V> {
-    fn new(sql: String, dialect: Dialect) -> Self {
+    pub(crate) fn new(sql: String, dialect: Dialect) -> Self {
         Self {
             sql,
             params: Vec::new(),
             base: None,
             dialect,
+            write_table: None,
+            depth: 0,
         }
     }
 
-    fn placeholder(&mut self, value: V) -> String {
+    pub(crate) fn placeholder(&mut self, value: V) -> String {
         self.params.push(value);
         match self.dialect {
             Dialect::Postgres => format!("${}", self.params.len()),
@@ -270,15 +362,49 @@ impl<V: Clone> Builder<V> {
         }
     }
 
-    fn filters(&mut self, filters: &[Filter<V>]) -> Result<(), QueryError> {
-        self.conditions(filters, None)
+    fn filters(
+        &mut self,
+        filters: &[Filter<V>],
+        subfilters: &[SubFilter<V>],
+    ) -> Result<(), QueryError> {
+        self.conditions(filters, None, subfilters)
     }
 
     fn conditions(
         &mut self,
         filters: &[Filter<V>],
         keyset: Option<&Keyset<V>>,
+        subfilters: &[SubFilter<V>],
     ) -> Result<(), QueryError> {
+        let clauses = self.clause_list(filters, keyset, subfilters)?;
+        if !clauses.is_empty() {
+            self.sql.push_str(" WHERE ");
+            self.sql.push_str(&clauses.join(" AND "));
+        }
+        Ok(())
+    }
+
+    /// ` WHERE a AND b ...`, or nothing when there is no condition. Placeholders
+    /// are numbered in the order the text is built.
+    pub(crate) fn where_clause(
+        &mut self,
+        filters: &[Filter<V>],
+        keyset: Option<&Keyset<V>>,
+        subfilters: &[SubFilter<V>],
+    ) -> Result<String, QueryError> {
+        let clauses = self.clause_list(filters, keyset, subfilters)?;
+        if clauses.is_empty() {
+            return Ok(String::new());
+        }
+        Ok(format!(" WHERE {}", clauses.join(" AND ")))
+    }
+
+    fn clause_list(
+        &mut self,
+        filters: &[Filter<V>],
+        keyset: Option<&Keyset<V>>,
+        subfilters: &[SubFilter<V>],
+    ) -> Result<Vec<String>, QueryError> {
         let mut clauses = Vec::new();
         for filter in filters {
             clauses.push(self.clause(filter)?);
@@ -286,11 +412,55 @@ impl<V: Clone> Builder<V> {
         if let Some(keyset) = keyset {
             clauses.push(self.keyset(keyset)?);
         }
-        if !clauses.is_empty() {
-            self.sql.push_str(" WHERE ");
-            self.sql.push_str(&clauses.join(" AND "));
+        for sub in subfilters {
+            clauses.push(self.subfilter(sub)?);
         }
-        Ok(())
+        Ok(clauses)
+    }
+
+    fn subfilter(&mut self, sub: &SubFilter<V>) -> Result<String, QueryError> {
+        if self.depth >= MAX_SUBQUERY_DEPTH {
+            return Err(QueryError::Unsupported("subqueries nested this deeply"));
+        }
+        let column = column_ref(&sub.column, self.base.as_deref(), self.dialect)?;
+        let mut inner = self.subselect(&sub.select)?;
+        if self.reads_write_table(&sub.select) {
+            inner = format!("SELECT * FROM ({inner}) AS hinoki_sub");
+        }
+        let word = if sub.negated { "NOT IN" } else { "IN" };
+        Ok(format!("{column} {word} ({inner})"))
+    }
+
+    fn reads_write_table(&self, select: &Select<V>) -> bool {
+        match &self.write_table {
+            Some(table) if self.dialect == Dialect::Mysql => reads_table(select, table),
+            _ => false,
+        }
+    }
+
+    fn subselect(&mut self, q: &Select<V>) -> Result<String, QueryError> {
+        let single = q.columns.len() == 1 && !q.count;
+        if !single || q.keyset.is_some() || q.limit.is_some() || q.offset.is_some() {
+            return Err(QueryError::BadFilter(
+                "a subquery selects one column and takes no paging".into(),
+            ));
+        }
+        let joined = !q.joins.is_empty();
+        let base = joined.then_some(q.table.as_str());
+        let column = column_ref(&q.columns[0], base, self.dialect)?;
+        let mut sql = format!(
+            "SELECT {column} FROM {}{}",
+            quote_with(&q.table, self.dialect)?,
+            join_clauses(q, self.dialect)?
+        );
+        let outer = self.base.take();
+        self.base = joined.then(|| q.table.clone());
+        self.depth += 1;
+        let clause = self.where_clause(&q.filters, None, &q.subfilters);
+        self.depth -= 1;
+        self.base = outer;
+        sql.push_str(&clause?);
+        Ok(sql)
     }
 
     fn keyset(&mut self, keyset: &Keyset<V>) -> Result<String, QueryError> {
@@ -372,7 +542,7 @@ impl<V: Clone> Builder<V> {
                 };
                 return Ok(format!("{column} {word}"));
             }
-            Op::In => return self.membership(&column, filter),
+            Op::In | Op::NotIn => return self.membership(&column, filter),
             Op::Contains | Op::ContainsAny | Op::ContainsPattern | Op::ContainsAnyPattern => {
                 return self.contains(&column, filter)
             }
@@ -429,15 +599,18 @@ impl<V: Clone> Builder<V> {
     }
 
     fn membership(&mut self, column: &str, filter: &Filter<V>) -> Result<String, QueryError> {
+        let negated = filter.op == Op::NotIn;
         if filter.values.is_empty() {
-            return Ok("FALSE".to_owned()); // nothing is a member of the empty set
+            // nothing is a member of the empty set, and everything is outside it
+            return Ok(if negated { "TRUE" } else { "FALSE" }.to_owned());
         }
         let holders: Vec<String> = filter
             .values
             .iter()
             .map(|v| self.placeholder(v.clone()))
             .collect();
-        Ok(format!("{column} IN ({})", holders.join(", ")))
+        let word = if negated { "NOT IN" } else { "IN" };
+        Ok(format!("{column} {word} ({})", holders.join(", ")))
     }
 
     fn returning(&mut self, columns: &[String]) -> Result<(), QueryError> {
@@ -478,9 +651,18 @@ fn select_list<V>(q: &Select<V>, joined: bool, dialect: Dialect) -> Result<Strin
 }
 
 fn join_clauses<V>(q: &Select<V>, dialect: Dialect) -> Result<String, QueryError> {
+    render_joins(&q.joins, &q.table, dialect)
+}
+
+/// The `JOIN` clauses of `joins` against the base table `table`.
+pub(crate) fn render_joins(
+    joins: &[Join],
+    table: &str,
+    dialect: Dialect,
+) -> Result<String, QueryError> {
     let mut sql = String::new();
-    for join in &q.joins {
-        if join.alias == q.table {
+    for join in joins {
+        if join.alias == table {
             return Err(QueryError::BadIdentifier(format!(
                 "join alias {:?} equals the base table",
                 join.alias
@@ -492,10 +674,20 @@ fn join_clauses<V>(q: &Select<V>, dialect: Dialect) -> Result<String, QueryError
             quote_with(&join.table, dialect)?,
             quote_with(&join.alias, dialect)?,
             column_ref(&format!("{}.{}", join.alias, join.remote), None, dialect)?,
-            column_ref(&join.local, Some(&q.table), dialect)?
+            column_ref(&join.local, Some(table), dialect)?
         ));
     }
     Ok(sql)
+}
+
+/// Whether `select` reads `table` itself or through a join or a nested subquery.
+fn reads_table<V>(select: &Select<V>, table: &str) -> bool {
+    select.table == table
+        || select.joins.iter().any(|join| join.table == table)
+        || select
+            .subfilters
+            .iter()
+            .any(|sub| reads_table(&sub.select, table))
 }
 
 pub fn compile_select<V: Clone>(q: &Select<V>) -> Compiled<V> {
@@ -516,7 +708,7 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
     if joined {
         b.base = Some(q.table.clone());
     }
-    b.conditions(&q.filters, q.keyset.as_ref())?;
+    b.conditions(&q.filters, q.keyset.as_ref(), &q.subfilters)?;
     if !q.order.is_empty() {
         let parts = q
             .order
@@ -599,7 +791,10 @@ pub fn compile_update_with<V: Clone>(q: &Update<V>, dialect: Dialect) -> Compile
         ));
     }
     b.sql = format!("UPDATE {table} SET {}", sets.join(", "));
-    b.filters(&q.filters)?;
+    if !q.subfilters.is_empty() {
+        b.write_table = Some(q.table.clone());
+    }
+    b.filters(&q.filters, &q.subfilters)?;
     b.returning(&q.returning)?;
     Ok((b.sql, b.params))
 }
@@ -613,7 +808,13 @@ pub fn compile_delete_with<V: Clone>(q: &Delete<V>, dialect: Dialect) -> Compile
         format!("DELETE FROM {}", quote_with(&q.table, dialect)?),
         dialect,
     );
-    b.filters(&q.filters)?;
+    if !q.subfilters.is_empty() {
+        b.write_table = Some(q.table.clone());
+    }
+    b.filters(&q.filters, &q.subfilters)?;
+    if !q.returning.is_empty() {
+        b.returning(&q.returning)?;
+    }
     Ok((b.sql, b.params))
 }
 
@@ -635,6 +836,7 @@ mod tests {
             columns: vec!["id".into(), "title".into()],
             joins: vec![],
             filters,
+            subfilters: vec![],
             keyset: None,
             order: vec![],
             limit: None,
@@ -829,6 +1031,7 @@ mod tests {
             table: "posts".into(),
             assignments: vec![("title".into(), 1)],
             filters: vec![f("id", Op::Eq, &[9])],
+            subfilters: vec![],
             returning: vec![],
         };
         let (sql, params) = compile_update(&update).unwrap();
@@ -838,6 +1041,8 @@ mod tests {
         let delete = Delete {
             table: "posts".into(),
             filters: vec![f("id", Op::Ne, &[3])],
+            subfilters: vec![],
+            returning: vec![],
         };
         assert_eq!(
             compile_delete(&delete).unwrap().0,
@@ -911,6 +1116,7 @@ mod tests {
                 op: Op::ContainsAny,
                 values: vec!["needle".to_owned()],
             }],
+            subfilters: vec![],
             keyset: None,
             order: vec![],
             limit: None,
@@ -968,6 +1174,7 @@ mod tests {
             table: "t".into(),
             assignments: vec![],
             filters: vec![],
+            subfilters: vec![],
             returning: vec![],
         };
         assert_eq!(
@@ -1022,5 +1229,135 @@ mod tests {
         assert_eq!(params, vec![1]);
         assert!(compile_select(&select(vec![f("title,", Op::ContainsAny, &[1])])).is_err());
         assert!(compile_select(&select(vec![f("a,b", Op::ContainsAny, &[1, 2])])).is_err());
+    }
+
+    fn bridge_sub(owner: i32, filters: Vec<Filter<i32>>) -> SubFilter<i32> {
+        let mut inner = select(vec![f("post_id", Op::Eq, &[owner])]);
+        inner.table = "posts_tags".into();
+        inner.columns = vec!["tag_id".into()];
+        inner.filters.extend(filters);
+        SubFilter {
+            column: "id".into(),
+            negated: false,
+            select: Box::new(inner),
+        }
+    }
+
+    #[test]
+    fn subquery_shares_the_placeholder_numbering_in_text_order() {
+        let mut q = select(vec![f("n", Op::Gt, &[1])]);
+        q.subfilters = vec![bridge_sub(2, vec![]), {
+            let mut sub = bridge_sub(3, vec![]);
+            sub.negated = true;
+            sub
+        }];
+        q.filters.push(f("title", Op::Eq, &[4]));
+        let (sql, params) = compile_select(&q).unwrap();
+        assert_eq!(
+            sql,
+            "SELECT \"id\", \"title\" FROM \"posts\" WHERE \"n\" > $1 AND \"title\" = $2 \
+             AND \"id\" IN (SELECT \"tag_id\" FROM \"posts_tags\" WHERE \"post_id\" = $3) \
+             AND \"id\" NOT IN (SELECT \"tag_id\" FROM \"posts_tags\" WHERE \"post_id\" = $4)"
+        );
+        assert_eq!(params, vec![1, 4, 2, 3]);
+        let (sqlite, _) = compile_select_with(&q, Dialect::Sqlite).unwrap();
+        assert!(sqlite.contains("\"post_id\" = ?3)"));
+    }
+
+    #[test]
+    fn subquery_with_joins_qualifies_only_its_own_columns() {
+        let mut inner = select(vec![f("tags.name", Op::Eq, &[1])]);
+        inner.table = "posts_tags".into();
+        inner.columns = vec!["post_id".into()];
+        inner.joins = vec![Join {
+            table: "tags".into(),
+            alias: "tags".into(),
+            local: "tag_id".into(),
+            remote: "id".into(),
+            left: false,
+            columns: vec![],
+        }];
+        let mut q = select(vec![]);
+        q.subfilters = vec![SubFilter {
+            column: "id".into(),
+            negated: false,
+            select: Box::new(inner),
+        }];
+        let (sql, _) = compile_select(&q).unwrap();
+        assert!(sql.ends_with(
+            "\"id\" IN (SELECT \"posts_tags\".\"post_id\" FROM \"posts_tags\" \
+             INNER JOIN \"tags\" AS \"tags\" ON \"tags\".\"id\" = \"posts_tags\".\"tag_id\" \
+             WHERE \"tags\".\"name\" = $1)"
+        ));
+    }
+
+    #[test]
+    fn subquery_rejects_paging_extra_columns_and_deep_nesting() {
+        let mut paged = bridge_sub(1, vec![]);
+        paged.select.limit = Some(1);
+        let mut wide = bridge_sub(1, vec![]);
+        wide.select.columns.push("other".into());
+        for sub in [paged, wide] {
+            let mut q = select(vec![]);
+            q.subfilters = vec![sub];
+            assert!(compile_select(&q).is_err());
+        }
+        let mut deep = bridge_sub(1, vec![]);
+        for _ in 0..MAX_SUBQUERY_DEPTH {
+            let mut outer = bridge_sub(1, vec![]);
+            outer.select.subfilters = vec![deep];
+            deep = outer;
+        }
+        let mut q = select(vec![]);
+        q.subfilters = vec![deep];
+        assert!(compile_select(&q).is_err());
+    }
+
+    #[test]
+    fn not_in_with_no_values_excludes_nothing() {
+        let (sql, _) = compile_select(&select(vec![f("id", Op::NotIn, &[])])).unwrap();
+        assert!(sql.ends_with("WHERE TRUE"));
+        let (sql, params) = compile_select(&select(vec![f("id", Op::NotIn, &[1, 2])])).unwrap();
+        assert!(sql.ends_with("\"id\" NOT IN ($1, $2)"));
+        assert_eq!(params, vec![1, 2]);
+    }
+
+    #[test]
+    fn mysql_materializes_a_subquery_that_reads_the_written_table() {
+        let mut sub = bridge_sub(1, vec![]);
+        sub.select.table = "posts".into();
+        let delete = Delete {
+            table: "posts".into(),
+            filters: vec![],
+            subfilters: vec![sub],
+            returning: vec![],
+        };
+        let (sql, _) = compile_delete_with(&delete, Dialect::Mysql).unwrap();
+        assert!(sql.contains("IN (SELECT * FROM (SELECT `tag_id` FROM `posts`"));
+        assert!(sql.ends_with("AS hinoki_sub)"));
+        let (other, _) = compile_delete_with(
+            &Delete {
+                subfilters: vec![bridge_sub(1, vec![])],
+                ..delete
+            },
+            Dialect::Mysql,
+        )
+        .unwrap();
+        assert!(!other.contains("hinoki_sub"));
+    }
+
+    #[test]
+    fn delete_returning_is_refused_on_mysql_only() {
+        let delete = Delete::<i32> {
+            table: "posts_tags".into(),
+            filters: vec![f("post_id", Op::Eq, &[1])],
+            subfilters: vec![],
+            returning: vec!["tag_id".into()],
+        };
+        assert!(compile_delete(&delete)
+            .unwrap()
+            .0
+            .ends_with("RETURNING \"tag_id\""));
+        assert!(compile_delete_with(&delete, Dialect::Mysql).is_err());
     }
 }

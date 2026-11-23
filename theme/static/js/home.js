@@ -57,35 +57,51 @@
   };
 
   /* ---------- Hero glow follows the pointer ---------- */
-  /* Fine pointers only. The glow eases toward the pointer on animation frames
-     and fades out when the pointer leaves the hero. */
+  /* Fine pointers only. A short eased follow softens direction changes, then
+     the animation frame loop stops as soon as the glow settles. */
   const setupGlow = (hero) => {
     const glow = $(".hn-hero__bg i", hero);
-    const fine = matchMedia("(pointer: fine) and (prefers-reduced-motion: no-preference)");
-    if (!glow || !fine.matches) return;
+    const panel = $("[data-hn-panel]", hero);
+    const fine = matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)");
+    if (!glow || !panel || !fine.matches) return;
+    let pointer = { x: 0, y: 0 };
     let target = { x: 0, y: 0 };
     let now = { x: 0, y: 0 };
     let frame = 0;
     let last = 0;
-    const step = (time) => {
-      // Frame-rate independent easing: the same feel at 60 and 144 Hz.
-      const k = 1 - Math.exp(-Math.min(time - last || 16, 48) / 70);
+    let initialized = false;
+    const update = (time) => {
+      const box = hero.getBoundingClientRect();
+      const panelBox = panel.getBoundingClientRect();
+      target = { x: pointer.x - box.left, y: pointer.y - box.top };
+      if (!initialized) {
+        now = target;
+        initialized = true;
+      } else {
+        const elapsed = Math.min(last ? time - last : 16, 32);
+        const k = 1 - Math.exp(-elapsed / 32);
+        now = { x: now.x + (target.x - now.x) * k, y: now.y + (target.y - now.y) * k };
+      }
       last = time;
-      now = { x: now.x + (target.x - now.x) * k, y: now.y + (target.y - now.y) * k };
       glow.style.setProperty("--mx", `${now.x.toFixed(2)}px`);
-      glow.style.setProperty("--my", `${now.y.toFixed(2)}px`);
-      const settled = Math.abs(target.x - now.x) < 0.2 && Math.abs(target.y - now.y) < 0.2;
-      frame = settled ? 0 : requestAnimationFrame(step);
+      // The background layer starts 40px above the hero, so compensate here.
+      glow.style.setProperty("--my", `${(now.y + 40).toFixed(2)}px`);
+      panel.style.setProperty("--spot-x", `${(now.x - panelBox.left + box.left).toFixed(2)}px`);
+      panel.style.setProperty("--spot-y", `${(now.y - panelBox.top + box.top).toFixed(2)}px`);
+      const settled = Math.abs(target.x - now.x) < 0.15 && Math.abs(target.y - now.y) < 0.15;
+      frame = settled ? 0 : requestAnimationFrame(update);
       if (settled) last = 0;
     };
     hero.addEventListener("pointermove", (event) => {
-      const box = hero.getBoundingClientRect();
-      target = { x: event.clientX - box.left, y: event.clientY - box.top + 40 };
-      if (!hero.classList.contains("has-pointer")) now = target;
+      if (event.pointerType === "touch") return;
+      pointer = { x: event.clientX, y: event.clientY };
       hero.classList.add("has-pointer");
-      if (!frame) frame = requestAnimationFrame(step);
+      hero.classList.toggle("has-pointer-on-panel", panel.contains(event.target));
+      if (!frame) frame = requestAnimationFrame(update);
     });
-    hero.addEventListener("pointerleave", () => hero.classList.remove("has-pointer"));
+    hero.addEventListener("pointerleave", () => {
+      hero.classList.remove("has-pointer", "has-pointer-on-panel");
+    });
   };
 
   /* ---------- Tabs (workbench and commands) ---------- */

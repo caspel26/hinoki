@@ -3,6 +3,6 @@
 from hinoki import Includable, Mount
 
 from .apps.blog.adminsite import site
-from .apps.blog.api import Posts, health
+from .apps.blog.api import Posts, Tags, health
 
-routes: list[Includable] = [health, Posts, Mount("/admin", site)]
+routes: list[Includable] = [health, Posts, Tags, Mount("/admin", site)]

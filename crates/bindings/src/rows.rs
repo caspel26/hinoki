@@ -1,8 +1,10 @@
 //! Rust-only row projection and JSON encoding for eligible generated CRUD pages.
 
+use hinoki_orm::links::{Canon, KeyKind};
 use hinoki_orm::Value;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -14,6 +16,8 @@ enum Kind {
     Uuid,
     Timestamp,
     Bytes,
+    /// The set of linked keys of a many-to-many relation, read apart from the row.
+    Ids,
 }
 
 impl Kind {
@@ -26,6 +30,7 @@ impl Kind {
             "uuid" => Ok(Self::Uuid),
             "datetime" => Ok(Self::Timestamp),
             "bytes" => Ok(Self::Bytes),
+            "ids" => Ok(Self::Ids),
             _ => Err(PyValueError::new_err(format!(
                 "unsupported row wire kind {value:?}"
             ))),
@@ -39,6 +44,9 @@ struct Field {
     wire_name: String,
     kind: Kind,
     nullable: bool,
+    /// For an ids field, its position among the plan's ids fields.
+    slot: usize,
+    name: String,
 }
 
 /// Metadata only: this plan owns no Python objects and is safe in a Tokio task.
@@ -46,6 +54,20 @@ struct Field {
 pub(crate) struct RowPlan {
     columns: Vec<String>,
     fields: Vec<Field>,
+    key_index: Option<usize>,
+    key_kind: KeyKind,
+}
+
+/// The linked keys of the rows being written out, one map per ids field.
+#[derive(Debug, Default)]
+pub(crate) struct RowIds {
+    slots: Vec<HashMap<Canon, Vec<Canon>>>,
+}
+
+impl RowIds {
+    pub(crate) fn new(slots: Vec<HashMap<Canon, Vec<Canon>>>) -> Self {
+        Self { slots }
+    }
 }
 
 pub(crate) enum PageWireResult {
@@ -74,6 +96,25 @@ impl RowPlan {
         columns: Vec<String>,
         fields: Vec<(String, String, String, bool)>,
     ) -> PyResult<Self> {
+        Self::build(columns, fields, None, KeyKind::Int)
+    }
+
+    /// A plan whose `ids` fields are filled from [`RowIds`], keyed by the
+    /// row's `key_column`.
+    pub(crate) fn with_links(
+        columns: Vec<String>,
+        fields: Vec<(String, String, String, bool)>,
+        (key_column, key_kind): (&str, KeyKind),
+    ) -> PyResult<Self> {
+        Self::build(columns, fields, Some(key_column), key_kind)
+    }
+
+    fn build(
+        columns: Vec<String>,
+        fields: Vec<(String, String, String, bool)>,
+        key_column: Option<&str>,
+        key_kind: KeyKind,
+    ) -> PyResult<Self> {
         let mut planned = Vec::with_capacity(fields.len());
         let mut names = std::collections::HashSet::with_capacity(columns.len());
         for column in &columns {
@@ -81,26 +122,64 @@ impl RowPlan {
                 return Err(PyValueError::new_err("duplicate RowPlan SQL column"));
             }
         }
+        let key_index = key_column
+            .map(|key| {
+                columns
+                    .iter()
+                    .position(|column| column == key)
+                    .ok_or_else(|| PyValueError::new_err(format!("unknown row column {key:?}")))
+            })
+            .transpose()?;
         let mut wire_names = std::collections::HashSet::with_capacity(fields.len());
+        let mut slots = 0;
         for (name, wire_name, kind, nullable) in fields {
             if !wire_names.insert(wire_name.clone()) {
                 return Err(PyValueError::new_err("duplicate RowPlan wire name"));
             }
-            let column_index = columns
-                .iter()
-                .position(|column| column == &name)
-                .ok_or_else(|| PyValueError::new_err(format!("unknown row column {name:?}")))?;
+            let kind = Kind::parse(&kind)?;
+            let mut slot = 0;
+            let column_index = if kind == Kind::Ids {
+                if key_index.is_none() {
+                    return Err(PyValueError::new_err("an ids field needs a row key"));
+                }
+                slot = slots;
+                slots += 1;
+                usize::MAX
+            } else {
+                columns
+                    .iter()
+                    .position(|column| column == &name)
+                    .ok_or_else(|| PyValueError::new_err(format!("unknown row column {name:?}")))?
+            };
             planned.push(Field {
                 column_index,
                 wire_name,
-                kind: Kind::parse(&kind)?,
+                kind,
                 nullable,
+                slot,
+                name,
             });
         }
         Ok(Self {
             columns,
             fields: planned,
+            key_index,
+            key_kind,
         })
+    }
+
+    /// The names of the ids fields, in slot order.
+    pub(crate) fn ids_names(&self) -> Vec<&str> {
+        self.fields
+            .iter()
+            .filter(|field| field.kind == Kind::Ids)
+            .map(|field| field.name.as_str())
+            .collect()
+    }
+
+    /// The key of `row`, as the ids maps are keyed.
+    pub(crate) fn key_of(&self, row: &[(String, Value)]) -> Option<Canon> {
+        self.key_kind.read(&row.get(self.key_index?)?.1)
     }
 }
 
@@ -110,6 +189,15 @@ pub(crate) fn encode_page(
     page: u64,
     page_size: u64,
     total: u64,
+) -> Option<Vec<u8>> {
+    encode_page_with(rows, plan, &RowIds::default(), (page, page_size, total))
+}
+
+pub(crate) fn encode_page_with(
+    rows: &[Vec<(String, Value)>],
+    plan: &RowPlan,
+    ids: &RowIds,
+    (page, page_size, total): (u64, u64, u64),
 ) -> Option<Vec<u8>> {
     if page == 0 || page_size == 0 {
         return None;
@@ -122,7 +210,7 @@ pub(crate) fn encode_page(
         if index > 0 {
             output.push(b',');
         }
-        write_row(&mut output, row, plan)?;
+        write_row(&mut output, row, plan, ids)?;
     }
     output.extend_from_slice(b"],\"page\":");
     write_number(&mut output, page)?;
@@ -153,7 +241,7 @@ pub(crate) fn encode_cursor_page(
         if index > 0 {
             output.push(b',');
         }
-        write_row(&mut output, row, plan)?;
+        write_row(&mut output, row, plan, &RowIds::default())?;
     }
     output.extend_from_slice(b"],\"next\":");
     write_link(&mut output, links.next.as_deref());
@@ -177,13 +265,22 @@ fn write_link(output: &mut Vec<u8>, link: Option<&str>) {
     }
 }
 
-pub(crate) fn encode_item(row: &[(String, Value)], plan: &RowPlan) -> Option<Vec<u8>> {
+pub(crate) fn encode_item_with(
+    row: &[(String, Value)],
+    plan: &RowPlan,
+    ids: &RowIds,
+) -> Option<Vec<u8>> {
     let mut output = Vec::new();
-    write_row(&mut output, row, plan)?;
+    write_row(&mut output, row, plan, ids)?;
     Some(output)
 }
 
-fn write_row(output: &mut Vec<u8>, row: &[(String, Value)], plan: &RowPlan) -> Option<()> {
+fn write_row(
+    output: &mut Vec<u8>,
+    row: &[(String, Value)],
+    plan: &RowPlan,
+    ids: &RowIds,
+) -> Option<()> {
     validate_columns(row, &plan.columns)?;
     output.push(b'{');
     for (index, field) in plan.fields.iter().enumerate() {
@@ -191,9 +288,30 @@ fn write_row(output: &mut Vec<u8>, row: &[(String, Value)], plan: &RowPlan) -> O
             output.push(b',');
         }
         write_key(output, &field.wire_name)?;
-        write_value(output, &row[field.column_index].1, field)?;
+        if field.kind == Kind::Ids {
+            write_ids(output, ids.slots.get(field.slot)?.get(&plan.key_of(row)?))?;
+        } else {
+            write_value(output, &row[field.column_index].1, field)?;
+        }
     }
     output.push(b'}');
+    Some(())
+}
+
+/// A row without links shows an empty list.
+fn write_ids(output: &mut Vec<u8>, keys: Option<&Vec<Canon>>) -> Option<()> {
+    output.push(b'[');
+    for (index, key) in keys.into_iter().flatten().enumerate() {
+        if index > 0 {
+            output.push(b',');
+        }
+        match key {
+            Canon::Int(number) => write_number(output, number)?,
+            Canon::Text(text) => write_json(output, text)?,
+            Canon::Uuid(id) => write_json(output, &id.to_string())?,
+        }
+    }
+    output.push(b']');
     Some(())
 }
 
@@ -273,7 +391,7 @@ fn write_float(output: &mut Vec<u8>, value: f64) -> Option<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_item, encode_page, RowPlan};
+    use super::{encode_item_with, encode_page, RowIds, RowPlan};
     use hinoki_orm::Value;
     use time::macros::datetime;
     use uuid::Uuid;
@@ -320,9 +438,45 @@ mod tests {
         ];
 
         assert_eq!(
-            encode_item(&row, &plan).unwrap(),
+            encode_item_with(&row, &plan, &RowIds::default()).unwrap(),
             r#"{"displayName":"Hinoki 🌲","id":9}"#.as_bytes()
         );
+    }
+
+    #[test]
+    fn writes_the_sorted_ids_of_a_row_and_an_empty_list_for_an_unlinked_one() {
+        use hinoki_orm::links::{Canon, KeyKind};
+        use std::collections::HashMap;
+
+        let plan = RowPlan::with_links(
+            vec!["id".to_owned()],
+            vec![
+                ("id".to_owned(), "id".to_owned(), "int".to_owned(), false),
+                (
+                    "tag_ids".to_owned(),
+                    "tagIds".to_owned(),
+                    "ids".to_owned(),
+                    false,
+                ),
+            ],
+            ("id", KeyKind::Int),
+        )
+        .unwrap();
+        let ids = RowIds::new(vec![HashMap::from([(
+            Canon::Int(1),
+            vec![Canon::Text("a".into()), Canon::Text("b".into())],
+        )])]);
+        let one = vec![("id".to_owned(), Value::Int(1))];
+        let two = vec![("id".to_owned(), Value::Int(2))];
+        assert_eq!(
+            encode_item_with(&one, &plan, &ids).unwrap(),
+            br#"{"id":1,"tagIds":["a","b"]}"#
+        );
+        assert_eq!(
+            encode_item_with(&two, &plan, &ids).unwrap(),
+            br#"{"id":2,"tagIds":[]}"#
+        );
+        assert!(encode_item_with(&one, &plan, &RowIds::default()).is_none());
     }
 
     fn row(name: Value, weight: Value) -> Vec<(String, Value)> {
@@ -395,12 +549,16 @@ mod tests {
                 wire_name: "created".into(),
                 kind: super::Kind::Timestamp,
                 nullable: false,
+                slot: 0,
+                name: "created".into(),
             },
             super::Field {
                 column_index: 3,
                 wire_name: "count".into(),
                 kind: super::Kind::Int,
                 nullable: false,
+                slot: 0,
+                name: "count".into(),
             },
         ];
         let mut values = row(Value::Null, Value::Int(i64::MAX));

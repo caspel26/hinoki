@@ -32,6 +32,29 @@ pub const EVENT_OUTCOMES: [&str; 3] = ["ok", "error", "timeout"];
 /// Most event series (event and phase pairs) a registry may have.
 pub const MAX_EVENT_SERIES: usize = 4096;
 
+/// Decisions of a rate limit check, in the order of the series.
+pub const RATE_LIMIT_DECISIONS: [&str; 4] = ["allowed", "refused", "unavailable", "failed_open"];
+
+/// Outcomes of an email send, in the order of the series: `sent`, then the
+/// kinds of a failed send.
+pub const EMAIL_OUTCOMES: [&str; 15] = [
+    "sent",
+    "invalid_address",
+    "invalid_header",
+    "invalid_message",
+    "limit_exceeded",
+    "closed",
+    "busy",
+    "connect",
+    "timeout",
+    "tls",
+    "auth",
+    "rejected",
+    "temporary",
+    "protocol",
+    "template",
+];
+
 const NO_SLOT: u32 = u32::MAX;
 
 /// Something that went wrong beyond the status of the answer.
@@ -66,6 +89,10 @@ pub struct Config {
     /// The (event, phase) label pairs of the event handlers, known at start. The
     /// index of a pair is the slot [`Registry::observe_event`] takes.
     pub events: Vec<(String, String)>,
+    /// The `backend` label of the email metrics; none when the app sends no email.
+    pub email: Option<String>,
+    /// Whether the app uses the built-in rate limiter.
+    pub rate_limits: bool,
 }
 
 impl Default for Config {
@@ -75,6 +102,8 @@ impl Default for Config {
             version: String::new(),
             buckets: DEFAULT_BUCKETS.to_vec(),
             events: Vec::new(),
+            email: None,
+            rate_limits: false,
         }
     }
 }
@@ -94,6 +123,27 @@ impl EventSeries {
             event,
             phase,
             outcomes: Default::default(),
+            buckets: (0..=buckets).map(|_| AtomicU64::new(0)).collect(),
+            sum_micros: AtomicU64::new(0),
+        }
+    }
+}
+
+struct EmailSeries {
+    backend: String,
+    outcomes: [AtomicU64; EMAIL_OUTCOMES.len()],
+    retries: AtomicU64,
+    /// Sends per bucket, not cumulative, whatever the outcome.
+    buckets: Box<[AtomicU64]>,
+    sum_micros: AtomicU64,
+}
+
+impl EmailSeries {
+    fn new(backend: String, buckets: usize) -> Self {
+        Self {
+            backend,
+            outcomes: Default::default(),
+            retries: AtomicU64::new(0),
             buckets: (0..=buckets).map(|_| AtomicU64::new(0)).collect(),
             sum_micros: AtomicU64::new(0),
         }
@@ -131,6 +181,8 @@ pub struct Registry {
     bytes: Vec<AtomicU64>,
     errors: Vec<[AtomicU64; 2]>,
     events: Vec<EventSeries>,
+    email: Option<EmailSeries>,
+    rate_limits: Option<[AtomicU64; RATE_LIMIT_DECISIONS.len()]>,
     in_flight: AtomicI64,
     snapshot_errors: AtomicU64,
 }
@@ -227,6 +279,10 @@ impl Registry {
                 .into_iter()
                 .map(|pair| EventSeries::new(pair, buckets))
                 .collect(),
+            email: config
+                .email
+                .map(|backend| EmailSeries::new(backend, buckets)),
+            rate_limits: config.rate_limits.then(Default::default),
             in_flight: AtomicI64::new(0),
             snapshot_errors: AtomicU64::new(0),
         })
@@ -291,6 +347,55 @@ impl Registry {
         series.sum_micros.fetch_add(micros, Ordering::Relaxed);
     }
 
+    /// Record one email send: `outcome` is one of [`EMAIL_OUTCOMES`] and
+    /// `elapsed` the time of the whole send. Anything else is ignored, as is a
+    /// send when the registry has no email series.
+    pub fn observe_email(&self, outcome: &str, elapsed: Duration) {
+        let Some(series) = &self.email else {
+            return;
+        };
+        let Some(position) = EMAIL_OUTCOMES.iter().position(|known| *known == outcome) else {
+            return;
+        };
+        series.outcomes[position].fetch_add(1, Ordering::Relaxed);
+        let micros = u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
+        let bucket = self.bounds_micros.partition_point(|bound| *bound < micros);
+        series.buckets[bucket].fetch_add(1, Ordering::Relaxed);
+        series.sum_micros.fetch_add(micros, Ordering::Relaxed);
+    }
+
+    /// Record one new delivery attempt after a failed one.
+    pub fn observe_email_retry(&self) {
+        if let Some(series) = &self.email {
+            series.retries.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Record one rate limit decision: `decision` is one of
+    /// [`RATE_LIMIT_DECISIONS`]. Anything else is ignored, as is a decision when
+    /// the registry has no rate limit series.
+    pub fn observe_rate_limit(&self, decision: &str) {
+        let Some(counts) = &self.rate_limits else {
+            return;
+        };
+        if let Some(position) = RATE_LIMIT_DECISIONS
+            .iter()
+            .position(|known| *known == decision)
+        {
+            counts[position].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Whether this registry has rate limit metrics.
+    pub fn has_rate_limits(&self) -> bool {
+        self.rate_limits.is_some()
+    }
+
+    /// Whether this registry has email metrics.
+    pub fn has_email(&self) -> bool {
+        self.email.is_some()
+    }
+
     /// A peer's snapshot that could not be used.
     pub fn snapshot_error(&self) {
         self.snapshot_errors.fetch_add(1, Ordering::Relaxed);
@@ -321,6 +426,8 @@ impl Registry {
         self.render_bytes(&mut out);
         self.render_errors(&mut out);
         self.render_events(&mut out);
+        self.render_email(&mut out);
+        self.render_rate_limits(&mut out);
         family(
             &mut out,
             "hinoki_metrics_snapshot_errors_total",
@@ -449,6 +556,76 @@ impl Registry {
                 (&series.buckets, &series.sum_micros),
             );
         }
+    }
+
+    fn render_rate_limits(&self, out: &mut String) {
+        let Some(counts) = &self.rate_limits else {
+            return;
+        };
+        family(
+            out,
+            "hinoki_rate_limit_decisions_total",
+            "counter",
+            "Rate limit checks, by decision.",
+        );
+        for (decision, count) in RATE_LIMIT_DECISIONS.iter().zip(counts) {
+            let count = count.load(Ordering::Relaxed);
+            if count > 0 {
+                let _ = writeln!(
+                    out,
+                    "hinoki_rate_limit_decisions_total{{decision=\"{decision}\",worker=\"{}\"}} {count}",
+                    self.worker
+                );
+            }
+        }
+    }
+
+    fn render_email(&self, out: &mut String) {
+        let Some(series) = &self.email else {
+            return;
+        };
+        let backend = escaped(&series.backend);
+        family(
+            out,
+            "hinoki_email_messages_total",
+            "counter",
+            "Email sends, by backend and outcome.",
+        );
+        for (outcome, count) in EMAIL_OUTCOMES.iter().zip(&series.outcomes) {
+            let count = count.load(Ordering::Relaxed);
+            if count > 0 {
+                let _ = writeln!(
+                    out,
+                    "hinoki_email_messages_total{{backend=\"{backend}\",outcome=\"{outcome}\",\
+                     worker=\"{}\"}} {count}",
+                    self.worker
+                );
+            }
+        }
+        family(
+            out,
+            "hinoki_email_send_duration_seconds",
+            "histogram",
+            "Time of an email send, in seconds, whatever its outcome.",
+        );
+        self.render_histogram(
+            out,
+            "hinoki_email_send_duration_seconds",
+            &format!("backend=\"{backend}\""),
+            (&series.buckets, &series.sum_micros),
+        );
+        family(
+            out,
+            "hinoki_email_retries_total",
+            "counter",
+            "Delivery attempts made again after a transient failure.",
+        );
+        let _ = writeln!(
+            out,
+            "hinoki_email_retries_total{{backend=\"{backend}\",worker=\"{}\"}} {}",
+            self.worker,
+            series.retries.load(Ordering::Relaxed)
+        );
     }
 
     /// The bucket, sum and count lines of one histogram series; nothing while
@@ -637,6 +814,8 @@ mod tests {
                 ("Created[Note]".to_owned(), "after_commit".to_owned()),
                 ("Noted".to_owned(), "in_transaction".to_owned()),
             ],
+            email: Some("smtp".to_owned()),
+            rate_limits: true,
         };
         Arc::new(Registry::new(config, &routes).unwrap())
     }
@@ -671,6 +850,72 @@ mod tests {
         assert!(text.contains(&format!(
             "hinoki_event_handler_duration_seconds_sum{{{labels},worker=\"3\"}} 30.055"
         )));
+    }
+
+    #[test]
+    fn email_sends_are_counted_by_outcome_and_timed() {
+        let registry = registry();
+        registry.observe_email("sent", Duration::from_millis(5));
+        registry.observe_email("sent", Duration::from_millis(50));
+        registry.observe_email("rejected", Duration::from_secs(30));
+        registry.observe_email("not_a_kind", Duration::ZERO);
+        registry.observe_email_retry();
+        assert!(registry.has_email());
+        let text = registry.render();
+        assert!(text.contains(
+            "hinoki_email_messages_total{backend=\"smtp\",outcome=\"sent\",worker=\"3\"} 2"
+        ));
+        assert!(text.contains(
+            "hinoki_email_messages_total{backend=\"smtp\",outcome=\"rejected\",worker=\"3\"} 1"
+        ));
+        assert!(!text.contains("not_a_kind"));
+        assert!(text.contains(
+            "hinoki_email_send_duration_seconds_bucket{backend=\"smtp\",le=\"0.01\",worker=\"3\"} 1"
+        ));
+        assert!(text
+            .contains("hinoki_email_send_duration_seconds_count{backend=\"smtp\",worker=\"3\"} 3"));
+        assert!(text.contains("hinoki_email_retries_total{backend=\"smtp\",worker=\"3\"} 1"));
+    }
+
+    #[test]
+    fn rate_limit_decisions_are_counted_and_unknown_ones_ignored() {
+        let registry = registry();
+        registry.observe_rate_limit("allowed");
+        registry.observe_rate_limit("refused");
+        registry.observe_rate_limit("refused");
+        registry.observe_rate_limit("failed_open");
+        registry.observe_rate_limit("nonsense");
+        assert!(registry.has_rate_limits());
+        let text = registry.render();
+        assert!(
+            text.contains("hinoki_rate_limit_decisions_total{decision=\"refused\",worker=\"3\"} 2")
+        );
+        assert!(
+            text.contains("hinoki_rate_limit_decisions_total{decision=\"allowed\",worker=\"3\"} 1")
+        );
+        assert!(text.contains("decision=\"failed_open\""));
+        assert!(!text.contains("nonsense"));
+    }
+
+    #[test]
+    fn no_rate_limit_family_unless_the_app_uses_the_limiter() {
+        let config = Config {
+            rate_limits: false,
+            ..Config::default()
+        };
+        let registry = Registry::new(config, &[]).unwrap();
+        registry.observe_rate_limit("allowed");
+        assert!(!registry.has_rate_limits());
+        assert!(!registry.render().contains("hinoki_rate_limit"));
+    }
+
+    #[test]
+    fn no_email_family_without_an_email_backend() {
+        let registry = Registry::new(Config::default(), &[]).unwrap();
+        registry.observe_email("sent", Duration::ZERO);
+        registry.observe_email_retry();
+        assert!(!registry.has_email());
+        assert!(!registry.render().contains("hinoki_email"));
     }
 
     #[test]

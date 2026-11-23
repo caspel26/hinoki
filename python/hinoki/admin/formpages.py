@@ -12,6 +12,7 @@ from hinoki.admin.forms import (
     input_text,
     render_field,
 )
+from hinoki.admin.linkfields import link_form_fields, link_lists
 from hinoki.admin.lists import list_page
 from hinoki.admin.modeladmin import ModelAdmin
 from hinoki.admin.parts import Badge
@@ -19,6 +20,8 @@ from hinoki.admin.site import OPTION_LIMIT, Site
 from hinoki.admin.templates import Raw, escape
 from hinoki.http.request import Request
 from hinoki.http.response import Response
+
+COLLECTIONS = frozenset({"choices", "links"})
 
 
 async def option_lists(
@@ -114,6 +117,8 @@ def status_badge(entry: ModelAdmin[Any], row: Any) -> Badge | None:
 async def form_response(site: Site, view: FormView) -> Response:
     entry, slug, row = view.entry, view.slug, view.row
     fields, options = await option_lists(site, view.fields)
+    fields, link_options = await link_lists(site, entry, fields, view.values)
+    options.update(link_options)
     t = site.admin.templates
     key = str(getattr(row, entry.model.__primary_key__)) if row is not None else ""
     action = (
@@ -217,7 +222,7 @@ def form_fields(entry: ModelAdmin[Any], *, creating: bool) -> list[FormField]:
         )
         for extra in entry.extras()
     ]
-    return [*columns, *extras]
+    return [*columns, *link_form_fields(entry), *extras]
 
 
 async def current_values(
@@ -226,7 +231,7 @@ async def current_values(
     """What the edit form shows: the row's columns, then each extra's initial."""
     extra = await entry.extra_initial(row)
     return {
-        f.name: extra.get(f.name, frozenset() if f.kind == "choices" else "")
+        f.name: extra.get(f.name, frozenset() if f.kind in COLLECTIONS else "")
         if f.virtual
         else getattr(row, f.name)
         for f in fields
@@ -237,7 +242,7 @@ def submitted(request: Request, fields: list[FormField]) -> dict[str, Any]:
     """The posted values for a form shown again, a set of choices kept whole."""
     shown: dict[str, Any] = dict(request.POST)
     for field in fields:
-        if field.kind == "choices":
+        if field.kind in COLLECTIONS:
             shown[field.name] = frozenset(request.POST.getlist(field.name))
     return shown
 

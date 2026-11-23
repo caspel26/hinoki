@@ -30,14 +30,14 @@ The PyO3 extension build backend requires maturin ≥ 1.16.0 (`[build-system]` i
 | Types + typing fixtures | `uv run --locked mypy` (checks `python/hinoki`, `tests` and `examples`) |
 | Python cognitive complexity | `uv run --locked complexipy . --failed` |
 | Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
-| Python tests + coverage | `uv run --locked pytest --cov` (runs `tests` and the tests of `examples/notes`, `examples/tracker` and `examples/blog`) |
+| Python tests + coverage | `uv run --locked pytest --cov` (runs `tests` and the tests of `examples/notes`, `examples/tracker`, `examples/blog` and `examples/mailroom`) |
 | Only the real-server tests | `uv run --locked pytest -m runtime` |
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` (see PyO3 setup below) |
 | All hooks | `uv run --locked pre-commit run --all-files` |
 
 ### Measuring coverage
 
-Coverage also measures child processes (`patch = ["subprocess"]` with `parallel` and `sigterm` in `[tool.coverage.run]`), so the supervisor, worker and `hinoki serve` tests count. CI runs two phases and merges them: the main suite with `pytest -n 4 --cov`, then the server suites (`tests/runtime`, `tests/kisoservertest.py`, `tests/kisoclitest.py`, `tests/wsgitest.py`) with `--cov --cov-append`. Locally:
+Coverage also measures child processes (`patch = ["subprocess"]` with `parallel` and `sigterm` in `[tool.coverage.run]`), so the supervisor, worker and `hinoki serve` tests count. CI runs two phases and merges them: the main suite with `pytest -n 4 --cov`, then the server suites (`tests/runtime`, `tests/kisoservertest.py`, `tests/kisoclitest.py`, `tests/wsgitest.py`, `tests/ratelimitservertest.py`) with `--cov --cov-append`. Locally:
 
 ```sh
 uv run --locked pytest -n 4 --cov --cov-report=term-missing

@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::marker::PhantomData;
 
 use pyo3::basic::CompareOp;
@@ -860,8 +861,28 @@ impl<'v> View for JsonView<'v> {
         Ok(value)
     }
 
-    fn collect(&self, _collection: Collection, _value: Validated) -> Result<Validated, Defer> {
-        Err(Defer("collection"))
+    /// A set or frozenset of scalar members, duplicates collapsed in first-seen
+    /// order; anything else is left to Python.
+    fn collect(&self, collection: Collection, value: Validated) -> Result<Validated, Defer> {
+        let (Collection::Set | Collection::Frozenset, Validated::List(members)) =
+            (collection, value)
+        else {
+            return Err(Defer("collection"));
+        };
+        let mut seen = HashSet::with_capacity(members.len());
+        let mut distinct: Vec<Validated> = Vec::with_capacity(members.len());
+        for member in members {
+            let key = match &member {
+                Validated::Int(number) => format!("i{number}"),
+                Validated::Str(text) => format!("s{text}"),
+                Validated::Uuid(id) => format!("u{id}"),
+                _ => return Err(Defer("collection")),
+            };
+            if seen.insert(key) {
+                distinct.push(member);
+            }
+        }
+        Ok(Validated::List(distinct))
     }
 
     fn anything(&self, _data: &&'v Json) -> Result<Validated, Defer> {

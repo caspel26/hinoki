@@ -232,6 +232,36 @@ impl MysqlLease {
         Ok(conn.affected_rows())
     }
 
+    /// Execute a statement and return the `last_insert_id` of its OK packet;
+    /// `None` when it is 0 (`LAST_INSERT_ID(expr)` was not evaluated).
+    pub(crate) async fn exec_last_insert_id(
+        &mut self,
+        sql: &str,
+        values: &[Value],
+    ) -> Result<Option<i64>, DbError> {
+        if self.interrupted.load(Ordering::Acquire) {
+            return Err(DbError::new(
+                ErrorKind::Other,
+                "database request was interrupted",
+            ));
+        }
+        let mut flight = Flight {
+            interrupted: self.interrupted.clone(),
+            armed: true,
+        };
+        let params = params(values)?;
+        let conn = self.conn.as_mut().expect("lease already released");
+        let result = conn.exec_drop(sql, params).await;
+        flight.settle(&result);
+        result.map_err(|e| error(&e, ErrorKind::Other))?;
+        match conn.last_insert_id() {
+            None | Some(0) => Ok(None),
+            Some(id) => i64::try_from(id).map(Some).map_err(|_| {
+                DbError::new(ErrorKind::Type, "integer exceeds Hinoki's 64-bit range")
+            }),
+        }
+    }
+
     pub(crate) fn release(mut self) {
         self.conn.take();
     }

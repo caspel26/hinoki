@@ -31,9 +31,9 @@ from hinoki.parsers import (
     UploadedFile,
     XMLParser,
 )
-from hinoki.ratelimit import RateLimitContext, RateLimitPolicy
+from hinoki.ratelimit import RateLimit, RateLimitContext, RateLimitPolicy
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
-from hinoki.resources import Crud, CrudAccess, crud, from_user
+from hinoki.resources import Crud, CrudAccess, all_rows, crud, from_user, own_rows
 from hinoki.routing import Includable, Mount, Route, RouteGroup
 from hinoki.rules import Actions, Imports, Models, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
@@ -106,6 +106,7 @@ __all__ = [
     "Parser",
     "Permission",
     "Query",
+    "RateLimit",
     "RateLimitContext",
     "RateLimitPolicy",
     "Renderer",
@@ -127,6 +128,7 @@ __all__ = [
     "XMLParser",
     "XMLRenderer",
     "__version__",
+    "all_rows",
     "before_validate",
     "computed_field",
     "crud",
@@ -137,6 +139,7 @@ __all__ = [
     "from_user",
     "http",
     "object_check",
+    "own_rows",
     "set_cookie",
     "settings",
 ]

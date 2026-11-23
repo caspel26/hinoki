@@ -132,6 +132,8 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 
 `settings.DatabaseSettings` is an optional field you declare in your own settings class, not a `settings.AppSettings` group. Its `url` defaults to `sqlite://./.hinoki/local.sqlite3`; `max_size` defaults to `10` connections per worker and must be at least `1`.
 
+`settings.EmailSettings` is optional in the same way: an `email: settings.EmailSettings` field installs the [email module](email.md). Its `backend` (`smtp`, `console` or `memory`) is required and has no default; `password` is a `Secret` (`NOTES_EMAIL__PASSWORD` or `NOTES_EMAIL__PASSWORD_FILE`). Every field, its default and its range are in [send email](email.md#settings).
+
 ## Where values come from
 
 `load` is the only place configuration is read; `Hinoki(settings=ProjectSettings)`

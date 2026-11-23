@@ -365,12 +365,19 @@ fn lower_node(py: Python<'_>, node: &Node<PyRules>) -> Result<Node<NativeRules>,
         None => None,
     };
     // A member is a Python object; the GIL-free walk cannot build one.
-    if node.member.is_some() || node.collection.is_some() || matches!(kind, Kind::Tuple(_)) {
+    // A set of scalars is built from the checked array without Python; any other
+    // container, like a tuple, needs one.
+    let collection = match node.collection {
+        None => None,
+        Some(kind @ (Collection::Set | Collection::Frozenset)) => Some(kind),
+        Some(Collection::Tuple) => return Err(Unlowerable),
+    };
+    if node.member.is_some() || matches!(kind, Kind::Tuple(_)) {
         return Err(Unlowerable);
     }
     Ok(Node {
         kind,
-        collection: None,
+        collection,
         nullable: node.nullable,
         min_length: node.min_length,
         max_length: node.max_length,

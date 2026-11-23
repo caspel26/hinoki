@@ -109,6 +109,7 @@ async fn typed_values_round_trip_and_pool_recovers_after_errors() {
             op: Op::ContainsAny,
             values: vec![Value::Text("hello".into())],
         }],
+        subfilters: vec![],
         keyset: None,
         order: vec![],
         limit: None,
@@ -191,5 +192,54 @@ async fn migration_transaction_holds_and_releases_a_database_lock() {
         .await
         .unwrap();
     assert_eq!(rows[0][0].1, Value::Null);
+    db.close();
+}
+
+#[tokio::test]
+async fn execute_scalar_returns_last_insert_id_of_the_branch_taken() {
+    let Some(db) = database("hinoki_mysql_scalar_base", 2).await else {
+        return;
+    };
+    db.execute("DROP TABLE IF EXISTS `hinoki_mysql_scalar`", &[])
+        .await
+        .unwrap();
+    db.execute(
+        "CREATE TABLE `hinoki_mysql_scalar` (`k` VARCHAR(8) NOT NULL PRIMARY KEY, `v` BIGINT NOT NULL)",
+        &[],
+    )
+    .await
+    .unwrap();
+    // No AUTO_INCREMENT column: the value comes from LAST_INSERT_ID(expr) alone.
+    let upsert = "INSERT INTO `hinoki_mysql_scalar` (`k`, `v`) VALUES (?, LAST_INSERT_ID(?)) \
+                  ON DUPLICATE KEY UPDATE `v` = LAST_INSERT_ID(IF(`v` < ?, `v` + 1, `v`))";
+    let db = &db;
+    let hit = |limit: i64| async move {
+        db.execute_scalar(
+            upsert,
+            &[Value::Text("a".into()), Value::Int(1), Value::Int(limit)],
+        )
+        .await
+    };
+    assert_eq!(hit(3).await.unwrap(), Some(1), "insert branch");
+    assert_eq!(hit(3).await.unwrap(), Some(2), "update branch, row changed");
+    assert_eq!(hit(3).await.unwrap(), Some(3), "update branch, row changed");
+    for _ in 0..3 {
+        assert_eq!(
+            hit(3).await.unwrap(),
+            Some(3),
+            "update branch, row unchanged"
+        );
+    }
+    let miss = db
+        .execute_scalar(
+            "UPDATE `hinoki_mysql_scalar` SET `v` = LAST_INSERT_ID(`v` + 1) WHERE `k` = ?",
+            &[Value::Text("zz".into())],
+        )
+        .await
+        .unwrap();
+    assert_eq!(miss, None, "no matching row");
+    db.execute("DROP TABLE `hinoki_mysql_scalar`", &[])
+        .await
+        .unwrap();
     db.close();
 }

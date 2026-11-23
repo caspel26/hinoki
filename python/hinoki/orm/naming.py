@@ -35,6 +35,11 @@ def _words(name: str) -> list[str]:
     return words
 
 
+def snake_case(name: str) -> str:
+    """``PostTag`` becomes ``post_tag``: the words of a class name, lower case."""
+    return "_".join(word.lower() for word in _words(name))
+
+
 def _word_boundary(name: str, index: int) -> bool:
     previous = name[index - 1] if index else ""
     character = name[index]

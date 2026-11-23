@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import dataclasses
 import enum
+import functools
 import inspect
 import types
 import typing
@@ -22,6 +23,7 @@ from hinoki.errors import (
     ErrorDetail,
     FieldError,
     Forbidden,
+    OwnerOutOfScope,
     RegistrationError,
     ValidationError,
 )
@@ -35,6 +37,7 @@ from hinoki.orm import Model, QuerySet
 from hinoki.orm.context import current_database
 from hinoki.orm.keyset import CursorRequest, cursor_order, fetch_request, prepare
 from hinoki.orm.queryset import TEXT_DECIMAL_OPERATORS, decimal_columns
+from hinoki.orm.relations import LinkEnd
 from hinoki.pagination import (
     CursorPage,
     CursorPagination,
@@ -68,6 +71,7 @@ HOOKS = (
     "store",
     "change",
     "remove",
+    "link_queryset",
 )
 INTERNAL_HOOKS = ("reload_written",)
 
@@ -294,6 +298,28 @@ class _CrudConfig:
     schema_shown: Mapping[str, bool] = dataclasses.field(default_factory=dict)
     tags: tuple[str, ...] = ()
     deprecated: bool | date = False
+    links: Mapping[str, Callable[[Any], QuerySet[Any]]] = dataclasses.field(
+        default_factory=dict
+    )
+
+    @functools.cached_property
+    def link_ids(self) -> dict[str, LinkEnd]:
+        """The many-to-many relations the model declares, by their ids field."""
+        return {
+            side.ids_name: side
+            for side in self.model.__links__.values()
+            if side.forward and side.ids_name
+        }
+
+    @functools.cached_property
+    def read_links(self) -> tuple[str, ...]:
+        return tuple(self.link_ids.keys() & self.read.specs().keys())
+
+    def link_fields(self, schema: type[Schema] | None) -> list[LinkEnd]:
+        """The relations whose ids field ``schema`` carries."""
+        if schema is None:
+            return []
+        return [side for name, side in self.link_ids.items() if name in schema.specs()]
 
     def documentation(self, action: str) -> dict[str, Any]:
         """The OpenAPI options of one generated action."""
@@ -323,7 +349,7 @@ class _CrudConfig:
         found += ["delete"] if self.deletable else []
         return found
 
-    def check(self, *, custom_output: bool = False) -> None:
+    def check(self, *, custom_output: bool = False, custom_links: bool = False) -> None:
         """Fail at class creation, not on the first request."""
         name = self.model.__name__
         columns = set(self.model.__columns__)
@@ -342,7 +368,74 @@ class _CrudConfig:
             if column not in columns:
                 raise RegistrationError(f"{name} has no column {column!r} to assign")
         self.check_schemas(columns, custom_output=custom_output)
+        self.check_links(custom=custom_links)
         self.check_filters()
+
+    def check_links(self, *, custom: bool) -> None:
+        """Every ids field needs a scope for its targets, or the CRUD would let
+        a caller link rows it cannot see."""
+        name = self.model.__name__
+        declared = {side.declared for side in self.link_ids.values()}
+        unknown = sorted(set(self.links) - declared)
+        if unknown:
+            raise RegistrationError(
+                f"{name}: links= names {unknown}, which are not many_to_many "
+                "relations of the model"
+            )
+        for schema in (self.read, self.create, self.update):
+            if schema is None:
+                continue
+            for side in self.link_fields(schema):
+                self.check_link_field(schema, side, custom=custom)
+
+    def check_link_field(
+        self, schema: type[Schema], side: LinkEnd, *, custom: bool
+    ) -> None:
+        name = self.model.__name__
+        if side.declared not in self.links and not custom:
+            raise RegistrationError(
+                f"crud({name}): {side.ids_name} needs links="
+                f'{{"{side.declared}": ...}}; use all_rows({side.target.__name__}) '
+                f"to allow every {side.target.__name__}"
+            )
+        ftype = schema.specs()[side.ids_name].ftype
+        self.check_link_scope(side)
+        key = side.target.__field_types__[side.target.__primary_key__]
+        if (
+            ftype.collection != "set"
+            or ftype.item is None
+            or (ftype.item.kind != key.kind)
+        ):
+            raise RegistrationError(
+                f"{name}: {schema.__name__}.{side.ids_name} must be a set of "
+                f"{side.target.__name__} keys"
+            )
+        bound = ftype.info.max_length
+        if schema is not self.read and (bound is None or bound > side.max_items):
+            raise RegistrationError(
+                f"{name}: {schema.__name__}.{side.ids_name} needs "
+                f"Field(max_length=...) of at most {side.max_items}"
+            )
+
+    def check_link_scope(self, side: LinkEnd) -> None:
+        """An ``own_rows`` entry names a text column of the targets and needs
+        the caller's id on every action."""
+        scope = self.links.get(side.declared)
+        if not isinstance(scope, OwnedRows):
+            return
+        name = self.model.__name__
+        kind = side.target.__field_types__.get(scope.column)
+        if scope.model is not side.target or kind is None or kind.kind != "str":
+            raise RegistrationError(
+                f"crud({name}): own_rows({scope.model.__name__}, {scope.column!r}) "
+                f"must name a text column of {side.target.__name__}"
+            )
+        used = ["list", "retrieve"]
+        used += [a for a, s in (("create", self.create), ("update", self.update)) if s]
+        if any(self.access_for(a) is None for a in used if a not in self.omit):
+            raise RegistrationError(
+                f"crud({name}): own_rows needs access= on every action"
+            )
 
     def check_filters(self) -> None:
         if self.filters is None:
@@ -361,16 +454,17 @@ class _CrudConfig:
                 f"{self.model.__name__}: read_schema is derived from "
                 f"{self.read.__derived_model__.__name__}"
             )
+        names = columns | set(self.link_ids)
         if self.create is not None:
             self.check_derived_model("create", self.create)
-            self.check_input("create", self.create, columns)
+            self.check_input("create", self.create, names)
             self.check_required(self.create)
         if self.update is not None:
             self.check_derived_model("update", self.update)
-            self.check_input("update", self.update, columns)
+            self.check_input("update", self.update, names)
             self.check_patch(self.update)
         if not custom_output:
-            self.check_names("read", self.read, columns)
+            self.check_names("read", self.read, names)
 
     def check_derived_model(self, label: str, schema: type[Schema]) -> None:
         if schema.__derived_model__ not in (None, self.model):
@@ -447,7 +541,11 @@ class _CrudConfig:
 
     def values(self, data: Schema) -> dict[str, Any]:
         found = {name: getattr(data, name) for name in data.specs()}
-        return {name: value for name, value in found.items() if value is not UNSET}
+        return {
+            name: value
+            for name, value in found.items()
+            if value is not UNSET and name not in self.link_ids
+        }
 
     def owner_of(self, principal: Any) -> Any:
         """The caller's owner value; a caller without one may change nothing,
@@ -543,6 +641,7 @@ async def list_rows(
     query = await narrowed(self, base, filters, principal)
     if not query.order:
         query = query.order_by(self.resource.model.__primary_key__)
+    query = await with_links(self, query, principal)
     if (
         _row_plan is not None
         and _row_plan.valid_for(self)
@@ -603,6 +702,7 @@ async def list_cursor_rows(
     those filters and to the ordering."""
     base = await self.call_hook("get_queryset", principal)
     query = await narrowed(self, base, filters, principal)
+    query = await with_links(self, query, principal)
     cursor = prepare(query, page, b"" if filters is None else filters.scope)
     if (
         _row_plan is not None
@@ -651,11 +751,54 @@ async def schema_items(self: CrudBase, rows: list[Any]) -> list[Any]:
     return list(items)
 
 
+async def with_links(
+    self: CrudBase, query: QuerySet[Any], principal: Any
+) -> QuerySet[Any]:
+    """Load the links the read schema shows, limited to the targets the caller
+    may see; the serializer then reads them without I/O."""
+    sides = self.resource.link_fields(self.resource.read)
+    if not sides:
+        return query
+    scopes = {
+        side.declared: await self.call_hook("link_queryset", side.declared, principal)
+        for side in sides
+    }
+    return query.prefetch_related(**scopes)
+
+
+async def write_links(
+    self: CrudBase,
+    row: Any,
+    schema: type[Schema] | None,
+    data: Any,
+    principal: Any,
+    owner_within: QuerySet[Any] | None = None,
+) -> None:
+    """Replace the links the request sent. Targets outside the caller's scope
+    are refused like missing ones; links the caller cannot see stay as they
+    are. ``owner_within`` is re-checked once the owner row is locked: a row that
+    left it meanwhile is refused. The route's transaction rolls everything back
+    on an error."""
+    for side in self.resource.link_fields(schema):
+        ids = getattr(data, side.ids_name)
+        if ids is UNSET:
+            continue
+        scope = await self.call_hook("link_queryset", side.declared, principal)
+        try:
+            await getattr(row, side.declared).write(
+                "set", tuple(ids), scope, owner_within
+            )
+        except OwnerOutOfScope:
+            key = getattr(row, self.resource.model.__primary_key__)
+            raise await self.refuse(key, principal) from None
+
+
 async def retrieve_row(
     self: CrudBase, request: Request, item_id: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
     query = await self.call_hook("get_queryset", principal)
+    query = await with_links(self, query, principal)
     item = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
     return await self.call_hook("to_schema", item)
 
@@ -677,6 +820,7 @@ async def create_row(
     self.check_written(created)
     if any(getattr(created, key) != value for key, value in assigned_values.items()):
         raise RegistrationError("store changed a server-assigned field")
+    await write_links(self, created, resource.create, data, principal)
     key = getattr(created, created.__primary_key__)
     item = await self.reload_written(key, principal)
     if any(getattr(item, name) != value for name, value in assigned_values.items()):
@@ -709,6 +853,7 @@ async def update_row(
         raise RegistrationError("change returned a different item")
     if any(getattr(updated, name) != value for name, value in assigned_before.items()):
         raise RegistrationError("change changed a server-assigned field")
+    await write_links(self, updated, resource.update, data, principal, scoped)
     persisted = await self.reload_written(item_id, principal)
     self.check_written(persisted)
     if any(
@@ -787,7 +932,10 @@ class CrudBase(API):
         if config is None:
             return
         custom_output = cls.to_schema is not CrudBase.to_schema
-        config.check(custom_output=custom_output)
+        config.check(
+            custom_output=custom_output,
+            custom_links=cls.link_queryset is not CrudBase.link_queryset,
+        )
         check_hook_callers(cls, config)
         cls.resource = config
         cls.model = config.model
@@ -829,12 +977,32 @@ class CrudBase(API):
         """Read back a write through ``written_queryset``."""
         key = self.resource.model.__primary_key__
         query = await self.call_hook("written_queryset", principal)
+        query = await with_links(self, query, principal)
         return await query.filter(**{key: item_id}).aget()
+
+    def link_queryset(
+        self,
+        relation: str,
+        principal: Caller[Any] | None,
+    ) -> QuerySet[Any] | Awaitable[QuerySet[Any]]:
+        """The targets of ``relation`` the caller may link and see: the
+        ``links=`` entry applied to the caller's user (``None`` on a public
+        route)."""
+        user = None if principal is None else principal.user
+        scope = self.resource.links[relation]
+        if isinstance(scope, OwnedRows):
+            if principal is None or principal.id is None:
+                raise Forbidden("You cannot change this item.")
+            return scope(principal.id)
+        return scope(user)
 
     def to_schema(self, item: Any) -> Schema | Awaitable[Schema]:
         read = self.resource.read
+        values = {name: getattr(item, name) for name in read.specs()}
+        for name in self.resource.read_links:
+            values[name] = set(values[name])
         try:
-            return read(**{name: getattr(item, name) for name in read.specs()})
+            return read(**values)
         except ValidationError as error:
             # The row came from the database, not from the client: a server fault.
             problems = ", ".join(f"{d.path} ({d.code})" for d in error.details)
@@ -912,6 +1080,7 @@ class CrudBase(API):
             "get_queryset",
             "filter_queryset",
             "written_queryset",
+            "link_queryset",
         } and inspect.isawaitable(result):
             return await result
         return result
@@ -1181,6 +1350,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     include_in_schema: bool | Mapping[str, bool] = True,
     tags: Sequence[str] = (),
     deprecated: bool | date = False,
+    links: Mapping[str, Callable[[Any], QuerySet[Any]]] | None = None,
 ) -> CrudDeclaration:
     """Declare generated CRUD for ``model``.
 
@@ -1197,6 +1367,9 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     document; ``include_in_schema={"delete": False}`` leaves out
     only the named actions. ``tags`` and ``deprecated`` apply to every action.
     Left-out actions are still served and protected by their access.
+    ``links={"tags": all_rows(Tag)}`` scopes the targets a many-to-many ids field
+    (``tag_ids``) may link and show: a function of the caller's user that returns
+    a ``QuerySet`` of the target. Every ids field needs an entry.
     """
     unknown = sorted(set(omit) - {"list", "retrieve"})
     if unknown:
@@ -1240,8 +1413,45 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         schema_shown=shown,
         tags=check_tags(tags),
         deprecated=deprecated,
+        links=dict(links or {}),
     )
     return CrudDeclaration(config, path, declaring_module(), name or "")
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class AllRows[T: Model]:
+    """A ``links=`` entry that lets the caller link every row of ``model``."""
+
+    model: type[T]
+
+    def __call__(self, user: object) -> QuerySet[T]:  # noqa: ARG002 - the scope ignores the caller
+        return self.model.all()
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class OwnedRows[T: Model]:
+    """A ``links=`` entry that lets the caller link and see the rows of
+    ``model`` whose ``column`` holds the caller's id."""
+
+    model: type[T]
+    column: str
+
+    def __call__(self, owner: object) -> QuerySet[T]:
+        return self.model.filter(**{self.column: owner})
+
+
+def all_rows[T: Model](model: type[T]) -> Callable[[object], QuerySet[T]]:
+    """A ``links=`` entry that lets the caller link every row of ``model``: the
+    explicit choice for targets that are not private to anyone."""
+    return AllRows(model)
+
+
+def own_rows[T: Model](model: type[T], column: str) -> Callable[[object], QuerySet[T]]:
+    """A ``links=`` entry that lets the caller link and see only the rows of
+    ``model`` whose text ``column`` holds the caller's id (``Caller.id``). It
+    needs access on every action, and generated CRUD keeps it on the native
+    lane."""
+    return OwnedRows(model, column)
 
 
 def schema_visibility(value: bool | Mapping[str, bool]) -> dict[str, bool]:

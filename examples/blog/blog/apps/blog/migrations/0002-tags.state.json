@@ -1,0 +1,297 @@
+{
+  "tables": {
+    "blog_publications": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "name": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "slug": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": []
+    },
+    "blog_users": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "publication_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_publications",
+            "column": "id",
+            "on_delete": "restrict"
+          }
+        },
+        "name": {
+          "type": "varchar(80)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "token": {
+          "type": "text",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        },
+        "is_editor": {
+          "type": "boolean",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "username": {
+          "type": "varchar(40)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        },
+        "password_hash": {
+          "type": "text",
+          "nullable": true,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "publication_id"
+        ]
+      ]
+    },
+    "blog_tags": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "publication_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_publications",
+            "column": "id",
+            "on_delete": "restrict"
+          }
+        },
+        "name": {
+          "type": "varchar(40)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [
+        [
+          "publication_id",
+          "name"
+        ]
+      ],
+      "indexes": [
+        [
+          "publication_id"
+        ]
+      ]
+    },
+    "blog_posts": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "publication_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_publications",
+            "column": "id",
+            "on_delete": "restrict"
+          }
+        },
+        "author_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_users",
+            "column": "id",
+            "on_delete": "restrict"
+          }
+        },
+        "title": {
+          "type": "varchar(160)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "slug": {
+          "type": "varchar(180)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "references": null
+        },
+        "body": {
+          "type": "text",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "published": {
+          "type": "boolean",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "author_id"
+        ],
+        [
+          "publication_id"
+        ]
+      ]
+    },
+    "blog_posts_tags": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "post_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_posts",
+            "column": "id",
+            "on_delete": "cascade"
+          }
+        },
+        "tag_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_tags",
+            "column": "id",
+            "on_delete": "cascade"
+          }
+        }
+      },
+      "unique": [
+        [
+          "post_id",
+          "tag_id"
+        ]
+      ],
+      "indexes": [
+        [
+          "tag_id"
+        ]
+      ]
+    },
+    "blog_audit": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "post_id": {
+          "type": "uuid",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": {
+            "table": "blog_posts",
+            "column": "id",
+            "on_delete": "cascade"
+          }
+        },
+        "kind": {
+          "type": "varchar(40)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "post_id"
+        ]
+      ]
+    }
+  }
+}

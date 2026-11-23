@@ -19,7 +19,6 @@ from hinoki.errors import MigrationError
 from hinoki.orm import Model, migrator
 from hinoki.orm.migrations import (
     EMPTY,
-    LEGACY_STATE_TYPES,
     Plan,
     State,
     check_constraint_names,
@@ -28,6 +27,7 @@ from hinoki.orm.migrations import (
     plan,
     state_of,
     table_state,
+    validate_migration_state,
 )
 from hinoki.project import (
     ProjectError,
@@ -297,51 +297,10 @@ def _migration_history(app_name: str, directory: Path) -> list[State]:
 
 
 def _validate_migration_state(app_name: str, filename: str, state: object) -> None:
-    if not isinstance(state, dict) or not isinstance(state.get("tables"), dict):
-        raise MigrationError(
-            f"app {app_name!r}: {filename} must contain a tables object"
-        )
-    for table, spec in state["tables"].items():
-        _validate_table_state(app_name, filename, table, spec)
-
-
-def _validate_table_state(
-    app_name: str, filename: str, table: object, spec: object
-) -> None:
-    if not isinstance(table, str) or not isinstance(spec, dict):
-        raise MigrationError(f"app {app_name!r}: {filename} has an invalid table entry")
-    columns = spec.get("columns")
-    if not isinstance(columns, dict):
-        raise MigrationError(
-            f"app {app_name!r}: {filename} has invalid columns for {table!r}"
-        )
-    for name, column in columns.items():
-        _validate_column_state(app_name, filename, table, name, column)
-
-
-def _validate_column_state(
-    app_name: str, filename: str, table: str, name: object, column: object
-) -> None:
-    if not isinstance(name, str) or not isinstance(column, dict):
-        raise MigrationError(
-            f"app {app_name!r}: {filename} has invalid column state for {table}.{name}"
-        )
-    if not isinstance(column.get("type"), str) or not isinstance(
-        column.get("primary_key"), bool
-    ):
-        raise MigrationError(
-            f"app {app_name!r}: {filename} has invalid column state for {table}.{name}"
-        )
-    column["type"] = LEGACY_STATE_TYPES.get(column["type"].casefold(), column["type"])
-    reference = column.get("references")
-    if reference is not None and (
-        not isinstance(reference, dict)
-        or not isinstance(reference.get("table"), str)
-        or not isinstance(reference.get("column"), str)
-    ):
-        raise MigrationError(
-            f"app {app_name!r}: {filename} has invalid column state for {table}.{name}"
-        )
+    try:
+        validate_migration_state(state, filename)
+    except MigrationError as error:
+        raise MigrationError(f"app {app_name!r}: {error}") from error
 
 
 def _table_history_owners(

@@ -87,6 +87,8 @@ An `Enum` or `Literal` field becomes `type: string` or `type: integer` with an `
 
 A `set[X]` or `frozenset[X]` field becomes an array with `uniqueItems: true`, `tuple[X, ...]` an array of `X`, and a fixed `tuple[X, Y]` an array with `prefixItems`, `items: false` and equal `minItems`/`maxItems`. See [sets and tuples](schema-collections.md#sets-and-tuples).
 
+A [many-to-many ids field](schemas.md#many-to-many-ids-fields) such as `tag_ids` (declared with `ids_name="tag_ids"`) is an array of `string` items with `format: uuid` (or the target key's type), `uniqueItems: true` and `maxItems` from its declared limit, in request and response schemas alike.
+
 A plain union such as `int | str` becomes `anyOf` of its variants, and `Any` or `object` an unconstrained schema (`{}`). See [plain unions and `Any`](schema-collections.md#plain-unions-and-any).
 
 Discriminated unions declared as `Schema` fields become OpenAPI `oneOf` schemas with a `discriminator` and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper `Schema`; bare union return annotations are rejected instead of producing an incomplete schema. The return value is also checked against the annotation at runtime ([details](endpoints.md#the-response-is-checked-against-the-annotation)).

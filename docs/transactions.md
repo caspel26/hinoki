@@ -161,6 +161,8 @@ async def issue(data: InvoiceIn) -> Invoice:
     return invoice
 ```
 
+A send that fails after the commit is logged and does not undo the commit; the callback is not retried. For an email, `current_database().after_commit(lambda: mail.send(message))` sends only once the data is durable and never on rollback; see [send email](email.md#send-after-a-commit).
+
 ## Errors and edge cases
 
 - `after_commit` outside a transaction, or a nested scope opened from a child task, raises `DatabaseError`.

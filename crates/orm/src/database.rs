@@ -217,6 +217,36 @@ async fn run_execute(conn: &Object, sql: &str, values: &[Value]) -> Result<u64, 
         .map_err(|e| DbError::from_driver(&e))
 }
 
+async fn run_scalar(conn: &Object, sql: &str, values: &[Value]) -> Result<Option<i64>, DbError> {
+    let stmt = conn
+        .prepare_cached(sql)
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    let row = conn
+        .query_opt(&stmt, &params(values))
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    row.map(|row| {
+        row.try_get::<_, i64>(0)
+            .map_err(|_| DbError::new(ErrorKind::Type, "could not decode a column"))
+    })
+    .transpose()
+}
+
+async fn scalar_with_recovery(
+    conn: &Object,
+    sql: &str,
+    values: &[Value],
+) -> Result<Option<i64>, DbError> {
+    match run_scalar(conn, sql, values).await {
+        Err(err) if is_stale_plan(&err) => {
+            conn.statement_cache.remove(sql, &[]);
+            run_scalar(conn, sql, values).await
+        }
+        other => other,
+    }
+}
+
 /// Outside a transaction a cached plan invalidated by DDL can be retried once
 /// after dropping it from the connection's statement cache.
 async fn fetch_with_recovery(
@@ -441,6 +471,35 @@ impl Database {
         }
         let lease = self.acquire().await?;
         let outcome = execute_with_recovery(lease.get()?, sql, values).await;
+        lease.release();
+        outcome
+    }
+
+    /// Run one statement that produces an integer, outside any transaction: the
+    /// first column of the first `RETURNING` row (PostgreSQL, SQLite) or the
+    /// `last_insert_id` of the OK packet (MySQL, MariaDB; the statement passes
+    /// its value through `LAST_INSERT_ID(expr)`). `None` when there is no row or
+    /// the last insert id is 0. One round trip on a statement the driver caches.
+    pub async fn execute_scalar(
+        &self,
+        sql: &str,
+        values: &[Value],
+    ) -> Result<Option<i64>, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("scalar", sql, values);
+        if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
+            return sqlite.acquire().await?.scalar(sql, values).await;
+        }
+        if let DatabaseBackend::Mysql { pool: mysql, .. } = &self.backend {
+            let mut lease = mysql.acquire().await?;
+            let outcome = lease.exec_last_insert_id(sql, values).await;
+            if outcome.is_ok() {
+                lease.release();
+            }
+            return outcome;
+        }
+        let lease = self.acquire().await?;
+        let outcome = scalar_with_recovery(lease.get()?, sql, values).await;
         lease.release();
         outcome
     }

@@ -18,6 +18,7 @@ from typing import Any, TextIO
 
 from hinoki.app import Hinoki
 from hinoki.errors import ShutdownError, StartupError
+from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.runtime.executor import SyncExecutor
@@ -80,6 +81,7 @@ class ShellRuntime:
         from hinoki.db import Database  # noqa: PLC0415 - avoid CLI import coupling
 
         token = database_var.set(self.context.find(Database))
+        mailer_token = mailer_var.set(self.context.find(Mailer))
         try:
             try:
                 result = eval(code, self.namespace)  # noqa: S307 - this is the Python REPL
@@ -90,6 +92,7 @@ class ShellRuntime:
             except BaseException as error:
                 raise _EvaluationError(error) from None
         finally:
+            mailer_var.reset(mailer_token)
             database_var.reset(token)
 
     def run_cell(self, code: CodeType) -> None:

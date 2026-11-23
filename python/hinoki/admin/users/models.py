@@ -65,3 +65,13 @@ class LoginWindowRow(Model, table="hinoki_admin_login_windows"):
     key: str = field(primary_key=True, max_length=64)
     started_at: datetime = field(default_factory=utc_now)
     count: int = 0
+
+
+@db.indexed("state")
+class AdminRateLimitRow(Model, table="hinoki_admin_rate_limits"):
+    """One bucket of the shared limiter: the SHA-256 digest of the client and
+    route, and the limiter's own state. The limiter writes it in native code; the
+    index on ``state`` serves its sweep of expired buckets."""
+
+    bucket: str = field(primary_key=True, max_length=64)
+    state: int = 0

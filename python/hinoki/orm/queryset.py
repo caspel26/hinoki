@@ -41,10 +41,41 @@ class Loading:
     joined: tuple[str, ...] = ()
     selected: tuple[str, ...] = ()
     prefetched: tuple[str, ...] = ()
+    scoped: tuple[tuple[str, QuerySet[Any]], ...] = ()
+    """Many-to-many prefetches narrowed by a query of the target model."""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class SubQuery:
+    """``column [NOT] IN (SELECT select FROM table ...)``: a condition across a
+    to-many relation, run as a subquery so the outer rows never multiply."""
+
+    column: str
+    negated: bool
+    table: str
+    select: str
+    model: type[Model]
+    joins: tuple[tuple[str, str, str, str, bool, list[str]], ...] = ()
+    filters: tuple[tuple[str, str, list[Any]], ...] = ()
+    checks: tuple[tuple[str, str, list[Any]], ...] = ()
+    """The filters on ``model``'s own columns, for the SQLite Decimal check."""
+    subfilters: tuple[SubQuery, ...] = ()
+
+    def raw(self) -> core._RawSub:
+        inner = (
+            self.table,
+            self.select,
+            list(self.joins),
+            list(self.filters),
+            [sub.raw() for sub in self.subfilters],
+        )
+        return (self.column, self.negated, inner)
 
 
 class QuerySet[M: Model]:
     """Lazy, immutable query description; nothing runs until an ``a...`` call."""
+
+    subfilters: tuple[SubQuery, ...] = ()
 
     def __init__(
         self,
@@ -77,10 +108,42 @@ class QuerySet[M: Model]:
         }
         return QuerySet(self.model, **{**state, **changes})
 
+    def with_subfilters(self, extra: tuple[SubQuery, ...]) -> QuerySet[M]:
+        """The query with more conditions across a many-to-many relation."""
+        return LinkedQuerySet(
+            self.model,
+            self.filters,
+            self.order,
+            self.limit_to,
+            self.offset_by,
+            self.loading,
+            (*self.subfilters, *extra),
+        )
+
     def filter(self, **conditions: Any) -> QuerySet[M]:
         query = self
+        try:
+            for key, value in conditions.items():
+                query = query.with_condition(key, value)
+        except FieldError:
+            # A many-to-many key is not a column: retry with the relation
+            # filters grouped, so a query on a plain model pays nothing for them.
+            if not self.model.__links__:
+                raise
+            return self.filter_with_links(conditions)
+        return query
+
+    def filter_with_links(self, conditions: dict[str, Any]) -> QuerySet[M]:
+        query = self
+        links: dict[str, list[tuple[str, Any]]] = {}
         for key, value in conditions.items():
-            query = query.with_condition(key, value)
+            name, _, rest = key.partition(SEPARATOR)
+            if name in self.model.__links__:
+                links.setdefault(name, []).append((rest, value))
+            else:
+                query = query.with_condition(key, value)
+        for name, items in links.items():
+            query = query.with_subfilters((self.model.__links__[name].subquery(items),))
         return query
 
     def with_condition(self, key: str, value: Any) -> QuerySet[M]:
@@ -110,12 +173,27 @@ class QuerySet[M: Model]:
         merged = tuple(dict.fromkeys((*self.loading.selected, *names)))
         return self.derive(loading=dataclasses.replace(self.loading, selected=merged))
 
-    def prefetch_related(self, *names: str) -> QuerySet[M]:
-        """Load relations (forward or reverse) with one extra query each."""
+    def prefetch_related(self, *names: str, **scoped: QuerySet[Any]) -> QuerySet[M]:
+        """Load relations (forward, reverse or many-to-many) with one extra
+        query each. ``prefetch_related(tags=Tag.filter(...))`` loads only the
+        targets that query matches, for a many-to-many relation."""
         for name in names:
-            self.relation(name)
-        merged = tuple(dict.fromkeys((*self.loading.prefetched, *names)))
-        return self.derive(loading=dataclasses.replace(self.loading, prefetched=merged))
+            if name not in self.model.__links__:
+                self.relation(name)
+        for name, query in scoped.items():
+            if name not in self.model.__links__:
+                raise FieldError(
+                    f"{self.model.__name__} has no many-to-many relation {name!r}"
+                )
+            if not isinstance(query, QuerySet):
+                raise FieldError(f"prefetch_related({name}=...) takes a query")
+            self.model.__links__[name].check_within(query)
+        merged = tuple(dict.fromkeys((*self.loading.prefetched, *names, *scoped)))
+        kept = tuple(item for item in self.loading.scoped if item[0] not in scoped)
+        extra = (*kept, *scoped.items())
+        return self.derive(
+            loading=dataclasses.replace(self.loading, prefetched=merged, scoped=extra)
+        )
 
     def relation(self, name: str) -> Relation:
         relation = self.model.__relations__.get(name)
@@ -227,6 +305,10 @@ class QuerySet[M: Model]:
             await self.prefetch(name, instances)
 
     async def prefetch(self, name: str, instances: list[M]) -> None:
+        if name in self.model.__links__:
+            within = dict(self.loading.scoped).get(name)
+            await self.model.__links__[name].prefetch(instances, within)
+            return
         relation = self.relation(name)
         if relation.forward:
             await self.prefetch_forward(relation, instances)
@@ -359,7 +441,7 @@ class QuerySet[M: Model]:
                 timestamp: _read_utc(self.model.__clock__),
             }
         self.model.validate_values(values)
-        if self.loading.joined:
+        if self.loading.joined or self.subfilters:
             raise FieldError("updates cannot filter across a relation")
         database = current_database()
         sql, params = write_statement(
@@ -388,7 +470,7 @@ class QuerySet[M: Model]:
         if not self.filters:
             raise FieldError("adelete needs at least one condition")
         self.refuse_window("adelete")
-        if self.loading.joined:
+        if self.loading.joined or self.subfilters:
             raise FieldError(
                 "adelete cannot filter across a relation; look the keys up first"
             )
@@ -583,6 +665,58 @@ def refuse_sqlite_decimal(
                 f"{column} is a Decimal column stored as text on SQLite: "
                 "ordering by it is not supported there; use PostgreSQL or MySQL"
             )
+
+
+class LinkedQuerySet[M: Model](QuerySet[M]):
+    """A query with conditions across a many-to-many relation. Plain queries
+    never carry them, so they pay nothing for the feature."""
+
+    def __init__(
+        self,
+        model: type[M],
+        filters: tuple[tuple[str, str, list[Any]], ...] = (),
+        order: tuple[tuple[str, bool], ...] | None = None,
+        limit_to: int | None = None,
+        offset_by: int | None = None,
+        loading: Loading = Loading(),
+        subfilters: tuple[SubQuery, ...] = (),
+    ) -> None:
+        super().__init__(model, filters, order, limit_to, offset_by, loading)
+        self.subfilters = subfilters
+
+    def derive(self, **changes: Any) -> QuerySet[M]:
+        state = {
+            "filters": self.filters,
+            "order": self.order,
+            "limit_to": self.limit_to,
+            "offset_by": self.offset_by,
+            "loading": self.loading,
+            "subfilters": self.subfilters,
+        }
+        return LinkedQuerySet(self.model, **{**state, **changes})
+
+    def compile(
+        self,
+        kind: str = "select",
+        dialect: str = "postgres",
+        keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
+    ) -> tuple[str, list[Any]]:
+        refuse_sqlite_decimal(self.model, self.filters, self.order, dialect)
+        for sub in self.subfilters:
+            refuse_sqlite_decimal(sub.model, sub.checks, (), dialect)
+        return core.compile_query(
+            kind,
+            self.model.__table__,
+            columns=list(self.model.__columns__),
+            filters=list(self.filters),
+            order=list(self.order),
+            limit=self.limit_to,
+            offset=self.offset_by,
+            joins=self.joins(counting=kind == "count"),
+            keyset=keyset,
+            subfilters=[sub.raw() for sub in self.subfilters],
+            dialect=dialect,
+        )
 
 
 def condition(model: type[Model], key: str, value: Any) -> tuple[str, str, list[Any]]:

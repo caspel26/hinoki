@@ -16,6 +16,7 @@ from hinoki.app import Hinoki
 from hinoki.cli.new import add_arguments as add_new_arguments
 from hinoki.cli.reportui import check_summary, check_text
 from hinoki.errors import RegistrationError
+from hinoki.mail import TemplateError
 from hinoki.project import find_manifest_or_none, load_manifest
 from hinoki.rules import (
     SCHEMA_VERSION,
@@ -31,7 +32,14 @@ from hinoki.terminal import Style
 from hinoki.utils import utc_today
 from hinoki.waivers import NAME, WaiverError, apply_waivers, read_waivers
 
-USAGE_ERRORS = (ImportError, AttributeError, ValueError, TypeError, RegistrationError)
+USAGE_ERRORS = (
+    ImportError,
+    AttributeError,
+    ValueError,
+    TypeError,
+    RegistrationError,
+    TemplateError,
+)
 WAIVERS_HELP = (
     f"waiver file (default: Hinoki(waivers=...), else {NAME} at the project root)"
 )

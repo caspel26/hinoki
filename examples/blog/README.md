@@ -10,23 +10,23 @@ trail written by event handlers, a rule waiver and optional Prometheus metrics.
 
 | # | File | What to see |
 | --- | --- | --- |
-| 1 | [`hinoki.toml`](hinoki.toml) | The `blog` app (models, migrations, `events`, lines 4-9) and the admin's own `admin` app with its migrations (lines 12-16): the admin is an optional extra that needs its tables and an explicit activation |
-| 2 | [`blog/apps/blog/models.py`](blog/apps/blog/models.py) | `Publication` is the tenant (line 17); `User` and `Post` each point to one (lines 24 and 39); `AuditEntry` is written by events (line 57) |
+| 1 | [`hinoki.toml`](hinoki.toml) | The `blog` app (models, migrations, `events`) and the admin's own `admin` app with its migrations: the admin is an optional extra that needs its tables and an explicit activation |
+| 2 | [`blog/apps/blog/models.py`](blog/apps/blog/models.py) | `Publication` is the tenant; `User`, `Tag` and `Post` each point to one; `Post.tags` is a many-to-many relation limited to 10 tags; `AuditEntry` is written by events |
 | 3 | [`blog/apps/blog/schemas.py`](blog/apps/blog/schemas.py) | Request bodies and responses are `Schema` classes, separate from the models; the author and publication are never accepted from a client |
-| 4 | [`blog/apps/blog/security.py`](blog/apps/blog/security.py) | `TokenAuth` resolves an opaque bearer token to a `User`; the `editor` and `reader` policies (lines 27-28) |
-| 5 | [`blog/apps/blog/api.py`](blog/apps/blog/api.py) | `@crud` generates create and delete with `owner` and a server-assigned `publication_id` (lines 72-82); `get_queryset` is the tenant boundary (line 86); handwritten `listing` (98), `drafts` (112), a streamed CSV `export` (122) and `publish` with `atomic=True`, which emits `PostPublished` (144) |
-| 6 | [`blog/apps/blog/events.py`](blog/apps/blog/events.py) | An in-transaction handler audits `Created[Post]` (line 24) and `PostPublished` (line 29); an after-commit handler runs once the data is safe (line 34). Declared in `hinoki.toml`, so `hinoki events` lists them |
-| 7 | [`blog/apps/blog/accounts.py`](blog/apps/blog/accounts.py) and [`limits.py`](blog/apps/blog/limits.py) | Password login and `/auth/me` with a JWT (lines 74 and 91), a bounded rate limit per client (`limits.py` line 19) |
-| 8 | [`blog/rules.py`](blog/rules.py) | The architecture rules (lines 19-40); `require_atomic` exempts only the MCP endpoint (line 30) |
+| 4 | [`blog/apps/blog/security.py`](blog/apps/blog/security.py) | `TokenAuth` resolves an opaque bearer token to a `User`; the `editor` and `reader` policies |
+| 5 | [`blog/apps/blog/api.py`](blog/apps/blog/api.py) | `@crud` generates create and delete with `owner` and a server-assigned `publication_id`; `links={"tags": tags_of}` scopes the tags a post may carry to the caller's publication, so `tag_ids` on create is checked against them (a tag of another publication is a `422`); `Tags` lists and creates tags; `get_queryset` is the tenant boundary; handwritten `listing`, `drafts`, a streamed CSV `export` and `publish` with `atomic=True`, which emits `PostPublished` |
+| 6 | [`blog/apps/blog/events.py`](blog/apps/blog/events.py) | An in-transaction handler audits `Created[Post]` and `PostPublished`; an after-commit handler runs once the data is safe. Declared in `hinoki.toml`, so `hinoki events` lists them |
+| 7 | [`blog/apps/blog/accounts.py`](blog/apps/blog/accounts.py) and [`limits.py`](blog/apps/blog/limits.py) | Password login and `/auth/me` with a JWT, a bounded rate limit per client |
+| 8 | [`blog/rules.py`](blog/rules.py) | The architecture rules; `require_atomic` exempts only the MCP endpoint |
 | 9 | [`hinoki-rules.toml`](hinoki-rules.toml) | A waiver with a reason and an owner: login only reads, so it is not atomic on purpose. `hinoki check` shows it as `[waived]` when `BLOG_JWT_SECRET` is set, and warns when it matches nothing |
-| 10 | [`blog/apps/blog/adminsite.py`](blog/apps/blog/adminsite.py) | The admin: model admins, an action, stats and a dashboard (`site` at line 56, `PostAdmin` at 72). `routes.py` mounts it at `/admin` |
-| 11 | [`blog/main.py`](blog/main.py) | `build_app` assembles the app: routes, rules and the waiver file, the hasher closed at shutdown, and `expose_as_mcp` for `Posts.drafts` (line 57) |
+| 10 | [`blog/apps/blog/adminsite.py`](blog/apps/blog/adminsite.py) | The admin: model admins, an action, stats and a dashboard (`site` and `PostAdmin`). `routes.py` mounts it at `/admin` |
+| 11 | [`blog/main.py`](blog/main.py) | `build_app` assembles the app: routes, rules and the waiver file, the hasher closed at shutdown, and `expose_as_mcp` for `Posts.drafts` |
 | 12 | [`blog/settings.py`](blog/settings.py) | The environment variables (`BLOG_*`), including the Kiso-only `BLOG_METRICS__LISTEN` |
 | 13 | [`blog/apps/blog/seed.py`](blog/apps/blog/seed.py) | Synthetic demo data for a disposable database |
-| 14 | [`blog_tests/`](blog_tests/) | API and tenant, accounts, limits, rules and waiver, shutdown, audit events, CSV, MCP and admin; [`conftest.py`](blog_tests/conftest.py) migrates a SQLite file per test |
+| 14 | [`blog_tests/`](blog_tests/) | API and tenant, tags (many-to-many), accounts, limits, rules and waiver, shutdown, audit events, CSV, MCP and admin; [`conftest.py`](blog_tests/conftest.py) migrates a SQLite file per test |
 
-[`blog/apps/blog/migrations/`](blog/apps/blog/migrations/) holds one reviewed SQL
-migration; the admin's own are shipped with Hinoki.
+[`blog/apps/blog/migrations/`](blog/apps/blog/migrations/) holds two reviewed SQL
+migrations (`0002-tags` adds the tags and the generated bridge table); the admin's own are shipped with Hinoki.
 
 ## Run
 

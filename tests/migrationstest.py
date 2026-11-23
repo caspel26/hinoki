@@ -85,7 +85,96 @@ def test_first_plan_creates_tables_in_dependency_order(tmp_path: Path) -> None:
     assert '"tags" jsonb NOT NULL' in text
     assert '"seen" timestamptz,' in text or '"seen" timestamptz\n' in text
     state = json.loads((tmp_path / "0001-initial.state.json").read_text())
+    assert state["format_version"] == 1
     assert state["tables"]["mig_things"]["columns"]["seen"]["nullable"] is True
+
+
+def test_legacy_state_without_format_version_remains_readable(
+    tmp_path: Path,
+) -> None:
+    owner = owners()
+    models = [things(owner), owner]
+    initial = plan(models, tmp_path, "initial")
+    assert initial.path is not None
+    state_path = initial.path.with_suffix(".state.json")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    del state["format_version"]
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    assert plan(models, tmp_path, write=False).operations == ()
+
+
+def test_legacy_state_without_indexes_remains_readable(tmp_path: Path) -> None:
+    owner = owners()
+    models = [things(owner), owner]
+    initial = plan(models, tmp_path, "initial")
+    assert initial.path is not None
+    state_path = initial.path.with_suffix(".state.json")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    del state["format_version"]
+    for table in state["tables"].values():
+        del table["indexes"]
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    assert plan(models, tmp_path, write=False).operations == ()
+
+
+@pytest.mark.parametrize("version", [0, 2, True, "1"])
+def test_unknown_or_invalid_state_format_fails_without_writing(
+    tmp_path: Path, version: object
+) -> None:
+    owner = owners()
+    models = [things(owner), owner]
+    initial = plan(models, tmp_path, "initial")
+    assert initial.path is not None
+    state_path = initial.path.with_suffix(".state.json")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["format_version"] = version
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    with pytest.raises(MigrationError, match="unsupported migration state format"):
+        plan(models, tmp_path, "next")
+    assert sorted(path.name for path in tmp_path.glob("*.sql")) == ["0001-initial.sql"]
+
+
+def test_malformed_column_state_fails_as_migration_error(tmp_path: Path) -> None:
+    plan([owners()], tmp_path, "initial")
+    state_path = tmp_path / "0001-initial.state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    del state["tables"]["mig_owners"]["columns"]["name"]["nullable"]
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    changed = owners({"name": (int, None)})
+    with pytest.raises(MigrationError, match="invalid column state"):
+        plan([changed], tmp_path, "type-change")
+    assert sorted(path.name for path in tmp_path.glob("*.sql")) == ["0001-initial.sql"]
+
+
+def test_versioned_state_requires_indexes_field(tmp_path: Path) -> None:
+    plan([owners()], tmp_path, "initial")
+    state_path = tmp_path / "0001-initial.state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    del state["tables"]["mig_owners"]["indexes"]
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    with pytest.raises(MigrationError, match="invalid indexes"):
+        plan([owners()], tmp_path, "next")
+
+
+def test_legacy_planner_rejects_corrupt_older_state(tmp_path: Path) -> None:
+    plan([owners()], tmp_path, "initial")
+    plan([owners({"note": (str | None, None)})], tmp_path, "note")
+    old_state = tmp_path / "0001-initial.state.json"
+    state = json.loads(old_state.read_text(encoding="utf-8"))
+    state["format_version"] = 99
+    old_state.write_text(json.dumps(state), encoding="utf-8")
+
+    with pytest.raises(MigrationError, match="unsupported migration state format"):
+        plan([owners({"other": (str | None, None)})], tmp_path, "other")
+    assert sorted(path.name for path in tmp_path.glob("*.sql")) == [
+        "0001-initial.sql",
+        "0002-note.sql",
+    ]
 
 
 def test_migration_state_is_backend_neutral_but_sql_is_backend_specific(
@@ -734,6 +823,18 @@ def test_a_missing_state_file_is_reported(tmp_path: Path) -> None:
         plan([owners()], tmp_path, "next")
 
 
+@pytest.mark.parametrize("contents", ["{bad", "[]", '{"tables": []}'])
+def test_invalid_state_fails_as_migration_error_without_writing(
+    tmp_path: Path, contents: str
+) -> None:
+    plan([owners()], tmp_path, "initial")
+    (tmp_path / "0001-initial.state.json").write_text(contents, encoding="utf-8")
+
+    with pytest.raises(MigrationError):
+        plan([owners()], tmp_path, "next")
+    assert sorted(path.name for path in tmp_path.glob("*.sql")) == ["0001-initial.sql"]
+
+
 def test_statements_split_on_line_terminators() -> None:
     text = (
         "-- note\n\nCREATE TABLE a (\n    x int,\n    y int\n);\n-- c\nDROP TABLE b;\n"
@@ -748,7 +849,7 @@ def test_statements_split_on_line_terminators() -> None:
 
 def test_models_of_finds_the_models_of_a_module() -> None:
     names = [m.__name__ for m in models_of("blog.apps.blog.models")]
-    assert names == ["Publication", "User", "Post", "AuditEntry"]
+    assert names == ["Publication", "User", "Tag", "Post", "AuditEntry"]
 
 
 def test_command_line_plans_and_prints(

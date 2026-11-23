@@ -130,6 +130,7 @@ def test_describe_access_and_models_are_structured() -> None:
     model = mcp.describe_model(DescribedModel)
     assert model["table"] == "mcp_described_models"
     assert model["columns"] == {"id": "<class 'int'>", "name": "<class 'str'>"}
+    assert model["many_to_many"] == {}
 
 
 def test_propose_model_tool_returns_proposals_and_translates_errors(
