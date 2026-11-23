@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import secrets
 from collections.abc import Mapping
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from hinoki import Access, Caller, Hinoki, http
 from hinoki.ai.mcpapp import select
 from hinoki.db import Database
+from hinoki.errors import RegistrationError
 from hinoki.sessions import (
     DatabaseSessionStore,
     MemorySessionStore,
@@ -20,6 +22,7 @@ from hinoki.sessions import (
     SessionModule,
     SessionRecord,
     SessionSettings,
+    SessionTooLarge,
     SessionUnavailable,
     _session_upsert,
 )
@@ -58,6 +61,19 @@ async def failed_nested_session(session: Session) -> dict[str, bool]:
     assert isinstance(profile, dict)
     profile["name"] = "Mallory"
     raise RuntimeError("handler failed after nested read")
+
+
+@http.post("/session/recover-set")
+async def recover_set(session: Session) -> dict[str, bool]:
+    with suppress(SessionTooLarge):
+        session["large"] = "x" * 128
+    with suppress(TypeError):
+        session["invalid"] = object()
+    external = {"items": [1]}
+    session["copied"] = external
+    external["items"].append(2)
+    session["valid"] = "ok"
+    return {"ok": True}
 
 
 @http.post("/session/rotate")
@@ -307,6 +323,90 @@ async def test_inflight_session_cannot_restore_a_revoked_token() -> None:
     assert await store.load(hashlib.sha256(seed.token.encode()).hexdigest()) is None
 
 
+async def test_rotations_revoke_only_the_original_token() -> None:
+    store = MemorySessionStore()
+    seed = Session(store, SETTINGS)
+    await seed.rotate()
+    await seed.commit()
+    original = seed.token
+    assert original is not None
+
+    first = await Session.from_cookie(store, original, SETTINGS)
+    await first.rotate()
+    await first.invalidate()
+    await first.commit()
+    assert await store.load(hashlib.sha256(original.encode()).hexdigest()) is None
+
+    second_seed = Session(store, SETTINGS)
+    await second_seed.rotate()
+    await second_seed.commit()
+    original_after_rotation = second_seed.token
+    assert original_after_rotation is not None
+    second = await Session.from_cookie(store, original_after_rotation, SETTINGS)
+    await second.rotate()
+    intermediate = second.token
+    await second.rotate()
+    await second.commit()
+    assert (
+        await store.load(hashlib.sha256(original_after_rotation.encode()).hexdigest())
+        is None
+    )
+    assert intermediate is not None
+    assert await store.load(hashlib.sha256(intermediate.encode()).hexdigest()) is None
+    assert second.token is not None
+    assert (
+        await store.load(hashlib.sha256(second.token.encode()).hexdigest()) is not None
+    )
+
+
+async def test_rejected_session_values_do_not_poison_successful_commit() -> None:
+    store = MemorySessionStore()
+    settings = SessionSettings(csrf_secret=b"t" * 32, max_bytes=64)
+    app = Hinoki(include=[recover_set], modules=[SessionModule(store, settings)])
+    async with ASGIClient(app) as client:
+        response = await client.post("/session/recover-set")
+    assert response.status == 200
+    token = response.headers["set-cookie"].split("=", 1)[1].split(";", 1)[0]
+    record = await store.load(hashlib.sha256(token.encode()).hexdigest())
+    assert record is not None
+    assert record.data == {"copied": {"items": [1]}, "valid": "ok"}
+
+
+def test_handler_cannot_request_session_twice() -> None:
+    def duplicate(first: Session, second: Session) -> dict[str, bool]:
+        return {"same": first is second}
+
+    with pytest.raises(RegistrationError, match="may request Session only once"):
+        Hinoki(include=[http.get("/duplicate")(duplicate)])
+
+
+async def test_session_csrf_normalizes_origin_and_rejects_same_site_fetch() -> None:
+    store = MemorySessionStore()
+    app = Hinoki(
+        include=[write_session, read_session], modules=[SessionModule(store, SETTINGS)]
+    )
+    async with ASGIClient(app) as client:
+        created = await client.post("/session/write")
+        token = created.headers["set-cookie"].split("=", 1)[1].split(";", 1)[0]
+        read = await client.get(
+            "/session/read", headers={"cookie": f"hinoki_session={token}"}
+        )
+        headers = {
+            "cookie": f"hinoki_session={token}",
+            "x-csrf-token": read.body["csrf"],
+            "origin": "http://testserver",
+            "host": "TESTSERVER:80",
+            "sec-fetch-site": "same-origin",
+        }
+        accepted = await client.post("/session/write", headers=headers)
+        assert accepted.status == 200
+        rejected = await client.post(
+            "/session/write",
+            headers={**headers, "sec-fetch-site": "same-site"},
+        )
+        assert rejected.status == 403
+
+
 async def test_database_session_store_upsert_revoke_and_subject_delete(
     tmp_path: object,
 ) -> None:
@@ -333,8 +433,47 @@ async def test_database_session_store_upsert_revoke_and_subject_delete(
         assert await store.load(token_hash) == record
         assert await store.delete_by_subject("alice") == 1
         assert await store.load(token_hash) is None
-        await store.save(token_hash, record)
+        with pytest.raises(SessionUnavailable, match="revoked session"):
+            await store.save(token_hash, record)
         assert await store.load(token_hash) is None
+    finally:
+        database.close()
+
+
+async def test_database_session_purge_removes_expired_including_revoked(
+    tmp_path: object,
+) -> None:
+    database = await Database.connect(f"sqlite://{tmp_path}/purge-sessions.sqlite3")
+    try:
+        await database.execute(
+            "CREATE TABLE hinoki_sessions (token_hash varchar(64) PRIMARY KEY, "
+            "data text NOT NULL, created_at text NOT NULL, expires_at text NOT NULL, "
+            "idle_expires_at text NOT NULL, last_seen_at text NOT NULL, "
+            "subject varchar(255), revoked integer NOT NULL DEFAULT 0)"
+        )
+        store = DatabaseSessionStore(database)
+        now = datetime(2026, 1, 1, tzinfo=UTC)
+        expired_hash, live_hash = "e" * 64, "l" * 64
+        expired = SessionRecord(
+            {},
+            now - timedelta(days=2),
+            now - timedelta(seconds=1),
+            now - timedelta(seconds=1),
+            now - timedelta(days=1),
+        )
+        live = SessionRecord(
+            {},
+            now,
+            now + timedelta(days=1),
+            now + timedelta(hours=1),
+            now,
+        )
+        await store.save(expired_hash, expired)
+        await store.delete(expired_hash)
+        await store.save(live_hash, live)
+        assert await store.purge_expired(now) == 1
+        assert await store.load(expired_hash) is None
+        assert await store.load(live_hash) == live
     finally:
         database.close()
 

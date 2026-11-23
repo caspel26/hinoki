@@ -60,9 +60,7 @@ async def test_resource_is_injected_into_async_sync_and_class_handlers() -> None
 
 
 async def test_missing_resource_fails_at_startup_with_route_and_type() -> None:
-    with pytest.raises(
-        RuntimeError, match="route 'missing' requires Resource Label"
-    ):
+    with pytest.raises(RuntimeError, match="route 'missing' requires Resource Label"):
         async with ASGIClient(Hinoki(include=[missing])):
             pytest.fail("startup must reject the missing resource provider")
 

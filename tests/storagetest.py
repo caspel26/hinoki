@@ -3,10 +3,13 @@
 import asyncio
 import time
 from pathlib import Path
+from threading import Event
+from urllib.parse import urlencode
 
 import pytest
 
 from hinoki import Hinoki, http
+from hinoki.http.response import Response
 from hinoki.parsers import UploadedFile
 from hinoki.storage import (
     FileStorage,
@@ -16,8 +19,10 @@ from hinoki.storage import (
     LocalFileStorage,
     MemoryFileStorage,
     StorageQuotaExceeded,
+    StorageUnavailable,
     StoredFile,
     StoredFileNotFound,
+    _atomic_write,
 )
 from hinoki.testing import ASGIClient
 
@@ -34,6 +39,11 @@ def store_sync(file: UploadedFile, storage: FileStorage) -> dict[str, object]:
     saved = storage.save_sync(file)
     assert storage.read_sync(saved.key) == file.content
     return {"key": saved.key, "size": saved.size}
+
+
+@http.get("/documents")
+async def download_document(key: str, storage: FileStorage) -> Response:
+    return await storage.open_response(key)
 
 
 async def test_memory_storage_limits_and_idempotent_delete() -> None:
@@ -102,6 +112,29 @@ async def test_local_storage_creates_atomic_files_and_returns_file_response(
         await backend.close()
 
 
+@pytest.mark.parametrize("backend_kind", ["memory", "local"])
+async def test_open_response_contract_works_over_http_for_each_backend(
+    tmp_path: Path, backend_kind: str
+) -> None:
+    backend: FileStorage = (
+        MemoryFileStorage()
+        if backend_kind == "memory"
+        else LocalFileStorage(tmp_path / "http-downloads")
+    )
+    app = Hinoki(
+        include=[store, download_document], modules=[FileStorageModule(backend)]
+    )
+    async with ASGIClient(app) as client:
+        uploaded = await client.post(
+            "/store", files=[("file", "report.txt", b"payload", "text/plain")]
+        )
+        downloaded = await client.get(
+            "/documents", query=urlencode({"key": uploaded.body["key"]})
+        )
+        assert uploaded.status == downloaded.status == 200
+        assert downloaded.raw == b"payload"
+
+
 async def test_local_startup_io_does_not_block_the_worker_loop(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -146,6 +179,95 @@ def test_local_read_checks_size_before_returning_data(tmp_path: Path) -> None:
             await backend.close()
 
     asyncio.run(run())
+
+
+async def test_failed_write_releases_reserved_quota(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backend = LocalFileStorage(tmp_path / "quota-release", max_total_bytes=4)
+    await backend.start()
+
+    def fail_write(_path: Path, _content: bytes, _root: Path) -> None:
+        raise StorageUnavailable
+
+    monkeypatch.setattr("hinoki.storage._atomic_write", fail_write)
+    try:
+        with pytest.raises(StorageUnavailable):
+            await backend.save(b"1234")
+        assert backend._reserved_bytes == 0
+        monkeypatch.undo()
+        assert (await backend.save(b"1234")).size == 4
+    finally:
+        await backend.close()
+
+
+async def test_quota_lock_is_released_during_disk_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backend = LocalFileStorage(
+        tmp_path / "quota-contention", max_total_bytes=4, workers=2
+    )
+    await backend.start()
+    entered, release, contender_started = Event(), Event(), Event()
+
+    def blocked_write(path: Path, content: bytes, root: Path) -> None:
+        entered.set()
+        if not release.wait(2):
+            raise TimeoutError("test write was not released")
+        _atomic_write(path, content, root)
+
+    monkeypatch.setattr("hinoki.storage._atomic_write", blocked_write)
+
+    async def contend() -> StoredFile:
+        contender_started.set()
+        return await backend.save(b"x")
+
+    first = asyncio.create_task(backend.save(b"1234"))
+    try:
+        assert await asyncio.to_thread(entered.wait, 1)
+        second = asyncio.create_task(contend())
+        assert await asyncio.to_thread(contender_started.wait, 1)
+        done, _ = await asyncio.wait({second}, timeout=0.2)
+        assert second in done
+        with pytest.raises(StorageQuotaExceeded):
+            await second
+    finally:
+        release.set()
+        await first
+        await backend.close()
+
+
+async def test_close_waits_for_inflight_local_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backend = LocalFileStorage(tmp_path / "close-waits")
+    await backend.start()
+    entered, release = Event(), Event()
+
+    def blocked_write(path: Path, content: bytes, root: Path) -> None:
+        entered.set()
+        if not release.wait(2):
+            raise TimeoutError("test write was not released")
+        _atomic_write(path, content, root)
+
+    monkeypatch.setattr("hinoki.storage._atomic_write", blocked_write)
+    write = asyncio.create_task(backend.save(b"payload"))
+    try:
+        assert await asyncio.to_thread(entered.wait, 1)
+        closing = asyncio.create_task(backend.close())
+        await asyncio.sleep(0.02)
+        assert not closing.done()
+        assert backend._resolved_root is not None
+        release.set()
+        await write
+        await closing
+        assert backend._resolved_root is None
+        assert backend._pool is None
+    finally:
+        release.set()
+        if not write.done():
+            await write
+        await backend.close()
 
 
 async def asyncio_gather_saves(

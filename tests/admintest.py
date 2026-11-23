@@ -406,11 +406,13 @@ def test_csrf_tokens_are_signed_for_the_signed_in_subject() -> None:
 
 
 class FakeRequest:
-    def __init__(self, cookie: str, sent: str, **headers: str) -> None:
+    def __init__(
+        self, cookie: str, sent: str, *, host: str = "app.test", **headers: str
+    ) -> None:
         self.COOKIES = {csrf.COOKIE: cookie}
         self.POST = {csrf.FIELD: sent}
         self.headers = {k.replace("_", "-"): v for k, v in headers.items()}
-        self.host = "app.test"
+        self.host = host
         self.scheme = "http"
 
 
@@ -429,6 +431,15 @@ def test_csrf_needs_cookie_field_signature_and_same_site() -> None:
     ):
         assert not guard.valid(request, "ann")  # type: ignore[arg-type]
     assert guard.valid(FakeRequest(good, good, origin="http://app.test"), "ann")  # type: ignore[arg-type]
+    assert guard.valid(
+        FakeRequest(  # type: ignore[arg-type]
+            good,
+            good,
+            origin="http://APP.TEST:80",
+            host="app.test",
+        ),
+        "ann",
+    )
     assert guard.valid(FakeRequest(good, good, sec_fetch_site="same-origin"), "ann")  # type: ignore[arg-type]
     assert not guard.valid(FakeRequest(good, good), "bob")  # type: ignore[arg-type]
 

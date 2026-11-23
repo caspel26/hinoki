@@ -132,6 +132,22 @@ async def test_database_cache_is_shared_and_expires(tmp_path: object) -> None:
         database.close()
 
 
+async def test_database_cache_rejects_corrupt_expiry(tmp_path: object) -> None:
+    database = await Database.connect(f"sqlite://{tmp_path}/cache-corrupt.sqlite3")
+    try:
+        await database.execute(
+            "CREATE TABLE hinoki_cache (cache_key varchar(256) PRIMARY KEY, "
+            "value_hex text NOT NULL, expires_at varchar(64) NOT NULL)"
+        )
+        await database.execute(
+            "INSERT INTO hinoki_cache VALUES (?, ?, ?)", "broken", b"ok".hex(), "bad"
+        )
+        with pytest.raises(CacheDecodeError, match="expiry"):
+            await DatabaseCache(database).get_bytes("broken")
+    finally:
+        database.close()
+
+
 async def test_expired_read_does_not_delete_concurrent_refresh(
     tmp_path: object, monkeypatch: pytest.MonkeyPatch
 ) -> None:
