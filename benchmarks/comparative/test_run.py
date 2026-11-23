@@ -125,6 +125,25 @@ def test_server_and_load_generator_never_share_a_physical_core() -> None:
     assert server.isdisjoint(load)
 
 
+def test_hinoki_servers_do_not_inherit_the_benchmark_cpu_settings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Hinoki reads BENCH_* as settings and rejects names it does not know.
+    monkeypatch.setenv("BENCH_SERVER_CPUS", "0,1")
+    monkeypatch.setenv("BENCH_LOAD_CPUS", "2,3")
+    seen: dict[str, str] = {}
+
+    def fake_popen(*_args: object, env: dict[str, str], **_kwargs: object) -> object:
+        seen.update(env)
+        return object()
+
+    monkeypatch.setattr(run.subprocess, "Popen", fake_popen)
+    run.start("hinoki", tmp_path / "server.log")
+
+    assert "BENCH_SERVER_CPUS" not in seen
+    assert "BENCH_LOAD_CPUS" not in seen
+
+
 def test_stop_ends_the_whole_group_on_sigterm() -> None:
     process = sleeper(ignore_term=False)
 
