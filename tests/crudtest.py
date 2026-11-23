@@ -3,6 +3,9 @@
 import json
 import os
 from collections.abc import AsyncIterator
+from operator import attrgetter
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
@@ -21,6 +24,7 @@ from hinoki import (
     Schema,
     Unset,
     crud,
+    from_user,
     http,
 )
 from hinoki.db import Database, DatabaseModule
@@ -28,7 +32,8 @@ from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.resources import _CrudConfig
+from hinoki.resources import UserAttr, _CrudConfig
+from hinoki.runtime.crudplan import assign_is_plain
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -777,3 +782,289 @@ async def test_writes_carry_the_base_query_and_report_missing_as_404(
             await api.refuse(hidden, ann)
         assert isinstance(await api.refuse(shown, ann), Forbidden)
         assert len(await admin.fetch("SELECT id FROM crud_hidden")) == 2
+
+
+class _BaseUser:
+    def __init__(self, uid: str, org_id: str) -> None:
+        self.id = uid
+        self.org_id = org_id
+        self.org = SimpleNamespace(id=org_id)
+
+
+class _MemberUser(_BaseUser):
+    pass
+
+
+class _OtherUser:
+    pass
+
+
+class _MemberTokens(BearerAuth[_MemberUser]):
+    async def resolve_token(self, token: str) -> Caller[_MemberUser] | None:
+        name = token.strip()
+        user = _MemberUser(name, f"org-{name}")
+        return Caller(id=name, user=user, permissions=frozenset({"memo:write"}))
+
+
+class _UnparamTokens(BearerAuth[Any]):
+    async def resolve_token(self, token: str) -> Caller[Any] | None:
+        return Caller(id=token, user=_MemberUser(token, "org"), permissions=frozenset())
+
+
+_member_access = Access(auth=_MemberTokens(), permissions=["memo:write"])
+_unparam_access = Access(auth=_UnparamTokens())
+
+
+def test_hook_non_none_caller_allowed_on_protected_crud() -> None:
+    @crud(
+        Memo,
+        path="/protected-hooks",
+        read=MemoOut,
+        create=MemoIn,
+        delete=True,
+        access=_member_access,
+        owner="owner",
+    )
+    class ProtectedMemos(API):
+        def get_queryset(self, caller: Caller[_MemberUser]) -> QuerySet[Memo]:
+            return Memo.filter(owner=caller.user.id)
+
+        def written_queryset(self, caller: Caller[_BaseUser]) -> QuerySet[Memo]:
+            return Memo.filter(owner=caller.user.id)
+
+        async def remove(
+            self, item: Memo, scoped: QuerySet[Memo], caller: Caller[_MemberUser]
+        ) -> bool:
+            return bool(await scoped.filter(owner=caller.user.id).adelete())
+
+    assert ProtectedMemos.routes()
+
+
+def test_hook_non_none_caller_rejected_on_public_action() -> None:
+    class PublicMemoIn(Schema):
+        owner: str
+        title: str
+
+    with pytest.raises(
+        RegistrationError,
+        match=r"PublicHookMemos\.get_queryset.*non-None Caller.*list, retrieve",
+    ):
+
+        @crud(
+            Memo,
+            path="/public-hook",
+            read=MemoOut,
+            create=MemoIn,
+            access=CrudAccess(default=_member_access, list=None, retrieve=None),
+            owner="owner",
+        )
+        class PublicHookMemos(API):
+            def get_queryset(self, caller: Caller[_MemberUser]) -> QuerySet[Memo]:
+                return Memo.filter(owner=caller.user.id)
+
+    with pytest.raises(
+        RegistrationError,
+        match=r"PublicWriteHook\.store.*non-None Caller.*create",
+    ):
+
+        @crud(
+            Memo,
+            path="/public-write-hook",
+            read=MemoOut,
+            create=PublicMemoIn,
+            public_writes=True,
+        )
+        class PublicWriteHook(API):
+            async def store(
+                self, values: dict[str, Any], caller: Caller[_MemberUser]
+            ) -> Memo:
+                return await Memo.acreate(**values)
+
+
+def test_hook_non_none_caller_allowed_when_public_reads_omitted() -> None:
+    @crud(
+        Memo,
+        path="/writes-only-hook",
+        read=MemoOut,
+        create=MemoIn,
+        delete=True,
+        access=_member_access,
+        owner="owner",
+        omit=("list", "retrieve"),
+    )
+    class WritesOnlyMemos(API):
+        def get_queryset(self, caller: Caller[_MemberUser]) -> QuerySet[Memo]:
+            return Memo.filter(owner=caller.user.id)
+
+    assert WritesOnlyMemos.routes()
+
+
+def test_hook_caller_type_mismatch_raises_registration_error() -> None:
+    with pytest.raises(
+        RegistrationError,
+        match=r"WrongTypeMemos\.get_queryset.*Caller\[_OtherUser\].*Caller\[_MemberUser\]",
+    ):
+
+        @crud(
+            Memo,
+            path="/wrong-type",
+            read=MemoOut,
+            access=_member_access,
+        )
+        class WrongTypeMemos(API):
+            def get_queryset(self, caller: Caller[_OtherUser]) -> QuerySet[Memo]:
+                return Memo.all()
+
+    with pytest.raises(
+        RegistrationError,
+        match=r"WrongOptionalMemos\.get_queryset.*Caller\[_OtherUser\].*Caller\[_MemberUser\]",
+    ):
+
+        @crud(
+            Memo,
+            path="/wrong-optional-type",
+            read=MemoOut,
+            delete=True,
+            access=CrudAccess(default=_member_access, list=None, retrieve=None),
+            owner="owner",
+        )
+        class WrongOptionalMemos(API):
+            def get_queryset(self, caller: Caller[_OtherUser] | None) -> QuerySet[Memo]:
+                return Memo.all()
+
+
+def test_hook_optional_caller_and_unannotated_hooks_stay_compatible() -> None:
+    @crud(
+        Memo,
+        path="/mixed-optional",
+        read=MemoOut,
+        create=MemoIn,
+        access=CrudAccess(default=_member_access, list=None, retrieve=None),
+        owner="owner",
+    )
+    class MixedMemos(API):
+        def get_queryset(self, caller: Caller[_MemberUser] | None) -> QuerySet[Memo]:
+            if caller is None:
+                return Memo.all()
+            return Memo.filter(owner=caller.user.id)
+
+    @crud(Memo, path="/unannotated", read=MemoOut, access=_unparam_access)
+    class UnannotatedMemos(API):
+        def get_queryset(self, principal):  # type: ignore[no-untyped-def]
+            return Memo.all()
+
+    @crud(Memo, path="/default-none", read=MemoOut)
+    class DefaultNoneMemos(API):
+        def get_queryset(
+            self,
+            caller: Caller[_MemberUser] = None,  # type: ignore[assignment]
+        ) -> QuerySet[Memo]:
+            return Memo.all()
+
+    assert MixedMemos.routes()
+    assert UnannotatedMemos.routes()
+    assert DefaultNoneMemos.routes()
+
+
+def test_from_user_extracts_attributes_and_validates_path() -> None:
+    getter = from_user("org_id")
+    nested = from_user("org.id")
+    user = _MemberUser("ann", "acme")
+    assert isinstance(getter, UserAttr)
+    assert getter.attr == "org_id"
+    assert getter == from_user("org_id")
+    assert getter(user) == "acme"
+    assert nested(user) == "acme"
+
+    for bad in ("", " ", "123", ".org", "org.", "org..id", "org id"):
+        with pytest.raises(ValueError, match="valid attribute name"):
+            from_user(bad)
+
+
+def test_from_user_assign_stays_on_python_lane() -> None:
+    config = _CrudConfig(
+        model=Memo,
+        read=MemoOut,
+        create=MemoIn,
+        access=_member_access,
+        assign={"owner": from_user("org_id")},
+    )
+    config.check()
+    assert not assign_is_plain(config)
+
+
+@pytest.mark.asyncio
+async def test_from_user_and_attrgetter_assign_work_end_to_end(
+    tmp_path: Path, pool: Pool
+) -> None:
+    class AssignedMemo(Model, table="crud_assigned_memos"):
+        id: str = field(primary_key=True, default_factory=lambda: str(uuid4()))
+        owner: str = field(max_length=40)
+        title: str = field(max_length=40)
+
+    class AssignedIn(Schema):
+        title: str
+
+    class AssignedOut(Schema):
+        id: str
+        owner: str
+        title: str
+
+    @crud(
+        AssignedMemo,
+        path="/from-user",
+        read=AssignedOut,
+        create=AssignedIn,
+        access=_member_access,
+        assign={"owner": from_user("org.id")},
+    )
+    class FromUserMemos(API):
+        def get_queryset(self, caller: Caller[_MemberUser]) -> QuerySet[AssignedMemo]:
+            return AssignedMemo.filter(owner=caller.user.org.id)
+
+    @crud(
+        AssignedMemo,
+        path="/attrgetter",
+        read=AssignedOut,
+        create=AssignedIn,
+        access=_member_access,
+        assign={"owner": attrgetter("org_id")},
+    )
+    class AttrgetterMemos(API):
+        pass
+
+    db_url = f"sqlite:///{tmp_path / 'crud_assign.db'}"
+    database = await Database.connect(db_url, max_size=1, wait=1)
+    try:
+        await database.execute(
+            "CREATE TABLE crud_assigned_memos "
+            "(id TEXT PRIMARY KEY, owner TEXT NOT NULL, title TEXT NOT NULL)"
+        )
+    finally:
+        database.close()
+    app = Hinoki(modules=[DatabaseModule(db_url)])
+    app.include(FromUserMemos, AttrgetterMemos)
+    client = await pool.start(app)
+    r1 = await client.request(
+        "POST",
+        "/from-user",
+        body(title="via-from-user"),
+        content_type=JSON,
+        headers=ANN,
+    )
+    assert r1.status == 201
+    assert r1.body["owner"] == "org-ann"
+
+    listed = await client.request("GET", "/from-user", headers=ANN)
+    assert listed.status == 200
+    assert [item["title"] for item in listed.body["items"]] == ["via-from-user"]
+
+    r2 = await client.request(
+        "POST",
+        "/attrgetter",
+        body(title="via-attrgetter"),
+        content_type=JSON,
+        headers=BOB,
+    )
+    assert r2.status == 201
+    assert r2.body["owner"] == "org-bob"
