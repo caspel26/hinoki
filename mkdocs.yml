@@ -105,6 +105,7 @@ nav:
           - Class-based APIs: class-endpoints.md
           - Register routes: routes.md
           - Requests and responses: endpoints.md
+          - Store uploaded files: storage.md
           - Generate CRUD routes: crud.md
           - Errors: errors.md
           - Stream a response: streaming.md
@@ -119,10 +120,12 @@ nav:
           - OpenAPI document: openapi.md
       - Security and checks:
           - Authentication and access: authentication.md
+          - Application sessions: sessions.md
           - Hosts, CORS and HTTPS: web-security.md
           - Rules: rules.md
       - Runtime:
           - Application modules: modules.md
+          - Cache values: cache.md
           - Transactions: transactions.md
           - Settings: settings.md
           - Serve an application: serving.md
