@@ -12,9 +12,10 @@ and ``File``.
 The handler returns the object; its status, headers and the source of the body
 are fixed then, so access, validation, errors and the request timeout all
 happen before the first byte. The action's return annotation must name the
-class (``-> Stream``, ``-> EventStream``, ``-> File``, alone or in a union).
-They are ``Response`` objects with an empty ``body``; middleware can add
-headers with ``with_header`` but never sees the pieces.
+class (``-> Stream``, ``-> EventStream``, ``-> File``, alone or in a union), or
+the base ``Response`` type. They are ``Response`` objects with an empty
+``body``; middleware can add headers with ``with_header`` but never sees the
+pieces.
 """
 
 from __future__ import annotations

@@ -414,8 +414,7 @@ class OpenAPIBuilder:
             }
         responses: dict[str, Any] = {str(status): success}
         has_inputs = any(
-            p.source in INPUTS or p.source in {"body", "file"}
-            for p in binding.params
+            p.source in INPUTS or p.source in {"body", "file"} for p in binding.params
         )
         if has_inputs:
             self.components.setdefault(VALIDATION_ERROR, validation_error_schema())

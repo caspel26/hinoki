@@ -33,6 +33,7 @@ from hinoki.errors import (
 from hinoki.filters import FilterSet
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.http.stream import Streamed
 from hinoki.modules import Resource
 from hinoki.pagination import (
@@ -245,6 +246,7 @@ class Binding:
     response_annotation: str = field(default="", repr=False, compare=False)
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     streams: bool = False  # the return annotation names Stream, EventStream or File
+    stream_capable: bool = False  # Response may be a stream, including FileStorage
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
     body_param: Param | None = field(init=False, repr=False, compare=False)
@@ -811,6 +813,10 @@ def bind(route: Route) -> Binding:
         raise RegistrationError(
             f"{route.name}: a Resource type may be requested only once per handler"
         )
+    if sum(p.source == "session" for p in params) > 1:
+        raise RegistrationError(
+            f"{route.name}: a handler may request Session only once"
+        )
     if route.pagination is not None and not any(p.source == "page" for p in params):
         raise RegistrationError(
             f"{route.name}: pagination=... needs a PageParams or CursorParams parameter"
@@ -827,7 +833,7 @@ def bind(route: Route) -> Binding:
         )
     needs_body = any(p.source in {"body", "file"} for p in params)
     response = hints.get("return")
-    streams = check_streaming(route, response)
+    streams, stream_capable = check_streaming(route, response)
     response_schema = (
         response
         if isinstance(response, type)
@@ -849,10 +855,11 @@ def bind(route: Route) -> Binding:
         response_check,
         describe_annotation(hints.get("return", NO_ANNOTATION)),
         streams=streams,
+        stream_capable=stream_capable,
     )
 
 
-def check_streaming(route: Route, annotation: object) -> bool:
+def check_streaming(route: Route, annotation: object) -> tuple[bool, bool]:
     """Whether the action streams (its annotation names ``Stream``,
     ``EventStream`` or ``File``); ``RegistrationError`` for a declaration that
     cannot work with a stream."""
@@ -863,9 +870,10 @@ def check_streaming(route: Route, annotation: object) -> bool:
             "return Stream(...) or EventStream(...) built from the generator, "
             "and annotate the action with it"
         )
-    streams = any(
-        isinstance(arm, type) and issubclass(arm, Streamed)
-        for arm in union_arms(annotation)
+    arms = union_arms(annotation)
+    streams = any(isinstance(arm, type) and issubclass(arm, Streamed) for arm in arms)
+    stream_capable = Response in arms or any(
+        isinstance(arm, type) and issubclass(arm, Streamed) for arm in arms
     )
     if streams and route.atomic:
         raise RegistrationError(
@@ -876,4 +884,4 @@ def check_streaming(route: Route, annotation: object) -> bool:
         raise RegistrationError(
             f"{route.name}: status {route.status} cannot have a body"
         )
-    return streams
+    return streams, stream_capable

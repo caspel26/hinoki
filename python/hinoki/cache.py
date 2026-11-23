@@ -362,7 +362,10 @@ def _datetime(value: object) -> datetime:
     if isinstance(value, datetime):
         return value
     if isinstance(value, str):
-        return datetime.fromisoformat(value)
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            raise CacheDecodeError("stored expiry is invalid") from None
     raise CacheDecodeError("stored expiry is invalid")
 
 

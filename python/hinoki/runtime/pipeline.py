@@ -42,6 +42,7 @@ from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
 from hinoki.http.response import encode_header
+from hinoki.http.security import same_site_origin
 from hinoki.http.stream import File, Streamed
 from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
@@ -1061,12 +1062,12 @@ class Pipeline:
         """Reject cross-site unsafe requests using a session cookie."""
         if binding.route.method in {"GET", "HEAD", "OPTIONS"} or session.is_new:
             return
-        fetch_site = headers.get("sec-fetch-site", "")
-        if fetch_site in {"cross-site", "none"}:
-            raise HTTPError(HTTPStatus.FORBIDDEN, "csrf_rejected")
-        origin = headers.get("origin")
-        expected = f"{scope.get('scheme', 'http')}://{headers.get('host', '')}"
-        if origin is not None and origin != expected:
+        if not same_site_origin(
+            headers.get("origin"),
+            headers.get("sec-fetch-site", ""),
+            headers.get("host", ""),
+            str(scope.get("scheme") or "http"),
+        ):
             raise HTTPError(HTTPStatus.FORBIDDEN, "csrf_rejected")
         csrf = headers.get("x-csrf-token", "")
         if not csrf or not session.verify_csrf(csrf):
@@ -1305,7 +1306,16 @@ class Pipeline:
             return await self._invoke_streaming(binding, request, renderer, kwargs)
         if binding.route.atomic:
             async with self.ctx.get(Database).atomic():
-                return await self._call(binding, request, renderer, kwargs)
+                response = await self._call(binding, request, renderer, kwargs)
+            if response.stream is not None:
+                await discard_answer(response.stream.answer, self.executor)
+                raise ResponseContractError(
+                    f"{binding.route.name}: atomic=True cannot return a "
+                    "streamed response"
+                )
+            return response
+        if binding.stream_capable:
+            return await self._invoke_streaming(binding, request, renderer, kwargs)
         return await self._call(binding, request, renderer, kwargs)
 
     async def _invoke_streaming(
@@ -1336,7 +1346,7 @@ class Pipeline:
         """The answer for a ``Stream``, ``EventStream`` or ``File`` a handler
         returned; its body is closed unsent when the answer is refused."""
         try:
-            if not binding.streams:
+            if not binding.stream_capable:
                 raise ResponseContractError(
                     f"{binding.route.name} returned a {type(answer).__name__} "
                     "but its return annotation does not name it; annotate the "

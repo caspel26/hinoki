@@ -273,7 +273,17 @@ class DatabaseSessionStore(SessionStore):
             record.subject,
         )
         sql = _session_upsert(self.database.dialect)
-        await _session_db(self.database.execute(sql, *values))
+        database = self.database
+        affected = await _session_db(database.execute(sql, *values))
+        if affected == 0:
+            current = await _session_db(
+                database.fetch_one(
+                    "SELECT revoked FROM hinoki_sessions WHERE token_hash = ?",
+                    token_hash,
+                )
+            )
+            if current is None or current["revoked"] != 0:
+                raise SessionUnavailable("a revoked session cannot be restored")
 
     async def delete(self, token_hash: str) -> None:
         await _session_db(
@@ -297,7 +307,6 @@ class DatabaseSessionStore(SessionStore):
         return await _session_db(
             self.database.execute(
                 "DELETE FROM hinoki_sessions WHERE expires_at <= ?",
-                instant,
                 instant,
             )
         )
@@ -343,6 +352,7 @@ class Session:
         self.token = token
         self.record = record
         self._data = deepcopy(record.data) if record else {}
+        self._original_token_hash = _digest(token) if token is not None else None
         self.created_at = record.created_at if record else (now or utc_now())
         self.expires_at = (
             record.expires_at if record else self.created_at + settings.absolute_timeout
@@ -423,8 +433,9 @@ class Session:
         return deepcopy(self._data[key])
 
     def __setitem__(self, key: str, value: object) -> None:
-        self._data[key] = value
-        self._check_size()
+        candidate = {**self._data, key: deepcopy(value)}
+        self._check_size(candidate)
+        self._data = candidate
         self.modified = True
 
     def __delitem__(self, key: str) -> None:
@@ -436,15 +447,13 @@ class Session:
         self.modified = True
 
     async def rotate(self) -> None:
-        if self.token is not None:
-            self._pending_delete = _digest(self.token)
+        self._record_original_token_for_revocation()
         self.token = secrets.token_urlsafe(32)
         self.rotated = True
         self.modified = True
 
     async def invalidate(self) -> None:
-        if self.token is not None:
-            self._pending_delete = _digest(self.token)
+        self._record_original_token_for_revocation()
         self._data.clear()
         self.invalidated = True
         self.modified = True
@@ -457,9 +466,14 @@ class Session:
     def verify_csrf(self, token: str) -> bool:
         return hmac.compare_digest(self.csrf_token(), token)
 
-    def _check_size(self) -> None:
+    def _record_original_token_for_revocation(self) -> None:
+        if self._pending_delete is None:
+            self._pending_delete = self._original_token_hash
+
+    def _check_size(self, data: dict[str, object] | None = None) -> None:
         try:
-            size = len(json.dumps(self._data, separators=(",", ":")).encode())
+            checked = self._data if data is None else data
+            size = len(json.dumps(checked, separators=(",", ":")).encode())
         except (TypeError, ValueError):
             raise TypeError("session values must be JSON serializable") from None
         if size > self.max_bytes:

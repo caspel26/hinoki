@@ -352,6 +352,7 @@ class LocalFileStorage(FileStorage):
         self._slots: asyncio.Semaphore | None = None
         self._quota_lock = threading.Lock()
         self._size = 0
+        self._reserved_bytes = 0
 
     async def start(self) -> None:
         pool = ThreadPoolExecutor(
@@ -380,10 +381,18 @@ class LocalFileStorage(FileStorage):
 
     async def close(self) -> None:
         pool, self._pool = self._pool, None
+        if pool is not None:
+            shutdown = asyncio.get_running_loop().run_in_executor(
+                None,
+                functools.partial(pool.shutdown, wait=True, cancel_futures=False),
+            )
+            try:
+                await asyncio.shield(shutdown)
+            except asyncio.CancelledError:
+                await shutdown
+                raise
         self._slots = None
         self._resolved_root = None
-        if pool is not None:
-            pool.shutdown(wait=False, cancel_futures=True)
 
     def _path(self, key: str, *, create_parent: bool = False) -> Path:
         _check_key(key)
@@ -532,10 +541,19 @@ class LocalFileStorage(FileStorage):
         with self._quota_lock:
             if (
                 self.max_total_bytes is not None
-                and self._size + len(content) > self.max_total_bytes
+                and self._size + self._reserved_bytes + len(content)
+                > self.max_total_bytes
             ):
                 raise StorageQuotaExceeded
+            self._reserved_bytes += len(content)
+        try:
             _atomic_write(path, content, self._root())
+        except BaseException:
+            with self._quota_lock:
+                self._reserved_bytes -= len(content)
+            raise
+        with self._quota_lock:
+            self._reserved_bytes -= len(content)
             self._size += len(content)
 
 
