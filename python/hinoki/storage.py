@@ -354,18 +354,29 @@ class LocalFileStorage(FileStorage):
         self._size = 0
 
     async def start(self) -> None:
+        pool = ThreadPoolExecutor(
+            max_workers=self.workers, thread_name_prefix="hinoki-storage"
+        )
+        self._pool = pool
+        loop = asyncio.get_running_loop()
+        try:
+            resolved, size = await loop.run_in_executor(pool, self._prepare_root)
+        except BaseException:
+            await self.close()
+            raise
+        if self.max_total_bytes is not None and size > self.max_total_bytes:
+            await self.close()
+            raise StorageQuotaExceeded
+        self._resolved_root = resolved
+        self._size = size
+        self._slots = asyncio.Semaphore(self.workers + self.max_pending)
+
+    def _prepare_root(self) -> tuple[Path, int]:
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         resolved = self.root.resolve(strict=True)
         if not resolved.is_dir() or not os.access(resolved, os.W_OK):
             raise StorageUnavailable("configured storage root is not writable")
-        self._resolved_root = resolved
-        self._size = _directory_size(resolved)
-        if self.max_total_bytes is not None and self._size > self.max_total_bytes:
-            raise StorageQuotaExceeded
-        self._pool = ThreadPoolExecutor(
-            max_workers=self.workers, thread_name_prefix="hinoki-storage"
-        )
-        self._slots = asyncio.Semaphore(self.workers + self.max_pending)
+        return resolved, _directory_size(resolved)
 
     async def close(self) -> None:
         pool, self._pool = self._pool, None
@@ -487,14 +498,13 @@ class LocalFileStorage(FileStorage):
         content_type: str | None = None,
         disposition: Literal["attachment", "inline"] = "attachment",
     ) -> Response:
-        path = self._path(key)
+        path, size = await self._run(functools.partial(self._response_info, key))
         shown = filename or path.name
         media = (
             _content_type(content_type)
             if content_type is not None
             else mimetypes.guess_type(shown)[0] or "application/octet-stream"
         )
-        size = await self._run(functools.partial(_file_size, path))
         if size > self.max_file_bytes:
             raise FileTooLarge
         headers = _download_headers(
@@ -513,6 +523,10 @@ class LocalFileStorage(FileStorage):
         if self._resolved_root is None:
             raise StorageUnavailable("storage module is not started")
         return self._resolved_root
+
+    def _response_info(self, key: str) -> tuple[Path, int]:
+        path = self._path(key)
+        return path, _file_size(path)
 
     def _write_with_quota(self, path: Path, content: bytes) -> None:
         with self._quota_lock:
@@ -574,7 +588,11 @@ def _read_file(path: Path, max_bytes: int) -> bytes:
     if size > max_bytes:
         raise FileTooLarge
     try:
-        return path.read_bytes()
+        with path.open("rb") as source:
+            content = source.read(max_bytes + 1)
+        if len(content) > max_bytes:
+            raise FileTooLarge
+        return content
     except FileNotFoundError:
         raise StoredFileNotFound from None
     except OSError:
