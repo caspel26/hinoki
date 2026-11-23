@@ -26,6 +26,7 @@ from hinoki.events import (
     Updated,
 )
 from hinoki.fields import UNSET
+from hinoki.filters import FilterSet
 from hinoki.orm import Model, QuerySet
 from hinoki.orm import queryset as queryset_module
 from hinoki.orm.queryset import condition, write_statement, written_rows
@@ -83,6 +84,7 @@ OWNER_METHODS = (
     "__getattr__",
     "__setattr__",
     "get_queryset",
+    "filter_queryset",
     "written_queryset",
     "reload_written",
     "link_queryset",
@@ -294,6 +296,18 @@ JSON_PARSER_METHODS = ("__init__", "parse")
 JSON_PARSER_METHODS_ORIGINAL = static_state(JSONParser, JSON_PARSER_METHODS)
 PAGINATION_METHODS = ("__post_init__", "check", "sizes", "resolved", "parse", "number")
 PAGINATION_METHODS_ORIGINAL = static_state(PageNumberPagination, PAGINATION_METHODS)
+FILTERSET_METHODS = (
+    "__new__",
+    "__init__",
+    "__getattribute__",
+    "__getattr__",
+    "__setattr__",
+    "parse",
+    "assign",
+    "apply",
+    "arrange",
+)
+FILTERSET_METHODS_ORIGINAL = static_state(FilterSet, FILTERSET_METHODS)
 PAGE_PARAMS_METHODS = ("offset",)
 PAGE_PARAMS_METHODS_ORIGINAL = static_state(PageParams, PAGE_PARAMS_METHODS)
 PAGINATION_DEFAULTS = (
@@ -490,7 +504,7 @@ def public_route_is_plain(
         and route_parsing_is_plain(route)
         and route_rendering_is_plain(route)
         and route_status_is_plain(route, action)
-        and action_binding_is_plain(binding, action)
+        and action_binding_is_plain(binding, action, resource)
     )
 
 
@@ -606,21 +620,60 @@ def route_status_is_plain(route: Any, action: str) -> bool:
     return route.status == expected[action] and not route.errors
 
 
-def action_binding_is_plain(binding: Binding, action: str) -> bool:
+def plain_filterset(filters: type[FilterSet] | None) -> bool:
+    if filters is None:
+        return True
+    return bool(
+        type(filters) is type
+        and filters is not FilterSet
+        and issubclass(filters, FilterSet)
+        and type(getattr(filters, "plan", None)) is core._FilterPlan
+        and static_state_matches(
+            FilterSet, FILTERSET_METHODS, FILTERSET_METHODS_ORIGINAL
+        )
+        and static_state_matches(filters, FILTERSET_METHODS, FILTERSET_METHODS_ORIGINAL)
+    )
+
+
+def action_binding_is_plain(
+    binding: Binding, action: str, resource: _CrudConfig
+) -> bool:
     if action == "list":
         strategy = next(
             (param.strategy for param in binding.params if param.source == "page"),
             None,
         )
-        return type(strategy) is PageNumberPagination and expected_binding_shape(
-            binding, action
+        filters_param = next(
+            (param for param in binding.params if param.source == "filters"),
+            None,
         )
-    return expected_binding_shape(binding, action)
+        filters_ok = (
+            filters_param is None
+            if resource.filters is None
+            else (
+                filters_param is not None
+                and filters_param.filters is resource.filters
+                and plain_filterset(resource.filters)
+            )
+        )
+        return (
+            type(strategy) is PageNumberPagination
+            and filters_ok
+            and expected_binding_shape(binding, action, resource)
+        )
+    return expected_binding_shape(binding, action, resource)
 
 
-def expected_binding_shape(binding: Binding, action: str) -> bool:
+def expected_binding_shape(
+    binding: Binding, action: str, resource: _CrudConfig
+) -> bool:
+    list_expected = (
+        {"page": "page", "filters": "filters"}
+        if resource.filters is not None
+        else {"page": "page"}
+    )
     expected = {
-        "list": {"page": "page"},
+        "list": list_expected,
         "retrieve": {"item_id": "path"},
         "create": {"data": "body"},
         "update": {"item_id": "path", "data": "body"},
@@ -1028,6 +1081,7 @@ def route_snapshot(binding: Binding) -> tuple[object, ...]:
                 item.default,
                 item.convert,
                 item.strategy,
+                item.filters,
             )
             for item in binding.params
         ),
@@ -1163,6 +1217,11 @@ def compile_selection(
             links=[
                 (name, side.spec(), column) for name, (side, column) in links.items()
             ],
+            filters=(
+                resource.filters.plan
+                if action == "list" and resource.filters is not None
+                else None
+            ),
         )
     except (TypeError, ValueError):
         return None
@@ -1269,6 +1328,17 @@ def value_state(
         tuple(resource.links.items()),
         tuple(resource.assign.items()),
         (resource.pagination.page_size, resource.pagination.max_page_size),
+        resource.filters,
+        (
+            (
+                getattr(resource.filters, "fields", None),
+                getattr(resource.filters, "search", None),
+                getattr(resource.filters, "ordering", None),
+                getattr(resource.filters, "plan", None),
+            )
+            if resource.filters is not None
+            else None
+        ),
         model.__columns__,
         tuple(model.__columns__),
         model.__table__,

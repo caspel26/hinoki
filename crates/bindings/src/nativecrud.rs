@@ -5,11 +5,13 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
+use hinoki_orm::query::{like_pattern, Filter, Op};
 use hinoki_orm::{Database, DbError, ErrorKind, Transaction, Value};
 use time::{OffsetDateTime, UtcOffset};
 use uuid::Uuid;
 
 use crate::crudplan::{CrudPlan, ModelDefault, ModelDefaultValue};
+use crate::filters::Typed;
 use crate::nativelinks::{self, InTransaction, LinkWork, Refused};
 use crate::request::{decode_json_document, decode_path_parameter, parse_query, Json};
 use crate::schema::{NativeSchema, Options, Validated};
@@ -1105,10 +1107,15 @@ async fn execute_list<D: ReadDatabase>(
         return NativeRead::Defer;
     };
     let dialect = database.dialect();
-    let Some(count_sql) = plan.count_sql(dialect) else {
+    let Some(filtered) = parse_list_filters(plan, dialect, raw_query) else {
         return NativeRead::Defer;
     };
-    let count_rows = match database.fetch(count_sql, &[]).await {
+    let Some((count_sql, count_params, list_sql, list_params)) =
+        list_statements(plan, dialect, filtered, page)
+    else {
+        return NativeRead::Defer;
+    };
+    let count_rows = match database.fetch(&count_sql, &count_params).await {
         Ok(rows) => rows,
         Err(error) => return NativeRead::Failure(error),
     };
@@ -1123,11 +1130,7 @@ async fn execute_list<D: ReadDatabase>(
     else {
         return NativeRead::Defer;
     };
-    let sql = match plan.list_sql(dialect, page.size, page.offset) {
-        Ok(sql) => sql,
-        Err(_) => return NativeRead::Defer,
-    };
-    let rows = match database.fetch(&sql, &[]).await {
+    let rows = match database.fetch(&list_sql, &list_params).await {
         Ok(rows) => rows,
         Err(error) => return NativeRead::Failure(error),
     };
@@ -1142,6 +1145,115 @@ async fn execute_list<D: ReadDatabase>(
         Some(body) => NativeRead::Reply { status: 200, body },
         None if plan.links.is_empty() => NativeRead::Rows(rows, Some(page_info)),
         None => NativeRead::Defer,
+    }
+}
+
+type ListQuery = (Vec<Filter<Value>>, Vec<(String, bool)>);
+type ListStatements = (String, Vec<Value>, String, Vec<Value>);
+
+fn list_statements(
+    plan: &CrudPlan,
+    dialect: &str,
+    (filters, order): ListQuery,
+    page: Page,
+) -> Option<ListStatements> {
+    if filters.is_empty() && order.is_empty() {
+        let count_sql = plan.count_sql(dialect)?.to_owned();
+        let list_sql = plan.list_sql(dialect, page.size, page.offset).ok()?;
+        return Some((count_sql, Vec::new(), list_sql, Vec::new()));
+    }
+    let (count_sql, count_params) = plan.filtered_count_sql(dialect, filters.clone()).ok()?;
+    let (list_sql, list_params) = plan
+        .filtered_list_sql(dialect, filters, order, page.size, page.offset)
+        .ok()?;
+    Some((count_sql, count_params, list_sql, list_params))
+}
+
+fn parse_list_filters(plan: &CrudPlan, dialect: &str, raw_query: &[u8]) -> Option<ListQuery> {
+    let Some(spec) = &plan.filters else {
+        return Some((Vec::new(), Vec::new()));
+    };
+    let grouped = group_query_pairs(parse_query(raw_query, 1000).ok()?);
+    let reserved = ["page".to_owned(), "page_size".to_owned()];
+    let parsed = spec.parse(&grouped, &reserved).ok()?;
+    let filters = compile_filter_conditions(plan, dialect, spec.conditions(&parsed))?;
+    let order = compile_filter_order(plan, dialect, parsed.order.as_deref())?;
+    Some((filters, order))
+}
+
+fn group_query_pairs(pairs: Vec<(String, String)>) -> Vec<(String, Vec<String>)> {
+    let mut grouped: Vec<(String, Vec<String>)> = Vec::new();
+    for (name, value) in pairs {
+        if let Some((_, values)) = grouped.iter_mut().find(|(key, _)| key == &name) {
+            values.push(value);
+        } else {
+            grouped.push((name, vec![value]));
+        }
+    }
+    grouped
+}
+
+fn compile_filter_conditions(
+    plan: &CrudPlan,
+    dialect: &str,
+    conditions: Vec<(String, &'static str, Vec<Typed>)>,
+) -> Option<Vec<Filter<Value>>> {
+    let mut out = Vec::with_capacity(conditions.len());
+    for (column, op_name, typed_values) in conditions {
+        if dialect == "sqlite" && touches_decimal(plan, &column) {
+            return None;
+        }
+        let op = Op::parse(op_name)?;
+        let values: Vec<Value> = typed_values.iter().map(Typed::to_orm_value).collect();
+        let (op, values) = prebuild_pattern_value(dialect, op, values);
+        out.push(Filter { column, op, values });
+    }
+    Some(out)
+}
+
+fn compile_filter_order(
+    plan: &CrudPlan,
+    dialect: &str,
+    requested: Option<&[String]>,
+) -> Option<Vec<(String, bool)>> {
+    let Some(items) = requested else {
+        return Some(Vec::new());
+    };
+    let mut order = Vec::with_capacity(items.len() + 1);
+    for item in items {
+        let (column, desc) = match item.strip_prefix('-') {
+            Some(name) => (name, true),
+            None => (item.as_str(), false),
+        };
+        if dialect == "sqlite" && plan.model_field_kind(column) == Some("decimal") {
+            return None;
+        }
+        order.push((column.to_owned(), desc));
+    }
+    if !order.iter().any(|(column, _)| column == &plan.primary_key) {
+        order.push((plan.primary_key.clone(), false));
+    }
+    Some(order)
+}
+
+fn touches_decimal(plan: &CrudPlan, column: &str) -> bool {
+    column
+        .split(',')
+        .any(|name| plan.model_field_kind(name) == Some("decimal"))
+}
+
+fn prebuild_pattern_value(dialect: &str, op: Op, values: Vec<Value>) -> (Op, Vec<Value>) {
+    let pattern_op = match op {
+        Op::Contains => Op::ContainsPattern,
+        Op::ContainsAny => Op::ContainsAnyPattern,
+        _ => return (op, values),
+    };
+    if is_mysql(dialect) {
+        return (op, values);
+    }
+    match values.as_slice() {
+        [Value::Text(text)] => (pattern_op, vec![Value::Text(like_pattern(text))]),
+        _ => (op, values),
     }
 }
 
@@ -1492,5 +1604,174 @@ mod tests {
             ));
             assert!(values.is_empty());
         }
+    }
+
+    fn filtered_plan(dialect_decimal: bool) -> CrudPlan {
+        use std::sync::Arc;
+
+        use crate::filters::{Field, Kind, Limits, Shape, Spec};
+
+        let mut p = CrudPlan::new(
+            "list".to_owned(),
+            "Item".to_owned(),
+            "items".to_owned(),
+            vec![
+                "id".to_owned(),
+                "name".to_owned(),
+                "price".to_owned(),
+                "note".to_owned(),
+            ],
+            "id".to_owned(),
+            Vec::new(),
+            20,
+            100,
+            vec![
+                ("id".to_owned(), "int".to_owned(), false),
+                ("name".to_owned(), "str".to_owned(), false),
+                ("price".to_owned(), "int".to_owned(), false),
+                ("note".to_owned(), "str".to_owned(), true),
+            ],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            vec![
+                ("id".to_owned(), "id".to_owned(), "int".to_owned(), false),
+                ("name".to_owned(), "name".to_owned(), "str".to_owned(), false),
+            ],
+            br#"{"error":"validation_error","request_id":"0123456789abcdeffedcba9876543210","details":[{"path":"body","code":"invalid","message":"invalid"}]}"#.to_vec(),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        if dialect_decimal {
+            p.model_fields[2].1 = "decimal".to_owned();
+        }
+        let spec = Spec::new(
+            vec![
+                Field {
+                    name: "name".to_owned(),
+                    kind: Kind::Str,
+                    shape: Shape::In,
+                    nullable: false,
+                    choices: Vec::new(),
+                },
+                Field {
+                    name: "price".to_owned(),
+                    kind: if dialect_decimal {
+                        Kind::Decimal
+                    } else {
+                        Kind::Int
+                    },
+                    shape: Shape::Range,
+                    nullable: false,
+                    choices: Vec::new(),
+                },
+                Field {
+                    name: "note".to_owned(),
+                    kind: Kind::Str,
+                    shape: Shape::Eq,
+                    nullable: true,
+                    choices: Vec::new(),
+                },
+            ],
+            vec!["name".to_owned(), "note".to_owned()],
+            vec!["price".to_owned(), "name".to_owned()],
+            Limits {
+                max_in: 50,
+                max_text: 256,
+                max_search: 128,
+            },
+        )
+        .unwrap();
+        p.attach_filters(Some(Arc::new(spec))).unwrap();
+        p
+    }
+
+    struct DialectStub {
+        dialect: &'static str,
+        statements: Mutex<Vec<(String, Vec<Value>)>>,
+    }
+
+    impl ReadDatabase for DialectStub {
+        fn dialect(&self) -> &str {
+            self.dialect
+        }
+
+        fn fetch<'a>(&'a self, sql: &'a str, values: &'a [Value]) -> FetchFuture<'a> {
+            Box::pin(async move {
+                self.statements
+                    .lock()
+                    .unwrap()
+                    .push((sql.to_owned(), values.to_vec()));
+                if sql.to_ascii_lowercase().contains("count(") {
+                    Ok(vec![vec![("count".to_owned(), Value::Int(1))]])
+                } else {
+                    Ok(vec![vec![
+                        ("id".to_owned(), Value::Int(4)),
+                        ("name".to_owned(), Value::Text("alpha".to_owned())),
+                        ("price".to_owned(), Value::Int(15)),
+                        ("note".to_owned(), Value::Null),
+                    ]])
+                }
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn filtered_list_compiles_predicates_search_and_stable_ordering() {
+        let database = DialectStub {
+            dialect: "postgres",
+            statements: Mutex::new(Vec::new()),
+        };
+        let query = b"name=alpha,beta&price.from=10&note.null=true&search=50%25&ordering=-name";
+        let result = execute_read_with(&filtered_plan(false), &database, &[], query, None).await;
+        let NativeRead::Reply { status, body } = result else {
+            panic!("filtered native list did not encode");
+        };
+        assert_eq!(status, 200);
+        assert_eq!(
+            body,
+            br#"{"items":[{"id":4,"name":"alpha"}],"page":1,"page_size":20,"total":1,"pages":1}"#
+        );
+        let statements = database.statements.lock().unwrap();
+        assert_eq!(statements.len(), 2);
+        assert!(statements[0].0.contains("WHERE"));
+        assert!(statements[1]
+            .0
+            .contains(r#"ORDER BY "name" DESC, "id" ASC"#));
+        // Search term "50%" must be LIKE-escaped on PostgreSQL.
+        assert!(statements[1].1.contains(&Value::Text("%50\\%%".to_owned())));
+    }
+
+    #[tokio::test]
+    async fn filtered_list_defers_on_invalid_filter_or_sqlite_decimal_range_and_order() {
+        let pg = DialectStub {
+            dialect: "postgres",
+            statements: Mutex::new(Vec::new()),
+        };
+        for query in [
+            b"unknown=1".as_slice(),
+            b"name=a&name=b",
+            b"price.from=notanumber",
+            b"ordering=unknown",
+        ] {
+            let result = execute_read_with(&filtered_plan(false), &pg, &[], query, None).await;
+            assert!(matches!(result, NativeRead::Defer), "{query:?}");
+        }
+        assert!(pg.statements.lock().unwrap().is_empty());
+
+        let sqlite = DialectStub {
+            dialect: "sqlite",
+            statements: Mutex::new(Vec::new()),
+        };
+        for query in [b"price.from=1.50".as_slice(), b"ordering=price"] {
+            let result = execute_read_with(&filtered_plan(true), &sqlite, &[], query, None).await;
+            assert!(matches!(result, NativeRead::Defer), "{query:?}");
+        }
+        assert!(sqlite.statements.lock().unwrap().is_empty());
     }
 }

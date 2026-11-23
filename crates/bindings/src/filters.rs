@@ -8,7 +8,9 @@
 //! the declaration, never from the request.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use hinoki_orm::Value;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyTuple};
@@ -89,6 +91,19 @@ impl Typed {
             Self::Uuid(value) => value.hyphenated().to_string(),
             Self::Date(value) => value.to_string(),
             Self::Moment(value) => value.unix_timestamp_nanos().to_string(),
+        }
+    }
+
+    /// Convert to an ORM bind parameter matching the Python `db.rs` encoding.
+    pub(crate) fn to_orm_value(&self) -> Value {
+        match self {
+            Self::Bool(value) => Value::Bool(*value),
+            Self::Int(value) => Value::Int(*value),
+            Self::Float(value) => Value::Float(*value),
+            Self::Text(value) | Self::Decimal(value) => Value::Text(value.clone()),
+            Self::Uuid(value) => Value::Uuid(*value),
+            Self::Date(value) => Value::Text(value.to_string()),
+            Self::Moment(value) => Value::Timestamp(*value),
         }
     }
 }
@@ -667,7 +682,7 @@ fn declared(item: Declared) -> PyResult<Field> {
 /// The declared filters of one `FilterSet`, built once at class creation.
 #[pyclass(name = "_FilterPlan", module = "hinoki.core", frozen)]
 pub(crate) struct PyFilterPlan {
-    spec: Spec,
+    pub(crate) spec: Arc<Spec>,
 }
 
 #[pymethods]
@@ -688,7 +703,9 @@ impl PyFilterPlan {
             max_search,
         };
         Spec::new(fields, search, ordering, limits)
-            .map(|spec| Self { spec })
+            .map(|spec| Self {
+                spec: Arc::new(spec),
+            })
             .map_err(PyValueError::new_err)
     }
 

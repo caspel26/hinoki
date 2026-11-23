@@ -4,12 +4,14 @@ use std::sync::Arc;
 
 use hinoki_orm::query::{
     compile_delete_with, compile_insert_with, compile_select_with, compile_update_with, Delete,
-    Dialect, Filter, Insert, Op, Select, Update,
+    Dialect, Filter, Insert, Op, QueryError, Select, Update,
 };
+use hinoki_orm::Value;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::filters::{PyFilterPlan, Spec as FilterSpec};
 use crate::jwt::{ClaimsAuth, PyClaimsAuth};
 use crate::links::PyLinkSpec;
 use crate::rows::RowPlan;
@@ -103,6 +105,8 @@ pub(crate) struct CrudPlan {
     /// `slot`-th ids field of the read plan shows.
     pub(crate) links: Vec<PlanLink>,
     pub(crate) read_links: Vec<usize>,
+    /// Declared client filters for a `list` action; `None` when unfiltered.
+    pub(crate) filters: Option<Arc<FilterSpec>>,
     templates: Vec<DialectTemplates>,
     validation_error: Vec<u8>,
     create_schema: Option<Arc<NativeSchema>>,
@@ -123,7 +127,7 @@ impl PyCrudPlan {
         updated_at,
         read_schema, read_fields,
         create_schema=None, update_schema=None, validation_error=Vec::new(), auth=None,
-        owner=None, links=Vec::new()
+        owner=None, links=Vec::new(), filters=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -151,6 +155,7 @@ impl PyCrudPlan {
         auth: Option<Py<PyClaimsAuth>>,
         owner: Option<String>,
         links: Vec<(String, Py<PyLinkSpec>, Option<String>)>,
+        filters: Option<Py<PyFilterPlan>>,
     ) -> PyResult<Self> {
         if owner.is_some() && auth.is_none() {
             return Err(PyValueError::new_err(
@@ -193,6 +198,7 @@ impl PyCrudPlan {
                 })
                 .collect(),
         )?;
+        inner.attach_filters(filters.map(|plan| Arc::clone(&plan.get().spec)))?;
         Ok(Self {
             inner: Arc::new(inner),
         })
@@ -435,15 +441,8 @@ impl CrudPlan {
         page_size: u64,
         offset: u64,
     ) -> PyResult<String> {
-        let dialect = DIALECTS
-            .iter()
-            .find_map(|(name, dialect)| (*name == dialect_name).then_some(*dialect))
-            .ok_or_else(|| PyValueError::new_err("unsupported CRUD database dialect"))?;
-        let order = if self.ordering.is_empty() {
-            vec![(self.primary_key.clone(), false)]
-        } else {
-            self.ordering.clone()
-        };
+        let dialect = resolve_dialect(dialect_name)?;
+        let order = self.default_list_order();
         compile_select_with(
             &Select::<usize> {
                 table: self.table.clone(),
@@ -461,6 +460,95 @@ impl CrudPlan {
         )
         .map(|(sql, _)| sql)
         .map_err(query_error)
+    }
+
+    pub(crate) fn filtered_count_sql(
+        &self,
+        dialect_name: &str,
+        filters: Vec<Filter<Value>>,
+    ) -> Result<(String, Vec<Value>), QueryError> {
+        let dialect = find_dialect(dialect_name)
+            .ok_or(QueryError::Unsupported("unsupported CRUD database dialect"))?;
+        compile_select_with(
+            &Select {
+                table: self.table.clone(),
+                columns: Vec::new(),
+                joins: Vec::new(),
+                filters,
+                subfilters: Vec::new(),
+                keyset: None,
+                order: Vec::new(),
+                limit: None,
+                offset: None,
+                count: true,
+            },
+            dialect,
+        )
+    }
+
+    pub(crate) fn filtered_list_sql(
+        &self,
+        dialect_name: &str,
+        filters: Vec<Filter<Value>>,
+        order: Vec<(String, bool)>,
+        page_size: u64,
+        offset: u64,
+    ) -> Result<(String, Vec<Value>), QueryError> {
+        let dialect = find_dialect(dialect_name)
+            .ok_or(QueryError::Unsupported("unsupported CRUD database dialect"))?;
+        let order = if order.is_empty() {
+            self.default_list_order()
+        } else {
+            order
+        };
+        compile_select_with(
+            &Select {
+                table: self.table.clone(),
+                columns: self.columns.clone(),
+                joins: Vec::new(),
+                filters,
+                subfilters: Vec::new(),
+                keyset: None,
+                order,
+                limit: Some(page_size),
+                offset: Some(offset),
+                count: false,
+            },
+            dialect,
+        )
+    }
+
+    fn default_list_order(&self) -> Vec<(String, bool)> {
+        if self.ordering.is_empty() {
+            vec![(self.primary_key.clone(), false)]
+        } else {
+            self.ordering.clone()
+        }
+    }
+
+    pub(crate) fn attach_filters(&mut self, spec: Option<Arc<FilterSpec>>) -> PyResult<()> {
+        let Some(spec) = spec else {
+            return Ok(());
+        };
+        if self.action != "list" {
+            return Err(PyValueError::new_err(
+                "filters apply only to a list CRUD plan",
+            ));
+        }
+        let valid = spec
+            .fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .chain(spec.search.iter().map(String::as_str))
+            .chain(spec.ordering.iter().map(String::as_str))
+            .all(|column| self.columns.iter().any(|known| known == column));
+        if !valid {
+            return Err(PyValueError::new_err(
+                "filter references an unknown model column",
+            ));
+        }
+        self.filters = Some(spec);
+        Ok(())
     }
 
     pub(crate) fn read_rows(&self) -> &RowPlan {
@@ -604,12 +692,24 @@ impl CrudPlan {
             owner,
             links: Vec::new(),
             read_links: Vec::new(),
+            filters: None,
             templates,
             validation_error,
             create_schema,
             update_schema,
         })
     }
+}
+
+fn find_dialect(dialect_name: &str) -> Option<Dialect> {
+    DIALECTS
+        .iter()
+        .find_map(|(name, dialect)| (*name == dialect_name).then_some(*dialect))
+}
+
+fn resolve_dialect(dialect_name: &str) -> PyResult<Dialect> {
+    find_dialect(dialect_name)
+        .ok_or_else(|| PyValueError::new_err("unsupported CRUD database dialect"))
 }
 
 fn compiled_write_schemas(
