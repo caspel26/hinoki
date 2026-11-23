@@ -82,6 +82,7 @@ LEGACY_STATE_TYPES = {
     "json": "jsonb",
 }
 EMPTY: dict[str, Any] = {"tables": {}}
+STATE_FORMAT_VERSION = 1
 
 State = dict[str, Any]
 
@@ -749,16 +750,99 @@ def latest_state(directory: Path) -> State:
     files = migration_files(directory)
     if not files:
         return EMPTY
-    path = files[-1].with_suffix(".state.json")
-    if not path.is_file():
-        raise MigrationError(f"{path.name} is missing; restore it from version control")
-    state: State = jsontext.loads(path.read_bytes())
-    for table in state.get("tables", {}).values():
-        for column in table.get("columns", {}).values():
+    state: State = EMPTY
+    for migration in files:
+        path = migration.with_suffix(".state.json")
+        if not path.is_file():
+            raise MigrationError(
+                f"{path.name} is missing; restore it from version control"
+            )
+        try:
+            document = jsontext.loads(path.read_bytes())
+        except ValueError as error:
+            raise MigrationError(f"{path.name} is not valid JSON") from error
+        state = validate_migration_state(document, path.name)
+    return state
+
+
+def validate_migration_state(state: object, filename: str) -> State:
+    """Validate and normalize a versioned or legacy migration state document."""
+    if not isinstance(state, dict):
+        raise MigrationError(f"{filename} must contain a tables object")
+    legacy_format = "format_version" not in state
+    _validate_state_version(state, filename)
+    tables = state.get("tables")
+    if not isinstance(tables, dict):
+        raise MigrationError(f"{filename} must contain a tables object")
+    for table, spec in tables.items():
+        _validate_migration_table(filename, table, spec, legacy_format=legacy_format)
+    for table in tables.values():
+        for column in table["columns"].values():
             column["type"] = LEGACY_STATE_TYPES.get(
                 column["type"].casefold(), column["type"]
             )
     return state
+
+
+def _validate_state_version(state: dict[str, Any], filename: str) -> None:
+    version = state.get("format_version", STATE_FORMAT_VERSION)
+    if type(version) is not int or version != STATE_FORMAT_VERSION:
+        raise MigrationError(
+            f"{filename} uses unsupported migration state format version {version!r}"
+        )
+
+
+def _validate_migration_table(
+    filename: str, table: object, spec: object, *, legacy_format: bool
+) -> None:
+    if not isinstance(table, str) or not isinstance(spec, dict):
+        raise MigrationError(f"{filename} has an invalid table entry")
+    columns = spec.get("columns")
+    if not isinstance(columns, dict):
+        raise MigrationError(f"{filename} has invalid columns for {table!r}")
+    if legacy_format and "indexes" not in spec:
+        spec["indexes"] = []
+    _validate_constraint_groups(filename, table, spec, "unique")
+    _validate_constraint_groups(filename, table, spec, "indexes")
+    for name, column in columns.items():
+        _validate_migration_column(filename, table, name, column)
+
+
+def _validate_constraint_groups(
+    filename: str, table: str, spec: dict[str, Any], key: str
+) -> None:
+    groups = spec.get(key)
+    if not isinstance(groups, list) or any(
+        not isinstance(group, list)
+        or not group
+        or any(not isinstance(column, str) for column in group)
+        for group in groups
+    ):
+        raise MigrationError(f"{filename} has invalid {key} for {table!r}")
+
+
+def _validate_migration_column(
+    filename: str, table: str, name: object, column: object
+) -> None:
+    if not isinstance(name, str) or not isinstance(column, dict):
+        raise MigrationError(f"{filename} has invalid column state for {table}.{name}")
+    if (
+        not isinstance(column.get("type"), str)
+        or not isinstance(column.get("nullable"), bool)
+        or not isinstance(column.get("primary_key"), bool)
+        or not isinstance(column.get("unique"), bool)
+        or "references" not in column
+    ):
+        raise MigrationError(f"{filename} has invalid column state for {table}.{name}")
+    reference = column.get("references")
+    if reference is not None and (
+        not isinstance(reference, dict)
+        or not isinstance(reference.get("table"), str)
+        or not isinstance(reference.get("column"), str)
+        or not isinstance(reference.get("on_delete"), str)
+        or reference.get("on_delete") not in ON_DELETE
+    ):
+        raise MigrationError(f"{filename} has invalid column state for {table}.{name}")
 
 
 def render(title: str, operations: list[Operation]) -> str:
@@ -811,8 +895,9 @@ def plan(
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{title}.sql"
     path.write_text(render(title, operations), encoding="utf-8")
+    state_document = {"format_version": STATE_FORMAT_VERSION, **new}
     path.with_suffix(".state.json").write_text(
-        jsontext.dumps(new, indent=2) + "\n", encoding="utf-8"
+        jsontext.dumps(state_document, indent=2) + "\n", encoding="utf-8"
     )
     return Plan(tuple(operations), new, path)
 
