@@ -190,13 +190,17 @@ def test_migration_history_reports_missing_invalid_and_valid_state_files(
             {
                 "tables": {
                     "widgets": {
+                        "unique": [],
+                        "indexes": [],
                         "columns": {
                             "id": {
                                 "type": "integer",
+                                "nullable": False,
                                 "primary_key": True,
+                                "unique": False,
                                 "references": None,
                             }
-                        }
+                        },
                     }
                 }
             }
@@ -213,8 +217,26 @@ def test_migration_history_reports_missing_invalid_and_valid_state_files(
         None,
         {},
         {"tables": []},
+        {"format_version": 2, "tables": {}},
+        {"format_version": True, "tables": {}},
         {"tables": {"widgets": None}},
         {"tables": {"widgets": {"columns": []}}},
+        {
+            "tables": {
+                "widgets": {
+                    "unique": [],
+                    "indexes": [],
+                    "columns": {
+                        "id": {
+                            "type": "integer",
+                            "primary_key": True,
+                            "unique": False,
+                            "references": None,
+                        }
+                    },
+                }
+            }
+        },
         {"tables": {"widgets": {"columns": {"id": None}}}},
         {"tables": {"widgets": {"columns": {"id": {"type": 1, "primary_key": True}}}}},
         {
