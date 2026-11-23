@@ -22,16 +22,15 @@ import hashlib
 import hmac
 import re
 import secrets
-from urllib.parse import urlsplit
 
 from hinoki.http.request import Request
 from hinoki.http.response import set_cookie
+from hinoki.http.security import same_site_origin
 
 COOKIE = "hinoki_csrf"
 FIELD = "csrf"
 TOKEN = re.compile(r"[0-9a-f]{32}\.[0-9a-f]{32}")
 MIN_SECRET = 32
-CROSS_SITE = {"cross-site", "same-site"}
 
 
 class Csrf:
@@ -79,12 +78,12 @@ class Csrf:
 def same_site(request: Request) -> bool:
     """Refuse requests the browser says are cross-site; absent headers pass (the
     MAC check still applies)."""
-    if request.headers.get("sec-fetch-site", "") in CROSS_SITE:
-        return False
-    origin = request.headers.get("origin")
-    if origin is None:
-        return True
-    return origin != "null" and urlsplit(origin).netloc == request.host
+    return same_site_origin(
+        request.headers.get("origin"),
+        request.headers.get("sec-fetch-site", ""),
+        request.host,
+        request.scheme,
+    )
 
 
 def cookie_header(

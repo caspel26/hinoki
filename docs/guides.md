@@ -30,6 +30,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Class-based APIs](class-endpoints.md): `API` classes for `@crud` resources with hooks, inheritance and resources you ship to others.
 - [Register routes](routes.md): how `routes.py` and `hinoki.toml` build the route map, with `Mount`, `include=` in tests and `hinoki routes`.
 - [Requests and responses](endpoints.md): what an action receives (path, query, body, forms, XML, files) and how its result is checked.
+- [Store uploaded files](storage.md): bounded memory or local-disk storage with opaque keys and streamed downloads.
 - [Generate CRUD routes](crud.md): list, retrieve and write actions from a model, with access and ownership rules.
 - [Errors](errors.md): malformed requests, authentication failures and declared application errors.
 - [Stream a response](streaming.md): `Stream`, `EventStream` and `File` answers sent while they are produced, on Kiso and Granian.
@@ -45,12 +46,14 @@ One page per task. Start with data and endpoints, then add access, rules and run
 ## Security and checks
 
 - [Authentication and access](authentication.md): providers resolve a `Caller`; `Access` policies check permissions.
+- [Application sessions](sessions.md): server-side state, cookie lifecycle, CSRF checks, session authentication and explicit stores.
 - [Hosts, CORS and HTTPS](web-security.md): restrict the host names an app answers to, which browser origins may read it, browser security headers, HTTPS redirects and trusted proxies.
 - [Rules](rules.md): typed promises about your application, checked with a stable ID, a location and an explanation.
 
 ## Runtime
 
 - [Application modules](modules.md): resources that live as long as a worker, such as a database pool.
+- [Cache values](cache.md): bounded Rust memory cache or a shared database backend with explicit TTL and failure behavior.
 - [Transactions](transactions.md): `atomic=True` on actions, `db.atomic` in application code.
 - [Settings](settings.md): typed, immutable settings from the environment, dotenv and TOML, with redacted secrets.
 - [Serve an application](serving.md): `hinoki dev` while you work, `hinoki serve` in production, on Kiso (the default) or Granian.

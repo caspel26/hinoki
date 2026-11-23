@@ -94,8 +94,62 @@ class HashPassword(Command):
 
 With `commands=[HashPassword]` on the application, `hinoki manage hash-password s3cret`
 starts only `Passwords` (and what it requires), runs the command and closes it.
-Request handlers do not receive module values as parameters; the database is the
-exception, because model methods find the worker's `Database` themselves.
+Request handlers can receive a module-provided value as a parameter when its
+type inherits `Resource`. Model methods also find the worker's `Database`
+through the ORM context. Ordinary module values remain available through
+`ModuleContext` in lifespans, hooks and commands, and through the policy context
+where supported.
+
+## Inject a worker resource into a handler
+
+Declare a concrete `Resource` type, provide its instance from a module, then use
+that type as a handler parameter. Hinoki resolves the annotation when routes are
+registered and injects the worker's instance for each request:
+
+```python
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from hinoki import Hinoki, Module, ModuleContext, Resource, http
+
+
+class Mailer(Resource):
+    async def send(self, address: str, subject: str) -> None: ...
+
+
+class MailerModule(Module):
+    name = "mailer"
+
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        mailer = Mailer()
+        ctx.provide(Mailer, mailer)
+        yield
+
+
+@http.post("/welcome")
+async def welcome(email: str, mailer: Mailer) -> dict[str, str]:
+    await mailer.send(email, "Welcome")
+    return {"status": "sent"}
+
+
+app = Hinoki(include=[welcome], modules=[MailerModule()])
+```
+
+The same annotation works on function handlers, synchronous `def` handlers and
+methods on an `API` class. A resource parameter does not cause Hinoki to build a
+`Request`; declare `request: Request` only when the handler needs request data.
+Resource parameters are not client inputs, so they do not appear in the OpenAPI
+document or MCP tool schema. Kiso also leaves them out of the Rust route input
+list; a route can keep its native route specification when its other inputs and
+handler behavior meet the native-path requirements.
+
+Resources are mandatory worker contracts. A default value, a name that collides
+with a `{path}` parameter, or two parameters requesting the same resource type
+raises `RegistrationError` during registration. After all modules start and
+before startup hooks run, Hinoki checks every required type with
+`ModuleContext.get`. A missing provider fails startup with the route and type in
+the error; the worker does not become ready.
 
 ## The database module
 

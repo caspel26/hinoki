@@ -59,6 +59,7 @@ class Credentials:
 
     headers: dict[str, str]
     query: dict[str, list[str]]
+    session: object | None = None
 
 
 class BaseAuth[T](ABC):

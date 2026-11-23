@@ -41,7 +41,7 @@ from hinoki.core import (
     NotNullViolation,
     UniqueViolation,
 )
-from hinoki.modules import Module, ModuleContext
+from hinoki.modules import Module, ModuleContext, Resource
 
 if TYPE_CHECKING:
     from hinoki.core import Param, Row, _CursorCodec, _ModelRows, _RowPlan
@@ -144,7 +144,7 @@ def warn_unverified_tls(url: str) -> None:
         )
 
 
-class Database:
+class Database(Resource):
     """A connection pool for one configured database backend."""
 
     def __init__(self, engine: core.Database) -> None:

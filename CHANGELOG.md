@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🧩 Typed handler resources, storage, sessions and cache
+> `python/hinoki/modules.py`, `python/hinoki/runtime/binding.py`, `python/hinoki/storage.py`, `python/hinoki/sessions.py`, `python/hinoki/cache.py`, `docs/modules.md`, `docs/storage.md`, `docs/sessions.md`, `docs/cache.md`
+
+Handlers can declare concrete `Resource` parameters provided by application `Module`s; a missing provider is reported during startup. File storage offers bounded in-memory and local-disk backends, sessions offer memory and database stores with `SessionAuth`, and cache offers worker-local memory and shared-database backends. Each feature documents its resource ownership, cross-worker behavior, limits and errors; in-memory state remains local to its owning worker. See [modules](docs/modules.md), [file storage](docs/storage.md), [sessions](docs/sessions.md) and [cache](docs/cache.md).
+
 #### 🧭 Typed `Caller` hooks and `from_user` in `@crud`
 > `python/hinoki/resources.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/__init__.py`, `examples/tracker/tracker/apps/tasks/api.py`, `examples/blog/blog/apps/blog/api.py`, `docs/crud.md`
 

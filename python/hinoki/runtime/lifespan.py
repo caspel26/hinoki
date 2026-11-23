@@ -14,7 +14,7 @@ from hinoki.db import Database
 from hinoki.errors import STARTUP_HOOK, ShutdownError, StartupError
 from hinoki.events import EventBus, events_var
 from hinoki.mail import Mailer, mailer_var
-from hinoki.modules import Module, ModuleContext, order_modules
+from hinoki.modules import Module, ModuleContext, Resource, order_modules
 from hinoki.orm import database_var
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.executor import SyncExecutor
@@ -59,6 +59,7 @@ class Lifespan:
         config: RuntimeConfig,
         *,
         needs_database: bool = False,
+        required_resources: Sequence[tuple[type[Resource], str]] = (),
         on_startup: Sequence[Hook] = (),
         on_shutdown: Sequence[Hook] = (),
         events: EventBus | None = None,
@@ -69,6 +70,7 @@ class Lifespan:
         self.executor = executor
         self.config = config
         self.needs_database = needs_database
+        self.required_resources = tuple(required_resources)
         self.on_startup = tuple(on_startup)
         self.on_shutdown = tuple(on_shutdown)
         self._entered: list[AbstractAsyncContextManager[object]] = []
@@ -95,6 +97,8 @@ class Lifespan:
                     await self._enter(module.lifespan(self.ctx))
                 current = "<transactions>"
                 self._check_database()
+                current = "<resources>"
+                self._check_resources()
                 for hook in self.on_startup:
                     current = STARTUP_HOOK + hook_name(hook)
                     await self._call(hook)
@@ -105,7 +109,8 @@ class Lifespan:
             if self._is_external_cancellation(exc):
                 raise
             cause = exc.cause if isinstance(exc, _HookRaised) else exc
-            raise StartupError(current, cause) from exc
+            detail = str(cause) if current == "<resources>" else None
+            raise StartupError(current, cause, detail=detail) from exc
         self._started = True
 
     def _can_cleanup_after_startup_error(self, exc: BaseException) -> bool:
@@ -126,6 +131,17 @@ class Lifespan:
             except LookupError:
                 raise RuntimeError(
                     "an action uses atomic=True but no module provided a Database"
+                ) from None
+
+    def _check_resources(self) -> None:
+        """Fail startup when a handler's worker resource has no provider."""
+        for kind, route in self.required_resources:
+            try:
+                self.ctx.get(kind)
+            except LookupError:
+                raise RuntimeError(
+                    f"route {route!r} requires Resource {kind.__name__}, "
+                    "but no installed Module provided it"
                 ) from None
 
     async def shutdown(self) -> None:

@@ -69,13 +69,14 @@ async def authorize(
     *,
     route: str = "",
     method: str = "",
+    session: object | None = None,
 ) -> Caller[Any]:
     """Authenticate and check permissions for a protected action. ``query`` is
     the parsed query string, shared with the request built afterwards. ``route``
     and ``method`` name the action in an ``AuthRejected`` event."""
     try:
         principal: Caller[Any] | None = await call_hook(
-            access.auth.authenticate, Credentials(headers, query)
+            access.auth.authenticate, Credentials(headers, query, session)
         )
     except Unauthorized:
         await rejected("invalid", route, method)

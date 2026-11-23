@@ -40,10 +40,11 @@ async def export() -> Stream:
     )
 ```
 
-The return annotation must name the class: `-> Stream`, `-> EventStream` or
-`-> File`, alone or in a union (`-> Stream | NoteOut`). That is how Hinoki knows
-at startup which actions stream. An action that returns one of them without
-saying so answers `500`, and the stream is closed.
+The return annotation can name `-> Stream`, `-> EventStream` or `-> File`, alone
+or in a union (`-> Stream | NoteOut`). The base annotation `-> Response` also
+allows these streamed response subtypes. That is how Hinoki knows at startup
+which actions may stream. An action that returns one of them without an
+annotation that allows it answers `500`, and the stream is closed.
 
 ## `Stream`
 

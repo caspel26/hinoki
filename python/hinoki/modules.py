@@ -17,6 +17,12 @@ from hinoki.runtime.tasks import ManagedTasks
 T = TypeVar("T")
 
 
+class Resource:
+    """Marker for a worker-owned value that a handler may request by type."""
+
+    __slots__ = ()
+
+
 class ModuleContext:
     """Per-worker context handed to module lifespans.
 

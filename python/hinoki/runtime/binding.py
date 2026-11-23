@@ -33,7 +33,9 @@ from hinoki.errors import (
 from hinoki.filters import FilterSet
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
+from hinoki.http.response import Response
 from hinoki.http.stream import Streamed
+from hinoki.modules import Resource
 from hinoki.pagination import (
     CursorPagination,
     CursorParams,
@@ -147,7 +149,7 @@ class Param:
     """One handler parameter and where its value comes from."""
 
     name: str
-    source: str  # "path", "query", "body", "principal", "page" or "filters"
+    source: str  # request data, principal, resource or pagination
     convert: Callable[[str], object] | None = None
     schema: type[Schema] | None = None
     default: object = EMPTY
@@ -156,6 +158,7 @@ class Param:
     file_mode: str = ""
     text: bool = False  # a Schema read from a text source, converted before checking
     filters: type[FilterSet] | None = None
+    resource_type: type[Resource] | None = None
 
     def extract(self, request: RequestData) -> object:
         """Value for this parameter, from the part of the request it belongs to."""
@@ -243,6 +246,7 @@ class Binding:
     response_annotation: str = field(default="", repr=False, compare=False)
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     streams: bool = False  # the return annotation names Stream, EventStream or File
+    stream_capable: bool = False  # Response may be a stream, including FileStorage
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
     body_param: Param | None = field(init=False, repr=False, compare=False)
@@ -254,6 +258,9 @@ class Binding:
     has_files: bool = field(init=False, repr=False, compare=False)
     takes_text: bool = field(init=False, repr=False, compare=False)
     needs_request: bool = field(init=False, repr=False, compare=False)
+    resource_params: tuple[Param, ...] = field(init=False, repr=False, compare=False)
+    session_params: tuple[Param, ...] = field(init=False, repr=False, compare=False)
+    needs_session: bool = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Freeze handler execution shape with the request binding plan."""
@@ -261,7 +268,11 @@ class Binding:
             self, "is_async", inspect.iscoroutinefunction(self.route.handler)
         )
         object.__setattr__(
-            self, "native_input_names", tuple(p.name for p in self.params)
+            self,
+            "native_input_names",
+            tuple(
+                p.name for p in self.params if p.source not in {"resource", "session"}
+            ),
         )
         renderers = self.route.renderers
         object.__setattr__(
@@ -277,6 +288,21 @@ class Binding:
         object.__setattr__(self, "has_files", has_files)
         object.__setattr__(
             self,
+            "resource_params",
+            tuple(p for p in self.params if p.source == "resource"),
+        )
+        object.__setattr__(
+            self,
+            "session_params",
+            tuple(p for p in self.params if p.source == "session"),
+        )
+        object.__setattr__(
+            self,
+            "needs_session",
+            bool(self.session_params) or _uses_session_auth(self.route.access),
+        )
+        object.__setattr__(
+            self,
             "takes_text",
             any(p.text and p.source == "body" for p in self.params),
         )
@@ -286,7 +312,11 @@ class Binding:
         object.__setattr__(
             self,
             "needs_request",
-            self.takes_request or self.needs_body or has_files or not self.default_json,
+            self.takes_request
+            or self.needs_body
+            or has_files
+            or self.needs_session
+            or not self.default_json,
         )
         bodies = [p for p in self.params if p.source == "body"]
         only_body = len(bodies) == 1 and not has_files
@@ -341,6 +371,8 @@ class Binding:
         values: dict[str, object] = {}
         errors: list[ErrorDetail] = []
         for param in self.params:
+            if param.source in {"resource", "session"}:
+                continue
             try:
                 values[param.name] = param.extract(request)
             except ValidationError as exc:
@@ -418,11 +450,28 @@ def special_param(
     parameter: inspect.Parameter,
     annotation: object,
 ) -> Param | None:
-    """Parameters that are not plain request values: page, principal, body."""
+    """Parameters that are not plain request values."""
+    session = session_param(route, parameter, annotation)
+    if session is not None:
+        return session
+    return regular_special_param(route, parameter, annotation)
+
+
+def _uses_session_auth(access: object | None) -> bool:
+    auth = getattr(access, "auth", None)
+    return bool(getattr(auth, "__hinoki_session_auth__", False))
+
+
+def regular_special_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Recognize non-session framework parameters."""
     name, where = parameter.name, route.name
-    listing = listing_param(route, name, annotation)
-    if listing is not None:
-        return listing
+    special = listing_param(route, name, annotation)
+    if special is None:
+        special = resource_param(route, parameter, annotation)
+    if special is not None:
+        return special
     if is_principal(annotation):
         if route.access is None:
             raise RegistrationError(
@@ -439,6 +488,46 @@ def special_param(
         annotation.specs()  # unresolvable annotations fail now, not per request
         return Param(name, "body", schema=annotation)
     return None
+
+
+def session_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Recognize request-scoped session parameters before generic Resources."""
+    if not getattr(annotation, "__hinoki_session__", False):
+        return None
+    name = parameter.name
+    if parameter.default is not EMPTY:
+        raise RegistrationError(
+            f"{route.name}: session parameter {name!r} cannot have a default"
+        )
+    if name in PATH_PARAM.findall(route.path):
+        raise RegistrationError(
+            f"{route.name}: session parameter {name!r} cannot also be a path parameter"
+        )
+    return Param(name, "session")
+
+
+def resource_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Recognize a concrete worker resource and reject ambiguous declarations."""
+    if not isinstance(annotation, type) or not issubclass(annotation, Resource):
+        return None
+    name = parameter.name
+    if annotation is Resource or inspect.isabstract(annotation):
+        raise RegistrationError(
+            f"{route.name}: {name!r} must use a concrete Resource subclass"
+        )
+    if parameter.default is not EMPTY:
+        raise RegistrationError(
+            f"{route.name}: resource parameter {name!r} cannot have a default"
+        )
+    if name in PATH_PARAM.findall(route.path):
+        raise RegistrationError(
+            f"{route.name}: resource parameter {name!r} cannot also be a path parameter"
+        )
+    return Param(name, "resource", resource_type=annotation)
 
 
 SOURCE_PARSERS = {
@@ -719,6 +808,15 @@ def bind(route: Route) -> Binding:
     params = tuple(
         make_param(route, p, hints.get(p.name), sources.get(p.name)) for p in parameters
     )
+    resource_types = [p.resource_type for p in params if p.source == "resource"]
+    if len(resource_types) != len(set(resource_types)):
+        raise RegistrationError(
+            f"{route.name}: a Resource type may be requested only once per handler"
+        )
+    if sum(p.source == "session" for p in params) > 1:
+        raise RegistrationError(
+            f"{route.name}: a handler may request Session only once"
+        )
     if route.pagination is not None and not any(p.source == "page" for p in params):
         raise RegistrationError(
             f"{route.name}: pagination=... needs a PageParams or CursorParams parameter"
@@ -735,7 +833,7 @@ def bind(route: Route) -> Binding:
         )
     needs_body = any(p.source in {"body", "file"} for p in params)
     response = hints.get("return")
-    streams = check_streaming(route, response)
+    streams, stream_capable = check_streaming(route, response)
     response_schema = (
         response
         if isinstance(response, type)
@@ -757,10 +855,11 @@ def bind(route: Route) -> Binding:
         response_check,
         describe_annotation(hints.get("return", NO_ANNOTATION)),
         streams=streams,
+        stream_capable=stream_capable,
     )
 
 
-def check_streaming(route: Route, annotation: object) -> bool:
+def check_streaming(route: Route, annotation: object) -> tuple[bool, bool]:
     """Whether the action streams (its annotation names ``Stream``,
     ``EventStream`` or ``File``); ``RegistrationError`` for a declaration that
     cannot work with a stream."""
@@ -771,9 +870,10 @@ def check_streaming(route: Route, annotation: object) -> bool:
             "return Stream(...) or EventStream(...) built from the generator, "
             "and annotate the action with it"
         )
-    streams = any(
-        isinstance(arm, type) and issubclass(arm, Streamed)
-        for arm in union_arms(annotation)
+    arms = union_arms(annotation)
+    streams = any(isinstance(arm, type) and issubclass(arm, Streamed) for arm in arms)
+    stream_capable = Response in arms or any(
+        isinstance(arm, type) and issubclass(arm, Streamed) for arm in arms
     )
     if streams and route.atomic:
         raise RegistrationError(
@@ -784,4 +884,4 @@ def check_streaming(route: Route, annotation: object) -> bool:
         raise RegistrationError(
             f"{route.name}: status {route.status} cannot have a body"
         )
-    return streams
+    return streams, stream_capable

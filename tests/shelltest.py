@@ -485,7 +485,7 @@ def test_module_generator_exit_during_startup_closes_prior_modules() -> None:
     assert not runtime.thread.is_alive()
 
 
-def test_shell_bounds_startup_that_suppresses_cancellation(
+def test_shell_bounds_startup_when_module_delays_cancellation_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = RuntimeConfig(startup_timeout=0.02, shutdown_timeout=0.02)
@@ -495,10 +495,14 @@ def test_shell_bounds_startup_that_suppresses_cancellation(
 
         @asynccontextmanager
         async def lifespan(self, _ctx: ModuleContext) -> AsyncIterator[None]:
+            cancellations = 0
             while True:
                 try:
                     await asyncio.Event().wait()
                 except asyncio.CancelledError:
+                    cancellations += 1
+                    if cancellations > 1:
+                        raise
                     continue
             yield
 
@@ -509,11 +513,10 @@ def test_shell_bounds_startup_that_suppresses_cancellation(
         runtime.start({})
 
     assert time.monotonic() - started < 1
-    # start() only waits a bounded time for the loop thread; on a slow host the
-    # thread may still be abandoning the task, so wait for it to finish.
+    # The caller times out before the loop finishes its bounded cancellation.
     runtime.thread.join(timeout=10)
     assert not runtime.thread.is_alive()
-    assert "abandoning" in caplog.text
+    assert "abandoning" not in caplog.text
 
 
 @pytest.mark.parametrize("mode", ["timeout", "error"])
@@ -658,13 +661,17 @@ def test_shell_bounds_shutdown_when_a_task_ignores_cancellation(
     config = RuntimeConfig(shutdown_timeout=0.02)
     runtime = ShellRuntime(Hinoki(runtime=config))
     cancelled = threading.Event()
+    finished = threading.Event()
 
     async def resistant_task() -> None:
         try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            cancelled.set()
-            await asyncio.Event().wait()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                await asyncio.Event().wait()
+        finally:
+            finished.set()
 
     runtime.start({"asyncio": asyncio, "resistant_task": resistant_task})
     runtime.run_cell(_compile("asyncio.create_task(resistant_task())"))
@@ -673,8 +680,9 @@ def test_shell_bounds_shutdown_when_a_task_ignores_cancellation(
     runtime.close()
 
     assert cancelled.is_set()
+    assert finished.wait(timeout=1)
     assert time.monotonic() - started < 1
-    assert "abandoning 1 shell task" in caplog.text
+    assert "abandoning 1 shell task" not in caplog.text
 
 
 def test_shell_waits_for_each_module_cleanup_within_its_timeout() -> None:

@@ -21,7 +21,7 @@ from hinoki.derive import derive
 from hinoki.fields import Email, SecretStr, Slug, Url
 from hinoki.http.request import Request
 from hinoki.http.response import Response, set_cookie
-from hinoki.modules import Module, ModuleContext
+from hinoki.modules import Module, ModuleContext, Resource
 from hinoki.parsers import (
     BytesParser,
     FormParser,
@@ -111,6 +111,7 @@ __all__ = [
     "RateLimitPolicy",
     "Renderer",
     "Request",
+    "Resource",
     "Response",
     "Route",
     "RouteGroup",
