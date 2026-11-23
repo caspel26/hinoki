@@ -483,8 +483,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:54:47 UTC">November 20, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -841,6 +841,19 @@ exists to be subclassed.</p>
 </ul>
 <p>A foreign key in an abstract model needs a per-subclass reverse name; see
 <a href="../relations/#foreign-keys-in-abstract-models-and-mixins">relations</a>.</p>
+<h2 id="relate-models-through-a-link-table">Relate models through a link table<a class="headerlink" href="#relate-models-through-a-link-table" title="Permanent link">&para;</a></h2>
+<p><code>many_to_many(...)</code> is a class attribute, not a column: the model keeps its own columns and Hinoki generates (or adopts) a bridge model that holds the links.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Label</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Memo</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="n">ManyToMany</span><span class="p">[</span><span class="n">Label</span><span class="p">]]</span> <span class="o">=</span> <span class="n">many_to_many</span><span class="p">(</span><span class="n">Label</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"memos"</span><span class="p">)</span>
+</code></pre></div>
+<p><code>Memo.__bridges__</code> lists the generated bridge model, <code>MemoLabels</code> on the table <code>&lt;memo table&gt;_labels</code>; <code>@db.table</code> on <code>Memo</code> names the bridge after the new table (set it before the first migration: later table changes are not planned as renames, see <a href="../migrations/#bridge-tables-of-many-to-many-relations">migrations</a>). Declaration, link writes, scopes and limits are in <a href="../relations/#many-to-many">relations</a>.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../model-options/">Model options</a></li>
@@ -872,12 +885,12 @@ exists to be subclassed.</p>
           
             <ul><li><a href="#declare-columns">Declare columns</a></li><li><a href="#column-types">Column types</a>
             <ul><li><a href="#decimal-columns">Decimal columns</a></li></ul>
-          </li><li><a href="#table-and-display-names">Table and display names</a></li><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#see-also">See also</a></li></ul>
+          </li><li><a href="#table-and-display-names">Table and display names</a></li><li><a href="#model-field-constraints-and-validators">Model field constraints and validators</a></li><li><a href="#share-fields-abstract-models-and-mixins">Share fields: abstract models and mixins</a></li><li><a href="#relate-models-through-a-link-table">Relate models through a link table</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 12:54:47 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

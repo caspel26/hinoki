@@ -323,6 +323,8 @@ ownership, schema requirements and route replacement.</p>
     <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">links</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]]]</span>
+    <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CrudDeclaration</span>
 </code></pre></div>
 
@@ -341,7 +343,10 @@ accepts the filters, ordering and search it declares.
 <code>include_in_schema=False</code> leaves every generated action out of the OpenAPI
 document; <code>include_in_schema={"delete": False}</code> leaves out
 only the named actions. <code>tags</code> and <code>deprecated</code> apply to every action.
-Left-out actions are still served and protected by their access.</p>
+Left-out actions are still served and protected by their access.
+<code>links={"tags": all_rows(Tag)}</code> scopes the targets a many-to-many ids field
+(<code>tag_ids</code>) may link and show: a function of the caller's user that returns
+a <code>QuerySet</code> of the target. Every ids field needs an entry.</p>
 
 
     </div>

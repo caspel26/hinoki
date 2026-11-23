@@ -483,8 +483,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>8 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
+            <span>9 min read</span>
           </p>
           
         </header>
@@ -629,6 +629,9 @@
 <li><code>Extra("tags", "Tags", "choices", choices=(("a", "A"), ("b", "B")))</code>: checkboxes; the value is a <code>frozenset</code> of the checked ones.</li>
 </ul>
 <p>They reach <code>check</code> and <code>save</code> next to the columns, so <code>save</code> takes them out before writing the row; <code>extra_initial(row)</code> returns what the edit form shows. The Users section is built this way (<code>hinoki.admin.users.useradmin</code>).</p>
+<h3 id="many-to-many-fields">Many-to-many fields<a class="headerlink" href="#many-to-many-fields" title="Permanent link">&para;</a></h3>
+<p>A model's <a href="../relations/#many-to-many"><code>many_to_many</code></a> field appears in its add and edit forms as a multi-select named after its ids field (<code>&lt;field&gt;_ids</code>, or its <code>ids_name</code>) when the target model is registered with the same admin and the signed-in user may view it. The options are what that target's admin lists for the user (its <code>queryset</code>), at most 200, with the linked rows first. Saving replaces only the links to rows the user can see; links to rows outside that scope are kept. A key that is unknown, hidden from the user or longer than 200 characters is refused with one message (<code>Some choices are not available.</code>) and nothing is saved, so a hidden row cannot be told from a missing one. More than the field's <code>max_items</code> selections is refused the same way.</p>
+<p>When the options are truncated the form says so; narrow them with <code>?link_q_&lt;ids_name&gt;=text</code> on the form URL (the text is cut at 100 characters and matched against the target admin's <code>search</code> columns, or its primary key). A target that is not registered or not viewable leaves the field read-only: the form shows no count and ignores any posted value. A name in <code>readonly</code> shows the links without changing them. The row and its links are written in the request's transaction, so a refused link rolls the row back too.</p>
 <h2 id="add-a-bulk-action">Add a bulk action<a class="headerlink" href="#add-a-bulk-action" title="Permanent link">&para;</a></h2>
 <p>Mark an async method with <code>@action</code>. The list shows the button once rows are selected:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/adminsite.py</span>
@@ -803,12 +806,14 @@
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#register-a-model">Register a model</a></li><li><a href="#shape-the-list-and-the-form">Shape the list and the form</a></li><li><a href="#override-behaviour">Override behaviour</a></li><li><a href="#add-fields-that-are-not-columns">Add fields that are not columns</a></li><li><a href="#add-a-bulk-action">Add a bulk action</a></li><li><a href="#replace-the-html-or-the-stylesheet">Replace the HTML or the stylesheet</a></li><li><a href="#choose-or-build-a-theme">Choose or build a theme</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#register-a-model">Register a model</a></li><li><a href="#shape-the-list-and-the-form">Shape the list and the form</a></li><li><a href="#override-behaviour">Override behaviour</a></li><li><a href="#add-fields-that-are-not-columns">Add fields that are not columns</a>
+            <ul><li><a href="#many-to-many-fields">Many-to-many fields</a></li></ul>
+          </li><li><a href="#add-a-bulk-action">Add a bulk action</a></li><li><a href="#replace-the-html-or-the-stylesheet">Replace the HTML or the stylesheet</a></li><li><a href="#choose-or-build-a-theme">Choose or build a theme</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin-customize.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

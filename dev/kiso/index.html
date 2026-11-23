@@ -483,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
             <span>25 min read</span>
           </p>
           
@@ -542,6 +542,7 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 <h2 id="generated-crud">Generated CRUD<a class="headerlink" href="#generated-crud" title="Permanent link">&para;</a></h2>
 <p>Generated CRUD plans can also execute public <code>create</code> (<code>POST</code>), <code>update</code> (<code>PATCH</code>) and <code>delete</code> actions in Rust. These routes use the native path only when their model and schemas are supported and they have no assignment rule or custom CRUD hook (an <code>owner</code> is allowed only with <code>identity_key = caller_id</code>, a text non-key column outside the update schema, on any supported database), and their access policy, if any, uses an unmodified <a href="../authentication/#claims-only-tokens-on-the-native-lane"><code>ClaimsJWTAuth</code></a>. Rust reads and validates the bounded request body, runs the database transaction, fetches the written row where the response requires it, and encodes the response before commit. Writes continue to completion if the client disconnects. A unique-constraint violation returns <code>409 Conflict</code> by default; a registered application error handler takes precedence. Routes that are ineligible or become stale use the ordinary Python CRUD pipeline. A model with a handler for <code>Created</code>, <code>Updated</code> or <code>Deleted</code> (<a href="../events/#model-events">model events</a>) is ineligible for the matching action only, reason <code>model_event_handlers</code>. Plans are selected automatically at worker startup and checked once per second; a changed plan is disarmed until the worker restarts. This path adds no public setting.</p>
 <p>The measured phase 1 path is documented in the <a href="../rust-crud-orientation/">native CRUD orientation run</a>. It is a single-host, workload-specific measurement and does not establish general or production performance.</p>
+<p>Routes with a <a href="../crud/#many-to-many-fields">many-to-many ids field</a> take the same path when each relation is scoped with <code>all_rows(Target)</code> or <code>own_rows(Target, column)</code> and no <code>Linked</code>/<code>Unlinked</code> handler is registered. Rust reads the ids of a page with one extra <code>SELECT</code> on the bridge table, and on create and update it parses the set, locks the owner row, checks the targets against the scope and writes the bridge in the row's transaction; the response is encoded before commit, with the ids read inside it. Python is entered only for a key Rust cannot read, which the Python lane then answers. A scope callable, a <code>link_queryset</code> override or a hook keeps the route on the Python lane.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
 <li>HTTP/1.1, plus HTTP/2 over TLS when <code>server.http2</code> is on (see below). WebSocket upgrades are accepted for the actions declared with <code>@http.websocket</code> (see <a href="../websockets/">WebSockets</a>); any other <code>Upgrade</code> header is ignored and the request is answered as plain HTTP, and no other protocol is ever switched to. There is no cleartext HTTP/2 (neither prior knowledge nor <code>Upgrade: h2c</code>).</li>
@@ -663,7 +664,7 @@ reloaded 4 workers (generation 2)
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

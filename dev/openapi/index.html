@@ -483,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
             <span>10 min read</span>
           </p>
           
@@ -541,6 +541,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 <p><code>date</code>, <code>time</code> and <code>timedelta</code> fields become <code>type: string</code> with <code>format: date</code>, <code>time</code> and <code>duration</code>. A <code>Decimal</code> field becomes <code>type: string</code>, <code>format: decimal</code> and a <code>pattern</code> for its text form, with <code>ge</code>/<code>le</code>/<code>gt</code>/<code>lt</code> as <code>minimum</code>/<code>maximum</code>/<code>exclusiveMinimum</code>/<code>exclusiveMaximum</code>; <code>max_digits</code> and <code>decimal_places</code> are not written, nor is a <code>Decimal</code> field's <code>multiple_of</code>. An <code>int</code> field's <code>multiple_of</code> becomes <code>multipleOf</code>. IP address and network fields become <code>type: string</code> with <code>format: ipv4</code>, <code>ipv6</code>, <code>ipv4network</code> or <code>ipv6network</code>. A <code>Path</code> field becomes <code>type: string</code> with <code>format: path</code>, and a <code>SecretStr</code> field <code>type: string</code> with <code>format: password</code> and <code>writeOnly: true</code>. A <code>bytes</code> field becomes <code>type: string</code>, <code>format: byte</code> and <code>contentEncoding: base64</code>, and its decoded-size limits are not written either, since they count bytes rather than characters. See <a href="../schema-types/#dates-durations-decimals-and-bytes">dates, durations, decimals and bytes</a>.</p>
 <p>An <code>Enum</code> or <code>Literal</code> field becomes <code>type: string</code> or <code>type: integer</code> with an <code>enum</code> list of the values (the member values, never the names), inline in the property; a nullable one is wrapped in <code>anyOf</code> with <code>null</code>. See <a href="../schema-types/#enums-and-literals">enums and literals</a>.</p>
 <p>A <code>set[X]</code> or <code>frozenset[X]</code> field becomes an array with <code>uniqueItems: true</code>, <code>tuple[X, ...]</code> an array of <code>X</code>, and a fixed <code>tuple[X, Y]</code> an array with <code>prefixItems</code>, <code>items: false</code> and equal <code>minItems</code>/<code>maxItems</code>. See <a href="../schema-collections/#sets-and-tuples">sets and tuples</a>.</p>
+<p>A <a href="../schemas/#many-to-many-ids-fields">many-to-many ids field</a> such as <code>tag_ids</code> (declared with <code>ids_name="tag_ids"</code>) is an array of <code>string</code> items with <code>format: uuid</code> (or the target key's type), <code>uniqueItems: true</code> and <code>maxItems</code> from its declared limit, in request and response schemas alike.</p>
 <p>A plain union such as <code>int | str</code> becomes <code>anyOf</code> of its variants, and <code>Any</code> or <code>object</code> an unconstrained schema (<code>{}</code>). See <a href="../schema-collections/#plain-unions-and-any">plain unions and <code>Any</code></a>.</p>
 <p>Discriminated unions declared as <code>Schema</code> fields become OpenAPI <code>oneOf</code> schemas with a <code>discriminator</code> and explicit tag-to-component mapping. Variant tag fields appear as required string enums; the runtime uses the same tags to select exactly one branch. List items, nested fields and nullable unions retain that structure. For route input and response documentation, put the union inside a wrapper <code>Schema</code>; bare union return annotations are rejected instead of producing an incomplete schema. The return value is also checked against the annotation at runtime (<a href="../endpoints/#the-response-is-checked-against-the-annotation">details</a>).</p>
 <div class="language-yaml highlight"><pre><span></span><code><span class="nt">oneOf</span><span class="p">:</span>
@@ -652,7 +653,7 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

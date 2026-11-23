@@ -483,8 +483,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></span>
-            <span>5 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -616,7 +616,59 @@ fails on existing duplicates; clean them up first. Turning an existing foreign
 key into <code>unique=True</code> rebuilds the table on SQLite and needs a hand-written
 migration on PostgreSQL, MySQL and MariaDB.</p>
 <h2 id="many-to-many">Many-to-many<a class="headerlink" href="#many-to-many" title="Permanent link">&para;</a></h2>
-<p>There is no implicit join table or <code>through=</code>: declare the association model.</p>
+<p>Declare the relation on a model; Hinoki generates and migrates the bridge table
+(<code>&lt;owner table&gt;_&lt;name&gt;</code>, one column per side, a composite unique constraint).</p>
+<div class="language-python highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Tag</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Post</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">)</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="n">ManyToMany</span><span class="p">[</span><span class="n">Tag</span><span class="p">]]</span> <span class="o">=</span> <span class="n">many_to_many</span><span class="p">(</span>
+        <span class="n">Tag</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">"posts"</span><span class="p">,</span> <span class="n">ids_name</span><span class="o">=</span><span class="s2">"tag_ids"</span>
+    <span class="p">)</span>
+</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># inside an async operation</span>
+<span class="k">await</span> <span class="n">post</span><span class="o">.</span><span class="n">tags</span><span class="o">.</span><span class="n">aadd</span><span class="p">(</span><span class="n">red</span><span class="p">,</span> <span class="n">blue</span><span class="p">)</span>  <span class="c1"># idempotent</span>
+<span class="k">await</span> <span class="n">post</span><span class="o">.</span><span class="n">tags</span><span class="o">.</span><span class="n">aset</span><span class="p">([</span><span class="n">red</span><span class="p">],</span> <span class="n">within</span><span class="o">=</span><span class="n">Tag</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">user</span><span class="p">))</span>
+<span class="n">tags</span> <span class="o">=</span> <span class="k">await</span> <span class="n">post</span><span class="o">.</span><span class="n">tags</span><span class="o">.</span><span class="n">alist</span><span class="p">()</span>
+<span class="n">posts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">tags__name</span><span class="o">=</span><span class="s2">"red"</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">"tags"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">posts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tags</span><span class="o">.</span><span class="n">loaded</span><span class="p">,</span> <span class="n">posts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tag_ids</span><span class="p">)</span>  <span class="c1"># only after prefetch_related</span>
+</code></pre></div>
+<p><code>aadd</code>, <code>aremove</code> and <code>aset</code> take model instances or keys, run in one
+transaction that locks the owner row, and refuse more than <code>max_items</code> links
+(<code>LinkLimitExceeded</code>). With <code>within=</code> a key outside that query is treated as
+missing (<code>UnknownLinkTarget</code>, a <code>422</code>), and <code>aset</code> replaces only the links
+inside the scope. <code>ids_name</code> (default <code>&lt;name&gt;_ids</code>) names the ids field that
+<a href="../crud/#many-to-many-fields">generated CRUD</a> and <code>derive</code> use (<code>derive</code> takes it only when <code>only=</code> names it). <code>within</code> is keyword-only on every read and write of the relation, and <code>prefetch_related(tags=queryset)</code> loads only targets in that queryset.
+The <code>max_items</code> limit applies from both ends. A write through the reverse
+relation (<code>tag.posts</code>) locks the declaring rows it touches that the caller may
+see (the <code>within=</code> scope applies, so a row outside it is neither locked nor
+revealed), in key order, and
+refuses (<code>LinkLimitExceeded</code>) a write that would leave one of them past its own
+<code>max_items</code>, so the limit cannot be raced past from either side; the reverse
+relation itself holds the library-wide cap. Both ends lock in one order, the
+declaring rows first and then the owner row, so two writers on opposite ends
+never wait for each other. A refused write (<code>LinkLimitExceeded</code>,
+<code>UnknownLinkTarget</code>) undoes its own statements in a savepoint, so a handler
+that catches the error and commits leaves no link behind. Reading links stored
+beyond <code>max_items</code> (the data broke its bound) raises <code>StoredLinksOverLimit</code>, a
+server fault (<code>500</code>), not a validation error. Every write also locks the owner row
+and re-checks it against the owner scope of generated CRUD and the admin inside
+that lock, so a row that left the caller's scope reads as missing. The targets a
+write resolves are held (<code>FOR KEY SHARE</code> on PostgreSQL, <code>LOCK IN SHARE MODE</code> on
+MySQL and MariaDB) until the commit, so a target deleted at the same moment
+either makes the write fail with <code>UnknownLinkTarget</code> or removes the new link
+with it; on MySQL and MariaDB the reads that decide a write use locking reads,
+because a transaction there reads one snapshot. SQLite has a single writer.
+<code>prefetch_related</code> orders all targets of an owner by the target's default
+ordering (else its key) as one list, however many queries it took.
+<code>bridge="PostTag"</code> adopts a model you wrote instead of generating one, and an
+association model with extra columns stays available as in earlier releases
+(declare two foreign keys and a composite unique constraint).</p>
+<h3 id="an-association-model-with-its-own-columns">An association model with its own columns<a class="headerlink" href="#an-association-model-with-its-own-columns" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Tag</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
     <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span>
@@ -696,12 +748,14 @@ abstract model. <code>{model}</code> is the only placeholder.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#declare-a-foreign-key">Declare a foreign key</a></li><li><a href="#load-related-rows">Load related rows</a></li><li><a href="#one-to-one">One-to-one</a></li><li><a href="#many-to-many">Many-to-many</a></li><li><a href="#foreign-keys-in-abstract-models-and-mixins">Foreign keys in abstract models and mixins</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#declare-a-foreign-key">Declare a foreign key</a></li><li><a href="#load-related-rows">Load related rows</a></li><li><a href="#one-to-one">One-to-one</a></li><li><a href="#many-to-many">Many-to-many</a>
+            <ul><li><a href="#an-association-model-with-its-own-columns">An association model with its own columns</a></li></ul>
+          </li><li><a href="#foreign-keys-in-abstract-models-and-mixins">Foreign keys in abstract models and mixins</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 15:04:44 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/relations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

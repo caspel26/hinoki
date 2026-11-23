@@ -247,7 +247,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -266,7 +266,7 @@
 <li>The ASGI adapter and application handler calls run in Python, except for the Kiso native paths described below. The Rust extension provides path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography and SQL ORM compilation/execution, and drives eligible generated CRUD writes and eligible <code>async def</code> ORM handlers.</li>
 <li>Built-in security settings add browser response headers, HSTS on effective HTTPS requests, and an opt-in <code>308</code> HTTPS redirect that requires explicit allowed hosts.</li>
 <li>Generated typing for some keyword-based ORM calls is less precise than model construction; see <a href="../typing/">typing</a>.</li>
-<li>Many-to-many links use an explicit model with two foreign keys and a composite uniqueness constraint. Implicit join models, direct collection access such as <code>post.tags</code>, and advanced relation paths are not available.</li>
+<li>Many-to-many relations are declared with <code>many_to_many(...)</code> on one model (a generated or adopted bridge table, bounded link sets, <code>within=</code> scopes, generated CRUD <code>&lt;field&gt;_ids</code>); an association model with extra columns is still written by hand. Through-model columns on the generated bridge, nested writes of related rows and many-to-many filters on admin lists are not available, and generated CRUD reads related rows only as ids. Routes with an ids field run natively when the targets are scoped with <code>all_rows(...)</code> or <code>own_rows(...)</code>, and a custom scope callable, a hook or a <code>Linked</code>/<code>Unlinked</code> handler keeps them on the Python lane.</li>
 <li>End-to-end performance claims are not made without comparable retained measurements; see the <a href="../benchmarks/">benchmark report</a> and its limits.</li>
 <li>The default server is Kiso, Hinoki's Rust HTTP server (Granian stays available with <code>--server granian</code>, and any other ASGI server can run the app). It serves <code>serve</code> and <code>dev</code>: HTTP/1.1, optional TLS and, with <code>server.http2</code> over TLS, HTTP/2 (no h2c or server push; WebSocket upgrades only for <code>@http.websocket</code> actions, over HTTP/1.1), an access log (pretty, plain or JSON, with path exclusions and a slow floor), a startup banner naming Kiso, most request-pipeline work still runs in Python and so do handlers, except that an <code>async def</code> handler provably limited to ORM reads and stock writes (<code>atomic=True</code>, guarded and body routes included) is driven from Rust without an asyncio task (<a href="../kiso/#the-native-handler-lane">native handler lane</a>), and eligible public generated <code>create</code>, <code>update</code> and <code>delete</code> actions run their transaction in Rust (<a href="../kiso/#generated-crud">generated CRUD</a>); no performance figure is claimed. Kiso applies host, CORS preflight and HTTPS-redirect policies natively before its optional <code>startup_url</code> probe; the probe reports startup completion, not general application or database health. See <a href="../kiso/">Kiso</a>.</li>
 <li>The server adapter is ASGI. <code>hinoki.wsgi.WSGIAdapter</code> wraps an application for WSGI servers (buffered bodies; an application with a streamed action is refused at start); verified with Granian only, see <a href="../serving/#wsgi">serving</a>.</li>
@@ -308,7 +308,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

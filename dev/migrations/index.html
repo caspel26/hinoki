@@ -483,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -696,6 +696,8 @@ removal of a foreign-key column is refused on these backends.</p>
 <p>State files record logical types; files from older versions that recorded
 SQLite or MySQL type names are normalized, so switching the planner's backend
 is not reported as a type change.</p>
+<h2 id="bridge-tables-of-many-to-many-relations">Bridge tables of many-to-many relations<a class="headerlink" href="#bridge-tables-of-many-to-many-relations" title="Permanent link">&para;</a></h2>
+<p>A <a href="../relations/#many-to-many"><code>many_to_many</code></a> field adds its bridge model to the models module, right after its owner, so <code>plan</code> creates the bridge table in the same migration as the owner: the two foreign keys with <code>ON DELETE</code> rules, a unique pair and an index on the target column. Renaming the owner with <code>@db.table</code> before its first migration names the generated bridge <code>&lt;owner table&gt;_&lt;field&gt;</code> too. The planner does not plan table renames: changing the table of an already migrated owner drops the old bridge table and creates a new one (a destructive change <code>plan</code> refuses unless allowed), so move the data with a reviewed manual migration. An adopted bridge (<code>bridge="NoteLabel"</code>) is an ordinary model and migrates like one. Nothing runs against the database until you apply the migration.</p>
 <h2 id="without-a-manifest">Without a manifest<a class="headerlink" href="#without-a-manifest" title="Permanent link">&para;</a></h2>
 <p>A project without <code>hinoki.toml</code> passes the models module and directory:</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>app/migrations<span class="w"> </span>plan<span class="w"> </span>--models<span class="w"> </span>app.models
@@ -734,12 +736,12 @@ app keeps its ledger keys, so existing history is not replayed.</p>
             <ul><li><a href="#which-database">Which database</a></li></ul>
           </li><li><a href="#check-migration-drift">Check migration drift</a></li><li><a href="#apps-and-dependencies">Apps and dependencies</a>
             <ul><li><a href="#cross-app-migration-safety">Cross-app migration safety</a></li></ul>
-          </li><li><a href="#backend-behaviour">Backend behaviour</a></li><li><a href="#without-a-manifest">Without a manifest</a></li><li><a href="#see-also">See also</a></li></ul>
+          </li><li><a href="#backend-behaviour">Backend behaviour</a></li><li><a href="#bridge-tables-of-many-to-many-relations">Bridge tables of many-to-many relations</a></li><li><a href="#without-a-manifest">Without a manifest</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
