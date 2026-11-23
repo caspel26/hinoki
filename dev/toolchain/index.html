@@ -247,7 +247,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -313,7 +313,7 @@ The PyO3 extension build backend requires maturin ≥ 1.16.0 (<code>[build-syste
 </tbody>
 </table>
 <h3 id="measuring-coverage">Measuring coverage<a class="headerlink" href="#measuring-coverage" title="Permanent link">&para;</a></h3>
-<p>Coverage also measures child processes (<code>patch = ["subprocess"]</code> with <code>parallel</code> and <code>sigterm</code> in <code>[tool.coverage.run]</code>), so the supervisor, worker and <code>hinoki serve</code> tests count. CI runs two phases and merges them: the main suite with <code>pytest -n 4 --cov</code>, then the server suites (<code>tests/runtime</code>, <code>tests/kisoservertest.py</code>, <code>tests/kisoclitest.py</code>, <code>tests/wsgitest.py</code>) with <code>--cov --cov-append</code>. Locally:</p>
+<p>Coverage also measures child processes (<code>patch = ["subprocess"]</code> with <code>parallel</code> and <code>sigterm</code> in <code>[tool.coverage.run]</code>), so the supervisor, worker and <code>hinoki serve</code> tests count. CI runs two phases and merges them: the main suite with <code>pytest -n 4 --cov</code>, then the server suites (<code>tests/runtime</code>, <code>tests/kisoservertest.py</code>, <code>tests/kisoclitest.py</code>, <code>tests/wsgitest.py</code>, <code>tests/ratelimitservertest.py</code>) with <code>--cov --cov-append</code>. Locally:</p>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>pytest<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span><span class="w"> </span>--cov<span class="w"> </span>--cov-report<span class="o">=</span>term-missing
 uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </span>coverage<span class="w"> </span>report<span class="w"> </span>--precision<span class="o">=</span><span class="m">2</span><span class="w"> </span>--skip-covered<span class="w"> </span>-m
 </code></pre></div>
@@ -455,7 +455,7 @@ test gate.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/toolchain.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

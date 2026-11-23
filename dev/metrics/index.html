@@ -483,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -591,6 +591,12 @@ hinoki_http_response_bytes_total{route="",worker="0"} 69
 <td>counter</td>
 <td><code>backend</code></td>
 <td>Delivery attempts made again after a transient failure</td>
+</tr>
+<tr>
+<td><code>hinoki_rate_limit_decisions_total</code></td>
+<td>counter</td>
+<td><code>decision</code></td>
+<td><a href="../endpoints/#rate-limit-an-action">Rate limit</a> decisions. <code>decision</code> is <code>allowed</code>, <code>refused</code>, <code>unavailable</code> (storage could not answer, or the key, tenant or clock function failed) or <code>failed_open</code> (storage could not answer and the route admitted the request). A route's own policy is counted too, as <code>allowed</code>, <code>refused</code> or <code>unavailable</code>; a key, route or address is never a label</td>
 </tr>
 <tr>
 <td><code>hinoki_build_info</code></td>
@@ -714,7 +720,7 @@ hinoki_email_retries_total{backend="memory",worker="0"} 0
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/metrics.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

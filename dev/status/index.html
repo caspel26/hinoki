@@ -247,7 +247,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -262,7 +262,7 @@
 <ul>
 <li>SQLite, PostgreSQL, MySQL and MariaDB are supported ORM databases; SQLite is the local-development default. MySQL and MariaDB have separate real-server integration coverage in CI. SQL Server and Oracle are not supported. See the <a href="../databases/">database guide</a> for backend-specific TLS, migration and feature limits, including MariaDB JSON behavior.</li>
 <li>Hinoki does not open database connections at import or apply migrations automatically.</li>
-<li>Rate limits are policies a route names; the application owns their storage (<a href="../endpoints/#rate-limit-an-action">rate limit an action</a>). The admin's sign-in uses a per-worker window by default and <code>DatabaseLoginWindow</code> for a limit shared by every worker (<a href="../admin/#limit-sign-in-attempts">limit sign-in attempts</a>). There is no tracing integration or health route; Kiso's Prometheus metrics are in <a href="../metrics/">export Prometheus metrics</a>.</li>
+<li>Rate limits: <code>RateLimit</code> counts in a shared database table (or in memory for development), counted in the Rust core on both the async and sync paths (<a href="../endpoints/#rate-limit-an-action">rate limit an action</a>); a route can still name any other policy. The admin's sign-in uses a per-worker window by default and <code>DatabaseLoginWindow</code> for a limit shared by every worker (<a href="../admin/#limit-sign-in-attempts">limit sign-in attempts</a>). There is no tracing integration or health route; Kiso's Prometheus metrics are in <a href="../metrics/">export Prometheus metrics</a>.</li>
 <li>The ASGI adapter and application handler calls run in Python, except for the Kiso native paths described below. The Rust extension provides path matching, selected query/header/cookie parsing, schema validation/serialization, cryptography and SQL ORM compilation/execution, and drives eligible generated CRUD writes and eligible <code>async def</code> ORM handlers.</li>
 <li>Built-in security settings add browser response headers, HSTS on effective HTTPS requests, and an opt-in <code>308</code> HTTPS redirect that requires explicit allowed hosts.</li>
 <li>Generated typing for some keyword-based ORM calls is less precise than model construction; see <a href="../typing/">typing</a>.</li>
@@ -308,7 +308,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/status.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

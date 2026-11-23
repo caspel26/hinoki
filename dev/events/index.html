@@ -483,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -637,7 +637,7 @@ declared in hinoki.toml: activity -&gt; tracker.apps.activity.events:handlers
 <tr>
 <td><code>RateLimited</code></td>
 <td><code>policy</code>, <code>route</code>, <code>method</code>, <code>retry_after</code></td>
-<td>A route's <code>rate_limit</code> policy refused with <code>TooManyRequests</code> (<code>429</code>), including the admin's shared sign-in limit. <code>policy</code> is the class name of the policy; <code>retry_after</code> is the whole seconds sent in <code>Retry-After</code>.</td>
+<td>A route's <code>rate_limit</code> policy refused with <code>TooManyRequests</code> (<code>429</code>), including <code>RateLimit</code> and the admin's shared sign-in limit. A storage failure is not a refusal and emits no event. <code>policy</code> is the class name of the policy; <code>retry_after</code> is the whole seconds sent in <code>Retry-After</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -774,7 +774,7 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/events.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -483,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
             <span>25 min read</span>
           </p>
           
@@ -528,11 +528,11 @@ Granian instead when you need an ASGI wrapper around the application
 </ul>
 <p>These keep a route in an asyncio task: <code>async with</code>, <code>async for</code>, <code>yield</code>, async comprehensions, local names that shadow a model, and any other <code>await</code> (<code>asyncio.sleep</code>, an HTTP client, another coroutine).</p>
 <ul>
-<li><strong>Guards and bodies.</strong> A guarded route (<code>access</code>, <code>rate_limit</code>, <code>Query[Schema]</code> or several renderers) is served the same way, and so is a body method: its guards run first inside the driven coroutine, in the order of the asyncio path (credentials, then the rate limit, then the body and the request values), and the body is read on the native runtime.</li>
+<li><strong>Guards and bodies.</strong> A guarded route (<code>access</code>, <code>rate_limit</code>, <code>Query[Schema]</code> or several renderers) is served the same way, and so is a body method. The built-in <code>RateLimit</code> counts in one SQL statement on the native runtime without an asyncio task, so a route that uses it keeps its lane. Guards run first inside the driven coroutine, in the order of the asyncio path (credentials, then the rate limit, then the body and the request values), and the body is read on the native runtime.</li>
 <li><strong>Class APIs.</strong> A handler of a class API takes the lane when the class keeps the stock constructor (no <code>__init__</code> or <code>__new__</code> of its own in the class or its bases) and adds no <code>response_headers</code>. The instance is built per request, as on the asyncio path; a class that builds itself with application code stays on asyncio. The constructor is read once at startup.</li>
 <li><strong>Transactions.</strong> An <code>atomic=True</code> route runs its handler inside a transaction opened, committed or rolled back on the native runtime, and an error is translated only after the rollback, as on the asyncio path.</li>
 <li><strong>Invalid requests.</strong> A request Rust already finds invalid (a bad path encoding, an invalid path or query parameter, an unacceptable <code>Accept</code>) stays on the asyncio path.</li>
-<li><strong>Moving to asyncio.</strong> A provider or policy that awaits something only asyncio can run (a custom provider calling an HTTP service, a rate limit store on the thread pool) moves the request to an asyncio task at that point, once, with what is left of the timeout. A transaction already open goes with it, so later savepoints still nest and the rollback is unchanged. The same happens if a write hook is added to a model after startup and awaits asyncio.</li>
+<li><strong>Moving to asyncio.</strong> A provider or policy that awaits something only asyncio can run (a custom provider calling an HTTP service, a custom rate limit policy whose store awaits on asyncio) moves the request to an asyncio task at that point, once, with what is left of the timeout. A transaction already open goes with it, so later savepoints still nest and the rollback is unchanged. The same happens if a write hook is added to a model after startup and awaits asyncio.</li>
 </ul>
 <p><code>hinoki routes --lanes</code> shows the choice, and <code>hinoki.runtime</code> logs the reason for every route at debug level.</p>
 <p>The behaviour is the same on both paths: status, headers, body, error translation, the request ID and the <code>request_timeout</code> (a <code>504</code>). An error from a driven handler, and a failure of a generated CRUD action, is translated in place when no error handler you registered can match it; an exception one of your handlers matches is translated in an asyncio task, because the handler may await. Each request has its own context, so <code>request_id</code> and the database are the ones of that request. The handler's steps after its first run on the event-loop thread, so a task it starts still finds the loop. If a driven handler awaits something only asyncio can run (a database backend without native waits), it is moved to an asyncio task at that point and continues with what is left of the request timeout. At shutdown, running handlers are cancelled like request tasks.</p>
@@ -663,7 +663,7 @@ reloaded 4 workers (generation 2)
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

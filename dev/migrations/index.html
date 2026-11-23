@@ -483,8 +483,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -638,7 +638,11 @@ its database, so those imports must be safe in CI:</p>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"accounts"</span><span class="p">]</span>
 </code></pre></div>
 <p><code>hinoki app create billing</code> asks for <code>requires</code>; <code>hinoki app add NAME --models
-MODULE</code> registers an existing package. Each app's tables belong only to its
+MODULE</code> registers an existing package. Hinoki ships two such apps whose tables
+are optional: <code>admin</code> (<code>hinoki.admin.users.models</code>, see the <a href="../admin/#create-the-admins-tables">admin</a>)
+and <code>ratelimit</code> (<code>hinoki.ratelimit_store.models</code>, the <code>hinoki_rate_limits</code> table of
+<a href="../endpoints/#rate-limit-an-action"><code>RateLimit</code></a>). Neither is applied unless you
+register it. Each app's tables belong only to its
 own migration state. The Tracker example has three such apps
 (<a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/hinoki.toml"><code>hinoki.toml</code> lines 14-27</a>):
 <code>tasks</code> requires <code>members</code>, and <code>activity</code> requires both, so <code>apply</code> runs them
@@ -735,7 +739,7 @@ app keeps its ledger keys, so existing history is not replayed.</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

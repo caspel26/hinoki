@@ -483,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -548,7 +548,12 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 <tr>
 <td><code>hinoki_admin_login_windows</code></td>
 <td><code>0002-login-windows</code></td>
-<td>Sign-in attempts per client, read only by <code>DatabaseLoginWindow</code></td>
+<td>Fixed-window counters of earlier versions; no policy reads it any more and it can stay empty</td>
+</tr>
+<tr>
+<td><code>hinoki_admin_rate_limits</code></td>
+<td><code>0003-rate-limits</code></td>
+<td>Buckets of <code>DatabaseLoginWindow</code>: a digest of the client and the route, and a counter state</td>
 </tr>
 </tbody>
 </table>
@@ -683,8 +688,8 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 </tr>
 <tr>
 <td><code>DatabaseLoginWindow(limit=10, window=60)</code></td>
-<td><code>hinoki_admin_login_windows</code></td>
-<td>One limit for every worker and host. Clients are stored as SHA-256 digests; expired windows are deleted on each attempt.</td>
+<td><code>hinoki_admin_rate_limits</code></td>
+<td>One limit for every worker and host, the <a href="../endpoints/#rate-limit-an-action"><code>RateLimit</code></a> algorithm: a burst of <code>limit</code>, then one attempt every <code>window / limit</code> seconds, and a refused attempt costs nothing. Clients are stored as digests.</td>
 </tr>
 </tbody>
 </table>
@@ -695,7 +700,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 
 <span class="n">site</span> <span class="o">=</span> <span class="n">Admin</span><span class="p">(</span><span class="n">users</span><span class="o">=</span><span class="n">AdminAccounts</span><span class="p">(</span><span class="n">login_limit</span><span class="o">=</span><span class="n">DatabaseLoginWindow</span><span class="p">()))</span>
 </code></pre></div>
-<p>Both count one window per client address and route (a flood on the sign-in never spends the password change's attempts). A full table never drops a blocked address: new addresses are refused until the oldest block expires. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.</p>
+<p>Both count per client address and route (a flood on the sign-in never spends the password change's attempts). <code>DatabaseLoginWindow</code> is a <code>RateLimit</code> subclass, so it keeps its table within a bound, deletes expired rows while counting, and refuses new addresses while the table is full of live ones. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.</p>
 <p>An IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set <code>server.trusted_proxies</code> behind a proxy. With <code>DatabaseLoginWindow</code>, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>.</p>
 <h2 id="serve-it-under-another-path">Serve it under another path<a class="headerlink" href="#serve-it-under-another-path" title="Permanent link">&para;</a></h2>
 <p>The <code>Mount</code> prefix decides where the admin lives; links, assets and the cookie path follow it. <code>Mount("/ops", site)</code> serves it at <code>/ops</code>. <code>Admin(prefix="/staff")</code> adds a path of its own after the mount (<code>/ops/staff</code>). An admin included without a <code>Mount</code> is served at <code>/admin</code>.</p>
@@ -725,8 +730,8 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 <td><code>RegistrationError</code></td>
 </tr>
 <tr>
-<td><code>DatabaseLoginWindow</code> before <code>0002-login-windows</code> is applied</td>
-<td>The first sign-in attempt fails on the missing table; apply the migration first</td>
+<td><code>DatabaseLoginWindow</code> before <code>0003-rate-limits</code> is applied</td>
+<td>Sign-in fails with <code>503 rate_limit_unavailable</code> on the missing table; apply the migration first</td>
 </tr>
 <tr>
 <td>One address racing many sign-ins at the same instant</td>
@@ -770,7 +775,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

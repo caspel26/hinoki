@@ -483,8 +483,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></span>
-            <span>13 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></span>
+            <span>16 min read</span>
           </p>
           
         </header>
@@ -670,11 +670,72 @@
 <h2 id="responses">Responses<a class="headerlink" href="#responses" title="Permanent link">&para;</a></h2>
 <p>Return a value matching the declared response type, or return <code>Response</code> (<code>from hinoki import Response</code>) when the handler must set a status, headers or body that a typed result cannot express, annotated as <code>InvoiceOut | Response</code>. Declare expected <code>APIError</code> subclasses in <code>errors=(...)</code>; their status, stable code and message feed the OpenAPI document and the strict test client (<a href="../errors/">errors</a>). Paginated actions are described in <a href="../pagination/">pagination</a>.</p>
 <h3 id="rate-limit-an-action">Rate limit an action<a class="headerlink" href="#rate-limit-an-action" title="Permanent link">&para;</a></h3>
-<p>Hinoki ships no limiter. A route names a policy with <code>rate_limit=</code>, and the application owns the rule, the key and the storage, because a counter kept in one worker's memory is wrong across workers and after a restart:</p>
+<p><code>RateLimit(limit, window)</code> admits <code>limit</code> requests per <code>window</code> seconds for one key. Its counters live in a database table that every worker and host shares, so the limit holds across workers and after a restart. A route names it with <code>rate_limit=</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/accounts/api.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">RateLimit</span><span class="p">,</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">LoginIn</span><span class="p">,</span> <span class="n">SessionOut</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/auth/login"</span><span class="p">,</span> <span class="n">rate_limit</span><span class="o">=</span><span class="n">RateLimit</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3600</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">login</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">LoginIn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SessionOut</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>The default storage, <code>DatabaseLimits()</code>, uses the <code>Database</code> of the worker and the <code>hinoki_rate_limits</code> table. Hinoki never creates it at import or at startup: register the app that owns it and apply its migration once per deployment.</p>
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>ratelimit<span class="w"> </span>--models<span class="w"> </span>hinoki.ratelimit_store.models<span class="w"> </span>--migrations<span class="w"> </span>hinoki.ratelimit_store.migrations
+hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>ratelimit
+</code></pre></div>
+<p>The algorithm is a cell rate (GCRA): a burst of <code>limit</code> is admitted at once, then one more request every <code>window / limit</code> seconds. A refused request uses up no quota. One statement counts each request, in the native core, on the async path and on the sync path alike. A route that otherwise runs on Kiso's native handler lane stays there.</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td><code>"client"</code> (default, the trusted client address; an IPv6 address counts by its /64), <code>"caller"</code> (the authenticated caller's id; an anonymous request falls back to the client) or a plain function of the <code>RateLimitContext</code> returning a string</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td>What the quota belongs to; the method and the route template (<code>GET /items</code>) by default, so one path under two methods has two quotas. Routes that give the same <code>scope</code> share one quota</td>
+</tr>
+<tr>
+<td><code>tenant</code></td>
+<td>A plain function of the context returning an extra key segment, so tenants never share a bucket</td>
+</tr>
+<tr>
+<td><code>cost</code></td>
+<td>What one request spends, at most <code>limit</code></td>
+</tr>
+<tr>
+<td><code>unknown_factor</code></td>
+<td>A request with no known client address shares one bucket <code>unknown_factor</code> times as large (default 10). Set <code>server.trusted_proxies</code> behind a proxy</td>
+</tr>
+<tr>
+<td><code>headers</code></td>
+<td><code>True</code> adds <code>RateLimit-Limit</code>, <code>RateLimit-Remaining</code> and <code>RateLimit-Reset</code> (whole seconds) to admitted and refused answers; the OpenAPI document lists them. Off by default</td>
+</tr>
+<tr>
+<td><code>on_error</code></td>
+<td><code>"closed"</code> (default) answers <code>503 rate_limit_unavailable</code> when the table is unreachable or missing; <code>"open"</code> admits the request, counts it as <code>failed_open</code> and logs once a minute</td>
+</tr>
+<tr>
+<td><code>storage</code></td>
+<td><code>DatabaseLimits(table=..., max_rows=..., timeout=..., sweep_every=...)</code> or <code>MemoryLimits(max_rows=..., sweep_every=...)</code>, which counts in one worker's memory and forgets on restart: for development and tests only. The buckets belong to the <code>MemoryLimits</code> instance, so routes given the same instance and the same <code>scope</code> and <code>tenant</code> count together</td>
+</tr>
+<tr>
+<td><code>clock</code></td>
+<td>A function returning an aware <code>datetime</code>; <code>hinoki.testing.ManualClock</code> in tests</td>
+</tr>
+</tbody>
+</table>
+<p><code>window</code> is a whole number of seconds from 1 to 86,400. Arguments are checked when the route is declared: <code>limit</code> is a whole number from 1 to 4,294,967,295 and at most one request per microsecond of the <code>window</code>, and <code>timeout</code> is from 0.001 to 5 seconds; anything else is a <code>ValueError</code>. Keys are hashed in the native core and only the digest is stored: no address, user id or custom key reaches SQL, logs or metrics. The table holds at most <code>max_rows</code> buckets (default 1,000,000) and the migration indexes its <code>state</code> column; expired rows are deleted in small batches, oldest first, while requests are counted, and once the table is full of live rows new keys are refused with a retry of one <code>window</code> until rows expire. A key part is limited to 1,024 bytes, and an oversized one is answered <code>503</code>. One check, the wait for a connection, the sweep of expired rows and the count included, is bounded by <code>timeout</code> seconds (default 0.5, at most 5); the sweep gets at most half of it and runs before the count, so a stale "full" mark never refuses the first new key after rows expire. Hosts stamp buckets with their own clock, so keep host clocks in sync. A refusal and the unavailable and failed-open outcomes are counted in the <a href="../metrics/#what-is-exported">metrics</a>; an <code>unavailable</code> outcome also counts a key, tenant or clock function that raised.</p>
+<p>Any object with a <code>check</code> method is a policy too, when the application needs another store or rule:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/accounts/api.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">RateLimitContext</span><span class="p">,</span> <span class="n">errors</span><span class="p">,</span> <span class="n">http</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">LoginIn</span><span class="p">,</span> <span class="n">SessionOut</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisStore</span>  <span class="c1"># your module's resource</span>
 
 
@@ -742,7 +803,7 @@
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 05:19:12 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 16:17:22 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
