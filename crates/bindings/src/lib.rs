@@ -6,6 +6,7 @@
 #[cfg(not(unix))]
 compile_error!("Hinoki supports Linux and macOS. On Windows, install and run it inside WSL2.");
 
+mod cache;
 mod completion;
 mod compression;
 mod crudplan;
@@ -124,6 +125,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     policy::register(m)?;
     mail::register(m)?;
     ratelimit::register(m)?;
+    cache::register(m)?;
     mailtemplate::register(m)?;
     wsgi::register(m)?;
     m.add_class::<websocket::WebSocketSpec>()?;
