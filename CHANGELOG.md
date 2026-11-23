@@ -143,6 +143,11 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### ✨ A softer cursor glow on the homepage
+> `theme/static/js/home.js`, `theme/static/css/home.css`
+
+The hero glow now follows the cursor with a smaller, softer ellipse and a short eased motion that settles when the pointer stops. It stays visible over the IDE panel while keeping its code clear, fades on entry and exit, and remains off for coarse pointers and reduced-motion preferences.
+
 #### 📦 Release build and package name
 > `pyproject.toml`, `crates/bindings/src/lib.rs`, `.github/workflows/release-build.yml`, `scripts/smoke_wheel.py`, `python/hinoki/scaffold.py`, `python/hinoki/serve.py`, `docs/release.md`
 
@@ -189,6 +194,7 @@ The command line, the migration state files, the JSON log format, the MCP server
 
 ### 🐛 Fixes
 
+- **Long page indexes:** the sticky table of contents now scrolls within the viewport instead of extending over the footer (`theme/static/css/base.css`).
 - **Security review fixes:** WebSocket handshakes over ASGI route on the raw path and honour `allowed_hosts` and trusted proxies, and the same-origin check compares the scheme (also on Kiso over HTTPS); a duplicate `Host` on HTTP/1.0 is refused; a non-numeric `Host` port no longer breaks WSGI; the admin form uses the admin timezone; documentation URLs are escaped; a full sign-in table keeps blocked addresses, sign-in and password change count apart, and a user name is delayed after repeated failures; MySQL `require_ssl` precedes a URL fragment; Kiso's WSGI host bounds the body bytes being read; a remote PostgreSQL URL without `sslmode` and a world-readable TLS key log a warning.
 - **Manifests and scaffolds:** names and paths with characters above the Basic Multilingual Plane (for example emoji) are written as valid TOML; they used to be written as surrogate-pair escapes, which TOML rejects (`python/hinoki/projectcli.py`, `python/hinoki/scaffold.py`).
 - **`hinoki check`:** it imports the manifest's models before running the rules and warns when it ran no rules (`python/hinoki/checkcli.py`, #391, #393).
