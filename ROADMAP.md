@@ -35,8 +35,9 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 - Cursor (keyset) pagination is available as `CursorPagination` for generated lists and handwritten routes (see [pagination](docs/pagination.md#cursor-keyset-pagination)); the admin lists keep page numbers.
 - Before the first release (`0.1.0`):
     - many-to-many relations (`many_to_many(...)`, generated CRUD ids fields, admin multi-select, MCP description); routes with an ids field run on the native generated-CRUD lane when the targets are scoped with `all_rows(...)`/`own_rows(...)` (ids read by one extra query per page, writes in the row's transaction), and stay on the Python lane with a custom scope, hook or link event handler;
-    - a stable CI on `main` and a clean quality gate;
-    - typed `Resource` injection for handlers, plus a cache, application sessions and file storage, each with a bounded, explicit backend and documented limits;
+    - a stable CI on `main` and a clean quality gate. This remains in progress: recent Actions runs showed intermittent server/process and shared-rate-limit failures. The current branch's complete applicable Python suite passes locally on Python 3.13 after isolating process/SQLite stress suites and aligning the SQLite write-stress test with its single-writer behavior. GitHub Actions still needs to confirm the fix before this gate is considered stable;
+    - a cache, sessions and file storage, each with a bounded, explicit backend and documented limits;
+    - typed `Resource` injection for handlers;
     - common model utilities for lifecycle needs, such as timestamps, status-change tracking, soft deletion and field-change tracking, with their migration, query-scope and admin behavior defined;
     - generated `crud(...)` filtered lists on the native Kiso lane (they take the Python path today);
     - fuzzing of the request-line and header limits Kiso applies over its HTTP parser;
