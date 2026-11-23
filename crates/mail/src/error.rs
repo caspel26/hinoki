@@ -19,10 +19,11 @@ pub enum Kind {
     Rejected,
     Temporary,
     Protocol,
+    Template,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 13] = [
+    pub const ALL: [Kind; 14] = [
         Kind::InvalidAddress,
         Kind::InvalidHeader,
         Kind::InvalidMessage,
@@ -36,6 +37,7 @@ impl Kind {
         Kind::Rejected,
         Kind::Temporary,
         Kind::Protocol,
+        Kind::Template,
     ];
 
     /// The stable snake_case name (the value of `EmailErrorKind`).
@@ -54,6 +56,7 @@ impl Kind {
             Kind::Rejected => "rejected",
             Kind::Temporary => "temporary",
             Kind::Protocol => "protocol",
+            Kind::Template => "template",
         }
     }
 }
@@ -157,6 +160,7 @@ impl fmt::Display for MailError {
             Kind::Rejected => write_code(f, "the SMTP server rejected the message", self.code),
             Kind::Temporary => write_code(f, "the SMTP server deferred the message", self.code),
             Kind::Protocol => f.write_str("unexpected SMTP server response"),
+            Kind::Template => f.write_str("invalid template"),
         }
     }
 }

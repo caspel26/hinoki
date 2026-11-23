@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from hinoki.handlerhints import hints_of
 from hinoki.imports import imports_of, package_modules, within
+from hinoki.mail import EmailModule, TemplateBase, TemplateError
 from hinoki.routing import Route
 from hinoki.schema import Schema
 
@@ -736,6 +737,39 @@ class RequireForeignKeyIndex(Rule):
                     )
                     column_fix = self.fix.replace("<column>", relation.column)
                     yield dataclasses.replace(found, fix=column_fix)
+
+
+class EmailTemplatesMatch(Rule):
+    id = "HNK-MAIL-001"
+    phase = Phase.STATIC
+    effects = ("files",)
+    fix = (
+        "change the template or its context Schema so every variable exists "
+        "and every field is used"
+    )
+    explanation = (
+        "A template that names a variable its context does not have, or leaves "
+        "a field unused, fails when the first message is rendered. Checking it "
+        "here finds it before the application starts."
+    )
+
+    def summary(self) -> str:
+        return "EmailTemplatesMatch()"
+
+    def check(self, project: Project) -> Iterator[Diagnostic]:
+        for module in project.app.modules:
+            if isinstance(module, EmailModule):
+                for template in module.templates:
+                    yield from self.problems_of(template)
+
+    def problems_of(self, template: TemplateBase) -> Iterator[Diagnostic]:
+        try:
+            template.load()
+        except TemplateError as error:
+            place = "inline" if template.path is None else os.fspath(template.path)
+            yield self.diagnostic(
+                str(error), place, subject=f"template:{template.name}"
+            )
 
 
 class ForbidImports(Rule):

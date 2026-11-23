@@ -15,6 +15,7 @@ mod observer;
 mod pool;
 mod retry;
 mod smtp;
+mod template;
 mod tls;
 mod transport;
 
@@ -32,3 +33,7 @@ pub use message::{
 };
 pub use observer::Observer;
 pub use retry::{RetryPolicy, MAX_RETRIES};
+pub use template::{
+    limits as template_limits, Map as TemplateMap, Part, Pos, Problem, Reason, Refusal,
+    Rendered as RenderedTemplate, Shape, Template, TemplateError, Value,
+};

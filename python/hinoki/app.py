@@ -22,7 +22,7 @@ from hinoki.errors import ErrorRegistrar, ErrorRegistry, RegistrationError
 from hinoki.events import EventBus, Handlers
 from hinoki.fields import UNSET, Unset
 from hinoki.http.middleware import Middleware, check_middleware
-from hinoki.mail import EmailModule
+from hinoki.mail import EmailModule, TemplateBase
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import SPEC_VERSIONS, OpenAPIBuilder, documented
@@ -164,6 +164,11 @@ class Hinoki:
     ``events`` lists the ``Handlers`` collections whose typed event handlers
     run, in this order (see ``hinoki.events``); an unlisted one does nothing.
 
+    ``email_templates`` lists the ``mail.Template`` objects the application
+    sends. They go to the email module the ``email: EmailSettings`` field
+    implies; with your own ``EmailModule`` pass them there instead. File
+    templates are read and checked when each worker starts.
+
     ``startup_url`` optionally reserves a public GET/HEAD endpoint that returns
     ``{"status": "ok"}`` after worker startup. It reports startup completion,
     not application, database, or event-loop health.
@@ -182,6 +187,7 @@ class Hinoki:
         on_startup: Sequence[Hook] = (),
         on_shutdown: Sequence[Hook] = (),
         events: Sequence[Handlers] | None = None,
+        email_templates: Sequence[TemplateBase] = (),
         startup_url: str | None = None,
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
@@ -221,7 +227,7 @@ class Hinoki:
         # The declared form: ``Hinoki(include=[...], modules=[...])``.
         declared = [self.module_of(m) for m in modules]
         automatic = self.settings_database(declared)
-        automatic_email = self.settings_email(declared)
+        automatic_email = self.settings_email(declared, email_templates)
         implied = [m for m in (automatic, automatic_email) if m is not None]
         if implied or declared:
             self.install(*implied, *declared)
@@ -376,18 +382,32 @@ class Hinoki:
             return None
         return DatabaseModule.from_settings(self.settings)
 
-    def settings_email(self, declared: list[Module]) -> EmailModule | None:
+    def settings_email(
+        self, declared: list[Module], templates: Sequence[TemplateBase] = ()
+    ) -> EmailModule | None:
         """The email module implied by an ``email: EmailSettings`` field in the
-        settings, unless the application declares its own."""
+        settings, unless the application declares its own. ``templates`` go to
+        the implied module; they are refused when there is none."""
         group = getattr(self.settings, "email", None)
-        if not isinstance(group, EmailSettings):
-            return None
-        if any(
+        own = any(
             isinstance(module, EmailModule) or module.name == EmailModule.name
             for module in declared
-        ):
+        )
+        if templates and own:
+            raise RegistrationError(
+                "email_templates cannot reach your own EmailModule: "
+                "pass them as EmailModule(settings, templates=[...])"
+            )
+        if not isinstance(group, EmailSettings):
+            if templates:
+                raise RegistrationError(
+                    "email_templates needs an `email: EmailSettings` field in the "
+                    "settings, or an EmailModule(settings, templates=[...])"
+                )
             return None
-        return EmailModule.from_settings(self.settings)
+        if own:
+            return None
+        return EmailModule.from_settings(self.settings, templates)
 
     def module_of(self, module: Module | type[Module]) -> Module:
         """An instance as given, or a class built from this app's settings."""
