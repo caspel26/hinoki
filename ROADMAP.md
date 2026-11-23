@@ -19,7 +19,7 @@ pre-1.0 break policy.
 - Reload on `SIGHUP` in Kiso (`hinoki serve`, POSIX): the supervisor, which is Python, starts new workers one at a time, waits until each serves, then stops the old one gracefully, all on the same listening socket. See [Kiso](docs/kiso.md#reload-on-sighup).
 - WebSockets (`@http.websocket`) on Kiso, with framing and limits in Rust, and through the ASGI `websocket` scope on Granian. See [WebSockets](docs/websockets.md).
 - Typed events with explicit handlers (`in_transaction` and `after_commit`), including model events and `AuthRejected`/`RateLimited`. See [events](docs/events.md).
-- Client filters, ordering and search on generated `crud(...)` lists through a `FilterSet`, parsed and compiled in Rust, with typed OpenAPI parameters. See [CRUD](docs/crud.md#filter-order-and-search-the-list).
+- Client filters, ordering and search on generated `crud(...)` lists through a `FilterSet`, parsed and compiled in Rust, with typed OpenAPI parameters; on Kiso, offset-paginated filtered lists without custom `get_queryset`/`filter_queryset` hooks run on the native generated-CRUD lane. See [CRUD](docs/crud.md#filter-order-and-search-the-list).
 - OpenAPI 3.2 documents (3.1 with `docs.openapi_version`), with `QUERY` as the `query` operation (`x-query` in 3.1) and per-action `tags`, `deprecated`, `operation_id` and `include_in_schema`. See [OpenAPI](docs/openapi.md).
 - A CORS policy for the whole application that an action, a `RouteGroup` or `crud(...)` can replace. See [per-route CORS](docs/web-security.md#cors-per-route).
 - Prometheus metrics from a dedicated Kiso listener (off by default). See [metrics](docs/metrics.md).
@@ -39,7 +39,6 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
     - a cache, sessions and file storage, each with a bounded, explicit backend and documented limits;
     - typed `Resource` injection for handlers;
     - common model utilities for lifecycle needs, such as timestamps, status-change tracking, soft deletion and field-change tracking, with their migration, query-scope and admin behavior defined;
-    - generated `crud(...)` filtered lists on the native Kiso lane (they take the Python path today);
     - fuzzing of the request-line and header limits Kiso applies over its HTTP parser;
     - a written compatibility policy, including what is promised about the migration format;
     - a tested quickstart from the published package, and a load and a soak test described in the documentation;
