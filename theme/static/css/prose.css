@@ -79,18 +79,14 @@
   font: 400 13px/1.5 var(--hn-font-sans);
 }
 
-.page-meta > span + span:not(.chip)::before {
+.page-meta > span + span::before {
   content: "·";
   margin-right: 14px;
   color: var(--hn-text-3);
 }
 
-.page-meta > .chip + span:not(.chip)::before {
-  content: none;
-}
-
 @media (max-width: 640px) {
-  .page-meta > span + span:not(.chip)::before {
+  .page-meta > span + span::before {
     content: none;
   }
 }
