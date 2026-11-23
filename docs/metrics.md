@@ -60,7 +60,7 @@ Every sample carries a `worker` label: the number of the process that counted it
 | `hinoki_http_errors_total` | counter | `route`, `kind` | `invalid_response`: the backend's answer could not be sent as given and became a `500`. `stream_aborted`: a stream failed after its head |
 | `hinoki_events_total` | counter | `event`, `phase`, `outcome` | [Event handler](events.md#metrics) runs. `outcome` is `ok`, `error` or `timeout` |
 | `hinoki_event_handler_duration_seconds` | histogram | `event`, `phase` | Time a handler ran, whatever its outcome |
-| `hinoki_email_messages_total` | counter | `backend`, `outcome` | [Email](email.md) sends. `outcome` is `sent` or the error kind (`invalid_address`, `invalid_header`, `invalid_message`, `limit_exceeded`, `closed`, `busy`, `connect`, `timeout`, `tls`, `auth`, `rejected`, `temporary`, `protocol`) |
+| `hinoki_email_messages_total` | counter | `backend`, `outcome` | [Email](email.md) sends. `outcome` is `sent` or the error kind (`invalid_address`, `invalid_header`, `invalid_message`, `limit_exceeded`, `closed`, `busy`, `connect`, `timeout`, `tls`, `auth`, `rejected`, `temporary`, `protocol`, `template`). `template` counts a `Template.message` that could not be rendered while a mailer is current (`Template.render` alone counts nothing, it is not a send); startup and compile failures are not sends and are not counted |
 | `hinoki_email_send_duration_seconds` | histogram | `backend` | Time of a `send`, whatever its outcome |
 | `hinoki_email_retries_total` | counter | `backend` | Delivery attempts made again after a transient failure |
 | `hinoki_build_info` | gauge | `version`, `server` | Always `1` |

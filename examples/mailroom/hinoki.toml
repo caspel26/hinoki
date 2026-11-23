@@ -1,0 +1,3 @@
+[project]
+application = "mailroom.main:app"
+routes = "mailroom.routes:routes"

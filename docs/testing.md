@@ -167,7 +167,7 @@ migration directory in dependency order. The fixture builds SQLite files only.
 
 ## Test email
 
-With `email: settings.EmailSettings` set to `backend=EmailBackend.MEMORY`, every sent message is kept in the worker's `mailer.outbox` and nothing leaves the process; `outbox` entries carry the `Message` and the rendered bytes. A sample test is in [send email](email.md#test-with-the-memory-backend). For SMTP behaviour use a fake server on `127.0.0.1` and synthetic `example.com` addresses.
+With `email: settings.EmailSettings` set to `backend=EmailBackend.MEMORY`, every sent message is kept in the worker's `mailer.outbox` and nothing leaves the process; `outbox` entries carry the `Message` and the rendered bytes. A sample test is in [send email](email.md#test-with-the-memory-backend). For SMTP behaviour use a fake server on `127.0.0.1` and synthetic `example.com` addresses. To test a template without sending, call `template.render(context)` (it returns the three parts) or run `hinoki mail preview`; see [email templates](email-templates.md).
 
 ## Catch undeclared errors
 
