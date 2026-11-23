@@ -106,7 +106,9 @@ async def test_stored_keys_are_digests_not_addresses(database: Database) -> None
 
 
 async def test_concurrent_checks_admit_exactly_the_limit(database: Database) -> None:
-    policy = DatabaseLoginWindow(limit=5, window=60, clock=clock())
+    # SQLite has one writer; give this concurrent stress case the documented
+    # maximum storage wait instead of the 0.5s production default.
+    policy = DatabaseLoginWindow(limit=5, window=60, clock=clock(), timeout=5)
 
     async def attempt() -> bool:
         try:

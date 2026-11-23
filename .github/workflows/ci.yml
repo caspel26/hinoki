@@ -157,13 +157,15 @@ jobs:
           # The native write differential tests fail, not skip, without the trace build.
           HINOKI_REQUIRE_SQL_TRACE: "1"
         run: |
-          # Tests that start real servers are timing-sensitive: they run alone.
-          SERVERS="tests/runtime tests/kisoservertest.py tests/kisoclitest.py tests/wsgitest.py tests/ratelimitservertest.py"
+          # Process-heavy integration tests are timing-sensitive: run them alone.
+          ISOLATED_TESTS="tests/runtime tests/kisoservertest.py tests/kisoclitest.py tests/wsgitest.py tests/ratelimitservertest.py tests/kisometricstest.py tests/kisoreloadtest.py tests/ratelimitsharedtest.py tests/adminsharedlimittest.py"
           uv run --no-sync --locked pytest -n 4 --cov \
             --ignore=tests/runtime --ignore=tests/kisoservertest.py \
             --ignore=tests/kisoclitest.py --ignore=tests/wsgitest.py \
-            --ignore=tests/ratelimitservertest.py
-          uv run --no-sync --locked pytest $SERVERS --cov --cov-append --cov-report=xml
+            --ignore=tests/ratelimitservertest.py --ignore=tests/kisometricstest.py \
+            --ignore=tests/kisoreloadtest.py --ignore=tests/ratelimitsharedtest.py \
+            --ignore=tests/adminsharedlimittest.py
+          uv run --no-sync --locked pytest $ISOLATED_TESTS --cov --cov-append --cov-report=xml
       - name: Save coverage report
         if: needs.changes.outputs.code != 'false' && matrix.python == '3.13'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

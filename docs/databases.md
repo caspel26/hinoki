@@ -192,7 +192,7 @@ output and connection errors.
 
 | Backend | Security defaults | Limits |
 | --- | --- | --- |
-| SQLite | no network, no TLS | one writer at a time; bounded connections and a five-second busy timeout; a relative path resolves from the server's working directory (start it from the project root; migrations anchor it beside `hinoki.toml`) |
+| SQLite | no network, no TLS | one writer at a time; bounded connections and a busy timeout of at least five seconds, extended when `Database.connect(wait=...)` is larger; a relative path resolves from the server's working directory (start it from the project root; migrations anchor it beside `hinoki.toml`) |
 | PostgreSQL | `sslmode=prefer`; use `verify-full` for remote servers; `sslrootcert` adds a PEM CA to the system roots. `require`, `verify-ca` and `verify-full` all verify the certificate | native UUID, timestamp, JSON and byte types |
 | MySQL | TLS required, certificate and host verified against the system trust store; `require_ssl=false` only for an isolated disposable local server | InnoDB, native JSON; no `RETURNING` |
 | MariaDB | TLS required by default | separate backend, tested on MariaDB 11.4 with its own conformance job. `JSON` is a text alias: typed `dict`/`list` fields decode by declaration; low-level `Database.fetch()` returns JSON values as bytes |
@@ -225,7 +225,18 @@ your usual tools before the first `hinoki migrations apply`.
 SQLite uses bundled SQLite 3.35 or newer. UUID and timestamp columns use text
 storage; JSON uses JSON text. `contains` matching is ASCII case-insensitive.
 In-memory databases are not supported, because each pooled connection would
-have an independent database.
+have an independent database. SQLite allows one writer at a time. Its internal
+lock wait is the larger of five seconds and the pool's configured `wait`; the
+pool acquisition wait itself remains bounded by `wait`:
+
+```python
+from hinoki.db import Database
+
+database = await Database.connect("sqlite://./app.sqlite3", wait=10)
+```
+
+This gives SQLite writes up to ten seconds to acquire the writer lock. The
+default `wait=5` keeps the existing five-second limit.
 
 ## Use the database from a script
 

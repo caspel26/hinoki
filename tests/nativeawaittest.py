@@ -11,14 +11,24 @@ import pytest
 from hinoki.db import Database, DatabaseError, UniqueViolation
 
 
-async def open_db(tmp_path: Path, name: str = "native.sqlite3") -> Database:
-    db = await Database.connect(f"sqlite://{tmp_path / name}", max_size=4)
+async def open_db(
+    tmp_path: Path,
+    name: str = "native.sqlite3",
+    *,
+    max_size: int = 4,
+    wait: float = 5,
+) -> Database:
+    db = await Database.connect(
+        f"sqlite://{tmp_path / name}", max_size=max_size, wait=wait
+    )
     await db.execute("create table t (id integer primary key, v text unique)")
     return db
 
 
 async def test_many_concurrent_calls_all_resolve(tmp_path: Path) -> None:
-    db = await open_db(tmp_path)
+    # SQLite serializes writes; queue the burst on one connection instead of
+    # making several connections contend for the single writer lock.
+    db = await open_db(tmp_path, max_size=1, wait=30)
     await asyncio.gather(
         *(db.execute("insert into t (v) values (?)", str(n)) for n in range(500))
     )
