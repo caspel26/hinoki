@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Coroutine
 from types import SimpleNamespace
 from typing import Annotated, Any
 
@@ -296,7 +296,10 @@ async def admission_status(
 ) -> int:
     built = pipeline()
 
-    async def refuse(*_args: Any, **_kwargs: Any) -> Any:
+    async def refuse(
+        work: Coroutine[Any, Any, Any], *_args: Any, **_kwargs: Any
+    ) -> Any:
+        work.close()
         raise error  # type: ignore[misc]
 
     if error is not None:

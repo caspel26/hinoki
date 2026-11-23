@@ -658,13 +658,17 @@ def test_shell_bounds_shutdown_when_a_task_ignores_cancellation(
     config = RuntimeConfig(shutdown_timeout=0.02)
     runtime = ShellRuntime(Hinoki(runtime=config))
     cancelled = threading.Event()
+    finished = threading.Event()
 
     async def resistant_task() -> None:
         try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            cancelled.set()
-            await asyncio.Event().wait()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                await asyncio.Event().wait()
+        finally:
+            finished.set()
 
     runtime.start({"asyncio": asyncio, "resistant_task": resistant_task})
     runtime.run_cell(_compile("asyncio.create_task(resistant_task())"))
@@ -673,8 +677,9 @@ def test_shell_bounds_shutdown_when_a_task_ignores_cancellation(
     runtime.close()
 
     assert cancelled.is_set()
+    assert finished.wait(timeout=1)
     assert time.monotonic() - started < 1
-    assert "abandoning 1 shell task" in caplog.text
+    assert "abandoning 1 shell task" not in caplog.text
 
 
 def test_shell_waits_for_each_module_cleanup_within_its_timeout() -> None:
