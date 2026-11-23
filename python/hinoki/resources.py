@@ -17,7 +17,7 @@ from typing import Any, ClassVar, NoReturn, cast
 from hinoki import context
 from hinoki.access import Access
 from hinoki.api import API
-from hinoki.auth import Caller
+from hinoki.auth import BaseAuth, Caller
 from hinoki.errors import (
     ErrorDetail,
     FieldError,
@@ -27,6 +27,7 @@ from hinoki.errors import (
 )
 from hinoki.fields import UNSET, Unset
 from hinoki.filters import FilterSet
+from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.cors import Cors
 from hinoki.http.request import Request
 from hinoki.http.response import Response
@@ -85,6 +86,189 @@ def caller_id(user: object) -> NoReturn:
     """Marker for ``identity_key``: the owner value is ``Caller.id``, so the
     caller needs no user object. It is never called."""
     raise TypeError("caller_id is read from the Caller, not called")  # pragma: no cover
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class UserAttr:
+    """Declarative attribute extractor returned by ``from_user(...)``."""
+
+    attr: str
+    _getter: Callable[[Any], Any] = dataclasses.field(
+        init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.attr, str)
+            or not self.attr
+            or not all(part.isidentifier() for part in self.attr.split("."))
+        ):
+            raise ValueError(
+                f"from_user({self.attr!r}) requires a valid attribute name "
+                "or dotted path"
+            )
+        object.__setattr__(self, "_getter", attrgetter(self.attr))
+
+    def __call__(self, user: Any) -> Any:
+        return self._getter(user)
+
+
+def from_user(attr: str) -> UserAttr:
+    """Extract ``attr`` (or a dotted attribute path) from ``Caller.user`` for
+    ``crud(..., assign={...})`` or ``identity_key=...``."""
+    return UserAttr(attr)
+
+
+HOOK_CALLER_INDEX: dict[str, int] = {
+    "get_queryset": 0,
+    "filter_queryset": 2,
+    "written_queryset": 0,
+    "store": 1,
+    "change": 3,
+    "remove": 2,
+}
+HOOK_ACTIONS: dict[str, tuple[str, ...]] = {
+    "get_queryset": ("list", "retrieve", "update", "delete"),
+    "filter_queryset": ("list",),
+    "written_queryset": ("create", "update"),
+    "store": ("create",),
+    "change": ("update",),
+    "remove": ("delete",),
+}
+
+
+def _type_name(annotation: Any) -> str:
+    return str(getattr(annotation, "__name__", annotation))
+
+
+def _caller_annotation_info(annotation: Any) -> tuple[bool, bool, Any]:
+    """Return ``(is_caller, accepts_none, user_type)`` for a hook annotation."""
+    if annotation is Caller:
+        return True, False, Any
+    if typing.get_origin(annotation) is Caller:
+        args = typing.get_args(annotation)
+        return True, False, args[0] if args else Any
+    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+        args = typing.get_args(annotation)
+        has_none = type(None) in args
+        non_none = [arg for arg in args if arg is not type(None)]
+        if len(non_none) == 1 and (
+            non_none[0] is Caller or typing.get_origin(non_none[0]) is Caller
+        ):
+            caller_args = typing.get_args(non_none[0])
+            return True, has_none, caller_args[0] if caller_args else Any
+    return False, True, Any
+
+
+def _auth_user_type(auth: BaseAuth[Any]) -> Any:
+    """Resolve the concrete user type ``T`` from a parameterized ``BaseAuth[T]``."""
+    for cls in type(auth).__mro__:
+        for base in getattr(cls, "__orig_bases__", ()):
+            origin = typing.get_origin(base)
+            if isinstance(origin, type) and issubclass(origin, BaseAuth):
+                args = typing.get_args(base)
+                if args and not isinstance(args[0], typing.TypeVar):
+                    return args[0]
+    return Any
+
+
+def _concrete_types(annotation: Any) -> tuple[type, ...] | None:
+    """Return concrete ``type`` members for assignability checks, or ``None``."""
+    if annotation in (Any, object) or isinstance(annotation, typing.TypeVar):
+        return None
+    if isinstance(annotation, type):
+        return (annotation,)
+    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+        args = typing.get_args(annotation)
+        if args and all(isinstance(arg, type) and arg is not object for arg in args):
+            return tuple(args)
+    return None
+
+
+def _user_type_compatible(provided: Any, expected: Any) -> bool:
+    prov = _concrete_types(provided)
+    exp = _concrete_types(expected)
+    if prov is None or exp is None:
+        return True
+    return all(any(issubclass(p, e) for e in exp) for p in prov)
+
+
+def _check_hook_actions(
+    cls_name: str,
+    hook_name: str,
+    config: _CrudConfig,
+    active: list[str],
+    accepts_none: bool,
+    user_type: Any,
+) -> None:
+    if not accepts_none:
+        public = [action for action in active if config.access_for(action) is None]
+        if public:
+            actions_text = ", ".join(public)
+            raise RegistrationError(
+                f"{cls_name}.{hook_name} requires a non-None Caller, "
+                f"but generated action(s) {actions_text} are public — "
+                "add access=... or annotate the parameter as Caller[...] | None"
+            )
+    for action in active:
+        policy = config.access_for(action)
+        if policy is None:
+            continue
+        auth_type = _auth_user_type(policy.auth)
+        if not _user_type_compatible(auth_type, user_type):
+            raise RegistrationError(
+                f"{cls_name}.{hook_name} expects Caller[{_type_name(user_type)}], "
+                f"but action {action!r} authenticates Caller[{_type_name(auth_type)}]"
+            )
+
+
+def _hook_caller_param(
+    cls: type[CrudBase], hook_name: str, param_index: int
+) -> tuple[inspect.Parameter, Any] | None:
+    hook = getattr(cls, hook_name)
+    if hook is getattr(CrudBase, hook_name):
+        return None
+    params = list(signature_of(hook).parameters.values())
+    if not isinstance(inspect.getattr_static(cls, hook_name), staticmethod):
+        params = params[1:]
+    if param_index >= len(params) or params[param_index].kind in (
+        inspect.Parameter.VAR_POSITIONAL,
+        inspect.Parameter.VAR_KEYWORD,
+    ):
+        return None
+    param = params[param_index]
+    try:
+        hints = hints_of(hook)
+    except (NameError, TypeError):
+        return None
+    return (param, hints[param.name]) if param.name in hints else None
+
+
+def _check_hook_caller(
+    cls: type[CrudBase], config: _CrudConfig, hook_name: str, param_index: int
+) -> None:
+    found = _hook_caller_param(cls, hook_name, param_index)
+    if found is None:
+        return
+    param, annotation = found
+    is_caller, accepts_none, user_type = _caller_annotation_info(annotation)
+    if not is_caller:
+        return
+    accepts_none = accepts_none or param.default is None
+    active = [
+        action
+        for action in HOOK_ACTIONS[hook_name]
+        if action not in config.omit and enabled(config, action)
+    ]
+    _check_hook_actions(
+        cls.__name__, hook_name, config, active, accepts_none, user_type
+    )
+
+
+def check_hook_callers(cls: type[CrudBase], config: _CrudConfig) -> None:
+    """Validate overridden hook ``Caller`` annotations against generated actions."""
+    for hook_name, param_index in HOOK_CALLER_INDEX.items():
+        _check_hook_caller(cls, config, hook_name, param_index)
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -604,6 +788,7 @@ class CrudBase(API):
             return
         custom_output = cls.to_schema is not CrudBase.to_schema
         config.check(custom_output=custom_output)
+        check_hook_callers(cls, config)
         cls.resource = config
         cls.model = config.model
         generated = generate(config)

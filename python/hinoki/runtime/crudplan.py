@@ -28,6 +28,7 @@ from hinoki.resources import (
     ACTIONS,
     GENERATED,
     CrudBase,
+    UserAttr,
     _CrudConfig,
     caller_id,
     create_row,
@@ -458,6 +459,12 @@ def crud_helpers_are_original() -> bool:
     ) and static_state_matches(_CrudConfig, CONFIG_METHODS, CONFIG_METHODS_ORIGINAL)
 
 
+def assign_is_plain(resource: _CrudConfig) -> bool:
+    """Assignments (including ``from_user(...)`` / ``UserAttr`` and arbitrary
+    callables) read ``Caller.user`` and conservatively stay on the Python lane."""
+    return not resource.assign and not isinstance(resource.identity_key, UserAttr)
+
+
 def public_route_is_plain(
     binding: Binding, owner: type[CrudBase], resource: _CrudConfig, action: str
 ) -> bool:
@@ -465,7 +472,7 @@ def public_route_is_plain(
     return (
         owner_is_plain(owner)
         and owner_scope_is_plain(resource)
-        and not resource.assign
+        and assign_is_plain(resource)
         and access_is_plain(route, resource, action)
         and route.atomic == (action in {"create", "update", "delete"})
         and route_parsing_is_plain(route)

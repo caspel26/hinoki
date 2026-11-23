@@ -7,11 +7,10 @@ editor stays inside it (``get_queryset``, ``assign``, ``drafts``, ``export``).
 import csv
 import io
 from collections.abc import Iterator
-from operator import attrgetter
 from typing import Any
 from uuid import UUID
 
-from hinoki import API, Caller, crud, errors, events, http
+from hinoki import API, Caller, crud, errors, events, from_user, http
 from hinoki.http import Stream
 from hinoki.orm import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
@@ -77,7 +76,7 @@ def health() -> HealthOut:
     delete=True,
     access=editor,
     owner="author_id",
-    assign={"publication_id": attrgetter("publication_id")},
+    assign={"publication_id": from_user("publication_id")},
     omit=("list", "retrieve"),
 )
 class Posts(API):
