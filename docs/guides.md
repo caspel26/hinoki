@@ -5,7 +5,7 @@ template: guides.html
 
 # Guides
 
-One page per task. Start with data and endpoints, then add access, rules and runtime concerns as you need them. New to Hinoki? Take the [tutorial](tutorial/index.md) or the [quick start](quick-start.md) first.
+One page per task. Start with data and endpoints, then add access, rules and runtime concerns as you need them. New to Hinoki? Take the [tutorial](tutorial/index.md) or the [quick start](quick-start.md) first, or read the three [examples](https://github.com/caspel26/hinoki/tree/main/examples) in order: Notes (easy), Tracker (medium) and Blog (complete).
 
 ## Data
 
@@ -15,6 +15,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Relations](relations.md): foreign keys, one-to-one, many-to-many association models and explicit loading.
 - [Query and write rows](queries.md): filters, pagination, reusable queries, creates, updates and bulk writes.
 - [Lifecycle hooks](model-hooks.md): react to a model's own writes and inspect its changed columns.
+- [Events](events.md): typed events with explicit handlers that run inside the transaction or after the commit.
 - [Migrations](migrations.md): plan, review, apply and check migrations for every app.
 - [Schemas](schemas.md): declare the data that crosses the API boundary and convert it to and from rows.
 - [Scalar field types](schema-types.md): enums, literals, dates, decimals, bytes, addresses, secrets and paths.
@@ -37,8 +38,9 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Export Prometheus metrics](metrics.md): request counters and histograms on a dedicated listener, on Kiso only.
 - [Middleware](middleware.md): typed `Middleware` around an action or the whole app, identical on Kiso and Granian.
 - [Pagination](pagination.md): page-number pagination with `PageNumberPagination` and keyset cursors with `CursorPagination`.
+- [Filter, order and search a CRUD list](crud.md#filter-order-and-search-the-list): `FilterSet` with `Eq`, `In`, `Range`, `Search` and an ordering allow-list.
 - [Parsers and renderers](codecs.md): other body formats in and out.
-- [OpenAPI document](openapi.md): the OpenAPI 3.1 document generated from routes, signatures and `Schema` declarations.
+- [OpenAPI document](openapi.md): the OpenAPI 3.2 document (3.1 on request) generated from routes, signatures and `Schema` declarations.
 
 ## Security and checks
 
@@ -64,6 +66,8 @@ One page per task. Start with data and endpoints, then add access, rules and run
 
 - [Add an admin](admin.md): staff pages for your models, with a sign-in page, users and per-model permissions.
 - [Customize the admin](admin-customize.md): columns, hooks, bulk actions, templates and themes.
+- [Send email](email.md): SMTP, console and memory backends from a per-worker mailer, sent after a commit; no queue.
+- [Email templates](email-templates.md): typed TOML templates rendered in Rust, checked at startup and previewed from the CLI.
 - [Expose actions over MCP](app-mcp.md): selected actions as tools for a remote MCP client.
 - [Development MCP](dev-mcp.md): a server that describes your app to a coding agent; it can run requests against the app only when you enable `--scenarios`.
 - [Build with a coding agent](ai-workflow.md): a project, rules and tools ready for an agent, and where its authority ends.

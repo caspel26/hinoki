@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from hinoki import Hinoki, RuntimeConfig, http
+from hinoki.runtime.inline import RequestDeadline, continue_coroutine, run_inline
 from tests.harness import Client, Pool
 
 cleaned: list[str] = []
@@ -117,3 +118,30 @@ async def test_the_deadline_cleans_up_a_suspended_handler(pool: Pool) -> None:
     client = await serve(pool, timeout=0.1)
     assert (await client.request("GET", "/cleanup")).status == 504
     assert cleaned == ["done"]
+
+
+async def test_closing_the_inline_wait_closes_the_coroutine() -> None:
+    closed: list[str] = []
+
+    async def work() -> None:
+        try:
+            await asyncio.sleep(5)
+        finally:
+            closed.append("done")
+
+    coro = work()
+    yielded = coro.send(None)
+    waiting = continue_coroutine(coro, yielded)
+    assert waiting.send(None) is yielded
+    waiting.close()
+    assert closed == ["done"]
+
+
+async def test_a_timeout_raised_by_the_handler_is_not_a_deadline() -> None:
+    async def work() -> None:
+        await asyncio.sleep(0)
+        raise TimeoutError("upstream")
+
+    with pytest.raises(TimeoutError, match="upstream") as raised:
+        await run_inline(work(), 30.0)
+    assert not isinstance(raised.value, RequestDeadline)

@@ -9,7 +9,10 @@ no CDN. Pages are plain GETs and are public, like the document they display.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
+from functools import cache
+from html import escape
 from pathlib import Path
 
 from hinoki import jsontext
@@ -31,26 +34,38 @@ class Page:
     cacheable: bool
 
 
+@cache
+def asset(name: str) -> str:
+    """The served name of a vendored file: its content hash is part of the name, so a
+    browser or proxy that cached an older viewer for a day never pairs it with a newer
+    page."""
+    stem, dot, suffix = name.rpartition(".")
+    digest = hashlib.sha256(read(name)).hexdigest()[:10]
+    return f"{stem}.{digest}{dot}{suffix}"
+
+
 def swagger_html(base: str) -> str:
+    base = escape(base)
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "<title>API documentation</title>"
-        f'<link rel="stylesheet" href="{base}/assets/swagger-ui.css"></head>'
+        f'<link rel="stylesheet" href="{base}/assets/{asset("swagger-ui.css")}"></head>'
         '<body><div id="swagger-ui"></div>'
-        f'<script src="{base}/assets/swagger-ui-bundle.js"></script>'
+        f'<script src="{base}/assets/{asset("swagger-ui-bundle.js")}"></script>'
         f'<script src="{base}/assets/init.js"></script></body></html>'
     )
 
 
-def redoc_html(base: str, spec: str) -> str:
+def redoc_html(base: str) -> str:
+    base = escape(base)
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "<title>API reference</title>"
         "<style>body{margin:0}</style></head><body>"
-        f'<redoc spec-url="{spec}"></redoc>'
-        f'<script src="{base}/assets/redoc.standalone.js"></script></body></html>'
+        '<div id="redoc"></div>'
+        f'<script type="module" src="{base}/assets/init.js"></script></body></html>'
     )
 
 
@@ -64,18 +79,29 @@ def swagger_pages(base: str, spec: str) -> dict[str, Page]:
     assets = f"{base}/assets"
     return {
         base: Page(swagger_html(base).encode(), HTML, False),
-        f"{assets}/swagger-ui.css": Page(read("swagger-ui.css"), CSS, True),
-        f"{assets}/swagger-ui-bundle.js": Page(read("swagger-ui-bundle.js"), JS, True),
+        f"{assets}/{asset('swagger-ui.css')}": Page(read("swagger-ui.css"), CSS, True),
+        f"{assets}/{asset('swagger-ui-bundle.js')}": Page(
+            read("swagger-ui-bundle.js"), JS, True
+        ),
         f"{assets}/init.js": Page(init.encode(), JS, False),
     }
 
 
 def redoc_pages(base: str, spec: str) -> dict[str, Page]:
+    # ReDoc 3 is an ES module: the page imports its ``init`` instead of reading
+    # a ``<redoc>`` element. ReDoc 3 reports usage to a Redocly collector unless
+    # ``disableTelemetry`` is set; the viewer must make no outside request.
+    init = (
+        f'import {{init}} from "./{asset("redoc.standalone.js")}";'
+        f"init({jsontext.dumps(spec)}, {{disableTelemetry: true}}, "
+        'document.getElementById("redoc"));'
+    )
     return {
-        base: Page(redoc_html(base, spec).encode(), HTML, False),
-        f"{base}/assets/redoc.standalone.js": Page(
+        base: Page(redoc_html(base).encode(), HTML, False),
+        f"{base}/assets/{asset('redoc.standalone.js')}": Page(
             read("redoc.standalone.js"), JS, True
         ),
+        f"{base}/assets/init.js": Page(init.encode(), JS, False),
     }
 
 

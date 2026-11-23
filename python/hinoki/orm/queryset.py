@@ -12,7 +12,7 @@ from contextlib import AbstractAsyncContextManager
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, Literal, overload
 
-from hinoki import core
+from hinoki import core, events
 from hinoki.blocking import run_sync
 from hinoki.db import Database, current_owner
 from hinoki.errors import FieldError, MultipleObjectsReturned
@@ -24,6 +24,7 @@ from hinoki.utils import _read_utc
 
 if TYPE_CHECKING:
     from hinoki.core import Row
+    from hinoki.events import EventBus
     from hinoki.orm.model import Model
 
 OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull", "contains"}
@@ -399,7 +400,26 @@ class QuerySet[M: Model]:
             filters=list(self.filters),
             dialect=database.dialect,
         )
-        return await database.execute(sql, *params)
+        bus = events.listener(events.Deleted, self.model)
+        if bus is None:
+            return await database.execute(sql, *params)
+        return await self.delete_observed(bus, database, sql, params)
+
+    async def delete_observed(
+        self, bus: EventBus, database: Database, sql: str, params: list[Any]
+    ) -> int:
+        """``adelete`` that emits ``Deleted`` (when it removed rows), inside a
+        transaction when an ``in_transaction`` handler may fail it."""
+        guard = (
+            write_transaction(database)
+            if bus.wants_transaction(events.Deleted, self.model)
+            else contextlib.nullcontext()
+        )
+        async with guard:
+            count = await database.execute(sql, *params)
+            if count:
+                await bus.emit(events.Deleted(self.model, count))
+        return count
 
     def refuse_window(self, action: str) -> None:
         if self.limit_to is not None or self.offset_by is not None:
@@ -534,7 +554,7 @@ def decimal_columns(model: type[Model], column: str) -> bool:
     if owner:
         relation = model.__relations__.get(owner.removeprefix(ALIAS_PREFIX))
         if relation is None:
-            return False
+            return False  # pragma: no cover - callers pass valid relation names
         model = relation.model
     field_type = model.__field_types__.get(name)
     return field_type is not None and field_type.kind == "decimal"

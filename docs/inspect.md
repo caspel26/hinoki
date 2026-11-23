@@ -57,7 +57,7 @@ uv run hinoki check --phase static
 
 | Option | Effect | Default |
 | --- | --- | --- |
-| `--rules MODULE:ATTRIBUTE` | the `RuleSet` to run | the application's `rules=` |
+| `--rules MODULE:ATTRIBUTE` | the `RuleSet` to run | the application's own rules: `Hinoki(rules=...)`, else the `[project] rules` of `hinoki.toml` ([which rules run](rules.md#which-rules-run)) |
 | `--package PACKAGE` | package for the static import checks; repeat for several | the package that contains the target |
 | `--phase startup\|static` | run one phase | both |
 | `--waivers PATH` | waiver file; must exist | the app's `waivers=`, else `hinoki-rules.toml` at the project root ([which file](rules.md#which-waiver-file)) |
@@ -75,11 +75,18 @@ how to read and waive a result, is in [Rules](rules.md).
 uv run hinoki routes
 ```
 
+From `examples/tracker`:
+
 ```text
-GET     /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.list_invoices
-POST    /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.create_invoice
-GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.billing.api.get_invoice
-GET     /health                         public                   notes.api.health
+GET     /activity                  MemberTokens[tracker:use] tracker.apps.activity.api.Feed.list
+GET     /activity/{item_id}        MemberTokens[tracker:use] tracker.apps.activity.api.Feed.retrieve
+GET     /health                    public                   tracker.routes.health
+GET     /members/me                MemberTokens[tracker:use] tracker.apps.members.api.me
+GET     /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
+POST    /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.create
+DELETE  /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.delete
+GET     /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.retrieve
+POST    /tasks/{item_id}/complete  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.complete
 ```
 
 Each row is method, path, access (the provider and its permissions, or `public`)
@@ -90,12 +97,12 @@ that start with the prefix, `--method` one method; no match prints
 `no routes match` and exits 1:
 
 ```sh
-uv run hinoki routes --path /billing --method GET
+uv run hinoki routes --path /tasks --method GET
 ```
 
 ```text
-GET     /billing/invoices               StaffTokens[billing:manage] notes.apps.billing.api.list_invoices
-GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.billing.api.get_invoice
+GET     /tasks            MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
+GET     /tasks/{item_id}  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.retrieve
 ```
 
 `--lanes` adds, per route, whether [Kiso](kiso.md#the-native-handler-lane) runs
@@ -104,6 +111,19 @@ the reason. The access log's `lane` field means something narrower: a request
 for a `native` route here still logs `python` unless Rust runs a generated CRUD
 plan for it. JSON always has `method`, `path`, `handler`, `access`, `status`,
 `lane` and `lane_reason`.
+
+## List event handlers with `events` {#events}
+
+```sh
+uv run hinoki events
+uv run hinoki events notes.main:app --format json
+```
+
+Prints each registered [event handler](events.md#seeing-what-is-registered) in
+execution order (event, phase, collection, `async` or `sync`, handler), the
+`events` limits, and the `events` target each app declares in `hinoki.toml`.
+`--format json` has `handlers`, `limits` and `apps`. It reads the application
+and the manifest only; an unloadable target exits 2.
 
 ## Export the OpenAPI document with `openapi` {#openapi}
 

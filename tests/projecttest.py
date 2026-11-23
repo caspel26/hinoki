@@ -601,6 +601,7 @@ def test_app_list_json_has_stable_manifest_fields(
                 "routes": "",
                 "prefix": "",
                 "requires": [],
+                "events": "",
             }
         ]
     }
@@ -644,6 +645,7 @@ def test_manage_uses_the_manifest_application_from_nested_directory(
 TARGET_HANDLERS = {
     "check": "hinoki.__main__.run_check",
     "dev": "hinoki.serve.run_dev",
+    "events": "hinoki.eventscli.run_events",
     "mcp": "hinoki.__main__.run_mcp_command",
     "openapi": "hinoki.openapicli.run_openapi",
     "routes": "hinoki.routescli.run_routes",

@@ -9,6 +9,7 @@ from openapi_spec_validator import validate
 from hinoki import API, Access, Caller, Hinoki, Response, Schema, http
 from hinoki.errors import Conflict, Forbidden, RegistrationError
 from hinoki.http.request import Request
+from hinoki.openapi import OpenAPIBuilder
 from hinoki.schema import Field
 from tests.harness import Pool
 from tests.providers import TokenAuth
@@ -86,11 +87,23 @@ def make_app(**options: Any) -> Hinoki:
     return app
 
 
-def test_document_is_valid_openapi_31() -> None:
+def test_document_is_valid_openapi_32() -> None:
     document = make_app().openapi()
-    assert document["openapi"] == "3.1.0"
+    assert document["openapi"] == "3.2.0"
     assert document["info"] == {"title": "Blog", "version": "1.2.3"}
     validate(document)
+
+
+def test_document_without_query_actions_is_the_same_in_both_versions() -> None:
+    new = make_app().openapi()
+    old = make_app(openapi_version="3.1").openapi()
+    assert old.pop("openapi") == "3.1.0" and new.pop("openapi") == "3.2.0"
+    assert old == new  # only the version differs: no route uses QUERY
+
+
+def test_an_unknown_openapi_version_is_refused() -> None:
+    with pytest.raises(ValueError, match="openapi_version must be one of"):
+        Hinoki(openapi_version="3.3")  # type: ignore[arg-type]
 
 
 def test_paths_methods_and_operation_ids_come_from_declarations() -> None:
@@ -325,3 +338,27 @@ def test_declared_errors_become_responses_with_their_codes() -> None:
         "error",
         "request_id",
     ]
+
+
+def test_the_builder_refuses_an_unknown_openapi_version() -> None:
+    with pytest.raises(ValueError, match="openapi_version must be one of"):
+        OpenAPIBuilder(Hinoki(), "Api", "1", "3.3")
+
+
+def test_a_websocket_action_documents_its_docstring() -> None:
+    async def chat(socket: http.WebSocket) -> None:
+        """Talk to the room.
+
+        Messages are echoed to everyone.
+        """
+
+    async def quiet(socket: http.WebSocket) -> None:
+        return None
+
+    app = Hinoki()
+    app.include(http.websocket("/chat")(chat), http.websocket("/quiet")(quiet))
+    described = app.openapi()["x-hinoki-websockets"]
+    assert described["/chat"]["summary"] == "Talk to the room."
+    assert described["/chat"]["description"] == "Messages are echoed to everyone."
+    assert "summary" not in described["/quiet"]
+    assert "description" not in described["/quiet"]

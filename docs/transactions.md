@@ -54,7 +54,10 @@ A project created with `hinoki new` enforces `Transactions.require_atomic()`
 you record the decision. List the action in `except_` in `notes/rules.py`:
 
 ```python
-# notes/rules.py
+# notes/rules.py, listed in `rules` of hinoki.toml
+from hinoki import Transactions
+from hinoki.rules import RuleSet
+
 project_rules = RuleSet(
     # ... the other rules
     Transactions.require_atomic(except_=["notes.apps.billing.api.remind"]),
@@ -157,6 +160,8 @@ async def issue(data: InvoiceIn) -> Invoice:
         current_database().after_commit(lambda: publish("invoice.issued", invoice.id))
     return invoice
 ```
+
+A send that fails after the commit is logged and does not undo the commit; the callback is not retried. For an email, `current_database().after_commit(lambda: mail.send(message))` sends only once the data is durable and never on rollback; see [send email](email.md#send-after-a-commit).
 
 ## Errors and edge cases
 

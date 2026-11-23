@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from hinoki import settings
-from hinoki.db import Database
+from hinoki.db import Database, warn_unverified_tls
 from hinoki.settings import (
     DatabaseEngine,
     DatabaseSettings,
@@ -290,3 +290,24 @@ def test_the_password_comes_from_a_secret_file_and_never_from_toml(
     toml.write_text('[database]\nengine = "postgresql"\nname = "app"\npassword = "x"\n')
     with pytest.raises(SettingsError, match="secrets must come from environment"):
         AppSettings.load(env={}, toml=toml)
+
+
+@pytest.mark.parametrize(
+    ("url", "warns"),
+    [
+        ("postgresql://u:p@db.example.test/app", True),
+        ("postgresql://u:p@db.example.test/app?sslmode=verify-full", False),
+        ("postgresql://u:p@127.0.0.1/app", False),
+        ("postgresql://u:p@localhost/app", False),
+        ("postgresql://u:p@%2Fvar%2Frun%2Fpg/app", False),
+        ("sqlite://./local.sqlite3", False),
+    ],
+)
+def test_a_remote_postgres_url_without_sslmode_warns(
+    url: str, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level("WARNING", logger="hinoki.db"):
+        warn_unverified_tls(url)
+
+    assert bool(caplog.records) is warns
+    assert "u:p" not in caplog.text

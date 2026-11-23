@@ -2396,3 +2396,12 @@ async def test_native_owner_scope_answers_like_the_python_lane(
     # Only the requests Rust declines (spoofed owner is a validation error it
     # may answer itself) reach Python; the owner-scoped writes must not.
     assert native_python < len(native_log)
+
+
+def test_a_route_with_its_own_access_is_not_a_plain_crud_route() -> None:
+    declared = PlanItems.resource.access_for("list")
+    assert crudplan_module.access_is_plain(
+        SimpleNamespace(access=declared), PlanItems.resource, "list"
+    )
+    replaced = SimpleNamespace(access=object())
+    assert not crudplan_module.access_is_plain(replaced, PlanItems.resource, "list")

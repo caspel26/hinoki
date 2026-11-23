@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from hinoki import core
 from hinoki.db import NATIVE_OWNER, current, current_owner
+from hinoki.events import AuthRejected, RateLimited
 from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.nativeproof import native_refusal
 from hinoki.runtime.pipeline import NativeBody
@@ -37,6 +38,7 @@ from hinoki.runtime.servercore import native_handler_eligible, route_guarded
 if TYPE_CHECKING:
     import contextvars
 
+    from hinoki.events import EventBus
     from hinoki.runtime.pipeline import BodySource, Pipeline
 
 log = logging.getLogger("hinoki.runtime")
@@ -47,8 +49,10 @@ def needs_request_data(binding: Binding) -> bool:
     return binding.route.method in BODY_METHODS or route_guarded(binding)
 
 
-def lane_refusal(binding: Binding) -> str | None:
-    """Why the native lane does not serve this route, or ``None`` when it does."""
+def lane_refusal(binding: Binding, bus: EventBus | None = None) -> str | None:
+    """Why the native lane does not serve this route, or ``None`` when it does.
+    ``bus`` is the application's: a write with a handler for its model event
+    stays on the Python path, where the handler can run."""
     route = binding.route
     reason = None
     if binding.streams:
@@ -57,7 +61,24 @@ def lane_refusal(binding: Binding) -> str | None:
         reason = "not an async def handler"
     elif not native_handler_eligible(binding):
         reason = "not natively eligible"
-    return reason or native_refusal(route.handler)
+    return (
+        reason
+        or guard_event_refusal(binding, bus)
+        or native_refusal(route.handler, bus)
+    )
+
+
+def guard_event_refusal(binding: Binding, bus: EventBus | None) -> str | None:
+    """A guard refusal is told to its event handlers from an asyncio task,
+    which the lane does not have: such a route stays on the Python path."""
+    route = binding.route
+    if bus is None:
+        return None
+    if route.access is not None and bus.registered(AuthRejected, None):
+        return "an AuthRejected handler is registered"
+    if route.rate_limit is not None and bus.registered(RateLimited, None):
+        return "a RateLimited handler is registered"
+    return None
 
 
 def timeout_response() -> Response:

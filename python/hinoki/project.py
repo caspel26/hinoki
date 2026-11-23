@@ -12,10 +12,13 @@ from pathlib import Path
 from types import FrameType
 from typing import cast
 
+from hinoki.events import Handlers
+from hinoki.http.middleware import Middleware, check_middleware
 from hinoki.orm import MARK, FieldMeta, Model
 from hinoki.orm.migrations import models_of
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.routing import Includable, Mount
+from hinoki.rules import Rule, RuleSet
 from hinoki.scaffold import NAME, RESERVED_NAMES
 from hinoki.terminal import shown_path
 
@@ -32,6 +35,7 @@ class ProjectApp:
     requires: tuple[str, ...]
     routes: str = ""  # ``module:attribute`` of the app's list of routes
     prefix: str = ""  # where the routes are mounted, ``/<name>`` when empty
+    events: str = ""  # ``module:attribute`` of the app's ``Handlers``
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -42,6 +46,8 @@ class ProjectManifest:
     application: str
     apps: tuple[ProjectApp, ...]
     routes: str = ""  # ``module:attribute`` of the project's own routes
+    middleware: tuple[str, ...] = ()  # ``module:attribute`` targets, outermost first
+    rules: tuple[str, ...] = ()  # ``module:attribute`` targets, each a ``RuleSet``
 
     @property
     def root(self) -> Path:
@@ -154,6 +160,73 @@ class ProjectManifest:
                 if mine:
                     items.append(Mount(app.prefix or f"/{app.name}", *mine))
         return items
+
+    def event_handlers(self) -> list[Handlers]:
+        """Each app's ``Handlers`` in dependency order; an app without ``events``
+        adds nothing. Importing the event modules is the only effect."""
+        add_project_root(self)
+        return [self._handlers(app) for app in self.ordered_apps() if app.events]
+
+    def _handlers(self, app: ProjectApp) -> Handlers:
+        module_name, _, attribute = app.events.partition(":")
+        try:
+            handlers = getattr(importlib.import_module(module_name), attribute)
+        except (ImportError, AttributeError) as error:
+            raise ProjectError(
+                f"cannot load the events of app {app.name!r} ({app.events}): {error}"
+            ) from None
+        if not isinstance(handlers, Handlers):
+            raise ProjectError(
+                f"the events of app {app.name!r} ({app.events}) must be a "
+                "hinoki.events.Handlers"
+            )
+        return handlers
+
+    def middleware_list(self) -> list[Middleware]:
+        """The project's ``middleware`` targets in listed order, flattened: the
+        first listed runs outermost. A target is one Middleware or a list or
+        tuple of them. Importing the modules is the only effect."""
+        add_project_root(self)
+        found: list[Middleware] = []
+        for target in self.middleware:
+            item = self._load_target(target, "middleware")
+            items = item if isinstance(item, (list, tuple)) else (item,)
+            try:
+                found.extend(check_middleware(items))
+            except TypeError as error:
+                raise ProjectError(f"the middleware {target}: {error}") from None
+        return found
+
+    def rule_set(self) -> RuleSet:
+        """The project's ``rules`` targets merged, in listed order, into one
+        ``RuleSet``. The same rule (same id and summary) listed by two targets
+        is an error, never an override. Importing the modules is the only
+        effect."""
+        add_project_root(self)
+        owners: dict[tuple[str, str], str] = {}
+        merged: list[Rule] = []
+        for target in self.rules:
+            found = self._load_target(target, "rules")
+            if not isinstance(found, RuleSet):
+                raise ProjectError(f"the rules {target} must be a hinoki.rules.RuleSet")
+            keys = [(rule.id, rule.summary()) for rule in found.rules]
+            for key in keys:
+                if key in owners:
+                    raise ProjectError(
+                        f"rule {key[0]!r} ({key[1]}) is listed by both "
+                        f"{owners[key]} and {target}"
+                    )
+            owners.update(dict.fromkeys(keys, target))
+            merged.extend(found.rules)
+        return RuleSet(*merged)
+
+    @staticmethod
+    def _load_target(target: str, what: str) -> object:
+        module_name, _, attribute = target.partition(":")
+        try:
+            return getattr(importlib.import_module(module_name), attribute)
+        except (ImportError, AttributeError) as error:
+            raise ProjectError(f"cannot load the {what} {target}: {error}") from None
 
     def _route_list(self, target: str, owner: str) -> list[Includable]:
         module_name, _, attribute = target.partition(":")
@@ -327,9 +400,50 @@ def load_manifest(path: Path | None = None) -> ProjectManifest:
     routes = project.get("routes", "")
     if routes and (not isinstance(routes, str) or not _valid_target(routes)):
         raise ProjectError("project.routes must be a module:attribute target")
-    manifest = ProjectManifest(manifest_path.resolve(), application, apps, routes)
+    middleware = _parse_target_list(project, "middleware")
+    rules = _parse_target_list(project, "rules")
+    manifest = ProjectManifest(
+        manifest_path.resolve(), application, apps, routes, middleware, rules
+    )
     manifest.ordered_apps()
     return manifest
+
+
+def _parse_target_list(project: dict[str, object], key: str) -> tuple[str, ...]:
+    found = project.get(key, [])
+    if (
+        not isinstance(found, list)
+        or any(not isinstance(item, str) for item in found)
+        or not all(_valid_target(item) for item in found)
+    ):
+        raise ProjectError(f"project.{key} must be a list of module:attribute targets")
+    return tuple(found)
+
+
+def manifest_events(start: Path | None = None) -> list[Handlers]:
+    """The ``Handlers`` each app of ``hinoki.toml`` declares, in dependency order,
+    for ``Hinoki(events=manifest_events())``. The manifest is found as for
+    ``manifest_routes``; outside a project this raises ``ProjectError``."""
+    directory = start if start is not None else _caller_directory(sys._getframe(1))
+    return _manifest_from(directory).event_handlers()
+
+
+def manifest_middleware(start: Path | None = None) -> list[Middleware]:
+    """The ``[project] middleware`` list of ``hinoki.toml``, flattened in listed
+    order (the first listed runs outermost), for
+    ``Hinoki(middleware=manifest_middleware())``. The manifest is found as for
+    ``manifest_routes``; outside a project this raises ``ProjectError``."""
+    directory = start if start is not None else _caller_directory(sys._getframe(1))
+    return _manifest_from(directory).middleware_list()
+
+
+def manifest_rules(start: Path | None = None) -> RuleSet:
+    """The ``[project] rules`` list of ``hinoki.toml`` merged, in listed order,
+    into one ``RuleSet`` for ``Hinoki(rules=manifest_rules())``. The manifest is
+    found as for ``manifest_routes``; outside a project this raises
+    ``ProjectError``."""
+    directory = start if start is not None else _caller_directory(sys._getframe(1))
+    return _manifest_from(directory).rule_set()
 
 
 def manifest_routes(start: Path | None = None) -> list[Includable]:
@@ -341,6 +455,10 @@ def manifest_routes(start: Path | None = None) -> list[Includable]:
     project this raises ``ProjectError``.
     """
     directory = start if start is not None else _caller_directory(sys._getframe(1))
+    return _manifest_from(directory).route_items()
+
+
+def _manifest_from(directory: Path | None) -> ProjectManifest:
     written = (directory if directory is not None else Path.cwd()).absolute()
     resolved = written.resolve()
     path = find_manifest_or_none(resolved) or _manifest_along(written)
@@ -349,7 +467,7 @@ def manifest_routes(start: Path | None = None) -> list[Includable]:
         if resolved != written:
             searched += f" (resolved: {shown_path(resolved)})"
         raise ProjectError(f"no hinoki.toml found in {searched} or above it")
-    return load_manifest(path).route_items()
+    return load_manifest(path)
 
 
 def _manifest_along(directory: Path) -> Path | None:
@@ -419,13 +537,21 @@ def _parse_app(value: object) -> ProjectApp:
     if len(set(requires)) != len(requires):
         raise ProjectError(f"app {name!r} repeats a dependency")
     routes, prefix = _parse_app_routes(name, value)
-    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix)
+    events = _parse_target(name, value, "events")
+    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix, events)
+
+
+def _parse_target(name: str, value: dict[str, object], key: str) -> str:
+    target = value.get(key, "")
+    if not isinstance(target, str) or (target and not _valid_target(target)):
+        raise ProjectError(f"app {name!r} {key} must be a module:attribute target")
+    return target
 
 
 def _parse_app_routes(name: str, value: dict[str, object]) -> tuple[str, str]:
     routes = value.get("routes", "")
     prefix = value.get("prefix", "")
-    if routes and (not isinstance(routes, str) or not _valid_target(routes)):
+    if not isinstance(routes, str) or (routes and not _valid_target(routes)):
         raise ProjectError(f"app {name!r} routes must be a module:attribute target")
     if not isinstance(prefix, str) or (
         prefix and (not prefix.startswith("/") or prefix.endswith("/"))

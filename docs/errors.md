@@ -11,7 +11,14 @@ Hinoki separates malformed requests, authentication failures and application err
 Every public error type lives in one namespace: `from hinoki import errors`. It holds `errors.BadRequest`, `errors.Unauthorized`, `errors.Forbidden`, `errors.NotFound` and `errors.Conflict`, each derived from `errors.APIError`, plus the framework's own failures (`errors.RegistrationError`, `errors.ValidationError`, `errors.ObjectNotFound`, `errors.ErrorRegistry` and the others listed in the [reference](reference/web.md)). They carry an HTTP status and a stable `code`. Raise them when the response is an expected part of the API:
 
 ```python
-from hinoki import errors, http
+from uuid import UUID
+
+from hinoki import Schema, errors, http
+
+
+class TaskOutput(Schema):
+    id: UUID
+    done: bool
 
 
 class TaskAlreadyDone(errors.Conflict):
@@ -19,9 +26,13 @@ class TaskAlreadyDone(errors.Conflict):
     message = "The task is already done."
 
 
-@http.post("/tasks/{task_id}/complete", errors=(errors.NotFound, TaskAlreadyDone))
+@http.post(
+    "/tasks/{task_id}/complete", errors=(errors.NotFound, TaskAlreadyDone), atomic=True
+)
 async def complete(task_id: UUID) -> TaskOutput: ...
 ```
+
+The Tracker example declares the same error in [`errors.py`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/errors.py) and raises it from its `complete` action.
 
 An action may declare several errors. The runtime maps a declared `APIError` to its status and response body. Unexpected exceptions remain server errors; do not expose exception text to clients.
 

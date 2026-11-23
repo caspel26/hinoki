@@ -24,7 +24,7 @@ from hinoki import Hinoki, core
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.listener import ListenError, inherited_address, open_listener
 from hinoki.runtime.supervisor import Supervisor, docs_line
-from hinoki.serve import add_arguments, choose_server, granian_tls
+from hinoki.serve import add_arguments, choose_server, granian_tls, warn_key_access
 from hinoki.settings import (
     MAX_WORKERS,
     AppSettings,
@@ -181,6 +181,20 @@ def test_granian_negotiates_http2_only_when_asked() -> None:
     )
 
 
+def test_a_world_readable_tls_key_is_warned_about(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key = tmp_path / "key.pem"
+    key.write_text("x")
+    settings = ServerSettings(tls_cert_file=str(key), tls_key_file=str(key))
+    key.chmod(0o640)
+    warn_key_access(settings)
+    assert capsys.readouterr().err == ""
+    key.chmod(0o644)
+    warn_key_access(settings)
+    assert "readable by every local user" in capsys.readouterr().err
+
+
 def test_a_supervised_worker_ignores_a_repeated_sigterm() -> None:
     worker = KisoWorker(Hinoki(), "127.0.0.1", 0, parent=os.getpid())
     worker._on_signal()
@@ -240,6 +254,13 @@ def test_an_inherited_descriptor_that_is_not_a_socket_is_refused() -> None:
     finally:
         os.close(reader)
         os.close(writer)
+
+
+def test_an_inherited_datagram_socket_is_not_a_listener() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as datagram:
+        with pytest.raises(OSError, match="not a listening TCP socket"):
+            inherited_address(datagram.fileno())
+        assert datagram.fileno() >= 0  # the refusal left the descriptor open
 
 
 async def test_the_native_server_refuses_a_descriptor_that_is_not_a_listener() -> None:

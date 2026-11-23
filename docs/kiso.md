@@ -21,8 +21,17 @@ hinoki serve --workers 4
 from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    server: settings.ServerSettings = settings.ServerSettings(server="kiso", workers=4)
+class ProjectSettings(
+    settings.AppSettings, prefix="NOTES_", dotenv=".env", toml="settings.toml"
+):
+    pass
+```
+
+```toml
+# settings.toml
+[server]
+server = "kiso"
+workers = 4
 ```
 
 `--server kiso` selects it explicitly when a project defaults to Granian. Choose
@@ -66,7 +75,7 @@ not, why ([Inspect an application](inspect.md#routes)).
 
 ## Generated CRUD
 
-Generated CRUD plans can also execute public `create` (`POST`), `update` (`PATCH`) and `delete` actions in Rust. These routes use the native path only when their model and schemas are supported and they have no assignment rule or custom CRUD hook (an `owner` is allowed only with `identity_key = caller_id`, a text non-key column outside the update schema, on any supported database), and their access policy, if any, uses an unmodified [`ClaimsJWTAuth`](authentication.md#claims-only-tokens-on-the-native-lane). Rust reads and validates the bounded request body, runs the database transaction, fetches the written row where the response requires it, and encodes the response before commit. Writes continue to completion if the client disconnects. A unique-constraint violation returns `409 Conflict` by default; a registered application error handler takes precedence. Routes that are ineligible or become stale use the ordinary Python CRUD pipeline. Plans are selected automatically at worker startup and checked once per second; a changed plan is disarmed until the worker restarts. This path adds no public setting.
+Generated CRUD plans can also execute public `create` (`POST`), `update` (`PATCH`) and `delete` actions in Rust. These routes use the native path only when their model and schemas are supported and they have no assignment rule or custom CRUD hook (an `owner` is allowed only with `identity_key = caller_id`, a text non-key column outside the update schema, on any supported database), and their access policy, if any, uses an unmodified [`ClaimsJWTAuth`](authentication.md#claims-only-tokens-on-the-native-lane). Rust reads and validates the bounded request body, runs the database transaction, fetches the written row where the response requires it, and encodes the response before commit. Writes continue to completion if the client disconnects. A unique-constraint violation returns `409 Conflict` by default; a registered application error handler takes precedence. Routes that are ineligible or become stale use the ordinary Python CRUD pipeline. A model with a handler for `Created`, `Updated` or `Deleted` ([model events](events.md#model-events)) is ineligible for the matching action only, reason `model_event_handlers`. Plans are selected automatically at worker startup and checked once per second; a changed plan is disarmed until the worker restarts. This path adds no public setting.
 
 The measured phase 1 path is documented in the [native CRUD orientation run](rust-crud-orientation.md). It is a single-host, workload-specific measurement and does not establish general or production performance.
 
@@ -75,7 +84,7 @@ The measured phase 1 path is documented in the [native CRUD orientation run](rus
 * HTTP/1.1, plus HTTP/2 over TLS when `server.http2` is on (see below). WebSocket upgrades are accepted for the actions declared with `@http.websocket` (see [WebSockets](websockets.md)); any other `Upgrade` header is ignored and the request is answered as plain HTTP, and no other protocol is ever switched to. There is no cleartext HTTP/2 (neither prior knowledge nor `Upgrade: h2c`).
 * A request line plus headers larger than `execution.max_header_bytes`, or a query longer than `execution.max_query_bytes`, is refused (`431`, `414`). A body larger than `execution.max_body_bytes` is refused with `413`, by `Content-Length` before any byte is read or, for chunked bodies, as soon as the total passes the limit. A client that sends nothing for `body_read_timeout` seconds (10 by default, never more than half of `execution.request_timeout`) gets `408`, and so does one that trickles data: the whole body must arrive within six times `body_read_timeout`.
 * A client that does not finish its request headers within `header_read_timeout` seconds (10 by default) is disconnected; the same timer closes idle keep-alive connections.
-* TLS is optional: set `server.tls_cert_file` and `server.tls_key_file` (PEM; the key may be PKCS#8, PKCS#1 or SEC1) and Kiso speaks HTTPS with rustls (TLS 1.2 and 1.3, the library's default cipher suites, no client certificates, ALPN `http/1.1`, or `h2` then `http/1.1` with `server.http2`). The files are read once at start, so a renewed certificate needs a restart (a rolling restart of the workers is enough). A plaintext client on a TLS port gets a TLS alert, never an answer, and the handshake must finish within `header_read_timeout`. Requests over TLS have the scheme `https`, so the HSTS policy applies. Granian takes the same two settings (the framework asks it for TLS 1.2 and up and HTTP/1.1 only, as Kiso does, unless `server.http2` is on). A trusted proxy's `X-Forwarded-Proto` overrides the scheme, `http` included, on both servers. The handshake and the request head each have their own `header_read_timeout`, so a slow client can hold a connection slot for up to twice that time. Behind a proxy that terminates TLS, leave them unset and list the proxy in `trusted_proxies` instead.
+* TLS is optional: set `server.tls_cert_file` and `server.tls_key_file` (PEM; the key may be PKCS#8, PKCS#1 or SEC1) and Kiso speaks HTTPS with rustls (TLS 1.2 and 1.3, the library's default cipher suites, no client certificates, ALPN `http/1.1`, or `h2` then `http/1.1` with `server.http2`). The files are read once at start, so a renewed certificate needs a restart (a rolling restart of the workers is enough). A plaintext client on a TLS port gets a TLS alert, never an answer, and the handshake must finish within `header_read_timeout`. Requests over TLS have the scheme `https`, so the HSTS policy applies. `hinoki serve` warns when the key is readable by every local user. Granian takes the same two settings (the framework asks it for TLS 1.2 and up and HTTP/1.1 only, as Kiso does, unless `server.http2` is on). A trusted proxy's `X-Forwarded-Proto` overrides the scheme, `http` included, on both servers. The handshake and the request head each have their own `header_read_timeout`, so a slow client can hold a connection slot for up to twice that time. Behind a proxy that terminates TLS, leave them unset and list the proxy in `trusted_proxies` instead.
 * HTTP/2 is opt-in: set `server.http2 = true` together with the TLS files (it is a settings error without them, on both servers). The server then offers ALPN `h2` and `http/1.1` and serves each connection with the protocol it negotiated; a client that offers only `http/1.1`, or no ALPN, still gets HTTP/1.1. Requests reach the application unchanged, with `http_version` `2` in the ASGI scope; the `:authority` pseudo-header becomes the `Host` and wins over a `host` header that differs. Limits are fixed, not settings: 32 concurrent streams per connection (the 33rd is refused), a 64 KiB stream window, header lists bounded by `execution.max_header_bytes` and at most 100 header lines per request (`cookie` fields count once; more is answered `431`), and the h2 library's rapid-reset protections. A connection counts as one slot of `max_connections`, but every stream in flight uses backend capacity (the in-flight limit and the queue) like a request of its own, so size those limits for connections times 32. The server also drops a connection on which more than 100 streams end before their response completed (client resets) within a fixed 10-second window; it is closed without a `GOAWAY`. The count is per connection, not per client: a client can pass about twice the bound across a window boundary, and a new connection starts from zero. A connection with no open stream for `header_read_timeout` is closed gracefully (`GOAWAY`; a stream opened in the race with the `GOAWAY` is accepted and then cut when the shutdown timeout ends). A response that sends no data for `write_timeout` seconds (a client that keeps its flow-control window at zero, or stopped reading) also gets the connection a `GOAWAY`: hyper cannot reset one stream from outside, so the other streams have the shutdown timeout to finish and the stalled one is cut with the connection. Progress is tracked per response, so opening new streams does not hide a stalled one. Keep-alive pings every 30 seconds drop a peer that stopped answering. Set `write_timeout` above 32 x 16 KiB divided by the slowest client bandwidth you expect to serve: HTTP/2 shares the window between streams unevenly, so on a slow link each of 32 concurrent downloads can wait that long between two chunks and be taken for stalled while bytes still flow. A request with several `host` headers and no `:authority` is refused with `400`. A client that trickles the head of one stream while others are open is not bounded by `header_read_timeout`. On stop the server sends `GOAWAY`, lets streams in flight finish, and aborts what is left after the shutdown timeout. Not provided: cleartext HTTP/2 (h2c), server push, and WebSocket or `CONNECT` over HTTP/2. Granian with `server.http2` negotiates HTTP/2 itself (`http` mode `auto`), under its own limits.
 * A client that stops reading a response for `write_timeout` seconds (30 by default) is disconnected; any progress restarts the timer.
 * `max_connections` (10000 by default) bounds open connections. Requests waiting for the application are bounded by an in-flight limit and a queue; beyond them the answer is `503`.
@@ -124,7 +133,7 @@ reloading: SIGHUP (generation 2)
 reloaded 4 workers (generation 2)
 ```
 
-The supervisor's own settings are not reloaded: `host`, `port`, `backlog`, `workers`, `server`, `interface` and `metrics.listen` need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run `hinoki migrate` before sending the signal.
+The supervisor's own settings are not reloaded: `host`, `port`, `backlog`, `workers`, `server`, `interface` and `metrics.listen` need a restart, as do the environment variables of the supervisor process. Migrations are never run by a reload: run `hinoki migrations apply` before sending the signal.
 
 * A new worker that exits, fails its lifespan startup or is not ready in time is killed, and the reload stops with `error: reload stopped at worker K of N; the other workers keep running`. The workers not yet replaced keep serving the old code (workers already replaced stay new); another `SIGHUP` retries them all. The supervisor does not exit.
 * A `SIGHUP` that arrives during a reload is remembered once and handled when it ends. `SIGTERM` or `SIGINT` during a reload stops everything, the new and the old workers, as usual.
@@ -134,14 +143,21 @@ The supervisor's own settings are not reloaded: `host`, `port`, `backlog`, `work
 * The reload is orchestrated by the supervisor, which is Python; the drain of the old worker and the TLS loading of the new one are Rust. With metrics, see [several workers](metrics.md#several-workers).
 
 ```python
-# notes/settings.py: reload is on by default; "stop" turns it off
+# notes/settings.py
 from hinoki import settings
 
 
-class ProjectSettings(settings.AppSettings, prefix="NOTES_", dotenv=".env"):
-    server: settings.ServerSettings = settings.ServerSettings(
-        workers=4, sighup="reload"
-    )
+class ProjectSettings(
+    settings.AppSettings, prefix="NOTES_", dotenv=".env", toml="settings.toml"
+):
+    pass
+```
+
+```toml
+# settings.toml: reload is on by default; "stop" turns it off
+[server]
+workers = 4
+sighup = "reload"
 ```
 
 ```sh

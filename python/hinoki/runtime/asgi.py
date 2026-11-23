@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
-from urllib.parse import unquote
 
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.http.stream import EventStream, Sourced
 from hinoki.runtime.asgisocket import ASGITransport, accept, origin_allowed, refuse
 from hinoki.runtime.pipeline import Pipeline
-from hinoki.runtime.requests import Scope, read_body
-from hinoki.runtime.responses import Response, StreamHandle
+from hinoki.runtime.proxy import effective_scope
+from hinoki.runtime.requests import Scope, decode_params, header_map, read_body
+from hinoki.runtime.responses import HTTPError, Response, StreamHandle
 from hinoki.runtime.streaming import (
     Pace,
     declared_length,
@@ -27,6 +27,7 @@ from hinoki.runtime.streaming import (
     reader_for,
 )
 from hinoki.settings import ANY, AppSettings
+from hinoki.websocket import WebSocketRoute
 
 if TYPE_CHECKING:
     from hinoki.app import Hinoki
@@ -89,25 +90,54 @@ class ASGIAdapter:
             raise RuntimeError(f"unsupported scope type {scope['type']!r}")
 
     async def _websocket(self, scope: Scope, receive: Any, send: Any) -> None:
-        found = self.pipeline.app.lookup_websocket(unquote(scope["path"]))
-        if found is None or not origin_allowed(found[0], scope):
+        pipeline = self.pipeline
+        scope, _ = effective_scope(scope, pipeline.trusted_proxies)
+        resolved = self._websocket_target(scope)
+        if resolved is None:
             await refuse(send)
             return
-        route, params = found
-        rid = self.pipeline.new_request_id()
-        admitted = await self.pipeline.admit_websocket(rid, route, scope, params)
+        path, route, params = resolved
+        cors = pipeline.cors.origins if pipeline.cors is not None else frozenset()
+        if not origin_allowed(route, scope, cors):
+            await refuse(send)
+            return
+        rid = pipeline.new_request_id()
+        admitted = await pipeline.admit_websocket(rid, route, scope, params)
         if isinstance(admitted, Response):
             await refuse(send)
             return
         if not await accept(receive, send, admitted.subprotocol):
             return
-        runtime = self.pipeline.app.runtime
+        runtime = pipeline.app.runtime
         transport = ASGITransport(
             receive, send, route.max_message_bytes or runtime.ws_max_message_bytes
         )
-        await self.pipeline.run_websocket(
-            rid, route, transport, admitted, unquote(scope["path"])
-        )
+        await pipeline.run_websocket(rid, route, transport, admitted, path)
+
+    def _websocket_target(
+        self, scope: Scope
+    ) -> tuple[str, WebSocketRoute, dict[str, str]] | None:
+        """The route of a handshake, matched as the HTTP pipeline matches: on
+        the raw path when the server gives one (ASGI ``path`` is already
+        decoded, so decoding it again would turn ``%252f`` into ``/``), after
+        the Host policy. ``None`` refuses the handshake."""
+        pipeline = self.pipeline
+        if pipeline.hosts is not None:
+            host = header_map(scope).get("host", "")
+            if not pipeline.hosts.allows(host):
+                return None
+        raw_path = scope.get("raw_path")
+        try:
+            path = scope["path"] if raw_path is None else pipeline.raw_target(raw_path)
+            found = pipeline.app.lookup_websocket(path)
+            if found is None:
+                return None
+            route, params = found
+            if raw_path is not None:
+                params = decode_params(params)
+        except HTTPError:
+            return None
+        return path, route, params
 
     async def _lifespan(self, receive: Any, send: Any, *, served: bool) -> None:
         finished = False
@@ -168,7 +198,7 @@ class ASGIAdapter:
         every piece). The place it holds is given back when the body ends."""
         handle = response.stream
         if handle is None:
-            raise RuntimeError("not a streamed response")
+            raise RuntimeError("not a streamed response")  # pragma: no cover
         pipeline = self.pipeline
         try:
             await send({**start, "headers": response.headers})

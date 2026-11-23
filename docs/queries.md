@@ -93,6 +93,7 @@ from typing import Any
 
 from hinoki import API, Caller, crud
 from hinoki.admin import ModelAdmin
+from hinoki.filters import Eq, FilterSet
 from hinoki.orm import QuerySet
 
 from notes.security import billing_staff
@@ -101,7 +102,17 @@ from .models import Invoice
 from .schemas import InvoiceOut
 
 
-@crud(Invoice, path="/invoices", read=InvoiceOut, access=billing_staff)
+class InvoiceFilters(FilterSet):
+    paid: Eq[bool]
+
+
+@crud(
+    Invoice,
+    path="/invoices",
+    read=InvoiceOut,
+    access=billing_staff,
+    filters=InvoiceFilters,
+)
 class Invoices(API):
     def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Invoice]:
         return Invoice.open()

@@ -37,10 +37,12 @@ from hinoki.errors import (
     TooManyRequests,
     ValidationError,
 )
+from hinoki.events import RateLimited, events_var, listener
 from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
 from hinoki.http.stream import File, Streamed
+from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
@@ -53,7 +55,7 @@ from hinoki.renderers import (
     is_default_json_renderer,
     negotiate,
 )
-from hinoki.routing import Found, MethodNotAllowed
+from hinoki.routing import Found, MethodNotAllowed, Route
 from hinoki.runtime.binding import (
     BODY_METHODS,
     Binding,
@@ -210,6 +212,7 @@ class Pipeline:
                     "matches a route; move one of them"
                 )
         self.ctx = ModuleContext(app.settings)
+        self.events = app.events
         self.logging = (
             app.settings.logging if isinstance(app.settings, AppSettings) else None
         )
@@ -254,6 +257,7 @@ class Pipeline:
             needs_database=needs_database,
             on_startup=app.on_startup,
             on_shutdown=app.on_shutdown,
+            events=app.events,
         )
 
     @staticmethod
@@ -509,9 +513,13 @@ class Pipeline:
         context.route_cors.set(None)
         runner_token = context.sync_runner.set(self.executor.run)
         db_token = database_var.set(self.ctx.find(Database))
+        events_token = events_var.set(self.events)
+        mailer_token = mailer_var.set(self.ctx.find(Mailer))
         try:
             return await response
         finally:
+            mailer_var.reset(mailer_token)
+            events_var.reset(events_token)
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
             request_id.reset(token)
@@ -589,6 +597,8 @@ class Pipeline:
         context.route_cors.set(None)
         context.sync_runner.set(self.executor.run)
         database_var.set(self.ctx.find(Database))
+        events_var.set(self.events)
+        mailer_var.set(self.ctx.find(Mailer))
 
     async def drive_native(
         self,
@@ -975,7 +985,13 @@ class Pipeline:
         if access is not None:
             # Parsed once: authentication and the request share the result.
             query = parse_query(scope.get("query_string", b""))
-            principal = await authorize(access, headers, query)
+            principal = await authorize(
+                access,
+                headers,
+                query,
+                route=binding.route.path,
+                method=binding.route.method,
+            )
         if binding.route.rate_limit is not None:
             await self._rate_limit(binding, scope.get("client"), principal)
         renderer = negotiate(headers.get("accept", ""), binding.route.renderers)
@@ -1033,6 +1049,7 @@ class Pipeline:
                     "rate_limit_unavailable",
                     RETRY_LATER,
                 ) from None
+            await announce_rate_limited(policy, route, refusal)
             raise
         except ExecutorSaturated:
             raise HTTPError(
@@ -1091,7 +1108,7 @@ class Pipeline:
             return self.cors
         raw_path = scope.get("raw_path")
         try:
-            path = scope["path"] if raw_path is None else self._raw_target(raw_path)
+            path = scope["path"] if raw_path is None else self.raw_target(raw_path)
         except HTTPError:
             return self.cors
         found = self.app.lookup(asked, path)
@@ -1106,7 +1123,7 @@ class Pipeline:
 
     def _route(self, scope: Scope) -> tuple[int, dict[str, str]]:
         raw_path = scope.get("raw_path")
-        path = scope["path"] if raw_path is None else self._raw_target(raw_path)
+        path = scope["path"] if raw_path is None else self.raw_target(raw_path)
         found = self.app.lookup(scope["method"], path)
         if found is None:
             raise HTTPError(HTTPStatus.NOT_FOUND, "not_found")
@@ -1119,7 +1136,7 @@ class Pipeline:
         return found.action, params
 
     @staticmethod
-    def _raw_target(raw_path: bytes) -> str:
+    def raw_target(raw_path: bytes) -> str:
         try:
             return raw_path.split(b"?", 1)[0].decode("ascii")
         except UnicodeDecodeError:
@@ -1241,7 +1258,9 @@ class Pipeline:
         known and admitted."""
         access = binding.route.access
         if native is None:
-            raise RuntimeError("native guarded route without its request data")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native guarded route without its request data"
+            )
         if input_error is not None and input_error[0] == "bad_path_encoding":
             raise native_input_exception(input_error)
         principal = None
@@ -1250,7 +1269,13 @@ class Pipeline:
             principal = Caller(subject, None, frozenset(scopes))
         elif access is not None:
             query = parse_query(native.query)
-            principal = await authorize(access, core.header_dict(native.headers), query)
+            principal = await authorize(
+                access,
+                core.header_dict(native.headers),
+                query,
+                route=binding.route.path,
+                method=binding.route.method,
+            )
         if binding.route.rate_limit is not None:
             client = effective_client(
                 native.client, native.headers, self.trusted_proxies
@@ -1291,7 +1316,9 @@ class Pipeline:
         order."""
         param = binding.query_param
         if param is None or native is None:
-            raise RuntimeError("native query route without its request data")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native query route without its request data"
+            )
         invalid = input_error is not None and input_error[0] == "validation_error"
         if input_error is not None and not invalid:
             raise native_input_exception(input_error)
@@ -1324,7 +1351,9 @@ class Pipeline:
         parse, then every path, query and body problem in declaration order."""
         param = binding.body_param
         if param is None:
-            raise RuntimeError("native body route without a body parameter")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native body route without a body parameter"
+            )
         invalid = input_error is not None and input_error[0] == "validation_error"
         if (
             input_error is not None
@@ -1333,7 +1362,9 @@ class Pipeline:
         ):
             raise native_input_exception(input_error)
         if body is None:
-            raise RuntimeError("native body route without its request data")
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native body route without its request data"
+            )
         headers = core.header_dict(body.headers)
         raw = await self._body(body.source, headers.get("content-length", ""))
         if input_error is not None and not invalid:
@@ -1410,7 +1441,7 @@ class Pipeline:
         self, binding: Binding, result: HandlerResponse
     ) -> Response:
         if isinstance(result, Streamed):  # a native handler is never annotated
-            return await self._streamed(binding, result)
+            return await self._streamed(binding, result)  # pragma: no cover
         return Response(result.status, result.body, result.headers)
 
     def _native_rendered(
@@ -1426,11 +1457,15 @@ class Pipeline:
             renderer = route.renderers[0]
         else:
             if native is None:
-                raise RuntimeError("native multi-renderer route without its headers")
+                raise RuntimeError(  # pragma: no cover - routing excludes this state
+                    "native multi-renderer route without its headers"
+                )
             accept = core.header_dict(native.headers).get("accept", "")
             chosen = negotiate(accept, route.renderers)
             if chosen is None:
-                raise RuntimeError("native route answered an unacceptable request")
+                raise RuntimeError(  # pragma: no cover - routing excludes this state
+                    "native route answered an unacceptable request"
+                )
             renderer = chosen
         shown = result if renderer.consumes_objects else encode(result)
         body = renderer.render(shown, cast("Request", None))
@@ -1481,6 +1516,20 @@ def enforce_response(binding: Binding, result: object) -> None:
         f"{binding.route.name} returned a {type(result).__name__} that does not "
         f"match its return annotation {binding.response_annotation}"
     )
+
+
+async def announce_rate_limited(
+    policy: object, route: Route, refusal: TooManyRequests
+) -> None:
+    """Tell the application's ``RateLimited`` handlers, when it has any; the
+    429 does not depend on them."""
+    bus = listener(RateLimited)
+    if bus is not None:
+        await bus.notify(
+            RateLimited(
+                type(policy).__qualname__, route.path, route.method, refusal.retry_after
+            )
+        )
 
 
 def valid_refusal(error: TooManyRequests) -> bool:

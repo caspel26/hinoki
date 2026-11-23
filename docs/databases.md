@@ -84,7 +84,8 @@ class ProjectSettings(
 ```
 
 Each worker opens one bounded pool during startup and closes it during
-shutdown. Importing models or routes never opens a connection, and no
+shutdown. The [Notes example's settings](https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/settings.py)
+are exactly this field with nothing else. Importing models or routes never opens a connection, and no
 `modules=` entry is needed. The file named by `toml=` must exist, even if it
 is empty: otherwise the settings fail to load with
 `settings.toml: TOML file cannot be read or parsed`.
@@ -212,7 +213,9 @@ certificate chain and hostname: `require`, `verify-ca` and `verify-full` all
 require TLS, and Hinoki's `verify-ca` also verifies the hostname. Trust uses
 Mozilla WebPKI roots plus any PEM certificates in `sslrootcert` (at most
 1 MiB), so `sslmode=require` needs a trusted certificate too. `sslmode=allow`
-is unsupported. Mount the CA file where each worker can read it.
+is unsupported. A URL to a remote host without `sslmode` logs a warning at
+connect: `prefer` lets a network attacker strip TLS, so use `verify-full`.
+Mount the CA file where each worker can read it.
 
 Hinoki does not create the PostgreSQL role or database: create them once with
 your usual tools before the first `hinoki migrations apply`.

@@ -54,7 +54,7 @@ Actions are [functions](function-endpoints.md) by default, grouped in a `RouteGr
 
 * Relations are never lazy. Load what the response shows (`select_related` for single values, `prefetch_related` for collections) in the function that builds the response, so the cost is visible in one place.
 * Paginate every list (`pagination=` + `PageParams` + `Page[...]`). Never return an unbounded list; never load a whole table to count or aggregate (use `acount()`, filters or SQL). **Rule:** `Actions.require_pagination`.
-* Filter and order only by names you choose; never pass client-supplied column names to `filter` or `order_by`.
+* Filter and order only by names you choose; never pass client-supplied column names to `filter` or `order_by`. For a generated list, declare them once in a `hinoki.filters.FilterSet` (`done: Eq[bool]`, `search = Search("title")`, `ordering = (...)`) and pass `filters=TaskFilters` to `crud(...)`, as [Tracker](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/filters.py) does.
 
 ## 5. Sync and async
 
@@ -85,7 +85,7 @@ HTTPS terminates somewhere you control (`Admin(secure_cookies=True)` behind a pr
 
 ## 10. Rules to turn on from day one
 
-`hinoki new` enables eight rules (`HNK-ACC-001`, `HNK-ACC-002`, `HNK-API-001`, `HNK-API-002`, `HNK-API-003`, `HNK-TXN-001`, `HNK-SCH-001`, `HNK-SCH-002`) and leaves the model rules `HNK-DB-001` and `HNK-DB-002` commented out until the first model exists. Turn those on then, and add `Imports.forbid` (`HNK-IMP-001`) for the direction in [section 1](#1-three-layers-one-direction). Waivers live in `hinoki-rules.toml`, are the owner's decision, carry a reason and a bounded target, and are never edited by tools or agents to pass a check.
+`hinoki new` enables eight rules (`HNK-ACC-001`, `HNK-ACC-002`, `HNK-API-001`, `HNK-API-002`, `HNK-API-003`, `HNK-TXN-001`, `HNK-SCH-001`, `HNK-SCH-002`) and leaves the model rules `HNK-DB-001` and `HNK-DB-002` commented out until the first model exists. Turn those on then, and add `Imports.forbid` (`HNK-IMP-001`) for the direction in [section 1](#1-three-layers-one-direction). List the rule modules in the manifest, `[project] rules = ["tracker.rules:policy", "tracker.rules:layers"]`, and `Hinoki()` loads them; project-wide `middleware` is listed the same way (see [rules](rules.md) and [middleware](middleware.md#declaring-middleware-in-hinokitoml)). Waivers live in `hinoki-rules.toml`, are the owner's decision, carry a reason and a bounded target, and are never edited by tools or agents to pass a check.
 
 ## 11. Anti-patterns
 

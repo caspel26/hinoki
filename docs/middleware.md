@@ -26,26 +26,72 @@ class Tenant(Middleware):
         return response.with_header("x-served-by", "tenant")
 ```
 
-Declare it on an action, or for the whole application:
+Declare it on an action, or for the whole application. `middleware=` on
+`Hinoki(...)` is the explicit form; a project lists it in `hinoki.toml`
+instead ([below](#declaring-middleware-in-hinokitoml)):
 
 ```python
 # notes/main.py
-from hinoki import Hinoki, http
+from hinoki import Hinoki, Schema, http
 
 from .middleware import Tenant
 
 
-@http.get("/items")
-async def items() -> list[str]:
-    return []
+class Pong(Schema):
+    ok: bool
 
 
-app = Hinoki(include=[items], middleware=[Tenant()])
+@http.get("/ping")
+async def ping() -> Pong:
+    return Pong(ok=True)
+
+
+app = Hinoki(include=[ping], middleware=[Tenant()])
 ```
 
 `RouteGroup` actions take the same option. The application's middleware runs
 first, then the action's, in the order listed; each one returns what the next
 one returned unless it answers itself.
+
+## Declaring middleware in `hinoki.toml`
+
+The `[project]` table can list middleware for the whole application. Hinoki does not generate the module: you create it
+yourself, and you edit the list by hand (there is no command for it). The
+Tracker example does this with one middleware that adds a version header
+([`middleware.py`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/middleware.py),
+listed on line 4 of its
+[`hinoki.toml`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/hinoki.toml)).
+
+```python
+# shop/middleware.py
+tenant = Tenant()
+timing = [Timing(), Audit()]  # a list or tuple is flattened
+```
+
+```toml
+[project]
+application = "shop.main:app"
+middleware = ["shop.middleware:tenant", "shop.middleware:timing"]
+```
+
+```python
+from hinoki import Hinoki
+
+app = Hinoki()  # reads routes, events, middleware and rules from hinoki.toml
+```
+
+Each entry is `module:attribute` and resolves to one object with an
+`async def __call__` or a list or tuple of them. The listed order is the
+execution order: the first one listed runs outermost. There is no dependency
+ordering. When the manifest's `project.application` names the module that
+builds the app, `Hinoki()` loads the list if you did not pass `middleware=`; an
+explicit `middleware=` (even `()`) wins and skips the manifest.
+`manifest_middleware()` is the explicit form, to combine lists. The result is
+the application's own middleware: it runs before an action's and obeys
+[the order below](#order-and-what-stays-outside). `project.middleware` that is
+not a list of `module:attribute` strings is rejected when the manifest loads,
+and a target that does not import or does not hold middleware raises a
+`ProjectError` naming the entry.
 
 ## What a middleware sees
 

@@ -1,4 +1,4 @@
-"""OpenAPI 3.1 document generated from the registered routes and schemas.
+"""OpenAPI 3.2 (or 3.1) document generated from the registered routes and schemas.
 
 Everything comes from declarations that already exist (paths, handler
 signatures, ``Schema`` fields, return annotations, docstrings); nothing is
@@ -16,6 +16,13 @@ from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from hinoki.errors import MAX_RETRY_AFTER, APIError, RegistrationError, TooManyRequests
 from hinoki.fieldtypes import FieldType, is_union
+from hinoki.filters import (
+    MAX_IN_ITEMS,
+    MAX_SEARCH_CHARS,
+    MAX_TEXT_CHARS,
+    FilterField,
+    FilterSet,
+)
 from hinoki.handlerhints import hints_of
 from hinoki.http.response import Response
 from hinoki.http.stream import EventStream, Streamed
@@ -94,7 +101,10 @@ VALIDATION_ERROR = "ValidationError"
 ERROR = "Error"
 DICT_ARGS = 2
 SIMPLE_DEFAULTS = (str, int, float, bool)
-INPUTS = {"path", "query", "page", "queryschema"}
+INPUTS = {"path", "query", "page", "queryschema", "filters"}
+# The ``openapi`` field of each version the document can be written as.
+SPEC_VERSIONS = {"3.1": "3.1.0", "3.2": "3.2.0"}
+DEFAULT_SPEC_VERSION = "3.2"
 BODYLESS_STATUSES = {HTTPStatus.NO_CONTENT, HTTPStatus.NOT_MODIFIED}
 
 
@@ -116,11 +126,20 @@ def labels(route: Route) -> dict[str, Any]:
     return found
 
 
-def operation_key(method: str) -> str:
-    """The path item field holding a method's operation. OpenAPI 3.1 has no
-    ``query`` operation (3.2 adds it), so QUERY uses the ``x-query`` extension
-    field with the same operation object."""
-    return "x-query" if method == "QUERY" else method.lower()
+def operation_key(method: str, spec_version: str = DEFAULT_SPEC_VERSION) -> str:
+    """The path item field holding a method's operation. OpenAPI 3.2 has a
+    ``query`` operation (section 4.9, Path Item Object); 3.1 has none, so there
+    QUERY uses the ``x-query`` extension field with the same operation object."""
+    if method == "QUERY" and spec_version == "3.1":
+        return "x-query"
+    return method.lower()
+
+
+def operation_of(item: dict[str, Any], method: str) -> Any:
+    """The operation a path item holds for a lower-case ``method``. QUERY is
+    ``query`` in OpenAPI 3.2 and ``x-query`` in a document written as 3.1."""
+    found = item.get(method)
+    return item.get("x-query") if found is None and method == "query" else found
 
 
 def component_name(schema: type[Schema]) -> str:
@@ -141,10 +160,22 @@ def ref(name: str) -> dict[str, str]:
 class OpenAPIBuilder:
     """Builds one document; create a new builder per document."""
 
-    def __init__(self, app: Hinoki, title: str, version: str) -> None:
+    def __init__(
+        self,
+        app: Hinoki,
+        title: str,
+        version: str,
+        spec_version: str = DEFAULT_SPEC_VERSION,
+    ) -> None:
+        if spec_version not in SPEC_VERSIONS:
+            raise ValueError(
+                f"openapi_version must be one of {sorted(SPEC_VERSIONS)}, "
+                f"not {spec_version!r}"
+            )
         self.app = app
         self.title = title
         self.version = version
+        self.spec_version = spec_version
         self.components: dict[str, dict[str, Any]] = {}
         self.owners: dict[str, type[Schema]] = {}
         self.operation_ids: set[str] = {
@@ -161,9 +192,10 @@ class OpenAPIBuilder:
             if not documented(route):
                 continue
             path = paths.setdefault(route.path, {})
-            path[operation_key(route.method)] = self.operation(binding)
+            key = operation_key(route.method, self.spec_version)
+            path[key] = self.operation(binding)
         document: dict[str, Any] = {
-            "openapi": "3.1.0",
+            "openapi": SPEC_VERSIONS[self.spec_version],
             "info": {"title": self.title, "version": self.version},
             "paths": paths,
         }
@@ -179,9 +211,9 @@ class OpenAPIBuilder:
         return document
 
     def websockets(self) -> dict[str, Any]:
-        """OpenAPI 3.1 has no WebSocket operation, so the actions are described
-        under a vendor extension: the handshake is an HTTP GET, the messages
-        are the ``Schema`` the route declares."""
+        """OpenAPI 3.1 and 3.2 have no WebSocket operation, so the actions are
+        described under a vendor extension: the handshake is an HTTP GET, the
+        messages are the ``Schema`` the route declares."""
         described: dict[str, Any] = {}
         for route in self.app.websockets:
             entry: dict[str, Any] = {"operationId": route.name}
@@ -320,6 +352,8 @@ class OpenAPIBuilder:
     def parameter(self, param: Param) -> list[dict[str, Any]]:
         if param.source == "page" and param.strategy is not None:
             return page_parameters(param.strategy)
+        if param.source == "filters" and param.filters is not None:
+            return filter_parameters(param.filters)
         if param.source == "queryschema" and param.schema is not None:
             return [
                 {
@@ -597,6 +631,92 @@ def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
         return fixed
     low, high = LENGTH_KEYWORDS[schema["type"]]
     return low if name == "min_length" else high
+
+
+def filter_value_schema(item: FilterField) -> dict[str, Any]:
+    schema = dict(KIND_SCHEMAS[item.kind])
+    if item.choices:
+        schema["enum"] = list(item.choices)
+    elif item.kind == "str":
+        schema["maxLength"] = MAX_TEXT_CHARS
+    return schema
+
+
+def query_parameter(
+    name: str, schema: dict[str, Any], description: str = ""
+) -> dict[str, Any]:
+    found: dict[str, Any] = {
+        "name": name,
+        "in": "query",
+        "required": False,
+        "schema": schema,
+    }
+    if description:
+        found["description"] = description
+    return found
+
+
+def list_parameter(
+    name: str, items: dict[str, Any], description: str, limit: int
+) -> dict[str, Any]:
+    """A comma-separated list: ``?name=a,b``."""
+    found = query_parameter(
+        name,
+        {"type": "array", "items": items, "minItems": 1, "maxItems": limit},
+        description,
+    )
+    return {**found, "style": "form", "explode": False}
+
+
+def field_parameters(item: FilterField) -> list[dict[str, Any]]:
+    value = filter_value_schema(item)
+    if item.shape == "in":
+        found = [
+            list_parameter(
+                item.name, value, "Comma-separated values; any may match.", MAX_IN_ITEMS
+            )
+        ]
+    elif item.shape == "range":
+        found = [
+            query_parameter(f"{item.name}.from", value, "Inclusive lower bound."),
+            query_parameter(f"{item.name}.to", value, "Inclusive upper bound."),
+        ]
+    else:
+        found = [query_parameter(item.name, value)]
+    if item.nullable:
+        found.append(
+            query_parameter(
+                f"{item.name}.null",
+                {"type": "boolean"},
+                "`true` for rows without a value, `false` for rows with one.",
+            )
+        )
+    return found
+
+
+def filter_parameters(filters: type[FilterSet]) -> list[dict[str, Any]]:
+    """The typed query parameters one ``FilterSet`` accepts."""
+    found = [param for item in filters.fields for param in field_parameters(item)]
+    if filters.search is not None:
+        columns = ", ".join(filters.search.columns)
+        found.append(
+            query_parameter(
+                "search",
+                {"type": "string", "minLength": 1, "maxLength": MAX_SEARCH_CHARS},
+                f"Case-insensitive text contained in any of: {columns}.",
+            )
+        )
+    if filters.ordering:
+        names = [*filters.ordering, *(f"-{name}" for name in filters.ordering)]
+        found.append(
+            list_parameter(
+                "ordering",
+                {"type": "string", "enum": names},
+                "Comma-separated sort keys; a leading `-` sorts descending.",
+                len(filters.ordering),
+            )
+        )
+    return found
 
 
 def page_parameters(strategy: Pagination) -> list[dict[str, Any]]:

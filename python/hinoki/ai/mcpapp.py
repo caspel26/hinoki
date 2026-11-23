@@ -190,7 +190,7 @@ def select(
             continue
         if route.method not in SAFE and not allow_writes:
             continue
-        key = operation_key(route.method)
+        key = operation_key(route.method, app.openapi_version)
         binding = next((b for b in app.bindings if b.route is route), None)
         if binding is not None and binding.streams:
             raise ExposureError(

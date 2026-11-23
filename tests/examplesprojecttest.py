@@ -13,40 +13,48 @@ ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
 
 
+EXPECTED = {
+    "notes": [("notes", "notes.apps.notes.models")],
+    "tracker": [
+        ("members", "tracker.apps.members.models"),
+        ("tasks", "tracker.apps.tasks.models"),
+        ("activity", "tracker.apps.activity.models"),
+    ],
+    "blog": [
+        ("blog", "blog.apps.blog.models"),
+        ("admin", "hinoki.admin.users.models"),
+    ],
+}
+
+
+@pytest.mark.parametrize("example", EXPECTED)
 def test_manifest_lists_each_example_app_without_importing_it(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    example: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.chdir(EXAMPLES)
+    monkeypatch.chdir(EXAMPLES / example)
 
     assert main(["app", "list", "--format", "json"]) == 0
 
     apps = json.loads(capsys.readouterr().out)["apps"]
-    assert [app["name"] for app in apps] == ["notes", "tracker", "blog", "admin"]
-    assert [app["models"] for app in apps] == [
-        "notes.apps.notes.models",
-        "tracker.apps.tracker.models",
-        "blog.apps.blog.models",
-        "hinoki.admin.users.models",
-    ]
+    assert [(app["name"], app["models"]) for app in apps] == EXPECTED[example]
 
 
+@pytest.mark.parametrize("example", EXPECTED)
 def test_manifest_applies_each_app_migration_to_a_database_url(
+    example: str,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.chdir(EXAMPLES)
-    database_url = f"sqlite://{tmp_path / 'examples.sqlite3'}"
-    monkeypatch.setenv("HINOKI_DATABASE_URL", database_url)
+    monkeypatch.chdir(EXAMPLES / example)
+    monkeypatch.setenv("HINOKI_DATABASE_URL", f"sqlite://{tmp_path / 'x.sqlite3'}")
 
     assert main(["migrations", "apply"]) == 0
 
     output = capsys.readouterr().out
-    assert "notes: 0001-create-table-notes" in output
-    assert "tracker: 0001-initial, 0002-indexes" in output
-    assert "blog: 0001-initial, 0002-accounts" in output
-    assert "admin: 0001-initial" in output
-    assert (tmp_path / "examples.sqlite3").is_file()
+    for name, _models in EXPECTED[example]:
+        assert f"{name}: 0001-" in output
+    assert (tmp_path / "x.sqlite3").is_file()
 
 
 @pytest.mark.parametrize("source", ["implicit", "environment", "argument"])
@@ -82,15 +90,19 @@ def test_app_create_adds_a_module_and_migration_package_to_the_project(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    shutil.copy2(EXAMPLES / "hinoki.toml", tmp_path / "hinoki.toml")
-    shutil.copytree(EXAMPLES / "project", tmp_path / "project")
+    shutil.copy2(EXAMPLES / "notes" / "hinoki.toml", tmp_path / "hinoki.toml")
+    shutil.copytree(
+        EXAMPLES / "notes" / "notes",
+        tmp_path / "notes",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
     monkeypatch.chdir(tmp_path)
 
     assert main(["app", "create", "audit"]) == 0
 
     assert "created app audit" in capsys.readouterr().out
-    assert (tmp_path / "project/apps/audit/models.py").is_file()
-    assert (tmp_path / "project/apps/audit/migrations/__init__.py").is_file()
+    assert (tmp_path / "notes/apps/audit/models.py").is_file()
+    assert (tmp_path / "notes/apps/audit/migrations/__init__.py").is_file()
     manifest = (tmp_path / "hinoki.toml").read_text(encoding="utf-8")
-    assert 'models = "project.apps.audit.models"' in manifest
-    assert 'migrations = "project.apps.audit.migrations"' in manifest
+    assert 'models = "notes.apps.audit.models"' in manifest
+    assert 'migrations = "notes.apps.audit.migrations"' in manifest

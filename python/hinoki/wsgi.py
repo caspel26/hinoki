@@ -169,6 +169,12 @@ class WSGIAdapter:
         return status, headers, b"".join(chunks)
 
 
+def _port(value: object) -> int:
+    """``SERVER_PORT`` as a number; a value a server could not have set is 0."""
+    text = str(value or "")
+    return int(text) if text.isascii() and text.isdigit() else 0
+
+
 def _status(code: int) -> str:
     try:
         return f"{code} {HTTPStatus(code).phrase}"
@@ -227,7 +233,7 @@ def _scope(environ: Environ) -> dict[str, Any]:
         "headers": headers,
         "server": (
             environ.get("SERVER_NAME", ""),
-            int(environ.get("SERVER_PORT") or 0),
+            _port(environ.get("SERVER_PORT")),
         ),
         "client": (environ.get("REMOTE_ADDR", ""), 0),
     }

@@ -46,6 +46,16 @@ def obj(required: list[str] | None = None, **properties: Any) -> dict[str, Any]:
     }
 
 
+def test_query_moving_between_x_query_and_query_is_not_a_removal() -> None:
+    old = doc(request=obj(name={"type": "string"}), path="/p", method="x-query")
+    new = doc(request=obj(name={"type": "string"}), path="/p", method="query")
+    assert breaking_changes(old, new) == []
+    assert breaking_changes(new, old) == []
+    gone = {"openapi": "3.2.0", "paths": {"/p": {}}}
+    assert breaking_changes(old, gone) == ["removed operation QUERY /p"]
+    assert breaking_changes(new, gone) == ["removed operation QUERY /p"]
+
+
 def test_identical_documents_and_additions_are_compatible() -> None:
     old = doc(
         request=obj(name={"type": "string"}), response=obj(id={"type": "integer"})
@@ -172,3 +182,16 @@ def test_cli_rejects_a_missing_baseline(
     missing = tmp_path / "nope.json"
     assert main(["openapi", TARGET, "--breaking-against", str(missing)]) == 2
     assert "does not exist" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [("{", "cannot read JSON"), ("[]", "is not an OpenAPI object")],
+)
+def test_cli_rejects_an_unreadable_or_non_object_baseline(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str, message: str
+) -> None:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(content, encoding="utf-8")
+    assert main(["openapi", TARGET, "--breaking-against", str(baseline)]) == 2
+    assert message in capsys.readouterr().err

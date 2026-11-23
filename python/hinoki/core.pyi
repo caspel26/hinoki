@@ -2,7 +2,7 @@ import asyncio
 import os
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 NativeFailure = tuple[str, str, str | None, str | None, str | None]
@@ -85,6 +85,35 @@ class _RowPlan:
         columns: list[str],
         fields: list[tuple[str, str, str, bool]],
     ) -> None: ...
+
+class _FilterPlan:
+    """The declared client filters of one ``FilterSet``: checks a query string
+    against the allow-list and returns typed values and conditions."""
+
+    def __init__(
+        self,
+        fields: list[tuple[str, str, str, bool, list[str]]],
+        search: list[str],
+        ordering: list[str],
+        max_in: int,
+        max_text: int,
+        max_search: int,
+    ) -> None: ...
+    def parse(
+        self, query: dict[str, list[str]], reserved: list[str]
+    ) -> tuple[list[tuple[str, str, str]], FilterParsed | None]:
+        """``(problems, parsed)``: ``problems`` holds ``(path, code, message)``
+        and ``parsed`` is ``None`` unless it is empty."""
+
+type FilterEntry = tuple[str, object, list[object] | None, object, object, bool | None]
+type FilterCondition = tuple[str, str, list[object]]
+type FilterParsed = tuple[
+    list[FilterEntry],
+    tuple[FilterCondition, ...],
+    list[tuple[str, bool]] | None,
+    str | None,
+    bytes,
+]
 
 class _CursorCodec:
     """Signed keyset cursors for one ordering; ``ValueError("invalid" |
@@ -701,6 +730,58 @@ class ServerCore:
         https: bool = False,
     ) -> Submission: ...
 
+class EventMetrics:
+    def record(self, slot: int, outcome: int, seconds: float) -> None: ...
+
+class MailMetrics: ...
+
+type _ShapeNode = (
+    Literal["s"] | tuple[Literal["l"], _ShapeNode] | tuple[Literal["x"], str] | _Shape
+)
+type _Shape = dict[str, _ShapeNode]
+
+class MailTemplate:
+    def __init__(
+        self,
+        name: str,
+        subject: str,
+        html: str,
+        text: str | None = None,
+        shape: _Shape | None = None,
+    ) -> None: ...
+    def render(self, context: object) -> tuple[str, str, str]: ...
+
+def describe_template_error(
+    template: str,
+    problems: Sequence[tuple[str, str | None, int | None, int | None, str | None]],
+    truncated: bool,
+) -> str: ...
+def template_reasons() -> list[str]: ...
+def template_limits() -> list[tuple[str, int]]: ...
+
+class _MailMessage(TypedDict):
+    sender: tuple[str, str | None]
+    to: list[tuple[str, str | None]]
+    cc: list[tuple[str, str | None]]
+    bcc: list[tuple[str, str | None]]
+    reply_to: list[tuple[str, str | None]]
+    subject: str
+    text: str | None
+    html: str | None
+    attachments: list[tuple[str, str, bytes]]
+    headers: list[tuple[str, str]]
+
+class Mailer:
+    def __init__(self, options: dict[str, object]) -> None: ...
+    def send(
+        self, message: _MailMessage
+    ) -> Awaitable[tuple[str, list[str], int, bytes | None]]: ...
+    def check(self) -> Awaitable[None]: ...
+    def refuse(self, kind: str) -> None: ...
+    def close(self) -> Awaitable[None]: ...
+    def stats(self) -> tuple[int, int, int, int, int]: ...
+    def attach_metrics(self, metrics: MailMetrics) -> bool: ...
+
 class KisoServer:
     @staticmethod
     def start(
@@ -725,6 +806,8 @@ class KisoServer:
         compression: dict[str, object] | None = None,
         metrics: dict[str, object] | None = None,
     ) -> KisoServer: ...
+    def event_metrics(self) -> EventMetrics | None: ...
+    def mail_metrics(self) -> MailMetrics | None: ...
     @property
     def port(self) -> int: ...
     @property

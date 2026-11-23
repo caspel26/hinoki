@@ -87,6 +87,81 @@ How the name is chosen:
 * Two different classes whose actions would share a name raise `RegistrationError` when included, naming both paths, so one `except_` entry, waiver or MCP pattern never covers both by accident.
 * One value mounted twice (`Mount("/a", notes)` and `Mount("/b", notes)`) keeps one name, as any `API` class or function does: an exception for it covers both mounts.
 
+## Filter, order and search the list
+
+Declare what a client may ask for in a `FilterSet` and pass it as `filters=`. It works for `crud(...)` as a value and as `@crud(...)` on an `API` class.
+
+```python
+# notes/apps/billing/filters.py
+from datetime import date
+from typing import Literal
+
+from hinoki.filters import Eq, FilterSet, In, Range, Search
+
+
+class InvoiceFilters(FilterSet):
+    paid: Eq[bool]
+    status: In[Literal["open", "paid", "overdue"]]
+    issued: Range[date]
+    search = Search("reference", "customer_name")
+    ordering = ("issued", "reference")
+```
+
+```python
+# notes/apps/billing/routes.py
+from hinoki import crud
+
+from notes.apps.billing.filters import InvoiceFilters
+
+invoices = crud(Invoice, path="/invoices", read=InvoiceOut, filters=InvoiceFilters)
+```
+
+| Declaration | Request | Meaning |
+| --- | --- | --- |
+| `paid: Eq[bool]` | `?paid=false` | equals the value |
+| `status: In[...]` | `?status=open,overdue` | equals any of at most 50 comma-separated values |
+| `issued: Range[date]` | `?issued.from=2024-01-01&issued.to=2024-03-31` | inclusive bounds, either one optional |
+| `discount: Eq[int \| None]` | `?discount.null=true` | no value (`true`) or a value (`false`); only for a nullable column and a `T \| None` argument |
+| `search = Search("reference", "customer_name")` | `?search=acme` | the text is contained in any of the columns, ignoring case; `%` and `_` are literal |
+| `ordering = ("issued", "reference")` | `?ordering=-issued,reference` | sort keys from the list, `-` for descending |
+
+Each attribute name is the column it filters. Types are `bool`, `int`, `float`, `str`, `UUID`, `date`, `datetime` (an RFC 3339 instant, read as UTC), `Decimal` and `Literal[...]` of strings; an `Eq`, `In` or `Range` is also what the typed OpenAPI parameter documents. A bool, UUID or `Literal` has no `Range`. An empty value (`?paid=`) is ignored.
+
+A name that is not declared, an operator that the field does not have (`?paid.from=1`), a value of the wrong type or outside the `Literal`, a repeated parameter, an ordering key outside `ordering`, or a value that is too long is a `422` listing every problem with its `path` and a `code` (`type`, `choice`, `unknown`, `operator`, `duplicate`, `too_long`, `too_many`); the message never repeats the client's value. Values are parsed and coerced in Rust, bound as parameters and never become SQL text, and column names come only from the declaration, checked against the model when the routes are declared.
+
+SQLite keeps a `Decimal` column as text, which compares by spelling and orders alphabetically, not numerically. A `Range[Decimal]` filter (`?amount.from=...`/`?amount.to=...`) or an `ordering` entry naming a `Decimal` column is a `422` there, with `code` `unsupported` and `path` naming the field (or `ordering`); only equality (`Eq`, `In`, `.null`) is checked against a `Decimal` column on SQLite. PostgreSQL and MySQL compare and order a `Decimal` numerically and accept the full `Range`.
+
+A filter's produced names (its own name, `.from`/`.to` for a `Range`, `.null` when nullable, plus `search` and `ordering` when declared) must not collide with the pagination parameters (`page`/`page_size`, or `cursor`/`limit`): a `FilterSet` that does is refused when the routes are declared, for `crud(...)` and for a manual `@http.get` action alike.
+
+The list applies, in this order: `get_queryset(principal)` (tenant and visibility), the client's filters combined with AND on top of it, the `filter_queryset` hook, the client's ordering and then pagination. A client filter can only narrow what `get_queryset` returned. The client's `ordering` replaces the order that `get_queryset` or the model set, always ends with the primary key so pages are stable, and without it that order stays.
+
+`filter_queryset(self, query, params, principal)` is an optional hook of the class form; `params` is the `InvoiceFilters` instance (`params.paid`, `params.status` as a list, `params.issued` as `Bounds(from_, to)`, `params.search_term`, `params.is_null("discount")`, each `None` when the client did not send it):
+
+```python
+# notes/apps/billing/api.py
+from typing import Any
+
+from hinoki import API, Caller, crud
+from hinoki.orm import QuerySet
+
+
+@crud(Invoice, path="/invoices", read=InvoiceOut, filters=InvoiceFilters)
+class Invoices(API):
+    def filter_queryset(
+        self,
+        query: QuerySet[Invoice],
+        params: InvoiceFilters,
+        principal: Caller[Any] | None,
+    ) -> QuerySet[Invoice]:
+        if params.paid is None:
+            return query.filter(archived=False)
+        return query
+```
+
+The Tracker example's [`TaskFilters`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/filters.py) and its `Tasks` class in [`api.py`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/api.py) show a filtered, owner-scoped list.
+
+The filters belong to the `list` action: `omit=("list",)` with `filters=` is refused. With `CursorPagination` the ordering columns must be non-null `int`, `str`, `UUID`, `datetime` or `float` columns, and a cursor is bound to the filters and ordering of the request that issued it ([details](pagination.md#cursor-keyset-pagination)). A filtered list is not eligible for the native generated-CRUD list lane (the answer comes from the ordinary Python path, with rows still encoded in Rust); the [admin](admin.md) lists have their own filters and do not use this one. A `FilterSet` also works on its own: `InvoiceFilters.parse({"paid": ["true"]})` returns the typed instance or raises `ValidationError`.
+
 ## Hooks in the class form
 
 Apply `@crud(...)` to a class whose only base is `API`. These methods change what the generated actions do; every other decorated method is a handwritten action:
@@ -94,6 +169,7 @@ Apply `@crud(...)` to a class whose only base is `API`. These methods change wha
 | Hook | Called for | Purpose |
 | --- | --- | --- |
 | `get_queryset(principal)` | every action | The base query: tenant or visibility filters. Builds a query, does no I/O |
+| `filter_queryset(query, params, principal)` | list | Narrows the list after the client's [filters](#filter-order-and-search-the-list); `params` is the `FilterSet` instance |
 | `to_schema(item)` | every answer | A response shape that needs loaded relations |
 | `written_queryset(principal)` | after a write | Loads response relations of the written row |
 | `store(values, principal)` | create | Creates the row |
@@ -171,7 +247,7 @@ A stored row that the `read=` schema refuses (for example a `max_length` that th
 
 ## Model hooks and Kiso
 
-Generated create and PATCH update write through the model, so its [lifecycle hooks](model-hooks.md) run: create calls `acreate`, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (`403`/`404`). A model that defines any of `before_save`, `before_create`, `after_create` or `after_save` is not eligible for the native create and update routes; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks.
+Generated create and PATCH update write through the model, so its [lifecycle hooks](model-hooks.md) run: create calls `acreate`, and update saves the item with the scoped query's conditions in its UPDATE, so a row that left the caller's scope since it was read is refused (`403`/`404`). A model that defines any of `before_save`, `before_create`, `after_create` or `after_save` is not eligible for the native create and update routes; they use the Python lane, while its list, retrieve and delete routes stay native. Deleting does not run hooks. A handler registered for the model's `Created`, `Updated` or `Deleted` [event](events.md#model-events) likewise moves only the matching action (`create`, `update`, `delete`) to the Python lane, where the event is emitted; update then saves the instance with the scoped UPDATE, as it does for hooks.
 
 On Kiso, eligible generated routes execute in Rust when their schemas and model are supported and the resource has no access policy (other than an unmodified `ClaimsJWTAuth`), owner or assignment rule (other than `identity_key=caller_id`) or custom hook. Ineligible and stale plans use the Python lane. See [Kiso: generated CRUD](kiso.md#generated-crud); no switch is required.
 

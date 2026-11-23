@@ -11,7 +11,7 @@ from datetime import UTC, datetime, tzinfo
 from functools import partial
 from pathlib import Path
 from types import FrameType, ModuleType
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from hinoki.api import API
@@ -19,11 +19,13 @@ from hinoki.core import Router
 from hinoki.db import DatabaseModule
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorRegistrar, ErrorRegistry, RegistrationError
+from hinoki.events import EventBus, Handlers
 from hinoki.fields import UNSET, Unset
 from hinoki.http.middleware import Middleware, check_middleware
+from hinoki.mail import EmailModule, TemplateBase
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
-from hinoki.openapi import OpenAPIBuilder, documented
+from hinoki.openapi import SPEC_VERSIONS, OpenAPIBuilder, documented
 from hinoki.pagination import (
     DEFAULT_MAX_PAGE_SIZE,
     DEFAULT_PAGE_SIZE,
@@ -38,7 +40,7 @@ from hinoki.parsers import (
     Parser,
     check_parsers,
 )
-from hinoki.project import manifest_declaring
+from hinoki.project import ProjectManifest, manifest_declaring
 from hinoki.renderers import DEFAULT_RENDERERS, Renderer, check_renderers
 from hinoki.routing import (
     Found,
@@ -65,6 +67,7 @@ from hinoki.settings import (
     AppSettings,
     DatabaseSettings,
     DocsSettings,
+    EmailSettings,
     Settings,
 )
 from hinoki.utils import Clock, _read_utc, utc_now, utc_today
@@ -158,6 +161,14 @@ class Hinoki:
     worker after the modules have started; shutdown hooks run before they are
     closed, and only after a startup that completed.
 
+    ``events`` lists the ``Handlers`` collections whose typed event handlers
+    run, in this order (see ``hinoki.events``); an unlisted one does nothing.
+
+    ``email_templates`` lists the ``mail.Template`` objects the application
+    sends. They go to the email module the ``email: EmailSettings`` field
+    implies; with your own ``EmailModule`` pass them there instead. File
+    templates are read and checked when each worker starts.
+
     ``startup_url`` optionally reserves a public GET/HEAD endpoint that returns
     ``{"status": "ok"}`` after worker startup. It reports startup completion,
     not application, database, or event-loop health.
@@ -175,6 +186,8 @@ class Hinoki:
         commands: Sequence[Command | type[Command]] = (),
         on_startup: Sequence[Hook] = (),
         on_shutdown: Sequence[Hook] = (),
+        events: Sequence[Handlers] | None = None,
+        email_templates: Sequence[TemplateBase] = (),
         startup_url: str | None = None,
         runtime: RuntimeConfig | None = None,
         title: str | None = None,
@@ -182,13 +195,17 @@ class Hinoki:
         openapi_url: str | Unset | None = UNSET,
         docs_url: str | Unset | None = UNSET,
         redoc_url: str | Unset | None = UNSET,
+        openapi_version: Literal["3.1", "3.2"] | None = None,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
         waivers: str | Path | None = None,
         parsers: Sequence[Parser] | None = None,
         renderers: Sequence[Renderer] | None = None,
-        middleware: Sequence[Middleware] = (),
+        middleware: Sequence[Middleware] | None = None,
     ) -> None:
+        include, events, middleware, rules = self._manifest_defaults(
+            sys._getframe(1), include, events, middleware, rules
+        )
         if isinstance(settings, type) and issubclass(settings, Settings):
             settings = settings.load()  # a class: read its variables now
         self._startup_url = check_startup_url(startup_url)
@@ -199,30 +216,65 @@ class Hinoki:
         self.settings = settings
         self.middleware = check_middleware(middleware)
         self._configure_runtime(built_in, runtime)
-        self._configure_docs(docs, title, version, openapi_url, docs_url, redoc_url)
+        self._configure_docs(
+            docs, title, version, openapi_url, docs_url, redoc_url, openapi_version
+        )
         self._configure_policy(built_in, rules, enforce_rules, parsers, renderers)
         # An explicit waiver file wins over the project's ``hinoki-rules.toml``.
         self.waiver_file: Path | None = None if waivers is None else Path(waivers)
         self._initialize_registries(commands, on_startup, on_shutdown)
+        self._events = EventBus(events, built_in.events if built_in else None)
         # The declared form: ``Hinoki(include=[...], modules=[...])``.
         declared = [self.module_of(m) for m in modules]
         automatic = self.settings_database(declared)
-        if automatic is not None or declared:
-            self.install(*([automatic] if automatic else []), *declared)
+        automatic_email = self.settings_email(declared, email_templates)
+        implied = [m for m in (automatic, automatic_email) if m is not None]
+        if implied or declared:
+            self.install(*implied, *declared)
         self._automatic_database: DatabaseModule | None = automatic
-        if include is None:
-            include = self._project_routes(sys._getframe(1))
+        self._automatic_email: EmailModule | None = automatic_email
         if include:
             self.include(*include)
 
+    @classmethod
+    def _manifest_defaults(
+        cls,
+        caller: FrameType,
+        include: Sequence[Includable] | None,
+        events: Sequence[Handlers] | None,
+        middleware: Sequence[Middleware] | None,
+        rules: RuleSet | None,
+    ) -> tuple[
+        Sequence[Includable],
+        Sequence[Handlers],
+        Sequence[Middleware],
+        RuleSet | None,
+    ]:
+        """Fill each of ``include=``, ``events=``, ``middleware=`` and ``rules=``
+        that was left out from ``hinoki.toml``; an explicit value, even empty,
+        is kept. ``rules`` stays ``None`` when the manifest lists none."""
+        manifest = (
+            cls._project_manifest(caller)
+            if any(value is None for value in (include, events, middleware, rules))
+            else None
+        )
+        if manifest is None:
+            return include or (), events or (), middleware or (), rules
+        return (
+            manifest.route_items() if include is None else include,
+            manifest.event_handlers() if events is None else events,
+            manifest.middleware_list() if middleware is None else middleware,
+            manifest.rule_set() if rules is None and manifest.rules else rules,
+        )
+
     @staticmethod
-    def _project_routes(caller: FrameType) -> list[Includable]:
-        """Without ``include=``, the routes ``hinoki.toml`` declares, when the
-        manifest names the module that builds this application."""
-        manifest = manifest_declaring(
+    def _project_manifest(caller: FrameType) -> ProjectManifest | None:
+        """Without ``include=``, ``events=``, ``middleware=`` or ``rules=``, what
+        ``hinoki.toml`` declares, when the manifest names the module that builds
+        this application."""
+        return manifest_declaring(
             caller.f_globals.get("__name__", ""), caller.f_globals.get("__file__")
         )
-        return manifest.route_items() if manifest is not None else []
 
     def admin_settings(self) -> AdminSettings | None:
         """The app's ``admin`` settings group, or ``None`` without built-in settings."""
@@ -243,9 +295,18 @@ class Hinoki:
         openapi_url: str | Unset | None,
         docs_url: str | Unset | None,
         redoc_url: str | Unset | None,
+        openapi_version: str | None,
     ) -> None:
         self.title = title if title is not None else docs.title
         self.version = version if version is not None else docs.version
+        self.openapi_version = (
+            openapi_version if openapi_version is not None else docs.openapi_version
+        )
+        if self.openapi_version not in SPEC_VERSIONS:
+            raise ValueError(
+                f"openapi_version must be one of {sorted(SPEC_VERSIONS)}, "
+                f"not {self.openapi_version!r}"
+            )
         # ``None`` disables a page even when the settings enable it; unset defers.
         openapi_url = (
             docs.openapi_url if isinstance(openapi_url, Unset) else openapi_url
@@ -296,6 +357,7 @@ class Hinoki:
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
         self._automatic_database = None
+        self._automatic_email = None
         self._commands = _normalize_commands(commands)
         self._on_startup = check_hooks("on_startup", on_startup)
         self._on_shutdown = check_hooks("on_shutdown", on_shutdown)
@@ -319,6 +381,33 @@ class Hinoki:
         ):
             return None
         return DatabaseModule.from_settings(self.settings)
+
+    def settings_email(
+        self, declared: list[Module], templates: Sequence[TemplateBase] = ()
+    ) -> EmailModule | None:
+        """The email module implied by an ``email: EmailSettings`` field in the
+        settings, unless the application declares its own. ``templates`` go to
+        the implied module; they are refused when there is none."""
+        group = getattr(self.settings, "email", None)
+        own = any(
+            isinstance(module, EmailModule) or module.name == EmailModule.name
+            for module in declared
+        )
+        if templates and own:
+            raise RegistrationError(
+                "email_templates cannot reach your own EmailModule: "
+                "pass them as EmailModule(settings, templates=[...])"
+            )
+        if not isinstance(group, EmailSettings):
+            if templates:
+                raise RegistrationError(
+                    "email_templates needs an `email: EmailSettings` field in the "
+                    "settings, or an EmailModule(settings, templates=[...])"
+                )
+            return None
+        if own:
+            return None
+        return EmailModule.from_settings(self.settings, templates)
 
     def module_of(self, module: Module | type[Module]) -> Module:
         """An instance as given, or a class built from this app's settings."""
@@ -351,6 +440,11 @@ class Hinoki:
     def commands(self) -> tuple[Command, ...]:
         """The app's explicitly registered management commands."""
         return self._commands
+
+    @property
+    def events(self) -> EventBus:
+        """The typed event handlers listed in ``events=``, fixed at construction."""
+        return self._events
 
     @property
     def on_startup(self) -> tuple[Hook, ...]:
@@ -423,7 +517,7 @@ class Hinoki:
         head, tail = raw
         if isinstance(head, int) and isinstance(tail, dict):
             return self._websockets[head], tail
-        return None
+        return None  # pragma: no cover - the router only stores (int, dict) pairs
 
     def _collect_routes(
         self, items: tuple[object, ...]
@@ -548,19 +642,22 @@ class Hinoki:
         """
         self._check_mutable()
         installed = self._modules
-        automatic = self._automatic_database
-        replacing_automatic = automatic is not None and any(
-            isinstance(module, DatabaseModule) for module in modules
-        )
-        if replacing_automatic:
-            # Validate and include first; a failed installation must preserve the
-            # settings-provided module and allow a later replacement attempt.
-            installed = [module for module in installed if module is not automatic]
+        replaced = [
+            automatic
+            for automatic in (self._automatic_database, self._automatic_email)
+            if automatic is not None
+            and any(isinstance(module, type(automatic)) for module in modules)
+        ]
+        # Validate and include first; a failed installation must preserve the
+        # settings-provided modules and allow a later replacement attempt.
+        installed = [module for module in installed if module not in replaced]
         order_modules([*installed, *modules])
         self.include(*(api for module in modules for api in module.apis))
         self._modules[:] = [*installed, *modules]
-        if replacing_automatic:
+        if self._automatic_database in replaced:
             self._automatic_database = None
+        if self._automatic_email in replaced:
+            self._automatic_email = None
 
     def lookup(self, method: str, path: str) -> Found | MethodNotAllowed | None:
         """Distinguish a match, a wrong method and an unknown path.
@@ -592,8 +689,10 @@ class Hinoki:
         return None
 
     def openapi(self) -> dict[str, Any]:
-        """The OpenAPI 3.1 document for the registered routes."""
-        return OpenAPIBuilder(self, self.title, self.version).build()
+        """The OpenAPI document (3.2 by default, 3.1 with ``openapi_version``)."""
+        return OpenAPIBuilder(
+            self, self.title, self.version, self.openapi_version
+        ).build()
 
     def asgi(self) -> ASGIAdapter:
         """The ASGI adapter for this worker; builds and validates bindings once."""

@@ -13,6 +13,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
+from hinoki.openapi import operation_of
+
 MAX_DEPTH = 3
 JSON = "application/json"
 METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace", "query")
@@ -55,10 +57,12 @@ def request_cases(document: dict[str, Any]) -> list[RequestCase]:
     """One case per operation that declares a JSON request body."""
     cases: list[RequestCase] = []
     for path, item in document.get("paths", {}).items():
-        for method in (m for m in METHODS if m in item):
+        for method in METHODS:
+            operation = operation_of(item, method)
+            if operation is None:
+                continue
             schema = (
-                item[method]
-                .get("requestBody", {})
+                operation.get("requestBody", {})
                 .get("content", {})
                 .get(JSON, {})
                 .get("schema")

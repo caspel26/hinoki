@@ -1,0 +1,16 @@
+[project]
+application = "blog.main:app"
+
+[[apps]]
+name = "blog"
+models = "blog.apps.blog.models"
+migrations = "blog.apps.blog.migrations"
+events = "blog.apps.blog.events:handlers"
+requires = []
+
+# The admin's own users and grants: an optional extra with its own migrations.
+[[apps]]
+name = "admin"
+models = "hinoki.admin.users.models"
+migrations = "hinoki.admin.users.migrations"
+requires = []

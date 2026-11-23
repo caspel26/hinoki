@@ -784,7 +784,10 @@ def test_loop_closes_even_when_pending_task_cleanup_raises(
 
 @pytest.mark.parametrize(
     ("error", "output"),
-    [(KeyboardInterrupt(), "KeyboardInterrupt")],
+    [
+        (KeyboardInterrupt(), "KeyboardInterrupt"),
+        (RuntimeError("runtime broke"), "RuntimeError: runtime broke"),
+    ],
 )
 def test_console_keeps_running_after_control_flow_exceptions(
     error: BaseException, output: str
@@ -832,6 +835,12 @@ def test_branded_shell_greets_with_app_models_and_branded_prompts() -> None:
     assert "hinoki" in primary and "\u276f" in primary
     assert "\u00b7" in continuation
     assert "\x1b[" in primary
+
+
+def test_branded_shell_greets_an_application_without_models() -> None:
+    text = ANSI.sub("", "\n".join(greeting(FANCY, "Blog", "BlogSettings", [])))
+
+    assert "models" in text and "none" in text
 
 
 def test_run_console_uses_the_prompts_it_is_given(tmp_path: Path) -> None:

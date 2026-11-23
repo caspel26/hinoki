@@ -107,6 +107,8 @@ def test_header_names_with_an_underscore_are_dropped() -> None:
         ("example.test", "https", ("example.test", "443")),
         ("[::1]:8080", "http", ("[::1]", "8080")),
         ("[::1]", "https", ("[::1]", "443")),
+        ("example.test:abc", "http", ("example.test", "80")),
+        ("[::1]:x", "https", ("[::1]", "443")),
     ],
 )
 def test_split_host(value: str, scheme: str, expected: tuple[str, str]) -> None:
@@ -284,3 +286,15 @@ def test_the_legacy_write_raises_when_the_client_is_gone() -> None:
     write = responder.start_response("200 OK", [])
     with pytest.raises(ClientGone):
         write(b"x")
+
+
+def test_a_send_that_fails_mid_body_marks_the_client_gone() -> None:
+    call = FakeCall()
+    responder = Responder(call)
+    responder.start_response("200 OK", [])
+    assert responder.emit(b"first")
+    call.open = False
+    assert not responder.emit(b"second")
+    assert responder.gone
+    assert not responder.emit(b"third")
+    assert call.sent == [b"first", b"second"]  # nothing is sent once it is gone

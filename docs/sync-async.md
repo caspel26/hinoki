@@ -14,6 +14,9 @@ Two actions added to the `invoices` group of [function endpoints](function-endpo
 
 ```python
 # notes/apps/billing/api.py  (in the invoices group's module)
+from hinoki import Schema
+
+
 class UnpaidCount(Schema):
     count: int
 
@@ -27,6 +30,8 @@ async def count_unpaid() -> UnpaidCount:  # async: await the a... method
 def count_unpaid_sync() -> UnpaidCount:  # sync: the twin without the "a"
     return UnpaidCount(count=Invoice.filter(paid=False).count())
 ```
+
+The group carries the access policy and `atomic=True` for both.
 
 A name with the `a` prefix awaits the database (`aget`, `acreate`, `acount`); the same name without it is the blocking twin. A queryset is lazy until evaluated: `await queryset` is the async form of `queryset.list()`.
 

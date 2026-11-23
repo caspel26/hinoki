@@ -332,7 +332,9 @@ def metadata(args: argparse.Namespace) -> dict[str, Any]:
         "cpu": cpu,
         "cores": os.cpu_count(),
         "python": platform.python_version(),
-        "packages": {n: importlib.metadata.version(n) for n in ("hinoki-api", "granian")},
+        "packages": {
+            n: importlib.metadata.version(n) for n in ("hinoki-api", "granian")
+        },
         "rustc": execute(["rustc", "--version"]).stdout.strip(),
         "oha": execute(["oha", "--version"]).stdout.strip(),
         "loadavg_before_run": os.getloadavg(),

@@ -11,10 +11,10 @@ related:
 `hinoki.admin` gives staff a list, search, create, edit, bulk actions and a dashboard for your models, behind its own sign-in page, users and per-model permissions. It ships with the framework; nothing is served until you include it, and importing it never touches a database.
 
 ```python
-# blog/adminsite.py
+# blog/apps/blog/adminsite.py
 from hinoki.admin import Admin, ModelAdmin, Tone
 
-from blog.models import Post, User
+from .models import Post, User
 
 site = Admin(site="Blog Studio")
 
@@ -33,12 +33,12 @@ site.register(User)  # a model with the default admin
 # blog/routes.py
 from hinoki import Includable, Mount
 
-from blog.adminsite import site
+from .apps.blog.adminsite import site
 
 routes: list[Includable] = [Mount("/admin", site)]
 ```
 
-The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/apps/blog/adminsite.py) builds a fuller site the same way, with a theme, links, a dashboard and activity.
+The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/adminsite.py) builds a fuller site the same way, with a theme, links, a dashboard and activity; its [`routes.py`](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/routes.py) mounts it beside the API and its `hinoki.toml` registers the admin's tables as the `admin` app.
 
 ## Create the admin's tables
 
@@ -146,7 +146,7 @@ The sign-in and password forms pass through a rate limit policy before any passw
 | `DatabaseLoginWindow(limit=10, window=60)` | `hinoki_admin_login_windows` | One limit for every worker and host. Clients are stored as SHA-256 digests; expired windows are deleted on each attempt. |
 
 ```python
-# blog/adminsite.py
+# blog/apps/blog/adminsite.py
 from hinoki.admin import Admin
 from hinoki.admin.users import AdminAccounts
 from hinoki.admin.users.limits import DatabaseLoginWindow
@@ -154,7 +154,9 @@ from hinoki.admin.users.limits import DatabaseLoginWindow
 site = Admin(users=AdminAccounts(login_limit=DatabaseLoginWindow()))
 ```
 
-Both count one window per client address; an IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set `server.trusted_proxies` behind a proxy. With `DatabaseLoginWindow`, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see [rate limit an action](endpoints.md#rate-limit-an-action).
+Both count one window per client address and route (a flood on the sign-in never spends the password change's attempts). A full table never drops a blocked address: new addresses are refused until the oldest block expires. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.
+
+An IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set `server.trusted_proxies` behind a proxy. With `DatabaseLoginWindow`, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see [rate limit an action](endpoints.md#rate-limit-an-action).
 
 ## Serve it under another path
 

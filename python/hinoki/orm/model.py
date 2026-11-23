@@ -17,7 +17,7 @@ import sys
 import types
 import typing
 from collections.abc import Awaitable, Callable, Coroutine, Iterable, Sequence
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, nullcontext
 from decimal import Decimal
 from typing import (
     TYPE_CHECKING,
@@ -34,7 +34,7 @@ from typing import (
 )
 from uuid import UUID
 
-from hinoki import core
+from hinoki import core, events
 from hinoki.blocking import refuse_event_loop, run_sync
 from hinoki.db import Database
 from hinoki.errors import (
@@ -68,6 +68,7 @@ if sys.version_info >= (3, 14):
     import annotationlib
 
 if TYPE_CHECKING:
+    from hinoki.events import EventBus
     from hinoki.schema import Schema
 
 MARK = "hinoki_field"
@@ -1251,6 +1252,15 @@ class Model:
             name for name in HOOKS if getattr(cls, name) is not getattr(Model, name)
         )
 
+    @classmethod
+    def has_save_effects(cls) -> bool:
+        """Whether saving an instance must go through ``asave``: a hook is
+        overridden or the current bus wants ``Updated`` for this model. Code
+        that would otherwise write with one scoped UPDATE checks it first."""
+        return (
+            bool(cls.write_hooks()) or events.listener(events.Updated, cls) is not None
+        )
+
     @staticmethod
     def hook_transaction() -> AbstractAsyncContextManager[Any]:
         """The transaction a hooked write runs in: a savepoint when one is open
@@ -1277,6 +1287,9 @@ class Model:
         instead of written."""
         if self.is_new:
             return await self.insert()
+        bus = events.listener(events.Updated, type(self))
+        if bus is not None:
+            return await self.save_observed(scope, bus)
         if not type(self).write_hooks():
             if await self.write_update(scope):
                 self.remember()
@@ -1287,6 +1300,32 @@ class Model:
                 await self.run_hooks("after_save")
             self.remember()
         return self
+
+    async def save_observed(self, scope: QuerySet[Any] | None, bus: EventBus) -> Self:
+        """``save_with`` for a write that emits ``Updated``: inside a
+        transaction when a hook or an ``in_transaction`` handler may fail it."""
+        cls = type(self)
+        async with cls.event_transaction(bus, events.Updated):
+            await self.run_hooks("before_save")
+            changed = tuple(self.changes)
+            wrote = await self.write_update(scope)
+            if wrote:
+                await self.run_hooks("after_save")
+            self.remember()
+            if wrote:
+                await bus.emit(events.Updated(cls, self, changed))
+        return self
+
+    @classmethod
+    def event_transaction(
+        cls, bus: EventBus, kind: type
+    ) -> AbstractAsyncContextManager[Any]:
+        """The transaction of a write that emits ``kind``: one when a hook or
+        an ``in_transaction`` handler may fail it, else none (``after_commit``
+        handlers are queued on whatever transaction is open)."""
+        if cls.write_hooks() or bus.wants_transaction(kind, cls):
+            return cls.hook_transaction()
+        return nullcontext()
 
     async def aupdate_within(self, scope: QuerySet[Any], /, **values: Any) -> Self:
         """``assign`` then a save whose UPDATE carries ``scope``'s conditions (the
@@ -1328,6 +1367,9 @@ class Model:
         """Insert this instance and load the stored row into it. With
         ``returning=False`` nothing is read back: the instance keeps the values
         it sent (every column is sent, defaults and factories applied)."""
+        bus = events.listener(events.Created, type(self))
+        if bus is not None:
+            return await self.insert_observed(bus, returning)
         if not type(self).write_hooks():
             await self.write_insert(returning)
             self.remember()
@@ -1337,6 +1379,17 @@ class Model:
             await self.write_insert(returning)
             await self.run_hooks("after_create", "after_save")
             self.remember()
+        return self
+
+    async def insert_observed(self, bus: EventBus, returning: bool) -> Self:
+        """``insert`` for a write that emits ``Created``."""
+        cls = type(self)
+        async with cls.event_transaction(bus, events.Created):
+            await self.run_hooks("before_save", "before_create")
+            await self.write_insert(returning)
+            await self.run_hooks("after_create", "after_save")
+            self.remember()
+            await bus.emit(events.Created(cls, self))
         return self
 
     async def write_insert(self, returning: bool) -> None:

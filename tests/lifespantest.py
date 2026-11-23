@@ -219,6 +219,22 @@ async def test_duplicate_startup_is_a_startup_error_not_a_crash() -> None:
     await life.shutdown()
 
 
+async def test_an_atomic_action_without_a_database_fails_startup() -> None:
+    events: list[str] = []
+    life = Lifespan(
+        [First(events)],
+        ModuleContext(),
+        SyncExecutor(2, 2),
+        RuntimeConfig(),
+        needs_database=True,
+    )
+    with pytest.raises(StartupError, match="<transactions>") as failed:
+        await life.startup()
+    assert "atomic=True" in str(failed.value.cause)
+    assert events == ["start:a", "stop:a"]  # what was entered is closed again
+    assert not life.ready
+
+
 def test_generator_finalization_without_a_loop_skips_async_cleanup() -> None:
     life = build([])
     assert not life._can_cleanup_after_startup_error(GeneratorExit())

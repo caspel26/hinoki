@@ -9,7 +9,7 @@ description = "Pre-alpha Python API framework with a Rust extension for routing,
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Peppe" }]
+authors = [{ name = "Giuseppe Casillo" }]
 keywords = ["api", "framework", "asgi", "orm", "rust"]
 requires-python = ">=3.12"
 dependencies = []
@@ -101,12 +101,13 @@ max-branches = 8
 "python/hinoki/ai/proposals.py" = ["E501"]  # emits source text, one line per output line
 "tests/dbtest.py" = ["S608", "PT012"]
 "tests/ormtest.py" = ["PT012"]
-"tests/blogtest.py" = ["S106"]  # fixture tokens, not secrets
 "tests/schemasecrettest.py" = ["S105", "S106"]  # synthetic secrets and the mask
+"tests/mail*.py" = ["S105", "S106", "S301"]  # synthetic secrets; pickling our own error
+"tests/mailserver.py" = ["PLR0911", "PLR0912"]  # a protocol dispatcher
 "tests/runtime/granianblogtest.py" = ["S106"]  # table names are test-controlled; blocks need setup
 "tests/browser/verify.py" = ["PLR0915", "S105", "E501", "SIM222", "RUF059"]  # a linear script with a demo token
-"examples/blog/apps/blog/seed.py" = ["S106"]  # synthetic demo tokens
-"examples/blog/apps/blog/adminsite.py" = ["ARG001", "ARG002"]  # overrides of admin hooks
+"examples/blog/blog/apps/blog/seed.py" = ["S106"]  # synthetic demo tokens
+"examples/blog/blog/apps/blog/adminsite.py" = ["ARG001", "ARG002"]  # overrides of admin hooks
 "benchmarks/**" = ["ARG001", "S101"]  # benchmark handlers ignore the request
 "scripts/readme_demo.py" = ["S603", "S607"]  # runs hinoki, uv, git and ffmpeg by hand to render the README GIF
 "benchmarks/comparative/*.py" = ["E501", "PLR2004", "S603", "S607", "S310", "S105", "S608", "PLC0415"]  # run by hand with its own environment: subprocesses, a demo password, loopback URLs
@@ -118,7 +119,6 @@ max-branches = 8
 "tests/adminreviewtest.py" = ["E501"]
 "tests/authtest.py" = ["E501"]
 "tests/themecontrasttest.py" = ["E501"]
-"tests/notestest.py" = ["E501"]
 "tests/scaffoldtest.py" = ["E501"]
 "tests/cryptotest.py" = ["E501", "PLR0913", "S105", "S106"]
 "tests/blogrulestest.py" = ["E501"]
@@ -131,6 +131,7 @@ max-branches = 8
 "python/hinoki/app.py" = ["PLR0913"]  # Hinoki takes keyword-only options
 "python/hinoki/routing.py" = ["PLR0913"]  # each decorator mirrors the Options fields
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002", "S104", "S603", "S310"]
+"examples/*/*_tests/**" = ["S101", "S105", "S106", "PLR2004", "ARG001", "ARG002"]
 [tool.ruff.lint.isort]
 known-first-party = ["hinoki", "examples", "tests"]
 
@@ -141,19 +142,23 @@ warn_unused_ignores = true
 files = ["python/hinoki", "tests", "examples"]
 # Playwright is a development tool run with uvx, not a project dependency.
 exclude = ["tests/browser/", "tests/mcpclient/"]
-mypy_path = "python:examples"
+mypy_path = "python:examples/notes:examples/tracker:examples/blog:examples/mailroom:examples/tracker/tracker_tests/support:examples/blog/blog_tests/support"
 explicit_package_bases = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "examples/notes/notes_tests", "examples/tracker/tracker_tests", "examples/blog/blog_tests", "examples/mailroom/mailroom_tests"]
 python_files = ["*test.py"]
-pythonpath = ["examples"]
+pythonpath = ["examples/notes", "examples/tracker", "examples/blog", "examples/mailroom", "examples/tracker/tracker_tests/support", "examples/blog/blog_tests/support"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --ignore-glob=**/conftest.py"
 markers = ["runtime: starts a real server process (Granian)"]
 
 [tool.coverage.run]
 source = ["hinoki"]
+# The server and CLI tests run Hinoki in child processes: measure those too.
+parallel = true
+patch = ["subprocess"]
+sigterm = true
 [tool.coverage.report]
 show_missing = true

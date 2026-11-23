@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from hinoki.openapi import operation_of
+
 METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace", "query")
 JSON = "application/json"
 
@@ -18,14 +20,15 @@ def breaking_changes(old: dict[str, Any], new: dict[str, Any]) -> list[str]:
     new_paths = new.get("paths", {})
     for path, item in old.get("paths", {}).items():
         for method in METHODS:
-            if method not in item:
+            before = operation_of(item, method)
+            if before is None:
                 continue
             label = f"{method.upper()} {path}"
-            after = new_paths.get(path, {}).get(method)
+            after = operation_of(new_paths.get(path, {}), method)
             if after is None:
                 found.append(f"removed operation {label}")
             else:
-                Comparison(old, new, found).operation(label, item[method], after)
+                Comparison(old, new, found).operation(label, before, after)
     return found
 
 

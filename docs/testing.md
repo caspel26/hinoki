@@ -93,16 +93,19 @@ Apply the migrations with the same variables, and pass the same keys under
 `"database"` to `overrides=` in the example below.
 
 When one test needs other settings, build a second application from the same
-routes instead of changing the shared one. This example only calls `/health`, so
+code instead of changing the shared one. Give `main.py` a `create_app(settings)`
+factory, as [`examples/notes/notes/main.py`](https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/main.py)
+does (`create_app`, line 12). The factory lives in the module `hinoki.toml`
+names as `project.application`, so `Hinoki(...)` fills routes, events,
+middleware and rules from the manifest. This example only calls `/health`, so
 its new database needs no tables; to give a test migrated tables, copy them as
 [below](#give-each-test-its-own-database):
 
 ```python
-# tests/exportstest.py
-from hinoki import Hinoki
-from hinoki.project import manifest_routes
+# tests/settingstest.py
 from hinoki.testing import ASGIClient
 
+from notes.main import create_app
 from notes.settings import ProjectSettings
 
 
@@ -110,10 +113,14 @@ async def test_health_with_its_own_database() -> None:
     settings = ProjectSettings.load(
         overrides={"database": {"url": "sqlite://./.hinoki/other.sqlite3"}}
     )
-    app = Hinoki(settings=settings, include=manifest_routes())
-    async with ASGIClient(app) as client:
+    async with ASGIClient(create_app(settings)) as client:
         assert (await client.get("/health")).status == 200
 ```
+
+A `Hinoki(...)` built in any other module (a test, a script) does not read the
+manifest; pass what it lists explicitly, with `include=manifest_routes()` and
+the `manifest_events()`, `manifest_middleware()` and `manifest_rules()` helpers
+of `hinoki.project`.
 
 Use synthetic rows and credentials, and never point test settings at production
 data.
@@ -121,38 +128,46 @@ data.
 ### Give each test its own database
 
 The tests above share one file, so rows one test writes are still there in the
-next. To start every test from empty, migrated tables, copy the file you migrated
-above into the test's temporary directory and build the application on the copy:
+next. To start every test from empty, migrated tables, migrate a database in the
+test's temporary directory with the app's own migrations and build the
+application on it, as
+[`examples/notes/notes_tests/conftest.py`](https://github.com/caspel26/hinoki/blob/main/examples/notes/notes_tests/conftest.py) does:
 
 ```python
 # tests/conftest.py
-import shutil
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
-from hinoki import Hinoki
-from hinoki.project import manifest_routes
+from hinoki.db import Database
+from hinoki.orm import migrator
 from hinoki.testing import ASGIClient
 
+from notes.main import create_app
 from notes.settings import ProjectSettings
 
-TEMPLATE = Path(".hinoki/test.sqlite3")  # migrated once with the command above
+MIGRATIONS = Path(__file__).parents[1] / "notes" / "apps" / "notes" / "migrations"
 
 
 @pytest.fixture
 async def client(tmp_path: Path) -> AsyncIterator[ASGIClient]:
-    copy = tmp_path / "test.sqlite3"
-    shutil.copyfile(TEMPLATE, copy)
-    settings = ProjectSettings.load(overrides={"database": {"url": f"sqlite://{copy}"}})
-    app = Hinoki(settings=settings, include=manifest_routes())
-    async with ASGIClient(app) as client:
+    url = f"sqlite://{tmp_path / 'test.sqlite3'}"
+    database = await Database.connect(url, max_size=1)
+    await migrator.apply(database, MIGRATIONS)
+    database.close()
+    settings = ProjectSettings.load(overrides={"database": {"url": url}})
+    async with ASGIClient(create_app(settings)) as client:
         yield client
 ```
 
 A test takes `client` as an argument; whatever it writes is gone in the next
-test, and the template file is never modified. Run `migrations apply` on the
-template again after you add a migration. The copy works for SQLite files only.
+test. The migrations come from the app's own directory, so a new migration is
+picked up without extra steps. In a project with several apps, apply each app's
+migration directory in dependency order. The fixture builds SQLite files only.
+
+## Test email
+
+With `email: settings.EmailSettings` set to `backend=EmailBackend.MEMORY`, every sent message is kept in the worker's `mailer.outbox` and nothing leaves the process; `outbox` entries carry the `Message` and the rendered bytes. A sample test is in [send email](email.md#test-with-the-memory-backend). For SMTP behaviour use a fake server on `127.0.0.1` and synthetic `example.com` addresses. To test a template without sending, call `template.render(context)` (it returns the three parts) or run `hinoki mail preview`; see [email templates](email-templates.md).
 
 ## Catch undeclared errors
 
@@ -209,7 +224,7 @@ from notes.main import app
 
 async def test_events_arrive_one_by_one() -> None:
     async with ASGIClient(app) as client:
-        async with client.stream("GET", "/notes/events") as reply:
+        async with client.stream("GET", "/notes/events", token="t") as reply:
             assert reply.status == 200
             assert reply.headers["content-type"].startswith("text/event-stream")
             first = await anext(reply.chunks())

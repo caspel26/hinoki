@@ -54,6 +54,8 @@ If billing later references a model of another app, list that app in
 
 ```python
 # notes/apps/billing/models.py
+"""Models owned by this app."""
+
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -84,9 +86,9 @@ uv run hinoki migrations apply
 ```text
 database: sqlite:///…/notes/.hinoki/local.sqlite3 (from local SQLite default)
 create table billing_invoices
-wrote …/notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
+wrote notes/apps/billing/migrations/0001-create-table-billing-invoices.sql
 database: sqlite:///…/notes/.hinoki/local.sqlite3 (from local SQLite default)
-notes: nothing to apply
+entries: nothing to apply
 billing: 0001-create-table-billing-invoices
 ```
 
@@ -117,18 +119,32 @@ uv run pytest
 
 `notes/rules.py` keeps two model rules commented out:
 `Models.require_explicit_table` and `Models.require_foreign_key_index`.
-`hinoki check` sees only the models the application imports, and a model rule
-that matches no model is `unverifiable`, which fails the check. Turn them on
-(and import `Models`) once a billing route imports `Invoice`; then add
-`@db.table("billing_invoices")` above the class, or the check reports:
+`hinoki check` imports the models of every `[[apps]]` entry, so a project with
+no model at all would report them as `unverifiable`, which fails the check.
+Now that billing has `Invoice`, turn them on (and import `Models`):
 
-```text
-notes/apps/billing/models.py:10: HNK-DB-001 [violated] Invoice uses the derived table name 'billing_invoices'
-  fix: name the table with @db.table(...) or table=... on the model
+```python
+# notes/rules.py (excerpt)
+from hinoki import Actions, Models, Schemas, Transactions
+
+project_rules = RuleSet(
+    # …the rules the scaffold wrote…
+    Models.require_explicit_table(match="notes.*"),
+    Models.require_foreign_key_index(match="notes.*"),
+)
 ```
 
-Pinning the derived name changes no table: `migrations plan billing` then
-reports `no changes`.
+The check then reports the derived table name:
+
+```text
+notes/apps/billing/models.py:11: HNK-DB-001 [violated] Invoice uses the derived table name 'billing_invoices'
+  fix: name the table with @db.table(...) or table=... on the model
+10 rule(s): 1 violated, 0 unverifiable, 0 waived
+```
+
+Add `@db.table("billing_invoices")` above the class (the first line of its
+decorators) and the check passes. Pinning the derived name changes no table:
+`migrations plan billing` then reports `no changes`.
 
 Endpoints for billing go in `notes/apps/billing/api.py`, and `routes.py` lists
 them. The application in `notes/main.py` includes every app's list with
@@ -140,7 +156,6 @@ app never repeat the prefix:
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
@@ -149,11 +164,16 @@ app = Hinoki(
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-    rules=project_rules,
-)
+)  # the rules come from `rules` in hinoki.toml
 ```
 
-The project's rules require every action to name an
+`include=manifest_routes()` is the explicit form of what `Hinoki()` does by
+itself when you leave `include=` out, as the [Tracker](6-run.md) does; the
+scaffold writes it so the line shows where routes come from. The same manifest
+can also list project-wide `middleware`, an `events` module per app and more than
+one rule set (`rules`), as the Tracker's `hinoki.toml` does.
+
+The project's rules (listed in `hinoki.toml`) require every action to name an
 `Access` policy with permissions; build one as in [chapter 4](4-endpoints.md).
 
 ## Recap

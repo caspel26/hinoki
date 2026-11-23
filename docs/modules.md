@@ -35,14 +35,21 @@ class Passwords(Module):
             hasher.close()
 ```
 
-Install it on the application:
+Install it on the application. The rules come from `hinoki.toml`, so the call
+names only what is specific to this app:
 
 ```python
 # notes/main.py
+from hinoki import Hinoki
+from hinoki.project import manifest_routes
+
+from notes.passwords import Passwords
+from notes.settings import ProjectSettings
+
 app = Hinoki(
     settings=ProjectSettings,
+    include=manifest_routes(),
     title="Notes",
-    rules=project_rules,
     modules=[Passwords()],
 )
 ```
@@ -98,6 +105,10 @@ a module with `requires = (DatabaseModule,)` can call `ctx.get(Database)` in its
 lifespan. Declaring `DatabaseModule`, or a subclass of it, in `modules=` replaces
 the automatic one; modules that require `DatabaseModule` still start after it.
 See [database connection ownership](settings.md#8-database-connection-ownership).
+
+## The email module
+
+An `email: settings.EmailSettings` field installs `EmailModule` (from `hinoki.mail`) the same way: one `Mailer` per worker, opened in the lifespan and closed at shutdown, available as `ctx.get(Mailer)`, to `mail.send(...)` in handlers and hooks, and to commands that declare `requires = (EmailModule,)`. Declaring `EmailModule` in `modules=` replaces the automatic one. See [send email](email.md).
 
 ## Declare modules
 

@@ -41,7 +41,15 @@ project_rules = RuleSet(
 )
 ```
 
-`notes/main.py` passes the set to the application with `rules=project_rules`.
+`hinoki.toml` lists the set under `[project]`, and `Hinoki()` loads it (see
+[which rules run](#which-rules-run)):
+
+```toml
+[project]
+application = "notes.main:app"
+rules = ["notes.rules:project_rules"]
+```
+
 Check it at any time:
 
 ```sh
@@ -69,6 +77,20 @@ with `validate_response=False`: any other action with an unusable return
 annotation already stops the app. `HNK-TXN-001` does not check the admin's own
 routes, which open their own short transactions.
 
+## An opt-in rule: email templates
+
+`EmailTemplatesMatch()` (`HNK-MAIL-001`, phase `static`) is not in the table above and runs only when you put it in your `RuleSet`. It reads every registered [email template](email-templates.md) (the files included) and checks it against its context `Schema`, reporting one diagnostic per template that is refused. Because it reads files it declares the effect `files`, so `hinoki check` reports it as unverifiable unless you pass `--allow-effects`:
+
+```python
+from hinoki.rules import EmailTemplatesMatch, RuleSet
+
+rules = RuleSet(EmailTemplatesMatch())
+```
+
+```sh
+hinoki check --rules myproject.rules:rules --allow-effects
+```
+
 ## Choose what a rule covers
 
 Action rules match `fnmatch` patterns against an action's qualified name:
@@ -79,24 +101,29 @@ after the class it is mounted on), and `module.<Model>Crud.<action>` for a
 you say "public on purpose". The Blog example names its exceptions once:
 
 ```python
-# blog/rules.py
+# examples/blog/blog/rules.py
 PUBLIC = [
-    "blog.api.health",
-    "blog.api.Posts.listing",
-    "blog.api.Posts.one",
-    "blog.accounts.*.login",  # public on purpose: it is how you sign in
+    "blog.apps.blog.api.health",
+    "blog.apps.blog.api.Posts.listing",
+    "blog.apps.blog.api.Posts.one",
+    "blog.apps.blog.accounts.*.login",  # public on purpose: it is how you sign in
 ]
-SIGNED_IN = ["blog.accounts.*.me"]  # any signed-in user, no permission
+SIGNED_IN = ["blog.apps.blog.accounts.*.me"]  # any signed-in user, no permission
 
 blog_rules = RuleSet(
     Actions.require_access(match="blog.*", except_=PUBLIC),
     Actions.require_permissions(match="blog.*", except_=[*PUBLIC, *SIGNED_IN]),
-    Transactions.require_atomic(except_=["blog.accounts.*.login"]),
+    Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
     Schemas.forbid_exposure("token", "password_hash"),
-    Imports.forbid(source="blog.models", target="blog.api"),
-    # ... and the other six rules, see examples/blog/rules.py
+    Imports.forbid(source="blog.apps.blog.models", target="blog.apps.blog.api"),
+    # ... and the other six rules, see the file
 )
 ```
+
+Blog passes `blog_rules` and its waiver file to `Hinoki(...)` by hand. Tracker
+lists two sets in its manifest instead,
+`rules = ["tracker.rules:policy", "tracker.rules:layers"]`, and its
+`Hinoki(...)` call names no rules.
 
 The model rules match the model's *module* (`blog.*`) and report unverifiable
 when no model matches, even with `*`. In a project with `hinoki.toml`,
@@ -106,11 +133,33 @@ found without importing them from the application module. `require_access` and
 report unverifiable when a pattern other than `*` matches no action. Neither
 passes silently.
 
+## Which rules run
+
+The application's rules are, in this order of precedence:
+
+1. `Hinoki(rules=...)`, when you pass it. An explicit argument wins, even an
+   empty `RuleSet()`, and the manifest is not read for rules.
+2. The `[project] rules` list of `hinoki.toml`, when `rules=` is omitted and the
+   manifest's `project.application` names the module that builds the app.
+3. Otherwise none.
+
+`rules` is a list of `module:attribute` entries, each a `RuleSet`. The sets are
+merged in the order listed into one `RuleSet`, so the report keeps that order.
+The same rule (same id and summary) listed by two entries is a `ProjectError`
+naming both entries, never a silent override; rules that share an id but differ
+in their arguments, such as two `Imports.forbid(...)`, are different rules. An entry that does not import, is not a `RuleSet`, or
+a list of anything else is rejected the same way. You edit the list by hand;
+no command writes it. `manifest_rules()` (from `hinoki.project`) is the explicit
+form, for `Hinoki(rules=manifest_rules())` or a test.
+
+`hinoki check` and `hinoki mcp` run `--rules MODULE:ATTRIBUTE` when you give it
+and otherwise the app's own rules, which are the two sources above.
+
 ## When rules run
 
 | Where | Rules | Waivers | On failure |
 | --- | --- | --- | --- |
-| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of `rules=` | the [waiver file](#which-waiver-file) | startup fails with `RegistrationError` listing every failing diagnostic |
+| Application startup (`hinoki dev`, `hinoki serve`, any ASGI server, the test clients) | startup rules of the [application's rules](#which-rules-run) | the [waiver file](#which-waiver-file) | startup fails with `RegistrationError` listing every failing diagnostic |
 | `hinoki check` | both phases (or `--phase`) | the waiver file, or `--waivers` | exit code `1` |
 | `hinoki mcp` | both phases | the waiver file, or `--waivers` | reported to the agent |
 
@@ -227,17 +276,22 @@ applies `PATH` to the app that `run_scenario` starts.
 
 Application startup applies the waiver file the same way as `hinoki check`.
 This app requires access on every
-action, yet it starts and serves `/health` because the owner waived it:
+action, yet it starts and serves `/health` because the owner waived it. It
+passes `rules=` by hand, the explicit form, to keep the example in one file:
 
 ```python
 # shop/main.py
-from hinoki import Actions, Hinoki, Request, http
+from hinoki import Actions, Hinoki, Schema, http
 from hinoki.rules import RuleSet
 
 
+class Health(Schema):
+    status: str
+
+
 @http.get("/health")
-def health(request: Request) -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> Health:
+    return Health(status="ok")
 
 
 app = Hinoki(rules=RuleSet(Actions.require_access()), include=[health])

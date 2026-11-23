@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 from hinoki import core
 from hinoki.errors import ErrorDetail, ValidationError
@@ -41,6 +42,7 @@ class PageNumberPagination:
 
     page_size: int | None = None
     max_page_size: int | None = None
+    names: ClassVar[tuple[str, ...]] = ("page", "page_size")
 
     def __post_init__(self) -> None:
         if self.page_size is not None and self.max_page_size is not None:
@@ -131,11 +133,11 @@ class CursorPagination:
     """Strategy: ``?cursor=TOKEN&limit=N``, keyset pages with signed cursors.
 
     The cursor is signed with ``secret`` (at least 32 bytes) and bound to the
-    table and ordering of the query, so a changed or foreign token is a 422,
-    never a 500. It is signed, not encrypted: it carries the sort-key values of
-    the boundary row in readable form, so do not order by a column whose value
-    must stay private. Clients should treat it as opaque. ``ttl`` (seconds)
-    makes cursors expire. Anything left
+    table, the ordering and the client filters of the query, so a changed or
+    foreign token is a 422, never a 500. It is signed, not encrypted: it
+    carries the sort-key values of the boundary row in readable form, so do
+    not order by a column whose value must stay private. Clients should treat it
+    as opaque. ``ttl`` (seconds) makes cursors expire. Anything left
     out comes from the application's ``pagination`` settings when the action is
     included; values given here win."""
 
@@ -143,6 +145,7 @@ class CursorPagination:
     max_page_size: int | None = None
     secret: str | None = field(default=None, repr=False)
     ttl: int | None = None
+    names: ClassVar[tuple[str, ...]] = ("cursor", "limit")
 
     def __post_init__(self) -> None:
         if self.page_size is not None and self.max_page_size is not None:

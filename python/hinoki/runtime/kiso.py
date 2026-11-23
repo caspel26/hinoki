@@ -39,6 +39,7 @@ from hinoki import __version__, context, core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.http.stream import EventStream, Sourced
+from hinoki.mail import Mailer
 from hinoki.runtime import banner
 from hinoki.runtime.listener import inherited_address, open_listener, signal_ready
 from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_data
@@ -204,7 +205,11 @@ class KisoWorker:
         self.access_log_sink = access_log_sink
         self.server_timing = server_timing
         self.compression = compression
-        self.metrics = metrics
+        self.metrics = (
+            None
+            if metrics is None
+            else {**metrics, "events": app.events.metric_series()}
+        )
         self.lane: NativeLane | None = None
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
@@ -221,7 +226,8 @@ class KisoWorker:
         self._route_auth = {
             action: (access, route_auth_state(access))
             for action, binding in enumerate(self.pipeline.bindings)
-            if (access := claims_route_access(binding)) is not None
+            if (access := claims_route_access(binding, self.pipeline.events))
+            is not None
         }
         self.server: core.KisoServer | None = None
         self.address = (host, port)
@@ -285,7 +291,7 @@ class KisoWorker:
                 self.access_log_sink,
                 self.server_timing,
                 self.compression,
-                self.metrics,
+                self._metrics_with_email(),
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -297,6 +303,9 @@ class KisoWorker:
             await self._finish_lifespan()
             raise
         self.server = server
+        if self.metrics is not None:
+            self.pipeline.events.attach_metrics(server.event_metrics())
+            self._attach_mail_metrics(server)
         self.address = (self.host, server.port)
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
@@ -305,13 +314,29 @@ class KisoWorker:
         self.core.set_ready(True)
         return server.port
 
+    def _metrics_with_email(self) -> dict[str, object] | None:
+        """The metrics settings, with the mailer's backend once the lifespan
+        has opened it (the series are fixed when the server starts)."""
+        if self.metrics is None:
+            return None
+        mailer = self.pipeline.ctx.find(Mailer)
+        if mailer is None:
+            return self.metrics
+        return {**self.metrics, "email": mailer.backend.value}
+
+    def _attach_mail_metrics(self, server: core.KisoServer) -> None:
+        mailer = self.pipeline.ctx.find(Mailer)
+        recorder = server.mail_metrics()
+        if mailer is not None and recorder is not None:
+            mailer.attach_metrics(recorder)
+
     def _select_lane(self) -> NativeLane | None:
         """The native lane for the routes that prove eligible, once at startup."""
         if not self.native_dispatch:
             return None
         actions = set()
         for action, binding in enumerate(self.pipeline.bindings):
-            refusal = lane_refusal(binding)
+            refusal = lane_refusal(binding, self.pipeline.events)
             if refusal is None:
                 actions.add(action)
             log.debug(
@@ -400,7 +425,9 @@ class KisoWorker:
         self, action: int, held: tuple[Any, tuple[object, ...]]
     ) -> bool:
         try:
-            return route_auth_stale(self.pipeline.bindings[action], *held)
+            return route_auth_stale(
+                self.pipeline.bindings[action], *held, self.pipeline.events
+            )
         except Exception:
             return True
 
@@ -680,7 +707,9 @@ class KisoWorker:
     ) -> None:
         answer = handle.answer
         if not isinstance(answer, Sourced):
-            raise RuntimeError("only a sourced answer reaches the sink pump")
+            raise RuntimeError(
+                "only a sourced answer reaches the sink pump"
+            )  # pragma: no cover
         events = isinstance(answer, EventStream)
         sink = request.respond_stream(
             response.status,

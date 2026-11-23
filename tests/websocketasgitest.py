@@ -5,14 +5,25 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from hinoki import Hinoki, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, http
 from hinoki.runtime.asgi import ASGIAdapter
+from hinoki.settings import AppSettings
 
 
 @http.websocket("/echo/{name}", origins=["https://app.example"], max_message_bytes=8)
 async def echo(name: str, socket: http.WebSocket) -> None:
     async for message in socket:
         await socket.send_text(f"{name}:{message}")
+
+
+class Nobody(BearerAuth[str]):
+    def resolve_token(self, token: str) -> Caller[str] | None:
+        return None
+
+
+@http.websocket("/private", access=Access(Nobody()))
+async def private(socket: http.WebSocket) -> None:
+    raise AssertionError("an unauthenticated client must not reach the handler")
 
 
 @http.websocket("/boom")
@@ -41,9 +52,11 @@ class Peer:
         self.sent.append(event)
 
 
-async def run(peer: Peer, *incoming: dict[str, Any]) -> list[dict[str, Any]]:
-    app = Hinoki()
-    app.include(echo, boom)
+async def run(
+    peer: Peer, *incoming: dict[str, Any], settings: AppSettings | None = None
+) -> list[dict[str, Any]]:
+    app = Hinoki(settings=settings) if settings else Hinoki()
+    app.include(echo, boom, private)
     adapter = ASGIAdapter(app)
     for event in incoming:
         peer.inbox.put_nowait(event)
@@ -88,6 +101,34 @@ async def test_a_foreign_origin_is_refused_and_a_listed_one_accepted() -> None:
     assert accepted[0]["type"] == "websocket.accept"
 
 
+async def test_a_double_encoded_path_does_not_reach_another_route() -> None:
+    peer = Peer("/echo/..%2fprivate", [])
+    peer.scope["raw_path"] = b"/echo/..%252fprivate"
+    peer.scope["path"] = "/echo/..%2fprivate"
+    sent = await run(peer, connect(), {"type": "websocket.disconnect", "code": 1000})
+    assert sent[0]["type"] == "websocket.accept"
+    assert sent[1:] == []  # the handler saw one segment, not two
+
+
+async def test_the_origin_must_match_the_scheme_of_the_connection() -> None:
+    plain = Peer("/echo/a", [(b"origin", b"http://testserver")])
+    plain.scope["scheme"] = "wss"
+    assert [e["type"] for e in await run(plain, connect())] == ["websocket.close"]
+    secure = Peer("/echo/a", [(b"origin", b"https://testserver")])
+    secure.scope["scheme"] = "wss"
+    sent = await run(secure, connect(), {"type": "websocket.disconnect", "code": 1000})
+    assert sent[0]["type"] == "websocket.accept"
+
+
+async def test_a_host_the_application_does_not_allow_is_refused() -> None:
+    sent = await run(
+        Peer("/echo/a", []),
+        connect(),
+        settings=AppSettings(allowed_hosts=("api.example.com",)),
+    )
+    assert [event["type"] for event in sent] == ["websocket.close"]
+
+
 async def test_a_message_over_the_limit_closes_with_1009() -> None:
     sent = await run(Peer("/echo/a", []), connect(), text("x" * 9))
     assert sent[-1]["type"] == "websocket.close"
@@ -97,3 +138,14 @@ async def test_a_message_over_the_limit_closes_with_1009() -> None:
 async def test_a_failing_handler_closes_with_1011() -> None:
     sent = await run(Peer("/boom", []), connect())
     assert sent[-1]["code"] == 1011
+
+
+async def test_an_unauthenticated_client_is_refused_before_accept() -> None:
+    sent = await run(Peer("/private", []), connect())
+    assert [event["type"] for event in sent] == ["websocket.close"]
+    assert sent[0]["code"] == 1008
+
+
+async def test_a_client_that_leaves_before_connecting_gets_nothing() -> None:
+    sent = await run(Peer("/echo/a", []), {"type": "websocket.disconnect"})
+    assert sent == []

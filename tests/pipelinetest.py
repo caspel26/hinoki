@@ -1,6 +1,9 @@
 """The shared request pipeline, driven without the ASGI protocol."""
 
+import asyncio
 import json
+from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Annotated, Any
 
 import pytest
@@ -8,9 +11,13 @@ import pytest
 from hinoki import Field, Hinoki, Request, Schema, http
 from hinoki.db import UniqueViolation
 from hinoki.errors import Conflict
+from hinoki.http import Middleware, MiddlewareRequest, Next, Stream
+from hinoki.parsers import JSONParser
 from hinoki.runtime.executor import ExecutorSaturated
+from hinoki.runtime.inline import RequestDeadline
 from hinoki.runtime.pipeline import NativeBody, Pipeline, native_input_exception
 from hinoki.runtime.responses import Response
+from hinoki.settings import AppSettings, ExecutionSettings
 
 
 class FakeBody:
@@ -279,3 +286,245 @@ async def test_typed_body_lane_answers_like_the_ordinary_path(
     fast = await post_ticket(monkeypatch, raw, True)
     slow = await post_ticket(monkeypatch, raw, False)
     assert (fast.status, fast.body) == (slow.status, slow.body)
+
+
+RID = "r" * 32
+
+
+async def admission_status(
+    monkeypatch: pytest.MonkeyPatch, error: BaseException | None, params: Any
+) -> int:
+    built = pipeline()
+
+    async def refuse(*_args: Any, **_kwargs: Any) -> Any:
+        raise error  # type: ignore[misc]
+
+    if error is not None:
+        monkeypatch.setattr("hinoki.runtime.pipeline.run_inline", refuse)
+    route: Any = SimpleNamespace()
+    result = await built.admit_websocket(RID, route, scope("GET", "/ws"), params)
+    assert isinstance(result, Response)
+    return result.status
+
+
+async def test_a_websocket_handshake_that_cannot_be_judged_is_an_http_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert await admission_status(monkeypatch, None, None) == 400
+    assert await admission_status(monkeypatch, RequestDeadline(), {}) == 504
+    assert await admission_status(monkeypatch, ExecutorSaturated(), {}) == 503
+
+
+def test_a_saturated_native_handler_is_answered_without_a_coroutine() -> None:
+    answer = pipeline().native_failure_now(ExecutorSaturated(), RID)
+    assert answer is not None
+    assert answer.status == 503
+
+
+def test_a_crud_failure_is_answered_in_place_when_no_handler_can_await() -> None:
+    built = pipeline()
+    timeout = built.crud_failure_now(0, RID, ("timeout", "slow", None, None, None))
+    assert timeout is not None
+    assert timeout.status == 504
+    built.crud_plan_selections = [None]
+    lost = built.crud_failure_now(0, RID, ("not_found", "gone", None, None, None))
+    assert lost is not None
+    assert lost.status == 500  # a failure without a plan is a server error
+
+
+async def respond_with(status: int) -> Response:
+    return Response(status)
+
+
+async def fail_with(error: BaseException) -> Response:
+    raise error
+
+
+async def test_a_driven_handler_is_finished_under_the_remaining_timeout() -> None:
+    built = pipeline()
+    answered = await built.native_continue(RID, respond_with(200), 5.0)
+    assert answered.status == 200
+    late = await built.native_continue(RID, asyncio.sleep(5, Response(200)), 0.01)
+    assert late.status == 504
+    own = await built.native_continue(RID, fail_with(TimeoutError("upstream")), 5.0)
+    assert own.status == 500  # not our deadline: translated like any error
+    broken = await built.native_continue(RID, fail_with(ValueError("bad")), 5.0)
+    assert broken.status == 500
+
+
+async def test_a_cancelled_handler_only_unwinds_and_a_deadline_is_a_504() -> None:
+    built = pipeline()
+    done = await built.native_continue(RID, respond_with(201), None, "deadline")
+    assert done.status == 201
+    failed = await built.native_continue(
+        RID, fail_with(ValueError("cleanup")), None, "deadline"
+    )
+    assert failed.status == 500
+    cancelled = await built.native_continue(
+        RID, fail_with(asyncio.CancelledError()), None, "deadline"
+    )
+    assert cancelled.status == 504
+
+
+@pytest.mark.parametrize("reason", ["deadline", "shutdown"])
+async def test_a_cancellation_that_is_not_ours_to_absorb_is_reraised(
+    reason: str,
+) -> None:
+    built = pipeline()
+
+    async def cancelled_from_outside() -> Response:
+        task = asyncio.current_task()
+        assert task is not None
+        task.cancel()  # an outside cancellation, counted by the task
+        await asyncio.sleep(0)
+        raise AssertionError("unreachable")
+
+    async def runner() -> Response:
+        return await built.native_continue(RID, cancelled_from_outside(), None, reason)
+
+    task = asyncio.ensure_future(runner())
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert task.cancelled()
+
+
+def test_response_headers_that_cannot_be_hashed_are_still_shaped() -> None:
+    built = pipeline()
+    response = Response(200, b"x", [[b"x-list", b"1"]])  # type: ignore[list-item]
+    headers, has_allow_origin = built.shaped_headers(response, False)
+    assert (b"x-list", b"1") in headers
+    assert not has_allow_origin
+    assert not built.header_shapes  # an unhashable shape is not kept
+
+
+def test_a_preflight_for_an_undecodable_path_uses_the_application_policy() -> None:
+    @http.get("/shared", cors=http.Cors(origins=("https://p.example",)))
+    async def shared() -> dict[str, str]:
+        return {}
+
+    built = Pipeline(Hinoki(include=[shared]))
+    request = {"method": "OPTIONS", "path": "/shared", "raw_path": b"/sh\xffared"}
+    chosen = built._preflight_policy(
+        request,
+        {"access-control-request-method": "GET"},
+    )
+    assert chosen is built.cors
+
+
+def test_a_json_parser_with_extra_state_is_not_read_natively() -> None:
+    parser = JSONParser()
+    parser.extra = 1  # type: ignore[attr-defined]
+    param = SimpleNamespace(schema=Ticket, text=False)
+    assert Pipeline._typed_body(param, parser, b"{}") is None  # type: ignore[arg-type]
+
+
+class Through(Middleware):
+    async def __call__(self, request: MiddlewareRequest, call_next: Next) -> Any:
+        return await call_next()
+
+
+class Replace(Middleware):
+    async def __call__(self, request: MiddlewareRequest, call_next: Next) -> Any:
+        await call_next()
+        return Stream(pieces())
+
+
+async def pieces() -> AsyncIterator[bytes]:
+    yield b"new"
+
+
+@http.get("/replaced", middleware=[Replace()])
+async def replaced() -> dict[str, str]:
+    return {"ok": "plain"}
+
+
+@http.get("/maybe")
+async def maybe() -> Stream | dict[str, str]:
+    return {"ok": "plain"}
+
+
+async def serve_replaced(max_streams: int = 8) -> tuple[Pipeline, Response]:
+    app = Hinoki(
+        settings=AppSettings(execution=ExecutionSettings(max_streams=max_streams))
+    )
+    app.include(replaced)
+    built = Pipeline(app)
+    built.lifespan._started = True
+    return built, await built.handle(scope("GET", "/replaced"), FakeBody(b""))
+
+
+async def test_a_stream_a_middleware_creates_takes_a_place_of_its_own() -> None:
+    _built, response = await serve_replaced()
+    assert response.stream is not None
+    assert response.stream.lease is not None
+    response.stream.release()
+
+
+async def test_a_full_worker_refuses_a_stream_a_middleware_creates() -> None:
+    app = Hinoki(settings=AppSettings(execution=ExecutionSettings(max_streams=1)))
+    app.include(replaced)
+    built = Pipeline(app)
+    built.lifespan._started = True
+    held = built.streams.lease()
+    assert held is not None
+    response = await built.handle(scope("GET", "/replaced"), FakeBody(b""))
+    assert response.status == 503
+    held.release()
+
+
+async def test_the_place_is_given_back_when_a_created_stream_cannot_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = Hinoki(settings=AppSettings(execution=ExecutionSettings(max_streams=1)))
+    app.include(replaced)
+    built = Pipeline(app)
+    built.lifespan._started = True
+
+    async def broken(_answer: object) -> Response:
+        raise RuntimeError("cannot start")
+
+    monkeypatch.setattr(built, "_stream_response", broken)
+    response = await built.handle(scope("GET", "/replaced"), FakeBody(b""))
+    assert response.status == 500
+    again = built.streams.lease()
+    assert again is not None  # the single place was released
+    again.release()
+
+
+async def test_an_action_that_may_stream_gives_its_place_back_when_it_does_not() -> (
+    None
+):
+    app = Hinoki(settings=AppSettings(execution=ExecutionSettings(max_streams=1)))
+    app.include(maybe)
+    built = Pipeline(app)
+    built.lifespan._started = True
+    for _ in range(2):  # a leaked place would turn the second answer into a 503
+        response = await built.handle(scope("GET", "/maybe"), FakeBody(b""))
+        assert response.status == 200
+
+
+@http.get("/wrapped", middleware=[Through()])
+async def wrapped() -> Stream:
+    return Stream(pieces())
+
+
+async def test_a_saturated_executor_is_a_503_even_through_middleware(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built = Pipeline(Hinoki(include=[wrapped]))
+    built.lifespan._started = True
+
+    async def full(*_args: Any) -> Response:
+        raise ExecutorSaturated
+
+    monkeypatch.setattr(built, "_dispatch_request", full)
+    response = await built.handle(scope("GET", "/wrapped"), FakeBody(b""))
+    assert response.status == 503
+
+
+async def test_a_stream_returned_through_middleware_is_kept_as_a_stream() -> None:
+    built = Pipeline(Hinoki(include=[wrapped]))
+    built.lifespan._started = True
+    response = await built.handle(scope("GET", "/wrapped"), FakeBody(b""))
+    assert response.stream is not None
+    response.stream.release()

@@ -13,23 +13,26 @@ related:
 
 ```python
 # notes/main.py
-from hinoki import Hinoki, http
+from hinoki import Hinoki, Schema, http
 from hinoki.settings import AppSettings, MetricsSettings
+
+
+class Note(Schema):
+    id: int
+
+
+@http.get("/notes/{note_id}")
+async def note(note_id: int) -> Note:
+    return Note(id=note_id)
+
 
 app = Hinoki(
     settings=AppSettings(
         allowed_hosts=("localhost", "127.0.0.1"),
         metrics=MetricsSettings(listen="127.0.0.1:9100"),
-    )
+    ),
+    include=[note],
 )
-
-
-@http.get("/notes/{note_id}")
-async def note(note_id: int) -> dict[str, int]:
-    return {"id": note_id}
-
-
-app.include(note)
 ```
 
 Run `hinoki serve notes.main:app --server kiso --port 8765`, request `/notes/1`, `/notes/2` and `/nope`, then scrape `http://127.0.0.1:9100/metrics`. The lines for those requests (comments and the other families left out) are:
@@ -37,8 +40,9 @@ Run `hinoki serve notes.main:app --server kiso --port 8765`, request `/notes/1`,
 ```text
 hinoki_http_requests_total{route="/notes/{note_id}",method="GET",status="2xx",worker="0"} 2
 hinoki_http_requests_total{route="",method="GET",status="4xx",worker="0"} 1
-hinoki_http_response_bytes_total{route="/notes/{note_id}",worker="0"} 16
 hinoki_http_requests_in_flight{worker="0"} 0
+hinoki_http_response_bytes_total{route="/notes/{note_id}",worker="0"} 16
+hinoki_http_response_bytes_total{route="",worker="0"} 69
 ```
 
 The application's own port answers `/metrics` like any other unknown path (`404`).
@@ -54,6 +58,11 @@ Every sample carries a `worker` label: the number of the process that counted it
 | `hinoki_http_requests_in_flight` | gauge | none | Requests the backend has not answered yet |
 | `hinoki_http_response_bytes_total` | counter | `route` | Body bytes handed to the connection, after compression |
 | `hinoki_http_errors_total` | counter | `route`, `kind` | `invalid_response`: the backend's answer could not be sent as given and became a `500`. `stream_aborted`: a stream failed after its head |
+| `hinoki_events_total` | counter | `event`, `phase`, `outcome` | [Event handler](events.md#metrics) runs. `outcome` is `ok`, `error` or `timeout` |
+| `hinoki_event_handler_duration_seconds` | histogram | `event`, `phase` | Time a handler ran, whatever its outcome |
+| `hinoki_email_messages_total` | counter | `backend`, `outcome` | [Email](email.md) sends. `outcome` is `sent` or the error kind (`invalid_address`, `invalid_header`, `invalid_message`, `limit_exceeded`, `closed`, `busy`, `connect`, `timeout`, `tls`, `auth`, `rejected`, `temporary`, `protocol`, `template`). `template` counts a `Template.message` that could not be rendered while a mailer is current (`Template.render` alone counts nothing, it is not a send); startup and compile failures are not sends and are not counted |
+| `hinoki_email_send_duration_seconds` | histogram | `backend` | Time of a `send`, whatever its outcome |
+| `hinoki_email_retries_total` | counter | `backend` | Delivery attempts made again after a transient failure |
 | `hinoki_build_info` | gauge | `version`, `server` | Always `1` |
 | `hinoki_worker_start_time_seconds` | gauge | none | Start of the worker, in Unix seconds |
 | `hinoki_metrics_snapshot_errors_total` | counter | none | Snapshots of other workers that were unreadable, too large or not valid UTF-8 |
@@ -64,6 +73,36 @@ Every sample carries a `worker` label: the number of the process that counted it
 * Bytes are counted as the pieces are handed to the connection: a stream's pieces one by one, a `File` as it is read, a compressed body at its compressed size. A `HEAD` counts none. The exposition itself is never compressed and never counted.
 
 The duration buckets are `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10` seconds. Set `metrics.buckets` to change them.
+
+## Event handlers
+
+The two event families exist only when the application registers [event handlers](events.md). Their series are created at startup, one per registered (event, phase) pair (`Created[Note]`, `after_commit`), in a fixed table in Rust; Python records each run with one call that adds to a counter and a histogram bucket, so nothing grows with traffic and no label comes from a payload. The histogram uses the same buckets as the request duration. A series with no run yet is not printed. Handler runs of events emitted inside a request, a startup hook or a command are all counted by the worker that ran them, under the same `worker` label; the table is built from the handlers of the Hinoki application served by the ASGI path of Kiso; Kiso's WSGI mode records none.
+
+Example from a real run (three emits of an event with an `ok`, a failing and a timed-out handler, `events.handler_timeout=0.05`):
+
+```text
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="ok",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="error",worker="0"} 3
+hinoki_events_total{event="NoteSaved",phase="after_commit",outcome="timeout",worker="0"} 3
+hinoki_event_handler_duration_seconds_bucket{event="NoteSaved",phase="after_commit",le="0.05",worker="0"} 6
+hinoki_event_handler_duration_seconds_bucket{event="NoteSaved",phase="after_commit",le="0.1",worker="0"} 9
+hinoki_event_handler_duration_seconds_sum{event="NoteSaved",phase="after_commit",worker="0"} 0.153349
+hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commit",worker="0"} 9
+```
+
+Measured cost of recording on one Apple-silicon laptop (an `after_commit` handler that returns at once, 200,000 emits per sample, 15 interleaved samples per variant, medians over three runs): about 3.3 µs per emit with metrics off and 3.4 to 3.5 µs with them on, that is roughly 50 to 110 ns (about 2 %) more; the extension was a debug build. A handler that does real work makes the share smaller.
+
+## Email
+
+The three email families exist only when the application has an [email module](email.md) (an `email: settings.EmailSettings` field). The `backend` label is `smtp`, `console` or `memory` and every `outcome` series is created at startup, so no recipient, subject, host or error text becomes a label; a series with no send yet is not printed, except the retries counter. The send duration uses the same buckets as the request duration. Example from a real run of one send with the `memory` backend:
+
+```text
+hinoki_email_messages_total{backend="memory",outcome="sent",worker="0"} 1
+hinoki_email_send_duration_seconds_count{backend="memory",worker="0"} 1
+hinoki_email_retries_total{backend="memory",worker="0"} 0
+```
+
+Without metrics, or under Granian, `Mailer.stats()` still counts sent and failed messages, retries and connections per worker.
 
 ## Settings
 

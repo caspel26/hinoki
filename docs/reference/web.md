@@ -27,6 +27,14 @@
 
 ::: hinoki.project.manifest_routes
 
+::: hinoki.project.manifest_events
+
+::: hinoki.project.manifest_middleware
+
+::: hinoki.project.manifest_rules
+
+`Hinoki()` loads the routes, events, middleware and rules of `hinoki.toml` by
+itself; call these functions only to pass the same lists by hand.
 For model-backed route generation, see [Generate CRUD routes](../crud.md) and
 the [CRUD API reference](crud.md).
 
@@ -99,6 +107,20 @@ The types are available from `hinoki.http`, from `hinoki`, or from their modules
 ::: hinoki.errors.ObjectNotFound
 
 ::: hinoki.errors.ErrorRegistry
+
+## Middleware
+
+A project-wide middleware subclasses `Middleware`; see the [middleware
+guide](../middleware.md). List it in `middleware` of `[project]` in `hinoki.toml`
+or pass `middleware=[...]` to `Hinoki`.
+
+::: hinoki.http.Middleware
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.http.MiddlewareRequest
+    options:
+      show_if_no_docstring: true
 
 ## Rate limits
 

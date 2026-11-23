@@ -29,6 +29,9 @@ uv run hinoki migrations apply
 | Inspect | `hinoki check` | Run the architecture rules. | [Inspect](inspect.md#check) |
 | | `hinoki doctor` | Environment, manifest and app diagnostics. | [Inspect](inspect.md#doctor) |
 | | `hinoki routes` | Every route with its access policy and server lane. | [Inspect](inspect.md#routes) |
+| | `hinoki events` | Every event handler in execution order, the event limits and the apps' `events` targets. | [Inspect](inspect.md#events) |
+| | `hinoki mail check` | Read and check every registered email template against its context. | [Email templates](email-templates.md#checked-at-startup) |
+| | `hinoki mail preview NAME` | Render one registered email template from a sample or a JSON context, without sending. | [Email templates](email-templates.md#preview) |
 | | `hinoki settings` | Effective settings and their sources, secrets redacted. | [Inspect](inspect.md#settings) |
 | | `hinoki openapi` | Print, write or diff the OpenAPI document. | [Inspect](inspect.md#openapi) |
 | | `hinoki version` | The Hinoki version; `--verbose` adds Python, platform, native core and Granian. | [Inspect](inspect.md#version) |
@@ -79,7 +82,7 @@ On a colour terminal, `doctor`, `check` and `routes` print a coloured report: a 
 
 ## `app` {#app}
 
-The generated `hinoki.toml` registers no app unless `hinoki new` created one (the last question in a terminal, or `--app NAME`): the project package keeps `main.py`, settings, rules and the health route, and models live in apps. Create each one with:
+The generated `hinoki.toml` registers no app unless `hinoki new` created one (the last question in a terminal, or `--app NAME`): the project package keeps `main.py`, settings, rules and the health route, and models live in apps. It lists the generated rules in `[project] rules = ["NAME.rules:project_rules"]`, so `main.py` passes no `rules=`. Create each one with:
 
 ```sh
 uv run hinoki app create billing
@@ -89,7 +92,7 @@ This creates `NAME/apps/billing/{models.py,routes.py,migrations/}` and registers
 
 Both commands report `hinoki.toml`: `hinoki new` lists it among the generated files and `app create` says it registered the app there.
 
-`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
+`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. `app create` writes no events module: to add one, create the module yourself and use `app add --events` or the app's `events` key (see [Events](events.md#declaring-handlers-in-hinokitoml)). Middleware and rules are project-wide lists in the `[project]` table that you edit by hand (see [Middleware](middleware.md#declaring-middleware-in-hinokitoml) and [Rules](rules.md#which-rules-run)). In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
 
 To register a package that already exists, name its modules. Nothing is created or imported; only `hinoki.toml` changes:
 
@@ -98,7 +101,7 @@ uv run hinoki app add billing --models legacy.billing.models
 uv run hinoki app add invoices --models legacy.invoices.models --migrations legacy.db.invoices --routes legacy.invoices.routes:routes --prefix /invoices --requires billing
 ```
 
-`--migrations` defaults to the `migrations` package next to the models module (`legacy.billing.migrations`); a models module without a parent package needs it explicitly. `--prefix` defaults to `/NAME` once `--routes` is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic `--requires`, or a malformed module name leaves `hinoki.toml` untouched and exits 2. Whether the modules import is checked later, when a command such as `hinoki migrations plan` loads the app.
+`--migrations` defaults to the `migrations` package next to the models module (`legacy.billing.migrations`); `--events module:attribute` registers the app's event `Handlers`; a models module without a parent package needs it explicitly. `--prefix` defaults to `/NAME` once `--routes` is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic `--requires`, or a malformed module name leaves `hinoki.toml` untouched and exits 2. Whether the modules import is checked later, when a command such as `hinoki migrations plan` loads the app.
 
 List the registered apps from the project root or any subdirectory:
 
@@ -107,7 +110,7 @@ uv run hinoki app list
 uv run hinoki app list --format json
 ```
 
-The text output shows each app in dependency order with its model module, migration package, routes and prefix, and prerequisites. JSON contains the same fields under an `apps` key (`routes` and `prefix` are empty strings for an app without routes). The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
+The text output shows each app in dependency order with its model module, migration package, routes and prefix, the `events` target when set, and prerequisites. JSON contains the same fields under an `apps` key (`routes` and `prefix` are empty strings for an app without routes; `events` is an empty string when unset). The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
 
 ## `admin` {#admin}
 
@@ -208,7 +211,7 @@ uv run hinoki manage greet Peppe
 Commands are declared on the app with `Hinoki(commands=[...])`. Each command subclasses `hinoki.management.Command`, gives itself a lower-case name, and adds arguments through `add_arguments(parser)`. In a scaffolded project, `hinoki manage` lists commands and `hinoki manage greet Peppe` runs one; the manifest's `project.application` supplies the app target. Outside a registered project, use `hinoki manage TARGET COMMAND`. `--help` after a command shows its arguments.
 
 ```python
-# examples/project/app.py
+# app.py, with `application = "app:app"` in hinoki.toml
 from argparse import ArgumentParser, Namespace
 
 from hinoki import Hinoki
@@ -229,8 +232,10 @@ class Greet(Command):
 app = Hinoki(commands=[Greet])
 ```
 
-The same example is in `examples/project/app.py`; the examples manifest supplies
-its target when you run the command from the `examples/` project directory.
+The Tracker example declares a real command, `Seed`, in
+[`examples/tracker/tracker/commands.py`](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/commands.py);
+`uv run hinoki manage seed` creates a demo member from its directory, after
+`uv run hinoki migrations apply`.
 
 `handle(context, args)` may be synchronous or asynchronous. A sync handler runs on Hinoki's bounded executor. It can read `context.settings` and retrieve resources with `context.get(Type)` or `context.find(Type)`. Declare module classes in the command's `requires` tuple; Hinoki starts those modules and their dependencies for the command, then closes them before it exits. Other app modules are not started. A command with no requirements starts no app modules.
 

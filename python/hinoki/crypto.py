@@ -242,7 +242,9 @@ class JWTAuth[T](BearerAuth[T]):
             return None
         try:
             claims = core.decode_json(payload)
-        except ValueError:
+        except (
+            ValueError
+        ):  # pragma: no cover - the verifier already rejects these payloads
             log.debug("token rejected: payload is not decodable")
             return None
         found: Caller[T] | None = await call_hook(self.resolve_claims, claims)

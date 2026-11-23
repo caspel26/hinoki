@@ -156,6 +156,8 @@ routes: list[Includable] = [
 ]
 ```
 
+To let clients filter, order and search the generated list, pass a `FilterSet` as `filters=InvoiceFilters` to `@crud(...)` or to the value form. The class then may define `filter_queryset(self, query, params: InvoiceFilters, principal)`, which runs after `get_queryset` and the client's filters, so it can only narrow further; see [filter, order and search the list](crud.md#filter-order-and-search-the-list). The Tracker example's [`Tasks` class](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/api.py) combines `filters=`, `owner=`, a `get_queryset` scope, a `remove` hook and a handwritten `complete` action.
+
 ## One instance per request
 
 Hinoki creates the class with no arguments for every request and calls the method on that instance. Keep `self` empty:

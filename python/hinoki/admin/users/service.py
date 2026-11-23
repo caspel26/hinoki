@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from hinoki.admin.parts import Refusal
-from hinoki.admin.users.limits import LoginWindow
+from hinoki.admin.users.limits import LoginWindow, UserBackoff
 from hinoki.admin.users.models import AdminGrant, AdminSession, AdminUser
 from hinoki.crypto import PasswordHasher
 from hinoki.orm.context import current_database
@@ -51,6 +51,7 @@ class AdminAccounts:
         self.hasher = hasher or PasswordHasher()
         self.clock = clock
         self.decoy_hash: str | None = None
+        self.backoff = UserBackoff()
 
     def bind(self, settings: AdminSettings) -> None:
         """Take the app's session and password rules unless given at construction."""
@@ -135,13 +136,16 @@ class AdminAccounts:
         """The active user when the password matches, else ``None``. The same work
         is done for an unknown name, so timing does not say who exists."""
         name = username.strip().lower()
+        self.backoff.check(name)
         user = None
         if len(password.encode()) <= MAX_PASSWORD_BYTES:
             user = await AdminUser.aget_or_none(username=name)
         stored = user.password_hash if user is not None else self.decoy
         genuine = await self.hasher.verify(password, stored)
         if user is None or not genuine or not user.is_active:
+            self.backoff.failed(name)
             return None
+        self.backoff.succeeded(name)
         return user
 
     # -- sessions --------------------------------------------------------------

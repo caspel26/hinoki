@@ -44,7 +44,10 @@ def create_app(
 
 
 def _create_app_locked(
-    name: str, manifest_path: Path, prefix: str, requires: tuple[str, ...]
+    name: str,
+    manifest_path: Path,
+    prefix: str,
+    requires: tuple[str, ...],
 ) -> Path:
     """Re-read and update the manifest while holding its process lock."""
     manifest = load_manifest(manifest_path)
@@ -268,6 +271,7 @@ def _app_block(
     routes: str,
     prefix: str,
     requires: tuple[str, ...],
+    events: str = "",
 ) -> str:
     lines = [
         "[[apps]]",
@@ -277,6 +281,8 @@ def _app_block(
     ]
     if routes:
         lines.append(f"routes = {jsontext.toml_value(routes)}")
+    if events:
+        lines.append(f"events = {jsontext.toml_value(events)}")
     if prefix:
         lines.append(f"prefix = {jsontext.toml_value(prefix)}")
     lines.append(f"requires = {jsontext.toml_value(list(requires))}")
@@ -305,7 +311,7 @@ def _append_block(path: Path, original: bytes, block: str) -> None:
         raise
 
 
-def register_app(
+def register_app(  # noqa: PLR0913 - one keyword per manifest key
     name: str,
     *,
     models: str,
@@ -313,6 +319,7 @@ def register_app(
     routes: str = "",
     prefix: str = "",
     requires: tuple[str, ...] = (),
+    events: str = "",
     start: Path | None = None,
 ) -> Path:
     """Register an existing package as an app without creating any file."""
@@ -328,6 +335,7 @@ def register_app(
             routes=routes,
             prefix=prefix,
             requires=requires,
+            events=events,
         )
         try:
             _append_block(manifest.path, manifest.path.read_bytes(), block)
@@ -368,6 +376,9 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
         help="dotted migrations package (default: next to the models module)",
     )
     add.add_argument("--routes", default="", help="module:attribute of the routes")
+    add.add_argument(
+        "--events", default="", help="module:attribute of the app's Handlers"
+    )
     add.add_argument("--prefix", default="", help="mount prefix (default: /NAME)")
     add.add_argument(
         "--requires", default="", help="comma-separated apps this one depends on"
@@ -396,6 +407,7 @@ def list_apps(args: Namespace) -> int:
                 "routes": app.routes,
                 "prefix": app.prefix or (f"/{app.name}" if app.routes else ""),
                 "requires": list(app.requires),
+                "events": app.events,
             }
             for app in apps
         ]
@@ -410,9 +422,14 @@ def list_apps(args: Namespace) -> int:
             f"  models: {app.models}\n"
             f"  migrations: {app.migrations}\n"
             f"{_routes_line(app)}"
+            f"{_events_line(app)}"
             f"  requires: {', '.join(app.requires) or '—'}"
         )
     return 0
+
+
+def _events_line(app: ProjectApp) -> str:
+    return f"  events: {app.events}\n" if app.events else ""
 
 
 def _routes_line(app: ProjectApp) -> str:
@@ -462,6 +479,7 @@ def add_app(args: Namespace) -> int:
         models=args.models,
         migrations=args.migrations,
         routes=args.routes,
+        events=args.events,
         prefix=args.prefix,
         requires=tuple(item for item in args.requires.split(",") if item),
     )

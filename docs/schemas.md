@@ -195,13 +195,15 @@ document marks the schema `additionalProperties: true`.
 ```python
 from hinoki import http
 
+from notes.security import reader  # an `Access` policy
+
 
 class Envelope[T](Schema):
     data: T
     count: int = 0
 
 
-@http.get("/me")
+@http.get("/me", access=reader)
 async def me() -> Envelope[CustomerOut]:
     return Envelope[CustomerOut](data=CustomerOut(display_name="Ada"))
 ```

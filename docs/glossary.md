@@ -24,12 +24,14 @@ One word, one meaning. "Schema" has four meanings in this field, so the docs kee
 | --- | --- |
 | Hinoki | 檜, the Japanese cypress of temples: fragrant, durable wood. |
 | Kiso | Hinoki's Rust server, named after the Kiso Valley (Nagano, Japan), known for its hinoki forests such as Akasawa. |
+| mailer | The per-worker email resource (`hinoki.mail.Mailer`): it owns the SMTP connection pool, is opened in the worker's lifespan and closed at shutdown. |
+| email template | A `hinoki.mail.Template`: a subject, HTML and optional text in a small fixed language, checked against a context `Schema` and rendered in Rust. Not an admin template or an HTML page. |
 
 ## Projects and apps
 
 | Term | Meaning |
 | --- | --- |
-| manifest | `hinoki.toml`: the project's application, its apps, their prefixes and dependencies. |
+| manifest | `hinoki.toml`: the project's application, its project-wide routes, middleware and rules, and its apps with their routes, events, prefixes and dependencies. |
 | project application | The `Hinoki` object named by `project.application` (`notes.main:app`); the one a server process serves. |
 | app | A package listed under `[[apps]]`: models, migrations and a `routes.py`. Not a second `Hinoki` object. |
 | app prefix | The path an app's routes are mounted under, set only in `hinoki.toml` (`/billing`). |

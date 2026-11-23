@@ -9,7 +9,7 @@ related:
 
 # OpenAPI document
 
-`Hinoki.openapi()` builds an OpenAPI 3.1 document from the routes registered with the app. Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.
+`Hinoki.openapi()` builds an OpenAPI 3.2 document from the routes registered with the app (3.1 on request, see [the document version](#the-document-version)). Paths, parameters, request bodies, response schemas, declared errors and supported authentication schemes come from the action declarations and type annotations.
 
 Generate the document from the application without starting a server:
 
@@ -30,34 +30,50 @@ All three URLs are disabled by default. Set `openapi_url` to serve JSON; add `do
 from hinoki import Hinoki
 from hinoki.project import manifest_routes
 
-from notes.rules import project_rules
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
     include=manifest_routes(),
-    rules=project_rules,
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 ```
 
-The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` settings provide the same defaults. A viewer requires `openapi_url`. `Hinoki(...)` arguments override settings; passing `None` disables a page. The packaged viewers work without a CDN.
+The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` settings provide the same defaults. A viewer requires `openapi_url`. `Hinoki(...)` arguments override settings; passing `None` disables a page. The packaged viewers (Swagger UI 5.35.1 and ReDoc 3.2.0, which read OpenAPI 3.2 and list `QUERY` operations) work without a CDN; ReDoc 3 is loaded as a JavaScript module with its usage reporting turned off.
 
 The generated OpenAPI document, Swagger UI, ReDoc and their assets answer `HEAD` with the same status and representation headers as `GET`, without a response body. Each request still has its own request ID in the configured response header (`x-request-id` by default).
 
+## The document version
+
+The `openapi` field is `3.2.0` by default. `Hinoki(openapi_version="3.1")` or the `docs.openapi_version` setting (`"3.1"` or `"3.2"`) writes a `3.1.0` document instead; any other value raises `ValueError`. `hinoki openapi` and the served document follow the application's choice. The version changes one thing: where a `QUERY` action is written. Every other operation, schema and component is the same in both.
+
+```python
+from hinoki import Hinoki
+
+app = Hinoki(openapi_version="3.1")  # keep a 3.1 document for a 3.1-only consumer
+```
+
+OpenAPI 3.2.0 was checked against the bundled and current readers; use `"3.1"` for a consumer that only reads 3.1. `@apidevtools/swagger-parser` 13.1.0, for one, rejects every 3.2.0 document, and `openapi-typescript` 7.13.0 reads a 3.2 document but leaves its `query` operations out.
+
 ## QUERY operations
 
-The document is OpenAPI 3.1, which has no field for the `QUERY` method (OpenAPI 3.2 adds `query`). An action declared with `@http.query` is therefore written under the path item's `x-query` extension field, with the same operation object as any other method: operation ID, parameters, request body, responses and security. The document stays valid 3.1.
+An action declared with `@http.query` is written under the path item's `query` field in a 3.2 document (Path Item Object, [OpenAPI 3.2.0 section 4.9](https://spec.openapis.org/oas/v3.2.0.html#path-item-object)), with the same operation object as any other method: operation ID, parameters, request body, responses and security.
 
-Tools that only read the standard method fields do not see these operations: Swagger UI and ReDoc do not list them, and a client generator skips them unless it is told about `x-query`. The application MCP and `explain_action` read the field.
+```json
+{"paths": {"/search": {"get": {"operationId": "search_page"}, "query": {"operationId": "search"}}}}
+```
+
+With `openapi_version="3.1"` there is no such field, so the same operation object is written under the `x-query` extension instead and the document stays valid 3.1. A 3.1 document with a `query` field would be invalid, and a 3.2 document never carries both, because the two entries would repeat the `operationId`.
+
+Readers of a 3.1 document that look only at the standard method fields do not see `x-query` operations. The application MCP, `explain_action` and `hinoki openapi --breaking-against` read both fields, so a baseline written as 3.1 compares correctly with a 3.2 document.
 
 ## What is generated
 
 * A unique `operationId` is derived from the handler's qualified name. If names collide, Hinoki appends a numeric suffix.
 * The first line of the handler docstring becomes `summary`; the remaining lines become `description`.
-* Path, query and pagination parameters come from the bound handler signature. Body fields and successful response fields come from `Schema` annotations. Parser and renderer media types supply the content types.
+* Path, query and pagination parameters come from the bound handler signature. A list with [`filters=`](crud.md#filter-order-and-search-the-list) documents one typed query parameter per filter: `boolean`, `integer`, `number` or `string` schemas (with `format` for dates, instants, UUIDs and decimals, and an `enum` for a `Literal`), `name.from` and `name.to` for a `Range`, `name.null` for a nullable field, a comma-separated array (`style: form`, `explode: false`, `maxItems`) for `In`, `search` with its length limit, and `ordering` as an array whose `enum` is each declared key and its `-` form. The same parameters appear in 3.1 and 3.2 documents. Body fields and successful response fields come from `Schema` annotations. Parser and renderer media types supply the content types.
 * Typed `UploadedFile` parameters generate a `multipart/form-data` request body with binary file properties. Repeated files use an array of binary items; optional single-file bindings are not required in the body or property list. Text keys read dynamically through `request.POST` are not inferred or listed.
 * A declared `errors=(...)` adds response entries for those `APIError` classes. Request binding and schema validation errors are documented as `422` where the action has request inputs.
 * `access=...` adds a security requirement when its authentication provider supplies an OpenAPI scheme. Authentication responses are included in the operation.
@@ -109,23 +125,32 @@ async def get_task(task_id: UUID) -> TaskOutput:
 `include_in_schema`, `tags`, `deprecated` and `operation_id` are options of `@http.get`, `post`, `put`, `patch`, `delete` and `query`:
 
 ```python
-from hinoki import Access, Hinoki, http
+from hinoki import Access, Hinoki, Schema, http
+
+from notes.security import staff_auth  # any authentication provider
 
 admin_only = Access(auth=staff_auth, permissions=["ops:run"])
 
 
+class Started(Schema):
+    status: str
+
+
+class Totals(Schema):
+    tasks: int
+
+
 @http.get("/ops/reindex", access=admin_only, include_in_schema=False)
-async def reindex() -> dict[str, str]:
-    return {"status": "started"}
+async def reindex() -> Started:
+    return Started(status="started")
 
 
-@http.get("/v1/tasks", tags=["tasks"], deprecated=True, operation_id="listTasksV1")
-async def list_tasks() -> list[str]:
-    return []
+@http.get("/v1/totals", tags=["tasks"], deprecated=True, operation_id="totalsV1")
+async def totals() -> Totals:
+    return Totals(tasks=0)
 
 
-app = Hinoki()
-app.include(reindex, list_tasks)
+app = Hinoki(include=[reindex, totals])
 ```
 
 * `include_in_schema=False` leaves the action out of `Hinoki.openapi()`, `hinoki openapi` and `/openapi.json`. The action is still registered, served and protected by its `Access` exactly as before: leaving it out neither hides it from a caller who knows the path nor authorizes anything. A path whose actions are all left out is not listed, and a `Schema` or security scheme used only by left-out actions does not appear under `components`.
@@ -141,19 +166,23 @@ app.include(reindex, list_tasks)
 ```python
 from datetime import date
 
-from hinoki import http
+from hinoki import Schema, http
 
 
-@http.get("/v1/tasks", deprecated=date(2026, 11, 22))
-async def list_tasks_v1() -> list[str]:
-    return []
+class Totals(Schema):
+    tasks: int
+
+
+@http.get("/v1/totals", deprecated=date(2026, 11, 22))
+async def totals_v1() -> Totals:
+    return Totals(tasks=0)
 ```
 
 `deprecated` takes `True`, `False` or the `datetime.date` the action was deprecated on (a `datetime` is refused). It does three things:
 
 * The document marks the operation `deprecated: true`.
 * Every response, success or error, carries a `Deprecation` header: `@<unix seconds>` for a date (the form of RFC 9745, midnight UTC), `true` when no date is given.
-* The `hinoki.deprecated` logger warns `deprecated action called: GET /v1/tasks (N call(s) since the last report)`. An action is reported at most once per minute, with the calls it stayed quiet about, so a busy action does not flood the log; the state is one entry per deprecated action. Nothing is logged at startup.
+* The `hinoki.deprecated` logger warns `deprecated action called: GET /v1/totals (N call(s) since the last report)`. An action is reported at most once per minute, with the calls it stayed quiet about, so a busy action does not flood the log; the state is one entry per deprecated action. Nothing is logged at startup.
 
 The header and the warning are produced by the Python pipeline, so a deprecated action leaves [the native lane](kiso.md#what-is-native-and-what-still-runs-in-python) (`hinoki routes --lanes` shows `lane_reason` `deprecated`) and, for generated CRUD, the native CRUD plan. The response and the access check do not change. There is no `Sunset` header.
 

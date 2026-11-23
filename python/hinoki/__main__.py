@@ -10,6 +10,8 @@ from hinoki import (
     admincli,
     completioncli,
     doctorcli,
+    eventscli,
+    mailcli,
     openapicli,
     projectcli,
     routescli,
@@ -48,7 +50,9 @@ def database_dialect(url: str) -> str:
 
 
 # Commands whose optional TARGET defaults to the manifest's ``project.application``.
-TARGETED = frozenset({"check", "dev", "mcp", "openapi", "routes", "serve", "settings"})
+TARGETED = frozenset(
+    {"check", "dev", "events", "mail", "mcp", "openapi", "routes", "serve", "settings"}
+)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -60,6 +64,8 @@ def parser() -> argparse.ArgumentParser:
     add_arguments(commands)
     settingscli.add_arguments(commands)
     routescli.add_arguments(commands)
+    eventscli.add_arguments(commands)
+    mailcli.add_arguments(commands)
     openapicli.add_arguments(commands)
     versioncli.add_arguments(commands)
     projectcli.add_arguments(commands)
@@ -386,6 +392,8 @@ def main(argv: list[str] | None = None) -> int:
         "admin": admincli.run,
         "app": projectcli.run,
         "doctor": doctorcli.run_doctor,
+        "events": eventscli.run_events,
+        "mail": mailcli.run,
         "mcp": run_mcp_command,
         "migrations": run_migrations,
         "openapi": openapicli.run_openapi,

@@ -16,6 +16,7 @@ from typing import Any
 from hinoki import core
 from hinoki.context import request_id
 from hinoki.errors import Forbidden, Unauthorized
+from hinoki.events import AuthRejected, EventBus
 from hinoki.parsers import is_native_parser
 from hinoki.renderers import is_native_renderer
 from hinoki.runtime.binding import (
@@ -110,13 +111,16 @@ def early_bodies() -> list[tuple[str, bytes]]:
         request_id.reset(token)
 
 
-def claims_route_access(binding: Binding) -> Any:
-    """The route's access policy when Rust can authenticate it, else ``None``."""
+def claims_route_access(binding: Binding, events: EventBus) -> Any:
+    """The route's access policy when Rust can authenticate it, else ``None``:
+    Python authenticates a route whose refusals ``AuthRejected`` handlers watch,
+    since Rust answers its own ``401`` and ``403``."""
     access = binding.route.access
     if (
         access is not None
         and native_handler_eligible(binding)
         and claims_access_is_plain(access)
+        and not events.listening(AuthRejected)
     ):
         return access
     return None
@@ -134,7 +138,7 @@ def route_auth_of(
     with the challenge Python puts on its ``401``."""
     found = []
     for action, binding in enumerate(pipeline.bindings):
-        access = claims_route_access(binding)
+        access = claims_route_access(binding, pipeline.events)
         claims = native_claims_auth(access) if access is not None else None
         if claims is not None:
             challenge = access.auth.challenge
@@ -142,11 +146,13 @@ def route_auth_of(
     return found
 
 
-def route_auth_stale(binding: Binding, access: Any, state: tuple[object, ...]) -> bool:
+def route_auth_stale(
+    binding: Binding, access: Any, state: tuple[object, ...], events: EventBus
+) -> bool:
     """Whether the route's access or its provider no longer is what Rust holds."""
     return (
         binding.route.access is not access
-        or claims_route_access(binding) is None
+        or claims_route_access(binding, events) is None
         or route_auth_state(access) != state
     )
 
@@ -238,7 +244,7 @@ def native_handler_eligible(binding: Binding) -> bool:
         ):
             return False
     elif route.method not in {"GET", "DELETE"} or binding.needs_body:
-        return False
+        return False  # pragma: no cover - registration refuses bodies on GET and DELETE
     renderer_ok = all(is_native_renderer(r) for r in route.renderers)
     path_names = PATH_PARAM.findall(route.path)
     supported_inputs = all(

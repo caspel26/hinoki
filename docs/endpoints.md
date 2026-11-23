@@ -78,7 +78,7 @@ curl -X QUERY http://127.0.0.1:8000/billing/invoices/search -H 'content-type: ap
 * A `QUERY` action must not change state. `RouteGroup(atomic=True)` applies to `POST`, `PUT`, `PATCH` and `DELETE` only; pass `atomic=True` on the action if the read needs a transaction.
 * `@http.query` inside an `API` class works like the other methods. A `405` answer lists `QUERY` in `Allow` where it is available; `HEAD` is answered through `GET` routes only. Hinoki sends no `Accept-Query` or cache headers by itself.
 * The method is recent. Granian passes it through over ASGI and WSGI (both are tested), but a proxy, gateway, firewall or HTTP client may reject it, and browsers send a CORS preflight for it. Keep a `GET` or `POST` route beside it when clients cannot send `QUERY`.
-* In the OpenAPI document a `QUERY` operation appears under the path's `x-query` field; see [OpenAPI](openapi.md#query-operations).
+* In the OpenAPI document a `QUERY` operation appears under the path's `query` field (`x-query` with `openapi_version="3.1"`); see [OpenAPI](openapi.md#query-operations).
 
 ## Bind request values
 
@@ -221,6 +221,8 @@ async def login(data: LoginIn) -> SessionOut: ...
 The refusal is `errors.TooManyRequests(retry_after)`: status 429, code `rate_limited`, and `Retry-After` set to `retry_after`, a whole number of seconds from 1 to 86,400 (anything else is refused when the error is created). The route documents it in OpenAPI by itself, with `Retry-After` as a required integer header. Only that error answers 429. Any other exception from the policy or its store, including a `TooManyRequests` that was built without its constructor, is answered `503 rate_limit_unavailable`: the request is refused rather than allowed unchecked, the answer and the log name the route and never the exception, and the application's error handlers and debug output never see it. Cancellation is not caught.
 
 Limiting failed credentials of a `BearerAuth` provider belongs in that provider, because authentication runs first.
+
+A refusal emits a `RateLimited` [event](events.md#authentication-and-rate-limit-events) (policy class name, route template, `retry_after`; no key, caller or address) when the application has a handler for it. A handler cannot change the `429`.
 
 ### The response is checked against the annotation
 
