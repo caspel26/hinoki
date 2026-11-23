@@ -12,6 +12,13 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 - Streaming responses: `Stream`, `EventStream` (server-sent events) and `File` on Kiso and Granian, with a bounded buffer, an idle timeout, keep-alive comments and a disconnect check. The application's iterator is Python on both servers; Kiso frames and queues the pieces in Rust and sends a `File` without its bytes entering Python. See [stream a response](docs/streaming.md).
 - Optional response compression on Kiso only (`compression.enabled`, off by default): brotli and gzip negotiated, applied and bounded in Rust, with only the settings in Python. See [compress responses](docs/compression.md).
 - Reload on `SIGHUP` in Kiso (`hinoki serve`, POSIX): the supervisor, which is Python, starts new workers one at a time, waits until each serves, then stops the old one gracefully, all on the same listening socket. See [Kiso](docs/kiso.md#reload-on-sighup).
+- WebSockets (`@http.websocket`) on Kiso, with framing and limits in Rust, and through the ASGI `websocket` scope on Granian. See [WebSockets](docs/websockets.md).
+- Typed events with explicit handlers (`in_transaction` and `after_commit`), including model events and `AuthRejected`/`RateLimited`. See [events](docs/events.md).
+- Client filters, ordering and search on generated `crud(...)` lists through a `FilterSet`, parsed and compiled in Rust, with typed OpenAPI parameters. See [CRUD](docs/crud.md#filter-order-and-search-the-list).
+- OpenAPI 3.2 documents (3.1 with `docs.openapi_version`), with `QUERY` as the `query` operation (`x-query` in 3.1) and per-action `tags`, `deprecated`, `operation_id` and `include_in_schema`. See [OpenAPI](docs/openapi.md).
+- A CORS policy for the whole application that an action, a `RouteGroup` or `crud(...)` can replace. See [per-route CORS](docs/web-security.md#cors-per-route).
+- Prometheus metrics from a dedicated Kiso listener (off by default). See [metrics](docs/metrics.md).
+- A [security policy](SECURITY.md) with private reporting, and scheduled fuzzing of Kiso's host, redirect, length and WebSocket handling.
 
 See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
 
@@ -21,7 +28,15 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 - Bring `Schema` field types close to what Pydantic accepts, each step on both the Python and the Rust lane with OpenAPI, rules and documentation. Available: `dict[str, X]`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, `Enum`, `StrEnum`, `IntEnum`, `Literal`, `set`, `frozenset`, `tuple`, plain unions and `Any`; `multiple_of` on `int` and `Decimal`; IP addresses and networks (also as `Model` columns) and the `Email`, `Url` and `Slug` annotations; `SecretStr` and `Path`; `TypedDict` and dataclass fields; `Field(strip=True)`, `Field(lower=True)` and `Field(upper=True)` for `str` fields; `pattern` on `bytes`; `Field(description=...)`, `examples` and `deprecated` for the OpenAPI document; `Schema.replace()` for a validated copy; `date`, `time`, `timedelta`, `Decimal` and `Enum` as `Model` columns; `@computed_field`; generic schemas (`class Envelope[T](Schema)` used as `Envelope[User]`); `@before_validate` to reshape raw input before validation (see [schemas](docs/schemas.md#reshaping-input-with-before_validate)); `Decimal` model columns as `numeric` on PostgreSQL and `decimal(65,30)` on MySQL/MariaDB, filterable and orderable there (equality only on SQLite). Strings and dict keys containing NUL are refused with a 422. Custom validators (`field_check`, `field_normalize`, `object_check`) already exist and run on the Python lane by design (see [validation](docs/schemas.md#built-in-and-custom-validation)).
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Cursor (keyset) pagination is available as `CursorPagination` for generated lists and handwritten routes (see [pagination](docs/pagination.md#cursor-keyset-pagination)); the admin lists keep page numbers.
-- Publish only after the site and release process have been reviewed.
+- Before the first release (`0.1.0`):
+    - a stable CI on `main` and a clean quality gate;
+    - an email backend, with password reset and email verification built on it;
+    - a cache, sessions and file storage, each with a bounded, explicit backend and documented limits;
+    - generated `crud(...)` filtered lists on the native Kiso lane (they take the Python path today);
+    - fuzzing of the request-line and header limits Kiso applies over its HTTP parser;
+    - a written compatibility policy, including what is promised about the migration format;
+    - a tested quickstart from the published package, and a load and a soak test described in the documentation;
+    - a review of the security findings, and a review of the site and release process before publishing.
 
 ## Planned for a later release
 
@@ -29,7 +44,9 @@ These are directions, not commitments, and none of them is available today.
 
 - Moving more of the request path into the Rust core, before new features.
 - A durable email queue and HTTP email providers (outbound email is SMTP only today).
-- Per-route CORS policies.
+- Filters across relations and on the admin lists, and cursor pagination in the admin.
+- Tracing, an outbound HTTP client with timeouts and retries, rate limit storage shared by workers, and key rotation.
+- Range filters and ordering for `Decimal` on SQLite.
 - Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 
 This roadmap is intentionally curated; detailed queue notes and owner decisions are maintained locally and are not part of the public repository.
