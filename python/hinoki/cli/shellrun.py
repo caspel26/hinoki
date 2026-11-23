@@ -143,21 +143,17 @@ class ShellRuntime:
     def _cancel_pending_tasks(self) -> None:
         """Cancel user tasks and bound cleanup by the app shutdown deadline."""
         pending = asyncio.all_tasks(self.loop)
-        for task in pending:
-            task.cancel()
+        done, pending = self._cancel_and_wait(pending)
         if pending:
-            done, pending = self.loop.run_until_complete(
-                asyncio.wait(pending, timeout=self.app.runtime.shutdown_timeout)
+            finished, pending = self._cancel_and_wait(pending)
+            done.update(finished)
+        if done:
+            self.loop.run_until_complete(asyncio.gather(*done, return_exceptions=True))
+        if pending:
+            log.warning(
+                "abandoning %d shell task(s) after the shutdown timeout",
+                len(pending),
             )
-            if done:
-                self.loop.run_until_complete(
-                    asyncio.gather(*done, return_exceptions=True)
-                )
-            if pending:
-                log.warning(
-                    "abandoning %d shell task(s) after the shutdown timeout",
-                    len(pending),
-                )
         if not pending:
             shutdown = self.loop.create_task(self.loop.shutdown_asyncgens())
             done, pending = self.loop.run_until_complete(
@@ -171,6 +167,18 @@ class ShellRuntime:
             else:
                 shutdown.cancel()
                 log.warning("async generator cleanup exceeded the shutdown timeout")
+
+    def _cancel_and_wait(
+        self, tasks: set[asyncio.Task[Any]]
+    ) -> tuple[set[asyncio.Task[Any]], set[asyncio.Task[Any]]]:
+        """Request cancellation, then wait at most one shutdown timeout."""
+        if not tasks:
+            return set(), set()
+        for task in tasks:
+            task.cancel()
+        return self.loop.run_until_complete(
+            asyncio.wait(tasks, timeout=self.app.runtime.shutdown_timeout)
+        )
 
     def _stop_loop(self) -> bool:
         self.loop.call_soon_threadsafe(self.loop.stop)
