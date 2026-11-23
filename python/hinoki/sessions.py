@@ -11,9 +11,10 @@ import threading
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import MappingProxyType
 from typing import TypeVar, cast
 
 from hinoki.auth import BaseAuth, Caller, Credentials
@@ -29,6 +30,7 @@ log = logging.getLogger("hinoki.sessions")
 MAX_SESSION_BYTES = 16 * 1024
 MAX_COOKIE_TOKEN_BYTES = 128
 MAX_SUBJECT_BYTES = 255
+MIN_CSRF_SECRET_BYTES = 32
 MYSQL_SESSION_UPSERT = (
     "INSERT INTO hinoki_sessions (token_hash, data, created_at, expires_at, "
     "idle_expires_at, last_seen_at, subject) VALUES (?, ?, ?, ?, ?, ?, ?) "
@@ -115,7 +117,7 @@ class SessionSettings(Resource):
     absolute_timeout: timedelta = timedelta(days=14)
     idle_timeout: timedelta = timedelta(days=1)
     touch_seconds: int = 60
-    csrf_secret: bytes = b""
+    csrf_secret: bytes = field(default=b"", repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -124,8 +126,13 @@ class SessionSettings(Resource):
             or self.touch_seconds < 1
         ):
             raise ValueError("session limits and idle timeout must be positive")
-        if self.absolute_timeout <= timedelta(0) or not self.csrf_secret:
-            raise ValueError("sessions require an absolute timeout and CSRF secret")
+        if (
+            self.absolute_timeout <= timedelta(0)
+            or len(self.csrf_secret) < MIN_CSRF_SECRET_BYTES
+        ):
+            raise ValueError(
+                "sessions require an absolute timeout and 32-byte CSRF secret"
+            )
 
 
 class MemorySessionStore(SessionStore):
@@ -200,6 +207,7 @@ class DatabaseSessionStore(SessionStore):
 
     def __init__(self, database: Database | None = None) -> None:
         self._database = database
+        self._configured_database = database is not None
 
     @property
     def database(self) -> Database:
@@ -208,8 +216,12 @@ class DatabaseSessionStore(SessionStore):
         return self._database
 
     def bind(self, database: Database) -> None:
-        if self._database is None:
+        if not self._configured_database:
             self._database = database
+
+    def unbind(self) -> None:
+        if not self._configured_database:
+            self._database = None
 
     async def load(self, token_hash: str) -> SessionRecord | None:
         row = await _session_db(
@@ -317,7 +329,8 @@ class Session:
         self.store = store
         self.token = token
         self.record = record
-        self.data = dict(record.data) if record else {}
+        self._data = dict(record.data) if record else {}
+        self._data_view = MappingProxyType(self._data)
         self.created_at = record.created_at if record else (now or utc_now())
         self.expires_at = (
             record.expires_at if record else self.created_at + settings.absolute_timeout
@@ -387,22 +400,27 @@ class Session:
         self.modified = True
 
     def get(self, key: str, default: T | None = None) -> object | T | None:
-        return self.data.get(key, default)
+        return self._data.get(key, default)
+
+    @property
+    def data(self) -> Mapping[str, object]:
+        """Read-only state view for authentication resolvers."""
+        return self._data_view
 
     def __getitem__(self, key: str) -> object:
-        return self.data[key]
+        return self._data[key]
 
     def __setitem__(self, key: str, value: object) -> None:
-        self.data[key] = value
+        self._data[key] = value
         self._check_size()
         self.modified = True
 
     def __delitem__(self, key: str) -> None:
-        del self.data[key]
+        del self._data[key]
         self.modified = True
 
     def clear(self) -> None:
-        self.data.clear()
+        self._data.clear()
         self.modified = True
 
     async def rotate(self) -> None:
@@ -415,7 +433,7 @@ class Session:
     async def invalidate(self) -> None:
         if self.token is not None:
             self._pending_delete = _digest(self.token)
-        self.data.clear()
+        self._data.clear()
         self.invalidated = True
         self.modified = True
 
@@ -429,7 +447,7 @@ class Session:
 
     def _check_size(self) -> None:
         try:
-            size = len(json.dumps(self.data, separators=(",", ":")).encode())
+            size = len(json.dumps(self._data, separators=(",", ":")).encode())
         except (TypeError, ValueError):
             raise TypeError("session values must be JSON serializable") from None
         if size > self.max_bytes:
@@ -453,7 +471,7 @@ class Session:
         await self.store.save(
             _digest(self.token),
             SessionRecord(
-                self.data,
+                self._data,
                 self.created_at,
                 self.expires_at,
                 min(self.expires_at, instant + self.idle_timeout),
@@ -463,9 +481,19 @@ class Session:
         )
         if self._pending_delete is not None:
             await self.store.delete(self._pending_delete)
-        if not self.modified:
-            return None
-        return set_cookie(self.cookie_name, self.token, secure=self.cookie_secure)
+        max_age = max(
+            0,
+            min(
+                int(self.idle_timeout.total_seconds()),
+                int((self.expires_at - instant).total_seconds()),
+            ),
+        )
+        return set_cookie(
+            self.cookie_name,
+            self.token,
+            max_age=max_age,
+            secure=self.cookie_secure,
+        )
 
 
 def _digest(token: str) -> str:
@@ -491,19 +519,24 @@ class SessionModule(Module):
 
     @asynccontextmanager
     async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
-        if (
-            isinstance(self.store, DatabaseSessionStore)
-            and self.store._database is None
-        ):
-            self.store.bind(ctx.get(Database))
-        ctx.provide(SessionStore, self.store)
-        ctx.provide(SessionSettings, self.settings)
-        yield
+        database_store = (
+            self.store if isinstance(self.store, DatabaseSessionStore) else None
+        )
+        bound = database_store is not None and not database_store._configured_database
+        if database_store is not None and bound:
+            database_store.bind(ctx.get(Database))
+        try:
+            ctx.provide(SessionStore, self.store)
+            ctx.provide(SessionSettings, self.settings)
+            yield
+        finally:
+            if bound and database_store is not None:
+                database_store.unbind()
 
 
 def migrations_path() -> Path:
     """Path to the explicit application-session migration files."""
-    return Path(__file__).parent / "sessions" / "migrations"
+    return Path(__file__).parent / "session_migrations"
 
 
 class SessionAuth(BaseAuth[T]):
@@ -518,8 +551,14 @@ class SessionAuth(BaseAuth[T]):
             [Mapping[str, object]],
             Caller[T] | Awaitable[Caller[T] | None] | None,
         ],
+        *,
+        cookie_name: str = "hinoki_session",
     ):
         self.resolve = resolve
+        self.cookie_name = cookie_name
+
+    def openapi_scheme(self) -> dict[str, object]:
+        return {"type": "apiKey", "in": "cookie", "name": self.cookie_name}
 
     async def authenticate(self, credentials: Credentials) -> Caller[T] | None:
         session = credentials.session
