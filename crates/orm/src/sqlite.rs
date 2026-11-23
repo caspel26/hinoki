@@ -71,7 +71,7 @@ impl SqlitePool {
         for _ in 0..max_size {
             let connection = rusqlite::Connection::open(path).map_err(DbError::from_sqlite)?;
             connection
-                .busy_timeout(Duration::from_secs(5))
+                .busy_timeout(sqlite_busy_timeout(wait))
                 .map_err(DbError::from_sqlite)?;
             connection
                 .pragma_update(None, "foreign_keys", "ON")
@@ -115,7 +115,7 @@ impl SqlitePool {
             None if !self.0.closed.load(Ordering::Acquire) => {
                 let connection = rusqlite::Connection::open(&self.0.path)
                     .and_then(|conn| {
-                        conn.busy_timeout(Duration::from_secs(5))?;
+                        conn.busy_timeout(sqlite_busy_timeout(self.0.wait))?;
                         conn.pragma_update(None, "foreign_keys", "ON")?;
                         conn.pragma_update(None, "journal_mode", "WAL")?;
                         Ok(conn)
@@ -165,6 +165,11 @@ impl SqlitePool {
             self.0.permits.available_permits().min(self.0.max_size),
         )
     }
+}
+
+fn sqlite_busy_timeout(wait: Duration) -> Duration {
+    wait.max(Duration::from_secs(5))
+        .min(Duration::from_millis(i32::MAX as u64))
 }
 
 impl SqliteLease {
