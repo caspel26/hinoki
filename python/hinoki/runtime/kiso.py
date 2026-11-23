@@ -63,6 +63,21 @@ log = logging.getLogger("hinoki.runtime")
 access_logger = logging.getLogger("hinoki.access")
 
 
+def _rate_limit_pairs() -> list[tuple[bytes, bytes]]:
+    """The ``RateLimit-*`` headers of the admitted request, as raw header pairs."""
+    return [
+        (name.encode(), value.encode())
+        for name, value in context.rate_limit_headers.get()
+    ]
+
+
+def _with_rate_limit(
+    route_headers: tuple[tuple[str, str], ...],
+) -> tuple[tuple[str, str], ...]:
+    extra = context.rate_limit_headers.get()
+    return route_headers + extra if extra else route_headers
+
+
 def log_access(batch: Sequence[str]) -> None:
     """Hand Kiso's JSON access records to the ``hinoki.access`` logger (called
     from Kiso's logging thread, a batch at a time). Each record carries its
@@ -305,6 +320,7 @@ class KisoWorker:
         self.server = server
         if self.metrics is not None:
             self.pipeline.events.attach_metrics(server.event_metrics())
+            self.pipeline.attach_rate_limit_metrics(server.rate_limit_metrics())
             self._attach_mail_metrics(server)
         self.address = (self.host, server.port)
         loop = asyncio.get_running_loop()
@@ -320,9 +336,12 @@ class KisoWorker:
         if self.metrics is None:
             return None
         mailer = self.pipeline.ctx.find(Mailer)
-        if mailer is None:
-            return self.metrics
-        return {**self.metrics, "email": mailer.backend.value}
+        settings: dict[str, object] = dict(self.metrics)
+        if mailer is not None:
+            settings["email"] = mailer.backend.value
+        if self.pipeline.uses_rate_limit():
+            settings["rate_limits"] = True
+        return settings
 
     def _attach_mail_metrics(self, server: core.KisoServer) -> None:
         mailer = self.pipeline.ctx.find(Mailer)
@@ -666,14 +685,18 @@ class KisoWorker:
             if response.stream is not None:
                 await self._send_stream(request, response, response.stream)
             elif native_final:
-                request.respond_final(response.status, response.headers, response.body)
+                request.respond_final(
+                    response.status,
+                    [*response.headers, *_rate_limit_pairs()],
+                    response.body,
+                )
             else:
                 # Set by the pipeline in this task's context while it answered.
                 request.respond_routed(
                     response.status,
                     response.headers,
                     response.body,
-                    context.route_headers.get(),
+                    _with_rate_limit(context.route_headers.get()),
                 )
         except Exception:
             log.exception("request %s failed", request.request_id)
@@ -687,7 +710,7 @@ class KisoWorker:
         """Send a streamed answer: the head, then the body. The place the answer
         holds is given back when the body ends (a file is sent by the server alone, so
         its place is given back at once)."""
-        route_headers = context.route_headers.get()
+        route_headers = _with_rate_limit(context.route_headers.get())
         try:
             if handle.location is not None:
                 request.respond_file(

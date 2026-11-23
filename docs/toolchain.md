@@ -37,7 +37,7 @@ The PyO3 extension build backend requires maturin ≥ 1.16.0 (`[build-system]` i
 
 ### Measuring coverage
 
-Coverage also measures child processes (`patch = ["subprocess"]` with `parallel` and `sigterm` in `[tool.coverage.run]`), so the supervisor, worker and `hinoki serve` tests count. CI runs two phases and merges them: the main suite with `pytest -n 4 --cov`, then the server suites (`tests/runtime`, `tests/kisoservertest.py`, `tests/kisoclitest.py`, `tests/wsgitest.py`) with `--cov --cov-append`. Locally:
+Coverage also measures child processes (`patch = ["subprocess"]` with `parallel` and `sigterm` in `[tool.coverage.run]`), so the supervisor, worker and `hinoki serve` tests count. CI runs two phases and merges them: the main suite with `pytest -n 4 --cov`, then the server suites (`tests/runtime`, `tests/kisoservertest.py`, `tests/kisoclitest.py`, `tests/wsgitest.py`, `tests/ratelimitservertest.py`) with `--cov --cov-append`. Locally:
 
 ```sh
 uv run --locked pytest -n 4 --cov --cov-report=term-missing

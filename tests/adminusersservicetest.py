@@ -35,6 +35,7 @@ async def database(tmp_path: Path) -> AsyncIterator[Database]:
     assert await migrator.apply(connected, MIGRATIONS, namespace="admin") == [
         "0001-initial",
         "0002-login-windows",
+        "0003-rate-limits",
     ]
     with use_database(connected):
         yield connected

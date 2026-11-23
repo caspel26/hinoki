@@ -664,6 +664,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hinoki-mail",
  "hinoki-orm",
+ "hinoki-ratelimit",
  "hmac",
  "kiso",
  "mimalloc",
@@ -715,6 +716,17 @@ dependencies = [
  "tokio-rusqlite",
  "uuid",
  "webpki-roots",
+]
+
+[[package]]
+name = "hinoki-ratelimit"
+version = "0.0.1"
+dependencies = [
+ "hinoki-orm",
+ "percent-encoding",
+ "sha2 0.11.1",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

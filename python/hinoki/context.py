@@ -58,6 +58,14 @@ route_headers: ContextVar[tuple[tuple[str, str], ...]] = ContextVar(
 )
 
 
+# The ``RateLimit-*`` headers of an admitted request, set by a built-in limiter
+# created with ``headers=True``. Kept apart from ``route_headers`` because they
+# change with every request and must not enter the cached header shapes.
+rate_limit_headers: ContextVar[tuple[tuple[str, str], ...]] = ContextVar(
+    "hinoki_rate_limit_headers", default=()
+)
+
+
 # The CORS policy of the matched route, when it declares its own (``cors=``).
 # Set once the route is known; ``None`` means the application's policy applies.
 route_cors: ContextVar[Any] = ContextVar("hinoki_route_cors", default=None)

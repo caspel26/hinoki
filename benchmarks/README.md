@@ -70,6 +70,19 @@ JSON decode (1.18x), 10.26 / 10.06 µs for JSON encode (1.02x), and 6.56 / 1.23
 request-path results. The machine-readable samples are in
 `request-codecs-before-rust.json`.
 
+### Rate limiter
+
+`ratelimitbench.py` sends a GET through the in-process ASGI adapter to three
+routes with the same trivial handler: no limit, `RateLimit` on `MemoryLimits`
+and `RateLimit` on `DatabaseLimits` over a SQLite file (7 samples × 5,000
+requests, the limit far above the request count). It excludes a server, a
+network and a deployment database. The result of five runs, with the
+before/after runs of `protectedgetbench.py` and `nativelanebench.py` on the same
+release-profile build (no change within run-to-run noise), is in
+`ratelimit-path.json`. The limiter is new, so there is no earlier baseline for
+its own cost; the SQLite file runs showed a CV of up to 17% within a run on a
+machine that was not idle.
+
 ### ASGI request-path baseline
 
 `protectedgetbench.py` sends an async, bearer-protected GET through the full

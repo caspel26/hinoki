@@ -26,7 +26,7 @@ from collections.abc import Awaitable, Callable, Generator
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
-from hinoki import core
+from hinoki import context, core
 from hinoki.db import NATIVE_OWNER, current, current_owner
 from hinoki.events import AuthRejected, RateLimited
 from hinoki.runtime.binding import BODY_METHODS, Binding
@@ -300,8 +300,12 @@ class NativeLane:
         return task
 
     def _respond(self, run: Run, response: Response) -> None:
+        headers = response.headers
+        extra = run.ctx.get(context.rate_limit_headers, ())
+        if extra:
+            headers = [*headers, *((n.encode(), v.encode()) for n, v in extra)]
         try:
-            run.request.respond_final(response.status, response.headers, response.body)
+            run.request.respond_final(response.status, headers, response.body)
         except Exception:
             log.exception("request %s could not be answered", run.rid)
             self.fail(run.request)

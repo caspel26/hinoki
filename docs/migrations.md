@@ -175,7 +175,11 @@ requires = ["accounts"]
 ```
 
 `hinoki app create billing` asks for `requires`; `hinoki app add NAME --models
-MODULE` registers an existing package. Each app's tables belong only to its
+MODULE` registers an existing package. Hinoki ships two such apps whose tables
+are optional: `admin` (`hinoki.admin.users.models`, see the [admin](admin.md#create-the-admins-tables))
+and `ratelimit` (`hinoki.ratelimit_store.models`, the `hinoki_rate_limits` table of
+[`RateLimit`](endpoints.md#rate-limit-an-action)). Neither is applied unless you
+register it. Each app's tables belong only to its
 own migration state. The Tracker example has three such apps
 ([`hinoki.toml` lines 14-27](https://github.com/caspel26/hinoki/blob/main/examples/tracker/hinoki.toml)):
 `tasks` requires `members`, and `activity` requires both, so `apply` runs them

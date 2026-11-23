@@ -31,7 +31,7 @@ from hinoki.parsers import (
     UploadedFile,
     XMLParser,
 )
-from hinoki.ratelimit import RateLimitContext, RateLimitPolicy
+from hinoki.ratelimit import RateLimit, RateLimitContext, RateLimitPolicy
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
 from hinoki.resources import Crud, CrudAccess, crud
 from hinoki.routing import Includable, Mount, Route, RouteGroup
@@ -106,6 +106,7 @@ __all__ = [
     "Parser",
     "Permission",
     "Query",
+    "RateLimit",
     "RateLimitContext",
     "RateLimitPolicy",
     "Renderer",

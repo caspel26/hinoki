@@ -63,6 +63,7 @@ Every sample carries a `worker` label: the number of the process that counted it
 | `hinoki_email_messages_total` | counter | `backend`, `outcome` | [Email](email.md) sends. `outcome` is `sent` or the error kind (`invalid_address`, `invalid_header`, `invalid_message`, `limit_exceeded`, `closed`, `busy`, `connect`, `timeout`, `tls`, `auth`, `rejected`, `temporary`, `protocol`, `template`). `template` counts a `Template.message` that could not be rendered while a mailer is current (`Template.render` alone counts nothing, it is not a send); startup and compile failures are not sends and are not counted |
 | `hinoki_email_send_duration_seconds` | histogram | `backend` | Time of a `send`, whatever its outcome |
 | `hinoki_email_retries_total` | counter | `backend` | Delivery attempts made again after a transient failure |
+| `hinoki_rate_limit_decisions_total` | counter | `decision` | [Rate limit](endpoints.md#rate-limit-an-action) decisions. `decision` is `allowed`, `refused`, `unavailable` (storage could not answer, or the key, tenant or clock function failed) or `failed_open` (storage could not answer and the route admitted the request). A route's own policy is counted too, as `allowed`, `refused` or `unavailable`; a key, route or address is never a label |
 | `hinoki_build_info` | gauge | `version`, `server` | Always `1` |
 | `hinoki_worker_start_time_seconds` | gauge | none | Start of the worker, in Unix seconds |
 | `hinoki_metrics_snapshot_errors_total` | counter | none | Snapshots of other workers that were unreadable, too large or not valid UTF-8 |

@@ -679,6 +679,15 @@ impl KisoServer {
             .map(|registry| crate::mail::MailMetrics::new(Arc::clone(registry)))
     }
 
+    /// The recorder of rate limit decisions, or `None` while metrics are off or
+    /// the app does not use the built-in limiter (`rate_limits` unset).
+    fn rate_limit_metrics(&self) -> Option<crate::ratelimit::RateLimitMetrics> {
+        self.registry
+            .as_ref()
+            .filter(|registry| registry.has_rate_limits())
+            .map(|registry| crate::ratelimit::RateLimitMetrics::new(Arc::clone(registry)))
+    }
+
     /// Serve on the listening socket `fd`, which the caller created and detached
     /// (this takes ownership of it as soon as it runs: on any error the
     /// descriptor is closed, so the caller must not use it again), or bind `host:port` (port 0 picks a free

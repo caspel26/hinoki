@@ -128,7 +128,7 @@ These events describe a request the application refused. They are plain frozen d
 | Event | Payload | Emitted when |
 | --- | --- | --- |
 | `AuthRejected` | `reason`, `route`, `method` | A route's `Access` policy refused the request: `reason` is `"missing"` (no credentials, `401`), `"invalid"` (credentials the provider rejected, `401`) or `"forbidden"` (a caller without a required permission, `403`). Also for a WebSocket handshake (`method` is `WEBSOCKET`). |
-| `RateLimited` | `policy`, `route`, `method`, `retry_after` | A route's `rate_limit` policy refused with `TooManyRequests` (`429`), including the admin's shared sign-in limit. `policy` is the class name of the policy; `retry_after` is the whole seconds sent in `Retry-After`. |
+| `RateLimited` | `policy`, `route`, `method`, `retry_after` | A route's `rate_limit` policy refused with `TooManyRequests` (`429`), including `RateLimit` and the admin's shared sign-in limit. A storage failure is not a refusal and emits no event. `policy` is the class name of the policy; `retry_after` is the whole seconds sent in `Retry-After`. |
 
 ```python
 from hinoki import events

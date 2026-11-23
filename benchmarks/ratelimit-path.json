@@ -1,0 +1,32 @@
+{
+  "recorded": "2026-11-23",
+  "profile": "release extension (maturin develop --release), Python 3.13, macOS, laptop not idle",
+  "protectedgetbench_median_us_of_five_runs": {
+    "before_base_e860407f": [13.951, 13.657, 13.675, 13.691, 13.55],
+    "after": [13.826, 13.635, 13.837, 13.727, 13.639]
+  },
+  "nativelanebench_rps_median_5_rounds_3s": {
+    "before_base_e860407f": {
+      "lane_one": 58726,
+      "lane_list_20": 33494,
+      "lane_list_100": 10872,
+      "lane_mixed": 36199,
+      "lane_write": 10244
+    },
+    "after": {
+      "lane_one": 58720,
+      "lane_list_20": 33150,
+      "lane_list_100": 11070,
+      "lane_mixed": 35539,
+      "lane_write": 10585
+    },
+    "note": "the asyncio mode of this script varied 27-47% between rounds on the base and is not compared"
+  },
+  "ratelimitbench_median_us_of_five_runs": {
+    "note": "no baseline exists: the limiter is new. 'plain' is the same route without a limit",
+    "plain": [6.228, 6.353, 6.384, 6.472, 6.307],
+    "memory_limits": [40.924, 41.13, 41.867, 44.648, 41.153],
+    "database_limits_sqlite_file": [88.083, 82.896, 87.065, 71.31, 72.939],
+    "database_limits_cv_pct_within_run": [13.07, 17.36, 9.51, 1.9, 7.51]
+  }
+}
