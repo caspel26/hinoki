@@ -130,6 +130,8 @@ database directly. It expects the `hinoki_sessions` table. Apply the SQL at
 `migrations_path() / "0001-initial.sql"` through an explicit project migration
 and review/apply that migration before starting the application. Importing the
 module and starting the worker do not create or alter tables.
+`purge_expired()` deletes rows past their absolute expiry, including revoked
+token tombstones; revoked rows remain until that expiry.
 
 The database store keeps JSON session data as plain text, so do not put secrets
 in session values unless the application encrypts them before storage or the

@@ -114,8 +114,7 @@ from hinoki import Hinoki, Module, ModuleContext, Resource, http
 
 
 class Mailer(Resource):
-    async def send(self, address: str, subject: str) -> None:
-        ...
+    async def send(self, address: str, subject: str) -> None: ...
 
 
 class MailerModule(Module):

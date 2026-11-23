@@ -11,6 +11,7 @@ status: implemented
 from pathlib import Path
 
 from hinoki import Hinoki, Schema, UploadedFile, http
+from hinoki.http.response import Response
 from hinoki.storage import FileStorage, FileStorageModule, LocalFileStorage
 
 
@@ -26,8 +27,8 @@ async def upload(document: UploadedFile, storage: FileStorage) -> UploadResult:
     return UploadResult(key=saved.key, size=saved.size, sha256=saved.sha256)
 
 
-@http.get("/documents/{key}")
-async def download(key: str, storage: FileStorage):
+@http.get("/documents")
+async def download(key: str, storage: FileStorage) -> Response:
     return await storage.open_response(key)
 
 
@@ -43,6 +44,9 @@ app = Hinoki(
 `UploadedFile` or `bytes` and returns `StoredFile(key, size, content_type,
 sha256, filename)`. Empty files are allowed.
 
+Pass the opaque key as the `key` query parameter. Generated keys contain `/`
+for filesystem sharding, so they do not fit a single `{key}` path segment.
+
 ## Choose a backend
 
 | Backend | Ownership and visibility | Bounds and I/O |
@@ -57,12 +61,15 @@ That counter is per worker process; concurrent workers can each accept a write
 before seeing the other's counter, so it is not a global quota. No background
 cleanup or cross-host coordination is provided.
 
+`open_response()` returns a `Response` for either backend. The memory backend
+buffers its bounded value in that response; the local backend returns a streamed
+`File` (a `Response` subtype), sent by the server without copying its body into
+a Python response buffer.
+
 `LocalFileStorage` creates its root during worker startup, checks that it is a
 writable directory, uses unique generated keys and atomically replaces a
 temporary file. Directories use mode `0700` and files use `0600`. The uploaded
-filename is metadata and is never used as a filesystem path. `open_response`
-returns a streamed `File`; the file body is sent by the server path rather than
-being copied into a Python `Response` body.
+filename is metadata and is never used as a filesystem path.
 
 ## Errors and access control
 
