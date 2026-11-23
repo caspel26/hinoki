@@ -482,8 +482,8 @@
           <h1 id="configure-a-database">Configure a database<a class="headerlink" href="#configure-a-database" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:08:29 UTC">November 23, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -730,7 +730,7 @@ with operating-system permissions.</p>
 <tr>
 <td>SQLite</td>
 <td>no network, no TLS</td>
-<td>one writer at a time; bounded connections and a five-second busy timeout; a relative path resolves from the server's working directory (start it from the project root; migrations anchor it beside <code>hinoki.toml</code>)</td>
+<td>one writer at a time; bounded connections and a busy timeout of at least five seconds, extended when <code>Database.connect(wait=...)</code> is larger; a relative path resolves from the server's working directory (start it from the project root; migrations anchor it beside <code>hinoki.toml</code>)</td>
 </tr>
 <tr>
 <td>PostgreSQL</td>
@@ -772,7 +772,15 @@ your usual tools before the first <code>hinoki migrations apply</code>.</p>
 <p>SQLite uses bundled SQLite 3.35 or newer. UUID and timestamp columns use text
 storage; JSON uses JSON text. <code>contains</code> matching is ASCII case-insensitive.
 In-memory databases are not supported, because each pooled connection would
-have an independent database.</p>
+have an independent database. SQLite allows one writer at a time. Its internal
+lock wait is the larger of five seconds and the pool's configured <code>wait</code>; the
+pool acquisition wait itself remains bounded by <code>wait</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">Database</span>
+
+<span class="n">database</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Database</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"sqlite://./app.sqlite3"</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</code></pre></div>
+<p>This gives SQLite writes up to ten seconds to acquire the writer lock. The
+default <code>wait=5</code> keeps the existing five-second limit.</p>
 <h2 id="use-the-database-from-a-script">Use the database from a script<a class="headerlink" href="#use-the-database-from-a-script" title="Permanent link">&para;</a></h2>
 <p>A script, a one-off task or a test fixture opens its own pool with
 <code>Database.connect</code> and makes it current with <code>use_database</code>, so model queries
@@ -868,7 +876,7 @@ per-backend behaviour.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:08:29 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/databases.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
