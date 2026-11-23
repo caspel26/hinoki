@@ -66,7 +66,9 @@ same name to `SessionAuth(cookie_name=...)`.
 `Session` is request-scoped. It provides `get`, item lookup and assignment,
 `del session[key]`, `clear`, `rotate`, `invalidate`, `csrf_token`, `is_new`,
 `modified` and `subject`. Values must be JSON serializable; the default encoded
-payload limit is 16 KiB. `None` is a normal value inside the mapping.
+payload limit is 16 KiB. `None` is a normal value inside the mapping. Nested
+values returned by reads are copies; assign the updated value back through
+`session[key]` to persist a nested change.
 
 Hinoki loads a session when a route declares `session: Session` or uses
 `SessionAuth`. Mutations are saved and `Set-Cookie` is added only after the
@@ -102,6 +104,19 @@ the browser then sends that value in `X-CSRF-Token` for writes. A missing or
 invalid token receives 403 `csrf_rejected`. Store failures fail closed with 503
 `session_unavailable`; a session is never silently treated as anonymous when
 the store is down.
+
+The bootstrap action must establish a token before asking for the CSRF value:
+
+```python
+@http.get("/csrf")
+async def csrf_bootstrap(session: Session) -> dict[str, str]:
+    if session.is_new:
+        await session.rotate()
+    return {"csrf_token": session.csrf_token()}
+```
+
+The successful response persists the session and sends its cookie; subsequent
+unsafe requests can send the returned CSRF token with that cookie.
 
 ## Stores, migrations and limits
 
