@@ -246,8 +246,7 @@
           <h1 id="release-checklist">Release checklist<a class="headerlink" href="#release-checklist" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -297,6 +296,10 @@ default one. Measure a build before relying on its duration.</p>
 <li>Set the version, which must be the same in <code>pyproject.toml</code>
    (<code>project.version</code>) and in the workspace <code>Cargo.toml</code>
    (<code>workspace.package.version</code>), then run <code>uv lock</code> so <code>uv.lock</code> follows.</li>
+<li>Apply the <a href="../status/">compatibility policy</a>: a <code>0.1.z</code> patch keeps documented
+   contracts and <code>0.1.0</code> migration files compatible. A breaking pre-1.0 change
+   requires a later <code>0.y.0</code>, release notes and an upgrade path for migration
+   state if version 1 will no longer be read.</li>
 <li>In <code>CHANGELOG.md</code>, turn <code>Unreleased</code> into <code>[X.Y.Z] - date</code>.</li>
 <li>Update <a href="../status/">Status</a> and the <code>Pre-alpha, not released</code> notes in the
    README if they no longer hold.</li>
@@ -361,7 +364,8 @@ is the owner's action:</p>
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 01:56:24 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/release.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
