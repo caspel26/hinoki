@@ -194,6 +194,111 @@ def test_scenarios_include_the_payload_size_endpoints_and_keep_the_old_ones() ->
     assert run.SCENARIOS["json-10k"] == ("GET", "/json-10k", None)
 
 
+def test_javascript_mode_runs_three_stacks_with_the_same_pool_workers_and_port() -> (
+    None
+):
+    servers = run.SERVER_MODES["javascript"]
+
+    assert list(servers) == ["fastify", "hono", "bun"]
+    assert not set(servers) & {
+        name for mode, table in run.SERVER_MODES.items() if mode != "javascript"
+        for name in table
+    }  # fmt: skip
+    for name, (command, env) in servers.items():
+        assert command[0] in run.RUNTIMES
+        assert (run.HERE / command[1]).is_file(), name
+        assert env["BENCH_DATABASE_URL"] == run.DB
+        assert env["BENCH_POOL"] == str(run.POOL)
+        assert env["BENCH_WORKERS"] == str(run.WORKERS)
+        assert env["BENCH_PORT"] == str(run.PORT)
+    assert servers["bun"][0][0] == "bun"
+    assert {servers["fastify"][0][0], servers["hono"][0][0]} == {"node"}
+
+
+def test_only_the_bench_variables_a_stack_declares_reach_its_server() -> None:
+    leaked = {
+        "PATH": "/bin",
+        "BENCH_DATABASE__URL": "postgres://elsewhere",
+        "BENCH_DATABASE_URL": "postgres://elsewhere",
+        "BENCH_POOL": "3",
+        "BENCH_BUN_WORKER": "1",
+        "BENCH_POSTGRES_CONTAINER": "other",
+    }
+
+    bun = run.server_env("bun", leaked)
+    hinoki = run.server_env("hinoki", leaked)
+    fastapi = run.server_env("fastapi", leaked)
+
+    assert bun["PATH"] == "/bin"
+    assert "BENCH_BUN_WORKER" not in bun  # would turn the launcher into a worker
+    assert "BENCH_DATABASE__URL" not in bun
+    assert (bun["BENCH_DATABASE_URL"], bun["BENCH_POOL"]) == (run.DB, str(run.POOL))
+    assert {k for k in hinoki if k.startswith("BENCH_")} == {
+        "BENCH_DATABASE__URL",
+        "BENCH_DATABASE__MAX_SIZE",
+    }
+    assert hinoki["BENCH_DATABASE__URL"] == run.DB
+    assert "BENCH_POSTGRES_CONTAINER" not in fastapi
+    assert fastapi["BENCH_POOL"] == str(run.POOL)
+    assert fastapi["PYTHONPATH"] == str(run.HERE)
+
+
+def test_python_servers_run_in_this_interpreter_and_runtimes_by_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(run, "RUNTIMES", {"node": "/opt/node/bin/node", "bun": None})
+
+    assert run.server_command(["granian", "--x"]) == [
+        sys.executable,
+        "-m",
+        "granian",
+        "--x",
+    ]
+    assert run.server_command(["python", "manage.py"]) == [sys.executable, "manage.py"]
+    assert run.server_command(["node", "js/a.js"]) == ["/opt/node/bin/node", "js/a.js"]
+    with pytest.raises(SystemExit, match="bun is not installed"):
+        run.server_command(["bun", "js/b.js"])
+
+
+def test_javascript_versions_come_from_the_runtimes_and_installed_packages(
+    tmp_path: Path,
+) -> None:
+    for name, version in {"fastify": "5.0.0", "@hono/node-server": "2.0.0"}.items():
+        package = tmp_path / "node_modules" / name
+        package.mkdir(parents=True)
+        (package / "package.json").write_text(json.dumps({"version": version}))
+
+    found = run.javascript_versions(tmp_path, {"node": sys.executable, "bun": None})
+
+    assert (
+        found["runtimes"]["node"]
+        == f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
+    )
+    assert found["runtimes"]["bun"] is None
+    assert found["packages"]["fastify"] == "5.0.0"
+    assert found["packages"]["@hono/node-server"] == "2.0.0"
+    assert found["packages"]["pg"] is None
+
+
+@pytest.mark.skipif(run.RUNTIMES.get("node") is None, reason="needs Node.js")
+def test_javascript_payloads_are_the_same_bytes_as_payloads_py() -> None:
+    script = (
+        "const m = await import('./js/common.js');"
+        "process.stdout.write(JSON.stringify(Object.fromEntries("
+        "Object.entries(m.BODIES).map(([k, v]) => [k, v.toString('latin1')]))));"
+    )
+    output = subprocess.run(
+        [run.RUNTIMES["node"], "--input-type=module", "-e", script],
+        cwd=run.HERE,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    bodies = {name: body.encode("latin1") for name, body in json.loads(output).items()}
+    assert bodies == payloads.BODIES
+
+
 def test_payloads_are_deterministic_compact_and_the_advertised_size() -> None:
     assert payloads.make_items(11) == payloads.make_items(11)
     assert 900 <= len(payloads.BODIES["json-1k"]) <= 1150

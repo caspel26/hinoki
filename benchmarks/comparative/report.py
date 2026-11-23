@@ -30,10 +30,15 @@ from report_html import Cell, Scenario, Stack, rps
 JSONData = dict[str, Any]
 
 
+PYTHON = "Python"
+OTHER_RUNTIMES = "Other runtimes"
+
+
 class StackInfo(NamedTuple):
     family: str
     framework: str
     server: str
+    group: str = PYTHON
 
 
 STACKS = {
@@ -45,6 +50,9 @@ STACKS = {
     "ninja": StackInfo("ninja", "Django Ninja", "Uvicorn"),
     "ninja-granian": StackInfo("ninja", "Django Ninja", "Granian"),
     "bolt": StackInfo("bolt", "Django Bolt", "Actix, native server"),
+    "fastify": StackInfo("fastify", "Fastify", "Node.js", OTHER_RUNTIMES),
+    "hono": StackInfo("hono", "Hono", "Node.js", OTHER_RUNTIMES),
+    "bun": StackInfo("bun", "Bun.serve", "Bun", OTHER_RUNTIMES),
 }
 STACK_ORDER = list(STACKS)
 GRANIAN_KEYS = ("hinoki", "hinoki-granian")
@@ -74,6 +82,10 @@ def stack_label(stack: str) -> str:
 
 def stack_family(stack: str) -> str:
     return STACKS[stack].family
+
+
+def stack_group(stack: str) -> str:
+    return STACKS[stack].group
 
 
 def stack_rank(stack: str) -> int:
@@ -375,6 +387,7 @@ def make_cells(rows: dict[str, JSONData]) -> tuple[Cell, ...]:
                 wrong=row["wrong"],
                 mark="best" if key == best else "tie" if key in tied else "",
                 reason=instability(row),
+                group=stack_group(key),
             )
         )
     return tuple(cells)
@@ -427,10 +440,12 @@ def stacks_of(scenarios: list[Scenario]) -> list[Stack]:
     seen = {}
     for scenario in scenarios:
         for cell in scenario.cells:
-            seen.setdefault(cell.family, (stack_rank(cell.key), cell.label))
+            seen.setdefault(cell.family, (stack_rank(cell.key), cell.label, cell.group))
     return [
-        Stack(family, label)
-        for family, (_, label) in sorted(seen.items(), key=lambda item: item[1][0])
+        Stack(family, label, group)
+        for family, (_, label, group) in sorted(
+            seen.items(), key=lambda item: item[1][0]
+        )
     ]
 
 
@@ -525,6 +540,33 @@ STACK_ROWS = (
         "its own Actix server",
         ("django-bolt",),
     ),
+    (
+        "fastify",
+        "Fastify",
+        "node-postgres (pg), named prepared statements",
+        "Node.js HTTP, node:cluster",
+        ("fastify", "pg", "Node.js"),
+    ),
+    (
+        "hono",
+        "Hono",
+        "node-postgres (pg), named prepared statements",
+        "@hono/node-server on Node.js, node:cluster",
+        ("hono", "@hono/node-server", "pg", "Node.js"),
+    ),
+    (
+        "bun",
+        "Bun.serve",
+        "Bun.SQL (built in), prepared statements",
+        "Bun.serve, processes sharing the port (SO_REUSEPORT)",
+        ("Bun",),
+    ),
+)
+RUNTIME_NAMES = {"node": "Node.js", "bun": "Bun"}
+OTHER_RUNTIMES_NOTE = (
+    "Fastify, Hono and Bun.serve run on JavaScript runtimes (Node.js, Bun) instead of Python. "
+    "They serve the same service, pass the same verifier and use the same number of processes, "
+    "connections per process and CPU placement; their language, runtime and database driver differ."
 )
 DETAIL_VIEWS = {
     "documented": (
@@ -605,6 +647,7 @@ def conditions_table(directories: list[Path]) -> str:
             unique_text([", ".join(f"{v:.2f}" for v in e["loadavg_at_start"]) for e in envs]),
         ),
         ("Database", str(first["postgres"])),
+        *([("JavaScript runtimes", runtimes)] if (runtimes := runtimes_text(envs)) else []),
         *[
             ("Command" if len(directories) == 1 else f"Command ({server_mode(d)})",
              f"`{run_command(d, e['settings'])}`")
@@ -637,6 +680,8 @@ def reproduce(modes: list[str], tool: str = "bombardier") -> str:
         if tool == "bombardier"
         else ""
     )
+    if "javascript" in modes:
+        install += "(cd benchmarks/comparative/js && npm ci)  # Node.js and Bun on PATH, see the README\n"
     return (
         f"```sh\n{install}cd benchmarks/comparative\nuv sync --locked\n"
         "VIRTUAL_ENV=$PWD/.venv uvx maturin develop --release --uv --manifest-path ../../crates/bindings/Cargo.toml\n"
@@ -649,6 +694,39 @@ def package_versions(env: JSONData) -> dict[str, str]:
     if isinstance(packages, str):  # run.py stores `uv pip list` output as JSON text
         packages = json.loads(packages)
     return {item["name"]: item["version"] for item in packages}
+
+
+def javascript_versions(env: JSONData) -> dict[str, str]:
+    """Runtime and npm package versions a `javascript` run recorded, by display name."""
+    recorded = env.get("javascript", {})
+    runtimes = {
+        RUNTIME_NAMES.get(name, name): version
+        for name, version in recorded.get("runtimes", {}).items()
+    }
+    found = {**recorded.get("packages", {}), **runtimes}
+    return {name: version for name, version in found.items() if version}
+
+
+def all_versions(envs: list[JSONData]) -> dict[str, str]:
+    """Every recorded version; the first run that recorded a name wins."""
+    merged: dict[str, str] = {}
+    for env in envs:
+        for name, version in {
+            **package_versions(env),
+            **javascript_versions(env),
+        }.items():
+            merged.setdefault(name, version)
+    return merged
+
+
+def runtimes_text(envs: list[JSONData]) -> str:
+    """Node.js and Bun versions of the JavaScript runs, or "" without one."""
+    versions = all_versions([env for env in envs if "javascript" in env])
+    return "; ".join(
+        f"{name} {versions[name]}"
+        for name in RUNTIME_NAMES.values()
+        if name in versions
+    )
 
 
 def indented(text: str, spaces: int = 4) -> str:
@@ -682,10 +760,12 @@ def service_table(directories: list[Path]) -> str:
     )
 
 
-def stacks_table(env: JSONData, kiso: bool) -> str:
-    versions = package_versions(env)
+def stacks_table(envs: list[JSONData], kiso: bool, javascript: bool) -> str:
+    versions = all_versions(envs)
     rows = []
     for key, label, orm, server, packages in STACK_ROWS:
+        if stack_group(key) == OTHER_RUNTIMES and not javascript:
+            continue
         shown = ", ".join(
             f"{name} {versions[name]}" for name in packages if name in versions
         )
@@ -757,7 +837,13 @@ def overview_section(directories: list[Path], rows: Rows, notes: list[str]) -> s
     scenarios = make_scenarios(rows)
     stacks = stacks_of(scenarios)
     kiso = versus_keys(rows) is not None
-    extra = [session_note(directories), *notes, KISO_NOTE if kiso else ""]
+    other = any(stack.group == OTHER_RUNTIMES for stack in stacks)
+    extra = [
+        session_note(directories),
+        *notes,
+        KISO_NOTE if kiso else "",
+        OTHER_RUNTIMES_NOTE if other else "",
+    ]
     return "\n".join(
         [
             "## Results at a glance\n",
@@ -821,6 +907,11 @@ def method_section(directories: list[Path], first_env: JSONData) -> str:
     kiso = any(
         KISO_KEY in stack_names(d, read_environment(d)["settings"]) for d in directories
     )
+    javascript = any(
+        stack_group(stack) == OTHER_RUNTIMES
+        for d in directories
+        for stack in stack_names(d, read_environment(d)["settings"])
+    )
     legacy = any(tool_name(read_environment(d)) == "oha" for d in directories)
     warning = format_warning(directories)
     verified = (
@@ -843,7 +934,9 @@ def method_section(directories: list[Path], first_env: JSONData) -> str:
                 "The stacks differ in ORM, database driver and server, as listed below.\n\n"
                 + service_table(directories)
                 + "\n\n"
-                + stacks_table(first_env, kiso),
+                + stacks_table(
+                    [read_environment(d) for d in directories], kiso, javascript
+                ),
             ),
             collapsed(
                 "How the numbers are computed",
