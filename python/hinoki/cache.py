@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from hinoki import core
 from hinoki.blocking import run_sync
@@ -17,6 +17,9 @@ from hinoki.errors import APIError, ValidationError
 from hinoki.modules import Module, ModuleContext, Resource
 from hinoki.schema import Schema
 from hinoki.utils import utc_now
+
+if TYPE_CHECKING:
+    from hinoki.core import Row
 
 S = TypeVar("S", bound=Schema)
 log = logging.getLogger("hinoki.cache")
@@ -283,7 +286,7 @@ class DatabaseCache(Cache):
             return None
         expires = _datetime(row["expires_at"])
         if expires <= utc_now():
-            await self.delete(key)
+            await self._delete_observed(full_key, row)
             return None
         try:
             value = bytes.fromhex(row["value_hex"])
@@ -292,6 +295,17 @@ class DatabaseCache(Cache):
         if len(value) > self.max_value_bytes:
             raise CacheValueTooLarge
         return value
+
+    async def _delete_observed(self, key: str, row: Row) -> None:
+        await _cache_db(
+            self.database.execute(
+                "DELETE FROM hinoki_cache WHERE cache_key = ? "
+                "AND value_hex = ? AND expires_at = ?",
+                key,
+                row["value_hex"],
+                row["expires_at"],
+            )
+        )
 
     def get_bytes_sync(self, key: str) -> bytes | None:
         return run_sync(self.get_bytes(key))
