@@ -252,8 +252,8 @@
 }
 
 /* Soft glows and a request-flow spine. One slow orb sits on the right of the
-   hero, away from the headline; a second follows the pointer. Both are painted
-   radial gradients (no blur filter) and only transform and opacity change. */
+   hero, away from the headline; a small cursor spotlight gives the background
+   a little depth. Both are radial gradients without blur filters. */
 .hn-hero__bg {
   position: absolute !important;
   inset: -40px 0 0;
@@ -283,18 +283,22 @@
   --my: 0px;
   inset-inline-start: 0;
   top: 0;
-  inline-size: 300px;
-  aspect-ratio: 1;
-  margin: -150px 0 0 -150px;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--hn-brand) 42%, transparent), transparent);
+  inline-size: 220px;
+  block-size: 150px;
+  margin: -75px 0 0 -110px;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--hn-brand) 18%, transparent), transparent 72%);
   opacity: 0;
   transform: translate3d(var(--mx), var(--my), 0);
-  will-change: transform;
-  transition: opacity var(--hn-dur-2) var(--hn-ease);
+  will-change: transform, opacity;
+  transition: opacity 140ms var(--hn-ease);
 }
 
 .hn-hero.has-pointer .hn-hero__bg i {
   opacity: 1;
+}
+
+.hn-hero.has-pointer-on-panel .hn-hero__bg i {
+  opacity: 0;
 }
 
 .hn-hero__bg::before,
@@ -2153,11 +2157,39 @@
 .hn-panel.ide {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  isolation: isolate;
   height: clamp(600px, 70vh, 640px);
   height: clamp(600px, 70svh, 640px);
   border-color: var(--ide-edge);
   background: var(--ide-bg);
   box-shadow: 0 30px 70px -34px rgb(40 20 90 / 0.65), 0 0 0 1px rgb(185 140 255 / 0.06);
+}
+
+.hn-panel.ide::before {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  inline-size: 220px;
+  block-size: 150px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--hn-brand) 18%, transparent), transparent 72%);
+  content: "";
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(calc(var(--spot-x, 0px) - 110px), calc(var(--spot-y, 0px) - 75px), 0);
+  transition: opacity 140ms var(--hn-ease);
+  will-change: transform, opacity;
+}
+
+.hn-panel.ide > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hn-hero.has-pointer-on-panel .hn-panel.ide::before {
+  opacity: 1;
 }
 
 /* Narrower desktops wrap the longer terminal lines; give them the room back. */
