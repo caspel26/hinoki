@@ -17,8 +17,8 @@ import sys
 from hinoki import jsontext
 from hinoki.access import Access
 from hinoki.app import Hinoki
-from hinoki.checkcli import USAGE_ERRORS, build_app
-from hinoki.reportui import lane_suffix, route_row
+from hinoki.cli.check import USAGE_ERRORS, build_app
+from hinoki.cli.reportui import lane_suffix, route_row
 from hinoki.routing import Route
 from hinoki.rules import qualified
 from hinoki.runtime.crudplan import select_crud_plan

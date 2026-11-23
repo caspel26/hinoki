@@ -9,7 +9,7 @@ from typing import Any
 
 from hinoki import jsontext
 from hinoki.ai.openapidiff import breaking_changes
-from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.cli.check import USAGE_ERRORS, build_app
 
 
 def add_arguments(

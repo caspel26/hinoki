@@ -6,28 +6,23 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from hinoki import (
-    admincli,
-    completioncli,
-    doctorcli,
-    eventscli,
-    openapicli,
-    projectcli,
-    routescli,
-    serve,
-    settingscli,
-    shellcli,
-    skillscli,
-    versioncli,
+from hinoki import serve
+from hinoki.cli import (
+    admin,
+    completion,
+    doctor,
+    events,
+    openapi,
+    project,
+    routes,
+    settings,
+    shell,
+    skills,
+    version,
 )
-from hinoki.checkcli import add_arguments, run_check
-from hinoki.clihelp import HinokiParser
-from hinoki.db import Database, DatabaseError
-from hinoki.errors import MigrationError
-from hinoki.orm import migrator
-from hinoki.orm.migrations import Plan, migration_files, models_of, plan
-from hinoki.project import ProjectError, ProjectManifest, resolve_target
-from hinoki.projectmigrations import (
+from hinoki.cli.check import add_arguments, run_check
+from hinoki.cli.help import HinokiParser
+from hinoki.cli.migrations import (
     URL_VARIABLE,
     DatabaseResolutionError,
     manifest_for,
@@ -36,10 +31,15 @@ from hinoki.projectmigrations import (
     run_database_project,
     sql_project,
 )
-from hinoki.projectmigrations import (
+from hinoki.cli.migrations import (
     database_dialect as _database_dialect,
 )
-from hinoki.reportui import run_timed
+from hinoki.cli.reportui import run_timed
+from hinoki.db import Database, DatabaseError
+from hinoki.errors import MigrationError
+from hinoki.orm import migrator
+from hinoki.orm.migrations import Plan, migration_files, models_of, plan
+from hinoki.project import ProjectError, ProjectManifest, resolve_target
 from hinoki.terminal import shown_path
 
 
@@ -61,17 +61,17 @@ def parser() -> argparse.ArgumentParser:
         root.add_subparsers(dest="group", required=True, metavar="<command>"),
     )
     add_arguments(commands)
-    settingscli.add_arguments(commands)
-    routescli.add_arguments(commands)
-    eventscli.add_arguments(commands)
-    openapicli.add_arguments(commands)
-    versioncli.add_arguments(commands)
-    projectcli.add_arguments(commands)
-    admincli.add_arguments(commands)
-    doctorcli.add_arguments(commands)
-    shellcli.add_arguments(commands)
-    skillscli.add_arguments(commands)
-    completioncli.add_arguments(commands)
+    settings.add_arguments(commands)
+    routes.add_arguments(commands)
+    events.add_arguments(commands)
+    openapi.add_arguments(commands)
+    version.add_arguments(commands)
+    project.add_arguments(commands)
+    admin.add_arguments(commands)
+    doctor.add_arguments(commands)
+    shell.add_arguments(commands)
+    skills.add_arguments(commands)
+    completion.add_arguments(commands)
     serve.add_arguments(commands)
     commands.add_parser("manage", help="run an app's management commands")
     group = commands.add_parser(
@@ -286,7 +286,7 @@ def run_sql(args: argparse.Namespace) -> None:
 
 
 def run_new(args: argparse.Namespace) -> int:
-    from hinoki.newcli import run_new as new_project  # noqa: PLC0415 - only for `new`
+    from hinoki.cli.new import run_new as new_project  # noqa: PLC0415 - only for `new`
 
     return new_project(args)
 
@@ -380,30 +380,30 @@ def run_migrations_with_error_handling(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     if arguments and arguments[0] == "manage":
-        from hinoki.managementcli import run  # noqa: PLC0415 - only for `manage`
+        from hinoki.cli.management import run  # noqa: PLC0415 - only for `manage`
 
         return run(arguments[1:])
     args = parser().parse_args(arguments)
     commands = {
         "check": run_check,
         "new": run_new,
-        "admin": admincli.run,
-        "app": projectcli.run,
-        "doctor": doctorcli.run_doctor,
-        "events": eventscli.run_events,
+        "admin": admin.run,
+        "app": project.run,
+        "doctor": doctor.run_doctor,
+        "events": events.run_events,
         "mcp": run_mcp_command,
         "migrations": run_migrations,
-        "openapi": openapicli.run_openapi,
-        "routes": routescli.run_routes,
-        "settings": settingscli.run_settings,
-        "shell": shellcli.run,
-        "skills": skillscli.run,
-        "version": versioncli.run_version,
+        "openapi": openapi.run_openapi,
+        "routes": routes.run_routes,
+        "settings": settings.run_settings,
+        "shell": shell.run,
+        "skills": skills.run,
+        "version": version.run_version,
         "dev": serve.run_dev,
         "serve": serve.run_serve,
     }
     if args.group == "completion":
-        return completioncli.run(args, parser())
+        return completion.run(args, parser())
     if args.group in TARGETED:
         try:
             args.target = resolve_target(args.target)

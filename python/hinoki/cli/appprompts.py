@@ -6,15 +6,15 @@ from argparse import Namespace
 from collections.abc import Collection
 from pathlib import Path
 
-from hinoki.newcli import (
+from hinoki.cli.new import (
     Ask,
     LinePrompts,
     Questions,
     cancelled,
     show_banner,
 )
+from hinoki.cli.prompts import Check, Prompter, keys_available, raw_keys
 from hinoki.project import ProjectManifest
-from hinoki.prompts import Check, Prompter, keys_available, raw_keys
 from hinoki.scaffold import NAME, RESERVED_NAMES
 from hinoki.terminal import Style, shown_path
 
