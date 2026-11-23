@@ -261,6 +261,7 @@ def native_handler_eligible(binding: Binding) -> bool:
     return bool(
         bound_path_names == set(path_names)
         and supported_inputs
+        and not binding.needs_session
         and not binding.takes_request
         and renderer_ok
     )

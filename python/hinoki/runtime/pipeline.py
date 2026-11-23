@@ -41,6 +41,7 @@ from hinoki.events import RateLimited, events_var, listener
 from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
+from hinoki.http.response import encode_header
 from hinoki.http.stream import File, Streamed
 from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
@@ -102,6 +103,7 @@ from hinoki.runtime.websockets import Admitted
 from hinoki.runtime.websockets import admit as admit_handshake
 from hinoki.runtime.websockets import run as run_session
 from hinoki.schema import Schema, encode
+from hinoki.sessions import Session, SessionSettings, SessionStore
 from hinoki.settings import AppSettings, SecuritySettings
 from hinoki.websocket import Transport, WebSocketRoute
 
@@ -258,13 +260,19 @@ class Pipeline:
             for param in binding.resource_params
             if param.resource_type is not None
         )
+        session_resources = tuple(
+            (kind, binding.route.name)
+            for binding in self.bindings
+            if binding.needs_session
+            for kind in (SessionStore, SessionSettings)
+        )
         self.lifespan = Lifespan(
             app.modules,
             self.ctx,
             self.executor,
             app.runtime,
             needs_database=needs_database,
-            required_resources=required_resources,
+            required_resources=(*required_resources, *session_resources),
             on_startup=app.on_startup,
             on_shutdown=(*app.on_shutdown, self._release_rate_limits),
             events=app.events,
@@ -996,6 +1004,10 @@ class Pipeline:
         """Authorize, negotiate, read only required bodies, and invoke."""
         access = binding.route.access
         query = principal = None
+        session: Session | None = None
+        if binding.needs_session:
+            session = await self._request_session(headers)
+            self._check_session_csrf(binding, scope, headers, session)
         if access is not None:
             # Parsed once: authentication and the request share the result.
             query = parse_query(scope.get("query_string", b""))
@@ -1005,6 +1017,7 @@ class Pipeline:
                 query,
                 route=binding.route.path,
                 method=binding.route.method,
+                session=session,
             )
         if binding.route.rate_limit is not None:
             await self._rate_limit(binding, scope.get("client"), principal)
@@ -1026,7 +1039,38 @@ class Pipeline:
             )
         else:
             data = plain_data(scope, path_params, principal, query)
-        return await self._invoke(binding, request, renderer, binding.collect(data))
+        return await self._invoke(
+            binding, request, renderer, binding.collect(data), session
+        )
+
+    async def _request_session(self, headers: dict[str, str]) -> Session:
+        """Load the route's single session from its cookie before auth."""
+        settings = self.ctx.get(SessionSettings)
+        cookies = core.parse_cookie_header(headers.get("cookie", ""))
+        return await Session.from_cookie(
+            self.ctx.get(SessionStore), cookies.get(settings.cookie_name), settings
+        )
+
+    def _check_session_csrf(
+        self,
+        binding: Binding,
+        scope: Scope,
+        headers: dict[str, str],
+        session: Session,
+    ) -> None:
+        """Reject cross-site unsafe requests using a session cookie."""
+        if binding.route.method in {"GET", "HEAD", "OPTIONS"} or session.is_new:
+            return
+        fetch_site = headers.get("sec-fetch-site", "")
+        if fetch_site in {"cross-site", "none"}:
+            raise HTTPError(HTTPStatus.FORBIDDEN, "csrf_rejected")
+        origin = headers.get("origin")
+        expected = f"{scope.get('scheme', 'http')}://{headers.get('host', '')}"
+        if origin is not None and origin != expected:
+            raise HTTPError(HTTPStatus.FORBIDDEN, "csrf_rejected")
+        csrf = headers.get("x-csrf-token", "")
+        if not csrf or not session.verify_csrf(csrf):
+            raise HTTPError(HTTPStatus.FORBIDDEN, "csrf_rejected")
 
     async def _rate_limit(
         self,
@@ -1226,16 +1270,43 @@ class Pipeline:
         request: Request | None,
         renderer: Renderer,
         kwargs: dict[str, object],
+        session: Session | None = None,
     ) -> Response:
         """Run the handler; with ``atomic=True`` inside a transaction that
         commits only after the output is encoded, and rolls back on any error
         before it becomes an HTTP response."""
+        if binding.session_params and session is None:
+            if request is None:
+                raise RuntimeError("a handler requiring Session has no request")
+            session = await Session.from_cookie(
+                self.ctx.get(SessionStore),
+                request.COOKIES.get(self.ctx.get(SessionSettings).cookie_name),
+                self.ctx.get(SessionSettings),
+            )
+            kwargs = {**kwargs, binding.session_params[0].name: session}
+        if session is not None and binding.session_params:
+            kwargs = {**kwargs, binding.session_params[0].name: session}
+        response = await self._invoke_bound(binding, request, renderer, kwargs)
+        if session is not None:
+            cookie = await session.commit()
+            if cookie is not None:
+                response.headers.append(encode_header(*cookie))
+        return response
+
+    async def _invoke_bound(
+        self,
+        binding: Binding,
+        request: Request | None,
+        renderer: Renderer,
+        kwargs: dict[str, object],
+    ) -> Response:
+        """Keep streaming and transaction handling behind the session commit."""
         if binding.streams:
             return await self._invoke_streaming(binding, request, renderer, kwargs)
-        if not binding.route.atomic:
-            return await self._call(binding, request, renderer, kwargs)
-        async with self.ctx.get(Database).atomic():
-            return await self._call(binding, request, renderer, kwargs)
+        if binding.route.atomic:
+            async with self.ctx.get(Database).atomic():
+                return await self._call(binding, request, renderer, kwargs)
+        return await self._call(binding, request, renderer, kwargs)
 
     async def _invoke_streaming(
         self,

@@ -257,6 +257,8 @@ class Binding:
     takes_text: bool = field(init=False, repr=False, compare=False)
     needs_request: bool = field(init=False, repr=False, compare=False)
     resource_params: tuple[Param, ...] = field(init=False, repr=False, compare=False)
+    session_params: tuple[Param, ...] = field(init=False, repr=False, compare=False)
+    needs_session: bool = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """Freeze handler execution shape with the request binding plan."""
@@ -266,7 +268,9 @@ class Binding:
         object.__setattr__(
             self,
             "native_input_names",
-            tuple(p.name for p in self.params if p.source != "resource"),
+            tuple(
+                p.name for p in self.params if p.source not in {"resource", "session"}
+            ),
         )
         renderers = self.route.renderers
         object.__setattr__(
@@ -287,6 +291,16 @@ class Binding:
         )
         object.__setattr__(
             self,
+            "session_params",
+            tuple(p for p in self.params if p.source == "session"),
+        )
+        object.__setattr__(
+            self,
+            "needs_session",
+            bool(self.session_params) or _uses_session_auth(self.route.access),
+        )
+        object.__setattr__(
+            self,
             "takes_text",
             any(p.text and p.source == "body" for p in self.params),
         )
@@ -296,7 +310,11 @@ class Binding:
         object.__setattr__(
             self,
             "needs_request",
-            self.takes_request or self.needs_body or has_files or not self.default_json,
+            self.takes_request
+            or self.needs_body
+            or has_files
+            or self.needs_session
+            or not self.default_json,
         )
         bodies = [p for p in self.params if p.source == "body"]
         only_body = len(bodies) == 1 and not has_files
@@ -351,7 +369,7 @@ class Binding:
         values: dict[str, object] = {}
         errors: list[ErrorDetail] = []
         for param in self.params:
-            if param.source == "resource":
+            if param.source in {"resource", "session"}:
                 continue
             try:
                 values[param.name] = param.extract(request)
@@ -431,6 +449,21 @@ def special_param(
     annotation: object,
 ) -> Param | None:
     """Parameters that are not plain request values."""
+    session = session_param(route, parameter, annotation)
+    if session is not None:
+        return session
+    return regular_special_param(route, parameter, annotation)
+
+
+def _uses_session_auth(access: object | None) -> bool:
+    auth = getattr(access, "auth", None)
+    return bool(getattr(auth, "__hinoki_session_auth__", False))
+
+
+def regular_special_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Recognize non-session framework parameters."""
     name, where = parameter.name, route.name
     special = listing_param(route, name, annotation)
     if special is None:
@@ -453,6 +486,24 @@ def special_param(
         annotation.specs()  # unresolvable annotations fail now, not per request
         return Param(name, "body", schema=annotation)
     return None
+
+
+def session_param(
+    route: Route, parameter: inspect.Parameter, annotation: object
+) -> Param | None:
+    """Recognize request-scoped session parameters before generic Resources."""
+    if not getattr(annotation, "__hinoki_session__", False):
+        return None
+    name = parameter.name
+    if parameter.default is not EMPTY:
+        raise RegistrationError(
+            f"{route.name}: session parameter {name!r} cannot have a default"
+        )
+    if name in PATH_PARAM.findall(route.path):
+        raise RegistrationError(
+            f"{route.name}: session parameter {name!r} cannot also be a path parameter"
+        )
+    return Param(name, "session")
 
 
 def resource_param(
