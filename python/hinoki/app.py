@@ -22,6 +22,7 @@ from hinoki.errors import ErrorRegistrar, ErrorRegistry, RegistrationError
 from hinoki.events import EventBus, Handlers
 from hinoki.fields import UNSET, Unset
 from hinoki.http.middleware import Middleware, check_middleware
+from hinoki.mail import EmailModule
 from hinoki.management import Command, _normalize_commands
 from hinoki.modules import Module, order_modules
 from hinoki.openapi import SPEC_VERSIONS, OpenAPIBuilder, documented
@@ -66,6 +67,7 @@ from hinoki.settings import (
     AppSettings,
     DatabaseSettings,
     DocsSettings,
+    EmailSettings,
     Settings,
 )
 from hinoki.utils import Clock, _read_utc, utc_now, utc_today
@@ -219,9 +221,12 @@ class Hinoki:
         # The declared form: ``Hinoki(include=[...], modules=[...])``.
         declared = [self.module_of(m) for m in modules]
         automatic = self.settings_database(declared)
-        if automatic is not None or declared:
-            self.install(*([automatic] if automatic else []), *declared)
+        automatic_email = self.settings_email(declared)
+        implied = [m for m in (automatic, automatic_email) if m is not None]
+        if implied or declared:
+            self.install(*implied, *declared)
         self._automatic_database: DatabaseModule | None = automatic
+        self._automatic_email: EmailModule | None = automatic_email
         if include:
             self.include(*include)
 
@@ -346,6 +351,7 @@ class Hinoki:
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
         self._automatic_database = None
+        self._automatic_email = None
         self._commands = _normalize_commands(commands)
         self._on_startup = check_hooks("on_startup", on_startup)
         self._on_shutdown = check_hooks("on_shutdown", on_shutdown)
@@ -369,6 +375,19 @@ class Hinoki:
         ):
             return None
         return DatabaseModule.from_settings(self.settings)
+
+    def settings_email(self, declared: list[Module]) -> EmailModule | None:
+        """The email module implied by an ``email: EmailSettings`` field in the
+        settings, unless the application declares its own."""
+        group = getattr(self.settings, "email", None)
+        if not isinstance(group, EmailSettings):
+            return None
+        if any(
+            isinstance(module, EmailModule) or module.name == EmailModule.name
+            for module in declared
+        ):
+            return None
+        return EmailModule.from_settings(self.settings)
 
     def module_of(self, module: Module | type[Module]) -> Module:
         """An instance as given, or a class built from this app's settings."""
@@ -603,19 +622,22 @@ class Hinoki:
         """
         self._check_mutable()
         installed = self._modules
-        automatic = self._automatic_database
-        replacing_automatic = automatic is not None and any(
-            isinstance(module, DatabaseModule) for module in modules
-        )
-        if replacing_automatic:
-            # Validate and include first; a failed installation must preserve the
-            # settings-provided module and allow a later replacement attempt.
-            installed = [module for module in installed if module is not automatic]
+        replaced = [
+            automatic
+            for automatic in (self._automatic_database, self._automatic_email)
+            if automatic is not None
+            and any(isinstance(module, type(automatic)) for module in modules)
+        ]
+        # Validate and include first; a failed installation must preserve the
+        # settings-provided modules and allow a later replacement attempt.
+        installed = [module for module in installed if module not in replaced]
         order_modules([*installed, *modules])
         self.include(*(api for module in modules for api in module.apis))
         self._modules[:] = [*installed, *modules]
-        if replacing_automatic:
+        if self._automatic_database in replaced:
             self._automatic_database = None
+        if self._automatic_email in replaced:
+            self._automatic_email = None
 
     def lookup(self, method: str, path: str) -> Found | MethodNotAllowed | None:
         """Distinguish a match, a wrong method and an unknown path.

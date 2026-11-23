@@ -8,6 +8,10 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### ✉️ Send email
+> `python/hinoki/mail.py`, `python/hinoki/settings.py`, `python/hinoki/app.py`, `python/hinoki/runtime/kiso.py`, `crates/mail`, `crates/bindings/src/mail.rs`, `crates/kiso/src/metrics.rs`
+
+An `email: settings.EmailSettings` field installs `EmailModule`, which opens one `hinoki.mail.Mailer` per worker and closes it at shutdown. `await mail.send(mail.Message(to=("ada@example.com",), subject=..., text=..., html=...))` delivers over SMTP (STARTTLS, implicit TLS or, on the loopback or with `allow_insecure`, none; `PLAIN` and `LOGIN` authentication; a bounded pool; timeouts; retries of transient failures), or prints (`console`) or keeps (`memory`, `mailer.outbox`) the message. Rendering, header and address validation (a line break or other control character is refused; text that looks like an encoded word is encoded), limits, the SMTP conversation, TLS verification (it cannot be turned off) and the pool are Rust; the message and the result cross the binding as Python objects. Failures are `EmailError` with a `kind`, reply code, `attempts` and `possibly_sent`, and their text never holds an address, subject, body, password or server reply. Send after a commit with `current_database().after_commit(...)`; from a sync handler use `run_sync(mail.send(...))`. With `metrics.listen` on Kiso the families `hinoki_email_messages_total`, `hinoki_email_send_duration_seconds` and `hinoki_email_retries_total` are exported. There is no queue and no guaranteed delivery, no templates, no HTTP providers, no SMTPUTF8, XOAUTH2 or DKIM, and the admin sends no email. See [Send email](docs/email.md).
 #### 🔎 Filter, order and search generated lists
 > `python/hinoki/filters.py`, `python/hinoki/resources.py`, `python/hinoki/runtime/binding.py`, `python/hinoki/runtime/rowplan.py`, `python/hinoki/orm/keyset.py`, `python/hinoki/pagination.py`, `python/hinoki/openapi.py`, `crates/bindings/src/filters.rs`
 

@@ -33,7 +33,7 @@ from typing import Any, ClassVar, Literal, Self, dataclass_transform
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from hinoki import jsontext
+from hinoki import core, jsontext
 from hinoki.context import request_id
 from hinoki.runtime.config import MAX_REQUEST_INPUT_BYTES, RuntimeConfig
 from hinoki.target import load_target
@@ -1624,6 +1624,213 @@ class MetricsSettings(Settings):
             options["host"], options["port"] = address
         if directory is not None:
             options["dir"] = directory
+        return options
+
+
+class EmailBackend(StrEnum):
+    """The delivery ``EmailSettings.backend`` selects."""
+
+    SMTP = "smtp"
+    CONSOLE = "console"
+    MEMORY = "memory"
+
+
+class EmailSecurity(StrEnum):
+    """How ``EmailSettings`` secures the SMTP connection."""
+
+    STARTTLS = "starttls"
+    TLS = "tls"
+    NONE = "none"
+
+
+EMAIL_PORTS = {
+    EmailSecurity.STARTTLS: 587,
+    EmailSecurity.TLS: 465,
+    EmailSecurity.NONE: 25,
+}
+EMAIL_INTEGER_RANGES = {
+    "port": (1, MAX_DATABASE_PORT),
+    "max_connections": (1, 64),
+    "max_messages_per_connection": (1, 10_000),
+    "retries": (0, 5),
+    "max_recipients": (1, 1000),
+    "max_message_bytes": (1024, 50 * 1024 * 1024),
+    "max_attachments": (0, 100),
+    "memory_capacity": (1, 100_000),
+}
+EMAIL_MAX_HOST = 253
+EMAIL_MAX_SECONDS = 3600
+EMAIL_DURATIONS = (
+    "connect_timeout",
+    "command_timeout",
+    "data_timeout",
+    "timeout",
+    "pool_wait",
+    "idle_timeout",
+    "backoff_base",
+    "backoff_max",
+)
+
+
+class EmailSettings(Settings):
+    """Outbound email. ``backend`` has no default, so production never falls
+    back to the console by accident: ``smtp`` delivers, ``console`` prints the
+    rendered message (development) and ``memory`` keeps it in an outbox (tests).
+
+    The SMTP fields apply to ``smtp`` only. ``port`` defaults to 587 for
+    ``starttls``, 465 for ``tls`` and 25 for ``none``; ``security="none"`` to a
+    host off the loopback needs ``allow_insecure``. ``username`` and ``password``
+    go together; read the password from a ``*_FILE`` variable. ``tls_ca_file``
+    adds PEM certificates to the bundled public roots (it does not replace them);
+    certificates are always checked.
+    ``default_sender`` is the From address of a message that sets none, and
+    ``message_id_domain`` the domain of its ``Message-ID`` (default: the domain
+    of ``default_sender``, else ``helo_name``, else ``localhost``). Durations are
+    seconds, more than 0 and at most 3600: ``timeout`` bounds one whole
+    ``send()`` including the wait for a
+    connection and the retries, and must be at least ``connect_timeout``. With
+    ``check_on_startup`` the worker connects and authenticates while starting,
+    and a failure aborts the start. ``memory_capacity`` bounds the outbox.
+    """
+
+    backend: EmailBackend
+    default_sender: str | None = None
+    host: str = "localhost"
+    port: int | None = None
+    security: EmailSecurity = EmailSecurity.STARTTLS
+    username: str | None = None
+    password: Secret | None = None
+    allow_insecure: bool = False
+    tls_ca_file: str | None = None
+    helo_name: str | None = None
+    message_id_domain: str | None = None
+    connect_timeout: float = 10.0
+    command_timeout: float = 30.0
+    data_timeout: float = 120.0
+    timeout: float = 60.0
+    max_connections: int = 4
+    pool_wait: float = 5.0
+    idle_timeout: float = 60.0
+    max_messages_per_connection: int = 100
+    retries: int = 2
+    backoff_base: float = 0.5
+    backoff_max: float = 5.0
+    max_recipients: int = 100
+    max_message_bytes: int = 10 * 1024 * 1024
+    max_attachments: int = 20
+    memory_capacity: int = 1000
+    check_on_startup: bool = False
+
+    def resolved_port(self) -> int:
+        """``port``, or the default of ``security``."""
+        return self.port if self.port is not None else EMAIL_PORTS[self.security]
+
+    def validate(self) -> None:
+        if isinstance(self.password, str):  # built directly in code
+            object.__setattr__(self, "password", Secret(self.password))
+        for name, kind in (("backend", EmailBackend), ("security", EmailSecurity)):
+            try:
+                object.__setattr__(self, name, kind(getattr(self, name)))
+            except ValueError:
+                raise ValueError(f"{name} is not a known value") from None
+        if (self.username is None) != (self.password is None):
+            raise ValueError("username and password must be set together")
+        self.validate_server()
+        self.validate_ranges()
+        if self.timeout < self.connect_timeout:
+            raise ValueError("timeout must be at least connect_timeout")
+        if self.backoff_max < self.backoff_base:
+            raise ValueError("backoff_max must be at least backoff_base")
+        plaintext = self.security is EmailSecurity.NONE
+        if (
+            self.backend is EmailBackend.SMTP
+            and plaintext
+            and not self.allow_insecure
+            and not MetricsSettings.on_loopback(self.host)
+        ):
+            raise ValueError(
+                "security=none to a host off the loopback needs allow_insecure"
+            )
+        self.validate_names()
+
+    def validate_server(self) -> None:
+        if self.username == "":
+            raise ValueError("username must not be empty")
+        if (
+            not self.host
+            or len(self.host) > EMAIL_MAX_HOST
+            or any(c.isspace() or not c.isprintable() for c in self.host)
+        ):
+            raise ValueError("host must be a host name or address")
+
+    def validate_ranges(self) -> None:
+        for name, (low, high) in EMAIL_INTEGER_RANGES.items():
+            value = getattr(self, name)
+            if value is not None and not low <= value <= high:
+                raise ValueError(f"{name} must be {low} to {high}")
+        for name in EMAIL_DURATIONS:
+            value = getattr(self, name)
+            if not math.isfinite(value) or not 0 < value <= EMAIL_MAX_SECONDS:
+                raise ValueError(
+                    f"{name} must be more than 0 and at most "
+                    f"{EMAIL_MAX_SECONDS} seconds"
+                )
+
+    def validate_names(self) -> None:
+        """Have the native mailer judge the sender and the domains, so a bad
+        value is a settings error at load, not a failure when a worker starts.
+        The password and the CA file are left out of this check."""
+        options = self.native_options()
+        options.pop("tls_ca_file", None)
+        if "password" in options:
+            options["password"] = ""
+        try:
+            core.Mailer(options)
+        except ValueError as error:
+            raise ValueError(str(error).removeprefix("email: ")) from None
+
+    def native_options(self) -> dict[str, object]:
+        """What the native mailer takes. The password appears only here, in a
+        dict the caller passes on and drops."""
+        options: dict[str, object] = {
+            "backend": self.backend.value,
+            "max_recipients": self.max_recipients,
+            "max_message_bytes": self.max_message_bytes,
+            "max_attachments": self.max_attachments,
+            "timeout": self.timeout,
+        }
+        if self.message_id_domain is not None:
+            options["message_id_domain"] = self.message_id_domain
+        if self.helo_name is not None:
+            options["helo_name"] = self.helo_name
+        if self.default_sender is not None:
+            options["default_sender"] = self.default_sender
+        if self.backend is EmailBackend.SMTP:
+            options.update(self.smtp_options())
+        return options
+
+    def smtp_options(self) -> dict[str, object]:
+        options: dict[str, object] = {
+            "host": self.host,
+            "port": self.resolved_port(),
+            "security": self.security.value,
+            "allow_insecure": self.allow_insecure,
+            "connect_timeout": self.connect_timeout,
+            "command_timeout": self.command_timeout,
+            "data_timeout": self.data_timeout,
+            "max_connections": self.max_connections,
+            "pool_wait": self.pool_wait,
+            "idle_timeout": self.idle_timeout,
+            "max_messages_per_connection": self.max_messages_per_connection,
+            "retries": self.retries,
+            "backoff_base": self.backoff_base,
+            "backoff_max": self.backoff_max,
+        }
+        if self.username is not None and self.password is not None:
+            options["username"] = self.username
+            options["password"] = self.password.reveal()
+        if self.tls_ca_file is not None:
+            options["tls_ca_file"] = self.tls_ca_file
         return options
 
 

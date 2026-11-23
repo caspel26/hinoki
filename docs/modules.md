@@ -106,6 +106,10 @@ lifespan. Declaring `DatabaseModule`, or a subclass of it, in `modules=` replace
 the automatic one; modules that require `DatabaseModule` still start after it.
 See [database connection ownership](settings.md#8-database-connection-ownership).
 
+## The email module
+
+An `email: settings.EmailSettings` field installs `EmailModule` (from `hinoki.mail`) the same way: one `Mailer` per worker, opened in the lifespan and closed at shutdown, available as `ctx.get(Mailer)`, to `mail.send(...)` in handlers and hooks, and to commands that declare `requires = (EmailModule,)`. Declaring `EmailModule` in `modules=` replaces the automatic one. See [send email](email.md).
+
 ## Declare modules
 
 `modules=` accepts instances and classes. An instance is the plain choice; a class

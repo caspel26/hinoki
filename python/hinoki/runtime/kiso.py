@@ -39,6 +39,7 @@ from hinoki import __version__, context, core
 from hinoki.db import Database
 from hinoki.errors import InvalidBody
 from hinoki.http.stream import EventStream, Sourced
+from hinoki.mail import Mailer
 from hinoki.runtime import banner
 from hinoki.runtime.listener import inherited_address, open_listener, signal_ready
 from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_data
@@ -290,7 +291,7 @@ class KisoWorker:
                 self.access_log_sink,
                 self.server_timing,
                 self.compression,
-                self.metrics,
+                self._metrics_with_email(),
             )
         except BaseException:
             self.core._disarm_crud_plans()
@@ -304,6 +305,7 @@ class KisoWorker:
         self.server = server
         if self.metrics is not None:
             self.pipeline.events.attach_metrics(server.event_metrics())
+            self._attach_mail_metrics(server)
         self.address = (self.host, server.port)
         loop = asyncio.get_running_loop()
         loop.add_reader(server.wake_fd, self._wake, server)
@@ -311,6 +313,22 @@ class KisoWorker:
         self._check_route_auth()
         self.core.set_ready(True)
         return server.port
+
+    def _metrics_with_email(self) -> dict[str, object] | None:
+        """The metrics settings, with the mailer's backend once the lifespan
+        has opened it (the series are fixed when the server starts)."""
+        if self.metrics is None:
+            return None
+        mailer = self.pipeline.ctx.find(Mailer)
+        if mailer is None:
+            return self.metrics
+        return {**self.metrics, "email": mailer.backend.value}
+
+    def _attach_mail_metrics(self, server: core.KisoServer) -> None:
+        mailer = self.pipeline.ctx.find(Mailer)
+        recorder = server.mail_metrics()
+        if mailer is not None and recorder is not None:
+            mailer.attach_metrics(recorder)
 
     def _select_lane(self) -> NativeLane | None:
         """The native lane for the routes that prove eligible, once at startup."""

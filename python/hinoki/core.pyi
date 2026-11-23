@@ -2,7 +2,7 @@ import asyncio
 import os
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict
 from uuid import UUID
 
 NativeFailure = tuple[str, str, str | None, str | None, str | None]
@@ -733,6 +733,31 @@ class ServerCore:
 class EventMetrics:
     def record(self, slot: int, outcome: int, seconds: float) -> None: ...
 
+class MailMetrics: ...
+
+class _MailMessage(TypedDict):
+    sender: tuple[str, str | None]
+    to: list[tuple[str, str | None]]
+    cc: list[tuple[str, str | None]]
+    bcc: list[tuple[str, str | None]]
+    reply_to: list[tuple[str, str | None]]
+    subject: str
+    text: str | None
+    html: str | None
+    attachments: list[tuple[str, str, bytes]]
+    headers: list[tuple[str, str]]
+
+class Mailer:
+    def __init__(self, options: dict[str, object]) -> None: ...
+    def send(
+        self, message: _MailMessage
+    ) -> Awaitable[tuple[str, list[str], int, bytes | None]]: ...
+    def check(self) -> Awaitable[None]: ...
+    def refuse(self, kind: str) -> None: ...
+    def close(self) -> Awaitable[None]: ...
+    def stats(self) -> tuple[int, int, int, int, int]: ...
+    def attach_metrics(self, metrics: MailMetrics) -> bool: ...
+
 class KisoServer:
     @staticmethod
     def start(
@@ -758,6 +783,7 @@ class KisoServer:
         metrics: dict[str, object] | None = None,
     ) -> KisoServer: ...
     def event_metrics(self) -> EventMetrics | None: ...
+    def mail_metrics(self) -> MailMetrics | None: ...
     @property
     def port(self) -> int: ...
     @property

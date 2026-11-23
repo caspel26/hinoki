@@ -165,6 +165,10 @@ test. The migrations come from the app's own directory, so a new migration is
 picked up without extra steps. In a project with several apps, apply each app's
 migration directory in dependency order. The fixture builds SQLite files only.
 
+## Test email
+
+With `email: settings.EmailSettings` set to `backend=EmailBackend.MEMORY`, every sent message is kept in the worker's `mailer.outbox` and nothing leaves the process; `outbox` entries carry the `Message` and the rendered bytes. A sample test is in [send email](email.md#test-with-the-memory-backend). For SMTP behaviour use a fake server on `127.0.0.1` and synthetic `example.com` addresses.
+
 ## Catch undeclared errors
 
 `ASGIClient(app, strict_errors=True)` fails the test when an action answers an
