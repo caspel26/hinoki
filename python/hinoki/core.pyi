@@ -199,6 +199,7 @@ class _CrudPlan:
         auth: _ClaimsAuth | None = ...,
         owner: str | None = ...,
         links: list[tuple[str, LinkSpec, str | None]] = ...,
+        filters: _FilterPlan | None = ...,
     ) -> None: ...
     @property
     def action(self) -> str: ...

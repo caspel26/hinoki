@@ -11,7 +11,7 @@ import types
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Literal, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -38,11 +38,12 @@ from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
 from hinoki.fields import UNSET
+from hinoki.filters import Eq, FilterSet, In, Range, Search
 from hinoki.modules import ModuleContext
 from hinoki.orm import Model, QuerySet, field
 from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.orm.queryset import write_statement
-from hinoki.pagination import PageNumberPagination
+from hinoki.pagination import CursorPagination, PageNumberPagination
 from hinoki.resources import CrudBase, caller_id, crud
 from hinoki.runtime import crudplan as crudplan_module
 from hinoki.runtime import servercore as servercore_module
@@ -2405,3 +2406,239 @@ def test_a_route_with_its_own_access_is_not_a_plain_crud_route() -> None:
     )
     replaced = SimpleNamespace(access=object())
     assert not crudplan_module.access_is_plain(replaced, PlanItems.resource, "list")
+
+
+async def _http_get(port: int, target: str) -> tuple[int, bytes]:
+    reader, writer = await asyncio.open_connection("127.0.0.1", port)
+    writer.write(
+        (
+            f"GET {target} HTTP/1.1\r\nhost: test\r\n"
+            "x-request-id: 00000000000000000000000000000001\r\n"
+            "content-length: 0\r\n\r\n"
+        ).encode("latin-1")
+    )
+    await writer.drain()
+    block = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
+    lines = block.decode("latin-1").split("\r\n")
+    pairs = [tuple(line.split(": ", 1)) for line in lines[1:] if line]
+    length = next((int(v) for n, v in pairs if n == "content-length"), 0)
+    body = await reader.readexactly(length)
+    writer.close()
+    await writer.wait_closed()
+    return int(lines[0].split()[1]), body
+
+
+def test_filtered_crud_list_eligibility_and_hooks() -> None:
+    class FilteredItem(Model, table="crud_filtered_items"):
+        id: int = field(primary_key=True)
+        name: str
+        status: str
+        amount: int
+        rate: float
+        note: str | None = None
+
+    class FilteredItemOut(Schema):
+        id: int
+        name: str
+        status: str
+        amount: int
+        rate: float
+        note: str | None
+
+    class ItemFilters(FilterSet):
+        status: In[Literal["open", "paid"]]
+        amount: Range[int]
+        rate: Eq[float]
+        note: Eq[str | None]
+        search = Search("name", "note")
+        ordering = ("amount", "name", "rate")
+
+    plain_api = crud(
+        FilteredItem,
+        path="/items",
+        read=FilteredItemOut,
+        filters=ItemFilters,
+    ).api()
+
+    @crud(FilteredItem, path="/hooked", read=FilteredItemOut, filters=ItemFilters)
+    class HookedApi(API):
+        def filter_queryset(
+            self,
+            query: QuerySet[FilteredItem],
+            params: ItemFilters,
+            principal: Any,
+        ) -> QuerySet[FilteredItem]:
+            return query
+
+    class CustomFilters(ItemFilters):
+        def apply(self, query: QuerySet[Any]) -> QuerySet[Any]:
+            return super().apply(query)
+
+    class CustomAssignFilters(ItemFilters):
+        def assign(
+            self,
+            name: str,
+            eq: object,
+            many: list[object] | None,
+            low: object,
+            high: object,
+        ) -> None:
+            super().assign(name, eq, many, low, high)
+
+    custom_filter_api = crud(
+        FilteredItem,
+        path="/custom-filters",
+        read=FilteredItemOut,
+        filters=CustomFilters,
+    ).api()
+    custom_assign_api = crud(
+        FilteredItem,
+        path="/custom-assign",
+        read=FilteredItemOut,
+        filters=CustomAssignFilters,
+    ).api()
+    cursor_api = crud(
+        FilteredItem,
+        path="/cursor",
+        read=FilteredItemOut,
+        filters=ItemFilters,
+        pagination=CursorPagination(secret="s" * 32),
+    ).api()
+
+    url = "sqlite:///crud-filtered-unused.sqlite3"
+    plain_pipeline = Pipeline(
+        Hinoki(include=[plain_api], modules=[DatabaseModule(url)])
+    )
+    list_binding = plain_pipeline.bindings[0]
+    selection, reason = select_crud_plan(list_binding, plain_pipeline)
+    assert reason == "eligible"
+    assert selection is not None
+    assert selection.snapshot_valid()
+
+    # Removing the compiled FilterSet plan must fail closed (False), not raise.
+    saved_plan = ItemFilters.plan
+    delattr(ItemFilters, "plan")
+    try:
+        assert not selection.snapshot_valid()
+    finally:
+        ItemFilters.plan = saved_plan
+    assert selection.snapshot_valid()
+
+    for api, expected in (
+        (HookedApi, "custom_route_or_access_policy"),
+        (custom_filter_api, "custom_route_or_access_policy"),
+        (custom_assign_api, "custom_route_or_access_policy"),
+        (cursor_api, "generated_route_shape_changed"),
+    ):
+        pipe = Pipeline(Hinoki(include=[api], modules=[DatabaseModule(url)]))
+        sel, why = select_crud_plan(pipe.bindings[0], pipe)
+        assert sel is None
+        assert why == expected
+
+
+async def test_native_filtered_list_matches_python_lane_on_sqlite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Invoice(Model, table="crud_native_filter_invoices"):
+        id: int = field(primary_key=True)
+        reference: str
+        status: str
+        amount: int
+        rate: float
+        note: str | None = None
+
+    class InvoiceOut(Schema):
+        id: int
+        reference: str
+        status: str
+        amount: int
+        rate: float
+        note: str | None
+
+    class InvoiceFilters(FilterSet):
+        status: In[Literal["open", "paid", "void"]]
+        amount: Range[int]
+        rate: Eq[float]
+        note: Eq[str | None]
+        search = Search("reference", "note")
+        ordering = ("amount", "reference", "rate")
+
+    invoices_api = crud(
+        Invoice,
+        path="/invoices",
+        read=InvoiceOut,
+        filters=InvoiceFilters,
+    ).api()
+
+    database_url = f"sqlite:///{tmp_path / 'native-filters.db'}"
+    database = await Database.connect(database_url, max_size=2, wait=1)
+    await database.execute(
+        create_table_sql("crud_native_filter_invoices", table_state(Invoice), "sqlite")
+    )
+    rows = [
+        (1, "INV-100", "open", 50, 10.5, None),
+        (2, "INV-200", "paid", 50, 20.0, "50% discount"),
+        (3, "INV-300", "open", 120, 10.5, "rush"),
+        (4, "INV-400", "void", 10, 5.0, None),
+    ]
+    for row in rows:
+        await database.execute(
+            "INSERT INTO crud_native_filter_invoices "
+            "(id, reference, status, amount, rate, note) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            *row,
+        )
+    database.close()
+
+    app = Hinoki(
+        settings=AppSettings(
+            server=ServerSettings(trusted_proxies=("127.0.0.1",), trust_request_id=True)
+        ),
+        include=[invoices_api],
+        modules=[DatabaseModule(database_url)],
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
+    await worker.start()
+
+    valid_queries = [
+        "/invoices",
+        "/invoices?status=open,paid&ordering=amount,-reference",
+        "/invoices?amount.from=50&amount.to=120&ordering=amount",
+        "/invoices?note.null=true",
+        "/invoices?note.null=false&search=50%25",
+        "/invoices?rate=10.5&page=1&page_size=1",
+    ]
+    error_queries = [
+        "/invoices?unknown=1",
+        "/invoices?status=open&status=paid",
+        "/invoices?amount.from=abc",
+        "/invoices?ordering=unknown",
+    ]
+    try:
+        original_parse = InvoiceFilters.parse
+        monkeypatch.setattr(
+            InvoiceFilters,
+            "parse",
+            classmethod(
+                lambda *_a, **_kw: (_ for _ in ()).throw(
+                    AssertionError("native filtered list called Python FilterSet.parse")
+                )
+            ),
+        )
+        native_valid = [await _http_get(worker.address[1], q) for q in valid_queries]
+
+        # Restore parse for 422 fallback queries (expected to defer to Python).
+        monkeypatch.setattr(InvoiceFilters, "parse", original_parse)
+        native_errors = [await _http_get(worker.address[1], q) for q in error_queries]
+
+        worker.core._disarm_crud_plans()
+        python_valid = [await _http_get(worker.address[1], q) for q in valid_queries]
+        python_errors = [await _http_get(worker.address[1], q) for q in error_queries]
+
+        assert native_valid == python_valid
+        assert all(status == 200 for status, _ in native_valid)
+        assert native_errors == python_errors
+        assert all(status == 422 for status, _ in native_errors)
+    finally:
+        await worker.stop()

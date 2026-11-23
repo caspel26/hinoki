@@ -148,6 +148,11 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### ⚡ Native Kiso lane for filtered `crud(...)` lists
+> `crates/bindings/src/filters.rs`, `crates/bindings/src/crudplan.rs`, `crates/bindings/src/nativecrud.rs`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/core.pyi`, `docs/crud.md`, `docs/status.md`
+
+Offset-paginated (`PageNumberPagination`) generated `crud(...)` `list` endpoints with a plain `FilterSet` and no custom `get_queryset`/`filter_queryset` hooks now run on Kiso's native Rust lane: query parsing, filter predicates (`Eq`, `In`, `Range`, `.null`, `Search`), dialect-aware `LIKE` escaping and stable primary-key tie-breaker ordering execute without invoking Python `FilterSet.parse`, while invalid requests (422), `CursorPagination`, custom hooks and SQLite `Decimal` filters fall back transparently to the Python lane. See [CRUD](docs/crud.md#filter-order-and-search-the-list).
+
 #### ✨ A softer cursor glow on the homepage
 > `theme/static/js/home.js`, `theme/static/css/home.css`
 
