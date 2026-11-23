@@ -204,6 +204,20 @@ mod tests {
     }
 
     #[test]
+    fn repeated_updates_compact_stale_clock_entries() {
+        let cache = PyMemoryCache::new(4, 32);
+        for value in 0_u32..1_000 {
+            cache
+                .set("same".into(), value.to_le_bytes().to_vec(), 60.0)
+                .unwrap();
+        }
+        let state = cache.lock().unwrap();
+        assert_eq!(state.entries.len(), 1);
+        assert!(state.clock.len() <= 18);
+        assert!(state.bytes <= 32);
+    }
+
+    #[test]
     fn expires_entries_using_monotonic_time() {
         let cache = PyMemoryCache::new(2, 8);
         cache.set("a".into(), b"a".to_vec(), 0.001).unwrap();
