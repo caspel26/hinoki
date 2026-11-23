@@ -6,6 +6,7 @@ survives Markdown's HTML-block rules.
 """
 
 import html
+import itertools
 from dataclasses import dataclass
 
 
@@ -26,6 +27,7 @@ class Cell:
     wrong: int
     mark: str = ""  # "best", "tie" or "" for a stable cell that is neither
     reason: str | None = None  # why the cell is unstable; None when it is stable
+    group: str = ""
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,20 @@ class Scenario:
 class Stack:
     family: str
     label: str
+    group: str = ""
+
+
+def group_starts(stacks: list[Stack]) -> dict[str, str]:
+    """Family to group name for each stack that opens a group after the first one."""
+    starts = {}
+    for previous, stack in itertools.pairwise(stacks):
+        if stack.group != previous.group:
+            starts[stack.family] = stack.group
+    return starts
+
+
+def group_class(start: bool) -> str:
+    return " is-group-start" if start else ""
 
 
 def esc(text: str) -> str:
@@ -82,11 +98,19 @@ def value_axis(axis_max: float) -> str:
 
 
 def legend(stacks: list[Stack]) -> str:
-    items = "".join(
-        f'<li><button type="button" class="bench-chip" data-stack="{esc(stack.family)}" aria-pressed="true">'
-        f'<span class="bench-swatch" aria-hidden="true"></span>{esc(stack.label)}</button></li>'
-        for stack in stacks
-    )
+    starts = group_starts(stacks)
+
+    def item(stack: Stack) -> str:
+        group = starts.get(stack.family)
+        opens = (
+            f' class="is-group-start" data-group-label="{esc(group)}"' if group else ""
+        )
+        return (
+            f'<li{opens}><button type="button" class="bench-chip" data-stack="{esc(stack.family)}" aria-pressed="true">'
+            f'<span class="bench-swatch" aria-hidden="true"></span>{esc(stack.label)}</button></li>'
+        )
+
+    items = "".join(item(stack) for stack in stacks)
     return f'<ul class="bench-legend" aria-label="Stacks. Select one to hide or show it.">{items}</ul>'
 
 
@@ -97,9 +121,11 @@ CELL_SR = {
 }
 
 
-def matrix_cell(cell: Cell | None, row_max: float) -> str:
+def matrix_cell(cell: Cell | None, row_max: float, start: bool = False) -> str:
     if cell is None:
-        return '<td class="bench-cell is-missing">Not measured</td>'
+        return (
+            f'<td class="bench-cell is-missing{group_class(start)}">Not measured</td>'
+        )
     state = state_class(cell)
     sr = f'<span class="bench-sr">{CELL_SR[state]}</span>' if state else ""
     badge = (
@@ -109,7 +135,7 @@ def matrix_cell(cell: Cell | None, row_max: float) -> str:
     )
     width = cell.median / row_max * 100 if row_max else 0
     return (
-        f'<td class="{f"bench-cell {state}".strip()}" data-stack="{esc(cell.family)}" data-label="{esc(cell.label)}">'
+        f'<td class="{f"bench-cell {state}".strip()}{group_class(start)}" data-stack="{esc(cell.family)}" data-label="{esc(cell.label)}">'
         f'{sr}<b class="bench-num">{rps(cell.median)}</b>{badge}'
         f'<span class="bench-meter" aria-hidden="true"><span style="width:{width:.1f}%"></span></span></td>'
     )
@@ -118,8 +144,26 @@ def matrix_cell(cell: Cell | None, row_max: float) -> str:
 def matrix_row(scenario: Scenario, stacks: list[Stack]) -> str:
     by_family = {cell.family: cell for cell in scenario.cells}
     row_max = max((cell.median for cell in scenario.cells), default=0.0)
-    cells = "".join(matrix_cell(by_family.get(s.family), row_max) for s in stacks)
+    starts = group_starts(stacks)
+    cells = "".join(
+        matrix_cell(by_family.get(s.family), row_max, s.family in starts)
+        for s in stacks
+    )
     return f'<tr><th scope="row">{esc(scenario.name)}</th>{cells}</tr>'
+
+
+def group_row(stacks: list[Stack]) -> str:
+    """A header row naming each group of columns, or nothing for a single group."""
+    if not group_starts(stacks):
+        return ""
+    spans: dict[str, int] = {}
+    for stack in stacks:
+        spans[stack.group] = spans.get(stack.group, 0) + 1
+    heads = "".join(
+        f'<th scope="colgroup" colspan="{span}" class="bench-group" data-group="{esc(group)}">{esc(group)}</th>'
+        for group, span in spans.items()
+    )
+    return f'<tr class="bench-groups"><td></td>{heads}</tr>'
 
 
 def matrix(
@@ -128,10 +172,17 @@ def matrix(
     scenarios: list[Scenario],
     filterable: bool = False,
 ) -> str:
-    heads = "".join(
-        f'<th scope="col" data-stack="{esc(s.family)}"><span class="bench-swatch" aria-hidden="true"></span>{esc(s.label)}</th>'
-        for s in stacks
-    )
+    starts = group_starts(stacks)
+
+    def head(stack: Stack) -> str:
+        grouped = f' data-group="{esc(stack.group)}"' if starts else ""
+        opens = ' class="is-group-start"' if stack.family in starts else ""
+        return (
+            f'<th scope="col" data-stack="{esc(stack.family)}"{grouped}{opens}>'
+            f'<span class="bench-swatch" aria-hidden="true"></span>{esc(stack.label)}</th>'
+        )
+
+    heads = "".join(head(s) for s in stacks)
     rows = "".join(matrix_row(scenario, stacks) for scenario in scenarios)
     flag = " data-bench-filterable" if filterable else ""
     return (
@@ -139,18 +190,18 @@ def matrix(
         f'<table class="bench-matrix" id="{table_id}"{flag}>'
         "<caption>Median requests per second. The bar in each cell is relative to the highest median in its row; "
         "the highest stable median is highlighted and medians within 10% of it are marked as tied.</caption>"
-        f'<thead><tr><th scope="col">Request type</th>{heads}</tr></thead><tbody>{rows}</tbody></table></div>'
+        f'<thead>{group_row(stacks)}<tr><th scope="col">Request type</th>{heads}</tr></thead><tbody>{rows}</tbody></table></div>'
     )
 
 
-def chart_row(cell: Cell, axis_max: float) -> str:
+def chart_row(cell: Cell, axis_max: float, start: bool = False) -> str:
     state = state_class(cell)
     width = cell.median / axis_max * 100 if axis_max else 0
     left = cell.low / axis_max * 100 if axis_max else 0
     span = max((cell.high - cell.low) / axis_max * 100 if axis_max else 0, 0.4)
     badge = status_badge(cell) if state else ""
     return (
-        f'<div class="bench-row {state}" data-stack="{esc(cell.family)}">'
+        f'<div class="bench-row {state}{group_class(start)}" data-stack="{esc(cell.family)}">'
         f'<span class="bench-name"><span class="bench-swatch" aria-hidden="true"></span>{esc(cell.label)}</span>'
         '<span class="bench-track">'
         f'<span class="bench-bar" style="width:{width:.2f}%"></span>'
@@ -162,7 +213,12 @@ def chart_row(cell: Cell, axis_max: float) -> str:
 
 def chart(cells: tuple[Cell, ...]) -> str:
     axis_max = max((cell.high for cell in cells), default=0.0)
-    rows = "".join(chart_row(cell, axis_max) for cell in cells)
+    opens = {
+        cell.key
+        for previous, cell in itertools.pairwise(cells)
+        if cell.group != previous.group
+    }
+    rows = "".join(chart_row(cell, axis_max, cell.key in opens) for cell in cells)
     return (
         '<div class="bench-chart" aria-hidden="true">'
         '<span class="bench-gridlines"><span></span></span>'

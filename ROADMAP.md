@@ -30,7 +30,6 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 - Cursor (keyset) pagination is available as `CursorPagination` for generated lists and handwritten routes (see [pagination](docs/pagination.md#cursor-keyset-pagination)); the admin lists keep page numbers.
 - Before the first release (`0.1.0`):
     - a stable CI on `main` and a clean quality gate;
-    - an email backend, with password reset and email verification built on it;
     - a cache, sessions and file storage, each with a bounded, explicit backend and documented limits;
     - generated `crud(...)` filtered lists on the native Kiso lane (they take the Python path today);
     - fuzzing of the request-line and header limits Kiso applies over its HTTP parser;
@@ -44,6 +43,7 @@ These are directions, not commitments, and none of them is available today.
 
 - Moving more of the request path into the Rust core, before new features.
 - A durable email queue and HTTP email providers (outbound email is SMTP only today).
+- Built-in one-time credentials, with the secrets hashed or encrypted at rest and attempts bounded: single-use tokens for links (password reset, email verification, invitations), one-time codes sent by email, TOTP (RFC 6238) with recovery codes, and two-factor sign-in for the admin. They depend on rate limit storage shared by workers and on key rotation.
 - Filters across relations and on the admin lists, and cursor pagination in the admin.
 - Tracing, an outbound HTTP client with timeouts and retries, and key rotation.
 - Range filters and ordering for `Decimal` on SQLite.

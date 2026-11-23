@@ -6,6 +6,9 @@
   --bench-fastapi: #7f9aa6;
   --bench-ninja: #8b97ab;
   --bench-bolt: #a39a8d;
+  --bench-fastify: #9aa77f;
+  --bench-hono: #c29a6b;
+  --bench-bun: #b98a9e;
   --bench-track: color-mix(in srgb, var(--hn-edge) 55%, transparent);
   --bench-good: #6fcf97;
   --bench-warn: #f2b45a;
@@ -20,6 +23,9 @@
   --bench-fastapi: #5d7782;
   --bench-ninja: #66728a;
   --bench-bolt: #7d7465;
+  --bench-fastify: #6a7650;
+  --bench-hono: #8f6a3c;
+  --bench-bun: #875a6e;
   --bench-good: #1a7f4b;
   --bench-warn: #9a5b00;
 }
@@ -45,6 +51,9 @@
 [data-stack="fastapi"] { --bench-color: var(--bench-fastapi); }
 [data-stack="ninja"] { --bench-color: var(--bench-ninja); }
 [data-stack="bolt"] { --bench-color: var(--bench-bolt); }
+[data-stack="fastify"] { --bench-color: var(--bench-fastify); }
+[data-stack="hono"] { --bench-color: var(--bench-hono); }
+[data-stack="bun"] { --bench-color: var(--bench-bun); }
 
 /* Conclusion */
 
@@ -90,6 +99,41 @@
 .bench-legend li {
   margin: 0;
   padding: 0;
+}
+
+/* Stack groups (Python, other runtimes): a rule and a small label where a group starts. */
+
+.bench-legend li.is-group-start {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--hn-edge-2);
+}
+
+.bench-legend li.is-group-start::before,
+.bench-matrix .bench-groups th {
+  color: var(--hn-text-3);
+  font: 600 var(--fs-xs)/1.2 var(--hn-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bench-legend li.is-group-start::before {
+  content: attr(data-group-label);
+}
+
+.bench-matrix .is-group-start {
+  border-left: 2px solid var(--hn-edge-2);
+}
+
+.bench-matrix .bench-groups th + th {
+  border-left: 2px solid var(--hn-edge-2);
+}
+
+.bench-row.is-group-start {
+  padding-top: var(--sp-3);
+  border-top: 1px dashed var(--hn-edge-2);
 }
 
 .bench-chip {
@@ -204,6 +248,11 @@
 
 .prose table.bench-matrix {
   table-layout: fixed;
+}
+
+/* Two groups of stacks are too many columns to squeeze: the table scrolls instead. */
+.prose table.bench-matrix:has(.bench-groups) {
+  min-width: 56rem;
 }
 
 .bench-matrix thead th:first-child {
@@ -573,6 +622,15 @@
     height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
+  }
+
+  .prose table.bench-matrix:has(.bench-groups) {
+    min-width: 0;
+  }
+
+  .bench-matrix td.is-group-start {
+    border-left: 0;
+    border-top: 1px dashed var(--hn-edge-2);
   }
 
   .bench-matrix tr {
