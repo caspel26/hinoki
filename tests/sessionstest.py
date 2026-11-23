@@ -52,6 +52,14 @@ async def failed_session(session: Session) -> dict[str, bool]:
     raise RuntimeError("handler failed")
 
 
+@http.get("/session/nested-fail")
+async def failed_nested_session(session: Session) -> dict[str, bool]:
+    profile = session.get("profile")
+    assert isinstance(profile, dict)
+    profile["name"] = "Mallory"
+    raise RuntimeError("handler failed after nested read")
+
+
 @http.post("/session/rotate")
 async def rotate_session(session: Session) -> dict[str, bool]:
     await session.rotate()
@@ -124,6 +132,33 @@ async def test_session_mutation_is_discarded_when_handler_raises() -> None:
         assert response.status == 500
         assert "set-cookie" not in response.headers
         assert not store._records
+
+
+async def test_nested_session_read_cannot_mutate_store_before_commit() -> None:
+    store = MemorySessionStore()
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(UTC)
+    await store.save(
+        hashlib.sha256(token.encode()).hexdigest(),
+        SessionRecord(
+            {"profile": {"name": "Alice"}},
+            now,
+            now + timedelta(days=1),
+            now + timedelta(hours=1),
+            now,
+        ),
+    )
+    app = Hinoki(
+        include=[failed_nested_session], modules=[SessionModule(store, SETTINGS)]
+    )
+    async with ASGIClient(app) as client:
+        response = await client.get(
+            "/session/nested-fail",
+            headers={"cookie": f"hinoki_session={token}"},
+        )
+    assert response.status == 500
+    record = await store.load(hashlib.sha256(token.encode()).hexdigest())
+    assert record is not None and record.data == {"profile": {"name": "Alice"}}
 
 
 async def test_rotation_and_invalidation_change_cookie_ownership() -> None:
