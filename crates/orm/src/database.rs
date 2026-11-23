@@ -11,7 +11,7 @@ use tokio_postgres::types::{FromSql, ToSql, Type};
 use tokio_postgres::NoTls;
 use tokio_postgres_rustls::MakeRustlsConnect;
 
-use crate::error::{DbError, ErrorKind};
+use crate::error::{lease_released, DbError, ErrorKind};
 use crate::mysql::{MysqlLease, MysqlPool};
 use crate::sqlite::{connect_path, SqliteLease, SqlitePool};
 use crate::tls::{connector, extract_options};
@@ -144,16 +144,14 @@ impl Lease {
         }
     }
 
-    fn get(&self) -> &Object {
-        self.conn.as_ref().expect("lease already released")
+    fn get(&self) -> Result<&Object, DbError> {
+        self.conn.as_ref().ok_or_else(lease_released)
     }
 
     /// Hand the connection to a longer-lived owner (a transaction).
-    fn into_inner(mut self) -> (Object, Option<MakeRustlsConnect>) {
-        (
-            self.conn.take().expect("lease already released"),
-            self.tls.take(),
-        )
+    fn into_inner(mut self) -> Result<(Object, Option<MakeRustlsConnect>), DbError> {
+        let conn = self.conn.take().ok_or_else(lease_released)?;
+        Ok((conn, self.tls.take()))
     }
 
     /// The operation completed (successfully or with a statement error): the
@@ -422,7 +420,7 @@ impl Database {
             return outcome;
         }
         let lease = self.acquire().await?;
-        let outcome = fetch_with_recovery(lease.get(), sql, values).await;
+        let outcome = fetch_with_recovery(lease.get()?, sql, values).await;
         lease.release();
         outcome
     }
@@ -442,7 +440,7 @@ impl Database {
             return outcome;
         }
         let lease = self.acquire().await?;
-        let outcome = execute_with_recovery(lease.get(), sql, values).await;
+        let outcome = execute_with_recovery(lease.get()?, sql, values).await;
         lease.release();
         outcome
     }
@@ -475,11 +473,11 @@ impl Database {
         }
         let lease = self.acquire().await?;
         lease
-            .get()
+            .get()?
             .batch_execute("BEGIN")
             .await
             .map_err(|e| DbError::from_driver(&e))?;
-        let (conn, tls) = lease.into_inner();
+        let (conn, tls) = lease.into_inner()?;
         #[cfg(feature = "sql-trace")]
         self.trace.record("boundary", "BEGIN", &[]);
         Ok(Transaction::new(
@@ -921,7 +919,31 @@ impl Drop for Transaction {
 
 #[cfg(test)]
 mod tests {
-    use super::check_postgres_scheme;
+    use super::{check_postgres_scheme, Lease};
+    use crate::error::ErrorKind;
+
+    #[test]
+    fn released_lease_returns_error_instead_of_panicking() {
+        let lease = Lease {
+            conn: None,
+            tls: None,
+        };
+        let get_err = lease.get().unwrap_err();
+        assert_eq!(get_err.kind, ErrorKind::Other);
+        assert_eq!(
+            get_err.message,
+            "database connection lease already released"
+        );
+
+        let Err(into_err) = lease.into_inner() else {
+            panic!("expected released lease error");
+        };
+        assert_eq!(into_err.kind, ErrorKind::Other);
+        assert_eq!(
+            into_err.message,
+            "database connection lease already released"
+        );
+    }
 
     #[test]
     fn unsupported_url_schemes_are_named_without_the_url() {

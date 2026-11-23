@@ -11,7 +11,7 @@ use mysql_async::{
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use crate::error::{DbError, ErrorKind};
+use crate::error::{lease_released, DbError, ErrorKind};
 use crate::value::Value;
 use crate::Row;
 
@@ -176,16 +176,12 @@ impl MysqlLease {
                 "database request was interrupted",
             ));
         }
+        let conn = self.conn.as_mut().ok_or_else(lease_released)?;
         let mut flight = Flight {
             interrupted: self.interrupted.clone(),
             armed: true,
         };
-        let result = self
-            .conn
-            .as_mut()
-            .expect("lease already released")
-            .query_drop(sql)
-            .await;
+        let result = conn.query_drop(sql).await;
         flight.settle(&result);
         result.map_err(|e| error(&e, ErrorKind::Other))?;
         Ok(())
@@ -198,13 +194,12 @@ impl MysqlLease {
                 "database request was interrupted",
             ));
         }
-        let interrupted = self.interrupted.clone();
+        let params = params(values)?;
+        let conn = self.conn.as_mut().ok_or_else(lease_released)?;
         let mut flight = Flight {
-            interrupted,
+            interrupted: self.interrupted.clone(),
             armed: true,
         };
-        let params = params(values)?;
-        let conn = self.conn.as_mut().expect("lease already released");
         let result: Result<Vec<mysql_async::Row>, _> = conn.exec(sql, params).await;
         flight.settle(&result);
         let rows = result.map_err(|e| error(&e, ErrorKind::Other))?;
@@ -218,13 +213,12 @@ impl MysqlLease {
                 "database request was interrupted",
             ));
         }
-        let interrupted = self.interrupted.clone();
+        let params = params(values)?;
+        let conn = self.conn.as_mut().ok_or_else(lease_released)?;
         let mut flight = Flight {
-            interrupted,
+            interrupted: self.interrupted.clone(),
             armed: true,
         };
-        let params = params(values)?;
-        let conn = self.conn.as_mut().expect("lease already released");
         // MySQL does not accept SAVEPOINT, ROLLBACK TO and RELEASE in the
         // prepared-statement protocol; a statement without values has no
         // reason to be prepared.
@@ -397,7 +391,12 @@ fn error(error: &mysql_async::Error, fallback: ErrorKind) -> DbError {
 
 #[cfg(test)]
 mod require_ssl_tests {
-    use super::require_ssl;
+    use std::sync::{atomic::AtomicBool, Arc};
+
+    use tokio::sync::Semaphore;
+
+    use super::{require_ssl, MysqlLease};
+    use crate::error::ErrorKind;
 
     #[test]
     fn tls_is_required_before_any_fragment() {
@@ -416,6 +415,39 @@ mod require_ssl_tests {
         assert_eq!(
             require_ssl("mysql://u@h/d?require_ssl=false"),
             "mysql://u@h/d?require_ssl=false"
+        );
+    }
+
+    #[tokio::test]
+    async fn released_lease_returns_error_instead_of_panicking() {
+        let permit = Arc::new(Semaphore::new(1))
+            .try_acquire_owned()
+            .expect("test semaphore permit");
+        let mut lease = MysqlLease {
+            conn: None,
+            _permit: permit,
+            interrupted: Arc::new(AtomicBool::new(false)),
+        };
+
+        let batch_err = lease.batch("SELECT 1").await.unwrap_err();
+        assert_eq!(batch_err.kind, ErrorKind::Other);
+        assert_eq!(
+            batch_err.message,
+            "database connection lease already released"
+        );
+
+        let fetch_err = lease.fetch("SELECT 1", &[]).await.unwrap_err();
+        assert_eq!(fetch_err.kind, ErrorKind::Other);
+        assert_eq!(
+            fetch_err.message,
+            "database connection lease already released"
+        );
+
+        let exec_err = lease.execute("SELECT 1", &[]).await.unwrap_err();
+        assert_eq!(exec_err.kind, ErrorKind::Other);
+        assert_eq!(
+            exec_err.message,
+            "database connection lease already released"
         );
     }
 }
