@@ -20,6 +20,11 @@ pub struct Cors {
 }
 
 impl Cors {
+    /// Whether `origin` is permitted by this policy.
+    pub fn allowed(&self, origin: &[u8]) -> bool {
+        self.any_origin || self.origins.iter().any(|allowed| allowed == origin)
+    }
+
     /// Headers for a request whose `Origin` header was `origin` (empty when absent).
     pub fn headers(&self, origin: &[u8]) -> Vec<Header> {
         let mut head: Vec<Header> = if self.any_origin {

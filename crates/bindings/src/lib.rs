@@ -23,6 +23,7 @@ mod metrics;
 mod modelrows;
 mod nativecrud;
 mod nativerun;
+mod policy;
 mod pytypes;
 mod query;
 mod request;
@@ -115,6 +116,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     db::register(m)?;
     server::register(m)?;
     kiso::register(m)?;
+    policy::register(m)?;
     wsgi::register(m)?;
     m.add_class::<websocket::WebSocketSpec>()?;
     m.add_class::<websocket::WebSocket>()?;

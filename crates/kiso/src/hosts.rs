@@ -8,6 +8,21 @@ pub struct Hosts {
     pub suffixes: Vec<Vec<u8>>,
 }
 impl Hosts {
+    pub fn from_entries<S: AsRef<str>>(entries: &[S]) -> Self {
+        let mut exact = Vec::new();
+        let mut suffixes = Vec::new();
+        for raw in entries {
+            let entry = host_entry(raw.as_ref());
+            if let Some(domain) = entry.strip_prefix('.') {
+                exact.push(domain.as_bytes().to_vec());
+                suffixes.push(entry.into_bytes());
+            } else {
+                exact.push(entry.into_bytes());
+            }
+        }
+        Self { exact, suffixes }
+    }
+
     pub fn allows(&self, header: &[u8]) -> bool {
         let Some(name) = host_name(header) else {
             return false;
@@ -17,7 +32,18 @@ impl Hosts {
     }
 }
 
-fn host_name(header: &[u8]) -> Option<Vec<u8>> {
+pub fn host_entry(entry: &str) -> String {
+    let lowered = entry.to_ascii_lowercase();
+    if lowered.contains(':') {
+        canonical_ipv6(lowered.as_bytes())
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .unwrap_or_default()
+    } else {
+        lowered
+    }
+}
+
+pub fn host_name(header: &[u8]) -> Option<Vec<u8>> {
     let header = trim_python_whitespace(header);
     if header.first() == Some(&b'[') {
         return bracketed_ipv6(header);
