@@ -670,6 +670,15 @@ impl KisoServer {
             .map(|registry| crate::metrics::EventMetrics::new(Arc::clone(registry)))
     }
 
+    /// The recorder of email sends, or `None` while metrics are off or the app
+    /// has no email backend (no `email` key in the metrics settings).
+    fn mail_metrics(&self) -> Option<crate::mail::MailMetrics> {
+        self.registry
+            .as_ref()
+            .filter(|registry| registry.has_email())
+            .map(|registry| crate::mail::MailMetrics::new(Arc::clone(registry)))
+    }
+
     /// Serve on the listening socket `fd`, which the caller created and detached
     /// (this takes ownership of it as soon as it runs: on any error the
     /// descriptor is closed, so the caller must not use it again), or bind `host:port` (port 0 picks a free

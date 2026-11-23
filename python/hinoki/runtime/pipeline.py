@@ -42,6 +42,7 @@ from hinoki.http.middleware import MiddlewareRequest
 from hinoki.http.request import Request, media_type
 from hinoki.http.response import Response as HandlerResponse
 from hinoki.http.stream import File, Streamed
+from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
 from hinoki.orm.model import Model
@@ -513,9 +514,11 @@ class Pipeline:
         runner_token = context.sync_runner.set(self.executor.run)
         db_token = database_var.set(self.ctx.find(Database))
         events_token = events_var.set(self.events)
+        mailer_token = mailer_var.set(self.ctx.find(Mailer))
         try:
             return await response
         finally:
+            mailer_var.reset(mailer_token)
             events_var.reset(events_token)
             database_var.reset(db_token)
             context.sync_runner.reset(runner_token)
@@ -595,6 +598,7 @@ class Pipeline:
         context.sync_runner.set(self.executor.run)
         database_var.set(self.ctx.find(Database))
         events_var.set(self.events)
+        mailer_var.set(self.ctx.find(Mailer))
 
     async def drive_native(
         self,

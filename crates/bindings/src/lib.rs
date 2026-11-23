@@ -19,6 +19,7 @@ mod filters;
 mod handoff;
 mod jwt;
 mod kiso;
+mod mail;
 mod metrics;
 mod modelrows;
 mod nativecrud;
@@ -115,6 +116,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     db::register(m)?;
     server::register(m)?;
     kiso::register(m)?;
+    mail::register(m)?;
     wsgi::register(m)?;
     m.add_class::<websocket::WebSocketSpec>()?;
     m.add_class::<websocket::WebSocket>()?;
