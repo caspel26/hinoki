@@ -1,7 +1,10 @@
 """Native memory and shared database cache behavior."""
 
+from __future__ import annotations
+
 import asyncio
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -18,6 +21,9 @@ from hinoki.cache import (
 from hinoki.db import Database
 from hinoki.runtime.servercore import native_handler_eligible
 from hinoki.testing import ASGIClient
+
+if TYPE_CHECKING:
+    from hinoki.core import Param, Row
 
 
 class Summary(Schema):
@@ -122,5 +128,37 @@ async def test_database_cache_is_shared_and_expires(tmp_path: object) -> None:
         await asyncio.sleep(0.01)
         assert await cache.get("expired") is None
         assert await cache.purge_expired() == 0
+    finally:
+        database.close()
+
+
+async def test_expired_read_does_not_delete_concurrent_refresh(
+    tmp_path: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database = await Database.connect(f"sqlite://{tmp_path}/cache-race.sqlite3")
+    try:
+        await database.execute(
+            "CREATE TABLE hinoki_cache (cache_key varchar(256) PRIMARY KEY, "
+            "value_hex text NOT NULL, expires_at text NOT NULL)"
+        )
+        cache = DatabaseCache(database)
+        await database.execute(
+            "INSERT INTO hinoki_cache VALUES (?, ?, ?)",
+            "race",
+            b"stale".hex(),
+            "2000-01-01T00:00:00+00:00",
+        )
+        original_fetch_one = database.fetch_one
+
+        async def read_then_refresh(sql: str, *params: Param) -> Row | None:
+            row = await original_fetch_one(sql, *params)
+            if sql.startswith("SELECT value_hex"):
+                await cache.set_bytes("race", b"fresh", ttl=30)
+            return row
+
+        monkeypatch.setattr(database, "fetch_one", read_then_refresh)
+        assert await cache.get_bytes("race") is None
+        monkeypatch.undo()
+        assert await cache.get_bytes("race") == b"fresh"
     finally:
         database.close()
