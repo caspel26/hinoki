@@ -5,10 +5,10 @@ import subprocess
 
 import pytest
 
-from hinoki import completioncli
 from hinoki.__main__ import main, parser
-from hinoki.clihelp import command_help, grouped
-from hinoki.reportui import run_timed
+from hinoki.cli import completion as completioncli
+from hinoki.cli.help import command_help, grouped
+from hinoki.cli.reportui import run_timed
 from hinoki.terminal import Style
 
 

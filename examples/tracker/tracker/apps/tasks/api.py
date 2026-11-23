@@ -1,12 +1,11 @@
 """HTTP layer of the tasks app: generated CRUD plus one handwritten action."""
 
-from typing import Any
 from uuid import UUID
 
 from hinoki import API, Caller, Includable, crud, errors, http
 from hinoki.orm import QuerySet
 from tracker.apps.members.models import Member
-from tracker.apps.members.security import member_id, member_only
+from tracker.apps.members.security import member_only
 
 from . import operations
 from .errors import TaskAlreadyDone
@@ -28,13 +27,13 @@ from .schemas import TaskIn, TaskOut
 class Tasks(API):
     """The caller's own tasks: list (filtered), retrieve, create and delete."""
 
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Task]:
-        return operations.mine(member_id(principal))
+    def get_queryset(self, caller: Caller[Member]) -> QuerySet[Task]:
+        return operations.mine(caller.user.id)
 
     async def remove(
-        self, item: Task, _scoped: QuerySet[Task], principal: Caller[Any]
+        self, item: Task, _scoped: QuerySet[Task], caller: Caller[Member]
     ) -> bool:
-        await operations.delete_task(member_id(principal), item.id)
+        await operations.delete_task(caller.user.id, item.id)
         return True
 
     @http.post(

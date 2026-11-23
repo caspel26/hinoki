@@ -20,15 +20,16 @@ from typing import Any
 
 import pytest
 
-from hinoki import appprompts, newcli, terminal
+from hinoki import terminal
 from hinoki.__main__ import main
 from hinoki.ai.errorcatalog import CATALOG, explain
 from hinoki.ai.mcp import DevProject, Server
-from hinoki.appprompts import name_check, prefix_check, report_app, requires_check
-from hinoki.newcli import fill_from_prompts
-from hinoki.project import ProjectError
-from hinoki.projectcli import create_app as create_project_app
-from hinoki.prompts import (
+from hinoki.cli import appprompts
+from hinoki.cli import new as newcli
+from hinoki.cli.appprompts import name_check, prefix_check, report_app, requires_check
+from hinoki.cli.new import fill_from_prompts
+from hinoki.cli.project import create_app as create_project_app
+from hinoki.cli.prompts import (
     Choice,
     Confirm,
     Prompter,
@@ -38,6 +39,7 @@ from hinoki.prompts import (
     read_keys,
     tokens,
 )
+from hinoki.project import ProjectError
 from hinoki.rules import RuleSet
 from hinoki.scaffold import ScaffoldError, create, files
 from hinoki.terminal import (
@@ -935,7 +937,7 @@ def test_a_failed_first_app_leaves_the_project_and_says_how_to_retry(
     def refuse(_name: str, _start: Path | None = None, **_options: Any) -> Path:
         raise ProjectError("no manifest")
 
-    monkeypatch.setattr("hinoki.projectcli.create_app", refuse)
+    monkeypatch.setattr("hinoki.cli.project.create_app", refuse)
     assert not newcli.create_first_app(Style(), tmp_path, "posts")
     err = capsys.readouterr().err
     assert "no manifest" in err and "hinoki app create posts" in err

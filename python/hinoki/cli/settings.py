@@ -15,7 +15,7 @@ import argparse
 import sys
 
 from hinoki import jsontext
-from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.cli.check import USAGE_ERRORS, build_app
 from hinoki.settings import Settings, SettingsError
 from hinoki.target import load_target
 

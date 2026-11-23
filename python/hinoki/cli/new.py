@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Protocol
 
 from hinoki import __version__
-from hinoki.prompts import Check, Prompter, keys_available, raw_keys
+from hinoki.cli.prompts import Check, Prompter, keys_available, raw_keys
 from hinoki.scaffold import (
     DATABASES,
     NAME,
@@ -262,7 +262,7 @@ def ask_app_name(args: argparse.Namespace, questions: Questions) -> None:
 
 def app_name_problem(name: str) -> str | None:
     # appprompts imports this module, so the import cannot be at the top.
-    from hinoki.appprompts import name_check  # noqa: PLC0415
+    from hinoki.cli.appprompts import name_check  # noqa: PLC0415
 
     return name_check(())(name)
 
@@ -418,10 +418,10 @@ def prompt(args: argparse.Namespace, ask: Ask, style: Style) -> int:
 
 def create_first_app(style: Style, target: Path, name: str) -> bool:
     """Create the app the user asked for; a failure leaves the project in place."""
-    # projectcli imports this module, so the import cannot be at the top.
-    from hinoki.appprompts import report_app  # noqa: PLC0415
+    # project imports this module, so the import cannot be at the top.
+    from hinoki.cli.appprompts import report_app  # noqa: PLC0415
+    from hinoki.cli.project import create_app  # noqa: PLC0415
     from hinoki.project import ProjectError  # noqa: PLC0415
-    from hinoki.projectcli import create_app  # noqa: PLC0415
 
     try:
         created = create_app(name, target)

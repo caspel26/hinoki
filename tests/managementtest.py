@@ -7,8 +7,9 @@ from contextlib import asynccontextmanager
 
 import pytest
 
-from hinoki import Hinoki, managementcli
+from hinoki import Hinoki
 from hinoki.__main__ import main, parser
+from hinoki.cli import management as managementcli
 from hinoki.context import event_loop
 from hinoki.errors import RegistrationError
 from hinoki.management import Command, CommandContext, CommandError

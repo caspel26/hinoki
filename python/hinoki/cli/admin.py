@@ -14,15 +14,15 @@ import sys
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 
 from hinoki.admin.users import AdminAccounts, AdminUser, AdminUserError
-from hinoki.db import Database, DatabaseError
-from hinoki.errors import MigrationError
-from hinoki.orm import use_database
-from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
-from hinoki.projectmigrations import (
+from hinoki.cli.migrations import (
     URL_VARIABLE,
     MigrationDatabase,
     migration_database,
 )
+from hinoki.db import Database, DatabaseError
+from hinoki.errors import MigrationError
+from hinoki.orm import use_database
+from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
 
 MAX_LINE = 1100  # characters read as a password; more is refused, not buffered
 APPLY_HINT = (

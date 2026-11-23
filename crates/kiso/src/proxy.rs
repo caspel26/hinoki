@@ -9,6 +9,18 @@ use std::net::IpAddr;
 
 use crate::headers::Header;
 
+pub const MAX_FORWARDED_HOPS: usize = 32;
+
+/// Outcome of parsing a single-valued forwarded header (`X-Forwarded-Proto` or
+/// `X-Forwarded-For`), distinguishing absence from repeated or invalid values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Forwarded<T> {
+    Missing,
+    Valid(T),
+    Repeated,
+    Invalid,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Network {
     address: IpAddr,
@@ -84,6 +96,74 @@ impl Networks {
     /// Whether `peer` belongs to a configured network.
     pub fn contains(&self, peer: IpAddr) -> bool {
         self.networks.iter().any(|network| network.contains(peer))
+    }
+
+    /// Whether a string IP address parses and belongs to a configured network.
+    pub fn contains_str(&self, peer: &str) -> bool {
+        peer.parse::<IpAddr>()
+            .is_ok_and(|address| self.contains(address))
+    }
+
+    /// Walk an `X-Forwarded-For` chain from the trusted `peer` toward the
+    /// client, stopping at the first untrusted hop. Returns `None` on empty,
+    /// oversized (> `MAX_FORWARDED_HOPS`), non-ASCII, unparseable, or all-trusted
+    /// chains.
+    pub fn forwarded_client(&self, raw: &[u8], peer: IpAddr) -> Option<IpAddr> {
+        if !raw.is_ascii() {
+            return None;
+        }
+        let text = std::str::from_utf8(raw).ok()?;
+        let mut chain = Vec::new();
+        for part in text.split(',') {
+            if chain.len() == MAX_FORWARDED_HOPS {
+                return None;
+            }
+            chain.push(part.trim().parse::<IpAddr>().ok()?);
+        }
+        let mut current = peer;
+        for address in chain.into_iter().rev() {
+            if !self.contains(current) {
+                break;
+            }
+            current = address;
+        }
+        (!self.contains(current)).then_some(current)
+    }
+
+    /// Validate `X-Forwarded-For` header values from a trusted peer.
+    pub fn forwarded_address(&self, values: &[&[u8]], peer: IpAddr) -> Forwarded<IpAddr> {
+        match values {
+            [] => Forwarded::Missing,
+            [raw] => match self.forwarded_client(raw, peer) {
+                Some(client) => Forwarded::Valid(client),
+                None => Forwarded::Invalid,
+            },
+            _ => Forwarded::Repeated,
+        }
+    }
+}
+
+/// Validate `X-Forwarded-Proto` header values from a trusted peer.
+pub fn parse_forwarded_proto(values: &[&[u8]]) -> Forwarded<&'static str> {
+    match values {
+        [] => Forwarded::Missing,
+        [raw] => {
+            if !raw.is_ascii() {
+                return Forwarded::Invalid;
+            }
+            let Ok(text) = std::str::from_utf8(raw) else {
+                return Forwarded::Invalid;
+            };
+            let trimmed = text.trim();
+            if trimmed.eq_ignore_ascii_case("https") {
+                Forwarded::Valid("https")
+            } else if trimmed.eq_ignore_ascii_case("http") {
+                Forwarded::Valid("http")
+            } else {
+                Forwarded::Invalid
+            }
+        }
+        _ => Forwarded::Repeated,
     }
 }
 
@@ -237,5 +317,43 @@ mod tests {
             h("x-forwarded-proto", "https"),
         ]));
         assert!(!forwarded_https(&[h("x-forwarded-host", "https")]));
+    }
+
+    #[test]
+    fn parse_forwarded_proto_distinguishes_missing_repeated_and_invalid() {
+        assert_eq!(parse_forwarded_proto(&[]), Forwarded::Missing);
+        assert_eq!(parse_forwarded_proto(&[b"http"]), Forwarded::Valid("http"));
+        assert_eq!(
+            parse_forwarded_proto(&[b" HTTPS "]),
+            Forwarded::Valid("https")
+        );
+        assert_eq!(
+            parse_forwarded_proto(&[b"http", b"https"]),
+            Forwarded::Repeated
+        );
+        assert_eq!(parse_forwarded_proto(&[b"https\xff"]), Forwarded::Invalid);
+        assert_eq!(parse_forwarded_proto(&[b"ws"]), Forwarded::Invalid);
+    }
+
+    #[test]
+    fn forwarded_client_walks_chain_and_enforces_hop_limit() {
+        let proxies = nets(&["10.0.0.0/8"]);
+        assert_eq!(
+            proxies.forwarded_client(b"198.51.100.9, 203.0.113.8, 10.1.2.3", ip("10.2.3.4")),
+            Some(ip("203.0.113.8"))
+        );
+        assert_eq!(
+            proxies.forwarded_client(b"10.1.2.3, 10.2.3.4", ip("10.3.4.5")),
+            None
+        );
+        let too_many = vec!["10.1.2.3"; MAX_FORWARDED_HOPS + 1].join(",");
+        assert_eq!(
+            proxies.forwarded_client(too_many.as_bytes(), ip("10.2.3.4")),
+            None
+        );
+        assert_eq!(
+            proxies.forwarded_address(&[b"203.0.113.8", b"198.51.100.9"], ip("10.2.3.4")),
+            Forwarded::Repeated
+        );
     }
 }

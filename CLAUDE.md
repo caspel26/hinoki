@@ -1,6 +1,6 @@
 # Working rules for Hinoki
 
-Rules for anyone changing this repository, people and coding agents alike. This file is the single maintained rule set; `AGENTS.md` is a symbolic link to it, so every tool reads the same text. Read [`ROADMAP.md`](ROADMAP.md) for project status, [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and [`docs/adr/`](docs/adr/) for architecture decisions that are already made. Do not reconstruct intent from chat history.
+Rules for anyone changing this repository, people and coding agents alike. This file is the single maintained rule set; `AGENTS.md` and `GEMINI.md` are symbolic links to it, so every tool reads the same text. Read [`ROADMAP.md`](ROADMAP.md) for project status, [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow and [`docs/adr/`](docs/adr/) for architecture decisions that are already made. Do not reconstruct intent from chat history.
 
 Do not state that a feature, benchmark number, supported version or check exists unless it does. If a command is not documented, report it as unavailable.
 

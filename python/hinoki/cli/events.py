@@ -17,7 +17,7 @@ import sys
 from typing import Any
 
 from hinoki import jsontext
-from hinoki.checkcli import USAGE_ERRORS, build_app
+from hinoki.cli.check import USAGE_ERRORS, build_app
 from hinoki.events import EventBus, Registration
 from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
 

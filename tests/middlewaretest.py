@@ -7,11 +7,11 @@ import pytest
 
 from hinoki import Access, Hinoki, Schema, http
 from hinoki.auth import BearerAuth, Caller
+from hinoki.cli.routes import lanes_of
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import NotFound
 from hinoki.http import Middleware, MiddlewareRequest, Next, Response
 from hinoki.orm import current_database, use_database
-from hinoki.routescli import lanes_of
 from hinoki.testing import ASGIClient
 
 TABLE = "middleware_items"

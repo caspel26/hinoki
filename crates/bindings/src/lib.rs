@@ -27,6 +27,7 @@ mod modelrows;
 mod nativecrud;
 mod nativelinks;
 mod nativerun;
+mod policy;
 mod pytypes;
 mod query;
 mod ratelimit;
@@ -120,6 +121,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     db::register(m)?;
     server::register(m)?;
     kiso::register(m)?;
+    policy::register(m)?;
     mail::register(m)?;
     ratelimit::register(m)?;
     mailtemplate::register(m)?;

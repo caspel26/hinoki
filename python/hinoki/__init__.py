@@ -33,7 +33,7 @@ from hinoki.parsers import (
 )
 from hinoki.ratelimit import RateLimit, RateLimitContext, RateLimitPolicy
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
-from hinoki.resources import Crud, CrudAccess, all_rows, crud, own_rows
+from hinoki.resources import Crud, CrudAccess, all_rows, crud, from_user, own_rows
 from hinoki.routing import Includable, Mount, Route, RouteGroup
 from hinoki.rules import Actions, Imports, Models, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
@@ -136,6 +136,7 @@ __all__ = [
     "errors",
     "field_check",
     "field_normalize",
+    "from_user",
     "http",
     "object_check",
     "own_rows",

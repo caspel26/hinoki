@@ -5,8 +5,11 @@ import re
 
 import pytest
 
-from hinoki import Hinoki, checkcli, doctorcli, http, routescli
-from hinoki.doctorcli import Check
+from hinoki import Hinoki, http
+from hinoki.cli import check as checkcli
+from hinoki.cli import doctor as doctorcli
+from hinoki.cli import routes as routescli
+from hinoki.cli.doctor import Check
 from hinoki.rules import Diagnostic, Phase, Severity, Status
 from hinoki.terminal import Style
 

@@ -58,7 +58,7 @@ def test_doctor_invalid_manifest_does_not_import_default_target(
     monkeypatch.chdir(tmp_path)
     (tmp_path / "hinoki.toml").write_text("invalid = [", encoding="utf-8")
     monkeypatch.setattr(
-        "hinoki.doctorcli.build_app",
+        "hinoki.cli.doctor.build_app",
         lambda _target: (_ for _ in ()).throw(AssertionError("must not import")),
     )
 
@@ -77,7 +77,7 @@ def test_doctor_explicit_target_reports_load_error_without_exception_details(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "hinoki.doctorcli.build_app",
+        "hinoki.cli.doctor.build_app",
         lambda _target: (_ for _ in ()).throw(ValueError("secret setting value")),
     )
 
@@ -121,7 +121,7 @@ def test_doctor_does_not_start_application_hooks(
     def build(_target: str) -> Hinoki:
         return Hinoki(on_startup=[startup])
 
-    monkeypatch.setattr("hinoki.doctorcli.build_app", build)
+    monkeypatch.setattr("hinoki.cli.doctor.build_app", build)
     code = __main__.main(["doctor", "example:app"])
 
     assert code == 0
@@ -135,7 +135,7 @@ def test_doctor_reports_typed_settings_without_exposing_values(
     def build(_target: str) -> Hinoki:
         return Hinoki(settings=AppSettings())
 
-    monkeypatch.setattr("hinoki.doctorcli.build_app", build)
+    monkeypatch.setattr("hinoki.cli.doctor.build_app", build)
     code = __main__.main(["doctor", "example:app", "--format", "json"])
     output = capsys.readouterr().out
     result = json.loads(output)
@@ -158,7 +158,7 @@ def test_doctor_warns_when_granian_is_not_installed(
     def missing(_name: str) -> str:
         raise PackageNotFoundError
 
-    monkeypatch.setattr("hinoki.doctorcli.importlib.metadata.version", missing)
+    monkeypatch.setattr("hinoki.cli.doctor.importlib.metadata.version", missing)
     code = __main__.main(
         ["doctor", "tests.projects.inherited:create_app", "--format", "json"]
     )
@@ -200,7 +200,7 @@ def test_doctor_warns_for_non_hinoki_settings(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     app = SimpleNamespace(settings=object(), routes=[], openapi=lambda: {})
-    monkeypatch.setattr("hinoki.doctorcli.build_app", lambda _target: app)
+    monkeypatch.setattr("hinoki.cli.doctor.build_app", lambda _target: app)
 
     code = __main__.main(["doctor", "example:app", "--format", "json"])
     result = json.loads(capsys.readouterr().out)

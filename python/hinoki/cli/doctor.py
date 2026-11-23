@@ -12,7 +12,8 @@ from typing import Literal
 import hinoki
 import hinoki.core as native_core
 from hinoki import jsontext
-from hinoki.checkcli import build_app
+from hinoki.cli.check import build_app
+from hinoki.cli.reportui import doctor_text
 from hinoki.project import (
     ProjectError,
     ProjectManifest,
@@ -20,7 +21,6 @@ from hinoki.project import (
     find_manifest_or_none,
     load_manifest,
 )
-from hinoki.reportui import doctor_text
 from hinoki.settings import Settings
 from hinoki.terminal import Style
 

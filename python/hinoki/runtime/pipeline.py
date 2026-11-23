@@ -69,9 +69,10 @@ from hinoki.runtime.inline import RequestDeadline, run_inline
 from hinoki.runtime.lifespan import Lifespan
 from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
 from hinoki.runtime.proxy import (
+    build_proxy_policy,
     effective_client,
     effective_scope,
-    inbound_request_id,
+    inbound_request_id_checked,
 )
 from hinoki.runtime.requests import (
     Scope,
@@ -232,6 +233,7 @@ class Pipeline:
             ipaddress.ip_network(value, strict=False)
             for value in (settings.server.trusted_proxies if settings else ())
         )
+        self.proxy_policy = build_proxy_policy(self.trusted_proxies)
         self.request_id_header = (
             settings.server.request_id_header.lower() if settings else "x-request-id"
         )
@@ -319,7 +321,7 @@ class Pipeline:
         rid: str | None,
         route: MatchedRoute | None,
     ) -> tuple[Scope, str, Response]:
-        scope, trusted = effective_scope(scope, self.trusted_proxies)
+        scope, trusted = effective_scope(scope, self.proxy_policy)
         rid = rid or self._request_id(scope, trusted)
         response = await self._in_request_context(
             rid, self._respond(scope, source, rid, route)
@@ -666,11 +668,10 @@ class Pipeline:
         one."""
         incoming = None
         if trusted and self.trust_request_id:
-            headers = scope.get("headers", [])
-            incoming = inbound_request_id(headers, self.request_id_header)
-            if incoming is None and any(
-                name.lower() == self.request_id_name for name, _ in headers
-            ):
+            incoming, saw_header = inbound_request_id_checked(
+                scope.get("headers", ()), self.request_id_name
+            )
+            if incoming is None and saw_header:
                 log.warning("ignored invalid request ID from trusted proxy")
         return incoming or self._new_request_id()
 
@@ -723,7 +724,7 @@ class Pipeline:
         policy = context.route_cors.get() or self.cors
         if policy is not None and not has_allow_origin:
             # An answer that sets its own CORS headers keeps them.
-            headers.extend(policy.headers(origin_of(scope)))
+            headers.extend(policy.headers_from_scope(scope.get("headers", ())))
         stream = response.stream
         if stream is not None:
             length = declared_length(stream)
@@ -1347,9 +1348,7 @@ class Pipeline:
                 method=binding.route.method,
             )
         if binding.route.rate_limit is not None:
-            client = effective_client(
-                native.client, native.headers, self.trusted_proxies
-            )
+            client = effective_client(native.client, native.headers, self.proxy_policy)
             await self._rate_limit(binding, client, principal)
         name = binding.principal_name
         return args if name is None else {**args, name: principal}

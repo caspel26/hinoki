@@ -9,10 +9,10 @@ from typing import Any
 import pytest
 
 from hinoki import jsontext
+from hinoki.cli.migrations import _migration_history
+from hinoki.cli.project import _app_block
 from hinoki.errors import MigrationError
 from hinoki.orm.migrations import latest_state
-from hinoki.projectcli import _app_block
-from hinoki.projectmigrations import _migration_history
 from hinoki.scaffold import git_source
 from hinoki.settings import JsonFormatter
 
