@@ -8,6 +8,13 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🚦 Shared rate limit
+> `python/hinoki/ratelimit.py`, `python/hinoki/ratelimit_store`, `python/hinoki/admin/users/limits.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/kiso.py`, `python/hinoki/openapi.py`, `crates/ratelimit`, `crates/bindings/src/ratelimit.rs`, `crates/kiso/src/metrics.rs`, `crates/orm`
+
+`hinoki.RateLimit(limit, window)` limits a route with counters in a database table shared by every worker and host (or in memory with `MemoryLimits`, for development). It is counted in the Rust core by a cell rate algorithm, in one statement per request, on async and sync handlers, and a route stays on Kiso's native handler lane. Options: `key` (`"client"`, `"caller"` or a function), `scope`, `tenant`, `cost`, `unknown_factor`, `on_error` (`"closed"` answers `503`, `"open"` admits), `headers=True` for `RateLimit-*` response headers (listed in OpenAPI), and `clock`. Keys are hashed before they reach SQL. The default scope is the method and the route template. The table `hinoki_rate_limits` (indexed on `state`) belongs to the optional `ratelimit` app (`hinoki app add ratelimit --models hinoki.ratelimit_store.models --migrations hinoki.ratelimit_store.migrations`); nothing creates it implicitly. `hinoki_rate_limit_decisions_total{decision}` counts decisions in the metrics. `Database::execute_scalar` (Rust ORM crate) runs a statement and returns its one value. Arguments are validated at construction (`timeout` 0.001 to 5 seconds, no bool, the integer maxima of the core). `MemoryLimits` keeps its buckets on the instance, so routes sharing it share counters. A worker's metrics replace an earlier worker's in the same process, and the limiters let go of the worker's database at shutdown.
+
+Migration note: `DatabaseLoginWindow` of the admin now uses the same algorithm and a new table `hinoki_admin_rate_limits` (admin migration `0003-rate-limits`, apply it before using the policy). It no longer reads `hinoki_admin_login_windows`, which stays in place unused. `AdminAccounts` still defaults to the per-worker `LoginWindow`.
+
 #### 📨 Email templates
 > `python/hinoki/mail.py`, `python/hinoki/mailcli.py`, `python/hinoki/app.py`, `python/hinoki/rules.py`, `crates/mail/src/template`, `crates/bindings/src/mailtemplate.rs`, `crates/kiso/src/metrics.rs`, `examples/mailroom`
 

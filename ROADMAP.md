@@ -45,7 +45,7 @@ These are directions, not commitments, and none of them is available today.
 - Moving more of the request path into the Rust core, before new features.
 - A durable email queue and HTTP email providers (outbound email is SMTP only today).
 - Filters across relations and on the admin lists, and cursor pagination in the admin.
-- Tracing, an outbound HTTP client with timeouts and retries, rate limit storage shared by workers, and key rotation.
+- Tracing, an outbound HTTP client with timeouts and retries, and key rotation.
 - Range filters and ordering for `Decimal` on SQLite.
 - Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 
