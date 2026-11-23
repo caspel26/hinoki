@@ -735,6 +735,60 @@ class EventMetrics:
 
 class MailMetrics: ...
 
+class RateLimitMetrics:
+    def record(self, decision: str) -> None: ...
+
+class RateLimitUnavailable(RuntimeError): ...
+
+class RateRule:
+    def __init__(
+        self,
+        limit: int,
+        window_s: int,
+        cost: int,
+        unknown_factor: int,
+        fail_open: bool,
+    ) -> None: ...
+
+class RateDecision:
+    @property
+    def allowed(self) -> bool: ...
+    @property
+    def limit(self) -> int: ...
+    @property
+    def remaining(self) -> int: ...
+    @property
+    def reset(self) -> int: ...
+    @property
+    def retry_after(self) -> int: ...
+    @property
+    def failed_open(self) -> bool: ...
+
+class RateLimiter:
+    @staticmethod
+    def database(
+        db: Database, table: str, max_rows: int, timeout_ms: int, sweep_every: int
+    ) -> RateLimiter: ...
+    @staticmethod
+    def memory(max_rows: int, sweep_every: int) -> RateLimiter: ...
+    def check(
+        self,
+        rule: RateRule,
+        route: str,
+        target: tuple[int, str | None],
+        tenant: str | None = None,
+        now_us: int | None = None,
+    ) -> Awaitable[RateDecision]: ...
+    def check_blocking(
+        self,
+        rule: RateRule,
+        route: str,
+        target: tuple[int, str | None],
+        tenant: str | None = None,
+        now_us: int | None = None,
+    ) -> RateDecision: ...
+    def attach_metrics(self, metrics: RateLimitMetrics) -> None: ...
+
 type _ShapeNode = (
     Literal["s"] | tuple[Literal["l"], _ShapeNode] | tuple[Literal["x"], str] | _Shape
 )
@@ -808,6 +862,7 @@ class KisoServer:
     ) -> KisoServer: ...
     def event_metrics(self) -> EventMetrics | None: ...
     def mail_metrics(self) -> MailMetrics | None: ...
+    def rate_limit_metrics(self) -> RateLimitMetrics | None: ...
     @property
     def port(self) -> int: ...
     @property

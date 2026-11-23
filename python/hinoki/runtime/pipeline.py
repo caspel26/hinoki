@@ -17,7 +17,7 @@ import ipaddress
 import itertools
 import logging
 import secrets
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from http import HTTPStatus
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
@@ -48,7 +48,7 @@ from hinoki.orm import database_var
 from hinoki.orm.model import Model
 from hinoki.pagination import Page as ResultPage
 from hinoki.parsers import JSONParser, Parser, choose, is_native_parser
-from hinoki.ratelimit import RateLimitContext
+from hinoki.ratelimit import RateLimit, RateLimitContext
 from hinoki.renderers import (
     JSONRenderer,
     Renderer,
@@ -193,6 +193,7 @@ class Pipeline:
     def __init__(self, app: Hinoki) -> None:
         self.app = app
         self.bindings = app.bindings
+        self.rate_limit_metrics: core.RateLimitMetrics | None = None
         self.websockets = app.websockets
         self.crud_plan_selections: list[Any] = []
         self.crud_plan_reasons: list[str] = []
@@ -256,7 +257,7 @@ class Pipeline:
             app.runtime,
             needs_database=needs_database,
             on_startup=app.on_startup,
-            on_shutdown=app.on_shutdown,
+            on_shutdown=(*app.on_shutdown, self._release_rate_limits),
             events=app.events,
         )
 
@@ -510,6 +511,7 @@ class Pipeline:
     async def _in_request_context[T](self, rid: str, response: Awaitable[T]) -> T:
         token = request_id.set(rid)
         context.route_headers.set(())
+        context.rate_limit_headers.set(())
         context.route_cors.set(None)
         runner_token = context.sync_runner.set(self.executor.run)
         db_token = database_var.set(self.ctx.find(Database))
@@ -594,6 +596,7 @@ class Pipeline:
     def _set_request_context(self, rid: str) -> None:
         request_id.set(rid)
         context.route_headers.set(())
+        context.rate_limit_headers.set(())
         context.route_cors.set(None)
         context.sync_runner.set(self.executor.run)
         database_var.set(self.ctx.find(Database))
@@ -714,6 +717,9 @@ class Pipeline:
             response, scope.get("scheme", "") == "https"
         )
         headers = [*shaped, (self.request_id_name, rid.encode("ascii"))]
+        extra = context.rate_limit_headers.get()
+        if extra:
+            headers.extend((name.encode(), value.encode()) for name, value in extra)
         policy = context.route_cors.get() or self.cors
         if policy is not None and not has_allow_origin:
             # An answer that sets its own CORS headers keeps them.
@@ -1032,34 +1038,98 @@ class Pipeline:
             caller=cast("Caller[Any] | None", principal),
             lookup=self.ctx.get,
         )
+        if type(policy).check is RateLimit.check:
+            await self._builtin_limit(cast("RateLimit", policy), context, route)
+            return
         try:
-            if inspect.iscoroutinefunction(policy.check):
-                await policy.check(context)
-            else:
-                result = await self.executor.run(policy.check, context)
-                if inspect.isawaitable(result):
-                    await result
+            await self._call_policy(policy, context)
         except TooManyRequests as refusal:
             if not valid_refusal(refusal):
                 log.error(
                     "the rate limit policy of %s %s failed", route.method, route.path
                 )
+                self._record_limit("unavailable")
                 raise HTTPError(
                     HTTPStatus.SERVICE_UNAVAILABLE,
                     "rate_limit_unavailable",
                     RETRY_LATER,
                 ) from None
+            self._record_limit("refused")
             await announce_rate_limited(policy, route, refusal)
             raise
         except ExecutorSaturated:
+            self._record_limit("unavailable")
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "overloaded", RETRY_LATER
             ) from None
         except Exception:
             log.error("the rate limit policy of %s %s failed", route.method, route.path)
+            self._record_limit("unavailable")
             raise HTTPError(
                 HTTPStatus.SERVICE_UNAVAILABLE, "rate_limit_unavailable", RETRY_LATER
             ) from None
+        self._record_limit("allowed")
+
+    async def _call_policy(
+        self, policy: RateLimitPolicy, context: RateLimitContext
+    ) -> None:
+        if inspect.iscoroutinefunction(policy.check):
+            await policy.check(context)
+            return
+        result = await self.executor.run(policy.check, context)
+        if inspect.isawaitable(result):
+            await result
+
+    def _record_limit(self, decision: str) -> None:
+        if self.rate_limit_metrics is not None:
+            self.rate_limit_metrics.record(decision)
+
+    def _builtin_limiters(self) -> Iterator[RateLimit]:
+        for binding in self.bindings:
+            policy = binding.route.rate_limit
+            if isinstance(policy, RateLimit) and type(policy).check is RateLimit.check:
+                yield policy
+
+    def attach_rate_limit_metrics(self, metrics: core.RateLimitMetrics | None) -> None:
+        """Count rate limit decisions into the server's metrics: the built-in
+        limiters count themselves, the pipeline counts the application's policies."""
+        if metrics is None:
+            return
+        self.rate_limit_metrics = metrics
+        for policy in self._builtin_limiters():
+            policy.attach_metrics(metrics)
+
+    async def _release_rate_limits(self, _: ModuleContext) -> None:
+        """At shutdown, drop what the limiters bound to this worker's database."""
+        self.rate_limit_metrics = None
+        for policy in self._builtin_limiters():
+            policy.release()
+
+    def uses_rate_limit(self) -> bool:
+        return any(binding.route.rate_limit is not None for binding in self.bindings)
+
+    async def _builtin_limit(
+        self, policy: RateLimit, limit_context: RateLimitContext, route: Route
+    ) -> None:
+        """The built-in limiter: no executor, the decision is an awaitable of the
+        native core. Any failure of the limiter or its storage fails closed with
+        503 (``on_error="closed"``; ``"open"`` never raises)."""
+        try:
+            decision = await policy.decide(limit_context)
+        except Exception as error:
+            if not isinstance(error, core.RateLimitUnavailable):
+                self._record_limit("unavailable")  # Rust counted the storage ones
+            log.error("the rate limit of %s %s failed", route.method, route.path)
+            raise HTTPError(
+                HTTPStatus.SERVICE_UNAVAILABLE, "rate_limit_unavailable", RETRY_LATER
+            ) from None
+        if not decision.allowed:
+            refusal = policy.refusal(decision)
+            await announce_rate_limited(policy, route, refusal)
+            raise refusal
+        extra = policy.header_items(decision)
+        if extra:
+            context.rate_limit_headers.set(extra)
 
     async def _body(self, source: BodySource, declared: str) -> bytes:
         """The request body, refused before reading anything when the declared

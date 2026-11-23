@@ -27,6 +27,7 @@ mod nativecrud;
 mod nativerun;
 mod pytypes;
 mod query;
+mod ratelimit;
 mod request;
 mod router;
 mod rows;
@@ -118,6 +119,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     server::register(m)?;
     kiso::register(m)?;
     mail::register(m)?;
+    ratelimit::register(m)?;
     mailtemplate::register(m)?;
     wsgi::register(m)?;
     m.add_class::<websocket::WebSocketSpec>()?;

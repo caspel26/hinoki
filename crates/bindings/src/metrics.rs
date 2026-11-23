@@ -128,6 +128,7 @@ pub(crate) fn parse(
         buckets: field(options, "buckets")?.unwrap_or_else(|| DEFAULT_BUCKETS.to_vec()),
         events: field(options, "events")?.unwrap_or_default(),
         email: email_backend(options)?,
+        rate_limits: field(options, "rate_limits")?.unwrap_or(false),
     };
     let registry = Registry::new(config, routes)
         .map(Arc::new)

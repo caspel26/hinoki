@@ -1,0 +1,28 @@
+{
+  "tables": {
+    "hinoki_rate_limits": {
+      "columns": {
+        "bucket": {
+          "type": "varchar(64)",
+          "nullable": false,
+          "primary_key": true,
+          "unique": false,
+          "references": null
+        },
+        "state": {
+          "type": "bigint",
+          "nullable": false,
+          "primary_key": false,
+          "unique": false,
+          "references": null
+        }
+      },
+      "unique": [],
+      "indexes": [
+        [
+          "state"
+        ]
+      ]
+    }
+  }
+}
