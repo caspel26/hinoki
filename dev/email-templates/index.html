@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email templates · Hinoki</title>
+  <meta name="description" content="A Python API framework that checks its own architecture.">
+  <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hinoki">
+  <meta property="og:title" content="Email templates · Hinoki">
+  <meta property="og:description" content="A Python API framework that checks its own architecture.">
+  <meta property="og:image" content="https://hinoki.caspel.dev/devstatic/og.png">
+  <meta property="og:image:alt" content="Hinoki: A Python API framework that checks its own architecture.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://hinoki.caspel.dev/devstatic/og.png">
+  <link rel="canonical" href="https://hinoki.caspel.dev/dev/email-templates/">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("hn-theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.add("js");
+      addEventListener("pagereveal", function (e) {
+        try {
+          if (e.viewTransition && sessionStorage.getItem("hn-section")) e.viewTransition.types.add("section");
+          sessionStorage.removeItem("hn-section");
+        } catch (err) {}
+      });
+    })();
+  </script>
+  <link rel="preload" href="../static/fonts/plex-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../static/fonts/ibm-plex-mono-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../static/fonts/ibm-plex-mono-latin-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../static/css/tokens.css">
+  <link rel="stylesheet" href="../static/css/base.css">
+  <link rel="stylesheet" href="../static/css/prose.css">
+  <link rel="stylesheet" href="../static/css/icons.css">
+  <link rel="stylesheet" href="../static/css/benchmarks.css">
+  <link rel="stylesheet" href="../static/css/changelog.css">
+  
+</head>
+
+<body class="is-doc" data-base="..">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="meter" aria-hidden="true"><i></i></div>
+
+  <header class="top">
+    <div class="top__inner">
+      <button class="icon-btn top__menu" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false" data-menu>
+        <svg class="menu-icon-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg class="menu-icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="brand" href=".." aria-label="Hinoki home">
+        <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+        <svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="hinoki"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+      </a>
+      <span class="status-chip" data-project-stage>pre-alpha</span>
+      <div class="docs-version" data-docs-version hidden>
+        <button class="status-chip docs-version__trigger" type="button" data-docs-version-trigger aria-controls="docs-version-menu" aria-expanded="false" aria-label="Choose documentation version">
+          <span data-docs-version-current>dev</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <nav class="docs-version__menu" id="docs-version-menu" data-docs-version-menu aria-label="Documentation versions" hidden></nav>
+      </div>
+      <nav class="top__nav" aria-label="Sections">
+        
+          
+        
+          
+            <a class="top__link" href="../getting-started/"><span class="i i--rocket" aria-hidden="true"></span>Get started</a>
+          
+        
+          
+            <a class="top__link" href="../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span>Tutorial</a>
+          
+        
+          
+            <a class="top__link is-active" href="../guides/" aria-current="true"><span class="i i--book-open" aria-hidden="true"></span>Guides</a>
+          
+        
+          
+            <a class="top__link" href="../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span>Concepts</a>
+          
+        
+          
+            <a class="top__link" href="../reference/"><span class="i i--braces" aria-hidden="true"></span>Reference</a>
+          
+        
+          
+            <a class="top__link" href="../status/"><span class="i i--folder-git-2" aria-hidden="true"></span>Project</a>
+          
+        
+      </nav>
+      <div class="top__actions">
+        <button class="search-btn" type="button" data-search aria-label="Search the documentation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>Search</span><kbd>/</kbd>
+        </button>
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch colour theme">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        </button>
+        <a class="icon-btn top__repo" href="https://github.com/caspel26/hinoki" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  
+
+  
+  
+  
+  
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  
+
+  <div class="shell">
+    <aside class="side" id="side" aria-label="Section navigation">
+      <div class="mobile-sheet__header">
+        <span class="mobile-sheet__handle" aria-hidden="true"></span>
+        <span class="mobile-sheet__title mobile-sheet__brand"><svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg><svg class="brand__word" viewBox="0 0 655 184" role="img" aria-label="Hinoki navigation"><use href="../static/hinoki-logo.svg#wordmark"/></svg></span>
+        <button class="icon-btn mobile-sheet__close" type="button" aria-label="Close navigation" data-menu-close>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="side__scroll">
+        <nav class="side__sections" aria-label="Documentation sections">
+          <p class="side__label">Sections</p>
+          <ul class="side__list">
+            
+              
+            
+              
+                <li><a class="side__link" href="../getting-started/"><span class="i i--rocket" aria-hidden="true"></span><span>Get started</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../tutorial/"><span class="i i--graduation-cap" aria-hidden="true"></span><span>Tutorial</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="../guides/"><span class="i i--book-open" aria-hidden="true"></span><span>Guides</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../concepts/"><span class="i i--lightbulb" aria-hidden="true"></span><span>Concepts</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../reference/"><span class="i i--braces" aria-hidden="true"></span><span>Reference</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../status/"><span class="i i--folder-git-2" aria-hidden="true"></span><span>Project</span></a></li>
+              
+            
+            <li class="side__repo"><a class="side__link" href="https://github.com/caspel26/hinoki"><svg class="side__gh" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg><span>GitHub</span></a></li>
+          </ul>
+        </nav>
+        
+          <p class="side__sec"><span class="i i--book-open" aria-hidden="true"></span>Guides</p>
+          <p class="side__label">In this section</p>
+          
+          
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../guides/"><span>Overview</span></a></li>
+              
+            
+              
+                <li class="side__group"><span><span class="i i--database" aria-hidden="true"></span>Data</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../databases/"><span>Configure a database</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../models/"><span>Define models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-options/"><span>Model options</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../relations/"><span>Relations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../queries/"><span>Query and write rows</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-hooks/"><span>Lifecycle hooks</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../events/"><span>Events</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../migrations/"><span>Migrations</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schemas/"><span>Schemas</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-types/"><span>Scalar field types</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-collections/"><span>Collections and unions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../schema-validation/"><span>Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../model-schemas/"><span>Schemas from models</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../utilities/"><span>Time and utilities</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span><span class="i i--route" aria-hidden="true"></span>Endpoints</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../function-endpoints/"><span>Function-based APIs</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../class-endpoints/"><span>Class-based APIs</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../routes/"><span>Register routes</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../endpoints/"><span>Requests and responses</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../crud/"><span>Generate CRUD routes</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../errors/"><span>Errors</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../streaming/"><span>Stream a response</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../websockets/"><span>WebSockets</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../compression/"><span>Compress responses</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../metrics/"><span>Export Prometheus metrics</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../email/"><span>Send email</span></a></li>
+              
+            
+              
+                <li><a class="side__link is-active" href="./" aria-current="page"><span>Email templates</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../pagination/"><span>Pagination</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../codecs/"><span>Parsers and renderers</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../openapi/"><span>OpenAPI document</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span><span class="i i--shield-check" aria-hidden="true"></span>Security and checks</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../authentication/"><span>Authentication and access</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../web-security/"><span>Hosts, CORS and HTTPS</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span><span class="i i--server" aria-hidden="true"></span>Runtime</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../modules/"><span>Application modules</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../transactions/"><span>Transactions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../settings/"><span>Settings</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../serving/"><span>Serve an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../kiso/"><span>Kiso server</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../testing/"><span>Test an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cli/"><span>Command line</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../new-project/"><span>Create a project</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../inspect/"><span>Inspect an application</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../shell/"><span>Interactive shell</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../typing/"><span>Typing</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span><span class="i i--plug" aria-hidden="true"></span>Integrations</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../admin/"><span>Add an admin</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../admin-customize/"><span>Customize the admin</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../app-mcp/"><span>Expose actions over MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../dev-mcp/"><span>Development MCP</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../ai-workflow/"><span>Build with a coding agent</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+              
+                <li class="side__group"><span><span class="i i--gauge" aria-hidden="true"></span>Operating</span>
+            <ul class="side__list">
+            
+              
+                <li><a class="side__link" href="../sync-async/"><span>Sync and async code</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../benchmarks/"><span>Benchmarks</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../changelog/"><span>Changelog</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../rust-crud-orientation/"><span>Native CRUD orientation run</span></a></li>
+              
+            
+            </ul>
+          </li>
+              
+            
+            </ul>
+          
+        
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="prose">
+        <header class="page-head">
+          <p class="kicker" data-search-exclude><span class="i-tile"><span class="i i--route i--m" aria-hidden="true"></span></span><span>Guides<span class="kicker__sep" aria-hidden="true">/</span>Endpoints</span></p>
+          <h1 id="email-templates">Email templates<a class="headerlink" href="#email-templates" title="Permanent link">&para;</a></h1>
+          
+          <p class="page-meta" data-search-exclude>
+            <span class="chip chip--implemented">implemented</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>12 min read</span>
+          </p>
+          
+        </header>
+        
+<p>A template turns a typed context into the subject, the plain text and the HTML of a message. The language is small and fixed, the template is parsed, checked against the context <code>Schema</code> and rendered in Rust (<code>crates/mail</code>), and the result is an ordinary <code>mail.Message</code> for <a href="../email/"><code>mail.send</code></a>. The call from Python to the renderer is one synchronous native call per message, with Python objects for the context and the three rendered strings.</p>
+<p>The code on this page is the code of <a href="https://github.com/caspel26/hinoki/tree/main/examples/mailroom"><code>examples/mailroom</code></a>; a test (<code>tests/mailtemplatesdoctest.py</code>) proves that every quoted block is a piece of that example and that every printed output is what the command prints now. Use only synthetic addresses such as <code>example.com</code>; nothing here sends real mail.</p>
+<h2 id="a-template-file">A template file<a class="headerlink" href="#a-template-file" title="Permanent link">&para;</a></h2>
+<p>A template file is TOML with a <code>subject</code>, a <code>template</code> (the HTML) and, optionally, a <code>text</code> and a <code>description</code>. The context it reads is a <code>Schema</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># mailroom/messages.py</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Account</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">examples</span><span class="o">=</span><span class="p">(</span><span class="s2">"Ada"</span><span class="p">,))]</span>
+    <span class="n">trial_days</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">examples</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,))]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Step</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">examples</span><span class="o">=</span><span class="p">(</span><span class="s2">"Create a project"</span><span class="p">,))]</span>
+    <span class="n">url</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">"url"</span><span class="p">,</span> <span class="n">examples</span><span class="o">=</span><span class="p">(</span><span class="s2">"https://example.com/start"</span><span class="p">,))]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Welcome</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">user</span><span class="p">:</span> <span class="n">Account</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Step</span><span class="p">],</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">10</span><span class="p">)]</span>
+</code></pre></div>
+<div class="language-toml highlight"><pre><span></span><code><span class="c1"># mailroom/templates/welcome.toml</span>
+<span class="n">description</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Sent once, after sign-up"</span>
+<span class="n">subject</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Welcome to Mailroom, {{ user.name }}"</span>
+<span class="n">template</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'''</span>
+<span class="s1">&lt;html&gt;&lt;body&gt;</span>
+<span class="s1">&lt;h1&gt;Welcome, {{ user.name }}&lt;/h1&gt;</span>
+<span class="s1">{% if user.trial_days %}</span>
+<span class="s1">&lt;p&gt;Your trial lasts {{ user.trial_days }} days.&lt;/p&gt;</span>
+<span class="s1">{% else %}</span>
+<span class="s1">&lt;p&gt;Your plan is active.&lt;/p&gt;</span>
+<span class="s1">{% endif %}</span>
+<span class="s1">&lt;ol&gt;</span>
+<span class="s1">{% for step in steps %}</span>
+<span class="s1">&lt;li&gt;&lt;a href="{{ step.url }}"&gt;{{ step.title }}&lt;/a&gt;&lt;/li&gt;</span>
+<span class="s1">{% endfor %}</span>
+<span class="s1">&lt;/ol&gt;</span>
+<span class="s1">&lt;/body&gt;&lt;/html&gt;</span>
+<span class="s1">'''</span>
+</code></pre></div>
+<p><code>mail.Template.file(path, context=Welcome)</code> names the file and its context. Nothing is read when the module is imported; the name defaults to the file's stem (<code>welcome</code>):</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># mailroom/messages.py</span>
+<span class="n">WELCOME</span> <span class="o">=</span> <span class="n">mail</span><span class="o">.</span><span class="n">Template</span><span class="o">.</span><span class="n">file</span><span class="p">(</span><span class="n">HERE</span> <span class="o">/</span> <span class="s2">"welcome.toml"</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">Welcome</span><span class="p">)</span>
+<span class="n">RESET_PASSWORD</span> <span class="o">=</span> <span class="n">mail</span><span class="o">.</span><span class="n">Template</span><span class="o">.</span><span class="n">file</span><span class="p">(</span><span class="n">HERE</span> <span class="o">/</span> <span class="s2">"reset_password.toml"</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">ResetPassword</span><span class="p">)</span>
+
+<span class="n">templates</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">mail</span><span class="o">.</span><span class="n">TemplateBase</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">WELCOME</span><span class="p">,</span> <span class="n">RESET_PASSWORD</span><span class="p">]</span>
+</code></pre></div>
+<p>A template built in code takes the same parts: <code>mail.Template(name="x", subject=..., html=..., text=..., context=Ctx)</code>, or <code>mail.Template.from_toml(source, name="x", context=Ctx)</code> for TOML text. Those compile when they are built, with no I/O.</p>
+<h2 id="register-and-send">Register and send<a class="headerlink" href="#register-and-send" title="Permanent link">&para;</a></h2>
+<p>List the templates when you create the application. Nothing registers by import:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># mailroom/main.py</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
+    <span class="n">settings</span><span class="o">=</span><span class="n">MailroomSettings</span><span class="p">,</span>
+    <span class="n">title</span><span class="o">=</span><span class="s2">"Mailroom"</span><span class="p">,</span>
+    <span class="n">include</span><span class="o">=</span><span class="n">routes</span><span class="p">,</span>
+    <span class="n">email_templates</span><span class="o">=</span><span class="n">templates</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The auto-installed <code>EmailModule</code> receives the list. If you declare the module yourself, pass <code>EmailModule(settings, templates=[...])</code>. Every worker reads and checks the files in its lifespan, and the worker does not start when one fails. At most 256 templates are registered, with distinct names.</p>
+<p>A route builds the context, renders it with <code>Template.message(context, to=...)</code> and sends the message:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># mailroom/routes.py</span>
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/signup"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">sign_up</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">SignUp</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sent</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Send the welcome message of a new account."""</span>
+    <span class="n">welcome</span> <span class="o">=</span> <span class="n">Welcome</span><span class="p">(</span>
+        <span class="n">user</span><span class="o">=</span><span class="n">Account</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">trial_days</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">trial_days</span><span class="p">),</span>
+        <span class="n">steps</span><span class="o">=</span><span class="p">[</span><span class="n">Step</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Create a project"</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="n">START</span><span class="p">)],</span>
+    <span class="p">)</span>
+    <span class="n">sent</span> <span class="o">=</span> <span class="k">await</span> <span class="n">mail</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">WELCOME</span><span class="o">.</span><span class="n">message</span><span class="p">(</span><span class="n">welcome</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">email</span><span class="p">,)))</span>
+    <span class="k">return</span> <span class="n">Sent</span><span class="p">(</span><span class="n">message_id</span><span class="o">=</span><span class="n">sent</span><span class="o">.</span><span class="n">message_id</span><span class="p">)</span>
+</code></pre></div>
+<p><code>message</code> takes the other <code>Message</code> options (<code>cc</code>, <code>bcc</code>, <code>reply_to</code>, <code>headers</code>, <code>attachments</code>, <code>sender</code>) as keywords. A test sends through the <code>memory</code> backend, which keeps the message in the mailer's outbox:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># mailroom_tests/mailroomsendtest.py</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">messages</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">mail</span><span class="o">.</span><span class="n">Message</span><span class="p">]:</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">m</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">app</span><span class="o">.</span><span class="n">modules</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">mail</span><span class="o">.</span><span class="n">EmailModule</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">sent</span><span class="o">.</span><span class="n">message</span> <span class="k">for</span> <span class="n">sent</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">mailer</span><span class="o">.</span><span class="n">outbox</span> <span class="k">if</span> <span class="n">sent</span><span class="o">.</span><span class="n">message</span><span class="p">]</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_sign_up_sends_the_welcome_message</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">ASGIClient</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+        <span class="s2">"/signup"</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">"email"</span><span class="p">:</span> <span class="s2">"ada@example.com"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Ada &lt;1&gt;"</span><span class="p">}</span>
+    <span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">202</span>
+    <span class="p">(</span><span class="n">message</span><span class="p">,)</span> <span class="o">=</span> <span class="n">messages</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="n">message</span><span class="o">.</span><span class="n">to</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"ada@example.com"</span><span class="p">,)</span>
+    <span class="k">assert</span> <span class="n">message</span><span class="o">.</span><span class="n">subject</span> <span class="o">==</span> <span class="s2">"Welcome to Mailroom, Ada &lt;1&gt;"</span>
+    <span class="k">assert</span> <span class="n">message</span><span class="o">.</span><span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="s2">"Your trial lasts 14 days."</span> <span class="ow">in</span> <span class="n">message</span><span class="o">.</span><span class="n">text</span>
+    <span class="k">assert</span> <span class="n">message</span><span class="o">.</span><span class="n">html</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">assert</span> <span class="s2">"&lt;h1&gt;Welcome, Ada &amp;lt;1&amp;gt;&lt;/h1&gt;"</span> <span class="ow">in</span> <span class="n">message</span><span class="o">.</span><span class="n">html</span>
+</code></pre></div>
+<p>To see a message printed while developing, run <code>MAILROOM_EMAIL__BACKEND=console MAILROOM_EMAIL__DEFAULT_SENDER=noreply@example.com uv run hinoki dev</code> from <code>examples/mailroom</code> and <code>POST</code> to <code>/signup</code>. The console output is not reproduced here because its <code>Date</code> and <code>Message-ID</code> headers change on every run.</p>
+<h2 id="the-language">The language<a class="headerlink" href="#the-language" title="Permanent link">&para;</a></h2>
+<p>A template is text with three constructs:</p>
+<table>
+<thead>
+<tr>
+<th>Construct</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{{ path }}</code></td>
+<td>Insert a value. <code>path</code> is one to eight identifiers joined by dots (<code>user.name</code>)</td>
+</tr>
+<tr>
+<td><code>{% if path %}</code> … <code>{% else %}</code> … <code>{% endif %}</code></td>
+<td>Render a branch by truthiness; <code>else</code> is optional</td>
+</tr>
+<tr>
+<td><code>{% for name in path %}</code> … <code>{% endfor %}</code></td>
+<td>Render the body once per item of a list; <code>name</code> exists only inside the body</td>
+</tr>
+</tbody>
+</table>
+<p>An identifier is ASCII letters, digits and <code>_</code>, not starting with a digit, up to 64 bytes. <code>if</code>, <code>else</code>, <code>endif</code>, <code>for</code>, <code>in</code> and <code>endfor</code> are reserved as loop variables. A loop variable may not have the name of a field of the context or of an enclosing loop (<code>shadowed_name</code>). There are no filters, expressions, comparisons, <code>not</code>, <code>elif</code>, comments, includes, macros or inheritance: anything else inside <code>{{ }}</code> or <code>{% %}</code> is a syntax error. A literal <code>{{</code> or <code>{%</code> cannot appear in the text; a lone <code>{</code>, <code>}</code> or <code>%</code> is text, so CSS works.</p>
+<p><strong>Standalone lines.</strong> A <code>{% … %}</code> tag that is the only non-blank content of its line removes that line (its leading and trailing spaces and tabs, and one line ending). <code>{{ }}</code> lines are never removed. This is why the preview below has no blank lines where the <code>if</code> and <code>for</code> tags are.</p>
+<p><strong>Values.</strong> The context is read as these values:</p>
+<table>
+<thead>
+<tr>
+<th>Python / <code>Schema</code> field</th>
+<th>In the template</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str</code>, <code>Email</code>, <code>Url</code>, <code>StrEnum</code></td>
+<td>Text as is</td>
+</tr>
+<tr>
+<td><code>int</code>, <code>float</code></td>
+<td>Decimal digits (an <code>int</code> of any size); a float with no fractional part gets <code>.0</code> (<code>1.0</code>), never an exponent</td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>true</code> or <code>false</code></td>
+</tr>
+<tr>
+<td><code>None</code></td>
+<td>Nothing (empty text); a path through a <code>None</code> object is also empty</td>
+</tr>
+<tr>
+<td><code>Decimal</code>, <code>date</code>, <code>datetime</code>, <code>UUID</code></td>
+<td>The text <code>dump()</code> gives</td>
+</tr>
+<tr>
+<td>nested <code>Schema</code></td>
+<td>An object: use <code>user.name</code></td>
+</tr>
+<tr>
+<td><code>list[...]</code></td>
+<td>Something <code>for</code> iterates; <code>for</code> over <code>None</code> renders nothing</td>
+</tr>
+<tr>
+<td><code>SecretStr</code>, <code>bytes</code>, <code>Any</code>, <code>tuple</code>, a mapping field</td>
+<td>Refused when the template is checked</td>
+</tr>
+</tbody>
+</table>
+<p>An object or a list cannot be inserted with <code>{{ }}</code> (<code>not_text</code>); a <code>for</code> over a value that is not a list is <code>not_a_list</code>; a path through a non-object is <code>not_an_object</code>.</p>
+<p><strong>Truthiness.</strong> <code>None</code>, <code>false</code>, <code>0</code>, <code>0.0</code>, empty text, an empty list and an empty object are false; everything else is true.</p>
+<p><strong>Escaping.</strong> In <code>html</code> every inserted value is escaped (<code>&amp;</code> <code>&lt;</code> <code>&gt;</code> <code>"</code> <code>'</code> become <code>&amp;amp;</code>, <code>&amp;lt;</code>, <code>&amp;gt;</code>, <code>&amp;quot;</code>, <code>&amp;#x27;</code>); the literal text of the template is not touched. <code>subject</code> and <code>text</code> insert values as they are. A value inserted into the subject that has a line break, a NUL or another control character other than a tab (including <code>U+0085</code>, <code>U+2028</code> and <code>U+2029</code>) is refused (<code>header_injection</code>), so a value cannot add a header. A NUL in a value inserted into <code>text</code> or <code>html</code> is refused (<code>control_character</code>).</p>
+<p>Escaping is enough in text and inside a quoted attribute, so the template is also checked for where each <code>{{ }}</code> sits in the HTML. A <code>{{ }}</code> inside <code>&lt;script&gt;</code> or <code>&lt;style&gt;</code>, in an unquoted attribute value, in a tag or attribute name, or in an event handler attribute (<code>onclick</code>, ...) is refused when the template is compiled (<code>unsafe_context</code>). A value inside a quoted <code>href</code>, <code>src</code>, <code>action</code>, <code>formaction</code>, <code>background</code> or <code>poster</code> is checked when the template is rendered: with a scheme it must be <code>http</code>, <code>https</code>, <code>mailto</code> or <code>tel</code>, otherwise the render fails (<code>unsafe_url</code>); an address without a scheme is relative and passes. The check also covers the dict shortcut. A <code>Schema</code> context is not allowed <code>Unset</code> fields (<code>str | Unset</code>), a <code>dump()</code> override, or a computed field that returns a secret: the first two are <code>unsupported_field</code> when the template is built, the last is <code>secret_value</code> when it is rendered.</p>
+<p><strong>Limits.</strong> These are fixed in <code>crates/mail/src/template/limits.rs</code>; they are not settings:</p>
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>Limit</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Subject source</td>
+<td>1 KiB</td>
+<td><code>too_large</code></td>
+</tr>
+<tr>
+<td>Text or HTML source, each</td>
+<td>256 KiB</td>
+<td><code>too_large</code></td>
+</tr>
+<tr>
+<td>TOML file</td>
+<td>512 KiB</td>
+<td><code>too_large</code></td>
+</tr>
+<tr>
+<td>Nodes in a template</td>
+<td>10 000</td>
+<td><code>too_many_nodes</code></td>
+</tr>
+<tr>
+<td>Nesting of <code>if</code> and <code>for</code></td>
+<td>16</td>
+<td><code>too_deep</code></td>
+</tr>
+<tr>
+<td>Path segments, identifier</td>
+<td>8, 64 bytes</td>
+<td><code>invalid_path</code></td>
+</tr>
+<tr>
+<td>Rendered subject</td>
+<td>998 bytes</td>
+<td><code>output_too_large</code></td>
+</tr>
+<tr>
+<td>Rendered text or HTML, each</td>
+<td>1 MiB</td>
+<td><code>output_too_large</code></td>
+</tr>
+<tr>
+<td>Loop iterations in one render</td>
+<td>10 000</td>
+<td><code>too_many_iterations</code></td>
+</tr>
+<tr>
+<td>Context depth, nodes, bytes</td>
+<td>16, 100 000, 4 MiB</td>
+<td><code>context_too_large</code></td>
+</tr>
+<tr>
+<td>Name</td>
+<td><code>[a-z0-9][a-z0-9_-]{0,63}</code></td>
+<td><code>invalid_name</code></td>
+</tr>
+<tr>
+<td>Problems reported at once</td>
+<td>20</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The send path still applies <code>max_message_bytes</code> to the whole message.</p>
+<h2 id="text-from-html">Text from HTML<a class="headerlink" href="#text-from-html" title="Permanent link">&para;</a></h2>
+<p>When a template has no <code>text</code>, the plain text is derived from the rendered HTML by a single scanner in Rust, not by an HTML parser. Comments and the content of <code>head</code>, <code>style</code>, <code>script</code>, <code>title</code> and <code>template</code> are dropped; <code>br</code> is a line break; paragraphs, headings, lists, tables, blocks and <code>hr</code> make paragraph breaks; a list item starts with <code>-</code>; runs of white space collapse (except in <code>pre</code>); the entities <code>&amp;amp; &amp;lt; &amp;gt; &amp;quot; &amp;apos; &amp;#39; &amp;nbsp;</code> and numeric ones are decoded; every other tag is removed. A link whose <code>href</code> starts with <code>http://</code>, <code>https://</code> or <code>mailto:</code> becomes <code>label (URL)</code>, or only the label when the label is the URL.</p>
+<p>The <code>reset_password</code> template has no <code>text</code>. Printed from the sample context in <code>examples/mailroom</code> (<code>--part text</code> prints only that part):</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>mail<span class="w"> </span>preview<span class="w"> </span>reset_password<span class="w"> </span>--context<span class="w"> </span>mailroom/samples/reset_password.json<span class="w"> </span>--part<span class="w"> </span>text
+</code></pre></div>
+<!-- output: reset-text -->
+<div class="language-text highlight"><pre><span></span><code>Hello Ada,
+
+Someone asked to reset your password from Lisbon.
+
+Choose a new password (https://example.com/reset?token=sample)
+
+You are signed in on:
+
+- Laptop
+- Phone &lt;work&gt;
+
+If it was not you, ignore this message.
+</code></pre></div>
+<p>The text part holds the value <code>Phone &lt;work&gt;</code> as it is; the HTML part holds <code>Phone &amp;lt;work&amp;gt;</code>. Write a <code>text</code> in the file when the derived text is not what you want.</p>
+<h2 id="checked-at-startup">Checked at startup<a class="headerlink" href="#checked-at-startup" title="Permanent link">&para;</a></h2>
+<p>A template is checked against its context <code>Schema</code> before any message is rendered: every variable must exist in the <code>Schema</code>, every <code>Schema</code> field must be used by some part, and a variable must have the right shape (a loop over a list, a path through an object, text where text is inserted). Change <code>{{ user.name }}</code> in the <code>&lt;h1&gt;</code> of <code>welcome.toml</code> to <code>{{ user.nickname }}</code> and the worker does not start; the error names the template, the variable and the position in the template, never a value:</p>
+<!-- output: unknown-variable -->
+<div class="language-text highlight"><pre><span></span><code>template 'welcome': unknown variable 'user.nickname' in html at line 2, column 17
+</code></pre></div>
+<p>Removing the <code>&lt;ol&gt;</code> list from the HTML leaves the <code>steps</code> fields unused, which is also an error:</p>
+<!-- output: unused-field -->
+<div class="language-text highlight"><pre><span></span><code>template 'welcome': unused field 'steps[].title' (and 1 more problem)
+</code></pre></div>
+<p><code>hinoki mail check [TARGET]</code> runs the same check without starting anything. It reads every registered template, prints one line for each, and exits <code>1</code> when one is refused (<code>2</code> when the application cannot be loaded or has no email module). With the first change above:</p>
+<!-- output: mail-check -->
+<div class="language-text highlight"><pre><span></span><code>template 'welcome': unknown variable 'user.nickname' in html at line 2, column 17
+ok  reset_password  (mailroom/templates/reset_password.toml)
+</code></pre></div>
+<p>The rule <code>HNK-MAIL-001</code> (<code>from hinoki.rules import EmailTemplatesMatch</code>) makes the same check part of <code>hinoki check</code>. It is opt-in: put <code>EmailTemplatesMatch()</code> in your <code>RuleSet</code>. It reads the template files, so it declares the effect <code>files</code> and needs <code>--allow-effects</code>:</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check<span class="w"> </span>--rules<span class="w"> </span>myproject.rules:rules<span class="w"> </span>--allow-effects
+</code></pre></div>
+<h2 id="preview">Preview<a class="headerlink" href="#preview" title="Permanent link">&para;</a></h2>
+<p><code>hinoki mail preview NAME [TARGET]</code> renders a registered template from the command line, with no server and no sending. Without <code>--context</code> it builds a sample from the <code>examples=</code> of the context fields (a field that is not required and has no example is left out). Run it from <code>examples/mailroom</code> with the <code>memory</code> backend and a sender set:</p>
+<div class="language-sh highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">MAILROOM_EMAIL__BACKEND</span><span class="o">=</span>memory
+<span class="nb">export</span><span class="w"> </span><span class="nv">MAILROOM_EMAIL__DEFAULT_SENDER</span><span class="o">=</span>noreply@example.com
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>mail<span class="w"> </span>check
+</code></pre></div>
+<!-- output: mail-check-ok -->
+<div class="language-text highlight"><pre><span></span><code>ok  welcome  (mailroom/templates/welcome.toml)
+ok  reset_password  (mailroom/templates/reset_password.toml)
+</code></pre></div>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>mail<span class="w"> </span>preview<span class="w"> </span>welcome
+</code></pre></div>
+<!-- output: welcome-preview -->
+<div class="language-text highlight"><pre><span></span><code>Subject: Welcome to Mailroom, Ada
+----- text -----
+Welcome, Ada
+
+Your trial lasts 14 days.
+
+- Create a project (https://example.com/start)
+----- html -----
+&lt;html&gt;&lt;body&gt;
+&lt;h1&gt;Welcome, Ada&lt;/h1&gt;
+&lt;p&gt;Your trial lasts 14 days.&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;a href="https://example.com/start"&gt;Create a project&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/body&gt;&lt;/html&gt;
+</code></pre></div>
+<p><code>--context FILE</code> (or <code>-</code> for standard input, at most 1 MiB) reads a JSON object that is validated as the context <code>Schema</code>; <code>--part subject|text|html</code> prints one part; <code>--format json</code> prints the three parts as JSON. The preview opens no mailer and sends nothing.</p>
+<h2 id="templates-from-strings">Templates from strings<a class="headerlink" href="#templates-from-strings" title="Permanent link">&para;</a></h2>
+<p>Some templates live in a database table, not in a file. <code>examples/mailroom/mailroom/notices.py</code> builds one from strings, without a <code>Schema</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># mailroom/notices.py</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">notice_template</span><span class="p">(</span><span class="n">slug</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">mail</span><span class="o">.</span><span class="n">Template</span><span class="p">[</span><span class="n">mail</span><span class="o">.</span><span class="n">Context</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The template of a stored notice; ``KeyError`` when there is none."""</span>
+    <span class="n">subject</span><span class="p">,</span> <span class="n">html</span> <span class="o">=</span> <span class="n">NOTICES</span><span class="p">[</span><span class="n">slug</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">mail</span><span class="o">.</span><span class="n">Template</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"notice-</span><span class="si">{</span><span class="n">slug</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">subject</span><span class="o">=</span><span class="n">subject</span><span class="p">,</span> <span class="n">html</span><span class="o">=</span><span class="n">html</span><span class="p">)</span>
+</code></pre></div>
+<p>The context is a plain <code>dict</code> (<code>mail.Context</code>). Only the syntax is checked when the template is built; there is no <code>Schema</code> to check the variables against, so a missing key is found when the template is rendered, for the message being sent. A <code>SecretStr</code> in the <code>dict</code> is refused (<code>secret_value</code>). The error names the variable of the template:</p>
+<!-- output: missing-variable -->
+<div class="language-text highlight"><pre><span></span><code>template 'notice-maintenance': missing variable 'from' in html at line 1, column 47
+</code></pre></div>
+<p>The <code>/notices/{slug}</code> route turns that error into <code>400 invalid_notice</code>, so the caller learns that the notice could not be rendered without seeing a value.</p>
+<h2 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h2>
+<p>Every failure is a <code>mail.TemplateError</code>, a subclass of <code>EmailError</code> with <code>kind</code> <code>template</code>. It carries <code>reason</code>, <code>template</code> (the name), <code>field</code> (the part), <code>line</code>, <code>column</code>, <code>variable</code> and <code>problems</code> (a tuple of <code>TemplateProblem</code>, at most 20; <code>truncated</code> says there were more). Its text never holds a recipient, a subject, a rendered text or a value of the context. A secret never reaches the engine: a <code>SecretStr</code> field in a <code>Schema</code> context is <code>secret_field</code>, and one in a <code>dict</code> is <code>secret_value</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>syntax</code>, <code>unclosed_tag</code>, <code>unexpected_tag</code>, <code>unclosed_block</code>, <code>invalid_path</code>, <code>shadowed_name</code>, <code>control_character</code>, <code>too_large</code>, <code>too_many_nodes</code>, <code>too_deep</code>, <code>invalid_name</code>, <code>unsafe_context</code></td>
+<td>The template does not compile</td>
+</tr>
+<tr>
+<td><code>unknown_variable</code>, <code>unused_field</code>, <code>not_text</code>, <code>not_a_list</code>, <code>not_an_object</code>, <code>secret_field</code>, <code>unsupported_field</code></td>
+<td>The template does not match its context <code>Schema</code></td>
+</tr>
+<tr>
+<td><code>missing_variable</code>, <code>header_injection</code>, <code>output_too_large</code>, <code>too_many_iterations</code>, <code>context_too_large</code>, <code>unsupported_value</code>, <code>secret_value</code>, <code>unsafe_url</code></td>
+<td>A render fails</td>
+</tr>
+<tr>
+<td><code>unreadable</code>, <code>invalid_file</code></td>
+<td>The file cannot be read or is not a valid template TOML</td>
+</tr>
+</tbody>
+</table>
+<p>With metrics on <a href="../kiso/">Kiso</a>, a <code>Template.message</code> that cannot be rendered while a mailer is current is counted in <code>hinoki_email_messages_total{outcome="template"}</code> (<code>Template.render</code> alone is not a send and counts nothing). Compile and startup failures are not sends and are not counted. See <a href="../metrics/#email">export Prometheus metrics</a>.</p>
+<h2 id="what-templates-do-not-do">What templates do not do<a class="headerlink" href="#what-templates-do-not-do" title="Permanent link">&para;</a></h2>
+<ul>
+<li>No filters, expressions, includes, macros or inheritance, and no comments.</li>
+<li>No translation: a template is one language; choose the template or write one per language.</li>
+<li>No inline images or attachment templates; <code>attachments</code> are the <code>Message</code> option.</li>
+<li>No registration in <code>hinoki.toml</code>: templates are listed in <code>Hinoki(email_templates=[...])</code> or <code>EmailModule(templates=[...])</code>.</li>
+<li>The limits above are fixed and are not settings.</li>
+<li>Rendering does not send: delivery, retries and the lack of a queue are those of <a href="../email/"><code>mail.send</code></a>.</li>
+</ul>
+        
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../email/">Send email</a></li><li><a href="../schemas/">Schemas</a></li><li><a href="../cli/">Command line</a></li><li><a href="../testing/">Test an application</a></li></ul>
+        </aside>
+        
+      </article>
+
+      <nav class="pager" aria-label="Previous and next page">
+        <a class="pager__link pager__link--prev" href="../email/"><small>Previous</small><span>Send email</span></a>
+        <a class="pager__link pager__link--next" href="../middleware/"><small>Next</small><span>Middleware</span></a>
+      </nav>
+    </main>
+
+    <aside class="margin" aria-label="On this page">
+      <div class="margin__sticky">
+        
+        <p class="margin__label">On this page</p>
+        <nav class="toc" data-toc>
+          <span class="toc__marker" aria-hidden="true"></span>
+          
+          
+            <ul><li><a href="#a-template-file">A template file</a></li><li><a href="#register-and-send">Register and send</a></li><li><a href="#the-language">The language</a></li><li><a href="#text-from-html">Text from HTML</a></li><li><a href="#checked-at-startup">Checked at startup</a></li><li><a href="#preview">Preview</a></li><li><a href="#templates-from-strings">Templates from strings</a></li><li><a href="#errors">Errors</a></li><li><a href="#what-templates-do-not-do">What templates do not do</a></li></ul>
+          
+        </nav>
+        
+        <dl class="titleblock">
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/email-templates.md">Edit on GitHub</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+  
+
+  <footer class="foot">
+    <div class="foot__inner">
+      <div class="foot__about">
+        <a class="foot__brand" href=".." aria-label="Hinoki home">
+          <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
+          <svg class="brand__word" viewBox="0 0 655 184" aria-hidden="true"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
+        </a>
+        <p class="foot__tagline">A Python API framework that checks its own architecture.</p>
+        <a class="foot__repo" href="https://github.com/caspel26/hinoki" target="_blank" rel="noopener noreferrer" aria-label="Hinoki on GitHub (opens in a new tab)"><span>Source on GitHub</span><span class="i i--external-link" aria-hidden="true"></span></a>
+      </div>
+      <nav aria-labelledby="foot-docs">
+        <p class="foot__title" id="foot-docs">Docs</p>
+        <ul>
+          
+            
+          
+            <li><a href="../getting-started/">Get started</a></li>
+          
+            <li><a href="../tutorial/">Tutorial</a></li>
+          
+            <li><a href="../guides/">Guides</a></li>
+          
+            
+          
+            <li><a href="../reference/">Reference</a></li>
+          
+            
+          
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-project">
+        <p class="foot__title" id="foot-project">Project</p>
+        <ul>
+          <li><a href="../status/">Status</a></li>
+          <li><a class="foot__ext" href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" aria-label="Roadmap (opens in a new tab)"><span>Roadmap</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+          <li><a class="foot__ext" href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" aria-label="Contributing (opens in a new tab)"><span>Contributing</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+        </ul>
+      </nav>
+      <nav aria-labelledby="foot-legal">
+        <p class="foot__title" id="foot-legal">Legal</p>
+        <ul>
+          <li><a class="foot__ext" href="https://github.com/caspel26/hinoki/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" aria-label="Licence, MIT (opens in a new tab)"><span>Licence (MIT)</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
+          <li><a href="../static/icons/lucide/LICENSE.txt">Lucide icons (ISC)</a></li>
+        </ul>
+      </nav>
+      <div class="foot__bottom">
+        <span class="foot__version">hinoki <span data-docs-version-footer>v0.0.1</span> <span class="chip">pre-alpha</span></span>
+        <span>© 2026 caspel26</span>
+      </div>
+    </div>
+  </footer>
+
+  <div class="overlay" data-overlay hidden></div>
+  <div class="palette" data-palette role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="palette__box">
+      <div class="palette__bar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input type="text" data-palette-input placeholder="Search docs, rules, commands…" autocomplete="off" spellcheck="false" aria-label="Search">
+        <kbd>esc</kbd>
+      </div>
+      <ul class="palette__list" data-palette-list role="listbox" aria-label="Results"></ul>
+      <div class="palette__foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+    </div>
+  </div>
+  <div class="toast" data-toast role="status" aria-live="polite"></div>
+  <div class="popover" data-popover role="tooltip" hidden></div>
+
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://hinoki.caspel.dev/dev", rules: {"HNK-ACC-001": {"decl": "Actions.require_access(match, except_)", "fix": "add access=\u003cpolicy\u003e to the action (or list it in except_ when it is public on purpose)", "phase": "startup", "title": "Actions are public unless they name an Access policy. This project requires every matching action to state its policy explicitly."}, "HNK-ACC-002": {"decl": "Actions.require_permissions(match, except_)", "fix": "name at least one permission in the Access policy of the action", "phase": "startup", "title": "An Access with no permission accepts any authenticated caller. This project requires every protected action to name what it needs."}, "HNK-API-001": {"decl": "Actions.forbid_model_responses(match, except_)", "fix": "return a Schema (for example PostOut.from_model(row)) instead of the Model", "phase": "startup", "title": "An action must not return a Model (or a list/page of them): a response schema names exactly what a client may see, so a column never leaks because someone added it to the table."}, "HNK-API-002": {"decl": "Actions.require_return_type(match, except_)", "fix": "annotate the action\u0027s return type (a Schema, or None for status 204)", "phase": "startup", "title": "The return annotation is the response contract that OpenAPI and rules read. An action without one (or typed Any/object) has no checkable response."}, "HNK-API-003": {"decl": "Actions.require_pagination(match, except_)", "fix": "return Page[Item] or CursorPage[Item] and paginate the action", "phase": "startup", "title": "A GET that returns a plain list grows with the table. A Page or a CursorPage bounds the response."}, "HNK-DB-001": {"decl": "Models.require_explicit_table(match)", "fix": "name the table with @db.table(...) or table=... on the model", "phase": "startup", "title": "A derived table name follows the Python class and module names, so a rename changes the physical table. Pinning it keeps migration identity."}, "HNK-DB-002": {"decl": "Models.require_foreign_key_index(match)", "fix": "index the column: @db.indexed(\"\u003ccolumn\u003e\") on the model, or an index or unique group that starts with it", "phase": "startup", "title": "A foreign key column without an index makes joins and parent deletes scan the child table."}, "HNK-IMP-001": {"decl": "Imports.forbid(source, target)", "fix": "move the code to an allowed layer, or depend on it through the layer in between", "phase": "static", "title": "Code under the source package must not import from the target package, keeping the dependency direction the project declared. Only direct imports in the project\u0027s own files are checked."}, "HNK-SCH-001": {"decl": "Schemas.forbid_exposure(*fields)", "fix": "remove the field from the response Schema, or return a Schema that does not carry it", "phase": "startup", "title": "A field with a forbidden name must never appear in a schema an action returns, directly or nested, so it cannot reach a client."}, "HNK-SCH-002": {"decl": "Schemas.require_string_limits()", "fix": "bound the field: Annotated[str, Field(max_length=...)] or one_of=...", "phase": "startup", "title": "A text field of a request Schema without max_length accepts a body of any size up to the server limit, and stores it."}, "HNK-TXN-001": {"decl": "Transactions.require_atomic(methods, match, except_)", "fix": "add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)", "phase": "startup", "title": "Actions that change state must run in a transaction so a failure rolls everything back before the error is reported."}, "HNK-WVR-001": {"decl": "hinoki-rules.toml", "fix": "remove the waiver, or correct its rule or target", "phase": "hinoki check \u00b7 warning", "title": "A waiver matches no diagnostic."}, "HNK-WVR-002": {"decl": "hinoki-rules.toml", "fix": "fix the violation, or renew the waiver with a new expires date", "phase": "startup \u00b7 warning", "title": "A waiver has expired and no longer applies."}} };</script>
+  <script src="../static/js/hinoki.js" defer></script>
+  
+  
+  
+</body>
+</html>

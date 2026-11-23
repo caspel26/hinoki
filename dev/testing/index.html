@@ -322,6 +322,10 @@
               
             
               
+                <li><a class="side__link" href="../email-templates/"><span>Email templates</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -479,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -612,7 +616,7 @@ test. The migrations come from the app's own directory, so a new migration is
 picked up without extra steps. In a project with several apps, apply each app's
 migration directory in dependency order. The fixture builds SQLite files only.</p>
 <h2 id="test-email">Test email<a class="headerlink" href="#test-email" title="Permanent link">&para;</a></h2>
-<p>With <code>email: settings.EmailSettings</code> set to <code>backend=EmailBackend.MEMORY</code>, every sent message is kept in the worker's <code>mailer.outbox</code> and nothing leaves the process; <code>outbox</code> entries carry the <code>Message</code> and the rendered bytes. A sample test is in <a href="../email/#test-with-the-memory-backend">send email</a>. For SMTP behaviour use a fake server on <code>127.0.0.1</code> and synthetic <code>example.com</code> addresses.</p>
+<p>With <code>email: settings.EmailSettings</code> set to <code>backend=EmailBackend.MEMORY</code>, every sent message is kept in the worker's <code>mailer.outbox</code> and nothing leaves the process; <code>outbox</code> entries carry the <code>Message</code> and the rendered bytes. A sample test is in <a href="../email/#test-with-the-memory-backend">send email</a>. For SMTP behaviour use a fake server on <code>127.0.0.1</code> and synthetic <code>example.com</code> addresses. To test a template without sending, call <code>template.render(context)</code> (it returns the three parts) or run <code>hinoki mail preview</code>; see <a href="../email-templates/">email templates</a>.</p>
 <h2 id="catch-undeclared-errors">Catch undeclared errors<a class="headerlink" href="#catch-undeclared-errors" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient(app, strict_errors=True)</code> fails the test when an action answers an
 HTTP error that is missing from its <code>errors=</code> declaration, so the OpenAPI
@@ -711,7 +715,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

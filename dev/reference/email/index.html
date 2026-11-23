@@ -283,8 +283,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
-            <span>4 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>9 min read</span>
           </p>
           
         </header>
@@ -761,7 +761,10 @@ the console and memory backends only.</p>
 
 
 <a href="#hinoki.mail.Mailer" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Mailer</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">EmailSettings</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Mailer</span><span class="p">(</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">EmailSettings</span><span class="p">,</span>
+    <span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">TemplateBase</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
@@ -929,6 +932,30 @@ then quit; nothing is sent. The other backends do nothing.</p>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.mail.Mailer.loaded_template" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">loaded_template</span>
+
+
+<a href="#hinoki.mail.Mailer.loaded_template" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">loaded_template</span><span class="p">(</span>
+    <span class="n">template</span><span class="p">:</span> <span class="n">TemplateBase</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">core</span><span class="o">.</span><span class="n">MailTemplate</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The compiled form of a template registered with this mailer (file
+templates were read when it started). <code>RuntimeError</code> when the template
+is not one of the ones the mailer was built with.</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -946,7 +973,10 @@ then quit; nothing is sent. The other backends do nothing.</p>
 
 
 <a href="#hinoki.mail.EmailModule" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">EmailModule</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="n">EmailSettings</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">EmailModule</span><span class="p">(</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="n">EmailSettings</span><span class="p">,</span>
+    <span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">TemplateBase</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1003,6 +1033,30 @@ tests that inspect the outbox of an application they drive.</p>
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.mail.EmailModule.templates" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">templates</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.mail.EmailModule.templates" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">templates</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">TemplateBase</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The templates this module registers, in the order given.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -1018,7 +1072,9 @@ tests that inspect the outbox of an application they drive.</p>
   </span>
 
 <a href="#hinoki.mail.EmailModule.from_settings" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">from_settings</span><span class="p">(</span><span class="n">settings</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EmailModule</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">from_settings</span><span class="p">(</span>
+    <span class="n">settings</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">TemplateBase</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EmailModule</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1147,6 +1203,631 @@ no reply came, so the server may have accepted it (do not blindly resend).</p>
 
 </div>
 
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.mail.Template" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.mail.Template</span>
+
+
+<a href="#hinoki.mail.Template" class="headerlink" title="Permanent link">&para;</a></h2>
+              <div class="doc-overloads">
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Template</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">html</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">S</span><span class="p">],</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div><div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Template</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">html</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>              </div>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Template</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">html</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.mail.TemplateBase" href="#hinoki.mail.TemplateBase">TemplateBase</a></code></p>
+
+
+
+        <p>An email template: a subject, an HTML body and optionally a text body,
+written in the small template language of <code>docs/email-templates.md</code>.</p>
+<p><code>context=</code> names the <code>Schema</code> the template is written for: its fields
+are the variables, and every variable and every field is checked when the
+template is compiled. Without <code>context=</code> the template takes a <code>dict</code>
+(<code>Context</code>) and only the syntax is checked until it is rendered.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.mail.Template.file" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">file</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.mail.Template.file" class="headerlink" title="Permanent link">&para;</a></h3>
+          <div class="doc-overloads">
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">file</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">PathLike</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">S</span><span class="p">],</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Template</span><span class="p">[</span><span class="n">S</span><span class="p">]</span>
+</code></pre></div><div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">file</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">PathLike</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Template</span><span class="p">[</span><span class="n">Context</span><span class="p">]</span>
+</code></pre></div>          </div>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">file</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">PathLike</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">object</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A template read from a TOML file when the worker starts (nothing is
+read here). <code>name</code> defaults to the file's stem.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.mail.Template.from_toml" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">from_toml</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.mail.Template.from_toml" class="headerlink" title="Permanent link">&para;</a></h3>
+          <div class="doc-overloads">
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">from_toml</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">S</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Template</span><span class="p">[</span><span class="n">S</span><span class="p">]</span>
+</code></pre></div><div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">from_toml</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Template</span><span class="p">[</span><span class="n">Context</span><span class="p">]</span>
+</code></pre></div>          </div>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">from_toml</span><span class="p">(</span>
+    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">context</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">object</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A template from TOML text already in memory (a database column, say),
+compiled and checked now.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.mail.Template.render" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">render</span>
+
+
+<a href="#hinoki.mail.Template.render" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">render</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">C</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RenderedTemplate</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Render the three parts. A <code>Schema</code> context is dumped by field name
+(<code>dump(by_alias=False)</code>); raises <code>TemplateError</code>, <code>TypeError</code> for a
+context of the wrong type.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.mail.Template.message" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">message</span>
+
+
+<a href="#hinoki.mail.Template.message" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">message</span><span class="p">(</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">C</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">to</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Recipient</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">MessageOptions</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Message</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A <code>Message</code> of the rendered parts, ready for <code>mail.send</code>. A
+template that cannot be rendered counts as a failed send of the current
+mailer (outcome <code>template</code>) and raises <code>TemplateError</code>.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.mail.TemplateBase" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.mail.TemplateBase</span>
+
+
+<a href="#hinoki.mail.TemplateBase" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">TemplateBase</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">context_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">origin</span><span class="p">:</span> <span class="n">MailTemplate</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What every template is, whatever its context type: the name registries
+key on, a description, the file it is read from (if any) and the context
+<code>Schema</code> (if any).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.mail.TemplateBase.path" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">path</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.mail.TemplateBase.path" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The file of a template made with <code>Template.file</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.mail.TemplateBase.loaded" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">loaded</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.mail.TemplateBase.loaded" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">loaded</span><span class="p">:</span> <span class="nb">bool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether the template is compiled already: true for an inline template,
+false for a file one (each worker's mailer reads it at startup).</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.mail.TemplateBase.load" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">load</span>
+
+
+<a href="#hinoki.mail.TemplateBase.load" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">load</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">core</span><span class="o">.</span><span class="n">MailTemplate</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The compiled template. A file template is read, parsed, compiled and
+checked now (synchronously): at most <code>MAX_FILE_BYTES</code> are read.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.mail.TemplateBase.compiled" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">compiled</span>
+
+
+<a href="#hinoki.mail.TemplateBase.compiled" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">compiled</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">core</span><span class="o">.</span><span class="n">MailTemplate</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The compiled template: itself when inline, the one the current
+worker's mailer loaded for a file template.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.mail.TemplateError" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.mail.TemplateError</span>
+
+
+<a href="#hinoki.mail.TemplateError" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">TemplateError</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">template</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">problems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">TemplateProblem</span><span class="p">],</span>
+    <span class="n">truncated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.mail.EmailError" href="#hinoki.mail.EmailError">EmailError</a></code></p>
+
+
+
+        <p>A template is invalid or cannot be rendered. <code>kind</code> is always
+<code>EmailErrorKind.TEMPLATE</code>; <code>problems</code> lists what is wrong (the first is
+mirrored in <code>reason</code>, <code>field</code> (the part), <code>line</code>, <code>column</code> and
+<code>variable</code>) and <code>truncated</code> tells that more were found. <code>str(error)</code>
+names the template, the reason, the part, the position and the variable;
+never a context value, a recipient or rendered text.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.mail.TemplateReason" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.mail.TemplateReason</span>
+
+
+<a href="#hinoki.mail.TemplateReason" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.StrEnum">StrEnum</span></code></p>
+
+
+
+        <p>Why a template was refused: the names the engine reports.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.mail.TemplateProblem" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.mail.TemplateProblem</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.mail.TemplateProblem" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">TemplateProblem</span><span class="p">(</span>
+    <span class="n">reason</span><span class="p">:</span> <span class="n">TemplateReason</span><span class="p">,</span>
+    <span class="n">part</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">line</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">column</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">variable</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>One thing wrong with a template. <code>part</code> is <code>"subject"</code>, <code>"text"</code> or
+<code>"html"</code>; <code>line</code> and <code>column</code> (from 1) point into that part of the
+template source; <code>variable</code> is a name from the template or the <code>Schema</code>,
+never a value of the context.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.mail.RenderedTemplate" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.mail.RenderedTemplate</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.mail.RenderedTemplate" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">RenderedTemplate</span><span class="p">(</span><span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">html</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The three parts of a rendered template.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-type_alias">
+
+
+
+<h2 id="hinoki.mail.Context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-type_alias-name">hinoki.mail.Context</span>
+
+
+<a href="#hinoki.mail.Context" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nc">Context</span> <span class="o">=</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Value</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The context of a template declared without a <code>Schema</code>.</p>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-type_alias">
+
+
+
+<h2 id="hinoki.mail.Value" class="doc doc-heading">
+            <span class="doc doc-object-name doc-type_alias-name">hinoki.mail.Value</span>
+
+
+<a href="#hinoki.mail.Value" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nc">Value</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="nb">str</span>
+    <span class="o">|</span> <span class="nb">int</span>
+    <span class="o">|</span> <span class="nb">float</span>
+    <span class="o">|</span> <span class="nb">bool</span>
+    <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Value</span><span class="p">]</span>
+    <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Value</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Value</span><span class="p">]</span>
+    <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>What a template context holds. At run time <code>dict</code>, <code>list</code> and <code>tuple</code>
+are read (no other mapping or sequence), plus any <code>int</code> and finite <code>float</code>.</p>
+    </div>
+
+</div>
+
 <div class="doc doc-object doc-function">
 
 
@@ -1211,15 +1892,19 @@ for every request, startup hook and management command); <code>None</code> clear
             <ul><li><a href="#hinoki.mail.Message">Message</a>
             <ul><li><a href="#hinoki.mail.Message.to">to</a></li><li><a href="#hinoki.mail.Message.subject">subject</a></li><li><a href="#hinoki.mail.Message.text">text</a></li><li><a href="#hinoki.mail.Message.html">html</a></li><li><a href="#hinoki.mail.Message.sender">sender</a></li><li><a href="#hinoki.mail.Message.cc">cc</a></li><li><a href="#hinoki.mail.Message.bcc">bcc</a></li><li><a href="#hinoki.mail.Message.reply_to">reply_to</a></li><li><a href="#hinoki.mail.Message.attachments">attachments</a></li><li><a href="#hinoki.mail.Message.headers">headers</a></li></ul>
           </li><li><a href="#hinoki.mail.Address">Address</a></li><li><a href="#hinoki.mail.Attachment">Attachment</a></li><li><a href="#hinoki.mail.SentMail">SentMail</a></li><li><a href="#hinoki.mail.Mailer">Mailer</a>
-            <ul><li><a href="#hinoki.mail.Mailer.outbox">outbox</a></li><li><a href="#hinoki.mail.Mailer.send">send</a></li><li><a href="#hinoki.mail.Mailer.check">check</a></li><li><a href="#hinoki.mail.Mailer.aclose">aclose</a></li><li><a href="#hinoki.mail.Mailer.stats">stats</a></li><li><a href="#hinoki.mail.Mailer.clear_outbox">clear_outbox</a></li></ul>
+            <ul><li><a href="#hinoki.mail.Mailer.outbox">outbox</a></li><li><a href="#hinoki.mail.Mailer.send">send</a></li><li><a href="#hinoki.mail.Mailer.check">check</a></li><li><a href="#hinoki.mail.Mailer.aclose">aclose</a></li><li><a href="#hinoki.mail.Mailer.stats">stats</a></li><li><a href="#hinoki.mail.Mailer.clear_outbox">clear_outbox</a></li><li><a href="#hinoki.mail.Mailer.loaded_template">loaded_template</a></li></ul>
           </li><li><a href="#hinoki.mail.EmailModule">EmailModule</a>
-            <ul><li><a href="#hinoki.mail.EmailModule.mailer">mailer</a></li><li><a href="#hinoki.mail.EmailModule.from_settings">from_settings</a></li></ul>
-          </li><li><a href="#hinoki.mail.EmailError">EmailError</a></li><li><a href="#hinoki.mail.EmailErrorKind">EmailErrorKind</a></li><li><a href="#hinoki.mail.send">send</a></li><li><a href="#hinoki.mail.use">use</a></li></ul>
+            <ul><li><a href="#hinoki.mail.EmailModule.mailer">mailer</a></li><li><a href="#hinoki.mail.EmailModule.templates">templates</a></li><li><a href="#hinoki.mail.EmailModule.from_settings">from_settings</a></li></ul>
+          </li><li><a href="#hinoki.mail.EmailError">EmailError</a></li><li><a href="#hinoki.mail.EmailErrorKind">EmailErrorKind</a></li><li><a href="#hinoki.mail.Template">Template</a>
+            <ul><li><a href="#hinoki.mail.Template.file">file</a></li><li><a href="#hinoki.mail.Template.from_toml">from_toml</a></li><li><a href="#hinoki.mail.Template.render">render</a></li><li><a href="#hinoki.mail.Template.message">message</a></li></ul>
+          </li><li><a href="#hinoki.mail.TemplateBase">TemplateBase</a>
+            <ul><li><a href="#hinoki.mail.TemplateBase.path">path</a></li><li><a href="#hinoki.mail.TemplateBase.loaded">loaded</a></li><li><a href="#hinoki.mail.TemplateBase.load">load</a></li><li><a href="#hinoki.mail.TemplateBase.compiled">compiled</a></li></ul>
+          </li><li><a href="#hinoki.mail.TemplateError">TemplateError</a></li><li><a href="#hinoki.mail.TemplateReason">TemplateReason</a></li><li><a href="#hinoki.mail.TemplateProblem">TemplateProblem</a></li><li><a href="#hinoki.mail.RenderedTemplate">RenderedTemplate</a></li><li><a href="#hinoki.mail.Context">Context</a></li><li><a href="#hinoki.mail.Value">Value</a></li><li><a href="#hinoki.mail.send">send</a></li><li><a href="#hinoki.mail.use">use</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/email.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

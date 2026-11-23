@@ -310,6 +310,7 @@
     <span class="n">on_startup</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">on_shutdown</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Hook</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">events</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Handlers</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">email_templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">TemplateBase</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">startup_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">runtime</span><span class="p">:</span> <span class="n">RuntimeConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -342,6 +343,10 @@ worker after the modules have started; shutdown hooks run before they are
 closed, and only after a startup that completed.</p>
 <p><code>events</code> lists the <code>Handlers</code> collections whose typed event handlers
 run, in this order (see <code>hinoki.events</code>); an unlisted one does nothing.</p>
+<p><code>email_templates</code> lists the <code>mail.Template</code> objects the application
+sends. They go to the email module the <code>email: EmailSettings</code> field
+implies; with your own <code>EmailModule</code> pass them there instead. File
+templates are read and checked when each worker starts.</p>
 <p><code>startup_url</code> optionally reserves a public GET/HEAD endpoint that returns
 <code>{"status": "ok"}</code> after worker startup. It reports startup completion,
 not application, database, or event-loop health.</p>
@@ -718,13 +723,15 @@ in the settings, unless the application declares its own.</p>
 <a href="#hinoki.app.Hinoki.settings_email" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">settings_email</span><span class="p">(</span>
     <span class="n">declared</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Module</span><span class="p">],</span>
+    <span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">TemplateBase</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EmailModule</span> <span class="o">|</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>The email module implied by an <code>email: EmailSettings</code> field in the
-settings, unless the application declares its own.</p>
+settings, unless the application declares its own. <code>templates</code> go to
+the implied module; they are refused when there is none.</p>
 
 
     </div>

@@ -322,6 +322,10 @@
               
             
               
+                <li><a class="side__link" href="../email-templates/"><span>Email templates</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -479,7 +483,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -574,7 +578,7 @@ hinoki_http_response_bytes_total{route="",worker="0"} 69
 <td><code>hinoki_email_messages_total</code></td>
 <td>counter</td>
 <td><code>backend</code>, <code>outcome</code></td>
-<td><a href="../email/">Email</a> sends. <code>outcome</code> is <code>sent</code> or the error kind (<code>invalid_address</code>, <code>invalid_header</code>, <code>invalid_message</code>, <code>limit_exceeded</code>, <code>closed</code>, <code>busy</code>, <code>connect</code>, <code>timeout</code>, <code>tls</code>, <code>auth</code>, <code>rejected</code>, <code>temporary</code>, <code>protocol</code>)</td>
+<td><a href="../email/">Email</a> sends. <code>outcome</code> is <code>sent</code> or the error kind (<code>invalid_address</code>, <code>invalid_header</code>, <code>invalid_message</code>, <code>limit_exceeded</code>, <code>closed</code>, <code>busy</code>, <code>connect</code>, <code>timeout</code>, <code>tls</code>, <code>auth</code>, <code>rejected</code>, <code>temporary</code>, <code>protocol</code>, <code>template</code>). <code>template</code> counts a <code>Template.message</code> that could not be rendered while a mailer is current (<code>Template.render</code> alone counts nothing, it is not a send); startup and compile failures are not sends and are not counted</td>
 </tr>
 <tr>
 <td><code>hinoki_email_send_duration_seconds</code></td>
@@ -710,7 +714,7 @@ hinoki_email_retries_total{backend="memory",worker="0"} 0
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/metrics.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

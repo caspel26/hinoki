@@ -322,6 +322,10 @@
               
             
               
+                <li><a class="side__link" href="../email-templates/"><span>Email templates</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -479,14 +483,14 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
             <span>10 min read</span>
           </p>
           
         </header>
         
 <p>Hinoki sends outbound email over SMTP from a per-worker <code>Mailer</code>. The message is rendered, the SMTP conversation, TLS, the connection pool, timeouts and retries all run in Rust (<code>crates/mail</code>); the Python side is the <code>Message</code> you build, the settings and the module that owns the mailer. The call crosses the Python/Rust boundary once per message, with Python objects for the message and its result.</p>
-<p>What it is <strong>not</strong>: there is no queue, no delivery guarantee, no template engine and no HTTP provider (the SMTP and the two local backends below are all there is). <code>send</code> returns when the server accepted the message, or raises. The <a href="../admin/">admin</a> sends no email in 0.1.0.</p>
+<p>What it is <strong>not</strong>: there is no queue, no delivery guarantee and no HTTP provider (the SMTP and the two local backends below are all there is). <code>send</code> returns when the server accepted the message, or raises. The <a href="../admin/">admin</a> sends no email in 0.1.0.</p>
 <h2 id="set-it-up">Set it up<a class="headerlink" href="#set-it-up" title="Permanent link">&para;</a></h2>
 <p>Declare an <code>email: settings.EmailSettings</code> field. Hinoki installs <code>EmailModule</code> for you, like the database module, and opens one <code>Mailer</code> in every worker's lifespan.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
@@ -806,13 +810,15 @@
         <span class="k">assert</span> <span class="sa">b</span><span class="s2">"Your account is ready."</span> <span class="ow">in</span> <span class="p">(</span><span class="n">sent</span><span class="o">.</span><span class="n">raw</span> <span class="ow">or</span> <span class="sa">b</span><span class="s2">""</span><span class="p">)</span>
 </code></pre></div>
 <p><code>outbox</code> holds <code>SentMail</code> entries with <code>message</code> and <code>raw</code>; <code>clear_outbox()</code> empties it. Each started application, and each worker, has its own outbox. For SMTP behaviour, point <code>host</code> at a fake server on <code>127.0.0.1</code>; never send real mail from a test.</p>
+<h2 id="templates">Templates<a class="headerlink" href="#templates" title="Permanent link">&para;</a></h2>
+<p>Instead of building <code>subject</code>, <code>text</code> and <code>html</code> by hand, declare a <code>mail.Template</code> (a TOML file or strings) with a typed context, list it in <code>Hinoki(email_templates=[...])</code> and send <code>template.message(context, to=(...))</code>. Rendering and escaping are Rust, the template is checked against its context <code>Schema</code> when a worker starts, and <code>hinoki mail preview</code> shows the result. See <a href="../email-templates/">email templates</a>.</p>
 <h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
 <p>With <code>metrics.listen</code> on <a href="../kiso/">Kiso</a> and an email module installed, three families are exported. The series are fixed at startup, so no address, subject or error text becomes a label. See <a href="../metrics/#email">export Prometheus metrics</a>.</p>
 <p><code>Mailer.stats()</code> is always available, under Granian too: it returns the counts of sent and failed messages, retries, and open and idle connections of that worker.</p>
 <h2 id="what-email-does-not-do">What email does not do<a class="headerlink" href="#what-email-does-not-do" title="Permanent link">&para;</a></h2>
 <ul>
 <li>No queue, no scheduled sends and no guaranteed delivery; see <a href="#when-the-message-must-not-be-lost">when the message must not be lost</a>.</li>
-<li>No templates: build the <code>text</code> and <code>html</code> yourself.</li>
+<li>No template language beyond the small fixed one of <a href="../email-templates/">email templates</a>; you can also build <code>text</code> and <code>html</code> yourself.</li>
 <li>No HTTP email providers (only SMTP, console and memory).</li>
 <li>No bounce or delivery tracking, no DKIM signing, no SMTPUTF8, no XOAUTH2.</li>
 <li>The admin sends no email in 0.1.0.</li>
@@ -821,14 +827,14 @@
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../settings/">Settings</a></li><li><a href="../modules/">Application modules</a></li><li><a href="../transactions/">Transactions</a></li><li><a href="../metrics/">Export Prometheus metrics</a></li><li><a href="../testing/">Test an application</a></li></ul>
+          <ul><li><a href="../settings/">Settings</a></li><li><a href="../modules/">Application modules</a></li><li><a href="../transactions/">Transactions</a></li><li><a href="../metrics/">Export Prometheus metrics</a></li><li><a href="../testing/">Test an application</a></li><li><a href="../email-templates/">Email templates</a></li></ul>
         </aside>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../metrics/"><small>Previous</small><span>Export Prometheus metrics</span></a>
-        <a class="pager__link pager__link--next" href="../middleware/"><small>Next</small><span>Middleware</span></a>
+        <a class="pager__link pager__link--next" href="../email-templates/"><small>Next</small><span>Email templates</span></a>
       </nav>
     </main>
 
@@ -842,12 +848,12 @@
           
             <ul><li><a href="#set-it-up">Set it up</a></li><li><a href="#send-a-message">Send a message</a></li><li><a href="#send-after-a-commit">Send after a commit</a>
             <ul><li><a href="#when-the-message-must-not-be-lost">When the message must not be lost</a></li></ul>
-          </li><li><a href="#send-from-a-synchronous-handler">Send from a synchronous handler</a></li><li><a href="#backends">Backends</a></li><li><a href="#smtp-tls-and-authentication">SMTP, TLS and authentication</a></li><li><a href="#settings">Settings</a></li><li><a href="#errors-and-retries">Errors and retries</a></li><li><a href="#test-with-the-memory-backend">Test with the memory backend</a></li><li><a href="#metrics">Metrics</a></li><li><a href="#what-email-does-not-do">What email does not do</a></li></ul>
+          </li><li><a href="#send-from-a-synchronous-handler">Send from a synchronous handler</a></li><li><a href="#backends">Backends</a></li><li><a href="#smtp-tls-and-authentication">SMTP, TLS and authentication</a></li><li><a href="#settings">Settings</a></li><li><a href="#errors-and-retries">Errors and retries</a></li><li><a href="#test-with-the-memory-backend">Test with the memory backend</a></li><li><a href="#templates">Templates</a></li><li><a href="#metrics">Metrics</a></li><li><a href="#what-email-does-not-do">What email does not do</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/email.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
