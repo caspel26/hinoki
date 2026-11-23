@@ -586,6 +586,12 @@ body.menu-open .menu-icon-close {
   display: flex;
   flex-direction: column;
   gap: var(--sp-6);
+  max-height: calc(100vh - var(--header-h) - var(--sp-7) - var(--sp-8));
+  max-height: calc(100dvh - var(--header-h) - var(--sp-7) - var(--sp-8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--hn-edge) transparent;
+  scrollbar-width: thin;
 }
 
 .margin__label {
