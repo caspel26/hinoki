@@ -16,7 +16,16 @@ GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Start", ("new", "app", "dev", "serve", "shell")),
     (
         "Inspect",
-        ("check", "doctor", "routes", "events", "settings", "openapi", "version"),
+        (
+            "check",
+            "doctor",
+            "routes",
+            "events",
+            "mail",
+            "settings",
+            "openapi",
+            "version",
+        ),
     ),
     ("Data", ("migrations", "admin")),
     ("Integrate", ("mcp", "skills", "manage", "completion")),

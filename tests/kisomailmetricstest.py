@@ -89,3 +89,23 @@ async def test_messages_refused_before_sending_are_counted_as_failures() -> None
     page = await scrape(app)
     assert 'outcome="invalid_message",worker="0"} 2' in page
     assert 'outcome="sent",worker="0"} 1' not in page
+
+
+GREETING = mail.Template(name="greeting", subject="Hi {{ name }}", html="<p>x</p>")
+
+
+@http.get("/send")
+async def send_unrenderable() -> dict[str, str]:
+    with pytest.raises(mail.TemplateError):
+        GREETING.message({}, to=("ada@example.com",))
+    return {}
+
+
+async def test_a_template_that_cannot_be_rendered_is_counted_as_a_failure() -> None:
+    app = Hinoki(
+        settings=MailSettings(email=EmailSettings(backend=EmailBackend.MEMORY))
+    )
+    app.include(send_unrenderable)
+    page = await scrape(app)
+    assert 'outcome="template",worker="0"} 1' in page
+    assert "ada@example.com" not in page

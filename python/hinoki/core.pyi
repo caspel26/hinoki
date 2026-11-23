@@ -2,7 +2,7 @@ import asyncio
 import os
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 NativeFailure = tuple[str, str, str | None, str | None, str | None]
@@ -734,6 +734,30 @@ class EventMetrics:
     def record(self, slot: int, outcome: int, seconds: float) -> None: ...
 
 class MailMetrics: ...
+
+type _ShapeNode = (
+    Literal["s"] | tuple[Literal["l"], _ShapeNode] | tuple[Literal["x"], str] | _Shape
+)
+type _Shape = dict[str, _ShapeNode]
+
+class MailTemplate:
+    def __init__(
+        self,
+        name: str,
+        subject: str,
+        html: str,
+        text: str | None = None,
+        shape: _Shape | None = None,
+    ) -> None: ...
+    def render(self, context: object) -> tuple[str, str, str]: ...
+
+def describe_template_error(
+    template: str,
+    problems: Sequence[tuple[str, str | None, int | None, int | None, str | None]],
+    truncated: bool,
+) -> str: ...
+def template_reasons() -> list[str]: ...
+def template_limits() -> list[tuple[str, int]]: ...
 
 class _MailMessage(TypedDict):
     sender: tuple[str, str | None]

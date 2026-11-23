@@ -1,0 +1,17 @@
+description = "Sent once, after sign-up"
+subject = "Welcome to Mailroom, {{ user.name }}"
+template = '''
+<html><body>
+<h1>Welcome, {{ user.name }}</h1>
+{% if user.trial_days %}
+<p>Your trial lasts {{ user.trial_days }} days.</p>
+{% else %}
+<p>Your plan is active.</p>
+{% endif %}
+<ol>
+{% for step in steps %}
+<li><a href="{{ step.url }}">{{ step.title }}</a></li>
+{% endfor %}
+</ol>
+</body></html>
+'''

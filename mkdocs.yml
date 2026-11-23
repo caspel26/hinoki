@@ -112,6 +112,7 @@ nav:
           - Compress responses: compression.md
           - Export Prometheus metrics: metrics.md
           - Send email: email.md
+          - Email templates: email-templates.md
           - Middleware: middleware.md
           - Pagination: pagination.md
           - Parsers and renderers: codecs.md

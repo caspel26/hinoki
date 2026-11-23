@@ -34,7 +34,7 @@ pub const MAX_EVENT_SERIES: usize = 4096;
 
 /// Outcomes of an email send, in the order of the series: `sent`, then the
 /// kinds of a failed send.
-pub const EMAIL_OUTCOMES: [&str; 14] = [
+pub const EMAIL_OUTCOMES: [&str; 15] = [
     "sent",
     "invalid_address",
     "invalid_header",
@@ -49,6 +49,7 @@ pub const EMAIL_OUTCOMES: [&str; 14] = [
     "rejected",
     "temporary",
     "protocol",
+    "template",
 ];
 
 const NO_SLOT: u32 = u32::MAX;
