@@ -482,8 +482,8 @@
           <h1 id="schemas">Schemas<a class="headerlink" href="#schemas" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
-            <span>5 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:06:42 UTC">November 23, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -657,6 +657,25 @@ document marks the schema <code>additionalProperties: true</code>.</p>
 component (<code>Envelope_CustomerOut_</code>). The bare <code>Envelope</code> cannot validate or be
 a field; self-referencing generics and generic subclasses of generic schemas
 raise <code>RegistrationError</code>.</p>
+<h2 id="scope-and-non-goals">Scope and non-goals<a class="headerlink" href="#scope-and-non-goals" title="Permanent link">&para;</a></h2>
+<p><code>Schema</code> is designed for typed data at the HTTP/JSON and ORM boundary. The
+following are intentionally out of scope:</p>
+<ul>
+<li><strong>Arbitrary Python types.</strong> Every field type has a defined wire
+  representation and OpenAPI schema object. Application-only objects stay
+  outside the wire <code>Schema</code>.</li>
+<li><strong>Implicit lossy coercion.</strong> JSON input is validated strictly (<code>"1"</code> is not
+  <code>1</code>). Only explicit text sources (<code>validate_text()</code>, <code>Form[...]</code>,
+  <code>Query[...]</code>, <code>XML[...]</code>) convert text to typed fields; reshape legacy input
+  with <a href="../schema-validation/#reshape-input-with-before_validate"><code>@before_validate</code></a>.</li>
+<li><strong>Mutable instances.</strong> Instances are frozen; call <code>replace(...)</code> for a
+  validated copy.</li>
+<li><strong>Stateful or I/O-performing validation and serialization.</strong> Checks,
+  normalizers, <code>@before_validate</code> and <code>@computed_field</code> are synchronous and
+  perform no I/O. Rules that depend on stored data belong in an operation.</li>
+<li><strong>A validator plugin system.</strong> Extend validation with <code>@before_validate</code>,
+  <code>@field_normalize</code>, <code>@field_check</code> and <code>@object_check</code> on the <code>Schema</code>.</li>
+</ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../schema-validation/">Validate input</a></li>
@@ -687,13 +706,13 @@ raise <code>RegistrationError</code>.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#validate-input">Validate input</a></li><li><a href="#partial-updates">Partial updates</a></li><li><a href="#convert-to-and-from-rows">Convert to and from rows</a></li><li><a href="#construct-change-and-project">Construct, change and project</a></li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#document-a-field">Document a field</a></li><li><a href="#many-to-many-ids-fields">Many-to-many ids fields</a></li><li><a href="#computed-fields">Computed fields</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#generic-schemas">Generic schemas</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#validate-input">Validate input</a></li><li><a href="#partial-updates">Partial updates</a></li><li><a href="#convert-to-and-from-rows">Convert to and from rows</a></li><li><a href="#construct-change-and-project">Construct, change and project</a></li><li><a href="#wire-aliases">Wire aliases</a></li><li><a href="#document-a-field">Document a field</a></li><li><a href="#many-to-many-ids-fields">Many-to-many ids fields</a></li><li><a href="#computed-fields">Computed fields</a></li><li><a href="#class-configuration">Class configuration</a></li><li><a href="#generic-schemas">Generic schemas</a></li><li><a href="#scope-and-non-goals">Scope and non-goals</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:06:42 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
