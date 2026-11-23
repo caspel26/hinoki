@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import secrets
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -24,7 +25,7 @@ from hinoki.sessions import (
 )
 from hinoki.testing import ASGIClient
 
-SETTINGS = SessionSettings(csrf_secret=b"test-only-secret")
+SETTINGS = SessionSettings(csrf_secret=b"t" * 32)
 STORE = MemorySessionStore()
 
 
@@ -70,8 +71,8 @@ async def rotate_then_fail(session: Session) -> dict[str, bool]:
     raise RuntimeError("failed after rotation")
 
 
-def resolve_user(data: object) -> Caller[str] | None:
-    if isinstance(data, dict) and data.get("user") == "alice":
+def resolve_user(data: Mapping[str, object]) -> Caller[str] | None:
+    if data.get("user") == "alice":
         return Caller("alice", "Alice")
     return None
 
@@ -233,7 +234,8 @@ async def test_expiry_and_idle_touch_use_deterministic_clock() -> None:
     await store.save(token_hash, record)
     session = await Session.from_cookie(store, token, SETTINGS, now=now)
     assert session.touched
-    assert await session.commit(now) is None
+    cookie = await session.commit(now)
+    assert cookie is not None and "Max-Age=86400" in cookie[1]
     refreshed = await store.load(token_hash)
     assert refreshed is not None and refreshed.last_seen_at == now
 
