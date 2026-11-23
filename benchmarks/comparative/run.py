@@ -17,6 +17,7 @@ import contextlib
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import socket
@@ -25,6 +26,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
 
 import loadtool
@@ -92,10 +94,30 @@ KISO_SERVERS = {
         {"BENCH_DATABASE__URL": DB, "BENCH_DATABASE__MAX_SIZE": str(POOL)},
     ),
 }  # fmt: skip
+JS_DIR = HERE / "js"
+# JavaScript runtimes, resolved once: BENCH_NODE / BENCH_BUN override the PATH lookup.
+RUNTIMES = {
+    "node": os.environ.get("BENCH_NODE") or shutil.which("node"),
+    "bun": os.environ.get("BENCH_BUN") or shutil.which("bun"),
+}
+JS_PACKAGES = ("fastify", "hono", "@hono/node-server", "pg")
+JS_ENV = {
+    "BENCH_DATABASE_URL": DB,
+    "BENCH_POOL": str(POOL),
+    "BENCH_WORKERS": str(WORKERS),
+    "BENCH_PORT": str(PORT),
+    "NODE_ENV": "production",
+}
+JAVASCRIPT_SERVERS = {
+    "fastify": (["node", "js/fastify_app.js"], JS_ENV),
+    "hono": (["node", "js/hono_app.js"], JS_ENV),
+    "bun": (["bun", "js/bun_app.js"], JS_ENV),
+}
 SERVER_MODES = {
     "documented": DOCUMENTED_SERVERS,
     "same-granian": GRANIAN_SERVERS,
     "kiso": KISO_SERVERS,
+    "javascript": JAVASCRIPT_SERVERS,
 }
 LABELS = {
     "hinoki": "Hinoki · Granian",
@@ -106,6 +128,9 @@ LABELS = {
     "hinoki-kiso": "Hinoki · Kiso",
     "fastapi-granian": "FastAPI · Granian",
     "ninja-granian": "Django Ninja · Granian",
+    "fastify": "Fastify · Node.js",
+    "hono": "Hono · Node.js",
+    "bun": "Bun.serve · Bun",
 }
 CONCURRENCY = 100
 REQUESTS = 100_000
@@ -190,29 +215,42 @@ def signal_group(pgid: int, number: signal.Signals) -> None:
         os.killpg(pgid, number)
 
 
-def start(name: str, log: Path) -> subprocess.Popen:
+def server_table(name: str) -> tuple[list[str], dict[str, str]]:
     servers = next(table for table in SERVER_MODES.values() if name in table)
-    command, env = servers[name]
-    full_env = {**os.environ, "PYTHONPATH": str(HERE), **env}
-    for variable in (
-        "BENCH_DATABASE_URL",
-        "BENCH_POOL",
-        "BENCH_BOLT",
-        "BENCH_POSTGRES_CONTAINER",
-        "BENCH_SERVER_CPUS",
-        "BENCH_LOAD_CPUS",
-    ):
-        if name.startswith("hinoki"):
-            full_env.pop(variable, None)
-    exe = (
-        [sys.executable, "-m", command[0], *command[1:]]
-        if command[0] != "python"
-        else [sys.executable, *command[1:]]
-    )
+    return servers[name]
+
+
+def server_env(name: str, base: Mapping[str, str]) -> dict[str, str]:
+    """``base`` with only the ``BENCH_*`` variables the stack declares.
+
+    A variable left over from the caller's shell (another stack's settings, the
+    runner's own options) must not change how a server configures itself.
+    """
+    _, env = server_table(name)
+    inherited = {k: v for k, v in base.items() if not k.startswith("BENCH_")}
+    return {**inherited, "PYTHONPATH": str(HERE), **env}
+
+
+def server_command(command: list[str]) -> list[str]:
+    """Python tools run as modules of this interpreter; JavaScript runtimes by path."""
+    if command[0] in RUNTIMES:
+        runtime = RUNTIMES[command[0]]
+        if runtime is None:
+            raise SystemExit(
+                f"{command[0]} is not installed; see benchmarks/comparative/README.md"
+            )
+        return [runtime, *command[1:]]
+    if command[0] == "python":
+        return [sys.executable, *command[1:]]
+    return [sys.executable, "-m", *command]
+
+
+def start(name: str, log: Path) -> subprocess.Popen:
+    command, _ = server_table(name)
     return subprocess.Popen(
-        [*pin(SERVER_CPUS), *exe],
+        [*pin(SERVER_CPUS), *server_command(command)],
         cwd=HERE,
-        env=full_env,
+        env=server_env(name, os.environ),
         stdout=log.open("wb"),
         stderr=subprocess.STDOUT,
         start_new_session=True,
@@ -363,8 +401,38 @@ def host_details() -> dict:
     return details
 
 
-def environment(args: argparse.Namespace) -> dict:
+def installed_version(js_dir: Path, package: str) -> str | None:
+    manifest = js_dir / "node_modules" / package / "package.json"
+    if not manifest.exists():
+        return None
+    return str(json.loads(manifest.read_text())["version"])
+
+
+def runtime_version(path: str | None) -> str | None:
+    found = re.search(
+        r"\d+\.\d+\.\d+", command_output([path, "--version"]) if path else ""
+    )
+    return found[0] if found else None
+
+
+def javascript_versions(
+    js_dir: Path = JS_DIR, runtimes: Mapping[str, str | None] = RUNTIMES
+) -> dict:
+    """Runtime versions and the package versions `npm ci` actually installed."""
     return {
+        "runtimes": {name: runtime_version(path) for name, path in runtimes.items()},
+        "packages": {name: installed_version(js_dir, name) for name in JS_PACKAGES},
+    }
+
+
+def environment(args: argparse.Namespace) -> dict:
+    javascript = (
+        {"javascript": javascript_versions()}
+        if args.server_mode == "javascript"
+        else {}
+    )
+    return {
+        **javascript,
         "date": time.strftime("%Y-%m-%d %H:%M:%S %z"),
         "machine": platform.platform(),
         "cpu": cpu_model(),

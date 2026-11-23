@@ -48,6 +48,13 @@
     document.querySelectorAll("[data-bench-filterable]").forEach((root) => {
       if (root.matches("[data-stack]")) root.hidden = false;
     });
+    // A group header spans only the visible columns of its group.
+    document.querySelectorAll("[data-bench-filterable] .bench-groups th[data-group]").forEach((head) => {
+      const columns = head.closest("table").querySelectorAll('thead th[scope="col"][data-group]');
+      const visible = Array.from(columns).filter((th) => th.dataset.group === head.dataset.group && !th.hidden).length;
+      head.hidden = visible === 0;
+      if (visible) head.colSpan = visible;
+    });
   };
 
   chips.forEach((chip) => {
