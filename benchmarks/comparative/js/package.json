@@ -1,0 +1,16 @@
+{
+  "name": "hinoki-comparative-bench-js",
+  "version": "0.0.0",
+  "private": true,
+  "description": "JavaScript-runtime stacks of the comparative benchmark (Fastify, Hono, Bun.serve).",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.11",
+    "fastify": "5.12.8",
+    "hono": "4.13.21",
+    "pg": "8.23.1"
+  }
+}
