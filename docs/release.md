@@ -40,10 +40,14 @@ default one. Measure a build before relying on its duration.
 3. Set the version, which must be the same in `pyproject.toml`
    (`project.version`) and in the workspace `Cargo.toml`
    (`workspace.package.version`), then run `uv lock` so `uv.lock` follows.
-4. In `CHANGELOG.md`, turn `Unreleased` into `[X.Y.Z] - date`.
-5. Update [Status](status.md) and the `Pre-alpha, not released` notes in the
+4. Apply the [compatibility policy](status.md): a `0.1.z` patch keeps documented
+   contracts and `0.1.0` migration files compatible. A breaking pre-1.0 change
+   requires a later `0.y.0`, release notes and an upgrade path for migration
+   state if version 1 will no longer be read.
+5. In `CHANGELOG.md`, turn `Unreleased` into `[X.Y.Z] - date`.
+6. Update [Status](status.md) and the `Pre-alpha, not released` notes in the
    README if they no longer hold.
-6. Merge these changes by pull request.
+7. Merge these changes by pull request.
 
 ## Build and inspect the artifacts
 

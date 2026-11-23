@@ -41,7 +41,7 @@
 <p align="center"><sub>Real terminal output recorded by <a href="scripts/readme_demo.py"><code>scripts/readme_demo.py</code></a>; waits are shortened, and the posts app's source files and migrations are written off screen.</sub></p>
 
 > [!WARNING]
-> **Pre-alpha, not released.** The API and the migration format may change. The package will be named `hinoki-api`; the [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project. Install Hinoki from this repository and use disposable data.
+> **Pre-alpha, not released.** In the planned `0.1.x` line, documented Python, CLI, settings and runtime contracts, plus migration files, stay compatible across patch releases. Additions and fixes for incorrect behavior remain possible and will be described in the changelog. Breaking changes may arrive in a later `0.y.0`; there is no fixed deprecation period and no compatibility promise for undocumented internals or old framework versions. Review migrations and use disposable data when evaluating Hinoki. The package will be named `hinoki-api`; the [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project.
 
 Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls: `hinoki dev` and `hinoki serve` use it by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix.
 
