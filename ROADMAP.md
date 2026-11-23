@@ -2,6 +2,11 @@
 
 Hinoki is pre-alpha. This is a short public view of the work; implementation status may change as the project develops.
 
+For the planned `0.1.x` line, documented Python, CLI, settings and runtime
+contracts, plus migration files, stay compatible across patch releases. The
+[project status](docs/status.md) records the migration-format limits and the
+pre-1.0 break policy.
+
 ## Available today
 
 - Typed Python HTTP APIs with optional architecture rules and declared errors.
