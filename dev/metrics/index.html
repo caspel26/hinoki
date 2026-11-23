@@ -318,6 +318,10 @@
               
             
               
+                <li><a class="side__link" href="../email/"><span>Send email</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -475,8 +479,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -567,6 +571,24 @@ hinoki_http_response_bytes_total{route="",worker="0"} 69
 <td>Time a handler ran, whatever its outcome</td>
 </tr>
 <tr>
+<td><code>hinoki_email_messages_total</code></td>
+<td>counter</td>
+<td><code>backend</code>, <code>outcome</code></td>
+<td><a href="../email/">Email</a> sends. <code>outcome</code> is <code>sent</code> or the error kind (<code>invalid_address</code>, <code>invalid_header</code>, <code>invalid_message</code>, <code>limit_exceeded</code>, <code>closed</code>, <code>busy</code>, <code>connect</code>, <code>timeout</code>, <code>tls</code>, <code>auth</code>, <code>rejected</code>, <code>temporary</code>, <code>protocol</code>)</td>
+</tr>
+<tr>
+<td><code>hinoki_email_send_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>backend</code></td>
+<td>Time of a <code>send</code>, whatever its outcome</td>
+</tr>
+<tr>
+<td><code>hinoki_email_retries_total</code></td>
+<td>counter</td>
+<td><code>backend</code></td>
+<td>Delivery attempts made again after a transient failure</td>
+</tr>
+<tr>
 <td><code>hinoki_build_info</code></td>
 <td>gauge</td>
 <td><code>version</code>, <code>server</code></td>
@@ -605,6 +627,13 @@ hinoki_event_handler_duration_seconds_sum{event="NoteSaved",phase="after_commit"
 hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commit",worker="0"} 9
 </code></pre></div>
 <p>Measured cost of recording on one Apple-silicon laptop (an <code>after_commit</code> handler that returns at once, 200,000 emits per sample, 15 interleaved samples per variant, medians over three runs): about 3.3 µs per emit with metrics off and 3.4 to 3.5 µs with them on, that is roughly 50 to 110 ns (about 2 %) more; the extension was a debug build. A handler that does real work makes the share smaller.</p>
+<h2 id="email">Email<a class="headerlink" href="#email" title="Permanent link">&para;</a></h2>
+<p>The three email families exist only when the application has an <a href="../email/">email module</a> (an <code>email: settings.EmailSettings</code> field). The <code>backend</code> label is <code>smtp</code>, <code>console</code> or <code>memory</code> and every <code>outcome</code> series is created at startup, so no recipient, subject, host or error text becomes a label; a series with no send yet is not printed, except the retries counter. The send duration uses the same buckets as the request duration. Example from a real run of one send with the <code>memory</code> backend:</p>
+<div class="language-text highlight"><pre><span></span><code>hinoki_email_messages_total{backend="memory",outcome="sent",worker="0"} 1
+hinoki_email_send_duration_seconds_count{backend="memory",worker="0"} 1
+hinoki_email_retries_total{backend="memory",worker="0"} 0
+</code></pre></div>
+<p>Without metrics, or under Granian, <code>Mailer.stats()</code> still counts sent and failed messages, retries and connections per worker.</p>
 <h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -664,7 +693,7 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../compression/"><small>Previous</small><span>Compress responses</span></a>
-        <a class="pager__link pager__link--next" href="../middleware/"><small>Next</small><span>Middleware</span></a>
+        <a class="pager__link pager__link--next" href="../email/"><small>Next</small><span>Send email</span></a>
       </nav>
     </main>
 
@@ -676,12 +705,12 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-is-exported">What is exported</a></li><li><a href="#event-handlers">Event handlers</a></li><li><a href="#settings">Settings</a></li><li><a href="#several-workers">Several workers</a></li><li><a href="#what-it-does-not-cover">What it does not cover</a></li></ul>
+            <ul><li><a href="#what-is-exported">What is exported</a></li><li><a href="#event-handlers">Event handlers</a></li><li><a href="#email">Email</a></li><li><a href="#settings">Settings</a></li><li><a href="#several-workers">Several workers</a></li><li><a href="#what-it-does-not-cover">What it does not cover</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/metrics.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

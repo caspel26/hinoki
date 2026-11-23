@@ -318,6 +318,10 @@
               
             
               
+                <li><a class="side__link" href="../email/"><span>Send email</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -475,8 +479,8 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -607,6 +611,8 @@ application on it, as
 test. The migrations come from the app's own directory, so a new migration is
 picked up without extra steps. In a project with several apps, apply each app's
 migration directory in dependency order. The fixture builds SQLite files only.</p>
+<h2 id="test-email">Test email<a class="headerlink" href="#test-email" title="Permanent link">&para;</a></h2>
+<p>With <code>email: settings.EmailSettings</code> set to <code>backend=EmailBackend.MEMORY</code>, every sent message is kept in the worker's <code>mailer.outbox</code> and nothing leaves the process; <code>outbox</code> entries carry the <code>Message</code> and the rendered bytes. A sample test is in <a href="../email/#test-with-the-memory-backend">send email</a>. For SMTP behaviour use a fake server on <code>127.0.0.1</code> and synthetic <code>example.com</code> addresses.</p>
 <h2 id="catch-undeclared-errors">Catch undeclared errors<a class="headerlink" href="#catch-undeclared-errors" title="Permanent link">&para;</a></h2>
 <p><code>ASGIClient(app, strict_errors=True)</code> fails the test when an action answers an
 HTTP error that is missing from its <code>errors=</code> declaration, so the OpenAPI
@@ -700,12 +706,12 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
           
             <ul><li><a href="#test-protected-actions">Test protected actions</a></li><li><a href="#use-a-disposable-database">Use a disposable database</a>
             <ul><li><a href="#give-each-test-its-own-database">Give each test its own database</a></li></ul>
-          </li><li><a href="#catch-undeclared-errors">Catch undeclared errors</a></li><li><a href="#test-file-uploads">Test file uploads</a></li><li><a href="#headers-and-hosts">Headers and hosts</a></li><li><a href="#test-streams">Test streams</a></li><li><a href="#synchronous-tests-and-time">Synchronous tests and time</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li><li><a href="#see-also">See also</a></li></ul>
+          </li><li><a href="#test-email">Test email</a></li><li><a href="#catch-undeclared-errors">Catch undeclared errors</a></li><li><a href="#test-file-uploads">Test file uploads</a></li><li><a href="#headers-and-hosts">Headers and hosts</a></li><li><a href="#test-streams">Test streams</a></li><li><a href="#synchronous-tests-and-time">Synchronous tests and time</a></li><li><a href="#test-the-layers-separately">Test the layers separately</a></li><li><a href="#repository-checks">Repository checks</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

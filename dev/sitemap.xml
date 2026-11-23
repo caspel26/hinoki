@@ -73,6 +73,10 @@
          <lastmod>2026-11-23</lastmod>
     </url>
     <url>
+         <loc>https://hinoki.caspel.dev/dev/email/</loc>
+         <lastmod>2026-11-23</lastmod>
+    </url>
+    <url>
          <loc>https://hinoki.caspel.dev/dev/endpoints/</loc>
          <lastmod>2026-11-23</lastmod>
     </url>
@@ -282,6 +286,10 @@
     </url>
     <url>
          <loc>https://hinoki.caspel.dev/dev/reference/database/</loc>
+         <lastmod>2026-11-23</lastmod>
+    </url>
+    <url>
+         <loc>https://hinoki.caspel.dev/dev/reference/email/</loc>
          <lastmod>2026-11-23</lastmod>
     </url>
     <url>

@@ -242,6 +242,10 @@
               
             
               
+                <li><a class="side__link" href="../email/"><span>Email</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
@@ -279,8 +283,8 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:22:47 UTC">November 22, 2026</span></span>
-            <span>9 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>11 min read</span>
           </p>
           
         </header>
@@ -3477,12 +3481,802 @@ With <code>engine</code>, <code>url</code> holds the URL built from the fields.<
     </div>
 
 </div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.settings.EmailSettings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.EmailSettings</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">EmailSettings</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.settings.Settings
+
+
+  
+      dataclass
+  " href="#hinoki.settings.Settings">Settings</a></code></p>
+
+
+
+        <p>Outbound email. <code>backend</code> has no default, so production never falls
+back to the console by accident: <code>smtp</code> delivers, <code>console</code> prints the
+rendered message (development) and <code>memory</code> keeps it in an outbox (tests).</p>
+<p>The SMTP fields apply to <code>smtp</code> only. <code>port</code> defaults to 587 for
+<code>starttls</code>, 465 for <code>tls</code> and 25 for <code>none</code>; <code>security="none"</code> to a
+host off the loopback needs <code>allow_insecure</code>. <code>username</code> and <code>password</code>
+go together; read the password from a <code>*_FILE</code> variable. <code>tls_ca_file</code>
+adds PEM certificates to the bundled public roots (it does not replace them);
+certificates are always checked.
+<code>default_sender</code> is the From address of a message that sets none, and
+<code>message_id_domain</code> the domain of its <code>Message-ID</code> (default: the domain
+of <code>default_sender</code>, else <code>helo_name</code>, else <code>localhost</code>). Durations are
+seconds, more than 0 and at most 3600: <code>timeout</code> bounds one whole
+<code>send()</code> including the wait for a
+connection and the retries, and must be at least <code>connect_timeout</code>. With
+<code>check_on_startup</code> the worker connects and authenticates while starting,
+and a failure aborts the start. <code>memory_capacity</code> bounds the outbox.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.backend" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">backend</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.backend" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">backend</span><span class="p">:</span> <span class="n">EmailBackend</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.default_sender" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">default_sender</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.default_sender" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">default_sender</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.host" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">host</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.host" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'localhost'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.port" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">port</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.port" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.security" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">security</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.security" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">security</span><span class="p">:</span> <span class="n">EmailSecurity</span> <span class="o">=</span> <span class="n">EmailSecurity</span><span class="o">.</span><span class="n">STARTTLS</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.username" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">username</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.username" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">username</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.password" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">password</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.password" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">password</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.allow_insecure" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">allow_insecure</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.allow_insecure" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">allow_insecure</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.tls_ca_file" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tls_ca_file</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.tls_ca_file" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">tls_ca_file</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.helo_name" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">helo_name</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.helo_name" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">helo_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.message_id_domain" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">message_id_domain</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.message_id_domain" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">message_id_domain</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.connect_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">connect_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.connect_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">connect_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.command_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">command_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.command_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">command_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.data_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">data_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.data_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">data_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">120.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">60.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.max_connections" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_connections</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.max_connections" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_connections</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.pool_wait" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">pool_wait</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.pool_wait" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">pool_wait</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.idle_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">idle_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.idle_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">idle_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">60.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.max_messages_per_connection" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_messages_per_connection</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.max_messages_per_connection" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_messages_per_connection</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.retries" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">retries</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.retries" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">retries</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.backoff_base" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">backoff_base</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.backoff_base" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">backoff_base</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.backoff_max" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">backoff_max</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.backoff_max" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">backoff_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.max_recipients" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_recipients</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.max_recipients" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_recipients</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.max_message_bytes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_message_bytes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.max_message_bytes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_message_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.max_attachments" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_attachments</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.max_attachments" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_attachments</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.memory_capacity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">memory_capacity</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.memory_capacity" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">memory_capacity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EmailSettings.check_on_startup" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">check_on_startup</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EmailSettings.check_on_startup" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">check_on_startup</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.settings.EmailBackend" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.EmailBackend</span>
+
+
+<a href="#hinoki.settings.EmailBackend" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.StrEnum">StrEnum</span></code></p>
+
+
+
+        <p>The delivery <code>EmailSettings.backend</code> selects.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.settings.EmailSecurity" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.EmailSecurity</span>
+
+
+<a href="#hinoki.settings.EmailSecurity" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.StrEnum">StrEnum</span></code></p>
+
+
+
+        <p>How <code>EmailSettings</code> secures the SMTP connection.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
         
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
         <a class="pager__link pager__link--prev" href="../database/"><small>Previous</small><span>Database</span></a>
-        <a class="pager__link pager__link--next" href="../rules/"><small>Next</small><span>Rules</span></a>
+        <a class="pager__link pager__link--next" href="../email/"><small>Next</small><span>Email</span></a>
       </nav>
     </main>
 
@@ -3520,12 +4314,14 @@ With <code>engine</code>, <code>url</code> holds the URL built from the fields.<
             <ul><li><a href="#hinoki.settings.AdminSettings.secret">secret</a></li><li><a href="#hinoki.settings.AdminSettings.session_hours">session_hours</a></li><li><a href="#hinoki.settings.AdminSettings.idle_minutes">idle_minutes</a></li><li><a href="#hinoki.settings.AdminSettings.min_password_length">min_password_length</a></li></ul>
           </li><li><a href="#hinoki.settings.FrameOptions">FrameOptions</a></li><li><a href="#hinoki.settings.ReferrerPolicy">ReferrerPolicy</a></li><li><a href="#hinoki.settings.DatabaseSettings">DatabaseSettings</a>
             <ul><li><a href="#hinoki.settings.DatabaseSettings.url">url</a></li><li><a href="#hinoki.settings.DatabaseSettings.engine">engine</a></li><li><a href="#hinoki.settings.DatabaseSettings.name">name</a></li><li><a href="#hinoki.settings.DatabaseSettings.user">user</a></li><li><a href="#hinoki.settings.DatabaseSettings.password">password</a></li><li><a href="#hinoki.settings.DatabaseSettings.host">host</a></li><li><a href="#hinoki.settings.DatabaseSettings.port">port</a></li><li><a href="#hinoki.settings.DatabaseSettings.options">options</a></li><li><a href="#hinoki.settings.DatabaseSettings.max_size">max_size</a></li></ul>
-          </li><li><a href="#hinoki.settings.DatabaseEngine">DatabaseEngine</a></li></ul>
+          </li><li><a href="#hinoki.settings.DatabaseEngine">DatabaseEngine</a></li><li><a href="#hinoki.settings.EmailSettings">EmailSettings</a>
+            <ul><li><a href="#hinoki.settings.EmailSettings.backend">backend</a></li><li><a href="#hinoki.settings.EmailSettings.default_sender">default_sender</a></li><li><a href="#hinoki.settings.EmailSettings.host">host</a></li><li><a href="#hinoki.settings.EmailSettings.port">port</a></li><li><a href="#hinoki.settings.EmailSettings.security">security</a></li><li><a href="#hinoki.settings.EmailSettings.username">username</a></li><li><a href="#hinoki.settings.EmailSettings.password">password</a></li><li><a href="#hinoki.settings.EmailSettings.allow_insecure">allow_insecure</a></li><li><a href="#hinoki.settings.EmailSettings.tls_ca_file">tls_ca_file</a></li><li><a href="#hinoki.settings.EmailSettings.helo_name">helo_name</a></li><li><a href="#hinoki.settings.EmailSettings.message_id_domain">message_id_domain</a></li><li><a href="#hinoki.settings.EmailSettings.connect_timeout">connect_timeout</a></li><li><a href="#hinoki.settings.EmailSettings.command_timeout">command_timeout</a></li><li><a href="#hinoki.settings.EmailSettings.data_timeout">data_timeout</a></li><li><a href="#hinoki.settings.EmailSettings.timeout">timeout</a></li><li><a href="#hinoki.settings.EmailSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.EmailSettings.pool_wait">pool_wait</a></li><li><a href="#hinoki.settings.EmailSettings.idle_timeout">idle_timeout</a></li><li><a href="#hinoki.settings.EmailSettings.max_messages_per_connection">max_messages_per_connection</a></li><li><a href="#hinoki.settings.EmailSettings.retries">retries</a></li><li><a href="#hinoki.settings.EmailSettings.backoff_base">backoff_base</a></li><li><a href="#hinoki.settings.EmailSettings.backoff_max">backoff_max</a></li><li><a href="#hinoki.settings.EmailSettings.max_recipients">max_recipients</a></li><li><a href="#hinoki.settings.EmailSettings.max_message_bytes">max_message_bytes</a></li><li><a href="#hinoki.settings.EmailSettings.max_attachments">max_attachments</a></li><li><a href="#hinoki.settings.EmailSettings.memory_capacity">memory_capacity</a></li><li><a href="#hinoki.settings.EmailSettings.check_on_startup">check_on_startup</a></li></ul>
+          </li><li><a href="#hinoki.settings.EmailBackend">EmailBackend</a></li><li><a href="#hinoki.settings.EmailSecurity">EmailSecurity</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 03:22:47 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

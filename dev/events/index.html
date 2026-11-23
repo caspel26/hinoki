@@ -318,6 +318,10 @@
               
             
               
+                <li><a class="side__link" href="../email/"><span>Send email</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -475,7 +479,7 @@
           
           <p class="page-meta" data-search-exclude>
             
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -738,6 +742,7 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
 <p>With metrics off, or under another server, <code>EventBus.stats()</code> still counts runs per worker and nothing else is recorded: a handler run pays one <code>None</code> check. See <a href="../metrics/#event-handlers">export Prometheus metrics</a>.</p>
 <h2 id="what-events-do-not-do">What events do not do<a class="headerlink" href="#what-events-do-not-do" title="Permanent link">&para;</a></h2>
 <ul>
+<li>To send an email from a handler, use <code>mail.send</code> in an <code>after_commit</code> handler: it runs once the data is durable. See <a href="../email/">send email</a>.</li>
 <li>No delivery between services or processes, no queue, no retry, no at-least-once guarantee. For work that must survive a crash, use a job queue.</li>
 <li>Worker lifecycle, migration and reload events are not part of this release; use <code>on_startup</code> and <code>on_shutdown</code> for startup and shutdown.</li>
 <li>Events never carry rows a caller cannot see: emit them from code that already applied ownership and tenant policy, and put identifiers rather than whole rows in the payload.</li>
@@ -765,7 +770,7 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/events.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

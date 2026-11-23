@@ -318,6 +318,10 @@
               
             
               
+                <li><a class="side__link" href="../email/"><span>Send email</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -475,7 +479,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -1000,6 +1004,7 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 </tbody>
 </table>
 <p><code>settings.DatabaseSettings</code> is an optional field you declare in your own settings class, not a <code>settings.AppSettings</code> group. Its <code>url</code> defaults to <code>sqlite://./.hinoki/local.sqlite3</code>; <code>max_size</code> defaults to <code>10</code> connections per worker and must be at least <code>1</code>.</p>
+<p><code>settings.EmailSettings</code> is optional in the same way: an <code>email: settings.EmailSettings</code> field installs the <a href="../email/">email module</a>. Its <code>backend</code> (<code>smtp</code>, <code>console</code> or <code>memory</code>) is required and has no default; <code>password</code> is a <code>Secret</code> (<code>NOTES_EMAIL__PASSWORD</code> or <code>NOTES_EMAIL__PASSWORD_FILE</code>). Every field, its default and its range are in <a href="../email/#settings">send email</a>.</p>
 <h2 id="where-values-come-from">Where values come from<a class="headerlink" href="#where-values-come-from" title="Permanent link">&para;</a></h2>
 <p><code>load</code> is the only place configuration is read; <code>Hinoki(settings=ProjectSettings)</code>
 calls it for you. Highest first:</p>
@@ -1197,7 +1202,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

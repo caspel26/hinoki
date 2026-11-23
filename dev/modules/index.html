@@ -318,6 +318,10 @@
               
             
               
+                <li><a class="side__link" href="../email/"><span>Send email</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -475,7 +479,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -584,6 +588,8 @@ a module with <code>requires = (DatabaseModule,)</code> can call <code>ctx.get(D
 lifespan. Declaring <code>DatabaseModule</code>, or a subclass of it, in <code>modules=</code> replaces
 the automatic one; modules that require <code>DatabaseModule</code> still start after it.
 See <a href="../settings/#8-database-connection-ownership">database connection ownership</a>.</p>
+<h2 id="the-email-module">The email module<a class="headerlink" href="#the-email-module" title="Permanent link">&para;</a></h2>
+<p>An <code>email: settings.EmailSettings</code> field installs <code>EmailModule</code> (from <code>hinoki.mail</code>) the same way: one <code>Mailer</code> per worker, opened in the lifespan and closed at shutdown, available as <code>ctx.get(Mailer)</code>, to <code>mail.send(...)</code> in handlers and hooks, and to commands that declare <code>requires = (EmailModule,)</code>. Declaring <code>EmailModule</code> in <code>modules=</code> replaces the automatic one. See <a href="../email/">send email</a>.</p>
 <h2 id="declare-modules">Declare modules<a class="headerlink" href="#declare-modules" title="Permanent link">&para;</a></h2>
 <p><code>modules=</code> accepts instances and classes. An instance is the plain choice; a class
 is built with its <code>from_settings(settings)</code> classmethod, which you override to
@@ -694,12 +700,12 @@ application instead of writing a module (<code>ProjectSettings</code> here decla
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#use-what-a-module-provides">Use what a module provides</a></li><li><a href="#the-database-module">The database module</a></li><li><a href="#declare-modules">Declare modules</a></li><li><a href="#startup-and-shutdown-hooks">Startup and shutdown hooks</a></li><li><a href="#scripts-outside-the-server">Scripts outside the server</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#use-what-a-module-provides">Use what a module provides</a></li><li><a href="#the-database-module">The database module</a></li><li><a href="#the-email-module">The email module</a></li><li><a href="#declare-modules">Declare modules</a></li><li><a href="#startup-and-shutdown-hooks">Startup and shutdown hooks</a></li><li><a href="#scripts-outside-the-server">Scripts outside the server</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/modules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -318,6 +318,10 @@
               
             
               
+                <li><a class="side__link" href="../email/"><span>Send email</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../middleware/"><span>Middleware</span></a></li>
               
             
@@ -475,7 +479,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span class="chip chip--implemented">implemented</span>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -598,6 +602,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
         <span class="n">current_database</span><span class="p">()</span><span class="o">.</span><span class="n">after_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">publish</span><span class="p">(</span><span class="s2">"invoice.issued"</span><span class="p">,</span> <span class="n">invoice</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">invoice</span>
 </code></pre></div>
+<p>A send that fails after the commit is logged and does not undo the commit; the callback is not retried. For an email, <code>current_database().after_commit(lambda: mail.send(message))</code> sends only once the data is durable and never on rollback; see <a href="../email/#send-after-a-commit">send email</a>.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>after_commit</code> outside a transaction, or a nested scope opened from a child task, raises <code>DatabaseError</code>.</li>
@@ -639,7 +644,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
         </nav>
         
         <dl class="titleblock">
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/transactions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
