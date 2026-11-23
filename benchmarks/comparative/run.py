@@ -199,6 +199,8 @@ def start(name: str, log: Path) -> subprocess.Popen:
         "BENCH_POOL",
         "BENCH_BOLT",
         "BENCH_POSTGRES_CONTAINER",
+        "BENCH_SERVER_CPUS",
+        "BENCH_LOAD_CPUS",
     ):
         if name.startswith("hinoki"):
             full_env.pop(variable, None)
