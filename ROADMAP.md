@@ -36,13 +36,19 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 - Before the first release (`0.1.0`):
     - many-to-many relations (`many_to_many(...)`, generated CRUD ids fields, admin multi-select, MCP description); routes with an ids field run on the native generated-CRUD lane when the targets are scoped with `all_rows(...)`/`own_rows(...)` (ids read by one extra query per page, writes in the row's transaction), and stay on the Python lane with a custom scope, hook or link event handler;
     - a stable CI on `main` and a clean quality gate;
-    - a cache, sessions and file storage, each with a bounded, explicit backend and documented limits;
+    - typed `Resource` injection for handlers, plus a cache, application sessions and file storage, each with a bounded, explicit backend and documented limits;
     - common model utilities for lifecycle needs, such as timestamps, status-change tracking, soft deletion and field-change tracking, with their migration, query-scope and admin behavior defined;
     - generated `crud(...)` filtered lists on the native Kiso lane (they take the Python path today);
     - fuzzing of the request-line and header limits Kiso applies over its HTTP parser;
     - a written compatibility policy, including what is promised about the migration format;
     - a tested quickstart from the published package, and a load and a soak test described in the documentation;
     - a review of the security findings, and a review of the site and release process before publishing.
+
+## Planned for 0.2.0
+
+These are directions, not commitments, and none of them is available today.
+
+- An optional `Schema`-typed Redis module (`RedisModule`) owning a per-worker connection pool in its lifespan: backs `RedisCache`, `RedisSessionStore`, and `RedisRateLimit` through the `0.1.0` cache, session and rate-limit protocols without changing handler signatures, and exposes a `Schema`-typed client for structured Redis commands (such as `hget` and `hset`).
 
 ## Planned for a later release
 
