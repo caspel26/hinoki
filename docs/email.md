@@ -6,13 +6,14 @@ related:
   - transactions.md
   - metrics.md
   - testing.md
+  - email-templates.md
 ---
 
 # Send email
 
 Hinoki sends outbound email over SMTP from a per-worker `Mailer`. The message is rendered, the SMTP conversation, TLS, the connection pool, timeouts and retries all run in Rust (`crates/mail`); the Python side is the `Message` you build, the settings and the module that owns the mailer. The call crosses the Python/Rust boundary once per message, with Python objects for the message and its result.
 
-What it is **not**: there is no queue, no delivery guarantee, no template engine and no HTTP provider (the SMTP and the two local backends below are all there is). `send` returns when the server accepted the message, or raises. The [admin](admin.md) sends no email in 0.1.0.
+What it is **not**: there is no queue, no delivery guarantee and no HTTP provider (the SMTP and the two local backends below are all there is). `send` returns when the server accepted the message, or raises. The [admin](admin.md) sends no email in 0.1.0.
 
 ## Set it up
 
@@ -228,6 +229,10 @@ async def test_welcome_mail() -> None:
 
 `outbox` holds `SentMail` entries with `message` and `raw`; `clear_outbox()` empties it. Each started application, and each worker, has its own outbox. For SMTP behaviour, point `host` at a fake server on `127.0.0.1`; never send real mail from a test.
 
+## Templates
+
+Instead of building `subject`, `text` and `html` by hand, declare a `mail.Template` (a TOML file or strings) with a typed context, list it in `Hinoki(email_templates=[...])` and send `template.message(context, to=(...))`. Rendering and escaping are Rust, the template is checked against its context `Schema` when a worker starts, and `hinoki mail preview` shows the result. See [email templates](email-templates.md).
+
 ## Metrics
 
 With `metrics.listen` on [Kiso](kiso.md) and an email module installed, three families are exported. The series are fixed at startup, so no address, subject or error text becomes a label. See [export Prometheus metrics](metrics.md#email).
@@ -237,7 +242,7 @@ With `metrics.listen` on [Kiso](kiso.md) and an email module installed, three fa
 ## What email does not do
 
 - No queue, no scheduled sends and no guaranteed delivery; see [when the message must not be lost](#when-the-message-must-not-be-lost).
-- No templates: build the `text` and `html` yourself.
+- No template language beyond the small fixed one of [email templates](email-templates.md); you can also build `text` and `html` yourself.
 - No HTTP email providers (only SMTP, console and memory).
 - No bounce or delivery tracking, no DKIM signing, no SMTPUTF8, no XOAUTH2.
 - The admin sends no email in 0.1.0.

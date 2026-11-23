@@ -30,6 +30,8 @@ uv run hinoki migrations apply
 | | `hinoki doctor` | Environment, manifest and app diagnostics. | [Inspect](inspect.md#doctor) |
 | | `hinoki routes` | Every route with its access policy and server lane. | [Inspect](inspect.md#routes) |
 | | `hinoki events` | Every event handler in execution order, the event limits and the apps' `events` targets. | [Inspect](inspect.md#events) |
+| | `hinoki mail check` | Read and check every registered email template against its context. | [Email templates](email-templates.md#checked-at-startup) |
+| | `hinoki mail preview NAME` | Render one registered email template from a sample or a JSON context, without sending. | [Email templates](email-templates.md#preview) |
 | | `hinoki settings` | Effective settings and their sources, secrets redacted. | [Inspect](inspect.md#settings) |
 | | `hinoki openapi` | Print, write or diff the OpenAPI document. | [Inspect](inspect.md#openapi) |
 | | `hinoki version` | The Hinoki version; `--verbose` adds Python, platform, native core and Granian. | [Inspect](inspect.md#version) |
