@@ -617,7 +617,12 @@ async def reindex() -&gt; dict[str, str]: ...
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>✨ A softer cursor glow on the homepage</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>⚡ Native Kiso lane for filtered <code>crud(...)</code> lists</h4>
+<blockquote>
+<p><code>crates/bindings/src/filters.rs</code>, <code>crates/bindings/src/crudplan.rs</code>, <code>crates/bindings/src/nativecrud.rs</code>, <code>python/hinoki/runtime/crudplan.py</code>, <code>python/hinoki/core.pyi</code>, <code>docs/crud.md</code>, <code>docs/status.md</code></p>
+</blockquote>
+<p>Offset-paginated (<code>PageNumberPagination</code>) generated <code>crud(...)</code> <code>list</code> endpoints with a plain <code>FilterSet</code> and no custom <code>get_queryset</code>/<code>filter_queryset</code> hooks now run on Kiso's native Rust lane: query parsing, filter predicates (<code>Eq</code>, <code>In</code>, <code>Range</code>, <code>.null</code>, <code>Search</code>), dialect-aware <code>LIKE</code> escaping and stable primary-key tie-breaker ordering execute without invoking Python <code>FilterSet.parse</code>, while invalid requests (422), <code>CursorPagination</code>, custom hooks and SQLite <code>Decimal</code> filters fall back transparently to the Python lane. See <a href="docs/crud.md#filter-order-and-search-the-list">CRUD</a>.</p>
+<h4>✨ A softer cursor glow on the homepage</h4>
 <blockquote>
 <p><code>theme/static/js/home.js</code>, <code>theme/static/css/home.css</code></p>
 </blockquote>

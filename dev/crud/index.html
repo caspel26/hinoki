@@ -482,7 +482,7 @@
           <h1 id="generate-crud-routes">Generate CRUD routes<a class="headerlink" href="#generate-crud-routes" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:06:42 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:10:05 UTC">November 23, 2026</span></span>
             <span>16 min read</span>
           </p>
           
@@ -673,7 +673,7 @@
         <span class="k">return</span> <span class="n">query</span>
 </code></pre></div>
 <p>The Tracker example's <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/filters.py"><code>TaskFilters</code></a> and its <code>Tasks</code> class in <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/apps/tasks/api.py"><code>api.py</code></a> show a filtered, owner-scoped list.</p>
-<p>The filters belong to the <code>list</code> action: <code>omit=("list",)</code> with <code>filters=</code> is refused. With <code>CursorPagination</code> the ordering columns must be non-null <code>int</code>, <code>str</code>, <code>UUID</code>, <code>datetime</code> or <code>float</code> columns, and a cursor is bound to the filters and ordering of the request that issued it (<a href="../pagination/#cursor-keyset-pagination">details</a>). A filtered list is not eligible for the native generated-CRUD list lane (the answer comes from the ordinary Python path, with rows still encoded in Rust); the <a href="../admin/">admin</a> lists have their own filters and do not use this one. A <code>FilterSet</code> also works on its own: <code>InvoiceFilters.parse({"paid": ["true"]})</code> returns the typed instance or raises <code>ValidationError</code>.</p>
+<p>The filters belong to the <code>list</code> action: <code>omit=("list",)</code> with <code>filters=</code> is refused. With <code>CursorPagination</code> the ordering columns must be non-null <code>int</code>, <code>str</code>, <code>UUID</code>, <code>datetime</code> or <code>float</code> columns, and a cursor is bound to the filters and ordering of the request that issued it (<a href="../pagination/#cursor-keyset-pagination">details</a>). On Kiso, a filtered list with <code>PageNumberPagination</code> and no custom <code>get_queryset</code> or <code>filter_queryset</code> hook runs on the native generated-CRUD list lane (with <code>CursorPagination</code> or custom hooks staying on the Python lane, where rows are still encoded in Rust); the <a href="../admin/">admin</a> lists have their own filters and do not use this one. A <code>FilterSet</code> also works on its own: <code>InvoiceFilters.parse({"paid": ["true"]})</code> returns the typed instance or raises <code>ValidationError</code>.</p>
 <h2 id="hooks-in-the-class-form">Hooks in the class form<a class="headerlink" href="#hooks-in-the-class-form" title="Permanent link">&para;</a></h2>
 <p>Apply <code>@crud(...)</code> to a class whose only base is <code>API</code>. These methods change what the generated actions do; every other decorated method is a handwritten action:</p>
 <table>
@@ -895,7 +895,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:06:42 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:10:05 UTC">November 23, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
