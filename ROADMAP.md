@@ -5,6 +5,7 @@ Hinoki is pre-alpha. This is a short public view of the work; implementation sta
 ## Available today
 
 - Typed Python HTTP APIs with optional architecture rules and declared errors.
+- Outbound email over SMTP (plus `console` and `memory` backends) from a per-worker mailer, with the message rendering, the SMTP conversation, TLS, the pool and retries in Rust. No queue, no delivery guarantee, no templates and no HTTP providers. See [send email](docs/email.md).
 - The Rust extension currently provides path matching, selected request parsing, schema validation/serialization, cryptography, and PostgreSQL, SQLite, MySQL and MariaDB ORM execution. The ASGI adapter and application handlers run in Python, except that, on Kiso (the default), an `async def` handler whose only awaits are ORM reads and stock writes the framework can prove safe (guarded, body and `atomic` routes included) is driven from Rust without an asyncio task; eligible public generated `create`, `update` and `delete` actions run their transaction in Rust. SQLite is the local-development default.
 - Sync and async handlers, settings, modules, migrations, OpenAPI, MCP tools, model lifecycle hooks, `bulk_*`/`abulk_*` writes, atomic writes (`atomic=True` on actions, `db.atomic` as a block or decorator in application code), response checks against annotations, route rate limit policies, and an optional admin with four themes and its own users.
 - Typed `http.Middleware` that runs identically on Kiso and Granian (it moves the matched routes onto the Python lane), and WSGI callables served by Kiso with `--interface wsgi` through a bounded thread pool and a streamed response. The WSGI path crosses Python objects and is not native.
@@ -27,6 +28,7 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 These are directions, not commitments, and none of them is available today.
 
 - Moving more of the request path into the Rust core, before new features.
+- A durable email queue and HTTP email providers (outbound email is SMTP only today).
 - Per-route CORS policies.
 - Distributing as a single package, `hinoki-api` (import and CLI stay `hinoki`), with the admin remaining an optional extra of that package rather than a separate distribution.
 

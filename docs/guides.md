@@ -66,6 +66,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 
 - [Add an admin](admin.md): staff pages for your models, with a sign-in page, users and per-model permissions.
 - [Customize the admin](admin-customize.md): columns, hooks, bulk actions, templates and themes.
+- [Send email](email.md): SMTP, console and memory backends from a per-worker mailer, sent after a commit; no queue and no templates.
 - [Expose actions over MCP](app-mcp.md): selected actions as tools for a remote MCP client.
 - [Development MCP](dev-mcp.md): a server that describes your app to a coding agent; it can run requests against the app only when you enable `--scenarios`.
 - [Build with a coding agent](ai-workflow.md): a project, rules and tools ready for an agent, and where its authority ends.

@@ -226,6 +226,7 @@ With metrics off, or under another server, `EventBus.stats()` still counts runs 
 
 ## What events do not do
 
+- To send an email from a handler, use `mail.send` in an `after_commit` handler: it runs once the data is durable. See [send email](email.md).
 - No delivery between services or processes, no queue, no retry, no at-least-once guarantee. For work that must survive a crash, use a job queue.
 - Worker lifecycle, migration and reload events are not part of this release; use `on_startup` and `on_shutdown` for startup and shutdown.
 - Events never carry rows a caller cannot see: emit them from code that already applied ownership and tenant policy, and put identifiers rather than whole rows in the payload.

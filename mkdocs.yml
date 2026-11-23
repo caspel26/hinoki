@@ -111,6 +111,7 @@ nav:
           - WebSockets: websockets.md
           - Compress responses: compression.md
           - Export Prometheus metrics: metrics.md
+          - Send email: email.md
           - Middleware: middleware.md
           - Pagination: pagination.md
           - Parsers and renderers: codecs.md
@@ -158,6 +159,7 @@ nav:
       - Auth and crypto: reference/auth.md
       - Database: reference/database.md
       - Settings: reference/settings.md
+      - Email: reference/email.md
       - Rules: reference/rules.md
       - Modules and runtime: reference/runtime.md
       - MCP and scaffold: reference/tools.md
