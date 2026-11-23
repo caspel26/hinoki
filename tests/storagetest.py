@@ -1,6 +1,7 @@
 """Bounded in-memory and local file storage backends."""
 
 import asyncio
+import time
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,52 @@ async def test_local_storage_creates_atomic_files_and_returns_file_response(
         assert not await backend.exists(first.key)
     finally:
         await backend.close()
+
+
+async def test_local_startup_io_does_not_block_the_worker_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backend = LocalFileStorage(tmp_path / "responsive")
+    original = backend._prepare_root
+
+    def slow_prepare() -> tuple[Path, int]:
+        time.sleep(0.05)
+        return original()
+
+    monkeypatch.setattr(backend, "_prepare_root", slow_prepare)
+    heartbeat = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    scheduled = loop.time() + 0.005
+    lag = 0.0
+
+    def mark_heartbeat() -> None:
+        nonlocal lag
+        lag = loop.time() - scheduled
+        heartbeat.set()
+
+    loop.call_later(0.005, mark_heartbeat)
+    try:
+        start = asyncio.create_task(backend.start())
+        await asyncio.wait_for(heartbeat.wait(), timeout=0.1)
+        await start
+        assert lag < 0.03
+    finally:
+        await backend.close()
+
+
+def test_local_read_checks_size_before_returning_data(tmp_path: Path) -> None:
+    async def run() -> None:
+        backend = LocalFileStorage(tmp_path / "bounded", max_file_bytes=4)
+        await backend.start()
+        try:
+            stored = await backend.save(b"ok")
+            backend._path(stored.key).write_bytes(b"too large")
+            with pytest.raises(FileTooLarge):
+                await backend.read(stored.key)
+        finally:
+            await backend.close()
+
+    asyncio.run(run())
 
 
 async def asyncio_gather_saves(
