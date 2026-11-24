@@ -720,7 +720,8 @@ async def reindex() -&gt; dict[str, str]: ...
 </ul></section><section class="cl__sec" data-kind="docs"><h3>📚 Documentation</h3><p>The docsite has a new navigation, rules explorer, entry cards, footer and page transitions. The README is restructured around an animated request flow, the demo is rendered in HD at 60 fps, the comparative benchmark page is reorganized, and documentation links point at <code>hinoki.caspel.dev</code> (#388, #406, #409, #413, #416, #417, #419, #420, #423, #425, #426).</p>
 <p>Kiso's fuzz workflow now covers request-line framing and request-head limits
 with <code>head_framing</code> and <code>request_head_limits</code> (<code>fuzz/</code>,
-<code>.github/workflows/fuzz.yml</code>, <code>docs/kiso.md</code>).</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
+<code>.github/workflows/fuzz.yml</code>, <code>docs/kiso.md</code>).</p>
+<p>The <a href="docs/benchmarks.md">benchmarks page</a> now shows a run on a dedicated 8 vCPU AMD EPYC server, with Fastify, Hono and <code>Bun.serve</code> as an extra group and the load average held at or below 2 before every sample. Hinoki in this run is commit <code>478e1452</code>.</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
         
       </article>
 
