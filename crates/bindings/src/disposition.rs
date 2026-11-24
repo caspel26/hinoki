@@ -56,6 +56,60 @@ pub(crate) fn content_disposition(filename: &str) -> PyResult<String> {
     attachment(filename).map_err(PyValueError::new_err)
 }
 
+/// Media types a browser renders inline without running script in the
+/// application's origin. Anything else (HTML, SVG, XML, JavaScript, ...) is
+/// sent as an attachment even when `inline` was asked for.
+const INLINE_SAFE: [&str; 7] = [
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+    "application/pdf",
+    "text/plain",
+];
+
+/// Whether `content_type` (parameters ignored) may be displayed inline.
+pub(crate) fn inline_safe(content_type: &str) -> bool {
+    let essence = content_type.split(';').next().unwrap_or_default().trim();
+    INLINE_SAFE
+        .iter()
+        .any(|safe| safe.eq_ignore_ascii_case(essence))
+}
+
+/// The `content-disposition` of a stored file: `inline` only for a safe media
+/// type, `attachment` otherwise, with the download name when there is one.
+pub(crate) fn stored(
+    kind: &str,
+    filename: &str,
+    content_type: &str,
+) -> Result<String, &'static str> {
+    let kind = match kind {
+        "inline" if inline_safe(content_type) => "inline",
+        "inline" | "attachment" => "attachment",
+        _ => return Err("disposition must be 'attachment' or 'inline'"),
+    };
+    if filename.is_empty() {
+        return Ok(kind.to_owned());
+    }
+    let value = attachment(filename)?;
+    Ok(format!("{kind}{}", &value["attachment".len()..]))
+}
+
+/// `content-disposition` value for a stored file served with `content_type`.
+/// `inline` is kept only for an allowlisted media type that cannot run script
+/// in the page's origin; any other type is downgraded to `attachment`. An
+/// empty `filename` sends no name. Raises `ValueError` for an unknown
+/// `disposition` or a name `content_disposition` refuses.
+#[pyfunction]
+pub(crate) fn storage_disposition(
+    disposition: &str,
+    filename: &str,
+    content_type: &str,
+) -> PyResult<String> {
+    stored(disposition, filename, content_type).map_err(PyValueError::new_err)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,5 +148,58 @@ mod tests {
         for name in ["", "a/b", "a\nb", "a\0b", "a\u{7f}b"] {
             assert!(attachment(name).is_err(), "{name:?}");
         }
+    }
+
+    #[test]
+    fn only_passive_media_types_stay_inline() {
+        for safe in [
+            "image/png",
+            "IMAGE/JPEG",
+            "text/plain; charset=utf-8",
+            "application/pdf",
+        ] {
+            assert_eq!(stored("inline", "", safe).unwrap(), "inline", "{safe}");
+        }
+        for active in [
+            "text/html",
+            "image/svg+xml",
+            "application/xhtml+xml",
+            "text/javascript",
+            "application/xml",
+            "application/octet-stream",
+            "",
+        ] {
+            assert_eq!(
+                stored("inline", "", active).unwrap(),
+                "attachment",
+                "{active}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_stored_disposition_carries_the_download_name() {
+        assert_eq!(
+            stored("inline", "a.png", "image/png").unwrap(),
+            r#"inline; filename="a.png""#
+        );
+        assert_eq!(
+            stored("inline", "x.html", "text/html").unwrap(),
+            r#"attachment; filename="x.html""#
+        );
+        assert_eq!(
+            stored("attachment", "é.txt", "text/plain").unwrap(),
+            "attachment; filename=\"_.txt\"; filename*=UTF-8''%C3%A9.txt"
+        );
+        assert_eq!(
+            stored("attachment", "", "text/plain").unwrap(),
+            "attachment"
+        );
+    }
+
+    #[test]
+    fn an_unknown_disposition_or_a_bad_name_is_refused() {
+        assert!(stored("form-data", "", "text/plain").is_err());
+        assert!(stored("inline", "a/b", "image/png").is_err());
     }
 }

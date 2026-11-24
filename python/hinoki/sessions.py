@@ -148,35 +148,31 @@ class SessionSettings(Resource):
 
 
 class MemorySessionStore(SessionStore):
-    """Bounded, process-local store for tests and single-worker deployments."""
+    """Bounded, process-local store for tests and single-worker deployments.
+
+    Revoked and idle-expired sessions are removed at once, so they neither keep
+    their data nor count against ``max_sessions``. Their token digests are kept
+    until the session's absolute expiry (at most ``max_sessions`` of them, the
+    oldest dropped first) so a request that loaded one before it was revoked
+    cannot save it back.
+    """
 
     def __init__(self, max_sessions: int = 10_000) -> None:
         if isinstance(max_sessions, bool) or max_sessions < 1:
             raise ValueError("max_sessions must be positive")
         self.max_sessions = max_sessions
         self._records: OrderedDict[str, SessionRecord] = OrderedDict()
-        self._revoked: set[str] = set()
+        self._revoked: OrderedDict[str, datetime] = OrderedDict()
         self._lock = threading.RLock()
 
     async def load(self, token_hash: str) -> SessionRecord | None:
         with self._lock:
-            if token_hash in self._revoked:
-                return None
             record = self._records.get(token_hash)
             return _copy_record(record) if record is not None else None
 
     async def save(self, token_hash: str, record: SessionRecord) -> None:
         with self._lock:
-            now = utc_now()
-            expired = [
-                key for key, value in self._records.items() if value.expires_at <= now
-            ]
-            for key in expired:
-                del self._records[key]
-                self._revoked.discard(key)
-            for key, value in self._records.items():
-                if value.idle_expires_at <= now:
-                    self._revoked.add(key)
+            self._prune(utc_now())
             if token_hash in self._revoked:
                 raise SessionUnavailable("a revoked session cannot be restored")
             if (
@@ -189,30 +185,41 @@ class MemorySessionStore(SessionStore):
 
     async def delete(self, token_hash: str) -> None:
         with self._lock:
-            if token_hash in self._records:
-                self._revoked.add(token_hash)
+            self._revoke(token_hash)
 
     async def delete_by_subject(self, subject: str) -> int:
         with self._lock:
             keys = [k for k, v in self._records.items() if v.subject == subject]
-            self._revoked.update(keys)
+            for key in keys:
+                self._revoke(key)
             return len(keys)
 
     async def purge_expired(self, now: datetime | None = None) -> int:
-        instant = now or utc_now()
         with self._lock:
-            keys = [
-                key
-                for key, record in self._records.items()
-                if record.expires_at <= instant
-            ]
-            for key in keys:
-                del self._records[key]
-                self._revoked.discard(key)
-            for key, record in self._records.items():
-                if record.idle_expires_at <= instant:
-                    self._revoked.add(key)
-            return len(keys)
+            return self._prune(now or utc_now())
+
+    def _revoke(self, token_hash: str) -> None:
+        record = self._records.pop(token_hash, None)
+        if record is None:
+            return
+        self._revoked[token_hash] = record.expires_at
+        self._revoked.move_to_end(token_hash)
+        while len(self._revoked) > self.max_sessions:
+            self._revoked.popitem(last=False)
+
+    def _prune(self, now: datetime) -> int:
+        """Drop expired sessions and revocations; revoke idle-expired ones.
+        Returns the number of sessions past their absolute expiry."""
+        expired = [k for k, v in self._records.items() if v.expires_at <= now]
+        for key in expired:
+            del self._records[key]
+        idle = [k for k, v in self._records.items() if v.idle_expires_at <= now]
+        for key in idle:
+            self._revoke(key)
+        stale = [k for k, until in self._revoked.items() if until <= now]
+        for key in stale:
+            del self._revoked[key]
+        return len(expired)
 
 
 class DatabaseSessionStore(SessionStore):
@@ -531,11 +538,14 @@ class SessionModule(Module):
 
     name = "sessions"
 
-    def __init__(
-        self, store: SessionStore, settings: SessionSettings | None = None
-    ) -> None:
+    def __init__(self, store: SessionStore, settings: SessionSettings) -> None:
+        if not isinstance(settings, SessionSettings):
+            raise TypeError(
+                "SessionModule needs SessionSettings(csrf_secret=...) with a "
+                "32-byte secret"
+            )
         self.store = store
-        self.settings = settings or SessionSettings()
+        self.settings = settings
         requirements = (
             (DatabaseModule,)
             if isinstance(store, DatabaseSessionStore) and store._database is None
@@ -569,7 +579,7 @@ class SessionAuth(BaseAuth[T]):
     """Resolve an authenticated caller from the active request's session data."""
 
     challenge = None
-    __hinoki_session_auth__ = True
+    uses_session = True
 
     def __init__(
         self,

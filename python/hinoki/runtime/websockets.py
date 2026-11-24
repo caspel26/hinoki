@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Any
 
-from hinoki.auth import Caller
+from hinoki.auth import Caller, session_auth
 from hinoki.runtime.binding import parse_query
 from hinoki.runtime.requests import authorize
 from hinoki.runtime.responses import HTTPError
@@ -83,24 +83,43 @@ def value_of(
         raise invalid(param.name, f"is not a valid {param.hint.__name__}") from None
 
 
+def needs_session(route: WebSocketRoute) -> bool:
+    """Whether the action's access, or a subprotocol's, reads the session."""
+    policies = (route.access, *(access for _, access in route.subprotocols))
+    return any(policy is not None and session_auth(policy.auth) for policy in policies)
+
+
 async def admit(
     route: WebSocketRoute,
     headers: dict[str, str],
     query_string: bytes,
     params: dict[str, str],
+    *,
+    session: object | None = None,
 ) -> Admitted:
     """Authenticate, choose the subprotocol and bind the arguments. Raises what
-    an HTTP action would: ``Unauthorized``, ``Forbidden``, ``HTTPError``."""
+    an HTTP action would: ``Unauthorized``, ``Forbidden``, ``HTTPError``.
+    ``session`` is the request's application session, read-only here."""
     query = parse_query(query_string)
     caller: Caller[Any] | None = None
     if route.access is not None:
         caller = await authorize(
-            route.access, headers, query, route=route.path, method="WEBSOCKET"
+            route.access,
+            headers,
+            query,
+            route=route.path,
+            method="WEBSOCKET",
+            session=session,
         )
     subprotocol, sub_access = choose(route, headers)
     if sub_access is not None:
         caller = await authorize(
-            sub_access, headers, query, route=route.path, method="WEBSOCKET"
+            sub_access,
+            headers,
+            query,
+            route=route.path,
+            method="WEBSOCKET",
+            session=session,
         )
     kwargs = {param.name: value_of(param, params, query) for param in route.params}
     if route.caller is not None:
