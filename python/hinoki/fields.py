@@ -80,27 +80,22 @@ class FieldInfo:
         return {n: getattr(self, n) for n in names if getattr(self, n) is not None}
 
 
+# A default (``name: T = Field(...)``) takes only what does not validate: the
+# wire name, a discriminator and the documentation notes. Constraints belong in
+# ``Annotated[T, Field(...)]``, where the third overload types them.
 @overload
-def Field[T](*, default_factory: Callable[[], T], alias: str | None = None) -> T: ...
+def Field[T](
+    *,
+    default_factory: Callable[[], T],
+    alias: str | None = None,
+    description: str | None = None,
+    examples: Sequence[Any] | None = None,
+    deprecated: bool | None = None,
+) -> T: ...
 @overload
 def Field(
     *,
-    alias: str,
-    min_length: int | None = None,
-    max_length: int | None = None,
-    pattern: str | None = None,
-    ge: float | Decimal | None = None,
-    le: float | Decimal | None = None,
-    gt: float | Decimal | None = None,
-    lt: float | Decimal | None = None,
-    one_of: Sequence[Any] | None = None,
-    max_digits: int | None = None,
-    decimal_places: int | None = None,
-    multiple_of: int | Decimal | None = None,
-    strip: bool | None = None,
-    lower: bool | None = None,
-    upper: bool | None = None,
-    format: str | None = None,
+    alias: str | None = None,
     discriminator: str | None = None,
     description: str | None = None,
     examples: Sequence[Any] | None = None,

@@ -251,8 +251,8 @@ class Schema(metaclass=_SchemaMeta):
         for item in dataclasses.fields(cast(Any, cls)):
             assigned = assigned_info.get(item.name)
             annotation = hints[item.name]
-            if isinstance(assigned, FieldInfo) and assigned.discriminator is not None:
-                annotation = Annotated[annotation, assigned]
+            if isinstance(assigned, FieldInfo):
+                annotation = with_assigned_notes(annotation, assigned)
             ftype = parse_annotation(
                 annotation,
                 f"{cls.__name__}.{item.name}",
@@ -522,3 +522,18 @@ class Schema(metaclass=_SchemaMeta):
             exclude_unset,
             by_alias,
         )
+
+
+def with_assigned_notes(annotation: object, assigned: FieldInfo) -> object:
+    """The annotation with what a ``name: T = Field(...)`` default declares
+    besides its alias: the discriminator and the documentation notes. The
+    alias is merged separately, so a conflicting one is reported by name."""
+    if assigned.discriminator is None and not assigned.notes():
+        return annotation
+    declared = FieldInfo(
+        discriminator=assigned.discriminator,
+        description=assigned.description,
+        examples=assigned.examples,
+        deprecated=assigned.deprecated,
+    )
+    return Annotated[annotation, declared]
