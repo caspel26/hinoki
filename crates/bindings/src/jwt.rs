@@ -46,6 +46,17 @@ impl Alg {
             Self::EdDsa => "EdDSA",
         }
     }
+
+    /// Shortest HMAC secret, the hash output size (RFC 7518 3.2); `None` for
+    /// `EdDSA`, whose key length the signature itself checks.
+    pub fn min_secret(self) -> Option<usize> {
+        match self {
+            Self::Hs256 => Some(32),
+            Self::Hs384 => Some(48),
+            Self::Hs512 => Some(64),
+            Self::EdDsa => None,
+        }
+    }
 }
 
 /// Key material. For `EdDSA`, `public` marks verify-only keys; otherwise the
@@ -380,6 +391,13 @@ pub fn decode(token: &str, keys: &[Key], rules: &Rules<'_>) -> Result<Vec<u8>, F
 fn key_from(kid: Option<String>, algorithm: &str, bytes: Vec<u8>, public: bool) -> PyResult<Key> {
     let alg = Alg::parse(algorithm)
         .ok_or_else(|| PyValueError::new_err(format!("unsupported algorithm {algorithm:?}")))?;
+    if let Some(min) = alg.min_secret() {
+        if public || bytes.len() < min {
+            return Err(PyValueError::new_err(format!(
+                "{algorithm} needs a secret of at least {min} bytes"
+            )));
+        }
+    }
     Ok(Key {
         kid,
         alg,
