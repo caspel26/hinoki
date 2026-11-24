@@ -87,7 +87,7 @@ counts = {c.id: len(c.invoices) for c in customers}
 | Method | Use for | SQL |
 | --- | --- | --- |
 | `select_related("customer")` | a forward foreign key (one row) | one `LEFT JOIN` in the same statement |
-| `prefetch_related("invoices")` | a reverse or collection relation | one separate, bounded query |
+| `prefetch_related("invoices")` | a reverse or collection relation | separate, bounded queries per owner chunk |
 
 Reading a relation that was not loaded raises `RelationNotLoaded`. `acount()`
 and `apaginate()` drop a `select_related` join from their `COUNT` (a to-one
@@ -174,8 +174,19 @@ MySQL and MariaDB) until the commit, so a target deleted at the same moment
 either makes the write fail with `UnknownLinkTarget` or removes the new link
 with it; on MySQL and MariaDB the reads that decide a write use locking reads,
 because a transaction there reads one snapshot. SQLite has a single writer.
-`prefetch_related` orders all targets of an owner by the target's default
-ordering (else its key) as one list, however many queries it took.
+For each chunk of owners, the many-to-many prefetch runs one bounded query
+from the target table with an inner join to the bridge. It returns one target
+row per link, so a target shared by owners is repeated in the result. Each
+statement sees its chunk under the database's transaction isolation; different
+chunks can observe different states. Rust builds and groups eligible model
+rows, and Python orchestrates the queries, shares instances across chunks and
+stores the loaded relations. Custom row builders use the Python fallback.
+
+`prefetch_related` orders targets by the target's default ordering (else its
+key), with the primary key as the final tie-breaker. NULL sorts before values
+in ascending order and after values in descending order, including on
+PostgreSQL. A scoped query may supply an ordering when the model has a default
+ordering.
 When the target model is soft-deleting, a deleted target is not linked: reads,
 filters and prefetches skip it, adding it raises `UnknownLinkTarget`, it does
 not count towards `max_items`, and `aset`/`aremove` leave its link alone unless

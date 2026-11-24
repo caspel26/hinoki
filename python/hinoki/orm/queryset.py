@@ -190,9 +190,11 @@ class QuerySet[M: Model]:
         return self.derive(loading=dataclasses.replace(self.loading, selected=merged))
 
     def prefetch_related(self, *names: str, **scoped: QuerySet[Any]) -> QuerySet[M]:
-        """Load relations (forward, reverse or many-to-many) with one extra
-        query each. ``prefetch_related(tags=Tag.filter(...))`` loads only the
-        targets that query matches, for a many-to-many relation."""
+        """Load relations with bounded queries per owner chunk.
+
+        ``prefetch_related(tags=Tag.filter(...))`` loads only matching targets
+        for a many-to-many relation.
+        """
         for name in names:
             if name not in self.model.__links__:
                 self.relation(name)

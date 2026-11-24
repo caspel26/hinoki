@@ -228,8 +228,7 @@ class LinkSide:
     async def prefetch(
         self, instances: list[Any], within: QuerySet[Any] | None
     ) -> None:
-        """Load ``self.name`` on ``instances`` with two queries per chunk of
-        owners: the bridge rows, then the targets."""
+        """Load ``self.name`` with one joined query per chunk of owners."""
         key = self.source.__primary_key__
         owners = [getattr(item, key) for item in instances]
         query = self.base_query(within)
