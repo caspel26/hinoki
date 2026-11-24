@@ -691,3 +691,55 @@ async def test_both_ends_lock_the_declaring_row_first(db: Database) -> None:
     finally:
         other.close()
     assert await post.tags.acount() == 1
+
+
+class LinkTable(Model, table="hinoki_link"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    label: str
+
+
+class LinkColumn(Model, table="m2mf_link_columns"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    hinoki_link__0: str
+
+
+class Holder(Model, table="m2mf_holders"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    tables: ClassVar[ManyToMany[LinkTable]] = many_to_many(LinkTable)
+    columns: ClassVar[ManyToMany[LinkColumn]] = many_to_many(LinkColumn)
+
+
+@pytest.fixture
+async def alias_db(tmp_path: Path) -> AsyncIterator[Database]:
+    database = await Database.connect(
+        f"sqlite://{tmp_path / 'alias.sqlite3'}", max_size=1, wait=0.5
+    )
+    models = [LinkTable, LinkColumn, Holder, *Holder.__bridges__]
+    plan(models, tmp_path, "initial", dialect=database.dialect)
+    await migrator.apply(database, tmp_path)
+    with use_database(database):
+        yield database
+    database.close()
+
+
+async def test_prefetch_survives_a_target_table_named_like_the_bridge_alias(
+    alias_db: Database,
+) -> None:
+    holder = await Holder.acreate()
+    item = await LinkTable.acreate(label="x")
+    await holder.tables.aadd(item)
+    loaded = await Holder.all().prefetch_related("tables")
+    assert [t.label for t in loaded[0].tables.loaded] == ["x"]
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+async def test_prefetch_keeps_a_target_column_named_like_the_projection(
+    alias_db: Database, monkeypatch: pytest.MonkeyPatch, fallback: bool
+) -> None:
+    holder = await Holder.acreate()
+    item = await LinkColumn.acreate(hinoki_link__0="mine")
+    await holder.columns.aadd(item)
+    if fallback:
+        monkeypatch.setattr(LinkColumn, "row_plan", classmethod(lambda _cls: None))
+    loaded = await Holder.all().prefetch_related("columns")
+    assert [c.hinoki_link__0 for c in loaded[0].columns.loaded] == ["mine"]
