@@ -19,7 +19,7 @@ from hinoki.errors import (
 )
 from hinoki.orm import Model, OnDelete, field, foreign_key, use_database
 from hinoki.orm.migrations import create_table_sql, plan, table_state
-from hinoki.orm.migrator import apply, apply_one, status
+from hinoki.orm.migrator import apply, apply_one, ensure_ledger, status
 from hinoki.pagination import PageParams
 
 
@@ -271,6 +271,8 @@ async def test_sqlite_status_tells_applied_pending_changed_and_missing(
     first = tmp_path / "0001-first.sql"
     first.write_text("CREATE TABLE q045_m1 (id INTEGER);\n", encoding="utf-8")
     assert await status(database, tmp_path) == [("0001-first", "pending")]
+    ledger = "SELECT name FROM sqlite_master WHERE name = 'hinoki_migrations'"
+    assert await database.fetch(ledger) == []  # status only reads
 
     assert await apply(database, tmp_path) == ["0001-first"]
     assert await status(database, tmp_path) == [("0001-first", "applied")]
@@ -292,7 +294,7 @@ async def test_sqlite_applying_a_recorded_file_again_does_nothing(
     path = tmp_path / "0001-once.sql"
     path.write_text("CREATE TABLE q045_once (id INTEGER);\n", encoding="utf-8")
 
-    await status(database, tmp_path)  # creates the ledger
+    await ensure_ledger(database)
     assert await apply_one(database, path) is True
     assert await apply_one(database, path) is False
 

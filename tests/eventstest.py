@@ -418,3 +418,30 @@ async def test_a_schema_is_an_event_class() -> None:
     with events.use(bus_of(handlers)):
         await events.emit(Pinged(text="x"))
     assert seen == ["x"]
+
+
+async def test_notify_outside_a_task_schedules_the_delivery() -> None:
+    seen: list[str] = []
+    handlers = events.Handlers()
+
+    @handlers.after_commit(Noted)
+    async def record(event: Noted) -> None:
+        seen.append(event.text)
+
+    bus = bus_of(handlers)
+    loop = asyncio.get_running_loop()
+    stepped = loop.create_future()
+
+    def step() -> None:
+        assert asyncio.current_task() is None
+        with pytest.raises(StopIteration):
+            bus.notify(Noted("native")).send(None)
+        stepped.set_result(None)
+
+    loop.call_soon(step)
+    await stepped
+    for _ in range(10):
+        if seen:
+            break
+        await asyncio.sleep(0)
+    assert seen == ["native"]

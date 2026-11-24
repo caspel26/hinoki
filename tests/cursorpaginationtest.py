@@ -402,16 +402,21 @@ async def test_long_text_keys_page_and_every_issued_token_decodes(
     database = await docs(tmp_path, titles)
     with use_database(database):
         seen: list[str] = []
+        max_length = 0
         token = None
         while True:
             found = await read(2, token)
             seen += [doc.title for doc in found.items]
             for link in (found.next, found.previous):
                 assert link is None or len(link) <= 4096
+                if link is not None:
+                    max_length = max(max_length, len(link))
+                    assert STRATEGY.parse({"cursor": [link]}).token == link
             token = found.next
             if token is None:
                 break
     assert seen == titles
+    assert max_length > 1024
     database.close()
 
 

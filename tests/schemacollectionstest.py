@@ -342,17 +342,20 @@ def test_hashable_item_shapes_are_accepted() -> None:
     assert keys.inner == frozenset({frozenset({1})})
 
 
-class Ticket(Model, table="collection_tickets"):
-    id: int = field(primary_key=True)
-    tags: set[str]
-    pair: tuple[int, int]
-    ids: tuple[int, ...] | None = None
-
-
-def test_model_columns_keep_their_json_type() -> None:
-    kinds = {name: ft.kind for name, ft in Ticket.__field_types__.items()}
-    assert kinds["tags"] == kinds["pair"] == kinds["ids"] == "json"
-    assert set(Ticket.__json_columns__) >= {"tags", "pair", "ids"}
+@pytest.mark.parametrize(
+    "column", [set[str], frozenset[int], tuple[int, int], tuple[int, ...] | None]
+)
+def test_a_model_column_no_migration_can_create_is_refused(column: object) -> None:
+    with pytest.raises(RegistrationError, match=r"Ticket\.tags: no column type"):
+        type(
+            "Ticket",
+            (Model,),
+            {
+                "__annotations__": {"id": int, "tags": column},
+                "id": field(primary_key=True),
+            },
+            table="collection_tickets",
+        )
 
 
 class Shade(enum.Enum):

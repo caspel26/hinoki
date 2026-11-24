@@ -124,6 +124,66 @@ async def test_a_nested_call_is_a_savepoint_of_the_open_scope(
     assert await names(database) == ["nested", "outer", "sibling"]
 
 
+class Recording:
+    """A native transaction that records statements and can fail a release."""
+
+    def __init__(self, native: object, fail_release: bool) -> None:
+        self.native = native
+        self.fail_release = fail_release
+        self.statements: list[str] = []
+
+    async def execute(self, sql: str, params: list[object]) -> object:
+        self.statements.append(sql)
+        if self.fail_release and sql.startswith("RELEASE"):
+            self.fail_release = False
+            raise ConnectionError("release lost")
+        return await self.native.execute(sql, params)  # type: ignore[attr-defined]
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self.native, name)
+
+
+async def test_a_savepoint_is_released_after_its_rollback(database: Database) -> None:
+    async with db.atomic():
+        state = database.active()
+        assert state is not None
+        recording = Recording(state.native, fail_release=False)
+        state.native = recording  # type: ignore[assignment]
+        with pytest.raises(ZeroDivisionError):
+            await add("inner", fail=True)
+    assert recording.statements[-2:] == [
+        "ROLLBACK TO SAVEPOINT hinoki_sp_1",
+        "RELEASE SAVEPOINT hinoki_sp_1",
+    ]
+
+
+async def remembered(database: Database, ran: list[str]) -> None:
+    async with db.atomic():
+        await insert("inner")
+        database.after_commit(lambda: ran.append("inner"))
+
+
+async def test_a_failed_release_drops_the_blocks_after_commit_callbacks(
+    database: Database,
+) -> None:
+    ran: list[str] = []
+    async with db.atomic():
+        database.after_commit(lambda: ran.append("outer"))
+        state = database.active()
+        assert state is not None
+        recording = Recording(state.native, fail_release=True)
+        state.native = recording  # type: ignore[assignment]
+        with pytest.raises(ConnectionError):
+            await remembered(database, ran)
+        await insert("outer")
+    assert ran == ["outer"]
+    assert await names(database) == ["outer"]
+    assert recording.statements[-3:-1] == [
+        "ROLLBACK TO SAVEPOINT hinoki_sp_1",
+        "RELEASE SAVEPOINT hinoki_sp_1",
+    ]
+
+
 async def test_an_outer_rollback_undoes_the_committed_savepoints(
     database: Database,
 ) -> None:

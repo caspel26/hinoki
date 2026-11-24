@@ -3,6 +3,7 @@ unusual scopes, reverse-side events and a prefetch ordered across chunks."""
 
 import os
 from collections.abc import AsyncIterator
+from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 from uuid import UUID, uuid4
@@ -33,7 +34,7 @@ from hinoki.orm import (
 from hinoki.orm import links as engine
 from hinoki.orm.context import current_database
 from hinoki.orm.migrations import plan
-from hinoki.orm.options import ordered_by
+from hinoki.orm.options import ordered_by, soft_delete
 from hinoki.settings import EventsSettings
 
 URLS = {
@@ -76,14 +77,29 @@ class Slot(Model, table="m2mg_slots"):
     )
 
 
+@soft_delete()
+class Doc(Model, table="m2mg_docs"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    name: str = ""
+    deleted_at: datetime | None = None
+
+
+class Shelf(Model, table="m2mg_shelves"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    docs: ClassVar[ManyToMany[Doc]] = many_to_many(Doc, max_items=2)
+
+
 MODELS: list[type[Model]] = [
     Item,
     Ranked,
     Code,
     Holder,
     Slot,
+    Doc,
+    Shelf,
     *Holder.__bridges__,
     *Slot.__bridges__,
+    *Shelf.__bridges__,
 ]
 TABLES = [
     *(model.__table__ for model in reversed(MODELS)),
@@ -383,10 +399,44 @@ async def test_unknown_targets_still_roll_the_write_back() -> None:
     assert await holder.items.acount() == 0
 
 
+@pytest.mark.usefixtures("database")
+async def test_a_soft_deleted_target_is_no_link() -> None:
+    shelf, other = await Shelf.acreate(), await Shelf.acreate()
+    gone, kept = await Doc.acreate(name="gone"), await Doc.acreate(name="kept")
+    await shelf.docs.aadd(gone, kept)
+    await other.docs.aadd(gone)
+    await gone.asoft_delete()
+
+    assert [d.name for d in await shelf.docs.alist()] == ["kept"]
+    assert await shelf.docs.acount() == 1
+    (loaded,) = await Shelf.all().filter(id=shelf.id).prefetch_related("docs")
+    assert [d.name for d in loaded.docs.loaded] == ["kept"]
+    assert not await Shelf.all().filter(docs__name="gone").aexists()
+    assert [s.id for s in await Shelf.all().filter(docs__isnull=True)] == [other.id]
+
+    with pytest.raises(UnknownLinkTarget):
+        await shelf.docs.aadd(gone)
+    third = await Doc.acreate(name="third")
+    await shelf.docs.aadd(third)  # the deleted link does not count to max_items
+    assert sorted(d.name for d in await shelf.docs.alist()) == ["kept", "third"]
+    (again,) = await Shelf.all().filter(id=shelf.id).prefetch_related("docs")
+    assert len(again.docs.loaded) == 2
+    with pytest.raises(LinkLimitExceeded):
+        await shelf.docs.aadd(await Doc.acreate(name="fourth"))
+
+    await gone.arestore()
+    with pytest.raises(StoredLinksOverLimit):
+        await Shelf.all().filter(id=shelf.id).prefetch_related("docs")
+    assert await shelf.docs.alist(within=Doc.with_deleted().filter(name="gone"))
+
+
 def test_a_relation_waiting_for_its_bridge_says_so() -> None:
     class Waiting(Model, table="m2mg_waiting"):
         id: UUID = field(primary_key=True, default_factory=uuid4)
         items: ClassVar[ManyToMany[Item]] = many_to_many(Item, bridge="NeverDefined")
 
-    with pytest.raises(RegistrationError, match="waiting for its bridge"):
-        _ = Waiting().items
+    try:
+        with pytest.raises(RegistrationError, match="waiting for its bridge"):
+            _ = Waiting().items
+    finally:
+        engine.PENDING.pop((__name__, "NeverDefined"), None)

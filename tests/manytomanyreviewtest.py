@@ -21,6 +21,7 @@ from hinoki.orm import (
     migrator,
     use_database,
 )
+from hinoki.orm.links import PENDING
 from hinoki.orm.migrations import plan
 from hinoki.schema import Field
 
@@ -116,8 +117,11 @@ def owner_of(bridge: str, table: str) -> type[Model]:
 
 def test_two_relations_cannot_share_one_bridge() -> None:
     owner_of("SharedBridge", "m2mr_shared_a")
-    with pytest.raises(RegistrationError, match="already the bridge"):
-        owner_of("SharedBridge", "m2mr_shared_b")
+    try:
+        with pytest.raises(RegistrationError, match="already the bridge"):
+            owner_of("SharedBridge", "m2mr_shared_b")
+    finally:
+        PENDING.pop((__name__, "SharedBridge"), None)
 
 
 def test_the_foreign_keys_of_a_bridge_must_point_at_its_sides() -> None:
