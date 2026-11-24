@@ -248,14 +248,24 @@ class LinkSide:
             found = tuple(groups.get(str(getattr(item, key)), ()))
             store(item, self.name, (found, tuple(ids_of(found, self.target))))
 
+    def bridge_alias(self, query: QuerySet[Any]) -> str:
+        """A bridge alias, and a projected ``<alias>__0``, free of other names."""
+        taken = {self.target.__table__, *(join[1] for join in query.joins())}
+        alias, number = LINK_ALIAS, 0
+        while alias in taken or f"{alias}__0" in self.target.__columns__:
+            number += 1
+            alias = f"{LINK_ALIAS}_{number}"
+        return alias
+
     async def prefetch_chunk(
         self, query: QuerySet[Any], owners: list[Any]
     ) -> dict[str, list[Any]]:
         database = current_database()
-        alias = f"{LINK_ALIAS}__0"
+        table_alias = self.bridge_alias(query)
+        column_alias = f"{table_alias}__0"
         join: core._RawJoin = (
             self.bridge.__table__,
-            LINK_ALIAS,
+            table_alias,
             self.target.__primary_key__,
             self.far,
             False,
@@ -264,7 +274,7 @@ class LinkSide:
         )
         sql, params = query.compile_through(
             join,
-            (f"{LINK_ALIAS}.{self.near}", "in", owners),
+            (f"{table_alias}.{self.near}", "in", owners),
             len(owners) * self.max_items + 1,
             database.dialect,
         )
@@ -272,11 +282,11 @@ class LinkSide:
         fetch_models = getattr(database, "fetch_models", None)
         if plan is not None and fetch_models is not None:
             result: Any = await fetch_models(
-                sql, params, plan.linked(alias, self.max_items)
+                sql, params, plan.linked(column_alias, self.max_items)
             )
         else:
             rows = await database.fetch(sql, *params)
-            result = self.prefetch_fallback(query, rows, alias)
+            result = self.prefetch_fallback(query, rows, column_alias)
         if result is None:
             raise StoredLinksOverLimit(self.name, self.max_items)
         return cast(dict[str, list[Any]], result)
