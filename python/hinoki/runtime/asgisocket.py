@@ -84,13 +84,16 @@ def origin_allowed(
     return bool(host) and value == f"{page_scheme}://{host}"
 
 
-async def accept(receive: Any, send: Any, subprotocol: str | None) -> bool:
-    """Complete the ASGI connect handshake; False when the client left."""
+async def connected(receive: Any) -> bool:
+    """Read the ``websocket.connect`` event that opens an ASGI WebSocket; False
+    when the client left first."""
     event = await receive()
-    if event["type"] != "websocket.connect":
-        return False
+    return bool(event["type"] == "websocket.connect")
+
+
+async def accept(send: Any, subprotocol: str | None) -> None:
+    """Accept a handshake whose ``websocket.connect`` was read."""
     await send({"type": "websocket.accept", "subprotocol": subprotocol})
-    return True
 
 
 async def refuse(send: Any) -> None:

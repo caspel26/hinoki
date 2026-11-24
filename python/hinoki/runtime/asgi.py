@@ -13,7 +13,13 @@ from typing import TYPE_CHECKING, Any
 
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.http.stream import EventStream, Sourced
-from hinoki.runtime.asgisocket import ASGITransport, accept, origin_allowed, refuse
+from hinoki.runtime.asgisocket import (
+    ASGITransport,
+    accept,
+    connected,
+    origin_allowed,
+    refuse,
+)
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.proxy import effective_scope
 from hinoki.runtime.requests import Scope, decode_params, header_map, read_body
@@ -90,6 +96,10 @@ class ASGIAdapter:
             raise RuntimeError(f"unsupported scope type {scope['type']!r}")
 
     async def _websocket(self, scope: Scope, receive: Any, send: Any) -> None:
+        # ASGI opens with ``websocket.connect``: it is read before any answer,
+        # a refusal included, and a client gone before it ends the call.
+        if not await connected(receive):
+            return
         pipeline = self.pipeline
         scope, _ = effective_scope(scope, pipeline.trusted_proxies)
         resolved = self._websocket_target(scope)
@@ -106,8 +116,7 @@ class ASGIAdapter:
         if isinstance(admitted, Response):
             await refuse(send)
             return
-        if not await accept(receive, send, admitted.subprotocol):
-            return
+        await accept(send, admitted.subprotocol)
         runtime = pipeline.app.runtime
         transport = ASGITransport(
             receive, send, route.max_message_bytes or runtime.ws_max_message_bytes
