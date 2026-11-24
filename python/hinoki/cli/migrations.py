@@ -36,7 +36,12 @@ from hinoki.project import (
     find_manifest_or_none,
     load_manifest,
 )
-from hinoki.settings import LOCAL_DATABASE_URL, DatabaseSettings, SettingsError
+from hinoki.settings import (
+    LOCAL_DATABASE_URL,
+    AdminSettings,
+    DatabaseSettings,
+    SettingsError,
+)
 
 URL_VARIABLE = "HINOKI_DATABASE_URL"
 DEFAULT_SOURCE = "local SQLite default"
@@ -134,6 +139,12 @@ def _application_database(manifest: ProjectManifest) -> tuple[str, str] | None:
         f"cannot tell which database the application's {type(module).__name__} "
         f"module uses; choose it with --database or {URL_VARIABLE}"
     )
+
+
+def application_admin_settings(manifest: ProjectManifest) -> AdminSettings | None:
+    """The project application's ``admin`` settings group, if it has one."""
+    group = getattr(_load_application(manifest).settings, "admin", None)
+    return group if isinstance(group, AdminSettings) else None
 
 
 def _load_application(manifest: ProjectManifest) -> Any:
