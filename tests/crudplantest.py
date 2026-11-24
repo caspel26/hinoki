@@ -2841,6 +2841,26 @@ def test_lifecycle_columns_compile_native_crud_plans() -> None:
     ], pipeline.crud_plan_reasons
 
 
+@pytest.mark.parametrize("attribute", ["__soft_delete__", "__soft_delete_clock__"])
+def test_soft_delete_snapshot_invalidates_selection(
+    attribute: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = Hinoki(
+        include=[RichPlanItems],
+        modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+    selection = next(
+        item
+        for item in pipeline.crud_plan_selections
+        if item is not None and item.action == "delete"
+    )
+    assert selection.snapshot_valid()
+    monkeypatch.setattr(RichPlanItem, attribute, lambda: None)
+    assert not selection.snapshot_valid()
+
+
 class TierPlanItem(Model, table="crud_tier_items"):
     id: int = field(primary_key=True)
     tier: Tier = Tier.BASIC

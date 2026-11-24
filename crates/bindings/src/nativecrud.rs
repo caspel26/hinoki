@@ -1498,6 +1498,37 @@ mod tests {
     }
 
     #[test]
+    fn link_writes_on_a_soft_delete_model_only_reach_live_owner_rows() {
+        use hinoki_orm::query::Op;
+
+        let owner = super::OwnerScope {
+            column: "owner".to_owned(),
+            value: "u1".to_owned(),
+        };
+        let mut soft = plan("update");
+        soft.soft_delete = Some("deleted_at".to_owned());
+        let scope = super::link_owner_scope(&soft, Some(&owner));
+        let filters: Vec<_> = scope
+            .filters
+            .iter()
+            .map(|f| (f.column.as_str(), f.op, f.values.clone()))
+            .collect();
+        assert_eq!(
+            filters,
+            vec![
+                ("owner", Op::Eq, vec![Value::Text("u1".to_owned())]),
+                ("deleted_at", Op::IsNull, Vec::new()),
+            ]
+        );
+        let unowned = super::link_owner_scope(&soft, None);
+        assert_eq!(unowned.filters.len(), 1);
+        assert_eq!(unowned.filters[0].op, Op::IsNull);
+        assert!(super::link_owner_scope(&plan("update"), None)
+            .filters
+            .is_empty());
+    }
+
+    #[test]
     fn only_a_text_row_value_equal_to_the_caller_is_owned() {
         let scope = super::OwnerScope {
             column: "owner".to_owned(),
