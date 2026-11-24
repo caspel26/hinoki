@@ -37,7 +37,7 @@ const HEADER_LEN: usize = 7;
 const MIN_SECRET: usize = 32;
 const MAX_KEYS: usize = 8;
 /// Longest token, in characters, that is both issued and accepted.
-const MAX_TOKEN_CHARS: usize = 4096;
+pub(crate) const MAX_TOKEN_CHARS: usize = 4096;
 /// Longest text sort-key value, in bytes, that a token can carry.
 const MAX_TEXT_BYTES: usize = 1024;
 const CLOCK_SKEW_SECONDS: u64 = 60;

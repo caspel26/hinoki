@@ -74,7 +74,7 @@ hinoki migrations apply billing
 
 | Command | Effect |
 | --- | --- |
-| `status [APP]` | lists applied and pending migrations (nothing when there are none); creates the ledger, and a SQLite file, if missing |
+| `status [APP]` | lists applied and pending migrations (nothing when there are none); writes nothing (connecting still creates a missing SQLite file): a database without the ledger has none applied, and `apply` creates it |
 | `sql NAME` | prints one migration's SQL; add `--app APP` only when the name is ambiguous |
 | `apply [APP]` | applies pending migrations of every app, or of `APP` and its prerequisites, in dependency order |
 

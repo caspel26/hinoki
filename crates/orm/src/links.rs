@@ -133,6 +133,12 @@ pub struct LinkTable {
     /// On the reverse end of a relation: the `max_items` its declaring end
     /// enforces on the rows this end links to.
     pub declared_max: Option<usize>,
+    /// The target's soft-delete column: a link to a target marked deleted does
+    /// not count towards `max_items`.
+    pub target_live: Option<String>,
+    /// The owner's soft-delete column: on the reverse end, a link held by an
+    /// owner marked deleted does not count towards the declaring end's limit.
+    pub owner_live: Option<String>,
 }
 
 impl LinkTable {
@@ -147,7 +153,8 @@ impl LinkTable {
             &self.target_pk,
             &self.target_column,
         ];
-        for name in names {
+        let live = self.target_live.iter().chain(&self.owner_live);
+        for name in names.into_iter().chain(live) {
             quote_with(name, Dialect::Postgres)?;
         }
         if self.max_items == 0 || self.max_items > MAX_LINK_ITEMS {
@@ -282,7 +289,11 @@ impl Ctx<'_> {
             self.tx.execute(RELEASE, &[]).await?;
             return outcome;
         }
-        let undone = self.tx.execute(ROLLBACK_TO, &[]).await;
+        let mut undone = self.tx.execute(ROLLBACK_TO, &[]).await;
+        if undone.is_ok() {
+            // ROLLBACK TO keeps the savepoint: release it so none accumulate.
+            undone = self.tx.execute(RELEASE, &[]).await;
+        }
         match (outcome, undone) {
             (Err(error), _) => Err(error),
             (Ok(outcome), Ok(_)) => Ok(outcome),
@@ -491,10 +502,11 @@ impl Ctx<'_> {
                 .collect();
             let column = self.q(&t.target_column)?;
             let sql = format!(
-                "SELECT {column} FROM {} WHERE {column} IN ({}) GROUP BY {column} \
+                "SELECT {column} FROM {} WHERE {column} IN ({}){} GROUP BY {column} \
                  HAVING count(*) > {limit}{}",
                 self.q(&t.bridge)?,
                 holders.join(", "),
+                self.live_owners()?,
                 self.locking(" FOR UPDATE"),
             );
             if !self.fetch(&sql, &values(chunk)).await?.is_empty() {
@@ -504,16 +516,27 @@ impl Ctx<'_> {
         Ok(false)
     }
 
-    async fn count(&self) -> Result<usize, DbError> {
+    /// ` AND owner IN (live owners)` when the owner soft-deletes, else nothing.
+    fn live_owners(&self) -> Result<String, DbError> {
         let t = self.table;
-        let sql = format!(
-            "SELECT count(*) FROM {} WHERE {} = {}{}",
-            self.q(&t.bridge)?,
+        let Some(live) = &t.owner_live else {
+            return Ok(String::new());
+        };
+        Ok(format!(
+            " AND {} IN (SELECT {} FROM {} WHERE {} IS NULL)",
             self.q(&t.owner_column)?,
-            placeholder(self.dialect, 1),
-            self.locking(" FOR UPDATE"),
-        );
-        let rows = self.fetch(&sql, &[self.owner_value()]).await?;
+            self.q(&t.owner_pk)?,
+            self.q(&t.owner_table)?,
+            self.q(live)?,
+        ))
+    }
+
+    /// The links this owner holds to targets that are not soft-deleted, whatever
+    /// the caller's scope: `max_items` bounds every load of the relation.
+    async fn count(&self) -> Result<usize, DbError> {
+        let (mut sql, params) = count_select(self.table, self.dialect, self.owner_value())?;
+        sql.push_str(self.locking(" FOR UPDATE"));
+        let rows = self.fetch(&sql, &params).await?;
         match rows.first().and_then(|row| row.first()) {
             Some((_, Value::Int(n))) => Ok(usize::try_from(*n).unwrap_or(usize::MAX)),
             _ => Err(DbError::new(ErrorKind::Type, "unreadable link count")),
@@ -846,6 +869,41 @@ fn scope_subfilter(table: &LinkTable, scope: &Scope) -> Vec<SubFilter<Value>> {
     }]
 }
 
+/// `SELECT count(*)` of one owner's links to live targets: with a soft-delete
+/// column, a link to a deleted target is not counted.
+fn count_select(
+    table: &LinkTable,
+    dialect: Dialect,
+    owner: Value,
+) -> Result<(String, Vec<Value>), DbError> {
+    let live = table.target_live.iter().map(|column| Filter {
+        column: column.clone(),
+        op: Op::IsNull,
+        values: Vec::new(),
+    });
+    let scope = Scope {
+        filters: live.collect(),
+        ..Scope::default()
+    };
+    let select = Select {
+        table: table.bridge.clone(),
+        columns: Vec::new(),
+        joins: Vec::new(),
+        filters: vec![Filter {
+            column: table.owner_column.clone(),
+            op: Op::Eq,
+            values: vec![owner],
+        }],
+        subfilters: scope_subfilter(table, &scope),
+        keyset: None,
+        order: Vec::new(),
+        limit: None,
+        offset: None,
+        count: true,
+    };
+    compile_select_with(&select, dialect).map_err(compile_error)
+}
+
 /// The links of every owner in `owners` that point at a target in `scope`, as
 /// one statement: `SELECT owner, target FROM bridge WHERE owner IN (...) [AND
 /// target IN (scope)]`. Read the rows with [`read_ids`].
@@ -976,6 +1034,8 @@ mod tests {
             target_kind: KeyKind::Int,
             max_items: 3,
             declared_max: None,
+            target_live: None,
+            owner_live: None,
         }
     }
 
@@ -996,6 +1056,34 @@ mod tests {
             params[params.len() - 2..],
             [Value::Text("ann".into()), Value::Int(4)]
         );
+    }
+
+    #[test]
+    fn the_link_count_skips_soft_deleted_targets() {
+        let (open, params) = count_select(&table(), Dialect::Sqlite, Value::Int(1)).unwrap();
+        assert!(!open.contains("IN (SELECT"), "{open}");
+        assert_eq!(params, vec![Value::Int(1)]);
+        let live = LinkTable {
+            target_live: Some("deleted_at".into()),
+            ..table()
+        };
+        let (sql, _) = count_select(&live, Dialect::Postgres, Value::Int(1)).unwrap();
+        assert!(
+            sql.contains(
+                "\"tag_id\" IN (SELECT \"id\" FROM \"tags\" WHERE \"deleted_at\" IS NULL)"
+            ),
+            "{sql}"
+        );
+        let bad = LinkTable {
+            target_live: Some("bad name".into()),
+            ..table()
+        };
+        assert!(bad.validate().is_err());
+        let bad_owner = LinkTable {
+            owner_live: Some("bad name".into()),
+            ..table()
+        };
+        assert!(bad_owner.validate().is_err());
     }
 
     #[test]

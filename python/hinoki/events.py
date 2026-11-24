@@ -38,6 +38,9 @@ EventKey = tuple[type, type | None]
 
 # The index the native recorder takes for each outcome.
 OUTCOMES = {"ok": 0, "error": 1, "timeout": 2}
+MAX_DETACHED_NOTIFICATIONS = 256
+"""``notify`` deliveries running in their own task at once; more are dropped."""
+_detached: set[asyncio.Task[None]] = set()
 
 
 class EventRecorder(Protocol):
@@ -401,14 +404,32 @@ class EventBus:
         """Emit ``event`` for a decision that must not change because somebody
         listens (a refused request): no failure of a handler or of the event
         machinery propagates, and the whole delivery takes at most
-        ``handler_timeout`` seconds."""
+        ``handler_timeout`` seconds. A caller that runs on the event loop but
+        outside an asyncio task (a native-lane handler) has the delivery
+        scheduled as its own task."""
+        if asyncio.current_task() is not None:
+            await self._deliver(event)
+            return
         try:
-            if asyncio.current_task() is None:
-                log.warning(
-                    "%s not delivered: no asyncio task is running",
-                    type(event).__qualname__,
-                )
-                return
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            log.warning(
+                "%s not delivered: no event loop is running", type(event).__qualname__
+            )
+            return
+        if len(_detached) >= MAX_DETACHED_NOTIFICATIONS:
+            log.warning(
+                "%s not delivered: %d notifications are already pending",
+                type(event).__qualname__,
+                len(_detached),
+            )
+            return
+        task = loop.create_task(self._deliver(event))
+        _detached.add(task)
+        task.add_done_callback(_detached.discard)
+
+    async def _deliver(self, event: object) -> None:
+        try:
             async with asyncio.timeout(self.handler_timeout):
                 await self.emit(event)
         except Exception:

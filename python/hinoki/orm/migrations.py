@@ -11,22 +11,19 @@ rows are reported as destructive and only written when explicitly allowed.
 from __future__ import annotations
 
 import dataclasses
-import enum
 import hashlib
 import inspect
 import re
 import types
-from datetime import date, datetime, time, timedelta
-from decimal import Decimal
 from importlib import import_module
-from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
-from uuid import UUID
 
 from hinoki import jsontext
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import MARK, FieldMeta, Model
+from hinoki.orm.columntypes import sql_type
+from hinoki.orm.links import check_resolved
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.orm.relations import ON_DELETE
 from hinoki.target import add_project_to_import_path
@@ -36,25 +33,6 @@ UNIQUE_KEYS: tuple[tuple[str, Any], ...] = (("unique", []), ("unique_names", {})
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}")
 NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 FILE = re.compile(r"(\d{4})-([a-z0-9]+(?:-[a-z0-9]+)*)\.sql")
-TYPES: dict[Any, str] = {
-    UUID: "uuid",
-    str: "text",
-    int: "bigint",
-    float: "double precision",
-    bool: "boolean",
-    datetime: "timestamptz",
-    date: "text",
-    time: "text",
-    timedelta: "bigint",
-    Decimal: "numeric",
-    bytes: "bytea",
-    dict: "jsonb",
-    list: "jsonb",
-    IPv4Address: "text",
-    IPv6Address: "text",
-    IPv4Network: "text",
-    IPv6Network: "text",
-}
 SQLITE_STATE_TYPES = {
     "uuid": "UUID",
     "bigint": "integer",
@@ -133,23 +111,15 @@ def base_type(model: type[Model], name: str, hint: Any) -> tuple[Any, bool]:
     return get_origin(rest[0]) or rest[0], len(rest) != len(args)
 
 
-def sql_type(kind: Any) -> str | None:
-    """The column type of an annotation's base type; an ``Enum`` is stored as
-    its values, ``bigint`` when they are all integers and ``text`` otherwise."""
-    if isinstance(kind, type) and issubclass(kind, enum.Enum):
-        values = [member.value for member in kind]
-        return "bigint" if values and all(type(v) is int for v in values) else "text"
-    return TYPES.get(kind)
-
-
 def column_state(model: type[Model], name: str, hint: Any, meta: FieldMeta) -> State:
     kind, nullable = base_type(model, name, hint)
     sql = sql_type(kind)
     if sql is None:
         label = getattr(kind, "__name__", kind)
         raise MigrationError(f"{model.__name__}.{name}: no SQL type for {label}")
-    if kind is str and meta.max_length:
-        sql = f"varchar({meta.max_length})"
+    max_length = meta.max_length or model.__field_types__[name].info.max_length
+    if kind is str and max_length:
+        sql = f"varchar({max_length})"
     references = None
     if meta.references is not None:
         references = {
@@ -274,6 +244,7 @@ def state_of(
     *,
     reference_models: list[type[Model]] | None = None,
 ) -> State:
+    check_resolved()
     owned = _unique_model_classes(models)
     references = _unique_model_classes(reference_models or [])
     _reject_unusable_tables([*owned, *references])

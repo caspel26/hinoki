@@ -243,17 +243,32 @@ def test_union_variants_that_cannot_be_hashed_are_not_set_members() -> None:
         type("Bad", (Schema,), {"__annotations__": {"ids": set[int | list[int]]}})
 
 
-def test_model_columns_keep_their_json_type() -> None:
+def test_a_dict_column_is_json() -> None:
     class Entry(Model):
         id: int = field(primary_key=True)
         data: dict[str, Any]
-        tag: int | str
-        when: dt.date | int
-        anything: Any
 
-    kinds = {name: ft.kind for name, ft in Entry.__field_types__.items()}
-    assert kinds["tag"] == kinds["when"] == kinds["anything"] == "json"
     assert "data" in Entry.__json_columns__
+
+
+@pytest.mark.parametrize(
+    ("column", "reason"),
+    [
+        (int | str, "a union of several types"),
+        (dt.date | int | None, "a union of several types"),
+        (Any, "no column type holds Any"),
+    ],
+)
+def test_a_union_or_any_column_is_refused(column: object, reason: str) -> None:
+    with pytest.raises(RegistrationError, match=rf"Entry\.tag: {reason}"):
+        type(
+            "Entry",
+            (Model,),
+            {
+                "__annotations__": {"id": int, "tag": column},
+                "id": field(primary_key=True),
+            },
+        )
 
 
 @http.post("/unions/echo")

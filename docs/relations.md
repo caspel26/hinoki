@@ -176,7 +176,13 @@ with it; on MySQL and MariaDB the reads that decide a write use locking reads,
 because a transaction there reads one snapshot. SQLite has a single writer.
 `prefetch_related` orders all targets of an owner by the target's default
 ordering (else its key) as one list, however many queries it took.
-`bridge="PostTag"` adopts a model you wrote instead of generating one, and an
+When the target model is soft-deleting, a deleted target is not linked: reads,
+filters and prefetches skip it, adding it raises `UnknownLinkTarget`, it does
+not count towards `max_items`, and `aset`/`aremove` leave its link alone unless
+`within=Tag.with_deleted()` reaches it. A restored target is linked again.
+`bridge="PostTag"` adopts a model you wrote instead of generating one (a bridge
+that is never defined raises `RegistrationError` at startup, in `hinoki check`
+and when planning migrations), and an
 association model with extra columns stays available as in earlier releases
 (declare two foreign keys and a composite unique constraint).
 

@@ -891,10 +891,19 @@ impl Transaction {
     }
 
     pub async fn rollback(mut self) -> Result<(), DbError> {
-        if self.poisoned.load(Ordering::SeqCst) {
+        if self.poisoned.load(Ordering::SeqCst) || self.mysql_interrupted().await {
             return Ok(()); // Drop discards the connection, which ends the transaction
         }
         self.finish("ROLLBACK").await
+    }
+
+    /// Whether a MySQL request of this transaction was cancelled or timed out
+    /// mid-flight: the wire is unusable, so `ROLLBACK` cannot be sent on it.
+    async fn mysql_interrupted(&self) -> bool {
+        match &self.backend {
+            TransactionBackend::Mysql(mysql) => mysql.lock().await.is_interrupted(),
+            _ => false,
+        }
     }
 
     async fn finish(&mut self, statement: &str) -> Result<(), DbError> {

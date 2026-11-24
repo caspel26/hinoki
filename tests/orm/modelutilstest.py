@@ -16,6 +16,7 @@ from hinoki.errors import (
     ModelError,
     ModelValidationError,
     RegistrationError,
+    RelationNotLoaded,
 )
 from hinoki.fields import UNSET, Field
 from hinoki.orm import (
@@ -346,7 +347,7 @@ async def test_instance_delete_restore_are_idempotent_and_unsaved_is_refused(
     assert not saved.is_deleted
 
 
-async def test_relations_hide_deleted_children_and_load_deleted_forward_parent(
+async def test_relations_hide_deleted_children_and_a_deleted_forward_parent(
     database: Database,
 ) -> None:
     parent = await UtilityParent.acreate(id=1, name="parent")
@@ -367,7 +368,13 @@ async def test_relations_hide_deleted_children_and_load_deleted_forward_parent(
     loaded_child = (
         await UtilityChild.all().select_related("parent").filter(id=live.id).aget()
     )
-    assert loaded_child.related("parent").is_deleted
+    assert loaded_child.related("parent") is None
+    (prefetched,) = await UtilityChild.all().prefetch_related("parent").filter(id=1)
+    assert prefetched.related("parent") is None
+    assert not await UtilityChild.all().filter(parent__name="parent").aexists()
+    prefetched.parent_id = 2
+    with pytest.raises(RelationNotLoaded, match="loaded for another"):
+        prefetched.related("parent")
 
 
 async def test_status_timestamp_only_changes_when_value_changes_and_allows_override(

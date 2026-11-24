@@ -12,9 +12,8 @@ import pytest
 from openapi_spec_validator import validate
 
 from hinoki import Field, Hinoki, Schema, SecretStr, http
-from hinoki.errors import MigrationError, RegistrationError, ValidationError
+from hinoki.errors import RegistrationError, ValidationError
 from hinoki.orm import Model, field
-from hinoki.orm.migrations import table_state
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.schema import encode
 from hinoki.testing import ASGIClient
@@ -179,16 +178,15 @@ def test_a_bare_path_and_secret_are_encoded() -> None:
 
 @pytest.mark.parametrize("column", [Path, SecretStr])
 def test_a_model_column_of_these_types_has_no_sql_type(column: Any) -> None:
-    vault = type(
-        "Vault",
-        (Model,),
-        {
-            "__annotations__": {"id": int, "item": column},
-            "id": field(primary_key=True),
-        },
-    )
-    with pytest.raises(MigrationError, match=r"Vault\.item: no SQL type for"):
-        table_state(vault)
+    with pytest.raises(RegistrationError, match=r"Vault\.item: no column type holds"):
+        type(
+            "Vault",
+            (Model,),
+            {
+                "__annotations__": {"id": int, "item": column},
+                "id": field(primary_key=True),
+            },
+        )
 
 
 @http.post("/secret/json")

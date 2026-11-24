@@ -11,7 +11,16 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyInt, PyString};
 
-pub(crate) type RawJoin = (String, String, String, String, bool, Vec<String>);
+/// `(table, alias, local, remote, left, columns, soft-delete column)`.
+pub(crate) type RawJoin = (
+    String,
+    String,
+    String,
+    String,
+    bool,
+    Vec<String>,
+    Option<String>,
+);
 pub(crate) type RawFilter = (String, String, Vec<Py<PyAny>>);
 type RawKeyset = (Vec<(String, bool)>, Vec<Py<PyAny>>);
 
@@ -23,7 +32,7 @@ pub(crate) struct RawSelect(String, String, Vec<RawJoin>, Vec<RawFilter>, Vec<Ra
 #[derive(FromPyObject)]
 pub(crate) struct RawSub(String, bool, RawSelect);
 
-pub(crate) fn join_of((table, alias, local, remote, left, columns): RawJoin) -> Join {
+pub(crate) fn join_of((table, alias, local, remote, left, columns, live): RawJoin) -> Join {
     Join {
         table,
         alias,
@@ -31,6 +40,7 @@ pub(crate) fn join_of((table, alias, local, remote, left, columns): RawJoin) -> 
         remote,
         left,
         columns,
+        live,
     }
 }
 

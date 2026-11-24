@@ -25,7 +25,8 @@ from hinoki.orm import (
     migrator,
     use_database,
 )
-from hinoki.orm.migrations import plan
+from hinoki.orm.links import PENDING, check_resolved
+from hinoki.orm.migrations import plan, state_of
 
 
 class Label(Model, table="m2mb_labels"):
@@ -108,7 +109,15 @@ def test_a_bridge_that_is_not_defined_yet_leaves_the_link_pending() -> None:
         id: UUID = field(primary_key=True, default_factory=uuid4)
         labels: ClassVar[ManyToMany[Label]] = many_to_many(Label, bridge="NoSuchBridge")
 
-    assert Lost.__links__ == {}
+    try:
+        assert Lost.__links__ == {}
+        with pytest.raises(RegistrationError, match=r"Lost\.labels .*NoSuchBridge"):
+            check_resolved()
+        with pytest.raises(RegistrationError, match="never defined"):
+            state_of([Label])
+    finally:
+        PENDING.pop((__name__, "NoSuchBridge"), None)
+    check_resolved()
 
 
 def test_renaming_the_owner_table_renames_the_generated_bridge() -> None:

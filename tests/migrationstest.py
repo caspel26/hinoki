@@ -6,14 +6,15 @@ import sys
 from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 from uuid import UUID
 
 import pytest
 
 from hinoki.__main__ import database_dialect, main
 from hinoki.db import Database, ForeignKeyViolation
-from hinoki.errors import DestructiveMigration, MigrationError
+from hinoki.errors import DestructiveMigration, MigrationError, RegistrationError
+from hinoki.fields import Field
 from hinoki.orm import Model, OnDelete, field, foreign_key, migrator, use_database
 from hinoki.orm.migrations import (
     _sqlite_rebuild_warnings,
@@ -26,6 +27,7 @@ from hinoki.orm.migrations import (
     plan,
     statements,
     table_changes,
+    table_state,
 )
 from hinoki.project import load_manifest
 
@@ -687,7 +689,7 @@ async def test_mysql_family_failed_migration_reports_implicit_ddl_commit(
         "CREATE TABLE broken syntax;\n",
         encoding="utf-8",
     )
-    await migrator.status(database, tmp_path)
+    await migrator.ensure_ledger(database)
     with pytest.raises(MigrationError, match="may be partially applied"):
         await migrator.apply_one(database, path)
     rows = await database.fetch(
@@ -792,8 +794,6 @@ def test_unplannable_changes_ask_for_hand_written_sql(tmp_path: Path) -> None:
 def test_model_declaration_problems_fail_the_plan(tmp_path: Path) -> None:
     owner = owners()
     cases: list[list[type[Model]]] = [
-        [model("a", {"id": (int, field(primary_key=True)), "x": (object, None)})],
-        [model("a", {"id": (int, field(primary_key=True)), "x": (int | str, None)})],
         [
             things(
                 owner, owner_id=(UUID, foreign_key(owner, on_delete=OnDelete.CASCADE))
@@ -803,6 +803,32 @@ def test_model_declaration_problems_fail_the_plan(tmp_path: Path) -> None:
     for models in cases:
         with pytest.raises(MigrationError):
             plan(models, tmp_path, "bad", write=False)
+
+
+@pytest.mark.parametrize("annotation", [object, int | str, list[int] | dict[str, int]])
+def test_a_column_no_migration_can_create_is_refused_when_declared(
+    annotation: object,
+) -> None:
+    with pytest.raises(RegistrationError, match=r"A\.x: (no column type|a union)"):
+        model("a", {"id": (int, field(primary_key=True)), "x": (annotation, None)})
+
+
+def test_an_annotated_max_length_sizes_the_column() -> None:
+    sized = model(
+        "mig_sized",
+        {
+            "id": (int, field(primary_key=True)),
+            "code": (Annotated[str, Field(max_length=32)], None),
+            "note": (Annotated[str, Field(max_length=8)] | None, None),
+        },
+    )
+    columns = table_state(sized)["columns"]
+    assert columns["code"]["type"] == "varchar(32)"
+    assert columns["note"] == {
+        **columns["note"],
+        "type": "varchar(8)",
+        "nullable": True,
+    }
 
 
 def test_names_and_identifiers_are_validated(tmp_path: Path) -> None:

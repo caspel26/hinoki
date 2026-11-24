@@ -158,9 +158,11 @@ On a model decorated with `@db.soft_delete()`, `adelete()` / `delete()` sets the
 delete timestamp with a scoped `UPDATE`; use `arestore()` / `restore()` to clear
 it, and `ahard_delete()` / `hard_delete()` for a physical `DELETE`. Model
 queries are live-only by default; `Model.with_deleted()` and
-`Model.only_deleted()` are explicit class-level scopes. Reverse relations and
-many-to-many target prefetches use the live scope. A forward `select_related`
-still loads a referenced soft-deleted row.
+`Model.only_deleted()` are explicit class-level scopes. Relations use the live
+scope too: reverse relations, many-to-many links, and forward
+`select_related`/`prefetch_related`, where a referenced soft-deleted row reads
+as `None`. A filter across a relation (`parent__name=...`) joins live rows
+only.
 
 For `@db.track_status()`, instance saves bump `changed_at` only when the value
 actually changes. Bulk `QuerySet.aupdate()` cannot compare stored values and

@@ -7,6 +7,7 @@ import importlib.util
 import os
 import sys
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,6 +20,7 @@ from hinoki import Field
 from hinoki.db import Database
 from hinoki.errors import FieldError, ModelValidationError, RegistrationError
 from hinoki.orm import Model, field, use_database
+from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.orm.model import (
     _constraint_passes,
     _matches_model_annotation,
@@ -103,6 +105,66 @@ def test_length_messages_count_characters_in_text_and_items_in_lists() -> None:
     with pytest.raises(ModelValidationError) as raised:
         Sized.validate_values({"code": "toolong", "one": "x", "tags": ["a", "b"]})
     assert raised.value.details[0].message == "Must contain at most 4 characters."
+
+
+class Priced(Model, table="model_validator_priced"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    price: Decimal = field(
+        constraints=Field(ge=Decimal("0.05"), lt=100, multiple_of=Decimal("0.05"))
+    )
+    pieces: int = field(constraints=Field(multiple_of=6), default=6)
+    tag: str = field(
+        max_length=8, constraints=Field(strip=True, lower=True, min_length=2)
+    )
+
+
+def test_decimal_bounds_and_multiples_are_checked() -> None:
+    def codes(**values: Any) -> list[tuple[str, str]]:
+        with pytest.raises(ModelValidationError) as raised:
+            Priced.validate_values({"tag": "ok", **values})
+        return [(item.path, item.code) for item in raised.value.details]
+
+    assert codes(price=Decimal("0.01")) == [("price", "ge"), ("price", "multiple_of")]
+    assert codes(price=Decimal(100)) == [("price", "lt")]
+    assert codes(price=Decimal("0.07"), pieces=8) == [
+        ("price", "multiple_of"),
+        ("pieces", "multiple_of"),
+    ]
+    assert codes(price=Decimal("NaN")) == [("price", "type")]
+    assert codes(price=Decimal("1E+2000")) == [
+        ("price", "lt"),
+        ("price", "multiple_of"),
+    ]
+    assert Priced.validate_values({"price": Decimal("99.95"), "pieces": 0})
+
+
+def test_text_is_normalised_before_it_is_checked_and_written() -> None:
+    assert Priced.validate_values({"tag": "  MiXed "}) == {"tag": "mixed"}
+    with pytest.raises(ModelValidationError) as raised:
+        Priced.validate_values({"tag": "  A  "})
+    assert [(item.path, item.code) for item in raised.value.details] == [
+        ("tag", "min_length")
+    ]
+
+
+async def test_writes_store_the_normalised_text(tmp_path: Path) -> None:
+    database = await Database.connect(f"sqlite://{tmp_path / 'v.sqlite3'}")
+    await database.execute(
+        create_table_sql(Priced.__table__, table_state(Priced), "sqlite")
+    )
+    with use_database(database):
+        record = await Priced.acreate(price=Decimal("1.50"), tag="  ONE ")
+        assert record.tag == "one"
+        quiet = Priced(price=Decimal("1.50"), tag=" Two ")
+        await quiet.insert(returning=False)
+        assert quiet.tag == "two"
+        await Priced.filter(id=record.id).aupdate({"tag": " THREE "})
+        stored = sorted(
+            row["tag"]
+            for row in await database.fetch("SELECT tag FROM model_validator_priced")
+        )
+    assert stored == ["three", "two"]
+    database.close()
 
 
 def test_model_validation_is_strict_about_types_and_maps_to_422() -> None:

@@ -357,13 +357,16 @@ class Twice(enum.Enum):
 class Ticket(Model, table="enum_tickets"):
     id: int = field(primary_key=True)
     colour: Colour
-    mode: Literal["a", "b"] | None = None
 
 
-def test_an_enum_column_is_read_as_the_enum_and_a_literal_stays_json() -> None:
+def test_an_enum_column_is_read_as_the_enum_and_a_literal_column_is_refused() -> None:
     colour = Ticket.__field_types__["colour"]
     assert colour.enum_class is Colour
-    assert Ticket.__field_types__["mode"].kind == "json"
+    with pytest.raises(RegistrationError, match=r"Moded\.mode: no column type"):
+
+        class Moded(Model, table="enum_moded"):
+            id: int = field(primary_key=True)
+            mode: Literal["a", "b"] | None = None
 
 
 class Holder(Schema):

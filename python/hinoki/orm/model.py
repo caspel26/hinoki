@@ -20,6 +20,7 @@ import typing
 from collections.abc import Awaitable, Callable, Coroutine, Iterable, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext
 from decimal import Decimal
+from fractions import Fraction
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -48,11 +49,14 @@ from hinoki.errors import (
 )
 from hinoki.fields import UNSET, FieldInfo
 from hinoki.fieldtypes import (
+    MAX_STEP_EXPONENT,
     TEXT_STORED,
     FieldType,
+    normalize_text,
     parse_annotation,
     split_annotated,
 )
+from hinoki.orm.columntypes import unstorable
 from hinoki.orm.context import current_database
 from hinoki.orm.naming import resolve_model_names
 from hinoki.orm.queryset import (
@@ -398,12 +402,35 @@ def _validate_pattern(
 def _validate_bounds(
     name: str, value: Any, info: FieldInfo, problems: list[ErrorDetail]
 ) -> None:
-    if not isinstance(value, int | float) or isinstance(value, bool):
+    if not isinstance(value, int | float | Decimal) or isinstance(value, bool):
+        return
+    if isinstance(value, Decimal) and not value.is_finite():
+        problems.append(ErrorDetail(name, "type", "Expected a finite number."))
         return
     for rule in ("ge", "le", "gt", "lt"):
         bound = getattr(info, rule)
         if bound is not None and not _constraint_passes(rule, value, bound):
             problems.append(ErrorDetail(name, rule, f"Must satisfy {rule} {bound}."))
+    step = info.multiple_of
+    if (
+        step is not None
+        and not isinstance(value, float)
+        and not _is_multiple(value, step)
+    ):
+        problems.append(
+            ErrorDetail(name, "multiple_of", f"Must be a multiple of {step}.")
+        )
+
+
+def _is_multiple(value: int | Decimal, step: int | Decimal) -> bool:
+    """Exact: ``Decimal`` arithmetic rounds to the context precision. A value
+    whose exponent is out of the range a step may have is never a multiple of
+    one (zero aside), which also keeps the exact arithmetic small."""
+    if not value:
+        return True
+    if isinstance(value, Decimal) and abs(value.adjusted()) > MAX_STEP_EXPONENT:
+        return False
+    return Fraction(value) % Fraction(step) == 0
 
 
 def _validate_custom_and_choices(
@@ -501,6 +528,18 @@ def resolve_model_field_type(
         else ()
     )
     return FieldType("json", nullable=type(None) in members)
+
+
+def check_storable(
+    cls: type[Model], column: dataclasses.Field[Any], hint: object
+) -> None:
+    """Refuse a column no migration can create. An annotation that is still
+    text (imported only for type checking) is left to the migration planner,
+    and a ``many_to_many`` without ``ClassVar`` to the link registration."""
+    if isinstance(hint, str) or getattr(column.default, "__hinoki_link__", False):
+        return
+    if reason := unstorable(hint):
+        raise RegistrationError(f"{cls.__name__}.{column.name}: {reason}")
 
 
 def check_model_validators(
@@ -937,32 +976,37 @@ class Model:
     def check_field_validations(
         cls, columns: tuple[dataclasses.Field[Any], ...], annotations: dict[str, object]
     ) -> dict[str, FieldType]:
-        """Validate constraints against annotations and reject async callbacks."""
+        """Validate constraints against annotations, refuse a column type no
+        migration can create and reject async callbacks."""
         found = {}
         for column in columns:
             meta: FieldMeta = column.metadata.get(MARK, FieldMeta())
             hint = resolve_annotation(
                 cls, column.name, annotations.get(column.name, column.type)
             )
+            check_storable(cls, column, hint)
             found[column.name] = resolve_model_field_type(cls, column.name, hint, meta)
             check_model_validators(cls, column.name, meta.validators)
         return found
 
     @classmethod
-    def validate_values(cls, values: dict[str, Any]) -> None:
-        """Run declared field checks on values about to be written."""
+    def validate_values(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """Run declared field checks on values about to be written and return
+        them as they are stored: ``strip``, ``lower`` and ``upper`` applied."""
         if not cls.__field_validation_fields__:
-            return
+            return values
         problems: list[ErrorDetail] = []
-        for name, value in values.items():
-            if name not in cls.__field_validation_fields__:
-                continue
+        values = dict(values)
+        checked = cls.__field_validation_fields__
+        for name in [n for n in values if n in checked]:
             field_type = cls.__field_types__[name]
-            if value is None and field_type.nullable:
+            if values[name] is None and field_type.nullable:
                 continue
+            if isinstance(values[name], str):
+                values[name] = normalize_text(values[name], field_type.info)
             _validate_field_value(
                 name,
-                value,
+                values[name],
                 field_type,
                 cls.__field_annotations__[name],
                 cls.__field_validators__[name],
@@ -970,6 +1014,7 @@ class Model:
             )
         if problems:
             raise ModelValidationError(problems)
+        return values
 
     @classmethod
     def adopt_mixin_fields(cls) -> None:
@@ -1643,8 +1688,11 @@ class Model:
 
     async def write_insert(self, returning: bool) -> None:
         cls = type(self).concrete()
-        assignments = [(c, getattr(self, c)) for c in cls.__columns__]
-        cls.validate_values(dict(assignments))
+        values = cls.validate_values({c: getattr(self, c) for c in cls.__columns__})
+        for column, value in values.items():
+            if value is not getattr(self, column):
+                setattr(self, column, value)
+        assignments = list(values.items())
         database = current_database()
         sql, params = write_statement(
             cls,

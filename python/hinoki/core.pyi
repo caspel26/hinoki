@@ -24,6 +24,9 @@ type Row = dict[str, Any]
 
 def core_version() -> str: ...
 
+CURSOR_MAX_TOKEN: int
+"""Longest cursor token, in characters, that the native codec issues or accepts."""
+
 class MemoryCache:
     """Native bounded byte cache with monotonic expiry and clock eviction."""
 
@@ -409,13 +412,13 @@ def compile_query(
     order: list[tuple[str, bool]] | None = None,
     limit: int | None = None,
     offset: int | None = None,
-    joins: list[tuple[str, str, str, str, bool, list[str]]] | None = None,
+    joins: list[_RawJoin] | None = None,
     keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
     subfilters: list[_RawSub] | None = None,
     dialect: str = "postgres",
 ) -> tuple[str, list[Any]]: ...
 
-_RawJoin = tuple[str, str, str, str, bool, list[str]]
+_RawJoin = tuple[str, str, str, str, bool, list[str], str | None]
 _RawFilter = tuple[str, str, list[Any]]
 # (table, selected column, joins, filters, subfilters)
 _RawSelect = tuple[str, str, list[_RawJoin], list[_RawFilter], list["_RawSub"]]
@@ -426,7 +429,9 @@ _KeyEnd = tuple[str, str, str, str, int | None]
 
 class LinkSpec:
     """Tables, columns and key types of one many-to-many relation; each end is
-    ``(table, primary key, bridge column, "uuid" | "int" | "text", max length)``."""
+    ``(table, primary key, bridge column, "uuid" | "int" | "text", max length)``.
+    ``target_live`` and ``owner_live`` are the soft-delete columns of the
+    target and the owner, if they have one."""
     def __init__(
         self,
         bridge: str,
@@ -435,6 +440,8 @@ class LinkSpec:
         target: _KeyEnd,
         max_items: int,
         declared_max: int | None = None,
+        target_live: str | None = None,
+        owner_live: str | None = None,
     ) -> None: ...
 
 def coerce_link_keys(

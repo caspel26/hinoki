@@ -18,7 +18,13 @@ from hinoki.db import Database, current_owner
 from hinoki.errors import FieldError, ModelError, MultipleObjectsReturned
 from hinoki.orm.context import current_database
 from hinoki.orm.keyset import fetch_page
-from hinoki.orm.relations import ALIAS_PREFIX, STORE, Relation, store
+from hinoki.orm.relations import (
+    ALIAS_PREFIX,
+    STORE,
+    Relation,
+    forward_value,
+    store,
+)
 from hinoki.pagination import CursorPage, CursorParams, Page, PageParams
 from hinoki.utils import _read_utc
 
@@ -55,7 +61,7 @@ class SubQuery:
     table: str
     select: str
     model: type[Model]
-    joins: tuple[tuple[str, str, str, str, bool, list[str]], ...] = ()
+    joins: tuple[tuple[str, str, str, str, bool, list[str], str | None], ...] = ()
     filters: tuple[tuple[str, str, list[Any]], ...] = ()
     checks: tuple[tuple[str, str, list[Any]], ...] = ()
     """The filters on ``model``'s own columns, for the SQLite Decimal check."""
@@ -239,10 +245,11 @@ class QuerySet[M: Model]:
 
     def joins(
         self, counting: bool = False
-    ) -> list[tuple[str, str, str, str, bool, list[str]]]:
+    ) -> list[tuple[str, str, str, str, bool, list[str], str | None]]:
         """Joins for selected relations (with columns) and filtered ones (without).
         A count needs only the filtered ones: loading a to-one relation cannot
-        change the number of rows."""
+        change the number of rows. A soft-deleted related row does not match the
+        join, so it reads as absent."""
         wanted = (
             self.loading.joined
             if counting
@@ -268,6 +275,7 @@ class QuerySet[M: Model]:
                     relation.model.__primary_key__,
                     True,
                     columns,
+                    relation.model.__soft_delete__,
                 )
             )
         return result
@@ -296,18 +304,17 @@ class QuerySet[M: Model]:
         own = {column: row[column] for column in self.model.__columns__}
         instance = self.model.from_row(own)
         for name in self.loading.selected:
-            related_model = self.forward(name).model
+            relation = self.forward(name)
+            related_model = relation.model
             prefix = f"{ALIAS_PREFIX}{name}{SEPARATOR}"
             values = {
                 c: row[f"{prefix}{index}"]
                 for index, c in enumerate(related_model.__columns__)
             }
             key = related_model.__primary_key__
-            store(
-                instance,
-                name,
-                None if values[key] is None else related_model.from_row(values),
-            )
+            found = None if values[key] is None else related_model.from_row(values)
+            foreign = getattr(instance, relation.column)
+            store(instance, name, forward_value(related_model, foreign, found))
         return instance
 
     async def load(self, instances: list[M]) -> None:
@@ -328,11 +335,13 @@ class QuerySet[M: Model]:
     async def prefetch_forward(self, relation: Relation, instances: list[M]) -> None:
         key = relation.model.__primary_key__
         wanted = {getattr(i, relation.column) for i in instances} - {None}
-        found = await fetch_in(relation.model, key, list(wanted))
-        by_key = {getattr(row, key): row for row in found}
+        rows = await fetch_in(relation.model, key, list(wanted), live_only=True)
+        by_key = {getattr(row, key): row for row in rows}
         for instance in instances:
+            foreign = getattr(instance, relation.column)
+            found = by_key.get(foreign)
             store(
-                instance, relation.name, by_key.get(getattr(instance, relation.column))
+                instance, relation.name, forward_value(relation.model, foreign, found)
             )
 
     async def prefetch_reverse(self, relation: Relation, instances: list[M]) -> None:
@@ -377,7 +386,8 @@ class QuerySet[M: Model]:
         for name in self.loading.selected:
             related = self.forward(name).model
             related_plan = related.row_plan()
-            if related_plan is None:
+            # a soft-deleted row is stored as ``Hidden``, which only ``build`` does
+            if related_plan is None or related.__soft_delete__ is not None:
                 return None
             key = list(related.__columns__).index(related.__primary_key__)
             joins.append((name, related_plan, f"{ALIAS_PREFIX}{name}{SEPARATOR}", key))
@@ -454,7 +464,7 @@ class QuerySet[M: Model]:
                 timestamp: _read_utc(self.model.__clock__),
             }
         values = tracked_values(self.model, values)
-        self.model.validate_values(values)
+        values = self.model.validate_values(values)
         if self.loading.joined or self.subfilters:
             raise FieldError("updates cannot filter across a relation")
         database = current_database()
