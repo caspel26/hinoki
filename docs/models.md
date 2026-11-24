@@ -87,9 +87,11 @@ never changes the database: create the tables with
 | `Decimal` | exact, per backend (below) | `Decimal` |
 
 A stored value that does not read back as its annotation raises `FieldError`.
-`date` and `timedelta` compare and order by value. A set, tuple, `Literal`,
-plain union or `Any` column has no SQL type: the migration planner reports
-`no SQL type`. SQLite's `contains` folds ASCII case only.
+`date` and `timedelta` compare and order by value. A column type without a
+SQL type (a set, tuple, `Literal`, `Path`, `SecretStr`, `Any`, `object`, or a
+union of several types such as `int | str`) raises `RegistrationError` when the
+class is defined. `Annotated[str, Field(max_length=32)]` sizes the column like
+`field(max_length=32)`. SQLite's `contains` folds ASCII case only.
 
 ### `Decimal` columns
 
@@ -188,9 +190,13 @@ class Product(Model):
 * **When.** Immediately before inserts and ORM updates, filtered bulk updates
   included; never on construction, assignment or reads. Invalid declarations
   fail when the class is created.
-* **Checks.** String and list lengths, patterns, membership and numeric bounds.
-  A JSON column (`dict[...]`, `list[dict[...]]`) takes no built-in checks;
-  validators still run on it.
+* **Checks.** String and list lengths, patterns, membership, numeric bounds
+  on `int`, `float` and `Decimal` (a `NaN` or infinite `Decimal` is refused),
+  and `multiple_of` on `int` and `Decimal`. `strip`, `lower` and `upper`
+  normalize a `str` before the other checks, and the normalized text is what
+  is written (an instance being saved gets it too). A JSON column
+  (`dict[...]`, `list[dict[...]]`) takes no built-in checks; validators still
+  run on it.
 * **Failure.** `ModelValidationError`, before any SQL, with `details` holding
   each field's `path`, `code` and `message`. In a request it becomes the
   standard 422 response; the admin shows the messages.
