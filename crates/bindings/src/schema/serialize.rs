@@ -7,11 +7,21 @@ use super::scalars::wire_text;
 
 const DUMP_DEPTH: usize = 1000;
 
-struct SerializationOptions<'a> {
+/// How nested values are written; shared by every level of one dump.
+#[derive(Clone, Copy)]
+struct Mode {
     json_mode: bool,
     by_alias: bool,
     exclude_unset: bool,
     controlled: bool,
+    /// Storage dumps (the cache) keep only declared fields, at every depth,
+    /// ignore `dump()` overrides and refuse `SecretStr` values, so the result
+    /// validates back into the same schema.
+    storage: bool,
+}
+
+struct SerializationOptions<'a> {
+    mode: Mode,
     exclude: &'a [String],
     include: Option<&'a [String]>,
 }
@@ -22,10 +32,7 @@ struct SerializationOptions<'a> {
 /// object with a `dump()` method is replaced by what it returns.
 fn convert<'py>(
     value: &Bound<'py, PyAny>,
-    json_mode: bool,
-    by_alias: bool,
-    exclude_unset: bool,
-    controlled: bool,
+    mode: Mode,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = value.py();
@@ -38,37 +45,19 @@ fn convert<'py>(
         return Ok(value.clone());
     }
     if let Ok(list) = value.cast::<PyList>() {
-        return convert_list(
-            py,
-            list.iter(),
-            json_mode,
-            by_alias,
-            exclude_unset,
-            controlled,
-            depth,
-        );
+        return convert_list(py, list.iter(), mode, depth);
     }
-    if let Some(grouped) =
-        convert_grouped(value, json_mode, by_alias, exclude_unset, controlled, depth)?
-    {
+    if let Some(grouped) = convert_grouped(value, mode, depth)? {
         return Ok(grouped);
     }
     if let Ok(dict) = value.cast::<PyDict>() {
-        return convert_dict(
-            py,
-            dict,
-            json_mode,
-            by_alias,
-            exclude_unset,
-            controlled,
-            depth,
-        );
+        return convert_dict(py, dict, mode, depth);
     }
-    if instance_fields(value, false, by_alias, false)?.is_some() {
-        return convert_schema(value, json_mode, by_alias, exclude_unset, controlled, depth);
+    if instance_fields(value, false, mode.by_alias, false)?.is_some() {
+        return convert_schema(value, mode, depth);
     }
-    if json_mode {
-        return convert_json_object(value);
+    if mode.json_mode {
+        return convert_json_object(value, mode.storage);
     }
     Ok(value.clone())
 }
@@ -77,10 +66,7 @@ fn convert<'py>(
 /// members compare); Python mode keeps the container.
 fn convert_grouped<'py>(
     value: &Bound<'py, PyAny>,
-    json_mode: bool,
-    by_alias: bool,
-    exclude_unset: bool,
-    controlled: bool,
+    mode: Mode,
     depth: usize,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     let py = value.py();
@@ -89,7 +75,7 @@ fn convert_grouped<'py>(
     if !is_set && !value.is_instance_of::<pyo3::types::PyTuple>() {
         return Ok(None);
     }
-    if is_set && !json_mode {
+    if is_set && !mode.json_mode {
         return Ok(Some(value.clone()));
     }
     let members = if is_set {
@@ -97,16 +83,8 @@ fn convert_grouped<'py>(
     } else {
         value.try_iter()?.collect::<PyResult<Vec<_>>>()?
     };
-    let items = convert_list(
-        py,
-        members.into_iter(),
-        json_mode,
-        by_alias,
-        exclude_unset,
-        controlled,
-        depth,
-    )?;
-    if json_mode {
+    let items = convert_list(py, members.into_iter(), mode, depth)?;
+    if mode.json_mode {
         return Ok(Some(items));
     }
     Ok(Some(py.get_type::<pyo3::types::PyTuple>().call1((items,))?))
@@ -115,22 +93,12 @@ fn convert_grouped<'py>(
 fn convert_list<'py>(
     py: Python<'py>,
     items: impl Iterator<Item = Bound<'py, PyAny>>,
-    json_mode: bool,
-    by_alias: bool,
-    exclude_unset: bool,
-    controlled: bool,
+    mode: Mode,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let out = PyList::empty(py);
     for item in items {
-        out.append(convert(
-            &item,
-            json_mode,
-            by_alias,
-            exclude_unset,
-            controlled,
-            depth + 1,
-        )?)?;
+        out.append(convert(&item, mode, depth + 1)?)?;
     }
     Ok(out.into_any())
 }
@@ -138,39 +106,26 @@ fn convert_list<'py>(
 fn convert_dict<'py>(
     py: Python<'py>,
     items: &Bound<'py, PyDict>,
-    json_mode: bool,
-    by_alias: bool,
-    exclude_unset: bool,
-    controlled: bool,
+    mode: Mode,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
     let out = PyDict::new(py);
     for (key, item) in items.iter() {
-        out.set_item(
-            key,
-            convert(
-                &item,
-                json_mode,
-                by_alias,
-                exclude_unset,
-                controlled,
-                depth + 1,
-            )?,
-        )?;
+        out.set_item(key, convert(&item, mode, depth + 1)?)?;
     }
     Ok(out.into_any())
 }
 
 fn convert_schema<'py>(
     value: &Bound<'py, PyAny>,
-    json_mode: bool,
-    by_alias: bool,
-    exclude_unset: bool,
-    controlled: bool,
+    mode: Mode,
     depth: usize,
 ) -> PyResult<Bound<'py, PyAny>> {
-    if json_mode && instance_fields(value, true, by_alias, false)?.is_none() {
-        if controlled {
+    if mode.json_mode
+        && !mode.storage
+        && instance_fields(value, true, mode.by_alias, false)?.is_none()
+    {
+        if mode.controlled {
             let class_name = value.get_type().name()?.to_string();
             return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                 "controlled serialization cannot inspect {class_name} because it overrides dump(); use its dump() or a projection Schema"
@@ -181,10 +136,7 @@ fn convert_schema<'py>(
     Ok(dump_instance_at(
         value,
         SerializationOptions {
-            json_mode,
-            by_alias,
-            exclude_unset,
-            controlled,
+            mode,
             exclude: &[],
             include: None,
         },
@@ -193,7 +145,15 @@ fn convert_schema<'py>(
     .into_any())
 }
 
-fn convert_json_object<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+fn convert_json_object<'py>(
+    value: &Bound<'py, PyAny>,
+    storage: bool,
+) -> PyResult<Bound<'py, PyAny>> {
+    if storage && value.is_instance(crate::pytypes::secret_class(value.py())?)? {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "SecretStr values cannot be stored: they would be written masked",
+        ));
+    }
     if let Some(text) = crate::pytypes::exact_uuid_text(value)? {
         return Ok(pyo3::types::PyString::new(value.py(), &text).into_any());
     }
@@ -222,7 +182,8 @@ fn dump_instance_at<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let py = value.py();
     let (names, unset, computed) = dump_schema_fields(value, &options)?;
-    let supplied = supplied_fields(value, options.exclude_unset)?;
+    let mode = options.mode;
+    let supplied = supplied_fields(value, mode.exclude_unset)?;
     let out = PyDict::new(py);
     let first_computed = names.len() - computed;
     for (index, (name, wire_name)) in names.into_iter().enumerate() {
@@ -239,17 +200,7 @@ fn dump_instance_at<'py>(
         if item.is(&unset) {
             continue;
         }
-        out.set_item(
-            &wire_name,
-            convert(
-                &item,
-                options.json_mode,
-                options.by_alias,
-                options.exclude_unset,
-                options.controlled,
-                depth,
-            )?,
-        )?;
+        out.set_item(&wire_name, convert(&item, mode, depth)?)?;
     }
     Ok(out)
 }
@@ -258,15 +209,16 @@ fn dump_schema_fields(
     value: &Bound<'_, PyAny>,
     options: &SerializationOptions<'_>,
 ) -> PyResult<(SchemaWireNames, Py<PyAny>, usize)> {
+    let mode = options.mode;
     if let Some(fields) = instance_fields(
         value,
-        options.controlled,
-        options.by_alias,
-        options.json_mode,
+        mode.controlled && !mode.storage,
+        mode.by_alias,
+        mode.json_mode && !mode.storage,
     )? {
         return Ok(fields);
     }
-    if options.controlled {
+    if mode.controlled {
         let class_name = value.get_type().name()?.to_string();
         return Err(pyo3::exceptions::PyTypeError::new_err(format!(
             "controlled serialization cannot inspect {class_name} because it overrides dump(); use its dump() or a projection Schema"
@@ -336,10 +288,13 @@ pub fn dump_instance<'py>(
     dump_instance_at(
         value,
         SerializationOptions {
-            json_mode,
-            by_alias,
-            exclude_unset: false,
-            controlled: false,
+            mode: Mode {
+                json_mode,
+                by_alias,
+                exclude_unset: false,
+                controlled: false,
+                storage: false,
+            },
             exclude: &exclude,
             include: None,
         },
@@ -360,12 +315,38 @@ pub fn serialize_instance<'py>(
     dump_instance_at(
         value,
         SerializationOptions {
-            json_mode: true,
-            by_alias,
-            exclude_unset,
-            controlled: exclude_unset || !by_alias,
+            mode: Mode {
+                json_mode: true,
+                by_alias,
+                exclude_unset,
+                controlled: exclude_unset || !by_alias,
+                storage: false,
+            },
             exclude: &exclude,
             include: include.as_deref(),
+        },
+        0,
+    )
+}
+
+/// JSON-compatible declared fields of a schema instance, for storage that is
+/// validated back into the same schema (the cache): no computed values at any
+/// depth, `dump()` overrides ignored, and `ValueError` for a `SecretStr`
+/// value, which would otherwise be written as its mask.
+#[pyfunction]
+pub fn dump_for_storage<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
+    dump_instance_at(
+        value,
+        SerializationOptions {
+            mode: Mode {
+                json_mode: true,
+                by_alias: true,
+                exclude_unset: false,
+                controlled: false,
+                storage: true,
+            },
+            exclude: &[],
+            include: None,
         },
         0,
     )

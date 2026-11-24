@@ -232,6 +232,7 @@ def dump_instance(
     exclude: list[str] = ...,
     by_alias: bool = True,
 ) -> dict[str, Any]: ...
+def dump_for_storage(value: Any) -> dict[str, Any]: ...
 def serialize_instance(
     value: Any,
     include: list[str] | None,
@@ -650,6 +651,15 @@ def content_disposition(filename: str) -> str:
 
     The name gets an ASCII fallback, and the exact UTF-8 name when they differ.
     Raises `ValueError` for an empty name or one with `/` or a control character.
+    """
+
+def storage_disposition(disposition: str, filename: str, content_type: str) -> str:
+    """The `content-disposition` value of a stored file served as `content_type`.
+
+    `inline` is kept only for image/png, image/jpeg, image/gif, image/webp,
+    image/avif, application/pdf and text/plain; any other type is downgraded to
+    `attachment`. An empty `filename` sends no name. Raises `ValueError` for an
+    unknown disposition or a name `content_disposition` refuses.
     """
 
 class Tally:
