@@ -89,6 +89,7 @@ enum Shape {
     Int(Bounds),
     Float(Bounds),
     Bool,
+    Datetime,
     List {
         min: Option<i64>,
         max: Option<i64>,
@@ -156,8 +157,8 @@ pub(super) struct Typed {
 }
 
 /// The decode plan of a schema, or `None` when some field is outside the subset:
-/// text, integers, floats, booleans, lists and nested schemas, with length and
-/// numeric bounds, every class built directly.
+/// text, integers, floats, booleans, datetimes, lists and nested schemas, with
+/// length and numeric bounds, every class built directly.
 pub(super) fn typed(
     py: Python<'_>,
     definitions: &[Definition<PyRules>],
@@ -263,6 +264,7 @@ fn plan_of(node: &Node<NativeRules>) -> Option<Plan> {
         Kind::Int => Shape::Int(bounds_of(node)?),
         Kind::Float => Shape::Float(bounds_of(node)?),
         Kind::Bool => Shape::Bool,
+        Kind::Datetime if is_unconstrained(node) => Shape::Datetime,
         Kind::Schema(index) => Shape::Schema(*index),
         Kind::List(item) => {
             let (min, max) = sized();
@@ -278,6 +280,18 @@ fn plan_of(node: &Node<NativeRules>) -> Option<Plan> {
         nullable: node.nullable,
         shape,
     })
+}
+
+fn is_unconstrained(node: &Node<NativeRules>) -> bool {
+    node.min_length.is_none()
+        && node.max_length.is_none()
+        && node.input_max_length.is_none()
+        && node.ge.is_none()
+        && node.le.is_none()
+        && node.gt.is_none()
+        && node.lt.is_none()
+        && node.max_digits.is_none()
+        && node.decimal_places.is_none()
 }
 
 fn bounds_of(node: &Node<NativeRules>) -> Option<Bounds> {
@@ -382,6 +396,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
             Shape::Int(bounds) => self.integer(bounds),
             Shape::Float(bounds) => self.float(bounds),
             Shape::Bool => self.boolean(),
+            Shape::Datetime => Err(Stop::Fallback),
             Shape::List { min, max, item } => self.list(*min, *max, item, depth),
             Shape::Schema(index) => self.object(*index, depth),
         }
