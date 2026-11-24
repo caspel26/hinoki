@@ -9,7 +9,7 @@ rules checked after authentication (401 -> no/invalid credentials,
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Iterable
+from collections.abc import Awaitable, Iterable, Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -104,9 +104,26 @@ def session_auth(auth: object, depth: int = 0) -> bool:
     return any(session_auth(part, depth + 1) for part in _composed(auth))
 
 
+def _slot_names(cls: type) -> Iterator[str]:
+    for klass in cls.__mro__:
+        slots = klass.__dict__.get("__slots__", ())
+        names = (slots,) if isinstance(slots, str) else slots
+        yield from (name for name in names if name not in _SLOT_INTERNALS)
+
+
+_SLOT_INTERNALS = frozenset({"__dict__", "__weakref__"})
+
+
+def _attribute_values(auth: object) -> list[object]:
+    """Instance attribute values, from ``__dict__`` and from ``__slots__``."""
+    values = list(getattr(auth, "__dict__", {}).values())
+    values.extend(getattr(auth, name, None) for name in _slot_names(type(auth)))
+    return values
+
+
 def _composed(auth: object) -> list[BaseAuth[object]]:
     """The providers ``auth`` holds directly, as attributes or in sequences."""
-    values = list(getattr(auth, "__dict__", {}).values())
+    values = _attribute_values(auth)
     found: list[BaseAuth[object]] = []
     for value in values:
         if isinstance(value, BaseAuth):
