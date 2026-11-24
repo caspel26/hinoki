@@ -82,11 +82,14 @@ class Doc(Model, table="m2mg_docs"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     name: str = ""
     deleted_at: datetime | None = None
+    shelves: ClassVar["ManyToMany[Shelf]"]
 
 
 class Shelf(Model, table="m2mg_shelves"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
-    docs: ClassVar[ManyToMany[Doc]] = many_to_many(Doc, max_items=2)
+    docs: ClassVar[ManyToMany[Doc]] = many_to_many(
+        Doc, related_name="shelves", max_items=2
+    )
 
 
 MODELS: list[type[Model]] = [
@@ -428,6 +431,19 @@ async def test_a_soft_deleted_target_is_no_link() -> None:
     with pytest.raises(StoredLinksOverLimit):
         await Shelf.all().filter(id=shelf.id).prefetch_related("docs")
     assert await shelf.docs.alist(within=Doc.with_deleted().filter(name="gone"))
+
+
+@pytest.mark.usefixtures("database")
+async def test_a_reverse_add_does_not_count_a_soft_deleted_declarer_link() -> None:
+    shelf = await Shelf.acreate()
+    gone, kept, third = [await Doc.acreate(name=n) for n in ("gone", "kept", "3")]
+    await shelf.docs.aadd(gone, kept)
+    await gone.asoft_delete()
+
+    await third.shelves.aadd(shelf)
+    assert sorted(d.name for d in await shelf.docs.alist()) == ["3", "kept"]
+    with pytest.raises(LinkLimitExceeded):
+        await (await Doc.acreate(name="fourth")).shelves.aadd(shelf)
 
 
 def test_a_relation_waiting_for_its_bridge_says_so() -> None:
