@@ -164,17 +164,38 @@ async fn the_sql_step_matches_the_in_memory_step() {
     }
 }
 
+async fn rows(target: &Target) -> i64 {
+    let sql = format!("SELECT COUNT(*) AS n FROM {}", target.table.as_str());
+    let found = target.db.fetch(&sql, &[]).await.unwrap();
+    match found[0][0].1 {
+        hinoki_orm::Value::Int(count) => count,
+        ref other => panic!("count is {other:?}"),
+    }
+}
+
 #[tokio::test]
-async fn sweeping_removes_expired_buckets_and_the_cap_refuses_new_keys_only() {
+async fn sweeping_removes_expired_buckets_and_the_cap_shares_one_bucket_for_new_keys() {
     for target in targets().await {
         let limiter = Limiter::database(target.db.clone(), &target.table, limits(3, 1));
         let rule = rule(1, 10);
         for name in ["a", "b", "c"] {
             limiter.check(&rule, &keyed(name), SECOND).await.unwrap();
         }
-        let full = limiter.check(&rule, &keyed("d"), SECOND).await.unwrap();
-        assert_eq!(full.verdict, Verdict::Refused, "{}", target.name);
-        assert_eq!(full.retry_after_s, 10, "{}", target.name);
+        // New keys share the scope's overflow bucket, ten times as large.
+        let names: Vec<String> = (0..11).map(|n| format!("new-{n}")).collect();
+        let mut overflowed = Vec::new();
+        for name in &names {
+            overflowed.push(limiter.check(&rule, &keyed(name), SECOND).await.unwrap());
+        }
+        let allowed = overflowed
+            .iter()
+            .filter(|d| d.verdict == Verdict::Allowed)
+            .count();
+        assert_eq!(allowed, 10, "{}", target.name);
+        let refused = overflowed.last().unwrap();
+        assert_eq!(refused.verdict, Verdict::Refused, "{}", target.name);
+        assert_eq!(refused.retry_after_s, 1, "{}", target.name);
+        assert_eq!(rows(&target).await, 4, "{}", target.name);
         let known = limiter.check(&rule, &keyed("a"), 2 * SECOND).await.unwrap();
         assert_eq!(known.verdict, Verdict::Refused, "{}", target.name);
         // After the window every bucket has expired and the next hit sweeps them.
