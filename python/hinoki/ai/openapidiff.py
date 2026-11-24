@@ -50,6 +50,10 @@ class Comparison:
         if before is not None and after is not None:
             self.seen = set()
             self.schema(f"{label} request body", before, after, incoming=True)
+        elif (
+            before is None and after is not None and new["requestBody"].get("required")
+        ):
+            self.out.append(f"{label}: new required request body")
 
     def responses(self, label: str, old: dict[str, Any], new: dict[str, Any]) -> None:
         for status, response in old.items():
@@ -62,15 +66,28 @@ class Comparison:
             if before is not None and after is not None:
                 self.seen = set()
                 self.schema(f"{label} response {status}", before, after, incoming=False)
+            elif before is not None and status.startswith("2"):
+                self.out.append(f"{label}: response {status} dropped its JSON body")
 
     def parameters(
         self, label: str, old: list[dict[str, Any]], new: list[dict[str, Any]]
     ) -> None:
-        known = {(p["in"], p["name"]) for p in old}
+        known = {(p["in"], p["name"]): p for p in old}
         for parameter in new:
             key = (parameter["in"], parameter["name"])
-            if parameter.get("required") and key not in known:
-                self.out.append(f"{label}: new required {key[0]} parameter {key[1]!r}")
+            where = f"{label}: {key[0]} parameter {key[1]!r}"
+            before = known.get(key)
+            if before is None:
+                if parameter.get("required"):
+                    self.out.append(
+                        f"{label}: new required {key[0]} parameter {key[1]!r}"
+                    )
+                continue
+            if parameter.get("required") and not before.get("required"):
+                self.out.append(f"{where} became required")
+            if "schema" in before and "schema" in parameter:
+                self.seen = set()
+                self.schema(where, before["schema"], parameter["schema"], incoming=True)
 
     def schema(
         self, where: str, old: dict[str, Any], new: dict[str, Any], incoming: bool
