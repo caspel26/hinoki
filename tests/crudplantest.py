@@ -2940,8 +2940,10 @@ def _mask_rich_response(
     response: tuple[int, list[tuple[str, str]], bytes],
 ) -> tuple[int, list[tuple[str, str]], bytes]:
     status, headers, body = response
+    # The Date header moves with the clock, so two runs a second apart differ.
+    headers = [(name, value) for name, value in headers if name != "date"]
     if not body.startswith(b"{"):
-        return response
+        return status, headers, body
     data = core.decode_json(body)
     for item in data.get("items", [data]):
         for name in ("id", "share"):
