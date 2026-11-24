@@ -5,7 +5,7 @@ template: guides.html
 
 # Guides
 
-One page per task. Start with data and endpoints, then add access, rules and runtime concerns as you need them. New to Hinoki? Take the [tutorial](tutorial/index.md) or the [quick start](quick-start.md) first, or read the three [examples](https://github.com/caspel26/hinoki/tree/main/examples) in order: Notes (easy), Tracker (medium) and Blog (complete).
+One page per task. Start with data and endpoints, then add access, rules and runtime concerns as you need them. New to Hinoki? Take the [tutorial](tutorial/index.md) or the [quick start](quick-start.md) first, or read the [examples](https://github.com/caspel26/hinoki/tree/main/examples) in order: Notes (easy), Tracker (medium) and Blog (complete), plus the focused Mailroom (outbound email).
 
 ## Data
 

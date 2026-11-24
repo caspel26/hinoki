@@ -23,6 +23,7 @@ EXPECTED = {
     "blog": [
         ("blog", "blog.apps.blog.models"),
         ("admin", "hinoki.admin.users.models"),
+        ("ratelimit", "hinoki.ratelimit_store.models"),
     ],
 }
 

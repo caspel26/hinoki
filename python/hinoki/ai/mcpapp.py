@@ -3,7 +3,7 @@
     mcp = expose_as_mcp(app, tools=["shop.api.list_orders"], access=agent_access)
     app.include(*mcp)
 
-See ``docs/APP-MCP-DESIGN.md``. A tool call is an in-process request through
+See ``docs/app-mcp.md``. A tool call is an in-process request through
 the application's own ASGI adapter with the caller's credentials, so access
 policies, validation, limits and transactions apply exactly as for any client.
 """

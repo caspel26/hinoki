@@ -9,6 +9,7 @@ from blog.apps.blog import models
 from blog.settings import BlogSettings
 from blogworld import ADMIN_SECRET, JWT_SECRET, PASSWORD, World
 
+from hinoki import ratelimit_store
 from hinoki.admin.users import migrations as admin_migrations
 from hinoki.crypto import PasswordHasher
 from hinoki.db import Database
@@ -21,6 +22,7 @@ os.environ.setdefault("BLOG_ADMIN__SECRET", ADMIN_SECRET)
 
 BLOG_MIGRATIONS = Path(models.__file__).parent / "migrations"
 ADMIN_MIGRATIONS = Path(admin_migrations.__file__).parent
+LIMIT_MIGRATIONS = Path(ratelimit_store.__file__).parent / "migrations"
 
 
 @pytest.fixture
@@ -30,6 +32,7 @@ async def world(tmp_path: Path) -> AsyncIterator[World]:
     # The blog's app name is its root package, so its migrations have no namespace.
     await migrator.apply(database, BLOG_MIGRATIONS, namespace="")
     await migrator.apply(database, ADMIN_MIGRATIONS, namespace="admin")
+    await migrator.apply(database, LIMIT_MIGRATIONS, namespace="ratelimit")
     hasher = PasswordHasher()
     with use_database(database):
         press = await models.Publication.acreate(name="Press", slug="press")

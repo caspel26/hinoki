@@ -15,6 +15,9 @@ Reference for Hinoki's public Python surface. Public names are imported from `hi
 | Rules and diagnostics | `hinoki.rules` | [Rules](rules.md) |
 | Modules, events and runtime | `hinoki.modules` / `hinoki.events` | [Runtime](runtime.md) |
 | Outbound email | `hinoki.mail` | [Email](email.md) |
+| Application sessions | `hinoki.sessions` | [Sessions](sessions.md) |
+| Cache | `hinoki.cache` | [Cache](cache.md) |
+| Uploaded file storage | `hinoki.storage` | [File storage](storage.md) |
 | MCP and project scaffold | `hinoki.ai.mcpapp` / `hinoki.ai.mcp` | [Tools](tools.md) |
 | Admin | `hinoki.admin` | [Admin](admin.md) |
 | Tests | `hinoki.testing` | [Testing](testing.md) |

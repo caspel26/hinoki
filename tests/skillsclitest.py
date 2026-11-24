@@ -23,8 +23,11 @@ def test_install_writes_the_skills_into_the_project(
     target = create("shop", tmp_path)
     monkeypatch.chdir(target / "shop")
     assert main(["skills", "install"]) == 0
-    written = target / ".claude/skills/hinoki-fix-rule/SKILL.md"
-    assert "shop.main:app" in written.read_text()
+    review = target / ".claude/skills/hinoki-review-api/SKILL.md"
+    assert "shop.main:app" in review.read_text()
+    add = (target / ".claude/skills/hinoki-add-endpoint/SKILL.md").read_text()
+    assert "shop/apps/<app>/api.py" in add
+    assert "--rules" not in add
     assert "hinoki-add-endpoint" in capsys.readouterr().out
 
 

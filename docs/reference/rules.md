@@ -20,6 +20,8 @@
 
 ::: hinoki.rules.Imports
 
+::: hinoki.rules.EmailTemplatesMatch
+
 ::: hinoki.rules.Phase
 
 ::: hinoki.rules.Severity

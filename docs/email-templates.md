@@ -73,12 +73,14 @@ List the templates when you create the application. Nothing registers by import:
 
 ```python
 # mailroom/main.py
-app = Hinoki(
-    settings=MailroomSettings,
-    title="Mailroom",
-    include=routes,
-    email_templates=templates,
-)
+def build_app(settings: MailroomSettings) -> Hinoki:
+    """The application; the routes need the API key and the public base URL."""
+    return Hinoki(
+        settings=settings,
+        title="Mailroom",
+        include=build_routes(settings),
+        email_templates=templates,
+    )
 ```
 
 The auto-installed `EmailModule` receives the list. If you declare the module yourself, pass `EmailModule(settings, templates=[...])`. Every worker reads and checks the files in its lifespan, and the worker does not start when one fails. At most 256 templates are registered, with distinct names.
@@ -87,15 +89,15 @@ A route builds the context, renders it with `Template.message(context, to=...)` 
 
 ```python
 # mailroom/routes.py
-@http.post("/signup", status=202)
-async def sign_up(data: SignUp) -> Sent:
-    """Send the welcome message of a new account."""
-    welcome = Welcome(
-        user=Account(name=data.name, trial_days=data.trial_days),
-        steps=[Step(title="Create a project", url=START)],
-    )
-    sent = await mail.send(WELCOME.message(welcome, to=(data.email,)))
-    return Sent(message_id=sent.message_id)
+    @http.post("/signup", status=202, access=access)
+    async def sign_up(data: SignUp) -> Sent:
+        """Send the welcome message of a new account."""
+        welcome = Welcome(
+            user=Account(name=data.name, trial_days=data.trial_days),
+            steps=[Step(title="Create a project", url=START)],
+        )
+        sent = await mail.send(WELCOME.message(welcome, to=(data.email,)))
+        return Sent(message_id=sent.message_id)
 ```
 
 `message` takes the other `Message` options (`cc`, `bcc`, `reply_to`, `headers`, `attachments`, `sender`) as keywords. A test sends through the `memory` backend, which keeps the message in the mailer's outbox:
@@ -109,7 +111,7 @@ def messages() -> list[mail.Message]:
 
 async def test_sign_up_sends_the_welcome_message(client: ASGIClient) -> None:
     response = await client.post(
-        "/signup", json={"email": "ada@example.com", "name": "Ada <1>"}
+        "/signup", json={"email": "ada@example.com", "name": "Ada <1>"}, headers=KEY
     )
 
     assert response.status == 202
@@ -122,7 +124,7 @@ async def test_sign_up_sends_the_welcome_message(client: ASGIClient) -> None:
     assert "<h1>Welcome, Ada &lt;1&gt;</h1>" in message.html
 ```
 
-To see a message printed while developing, run `MAILROOM_EMAIL__BACKEND=console MAILROOM_EMAIL__DEFAULT_SENDER=noreply@example.com uv run hinoki dev` from `examples/mailroom` and `POST` to `/signup`. The console output is not reproduced here because its `Date` and `Message-ID` headers change on every run.
+To see a message printed while developing, run `MAILROOM_API_KEY=dev-key MAILROOM_EMAIL__BACKEND=console MAILROOM_EMAIL__DEFAULT_SENDER=noreply@example.com uv run hinoki dev` from `examples/mailroom` and `POST` to `/signup` with the header `x-api-key: dev-key`. The console output is not reproduced here because its `Date` and `Message-ID` headers change on every run.
 
 ## The language
 
@@ -241,6 +243,7 @@ uv run hinoki check --rules myproject.rules:rules --allow-effects
 `hinoki mail preview NAME [TARGET]` renders a registered template from the command line, with no server and no sending. Without `--context` it builds a sample from the `examples=` of the context fields (a field that is not required and has no example is left out). Run it from `examples/mailroom` with the `memory` backend and a sender set:
 
 ```sh
+export MAILROOM_API_KEY=dev-key
 export MAILROOM_EMAIL__BACKEND=memory
 export MAILROOM_EMAIL__DEFAULT_SENDER=noreply@example.com
 uv run hinoki mail check

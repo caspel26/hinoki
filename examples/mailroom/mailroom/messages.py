@@ -35,7 +35,12 @@ class Device(Schema):
 class ResetPassword(Schema):
     name: Annotated[str, Field(max_length=80, examples=("Ada",))]
     link: Annotated[
-        str, Field(format="url", examples=("https://example.com/reset?token=sample",))
+        str,
+        Field(
+            format="url",
+            max_length=2048,
+            examples=("https://example.com/reset?token=sample",),
+        ),
     ]
     requested_from: Annotated[str | None, Field(examples=("Lisbon",))] = None
     devices: Annotated[list[Device], Field(max_length=10)]
