@@ -22,7 +22,9 @@ fn url() -> Option<String> {
 }
 
 async fn database(table: &str, max_size: usize) -> Option<Database> {
-    let db = Database::connect(&url()?, max_size, Duration::from_millis(150)).unwrap();
+    // The wait also covers opening the first connection, which a busy CI host can
+    // take longer than a short pool wait to do; the tests bound their own waits.
+    let db = Database::connect(&url()?, max_size, Duration::from_secs(5)).unwrap();
     db.execute(&format!("DROP TABLE IF EXISTS `{table}`"), &[])
         .await
         .unwrap();
