@@ -11,7 +11,7 @@ import types
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, ClassVar, Literal, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -30,6 +30,7 @@ from hinoki import (
     SchemaExtra,
     Unset,
     core,
+    db,
     http,
 )
 from hinoki import resources as crud_module
@@ -39,12 +40,13 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Conflict
 from hinoki.fields import UNSET
 from hinoki.filters import Eq, FilterSet, In, Range, Search
+from hinoki.http.request import Request
 from hinoki.modules import ModuleContext
-from hinoki.orm import Model, QuerySet, field
+from hinoki.orm import ManyToMany, Model, QuerySet, field, many_to_many
 from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.orm.queryset import write_statement
 from hinoki.pagination import CursorPagination, PageNumberPagination
-from hinoki.resources import CrudBase, caller_id, crud
+from hinoki.resources import CrudBase, all_rows, caller_id, crud
 from hinoki.runtime import crudplan as crudplan_module
 from hinoki.runtime import servercore as servercore_module
 from hinoki.runtime.binding import Binding
@@ -54,6 +56,7 @@ from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.responses import Response
 from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, CorsSettings, ServerSettings
+from hinoki.testing import ASGIClient
 from hinoki.utils import utc_now
 
 DATABASE_URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -64,6 +67,82 @@ class PlanItem(Model, table="crud_plan_items"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     name: str
     label: str = "model-default"
+
+
+@db.soft_delete()
+class SoftPlanItem(Model, table="crud_soft_plan_items"):
+    id: int = field(primary_key=True)
+    name: str
+    deleted_at: datetime | None = None
+
+
+@db.track_status()
+class TrackedPlanItem(Model, table="crud_tracked_plan_items"):
+    id: int = field(primary_key=True)
+    status: str
+    status_changed_at: datetime
+
+
+@db.soft_delete()
+class SoftCrudItem(Model, table="crud_soft_items"):
+    id: int = field(primary_key=True)
+    name: str
+    deleted_at: datetime | None = None
+
+
+@db.soft_delete()
+class SoftTag(Model, table="crud_soft_tags"):
+    id: int = field(primary_key=True)
+    name: str
+    deleted_at: datetime | None = None
+
+
+class LinkedCrudItem(Model, table="crud_linked_items"):
+    id: int = field(primary_key=True)
+    name: str
+    tags: ClassVar[ManyToMany[SoftTag]] = many_to_many(SoftTag, ids_name="tag_ids")
+
+
+class SoftCrudItemOut(Schema):
+    id: int
+    name: str
+
+
+class LinkedCrudItemOut(Schema):
+    id: int
+    name: str
+    tag_ids: set[int]
+
+
+LinkedCrudAPI = crud(
+    LinkedCrudItem,
+    path="/linked-items",
+    read=LinkedCrudItemOut,
+    links={"tags": all_rows(SoftTag)},
+).api()
+
+
+SoftCrudAPI = crud(
+    SoftCrudItem,
+    path="/soft-items",
+    read=SoftCrudItemOut,
+    delete=True,
+    public_writes=True,
+).api()
+
+
+class SoftSyncAPI(API):
+    @http.post("/soft-items/{item_id}/sync-delete")
+    def delete_soft_item(self, request: Request, item_id: int) -> dict[str, bool]:
+        row = SoftCrudItem.get(id=item_id)
+        row.soft_delete()
+        return {"deleted": row.is_deleted}
+
+    @http.post("/soft-items/{item_id}/sync-restore")
+    def restore_soft_item(self, request: Request, item_id: int) -> dict[str, bool]:
+        row = SoftCrudItem.with_deleted().filter(id=item_id).get()
+        row.restore()
+        return {"deleted": row.is_deleted}
 
 
 class PlanItemOut(Schema):
@@ -148,6 +227,52 @@ def test_function_form_keeps_native_plan_eligibility() -> None:
         "update",
         "delete",
     ]
+
+
+def test_lifecycle_models_fail_closed_on_native_crud_lane() -> None:
+    assert not crudplan_module.plain_crud_model(SoftPlanItem, cast(Any, None), "delete")
+    assert not crudplan_module.plain_crud_model(
+        TrackedPlanItem, cast(Any, None), "update"
+    )
+    pipeline = Pipeline(
+        Hinoki(
+            include=[LinkedCrudAPI],
+            modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+        )
+    )
+    candidate, _reason = crudplan_module.crud_candidate(pipeline.bindings[0])
+    assert candidate is not None
+    assert crudplan_module.native_links(candidate.resource) is None
+    selection, _reason = select_crud_plan(pipeline.bindings[0], pipeline)
+    assert selection is None
+
+
+async def test_generated_crud_delete_soft_deletes_and_reads_as_404(
+    tmp_path: Path,
+) -> None:
+    url = f"sqlite://{tmp_path / 'crud-soft-delete.sqlite3'}"
+    database = await Database.connect(url)
+    await database.execute(
+        "CREATE TABLE crud_soft_items (id integer PRIMARY KEY, name text NOT NULL, "
+        "deleted_at text)"
+    )
+    await database.execute("INSERT INTO crud_soft_items VALUES (1, 'visible', NULL)")
+    await database.execute("INSERT INTO crud_soft_items VALUES (2, 'sync', NULL)")
+    database.close()
+
+    app = Hinoki(include=[SoftCrudAPI, SoftSyncAPI], modules=[DatabaseModule(url)])
+    async with ASGIClient(app) as client:
+        deleted = await client.request("DELETE", "/soft-items/1")
+        hidden = await client.request("GET", "/soft-items/1")
+        sync_deleted = await client.request("POST", "/soft-items/2/sync-delete")
+        sync_hidden = await client.request("GET", "/soft-items/2")
+        sync_restored = await client.request("POST", "/soft-items/2/sync-restore")
+        sync_visible = await client.request("GET", "/soft-items/2")
+    assert (deleted.status, hidden.status) == (204, 404)
+    assert (sync_deleted.status, sync_deleted.body) == (200, {"deleted": True})
+    assert sync_hidden.status == 404
+    assert (sync_restored.status, sync_restored.body) == (200, {"deleted": False})
+    assert sync_visible.status == 200
 
 
 def test_unprefixed_retrieve_route_matches_its_generated_suffix() -> None:
