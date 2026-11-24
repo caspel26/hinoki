@@ -670,6 +670,14 @@ fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
     Ok(())
 }
 
+fn quoted_json_key(text: &str) -> Box<[u8]> {
+    let mut out = Vec::with_capacity(text.len() + 2);
+    out.push(b'"');
+    push_escaped(&mut out, text);
+    out.push(b'"');
+    out.into_boxed_slice()
+}
+
 /// The JSON-escaped contents of `text`, without quotes: `"`, `\`, and control
 /// characters are escaped (`\n`-style where JSON has one, `\u00xx` otherwise);
 /// everything else, DEL and `/` included, is copied as is.
@@ -1131,8 +1139,8 @@ impl<'py> Encoder<'py> {
         {
             return self.write_isoformat(value);
         }
-        if let Some((names, unset, _)) = crate::schema::instance_fields(value, true, true, true)? {
-            self.schema_object(value, names, &unset, depth)?;
+        if let Some(plan) = crate::schema::json_field_plan(value, quoted_json_key)? {
+            self.schema_object(value, &plan, depth)?;
         } else if value.is_instance(crate::pytypes::uuid_class(value.py())?)? {
             write_string(&mut self.out, &value.str()?.to_string())?;
         } else if value.is_instance(crate::pytypes::datetime_class(value.py())?)? {
@@ -1213,10 +1221,8 @@ impl<'py> Encoder<'py> {
         let Ok(rows) = items.cast::<PyList>() else {
             return Ok(false);
         };
-        for row in rows.iter() {
-            if crate::schema::instance_fields(&row, true, true, true)?.is_none() {
-                return Ok(false);
-            }
+        if !all_native_schemas(rows)? {
+            return Ok(false);
         }
         let shown = PyDict::new(py);
         shown.set_item(intern!(py, "items"), rows)?;
@@ -1230,12 +1236,11 @@ impl<'py> Encoder<'py> {
     fn schema_object(
         &mut self,
         value: &Bound<'py, PyAny>,
-        names: Vec<(String, String)>,
-        unset: &Py<PyAny>,
+        plan: &crate::schema::JsonFieldPlan,
         depth: usize,
     ) -> PyResult<()> {
         self.schemas += 1;
-        let result = self.schema_fields(value, names, unset, depth);
+        let result = self.schema_fields(value, plan, depth);
         self.schemas -= 1;
         result
     }
@@ -1243,35 +1248,90 @@ impl<'py> Encoder<'py> {
     fn schema_fields(
         &mut self,
         value: &Bound<'py, PyAny>,
-        names: Vec<(String, String)>,
-        unset: &Py<PyAny>,
+        plan: &crate::schema::JsonFieldPlan,
         depth: usize,
     ) -> PyResult<()> {
         Self::enter(depth)?;
-        let mut present = Vec::new();
-        for (name, wire_name) in names {
-            let item = value.getattr(name.as_str())?;
-            if !item.is(unset) {
-                present.push((wire_name, item));
+        if plan.streamable && !self.sort_keys && self.default.is_none() {
+            self.schema_fields_streaming(value, plan, depth)
+        } else {
+            self.schema_fields_staged(value, plan, depth)
+        }
+    }
+
+    fn schema_fields_streaming(
+        &mut self,
+        value: &Bound<'py, PyAny>,
+        plan: &crate::schema::JsonFieldPlan,
+        depth: usize,
+    ) -> PyResult<()> {
+        let py = value.py();
+        self.open(b'{');
+        let mut written = false;
+        for entry in &plan.entries {
+            let item = value.getattr(entry.attr.bind(py))?;
+            if item.is(&plan.unset) {
+                continue;
+            }
+            if written {
+                self.out.push(b',');
+            }
+            self.newline(depth + 1);
+            self.out.extend_from_slice(&entry.quoted_key);
+            self.colon();
+            self.write(&item, depth + 1)?;
+            written = true;
+        }
+        self.close(b'}', depth, !written);
+        Ok(())
+    }
+
+    fn schema_fields_staged(
+        &mut self,
+        value: &Bound<'py, PyAny>,
+        plan: &crate::schema::JsonFieldPlan,
+        depth: usize,
+    ) -> PyResult<()> {
+        let py = value.py();
+        let mut present = Vec::with_capacity(plan.entries.len());
+        for entry in &plan.entries {
+            let item = value.getattr(entry.attr.bind(py))?;
+            if !item.is(&plan.unset) {
+                present.push((entry, item));
             }
         }
         if self.sort_keys {
-            present.sort_by(|a, b| a.0.cmp(&b.0));
+            present.sort_by(|a, b| a.0.wire_name.cmp(&b.0.wire_name));
         }
         let empty = present.is_empty();
         self.open(b'{');
-        for (index, (name, item)) in present.into_iter().enumerate() {
+        for (index, (entry, item)) in present.into_iter().enumerate() {
             if index > 0 {
                 self.out.push(b',');
             }
             self.newline(depth + 1);
-            write_string(&mut self.out, &name)?;
+            self.out.extend_from_slice(&entry.quoted_key);
             self.colon();
             self.write(&item, depth + 1)?;
         }
         self.close(b'}', depth, empty);
         Ok(())
     }
+}
+
+fn all_native_schemas(rows: &Bound<'_, PyList>) -> PyResult<bool> {
+    let mut verified_type: Option<Bound<'_, pyo3::types::PyType>> = None;
+    for row in rows.iter() {
+        let row_type = row.get_type();
+        if verified_type.as_ref().is_some_and(|seen| row_type.is(seen)) {
+            continue;
+        }
+        if crate::schema::json_field_plan(&row, quoted_json_key)?.is_none() {
+            return Ok(false);
+        }
+        verified_type = Some(row_type);
+    }
+    Ok(true)
 }
 
 /// Whether `value` is an instance of `module.class`, imported on demand; the

@@ -29,12 +29,13 @@ mod typeddecode;
 mod validate;
 mod views;
 
+pub(crate) use compile::json_field_plan;
 pub use compile::{check_pattern, compile_schemas, instance_fields};
 pub use model::Compiled;
 #[allow(unused_imports)]
 pub(crate) use model::{
-    Defer, Direct, NativeLimit, NativeRules, NativeSchema, Number, Options, Problem, PyRules,
-    Validated,
+    Defer, Direct, JsonFieldPlan, NativeLimit, NativeRules, NativeSchema, Number, Options, Problem,
+    PyRules, Validated,
 };
 use model::{Definition, Kind, Node, MAX_DEPTH};
 #[allow(unused_imports)]

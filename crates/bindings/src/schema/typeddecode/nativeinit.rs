@@ -15,6 +15,7 @@
 
 use std::sync::Arc;
 
+use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyFrozenSet, PyInt, PyList, PyString, PyTuple};
@@ -386,6 +387,9 @@ fn read<'py>(
                 .collect::<Option<Vec<_>>>()?;
             Some(PyList::new(value.py(), members).ok()?.into_any())
         }
+        // `validate` takes RFC 3339 strings for datetime fields, never ready
+        // `datetime` objects, so non-null values fall back to the general path.
+        Shape::Datetime if !value.is_none() => None,
         _ => accept(typed, plan, value, depth),
     }
 }
@@ -456,6 +460,7 @@ fn accept<'py>(
         Shape::Bool => value
             .is_exact_instance_of::<PyBool>()
             .then(|| value.clone()),
+        Shape::Datetime => accept_datetime(value),
         Shape::List { min, max, item } => {
             let list = value.cast_exact::<PyList>().ok()?;
             within(list.len(), *min, *max).ok()?;
@@ -485,6 +490,49 @@ fn accept_float<'py>(bounds: &Bounds, value: &Bound<'py, PyAny>) -> Option<Bound
     bounds
         .holds(Number::Float(number))
         .then(|| PyFloat::new(value.py(), number).into_any())
+}
+
+fn timezone_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    static TIMEZONE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+    TIMEZONE.import(py, "datetime", "timezone")
+}
+
+/// An exact `datetime.datetime` with an exact `datetime.timezone` whole-minute
+/// offset; everything else falls back to the Python constructor so custom
+/// subclasses, custom `tzinfo` side effects and error reporting stay identical.
+fn accept_datetime<'py>(value: &Bound<'py, PyAny>) -> Option<Bound<'py, PyAny>> {
+    let py = value.py();
+    if !value
+        .get_type()
+        .is(crate::pytypes::datetime_class(py).ok()?)
+    {
+        return None;
+    }
+    let tzinfo = value.getattr(intern!(py, "tzinfo")).ok()?;
+    if tzinfo.is_none() {
+        return None;
+    }
+    if tzinfo.is(crate::pytypes::utc_tz(py).ok()?) {
+        return Some(value.clone());
+    }
+    if !tzinfo.get_type().is(timezone_class(py).ok()?) {
+        return None;
+    }
+    let offset = value.call_method0(intern!(py, "utcoffset")).ok()?;
+    if offset.is_none() {
+        return None;
+    }
+    let seconds: i64 = offset
+        .getattr(intern!(py, "seconds"))
+        .ok()?
+        .extract()
+        .ok()?;
+    let microseconds: i64 = offset
+        .getattr(intern!(py, "microseconds"))
+        .ok()?
+        .extract()
+        .ok()?;
+    (seconds % 60 == 0 && microseconds == 0).then(|| value.clone())
 }
 
 /// A nested instance is judged by what it holds now, as the Python check does.
