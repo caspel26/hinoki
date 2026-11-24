@@ -28,6 +28,7 @@
   <a href="https://hinoki.caspel.dev/dev/">Documentation</a> ·
   <a href="https://hinoki.caspel.dev/dev/quick-start/">Quick start</a> ·
   <a href="https://hinoki.caspel.dev/dev/tutorial/">Tutorial</a> ·
+  <a href="https://hinoki.caspel.dev/dev/benchmarks/">Benchmarks</a> ·
   <a href="examples/README.md">Examples</a> ·
   <a href="https://hinoki.caspel.dev/dev/status/">Status</a>
 </p>
@@ -43,7 +44,7 @@
 > [!WARNING]
 > **Pre-alpha, not released.** In the planned `0.1.x` line, documented Python, CLI, settings and runtime contracts, plus migration files, stay compatible across patch releases. Additions and fixes for incorrect behavior remain possible and will be described in the changelog. Breaking changes may arrive in a later `0.y.0`; there is no fixed deprecation period and no compatibility promise for undocumented internals or old framework versions. Review migrations and use disposable data when evaluating Hinoki. The package will be named `hinoki-api`; the [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project.
 
-Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls: `hinoki dev` and `hinoki serve` use it by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix.
+Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls: `hinoki dev` and `hinoki serve` use it by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. Routing, schema validation and serialization, and ORM execution run in Rust for high throughput ([benchmarks](docs/benchmarks.md)). You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix. Projects are agent-ready out of the box, with built-in application and development MCP servers, `hinoki llms` / `llms.txt` endpoints, and a generated `AGENTS.md`.
 
 <p align="center">
   <a href="#how-it-works">How it works</a> ·
@@ -249,7 +250,7 @@ The list accepts `?title=...`, `?search=...` and `?ordering=title` from the `Fil
 | **Contracts** | `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client. Generated lists take client filters, ordering and search from a `FilterSet`. |
 | **Rules** | `hinoki check` has twelve built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes, import direction and, when you list it, email templates that match their context. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason. |
 | **Data** | SQLite, PostgreSQL, MySQL and MariaDB, explicit relation loading, and SQL migration files you review. Importing an app never connects to a database. |
-| **Tools** | Typed settings, generated CRUD, typed events, project-wide middleware, a CLI, MCP servers for the application and for development, and an optional admin. |
+| **Tools** | Typed settings, generated CRUD, typed events, project-wide middleware, a CLI, MCP servers for the application and for development, `hinoki llms` / `llms.txt` and `AGENTS.md` support for AI agents, and an optional admin. |
 
 ## Examples
 
