@@ -93,6 +93,12 @@ CONSTRAINT_KEYWORDS = {
     "one_of": "enum",
     "multiple_of": "multipleOf",
 }
+DECIMAL_BOUNDS = {
+    "ge": "x-minimum",
+    "le": "x-maximum",
+    "gt": "x-exclusiveMinimum",
+    "lt": "x-exclusiveMaximum",
+}
 LENGTH_KEYWORDS = {
     "string": ("minLength", "maxLength"),
     "array": ("minItems", "maxItems"),
@@ -361,7 +367,8 @@ class OpenAPIBuilder:
         name = type(access.auth).__name__
         scheme = access.auth.openapi_scheme()
         if scheme is not None:
-            self.security_schemes.setdefault(name, scheme)
+            name = unique_name(self.security_schemes, name, scheme)
+            self.security_schemes[name] = scheme
             operation["security"] = [{name: sorted(access.permissions)}]
         responses = operation["responses"]
         responses["401"] = {"description": "Missing or invalid credentials"}
@@ -482,37 +489,42 @@ class OpenAPIBuilder:
 
     def cursor_page_schema(self, item: object) -> dict[str, Any]:
         items = self.annotation(item)
-        name = "CursorPage_" + str(items.get("$ref", "item")).rsplit("/", 1)[-1]
-        if name not in self.components:
-            cursor: dict[str, Any] = {"type": ["string", "null"]}
-            self.components[name] = {
-                "type": "object",
-                "properties": {
-                    "items": {"type": "array", "items": items},
-                    "next": cursor,
-                    "previous": cursor,
-                    "page_size": {"type": "integer"},
-                },
-                "required": ["items", "next", "previous", "page_size"],
-            }
-        return ref(name)
+        cursor: dict[str, Any] = {"type": ["string", "null"]}
+        page = {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array", "items": items},
+                "next": cursor,
+                "previous": cursor,
+                "page_size": {"type": "integer"},
+            },
+            "required": ["items", "next", "previous", "page_size"],
+        }
+        return self.page_component("CursorPage_", items, page)
 
     def page_schema(self, item: object) -> dict[str, Any]:
         items = self.annotation(item)
-        name = "Page_" + str(items.get("$ref", "item")).rsplit("/", 1)[-1]
-        if name not in self.components:
-            integer: dict[str, Any] = {"type": "integer"}
-            self.components[name] = {
-                "type": "object",
-                "properties": {
-                    "items": {"type": "array", "items": items},
-                    "page": integer,
-                    "page_size": integer,
-                    "total": integer,
-                    "pages": integer,
-                },
-                "required": ["items", "page", "page_size", "total", "pages"],
-            }
+        integer: dict[str, Any] = {"type": "integer"}
+        page = {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array", "items": items},
+                "page": integer,
+                "page_size": integer,
+                "total": integer,
+                "pages": integer,
+            },
+            "required": ["items", "page", "page_size", "total", "pages"],
+        }
+        return self.page_component("Page_", items, page)
+
+    def page_component(
+        self, prefix: str, items: dict[str, Any], page: dict[str, Any]
+    ) -> dict[str, str]:
+        """A page envelope named after its items (``Page_Book``, ``Page_integer``,
+        ``Page_date``), suffixed when another item type took that name."""
+        name = unique_name(self.components, prefix + item_label(items), page)
+        self.components[name] = page
         return ref(name)
 
     def component(self, schema: type[Schema]) -> dict[str, str]:
@@ -625,9 +637,14 @@ class OpenAPIBuilder:
         for name, value in ftype.info.constraints().items():
             if name in skipped:
                 continue
+            if ftype.kind == "decimal" and name in DECIMAL_BOUNDS:
+                # The value is a string on the wire: numeric keywords do not
+                # apply to it, so the bounds are extensions holding the text.
+                base[DECIMAL_BOUNDS[name]] = str(document_value(value))
+                continue
             keyword = constraint_keyword(name, base)
             if keyword is not None:
-                base[keyword] = document_value(value)
+                base[keyword] = constraint_value(value)
             elif name == "pattern":
                 # JSON Schema patterns are unanchored; the runtime matches fully.
                 base["pattern"] = f"^(?:{value})$"
@@ -651,10 +668,18 @@ def streamed_content(annotation: object) -> dict[str, Any]:
 
 
 def document_value(value: object) -> object:
-    """A constraint value as JSON: a tuple as a list, a ``Decimal`` as a number."""
-    if isinstance(value, tuple):
-        return list(value)
-    return float(value) if isinstance(value, Decimal) else value
+    """A value as the JSON it is on the wire: a tuple as a list, a ``Decimal`` as
+    its text, inside lists and objects too."""
+    if isinstance(value, tuple | list):
+        return [document_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: document_value(item) for key, item in value.items()}
+    return format(value, "f") if isinstance(value, Decimal) else value
+
+
+def constraint_value(value: object) -> object:
+    """A keyword value: a ``Decimal`` bound of a number as a number."""
+    return float(value) if isinstance(value, Decimal) else document_value(value)
 
 
 def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
@@ -873,3 +898,21 @@ def validation_error_schema() -> dict[str, Any]:
         },
         "required": ["error", "details"],
     }
+
+
+def unique_name(taken: dict[str, Any], name: str, value: object) -> str:
+    """``name``, or ``name_2``, ``name_3``... until it is free or already holds
+    the same value: two distinct definitions never share a component name."""
+    candidate, number = name, 2
+    while candidate in taken and taken[candidate] != value:
+        candidate, number = f"{name}_{number}", number + 1
+    return candidate
+
+
+def item_label(items: dict[str, Any]) -> str:
+    """The name part of a page component: the item's ``$ref`` name, else its
+    ``format`` or a plain ``type``."""
+    if "$ref" in items:
+        return str(items["$ref"]).rsplit("/", 1)[-1]
+    kind = items.get("format", items.get("type"))
+    return kind if isinstance(kind, str) else "item"
