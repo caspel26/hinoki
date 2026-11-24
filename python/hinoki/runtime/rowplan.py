@@ -306,6 +306,7 @@ def valid_base_query(
         "limit_to",
         "offset_by",
         "loading",
+        "implicit_filter_count",
     }:
         return False
     expected = default_order(selection.model)
@@ -340,12 +341,14 @@ def valid_query_state(
             "limit_to",
             "offset_by",
             "loading",
+            "implicit_filter_count",
         }
         and static_state_matches(
             QuerySet, QUERYSET_GUARD_NAMES, selection.queryset_state
         )
         and attributes["model"] is selection.model
         and type(attributes["filters"]) is tuple
+        and type(attributes["implicit_filter_count"]) is int
         and all(plain_filter(item) for item in attributes["filters"])
         and attributes["order"] == order
         and attributes["limit_to"] == limit

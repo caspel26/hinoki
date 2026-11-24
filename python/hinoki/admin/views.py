@@ -412,10 +412,12 @@ async def bulk_rows(
     if not keys:
         return []
     key_name = entry.model.__primary_key__
+    state = getattr(site, "state", None)
+    deleted_view = bool(getattr(state, "deleted", False))
     base = (
         entry.deleted_scope(site.principal)
         if action in {"restore", "hard-delete"}
-        or (site.state.deleted and entry.model.__soft_delete__ is not None)
+        or (deleted_view and entry.model.__soft_delete__ is not None)
         else entry.active_scope(site.principal)
     )
     query = base.filter(**{f"{key_name}__in": keys})

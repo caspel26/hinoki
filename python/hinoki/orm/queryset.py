@@ -443,7 +443,7 @@ class QuerySet[M: Model]:
         change every matching row. ``returning=False`` reads nothing back and
         returns the row count the database reports instead."""
         if not self.has_explicit_write_filter() or not values:
-            raise FieldError("aupdate needs at least one explicit condition and values")
+            raise FieldError("aupdate needs filters and values")
         self.refuse_window("aupdate")
         for name in values:
             self.model.check_field(name)
@@ -482,7 +482,7 @@ class QuerySet[M: Model]:
         without filters is refused so it cannot wipe the table, and so is one
         with ``limit`` or ``offset``: the statement would delete every match."""
         if not self.has_explicit_write_filter():
-            raise FieldError("adelete needs at least one explicit condition")
+            raise FieldError("adelete needs at least one condition")
         self.refuse_window("adelete")
         if self.loading.joined or self.subfilters:
             raise FieldError(
