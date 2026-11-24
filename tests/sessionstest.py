@@ -6,13 +6,15 @@ import secrets
 from collections.abc import Mapping
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, http
 from hinoki.ai.mcpapp import select
+from hinoki.auth import BaseAuth, Credentials
 from hinoki.db import Database
-from hinoki.errors import RegistrationError
+from hinoki.errors import RegistrationError, Unauthorized
 from hinoki.sessions import (
     DatabaseSessionStore,
     MemorySessionStore,
@@ -30,6 +32,7 @@ from hinoki.testing import ASGIClient
 
 SETTINGS = SessionSettings(csrf_secret=b"t" * 32)
 STORE = MemorySessionStore()
+SERVICE_TOKEN = "service"  # noqa: S105 - synthetic test credential
 
 
 @http.post("/session/write")
@@ -490,4 +493,156 @@ async def test_session_resource_requires_module_startup() -> None:
 
     with pytest.raises(RuntimeError, match="SessionStore"):
         async with ASGIClient(Hinoki(include=[endpoint])):
+            pytest.fail("missing SessionModule should fail startup")
+
+
+async def test_memory_store_forgets_revoked_sessions_and_frees_capacity() -> None:
+    store = MemorySessionStore(max_sessions=2)
+    now = datetime.now(UTC)
+
+    def record(subject: str | None = None) -> SessionRecord:
+        return SessionRecord(
+            {"secret": "payload"},
+            now,
+            now + timedelta(days=1),
+            now + timedelta(hours=1),
+            now,
+            subject,
+        )
+
+    await store.save("a" * 64, record())
+    await store.save("b" * 64, record("alice"))
+    await store.delete("a" * 64)
+    assert await store.delete_by_subject("alice") == 1
+    assert not store._records
+    # Revoked tokens stay unrestorable without holding a capacity slot.
+    for revoked in ("a" * 64, "b" * 64):
+        with pytest.raises(SessionUnavailable, match="revoked"):
+            await store.save(revoked, record())
+    await store.save("c" * 64, record())
+    await store.save("d" * 64, record())
+    # Revocations are bounded too: the oldest is dropped first.
+    await store.delete("c" * 64)
+    assert list(store._revoked) == ["b" * 64, "c" * 64]
+
+
+async def test_memory_store_prunes_idle_sessions_and_expired_revocations() -> None:
+    store = MemorySessionStore(max_sessions=1)
+    now = datetime.now(UTC)
+    await store.save(
+        "i" * 64,
+        SessionRecord(
+            {"secret": "payload"},
+            now,
+            now + timedelta(days=1),
+            now + timedelta(minutes=1),
+            now,
+        ),
+    )
+    assert await store.purge_expired(now + timedelta(minutes=2)) == 0
+    assert not store._records and "i" * 64 in store._revoked
+    assert await store.load("i" * 64) is None
+    await store.purge_expired(now + timedelta(days=2))
+    assert not store._revoked
+
+
+def test_session_module_requires_settings() -> None:
+    with pytest.raises(TypeError, match="SessionSettings"):
+        SessionModule(MemorySessionStore(), None)  # type: ignore[arg-type]
+
+
+class Tokens(BearerAuth[str]):
+    def resolve_token(self, token: str) -> Caller[str] | None:
+        return Caller("service", "Service") if token == SERVICE_TOKEN else None
+
+
+class EitherAuth(BaseAuth[str]):
+    """An application provider composed of a bearer and a session provider."""
+
+    def __init__(self) -> None:
+        self.providers = (Tokens(), SessionAuth(resolve_user))
+
+    async def authenticate(self, credentials: Credentials) -> Caller[str] | None:
+        for provider in self.providers:
+            with suppress(Unauthorized):
+                found = await provider.authenticate(credentials)
+                if found is not None:
+                    return found
+        return None
+
+
+@http.post("/session/composite", access=Access(auth=EitherAuth()))
+async def composite(caller: Caller[str]) -> dict[str, str]:
+    return {"user": caller.user}
+
+
+async def signed_in(store: MemorySessionStore) -> str:
+    session = Session(store, SETTINGS)
+    await session.rotate()
+    session["user"] = "alice"
+    await session.commit()
+    assert session.token is not None
+    return session.token
+
+
+async def test_composite_auth_loads_the_session_and_enforces_csrf() -> None:
+    store = MemorySessionStore()
+    app = Hinoki(include=[composite], modules=[SessionModule(store, SETTINGS)])
+    async with ASGIClient(app) as client:
+        token = await signed_in(store)
+        cookie = {"cookie": f"hinoki_session={token}"}
+        forged = await client.post("/session/composite", headers=cookie)
+        assert forged.status == 403
+        csrf = Session(store, SETTINGS, token).csrf_token()
+        accepted = await client.post(
+            "/session/composite", headers={**cookie, "x-csrf-token": csrf}
+        )
+        assert accepted.status == 200
+        assert accepted.body == {"user": "Alice"}
+        bearer = await client.post(
+            "/session/composite", headers={"authorization": "Bearer service"}
+        )
+        assert bearer.body == {"user": "Service"}
+
+
+@http.websocket("/session/socket", access=Access(auth=SessionAuth(resolve_user)))
+async def session_socket(socket: http.WebSocket, caller: Caller[str]) -> None:
+    await socket.send_text(caller.user)
+
+
+async def test_session_auth_admits_a_websocket_handshake() -> None:
+    store = MemorySessionStore()
+    app = Hinoki(include=[session_socket], modules=[SessionModule(store, SETTINGS)])
+    async with ASGIClient(app) as client:
+        token = await signed_in(store)
+
+        async def handshake(cookie: str) -> list[dict[str, Any]]:
+            inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+            inbox.put_nowait({"type": "websocket.connect"})
+            inbox.put_nowait({"type": "websocket.disconnect", "code": 1000})
+            sent: list[dict[str, Any]] = []
+
+            async def send(event: dict[str, Any]) -> None:
+                sent.append(event)
+
+            scope = {
+                "type": "websocket",
+                "path": "/session/socket",
+                "query_string": b"",
+                "headers": [(b"host", b"testserver"), (b"cookie", cookie.encode())],
+                "subprotocols": [],
+            }
+            await asyncio.wait_for(client.adapter(scope, inbox.get, send), 5)
+            return sent
+
+        admitted = await handshake(f"hinoki_session={token}")
+        assert admitted[0]["type"] == "websocket.accept"
+        assert admitted[1] == {"type": "websocket.send", "text": "Alice"}
+        refused = await handshake("hinoki_session=unknown")
+        assert [event["type"] for event in refused] == ["websocket.close"]
+
+
+async def test_session_websocket_requires_the_session_module() -> None:
+    with pytest.raises(RuntimeError, match="SessionStore"):
+        async with ASGIClient(Hinoki(include=[session_socket])):
             pytest.fail("missing SessionModule should fail startup")

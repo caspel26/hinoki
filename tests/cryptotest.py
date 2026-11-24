@@ -8,6 +8,7 @@ argon2-cffi (reference C implementation) and an Ed25519 token signed by the
 import asyncio
 import base64
 import dataclasses
+import gc
 import hashlib
 import hmac
 import json
@@ -167,6 +168,27 @@ async def test_hashing_runs_off_the_loop_and_is_bounded() -> None:
         await hasher.hash("c")
     await asyncio.gather(first, second)
     hasher.close()
+
+
+async def test_hasher_threads_start_on_use_and_stop_on_close() -> None:
+    async with PasswordHasher(workers=1, **WEAK) as hasher:
+        assert hasher._pool is None
+        stored = await hasher.hash("pw")
+        pool = hasher._pool
+        assert pool is not None
+    assert hasher._pool is None and pool._shutdown
+    hasher.close()  # idempotent
+    assert await hasher.verify("pw", stored)  # a closed hasher starts again
+    hasher.close()
+    with PasswordHasher(**WEAK) as sync_hasher:
+        assert await sync_hasher.verify("pw", stored)
+    assert sync_hasher._pool is None
+    forgotten = PasswordHasher(**WEAK)
+    await forgotten.hash("pw")
+    orphan = forgotten._pool
+    del forgotten
+    gc.collect()
+    assert orphan is not None and orphan._shutdown
 
 
 def test_random_tokens() -> None:
