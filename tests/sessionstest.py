@@ -5,6 +5,7 @@ import hashlib
 import secrets
 from collections.abc import Mapping
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -646,3 +647,37 @@ async def test_session_websocket_requires_the_session_module() -> None:
     with pytest.raises(RuntimeError, match="SessionStore"):
         async with ASGIClient(Hinoki(include=[session_socket])):
             pytest.fail("missing SessionModule should fail startup")
+
+
+@dataclass(frozen=True, slots=True)
+class SlottedSessionAuth(BaseAuth[str]):
+    """A slotted application provider wrapping the session provider."""
+
+    inner: SessionAuth[str]
+
+    async def authenticate(self, credentials: Credentials) -> Caller[str] | None:
+        return await self.inner.authenticate(credentials)
+
+
+@http.post(
+    "/session/slotted",
+    access=Access(auth=SlottedSessionAuth(SessionAuth(resolve_user))),
+)
+async def slotted(caller: Caller[str]) -> dict[str, str]:
+    return {"user": caller.user}
+
+
+async def test_a_slotted_composite_auth_loads_the_session_and_checks_csrf() -> None:
+    store = MemorySessionStore()
+    token = await signed_in(store)
+    app = Hinoki(include=[slotted], modules=[SessionModule(store, SETTINGS)])
+    async with ASGIClient(app) as client:
+        cookie = {"cookie": f"hinoki_session={token}"}
+        refused = await client.post("/session/slotted", headers=cookie)
+        assert refused.status == 403
+        csrf = Session(store, SETTINGS, token).csrf_token()
+        allowed = await client.post(
+            "/session/slotted", headers={**cookie, "x-csrf-token": csrf}
+        )
+        assert allowed.status == 200
+        assert allowed.body == {"user": "Alice"}
