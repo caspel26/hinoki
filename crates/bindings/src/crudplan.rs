@@ -3,8 +3,9 @@
 use std::sync::Arc;
 
 use hinoki_orm::query::{
-    compile_delete_with, compile_insert_with, compile_select_fixed, compile_select_with,
-    compile_update_with, Delete, Dialect, Filter, Insert, Op, QueryError, Select, Update,
+    compile_delete_with, compile_insert_with, compile_select_bound, compile_select_fixed,
+    compile_select_with, compile_update_with, Delete, Dialect, Filter, Insert, Op, QueryError,
+    Select, Update,
 };
 use hinoki_orm::Value;
 use pyo3::exceptions::PyValueError;
@@ -918,7 +919,7 @@ fn compile_templates(
         false,
         dialect,
     )?;
-    let retrieve = select_filtered_sql(table, columns, primary_key, ordering, Some(2), dialect)?;
+    let retrieve = select_filtered_sql(table, columns, primary_key, ordering, dialect)?;
     let create_returning = returning_columns(columns, dialect);
     let create = if create_columns.is_empty() {
         None
@@ -966,7 +967,7 @@ fn compile_templates(
     )
     .map_err(query_error)?
     .0;
-    let read_back = select_filtered_sql(table, columns, primary_key, ordering, Some(2), dialect)?;
+    let read_back = select_filtered_sql(table, columns, primary_key, ordering, dialect)?;
     let write_read_back = select_write_sql(table, columns, (primary_key, None), dialect)?;
     let mut update_read_back = select_write_sql(table, columns, (primary_key, owner), dialect)?;
     if dialect == Dialect::Mysql {
@@ -1046,15 +1047,16 @@ fn select_sql(
     .map_err(query_error)
 }
 
+/// The one-row read by primary key, bound like the Python lane: the key, then
+/// the [`ONE_ROW_LIMIT`] count; pass [`one_row_params`].
 fn select_filtered_sql(
     table: &str,
     columns: &[String],
     primary_key: &str,
     order: &[(String, bool)],
-    limit: Option<u64>,
     dialect: Dialect,
 ) -> PyResult<String> {
-    compile_select_fixed(
+    compile_select_bound(
         &Select::<usize> {
             table: table.to_owned(),
             columns: columns.to_vec(),
@@ -1063,14 +1065,23 @@ fn select_filtered_sql(
             subfilters: Vec::new(),
             keyset: None,
             order: order.to_vec(),
-            limit,
+            limit: Some(ONE_ROW_LIMIT.unsigned_abs()),
             offset: None,
             count: false,
         },
         dialect,
+        &mut |_| 1,
     )
     .map(|(sql, _)| sql)
     .map_err(query_error)
+}
+
+/// Rows a one-row read asks for: a second row reveals a non-unique key.
+const ONE_ROW_LIMIT: i64 = 2;
+
+/// Parameters of the retrieve and read-back statements for `id`.
+pub(crate) fn one_row_params(id: Value) -> [Value; 2] {
+    [id, Value::Int(ONE_ROW_LIMIT)]
 }
 
 fn equality_filter(column: &str, value: usize) -> Filter<usize> {

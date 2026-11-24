@@ -10,7 +10,7 @@ use hinoki_orm::{Database, DbError, ErrorKind, Transaction, Value};
 use time::{OffsetDateTime, UtcOffset};
 use uuid::Uuid;
 
-use crate::crudplan::{CrudPlan, ModelDefault, ModelDefaultValue};
+use crate::crudplan::{one_row_params, CrudPlan, ModelDefault, ModelDefaultValue};
 use crate::filters::Typed;
 use crate::nativelinks::{self, InTransaction, LinkWork, Refused};
 use crate::request::{decode_json_document, decode_path_parameter, parse_query, Json};
@@ -724,7 +724,9 @@ async fn create_in_transaction(
     let read_back_sql = plan
         .read_back_sql(dialect)
         .ok_or_else(|| DbError::new(ErrorKind::Other, "CRUD read-back SQL is unavailable"))?;
-    let rows = transaction.fetch(read_back_sql, &[primary_key]).await?;
+    let rows = transaction
+        .fetch(read_back_sql, &one_row_params(primary_key))
+        .await?;
     match rows.as_slice() {
         [] => Ok(TransactionResult::NotFound(format!(
             "{} not found",
@@ -829,7 +831,7 @@ async fn update_in_transaction(
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
     let visible = transaction
-        .fetch(visible_sql, std::slice::from_ref(&id))
+        .fetch(visible_sql, &one_row_params(id.clone()))
         .await?;
     if visible.is_empty() {
         return Ok(TransactionResult::NotFound(format!(
@@ -874,7 +876,7 @@ async fn update_in_transaction(
     }
     let read_back_sql = required_sql(plan.read_back_sql(dialect))?;
     let rows = transaction
-        .fetch(read_back_sql, std::slice::from_ref(&id))
+        .fetch(read_back_sql, &one_row_params(id.clone()))
         .await?;
     match rows.as_slice() {
         [] => Ok(TransactionResult::NotFound(format!(
@@ -974,7 +976,7 @@ async fn refused_result(
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let sql = required_sql(plan.retrieve_sql(dialect))?;
-    let rows = transaction.fetch(sql, std::slice::from_ref(&id)).await?;
+    let rows = transaction.fetch(sql, &one_row_params(id.clone())).await?;
     let Some(row) = rows.first() else {
         return Ok(TransactionResult::NotFound(format!(
             "{} not found",
@@ -1001,7 +1003,7 @@ async fn delete_in_transaction(
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
     let visible = transaction
-        .fetch(visible_sql, std::slice::from_ref(&id))
+        .fetch(visible_sql, &one_row_params(id.clone()))
         .await?;
     if visible.is_empty() {
         return Ok(TransactionResult::NotFound(format!(
@@ -1280,7 +1282,7 @@ async fn execute_retrieve<D: ReadDatabase>(
     let Some(sql) = plan.retrieve_sql(dialect) else {
         return NativeRead::Defer;
     };
-    let rows = match database.fetch(sql, &[value]).await {
+    let rows = match database.fetch(sql, &one_row_params(value)).await {
         Ok(rows) => rows,
         Err(error) => return NativeRead::Failure(error),
     };
