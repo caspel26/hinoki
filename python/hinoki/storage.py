@@ -285,11 +285,12 @@ class MemoryFileStorage(FileStorage):
         disposition: Literal["attachment", "inline"] = "attachment",
     ) -> Response:
         stored = self._metadata(key)
-        headers = _download_headers(stored, filename, disposition)
+        shown = filename or stored.filename
+        media = _response_media(content_type, stored.content_type, shown)
         return Response(
             body=self.read_sync(key),
-            content_type=_content_type(content_type or stored.content_type),
-            headers=headers,
+            content_type=media,
+            headers=_download_headers(disposition, shown, media),
         )
 
     def _metadata(self, key: str) -> StoredFile:
@@ -308,21 +309,20 @@ def _check_read_size(content: bytes, max_bytes: int | None) -> None:
             raise FileTooLarge
 
 
+def _response_media(content_type: str | None, stored: str, shown: str) -> str:
+    """Explicit type, then stored metadata, then a guess from the shown name."""
+    if content_type:
+        return _content_type(content_type)
+    if stored != "application/octet-stream" or not shown:
+        return stored
+    return _content_type(mimetypes.guess_type(shown)[0] or stored)
+
+
 def _download_headers(
-    stored: StoredFile,
-    filename: str | None,
-    disposition: Literal["attachment", "inline"],
+    disposition: Literal["attachment", "inline"], shown: str, media: str
 ) -> dict[str, str]:
-    if disposition not in {"attachment", "inline"}:
-        raise ValueError("disposition must be 'attachment' or 'inline'")
-    headers: dict[str, str] = {}
-    shown = filename or stored.filename
-    if shown:
-        safe = core.content_disposition(shown)
-        headers["content-disposition"] = safe.replace("attachment", disposition, 1)
-    else:
-        headers["content-disposition"] = disposition
-    return headers
+    """``inline`` survives only for media types that cannot script the origin."""
+    return {"content-disposition": core.storage_disposition(disposition, shown, media)}
 
 
 class LocalFileStorage(FileStorage):
@@ -508,23 +508,15 @@ class LocalFileStorage(FileStorage):
         disposition: Literal["attachment", "inline"] = "attachment",
     ) -> Response:
         path, size = await self._run(functools.partial(self._response_info, key))
-        shown = filename or path.name
-        media = (
-            _content_type(content_type)
-            if content_type is not None
-            else mimetypes.guess_type(shown)[0] or "application/octet-stream"
-        )
         if size > self.max_file_bytes:
             raise FileTooLarge
-        headers = _download_headers(
-            StoredFile(key, size, media, "", path.name),
-            filename,
-            disposition,
-        )
+        # Local files keep no metadata: the name and type come from the caller.
+        shown = filename or ""
+        media = _response_media(content_type, "application/octet-stream", shown)
         return File(
             path,
             root=self._root(),
-            headers=headers,
+            headers=_download_headers(disposition, shown, media),
             content_type=media,
         )
 
