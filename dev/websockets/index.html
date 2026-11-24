@@ -494,7 +494,7 @@
           <h1 id="websockets">WebSockets<a class="headerlink" href="#websockets" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -744,6 +744,8 @@ closing with <code>1001</code>) is off by default, since a server-push connectio
 silent from the client on purpose. Frames that are malformed, unmasked from a
 client, reserved or oversized control frames, invalid UTF-8 in text, and bad
 close codes end the connection with <code>1002</code> or <code>1007</code> as RFC 6455 requires. A
+fragmented message may span at most 4,096 frames, its first one included; a
+fragment past that ends the connection with <code>1002</code>, whatever the message size. A
 write that makes no progress for <code>execution.request_timeout</code> seconds drops the
 connection.</p>
 <h2 id="shutdown-and-reload">Shutdown and reload<a class="headerlink" href="#shutdown-and-reload" title="Permanent link">&para;</a></h2>
@@ -790,7 +792,7 @@ origins and the handshake's security requirement. They are not listed under
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/websockets.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
