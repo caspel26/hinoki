@@ -506,7 +506,7 @@ def example_line(cls: type[Settings], name: str, hint: Any, variable: str) -> st
     """One field of a ``.env.example``: a type comment, then the variable."""
     field = {f.name: f for f in dataclasses.fields(cls)}[name]
     required = has_default(cls, name) is False
-    default = "" if required or hint is Secret else describe_default(field)
+    default = "" if required or is_secret_hint(hint) else describe_default(field)
     note = type_name(hint) + (", required" if required else "")
     # A blank line would set the empty value; leave an optional one commented
     # so a copied example keeps the default.
