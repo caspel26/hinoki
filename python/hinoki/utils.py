@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from typing import Protocol
+from uuid import UUID
+
+from hinoki import core
 
 
 class Clock(Protocol):
     """A callable clock; inject one when time-dependent behavior needs control."""
 
     def __call__(self) -> datetime: ...
+
+
+def uuid7() -> UUID:
+    """Return a time-ordered UUID version 7 (RFC 9562), generated in Rust."""
+    return UUID(bytes=core.make_uuid7())
 
 
 def utc_now() -> datetime:

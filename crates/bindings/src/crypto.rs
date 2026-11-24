@@ -9,6 +9,8 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
+use uuid::Uuid;
 
 /// Longest password accepted (bytes): bounds the work an attacker can ask for.
 pub const MAX_PASSWORD: usize = 4096;
@@ -84,6 +86,11 @@ pub fn random_token(count: usize) -> Result<String, &'static str> {
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
+/// Time-ordered UUID version 7 (RFC 9562) as 16 raw bytes.
+pub fn uuid7_bytes() -> [u8; 16] {
+    *Uuid::now_v7().as_bytes()
+}
+
 /// Constant-time equality of two byte strings (length differences are not hidden).
 pub fn equal(a: &[u8], b: &[u8]) -> bool {
     use subtle::ConstantTimeEq;
@@ -124,6 +131,11 @@ pub fn password_needs_rehash(
 #[pyfunction]
 pub fn make_token(count: usize) -> PyResult<String> {
     random_token(count).map_err(PyValueError::new_err)
+}
+
+#[pyfunction]
+pub fn make_uuid7<'py>(py: Python<'py>) -> Bound<'py, PyBytes> {
+    PyBytes::new(py, &uuid7_bytes())
 }
 
 #[pyfunction]
@@ -193,6 +205,15 @@ mod tests {
         assert_ne!(token, random_token(32).unwrap());
         assert!(random_token(0).is_err());
         assert!(random_token(MAX_RANDOM + 1).is_err());
+    }
+
+    #[test]
+    fn uuid7_bytes_are_rfc9562_v7_and_distinct() {
+        let first = Uuid::from_bytes(uuid7_bytes());
+        let second = Uuid::from_bytes(uuid7_bytes());
+        assert_eq!(first.get_version_num(), 7);
+        assert_eq!(first.get_variant(), uuid::Variant::RFC4122);
+        assert_ne!(first, second);
     }
 
     #[test]

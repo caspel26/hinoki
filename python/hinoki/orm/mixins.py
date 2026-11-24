@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import UUID
 
-from hinoki.orm.model import Model, field
+from hinoki.orm.model import Model, field, uuid_pk
 from hinoki.orm.options import soft_delete, timestamps
 from hinoki.utils import utc_now
+
+
+class UUIDModel(Model, abstract=True):
+    """Abstract base with a UUIDv4 primary key column ``id``.
+
+    Override ``id: UUID = uuid_pk(version=7)`` (or pass a custom
+    ``default_factory``) on a subclass or project base model to use another
+    UUID generator.
+    """
+
+    id: UUID = uuid_pk()
 
 
 @timestamps()

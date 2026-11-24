@@ -11,6 +11,7 @@ import asyncio
 import copy
 import dataclasses
 import datetime
+import functools
 import inspect
 import re
 import sys
@@ -32,7 +33,7 @@ from typing import (
     get_origin,
     overload,
 )
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from hinoki import core, events
 from hinoki.blocking import refuse_event_loop, run_sync
@@ -62,7 +63,7 @@ from hinoki.orm.queryset import (
     written_rows,
 )
 from hinoki.orm.relations import LinkEnd, OnDelete, Related, Relation
-from hinoki.utils import Clock, _read_utc, utc_now
+from hinoki.utils import Clock, _read_utc, utc_now, uuid7
 
 if sys.version_info >= (3, 14):
     import annotationlib
@@ -609,6 +610,98 @@ def pk(
         validators=validators,
         default=default,
         default_factory=default_factory,
+    )
+
+
+URLSAFE_PATTERN = r"^[A-Za-z0-9_-]+$"
+MAX_URLSAFE_BYTES = 1024
+UUID_FACTORIES: dict[int, Callable[[], UUID]] = {4: uuid4, 7: uuid7}
+
+
+def uuid_pk(
+    *,
+    version: Literal[4, 7] | None = None,
+    default_factory: Callable[[], UUID] | None = None,
+    constraints: FieldInfo | None = None,
+    validators: Sequence[Callable[..., None]] = (),
+) -> Any:
+    """Declare a UUID primary key.
+
+    Defaults to ``uuid4``. Pass ``version=7`` for time-ordered RFC 9562 UUIDv7,
+    or ``default_factory=...`` for any custom UUID generator.
+    """
+    if version is not None and default_factory is not None:
+        raise RegistrationError(
+            "uuid_pk() accepts either version or default_factory, not both"
+        )
+    if default_factory is not None:
+        if not callable(default_factory):
+            raise RegistrationError("uuid_pk(default_factory=...) must be callable")
+        factory: Callable[[], UUID] = default_factory
+    else:
+        selected = 4 if version is None else version
+        if type(selected) is not int or selected not in UUID_FACTORIES:
+            raise RegistrationError(
+                f"uuid_pk(version=...) must be 4 or 7, got {version!r}"
+            )
+        factory = UUID_FACTORIES[selected]
+    return pk(
+        constraints=constraints,
+        validators=validators,
+        default_factory=factory,
+    )
+
+
+def urlsafe_token(
+    *,
+    nbytes: int = 32,
+    unique: bool = True,
+    index: bool = False,
+    max_length: int | None = None,
+    constraints: FieldInfo | None = None,
+    validators: Sequence[Callable[..., None]] = (),
+) -> Any:
+    """Declare a URL-safe random token column backed by Rust's CSPRNG
+    (``hinoki.core.make_token``).
+
+    Suitable for opaque public identifiers or share codes. For authentication
+    secrets, store a hash instead of the raw token.
+    """
+    if type(nbytes) is not int or not (1 <= nbytes <= MAX_URLSAFE_BYTES):
+        raise RegistrationError(
+            f"urlsafe_token(nbytes=...) must be an int between 1 and "
+            f"{MAX_URLSAFE_BYTES}"
+        )
+    generated_length = (nbytes * 4 + 2) // 3
+    declared = constraints or FieldInfo()
+    effective_max = (
+        max_length
+        if max_length is not None
+        else (
+            declared.max_length if declared.max_length is not None else generated_length
+        )
+    )
+    if type(effective_max) is not int or effective_max < generated_length:
+        raise RegistrationError(
+            f"urlsafe_token(max_length=...) must be at least {generated_length} "
+            f"for nbytes={nbytes}"
+        )
+    if declared.pattern is not None and declared.pattern != URLSAFE_PATTERN:
+        raise RegistrationError(
+            "urlsafe_token() cannot override the URL-safe character pattern"
+        )
+    merged = dataclasses.replace(
+        declared,
+        min_length=1 if declared.min_length is None else declared.min_length,
+        pattern=URLSAFE_PATTERN,
+    )
+    return field(
+        unique=unique,
+        index=index,
+        max_length=effective_max if declared.max_length is None else max_length,
+        constraints=merged,
+        validators=validators,
+        default_factory=functools.partial(core.make_token, nbytes),
     )
 
 
