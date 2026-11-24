@@ -1,6 +1,0 @@
-pid pgid cputime command
-   4345    4345 00:00:00 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -m hinoki serve hinoki_app:app --server kiso --workers 4 --host 127.0.0.1 --port 8801
-   4346    4345 00:01:01 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 4345
-   4347    4345 00:01:08 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 4345
-   4348    4345 00:01:20 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 4345
-   4349    4345 00:01:25 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 4345

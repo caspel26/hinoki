@@ -1,0 +1,26 @@
+# start 1
+== hono
+json-1k: 939 bytes, 0 statements
+json-10k: 10238 bytes, 0 statements
+list:
+  1x SELECT count(*) AS total FROM posts WHERE published
+  1x SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name FROM posts p JOIN authors a ON a.id = p.author_id WH
+detail:
+  1x SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name FROM posts p JOIN authors a ON a.id = p.author_id WH
+create:
+  1x INSERT INTO posts (id, author_id, title, body, published, created_at) VALUES ($1, $2, $3, $4, true, $5)
+  1x SELECT id, name FROM authors WHERE id = $1
+OK: behaviour and statement counts match the oracle
+# start 2
+== hono
+json-1k: 939 bytes, 0 statements
+json-10k: 10238 bytes, 0 statements
+list:
+  1x SELECT count(*) AS total FROM posts WHERE published
+  1x SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name FROM posts p JOIN authors a ON a.id = p.author_id WH
+detail:
+  1x SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name FROM posts p JOIN authors a ON a.id = p.author_id WH
+create:
+  1x INSERT INTO posts (id, author_id, title, body, published, created_at) VALUES ($1, $2, $3, $4, true, $5)
+  1x SELECT id, name FROM authors WHERE id = $1
+OK: behaviour and statement counts match the oracle

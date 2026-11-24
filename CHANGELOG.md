@@ -284,6 +284,8 @@ Kiso's fuzz workflow now covers request-line framing and request-head limits
 with `head_framing` and `request_head_limits` (`fuzz/`,
 `.github/workflows/fuzz.yml`, `docs/kiso.md`).
 
+The [benchmarks page](docs/benchmarks.md) now shows a run on a dedicated 8 vCPU AMD EPYC server, with Fastify, Hono and `Bun.serve` as an extra group and the load average held at or below 2 before every sample. Hinoki in this run is commit `478e1452`.
+
 ---
 
 ### 🎯 Summary

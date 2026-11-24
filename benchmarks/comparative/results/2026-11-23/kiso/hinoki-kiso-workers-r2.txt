@@ -1,0 +1,6 @@
+pid pgid cputime command
+  37414   37414 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki serve hinoki_app:app --server kiso --workers 4 --host 127.0.0.1 --port 8801
+  37415   37414 00:04:05 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 37414
+  37416   37414 00:04:10 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 37414
+  37417   37414 00:04:07 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 37414
+  37418   37414 00:03:48 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso hinoki_app:app --fd 3 --parent 37414
