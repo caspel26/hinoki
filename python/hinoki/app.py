@@ -528,8 +528,13 @@ class Hinoki:
         for item, prefix in flatten(items):
             declared = websocket_of(item)
             if declared is not None:
-                sockets.append(self._mounted(declared, prefix))
+                sockets.append(self._mounted(declared, prefix).resolved())
                 continue
+            if isinstance(item, type) and issubclass(item, API):
+                sockets.extend(
+                    self._mounted(found, prefix).resolved()
+                    for found in item.websockets()
+                )
             if isinstance(item, RouteGroup):
                 if item in self._included_groups or item in groups:
                     raise RegistrationError("a RouteGroup can be included only once")
