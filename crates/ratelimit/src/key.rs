@@ -295,4 +295,18 @@ mod tests {
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
     }
+
+    #[test]
+    fn the_overflow_bucket_is_one_per_scope_and_no_client_bucket() {
+        let shared = overflow("GET /x").unwrap();
+        assert_eq!(shared, overflow("GET /x").unwrap());
+        assert_ne!(shared, overflow("GET /y").unwrap());
+        for who in [Who::Client(None), Who::Caller(""), Who::Custom("")] {
+            assert_ne!(shared, of(who, None));
+        }
+        assert_eq!(
+            overflow(&"s".repeat(MAX_SEGMENT + 1)),
+            Err(KeyError::TooLong)
+        );
+    }
 }

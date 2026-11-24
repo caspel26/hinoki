@@ -214,13 +214,17 @@ async def test_expired_rows_are_swept_and_the_table_is_capped(
 ) -> None:
     now = clock()
     storage = DatabaseLimits(max_rows=2, sweep_every=1)
-    policy = RateLimit(1, 60, storage=storage, clock=now)
+    policy = RateLimit(1, 60, storage=storage, unknown_factor=2, clock=now)
     assert (await policy.decide(context(database, "203.0.113.1"))).allowed
     assert (await policy.decide(context(database, "203.0.113.2"))).allowed
 
-    full = await policy.decide(context(database, "203.0.113.3"))
-    assert not full.allowed and full.retry_after == 60
-    assert await count(database) == 2
+    # New clients of a full table share one overflow bucket of the wider quota.
+    overflow = [
+        await policy.decide(context(database, f"2001:db8:{n}::1")) for n in range(3)
+    ]
+    assert [decision.allowed for decision in overflow] == [True, True, False]
+    assert overflow[-1].retry_after == 30
+    assert await count(database) == 3
 
     now.advance(seconds=61)
     assert (await policy.decide(context(database, "203.0.113.3"))).allowed
