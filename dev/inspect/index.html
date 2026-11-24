@@ -494,8 +494,8 @@
           <h1 id="inspect-an-application">Inspect an application<a class="headerlink" href="#inspect-an-application" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>5 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -626,7 +626,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 </code></pre></div>
 <p>The command builds the app without serving it or opening a database; it works even when <code>openapi_url</code> is disabled. With no file option it prints deterministic JSON (sorted keys, two-space indentation and a trailing newline). <code>--output FILE</code> writes those bytes. <code>--check FILE</code> compares parsed JSON, so formatting differences do not count as drift. Exit status is <code>0</code> when the file matches or is written, <code>1</code> when its JSON differs, and <code>2</code> when the target cannot load or the check file is missing or invalid JSON. <code>--output</code> and <code>--check</code> cannot be used together.</p>
 <p><code>--breaking-against BASELINE</code> compares the generated document with an earlier OpenAPI JSON file (the released version) and prints one <code>breaking: …</code> line per change that would break an existing client.</p>
-<p>Reported: a removed operation or success response, new or newly required request input, a removed response property, a changed type, and a request enum that narrows or a response enum that widens. Additions are compatible and are not reported. Exit status is <code>0</code> when nothing breaks, <code>1</code> when something does, and <code>2</code> when the target cannot load or the baseline is missing or not a JSON object. It cannot be combined with <code>--output</code> or <code>--check</code>. The comparison reads the documents only; it does not check behavior that an OpenAPI document does not describe.</p>
+<p>Reported: a removed operation or success response, new or newly required request input (a parameter that becomes required, a required request body where there was none), a removed response property or JSON body, a changed type (parameters included), a changed type, and a request enum that narrows or a response enum that widens. Additions are compatible and are not reported. Exit status is <code>0</code> when nothing breaks, <code>1</code> when something does, and <code>2</code> when the target cannot load or the baseline is missing or not a JSON object. It cannot be combined with <code>--output</code> or <code>--check</code>. The comparison reads the documents only; it does not check behavior that an OpenAPI document does not describe.</p>
 <p>Run <code>--check</code> in CI to catch an OpenAPI document that drifted from the code, and
 <code>--breaking-against</code> with the last released document before a release. See
 <a href="../openapi/">OpenAPI</a> for what the document contains.</p>
@@ -693,7 +693,7 @@ values with no printable default (secrets, unset values). See
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/inspect.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

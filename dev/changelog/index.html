@@ -495,7 +495,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>25 min read</span>
+            <span>26 min read</span>
           </p>
           
         </header>
@@ -691,6 +691,9 @@ async def reindex() -&gt; dict[str, str]: ...
 <li>The test client's <code>json=</code> also accepts <code>datetime</code> and <code>UUID</code> values.</li>
 <li>A JSON column whose bytes start with a UTF-8 byte order mark raises <code>FieldError</code>.</li>
 </ul></section><section class="cl__sec" data-kind="fixes"><h3>🐛 Fixes</h3><ul>
+<li><strong>Admin forms and lists:</strong> create and edit forms accept <code>date</code>, <code>time</code>, <code>Decimal</code> and <code>Enum</code> columns (a select of member names); required columns of these types no longer make creation fail. A soft-delete model with custom <code>tabs</code> keeps its Deleted tab, an admin at <code>Admin(prefix="")</code> links to <code>/</code>, the bento theme keeps Sign out and Change password on phones, the bulk bar works without JavaScript, and the paper and bento lists keep column sorting and select-all. Navigation links drop a stale success banner, the search form and tab bar are omitted when there is nothing to search or choose, and the admin UI reads its component and icon files on first use instead of at import (<code>python/hinoki/admin/</code>).</li>
+<li><strong><code>hinoki admin</code>:</strong> the command builds <code>AdminAccounts</code> from the project's <code>admin</code> settings, so <code>admin.min_password_length</code> applies to <code>create-superuser</code> and <code>set-password</code> (<code>python/hinoki/cli/admin.py</code>).</li>
+<li><strong>MCP, OpenAPI diff and rules:</strong> <code>expose_as_mcp()</code> refuses an exposure that selects no allowed action, a streaming action or an action left out of the schema when it is built, not on the first call; <code>hinoki openapi --breaking-against</code> also reports a parameter that becomes required or changes type, a newly required request body and a dropped response body; generated <code>time</code> samples carry a UTC offset; <code>Schemas.forbid_exposure</code> reports a <code>dict</code> return as unverifiable (<code>python/hinoki/ai/</code>, <code>python/hinoki/rules.py</code>).</li>
 <li><strong>SQLite lock waits:</strong> the SQLite writer-lock wait now follows a larger <code>Database.connect(wait=...)</code> value instead of always ending after five seconds; the default remains five seconds (<code>crates/orm/src/sqlite.rs</code>).</li>
 <li><strong>Long page indexes:</strong> the sticky table of contents now scrolls within the viewport instead of extending over the footer (<code>theme/static/css/base.css</code>).</li>
 <li><strong>Security review fixes:</strong> WebSocket handshakes over ASGI route on the raw path and honour <code>allowed_hosts</code> and trusted proxies, and the same-origin check compares the scheme (also on Kiso over HTTPS); a duplicate <code>Host</code> on HTTP/1.0 is refused; a non-numeric <code>Host</code> port no longer breaks WSGI; the admin form uses the admin timezone; documentation URLs are escaped; a full sign-in table keeps blocked addresses, sign-in and password change count apart, and a user name is delayed after repeated failures; MySQL <code>require_ssl</code> precedes a URL fragment; Kiso's WSGI host bounds the body bytes being read; a remote PostgreSQL URL without <code>sslmode</code> and a world-readable TLS key log a warning.</li>

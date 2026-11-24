@@ -494,7 +494,7 @@
           <h1 id="customize-the-admin">Customize the admin<a class="headerlink" href="#customize-the-admin" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 00:47:16 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></span>
             <span>10 min read</span>
           </p>
           
@@ -586,11 +586,12 @@
 </table>
 <p><code>Tone</code> (<code>NEUTRAL</code>, <code>ACCENT</code>, <code>OK</code>, <code>WARN</code>, <code>DANGER</code>, <code>INFO</code>) is the color role of badges, stats and events. Without configuration the label and plural come from the model, the order from <code>@db.ordered_by</code> and the "last modified" line from its <code>@db.timestamps()</code> column.</p>
 <p>Search matches a row when any <code>search</code> column contains the typed text, compared case-insensitively as text (a number or date matches its printed form). Naming an <code>exclude</code>d column in <code>search</code> is refused at registration, because which rows match would reveal its value.</p>
+<p>Form inputs follow the column type: text, number, checkbox, UUID, datetime, <code>date</code>, <code>time</code> (without a UTC offset), <code>Decimal</code> (finite values only) and <code>Enum</code> (a select of member names). Another type is shown read-only. A time or decimal that is retyped but means the stored value (<code>09:30</code> for <code>09:30:00</code>, <code>12.5</code> for <code>12.50</code>) is not saved again.</p>
 <p>Datetime fields use the app's <code>settings.timezone</code> (UTC without built-in settings): stored instants are shown there and edited <code>datetime-local</code> values are read there, then saved as UTC-aware datetimes. A time that does not exist or occurs twice during a daylight-saving change is refused for correction.</p>
 <h3 id="soft-deleted-models">Soft-deleted models<a class="headerlink" href="#soft-deleted-models" title="Permanent link">&para;</a></h3>
 <p>For a model using <code>@db.soft_delete()</code> or <code>SoftDeleteModel</code>, the admin's Active
 list and default <code>queryset(principal)</code> contain live rows. When <code>tabs</code> is unset,
-the list shows Active and Deleted views; <code>?deleted=1</code> selects the latter. The
+the list shows Active and Deleted views; <code>?deleted=1</code> selects the latter. With custom <code>tabs</code> the Deleted view is a last tab after them. The
 default <code>deleted_queryset(principal)</code> is <code>self.model.only_deleted()</code>. Override
 it to add tenant or ownership filters; the admin always narrows it to rows with
 a delete timestamp, and uses that same scope for restore and hard-delete.</p>
@@ -846,7 +847,7 @@ purging is hidden and refused unless the model admin opts in with
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 00:47:16 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin-customize.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

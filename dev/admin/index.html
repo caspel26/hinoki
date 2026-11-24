@@ -494,7 +494,7 @@
           <h1 id="add-an-admin">Add an admin<a class="headerlink" href="#add-an-admin" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -714,7 +714,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
 <p>Both count per client address and route (a flood on the sign-in never spends the password change's attempts). <code>DatabaseLoginWindow</code> is a <code>RateLimit</code> subclass, so it keeps its table within a bound, deletes expired rows while counting, and, while the table is full of live ones, counts every new address in one shared window per route, ten times as large. Separately, each user name is delayed after repeated wrong passwords, from any address: past five failures the delay doubles up to five minutes, before any hashing, in the memory of one worker. Unknown names are counted the same.</p>
 <p>An IPv6 address counts by its /64. Requests without a known address share one window ten times as large, so set <code>server.trusted_proxies</code> behind a proxy. With <code>DatabaseLoginWindow</code>, keep host clocks in sync: each host stamps the windows it opens. Any other policy works too; see <a href="../endpoints/#rate-limit-an-action">rate limit an action</a>.</p>
 <h2 id="serve-it-under-another-path">Serve it under another path<a class="headerlink" href="#serve-it-under-another-path" title="Permanent link">&para;</a></h2>
-<p>The <code>Mount</code> prefix decides where the admin lives; links, assets and the cookie path follow it. <code>Mount("/ops", site)</code> serves it at <code>/ops</code>. <code>Admin(prefix="/staff")</code> adds a path of its own after the mount (<code>/ops/staff</code>). An admin included without a <code>Mount</code> is served at <code>/admin</code>.</p>
+<p>The <code>Mount</code> prefix decides where the admin lives; links, assets and the cookie path follow it. <code>Mount("/ops", site)</code> serves it at <code>/ops</code>. <code>Admin(prefix="/staff")</code> adds a path of its own after the mount (<code>/ops/staff</code>). An admin included without a <code>Mount</code> is served at <code>/admin</code>; <code>Admin(prefix="")</code> serves it at the root of its mount.</p>
 <h2 id="errors-and-edge-cases">Errors and edge cases<a class="headerlink" href="#errors-and-edge-cases" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -791,7 +791,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
