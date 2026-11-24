@@ -67,7 +67,31 @@ WebSocket action. A path with a
 parameter is declared as in HTTP: `@http.websocket("/rooms/{room}")`. Path and query
 values are bound to handler parameters typed `str`, `int`, `float`, `bool` or
 `UUID`; a parameter with a default is optional. A malformed value is refused
-with `400` before the upgrade.
+with `400` before the upgrade. Annotations are read when the action is
+included, so a handler may name a type defined later in its module; an
+unsupported parameter type is a `RegistrationError` at `Hinoki(include=...)`.
+The decorator keeps the handler's signature for type checkers.
+
+Under ASGI, Hinoki waits for the server's `websocket.connect` event before it
+answers: a refusal is sent only to a client that connected, and a client gone
+before connecting gets nothing.
+
+### On an `API` class
+
+An `API` class may declare WebSocket actions next to its HTTP ones. The path is
+joined to the class prefix, and the handler gets a fresh instance as `self` for
+each connection, so the class must be constructible without arguments.
+`@http.websocket` on a `staticmethod` or `classmethod` is refused.
+
+```python
+from hinoki import API, http
+
+
+class Rooms(API, path="/rooms"):
+    @http.websocket("/{room}")
+    async def join(self, room: str, socket: http.WebSocket) -> None:
+        await socket.send_text(f"welcome to {room}")
+```
 
 ## Access and the caller
 
@@ -224,5 +248,5 @@ origins and the handshake's security requirement. They are not listed under
 
 ## Not provided
 
-WebSocket over HTTP/2, `permessage-deflate`, class-based `@http.websocket` on an
-`API`, and a native (GIL-free) handler lane for WebSockets.
+WebSocket over HTTP/2, `permessage-deflate`, `@http.websocket` on a
+`RouteGroup`, and a native (GIL-free) handler lane for WebSockets.

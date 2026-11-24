@@ -8,6 +8,16 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🔌 WebSockets on `API` classes and typed decorators
+> `python/hinoki/websocket.py`, `python/hinoki/api.py`, `python/hinoki/app.py`, `python/hinoki/runtime/asgi.py`, `docs/websockets.md`
+
+`@http.websocket` works on `API` class methods under the class prefix, keeps the handler signature for type checkers and reads annotations at include time, so forward references resolve. Under ASGI a refusal waits for `websocket.connect`. Non-finite `float` parameters are refused.
+
+#### 📎 `Form[Schema]` next to uploaded files
+> `python/hinoki/runtime/binding.py`, `python/hinoki/runtime/requests.py`, `python/hinoki/openapi.py`, `docs/endpoints.md`
+
+A `Form[Schema]` parameter binds the text parts of a multipart body next to `UploadedFile` parameters, and OpenAPI documents the body as `allOf` of the component and the files.
+
 #### 🧩 Model lifecycle utilities
 > `crates/bindings/src/crypto.rs`, `python/hinoki/utils.py`, `python/hinoki/orm/model.py`, `python/hinoki/orm/mixins.py`, `python/hinoki/orm/options.py`, `python/hinoki/orm/queryset.py`, `python/hinoki/admin/`, `docs/models.md`, `docs/queries.md`
 
@@ -33,7 +43,7 @@ Migration note: `DatabaseLoginWindow` of the admin now uses the same algorithm a
 #### 📨 Email templates
 > `python/hinoki/mail.py`, `python/hinoki/mailcli.py`, `python/hinoki/app.py`, `python/hinoki/rules.py`, `crates/mail/src/template`, `crates/bindings/src/mailtemplate.rs`, `crates/kiso/src/metrics.rs`, `examples/mailroom`
 
-`mail.Template` renders a subject, an HTML body and an optional text body from a small fixed language (`{{ path }}`, `{% if %}`, `{% for %}`; no expressions, filters, includes or inheritance). Templates come from a TOML file (`Template.file`), TOML text (`Template.from_toml`) or strings, with a context `Schema` or a plain `dict`, and are listed in `Hinoki(email_templates=[...])` or `EmailModule(templates=[...])`. Parsing, checking, rendering, HTML escaping (inserted values only), the refusal of control characters in a subject value and the plain text derived from the HTML are Rust, with fixed limits. A template with a `Schema` is read and checked when a worker starts: an unknown variable, an unused field, a `SecretStr` field or a wrong shape stops the start. `template.message(context, to=...)` returns a `Message` for `mail.send`. Failures are `TemplateError` (kind `template`, with a `reason`, part, line, column and variable, never a value), counted as outcome `template` in `hinoki_email_messages_total` when a mailer is current. `hinoki mail check` and `hinoki mail preview NAME [--context FILE] [--part ...]` check and render templates without sending, and the opt-in rule `HNK-MAIL-001` (`hinoki.rules.EmailTemplatesMatch`) checks them in `hinoki check --allow-effects`. See [Email templates](docs/email-templates.md) and the `examples/mailroom` project.
+`mail.Template` renders a subject, an HTML body and an optional text body from a small fixed language (`{{ path }}`, `{% if %}`, `{% for %}`; no expressions, filters, includes or inheritance). Templates come from a TOML file (`Template.file`), TOML text (`Template.from_toml`) or strings, with a context `Schema` or a plain `dict`, and are listed in `Hinoki(email_templates=[...])` or `EmailModule(templates=[...])`. Parsing, checking, rendering, HTML escaping (inserted values only), the refusal of control characters in a subject value and the plain text derived from the HTML are Rust, with fixed limits. A template with a `Schema` is read and checked when a worker starts: an unknown variable, an unused field, a `Secret` field or a wrong shape stops the start. `template.message(context, to=...)` returns a `Message` for `mail.send`. Failures are `TemplateError` (kind `template`, with a `reason`, part, line, column and variable, never a value), counted as outcome `template` in `hinoki_email_messages_total` when a mailer is current. `hinoki mail check` and `hinoki mail preview NAME [--context FILE] [--part ...]` check and render templates without sending, and the opt-in rule `HNK-MAIL-001` (`hinoki.rules.EmailTemplatesMatch`) checks them in `hinoki check --allow-effects`. See [Email templates](docs/email-templates.md) and the `examples/mailroom` project.
 
 #### ✉️ Send email
 > `python/hinoki/mail.py`, `python/hinoki/settings.py`, `python/hinoki/app.py`, `python/hinoki/runtime/kiso.py`, `crates/mail`, `crates/bindings/src/mail.rs`, `crates/kiso/src/metrics.rs`
@@ -158,6 +168,28 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### 🔐 One `Secret` type (breaking)
+> `python/hinoki/fields.py`, `python/hinoki/settings.py`, `python/hinoki/crypto.py`, `python/hinoki/sessions.py`, `crates/bindings/src/pytypes.rs`, `docs/schema-types.md`, `docs/settings.md`
+
+`SecretStr` is removed; `hinoki.Secret` (also `settings.Secret`) is the only secret type, for `Schema` fields, settings, `JWTKey(key=...)` and `SessionSettings(csrf_secret=...)`. Read it with `reveal()`; `repr` gives `Secret('**********')`, `str`, `dump()` and responses `**********`. Settings coerce text into a `Secret | None` field.
+
+```python
+from hinoki import Secret
+from hinoki.crypto import JWTKey
+
+key = JWTKey("2026-11", "HS256", Secret("from-a-secret-manager-at-least-32-bytes"))
+```
+
+#### 🧹 Public exports (breaking)
+> `python/hinoki/orm/__init__.py`, `python/hinoki/db.py`, `python/hinoki/http/`, `python/hinoki/reply.py`
+
+`hinoki.orm` no longer exports internals (`IN_CHUNK`, `MARK`, `OPERATORS`, `SEPARATOR`, `SNAPSHOT`, `FieldMeta`, `condition`, `database_var`, `fetch_in`); `hinoki.db` exports `AtomicScope` and `DatabaseModule`, `hinoki` exports `TextParser`, `hinoki.http` exports `set_cookie`, and the response header alias in `hinoki.http.response` is now `ResponseHeaders`.
+
+#### 🧾 Wire forms at any depth (breaking)
+> `crates/bindings/src/request/json.rs`, `crates/bindings/src/xml_encode.rs`, `docs/codecs.md`
+
+The JSON and XML encoders write `Decimal`, `date`, `time`, `timedelta`, `bytes`, sets, IP addresses, paths, `Secret` and enum members in their wire form anywhere, including at the top level, instead of raising `TypeError` outside a `Schema`. A `JSONRenderer(default=...)` hook still sees such values first outside a `Schema`.
+
 #### ⚡ Native Kiso lane for filtered `crud(...)` lists
 > `crates/bindings/src/filters.rs`, `crates/bindings/src/crudplan.rs`, `crates/bindings/src/nativecrud.rs`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/core.pyi`, `docs/crud.md`, `docs/status.md`
 
@@ -176,7 +208,7 @@ The PyPI package is now named `hinoki-api` (the module is still `import hinoki`,
 #### 🧾 XML responses written in Rust
 > `crates/bindings/src/xml_encode.rs`, `python/hinoki/renderers.py`, `python/hinoki/core.pyi`, `docs/codecs.md`
 
-`XMLRenderer` now writes through `core.encode_xml` instead of Python. It takes the same values as `JSONRenderer` and shares its depth limit (200) and its rules for UUIDs, datetimes, `Schema` instances and `dump()` objects. Behavior changes: a bare `Decimal`, `date`, `time`, `timedelta`, `bytes`, `set` or `frozenset`, IP address or network (`IPv4Address`, `IPv6Address`, `IPv4Network`, `IPv6Network`), `PurePath` or `SecretStr` outside a `Schema` instance now raises `TypeError` (500), as it does for JSON, instead of being converted; and a float exponent is no longer zero-padded (`1e-7`, not `1e-07`). Everything else is byte-identical. `docs/codecs.md` now states the exact round-trip rules (`None`, `""`, `{}` and `[]` all read back as `None`).
+`XMLRenderer` now writes through `core.encode_xml` instead of Python. It takes the same values as `JSONRenderer` and shares its depth limit (200) and its rules for UUIDs, datetimes, `Schema` instances and `dump()` objects. Behavior change: a float exponent is no longer zero-padded (`1e-7`, not `1e-07`). Everything else is byte-identical. `docs/codecs.md` now states the exact round-trip rules (`None`, `""`, `{}` and `[]` all read back as `None`).
 
 #### ⚡ Less work per request
 > `python/hinoki/schemafast.py`, `python/hinoki/schema.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/binding.py`
@@ -214,6 +246,7 @@ The command line, the migration state files, the JSON log format, the MCP server
 
 ### 🐛 Fixes
 
+- **OpenAPI names and decimals.** Security schemes and page envelopes that would share a component name get a numeric suffix instead of overwriting each other; page envelopes of scalar items are named after the item (`Page_integer`). `Decimal` bounds are written as `x-minimum`/`x-maximum`/`x-exclusiveMinimum`/`x-exclusiveMaximum` strings and decimal examples as text. `Field(description=..., examples=..., deprecated=..., discriminator=...)` used as a default now reaches the schema, and its overloads type-check as a default.
 - **SQLite lock waits:** the SQLite writer-lock wait now follows a larger `Database.connect(wait=...)` value instead of always ending after five seconds; the default remains five seconds (`crates/orm/src/sqlite.rs`).
 - **Long page indexes:** the sticky table of contents now scrolls within the viewport instead of extending over the footer (`theme/static/css/base.css`).
 - **Security review fixes:** WebSocket handshakes over ASGI route on the raw path and honour `allowed_hosts` and trusted proxies, and the same-origin check compares the scheme (also on Kiso over HTTPS); a duplicate `Host` on HTTP/1.0 is refused; a non-numeric `Host` port no longer breaks WSGI; the admin form uses the admin timezone; documentation URLs are escaped; a full sign-in table keeps blocked addresses, sign-in and password change count apart, and a user name is delayed after repeated failures; MySQL `require_ssl` precedes a URL fragment; Kiso's WSGI host bounds the body bytes being read; a remote PostgreSQL URL without `sslmode` and a world-readable TLS key log a warning.

@@ -10,7 +10,7 @@ related:
 
 A `Schema` field can be `str`, `int`, `float`, `bool`, `UUID`, `datetime`,
 `date`, `time`, `timedelta`, `Decimal`, `bytes`, an `Enum` class, a `Literal`,
-an `ipaddress` type, `Email`, `Url`, `Slug`, `SecretStr` or `Path`; optionally
+an `ipaddress` type, `Email`, `Url`, `Slug`, `Secret` or `Path`; optionally
 `| None` (accepts `null`) or `| Unset`, and wrapped in
 `Annotated[..., Field(...)]`. Containers, unions and nested types are in
 [collections and unions](schema-collections.md). Anything else raises
@@ -148,8 +148,9 @@ assert booking.dump()["price"] == "19.90"
   input is capped at 65 536 bytes (`hinoki.fieldtypes.MAX_BYTES_LENGTH`);
   model-derived fields are not capped. `pattern` matches the decoded bytes read
   as Latin-1.
-* **Output.** The JSON encoder writes these values only inside `Schema`
-  instances; a bare `Decimal` or `bytes` in a plain dict is a `TypeError`.
+* **Output.** The JSON and XML encoders write these values in their wire form
+  anywhere, including in a plain dict or at the top level; a `JSONRenderer`
+  with a `default` hook passes them to the hook first outside a `Schema`.
 * **OpenAPI:** `format` `date`, `time`, `duration`, `decimal` (with a
   `pattern`) and `byte` (`contentEncoding: base64`).
 
@@ -183,28 +184,30 @@ assert rule.source == IPv4Address("10.0.0.7")
   `Email` checks syntax, not deliverability. They work as model columns.
 * **Models** store addresses as text and check the class before a write.
 
-## `SecretStr` and `Path`
+## `Secret` and `Path`
 
 ```python
 from pathlib import Path
 from typing import Annotated
 
-from hinoki import Field, Schema, SecretStr
+from hinoki import Field, Schema, Secret
 
 
 class Account(Schema):
-    password: Annotated[SecretStr, Field(min_length=8)]
+    password: Annotated[Secret, Field(min_length=8)]
     home: Path
 
 
 account = Account.validate({"password": "correct horse", "home": "/srv/ann"})
-assert account.password.get_secret_value() == "correct horse"
+assert account.password.reveal() == "correct horse"
 assert account.dump() == {"password": "**********", "home": "/srv/ann"}
 ```
 
-* `SecretStr` shows `**********` in `repr`, `str`, `dump()` and responses;
-  only `get_secret_value()` returns the text, and errors never repeat it.
-  Construction takes a `SecretStr` only.
+* `Secret` shows `**********` in `str`, `dump()` and responses (its `repr` is
+  `Secret('**********')`); only `reveal()` returns the text, and errors never
+  repeat it. Construction takes a `str` only; two secrets compare in constant
+  time. It is the same type as `settings.Secret`, and `JWTKey(key=...)` and
+  `SessionSettings(csrf_secret=...)` accept it.
 * `Path` reads a non-empty string without NUL (at most 4096 characters without
   `max_length`) and never touches the file system; code `path`.
 * Both are served by the Python lane by design and have no model column type.

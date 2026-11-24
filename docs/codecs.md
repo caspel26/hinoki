@@ -68,7 +68,7 @@ async def hook(request: Request) -> HookReceipt: ...  # request.data is a dict o
 
 ## Answer XML
 
-`XMLRenderer` renders the handler's result as `application/xml; charset=utf-8` with an XML declaration. It is written by the Rust encoder, which accepts what the JSON encoder accepts: `dict`, `list`, `tuple`, `str`, `int`, `float`, `bool`, `None`, `Schema` instances, UUIDs, datetimes and `dump()` objects, at any depth. `date`, `time`, `timedelta`, `Decimal`, `bytes`, sets and frozensets, IP addresses and networks, `PurePath` and `SecretStr` (written masked) and enum members have a wire form only inside a `Schema` instance; anywhere else they raise `TypeError` (`500`), exactly as in `JSONRenderer` (give the handler a `Schema`, or convert them first). A `JSONRenderer`'s own options (`default`, `prepare`, `sort_keys`) do not apply to it:
+`XMLRenderer` renders the handler's result as `application/xml; charset=utf-8` with an XML declaration. It is written by the Rust encoder, which accepts what the JSON encoder accepts: `dict`, `list`, `tuple`, `str`, `int`, `float`, `bool`, `None`, `Schema` instances, UUIDs, datetimes and `dump()` objects, at any depth. `date`, `time`, `timedelta`, `Decimal`, `bytes`, sets and frozensets, IP addresses and networks, `PurePath`, `Secret` (written masked) and enum members are written in their wire form at any depth, as in `JSONRenderer`: a `Decimal` as its text, `bytes` as base64, a set as a sorted list, an enum member as its value. A `JSONRenderer`'s own options (`default`, `prepare`, `sort_keys`) do not apply to it:
 
 ```python
 from hinoki import JSONRenderer, XMLRenderer
@@ -101,10 +101,10 @@ Attributes and namespace prefixes are ignored on reading, and mixed text and ele
 
 ```python
 JSONRenderer(indent=2, sort_keys=True)  # pretty, stable output
-JSONRenderer(default=str)  # Decimal, Path, ... become text
+JSONRenderer(default=str)  # values outside a Schema the hook sees first
 ```
 
-`default` is a Python callback for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder already handles (UUID, datetime, `Schema`, anything with `dump()`). With `sort_keys=True` object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always `json.dumps` order for unusual keys, and integer keys sort as text. The public renderer accepts `indent` from 0 to 16, or `None` for compact output.
+`default` is a Python callback for a value the encoder does not know and must return something that is JSON (returning the same object is an error). It does not override what the encoder always handles (UUID, datetime, `Schema`, anything with `dump()`). Without `default`, `date`, `time`, `timedelta`, `Decimal`, `bytes`, sets, IP addresses, paths, `Secret` and enum members are written in their wire form anywhere, including at the top level; with `default`, such a value outside a `Schema` instance is passed to the hook first, and inside a `Schema` the wire form always applies. With `sort_keys=True` object keys are ordered by their encoded text (quotes and escapes included), which is deterministic but not always `json.dumps` order for unusual keys, and integer keys sort as text. The public renderer accepts `indent` from 0 to 16, or `None` for compact output.
 
 ## Inherit and override
 

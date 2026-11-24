@@ -201,7 +201,7 @@ invalid settings:
 
 ## Keep secrets secret
 
-* Declare them as `settings.Secret` (or `settings.Secret | None`). A `settings.Secret` prints as `***` in `repr`, `str`, logs, error messages, `describe()` and the settings command; you get the real text only with `secret.reveal()`, at the one place that needs it (where the payment client is built: `app_settings.stripe_key.reveal()`).
+* Declare them as `settings.Secret` (or `settings.Secret | None`). A `settings.Secret` (the same type as `hinoki.Secret`) prints as `**********` in `repr`, `str`, logs and error messages, and as `***` in `describe()` and the settings command; you get the real text only with `secret.reveal()`, at the one place that needs it (where the payment client is built: `app_settings.stripe_key.reveal()`).
 * Put secrets in the environment, a secret manager that exports variables, or **files**: with Docker or Kubernetes secrets set `NOTES_STRIPE_KEY_FILE=/run/secrets/stripe`; the file's content (without the trailing newline) is the value. Only a regular file up to 64 KiB is read; setting both `NOTES_STRIPE_KEY` and `NOTES_STRIPE_KEY_FILE` is an error.
 * A `.env` file is for development; never commit it. Pickling or serialising a settings object stores its secrets in plain text, so don't.
 * A `validate()` method you add to a group shows its message in errors, so never put a field's value in it.
