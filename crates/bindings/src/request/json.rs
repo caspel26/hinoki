@@ -1110,6 +1110,14 @@ impl<'py> Encoder<'py> {
         result
     }
 
+    fn write_isoformat(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
+        let iso = value.call_method0(intern!(value.py(), "isoformat"))?;
+        match iso.cast::<PyString>() {
+            Ok(text) => write_pystring(&mut self.out, text),
+            Err(_) => write_string(&mut self.out, &iso.str()?.to_string()),
+        }
+    }
+
     /// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
     /// anything with a `dump()` method, then the caller's `default` hook.
     fn object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
@@ -1121,25 +1129,14 @@ impl<'py> Encoder<'py> {
             .get_type()
             .is(crate::pytypes::datetime_class(value.py())?)
         {
-            let py = value.py();
-            let iso = value.call_method0(intern!(py, "isoformat"))?;
-            return match iso.cast::<PyString>() {
-                Ok(text) => write_pystring(&mut self.out, text),
-                Err(_) => write_string(&mut self.out, &iso.str()?.to_string()),
-            };
+            return self.write_isoformat(value);
         }
         if let Some((names, unset, _)) = crate::schema::instance_fields(value, true, true, true)? {
             self.schema_object(value, names, &unset, depth)?;
         } else if value.is_instance(crate::pytypes::uuid_class(value.py())?)? {
             write_string(&mut self.out, &value.str()?.to_string())?;
         } else if value.is_instance(crate::pytypes::datetime_class(value.py())?)? {
-            write_string(
-                &mut self.out,
-                &value
-                    .call_method0(intern!(value.py(), "isoformat"))?
-                    .str()?
-                    .to_string(),
-            )?;
+            self.write_isoformat(value)?;
         } else if let Some(text) = self.wire_text(value)? {
             write_string(&mut self.out, &text)?;
         } else if let Some(members) = self.set_members(value)? {
