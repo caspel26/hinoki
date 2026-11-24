@@ -10,6 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 kiso = { path = "../crates/kiso" }
+httparse = "1"
 
 # Standalone workspace: the fuzz targets need a nightly toolchain and must not
 # become members of the main workspace.
@@ -46,6 +47,20 @@ bench = false
 [[bin]]
 name = "websocket_handshake"
 path = "fuzz_targets/websocket_handshake.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "head_framing"
+path = "fuzz_targets/head_framing.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "request_head_limits"
+path = "fuzz_targets/request_head_limits.rs"
 test = false
 doc = false
 bench = false
