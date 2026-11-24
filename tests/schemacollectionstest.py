@@ -286,8 +286,7 @@ def test_the_json_encoder_writes_arrays_inside_schemas() -> None:
     assert '"tags":["a","b"]' in text
     assert '"frozen":[1,3]' in text
     assert '"pair":[1,"one"]' in text
-    with pytest.raises(TypeError):
-        core.encode_json({"tags": {"a"}})
+    assert core.encode_json({"tags": {"b", "a"}}) == b'{"tags":["a","b"]}'
 
 
 @pytest.mark.parametrize(

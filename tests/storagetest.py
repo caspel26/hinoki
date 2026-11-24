@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from hinoki import Hinoki, http
+from hinoki import Hinoki, ModuleContext, http
 from hinoki.http.response import Response
 from hinoki.parsers import UploadedFile
 from hinoki.storage import (
@@ -360,3 +360,11 @@ async def test_open_response_resolves_name_and_type_alike(
     finally:
         if isinstance(backend, LocalFileStorage):
             await backend.close()
+
+
+async def test_the_module_provides_the_storage_under_its_own_type_too() -> None:
+    storage = MemoryFileStorage()
+    ctx = ModuleContext()
+    async with FileStorageModule(storage).lifespan(ctx):
+        assert ctx.get(MemoryFileStorage) is storage
+        assert ctx.get(FileStorage) is storage

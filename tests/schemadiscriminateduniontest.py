@@ -55,7 +55,7 @@ class PatchPet(Schema):
 
 
 class AssignedPet(Schema):
-    pet: Cat | Dog = Field(discriminator="kind")  # type: ignore[assignment]
+    pet: Cat | Dog = Field(discriminator="kind")
 
 
 class DefaultPet(Schema):

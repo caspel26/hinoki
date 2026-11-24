@@ -6,6 +6,7 @@ from openapi_spec_validator import validate
 from hinoki import (
     API,
     Access,
+    Form,
     FormParser,
     Hinoki,
     Includable,
@@ -508,7 +509,10 @@ def test_explicit_action_parsers_without_multipart_still_fail() -> None:
 
 
 def test_automatic_selection_keeps_the_original_registration_errors() -> None:
-    with pytest.raises(RegistrationError, match="cannot be combined with file"):
+    with pytest.raises(
+        RegistrationError,
+        match=r"next to file parameters must be declared Form\[\.\.\.\]",
+    ):
         Hinoki(include=[auto_schema_and_file])
     with pytest.raises(RegistrationError, match="requires a POST/PUT/PATCH/QUERY"):
         Hinoki(include=[auto_get])
@@ -569,3 +573,54 @@ async def test_application_and_automatic_multipart_limits_apply_at_runtime() -> 
     assert (oversized.status, oversized.body["error"]) == (413, "payload_too_large")
     assert (at_limit.status, len(at_limit.body)) == (200, DEFAULT_PARTS)
     assert (parts.status, parts.body["error"]) == (400, "invalid_multipart")
+
+
+class Upload(Schema):
+    title: str
+    pages: int
+
+
+@http.post("/form-and-file")
+async def form_and_file(
+    meta: Form[Upload], file: UploadedFile, extra: UploadedFile | None = None
+) -> dict[str, object]:
+    return {
+        "title": meta.title,
+        "pages": meta.pages,
+        "file": file.filename,
+        "extra": extra is not None,
+    }
+
+
+async def test_a_form_schema_binds_the_text_fields_next_to_the_files() -> None:
+    application = Hinoki(include=[form_and_file])
+    async with ASGIClient(application) as client:
+        sent = await client.post(
+            "/form-and-file",
+            data={"title": "Report", "pages": "3"},
+            files=[("file", "r.txt", b"r", "text/plain")],
+        )
+        invalid = await client.post(
+            "/form-and-file",
+            data={"title": "Report", "pages": "many"},
+            files=[("file", "r.txt", b"r", "text/plain")],
+        )
+        empty = await client.post("/form-and-file")
+    assert (sent.status, sent.body) == (
+        200,
+        {"title": "Report", "pages": 3, "file": "r.txt", "extra": False},
+    )
+    assert invalid.status == 422
+    assert invalid.body["details"][0]["path"] == "meta.pages"
+    assert empty.status == 422
+
+
+def test_the_openapi_body_joins_the_form_schema_and_the_files() -> None:
+    document = Hinoki(include=[form_and_file]).openapi()
+    validate(document)
+    body = document["paths"]["/form-and-file"]["post"]["requestBody"]
+    schema = body["content"]["multipart/form-data"]["schema"]
+    assert body["required"] is True
+    assert schema["allOf"][0] == {"$ref": "#/components/schemas/Upload"}
+    assert schema["allOf"][1]["required"] == ["file"]
+    assert set(schema["allOf"][1]["properties"]) == {"file", "extra"}

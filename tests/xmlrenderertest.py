@@ -185,12 +185,24 @@ def test_a_schema_instance_has_wire_forms_inside_and_a_dump_object_works() -> No
     assert render(price) == render(json.loads(JSONRenderer().render(price, None)))  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("value", [Decimal(1), date(2026, 1, 2), {1, 2}, b"x"])
-def test_values_json_refuses_outside_a_schema_are_refused(value: object) -> None:
-    with pytest.raises(TypeError, match="cannot be rendered as XML"):
-        render({"v": value})
-    with pytest.raises(TypeError, match="not JSON serializable"):
-        JSONRenderer().render({"v": value}, None)  # type: ignore[arg-type]
+@pytest.mark.parametrize(
+    ("value", "json_text", "xml_text"),
+    [
+        (Decimal("1.50"), b'"1.50"', "1.50"),
+        (date(2026, 1, 2), b'"2026-01-02"', "2026-01-02"),
+        ({2, 1}, b"[1,2]", "<item>1</item><item>2</item>"),
+        (b"x", b'"eA=="', "eA=="),
+        (Shade.DARK, b'"dark"', "dark"),
+    ],
+)
+def test_wire_forms_apply_outside_a_schema_and_at_the_top_level(
+    value: object, json_text: bytes, xml_text: str
+) -> None:
+    assert JSONRenderer().render(value, None) == json_text  # type: ignore[arg-type]
+    assert JSONRenderer().render({"v": value}, None) == b'{"v":' + json_text + b"}"  # type: ignore[arg-type]
+    assert (
+        render({"v": value}) == f"{DECLARATION}<response><v>{xml_text}</v></response>"
+    )
 
 
 def test_floats_are_written_as_json_writes_them() -> None:

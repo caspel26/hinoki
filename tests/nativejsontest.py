@@ -4,6 +4,7 @@ import datetime
 import json
 import math
 import uuid
+from decimal import Decimal
 from typing import Any
 from urllib.parse import parse_qs
 
@@ -144,7 +145,7 @@ def test_encode_refuses_non_finite_numbers(value: Any) -> None:
         core.encode_json(value)
 
 
-@pytest.mark.parametrize("value", [object(), {1, 2}, b"x", {(1, 2): 1}])
+@pytest.mark.parametrize("value", [object(), {(1, 2): 1}])
 def test_encode_refuses_what_json_cannot_hold(value: Any) -> None:
     with pytest.raises(TypeError):
         core.encode_json(value)
@@ -413,3 +414,17 @@ def test_encode_survives_a_hook_that_mutates_the_containers_being_written() -> N
 
     assert core.encode_json(items, default=clear_items) == b"[null]"
     assert core.encode_json(table, default=clear_table) == b'{"a":null,"b":2}'
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (Decimal("1.50"), b'"1.50"'),
+        (datetime.date(2026, 1, 2), b'"2026-01-02"'),
+        (datetime.timedelta(hours=1), b'"PT1H"'),
+        (b"\x00", b'"AA=="'),
+        (frozenset({2, 1}), b"[1,2]"),
+    ],
+)
+def test_encode_writes_wire_forms_at_the_top_level(value: Any, expected: bytes) -> None:
+    assert core.encode_json(value) == expected

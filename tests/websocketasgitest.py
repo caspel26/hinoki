@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, http
+from hinoki import API, Access, BearerAuth, Caller, Hinoki, http
 from hinoki.runtime.asgi import ASGIAdapter
 from hinoki.settings import AppSettings
 
@@ -149,3 +149,47 @@ async def test_an_unauthenticated_client_is_refused_before_accept() -> None:
 async def test_a_client_that_leaves_before_connecting_gets_nothing() -> None:
     sent = await run(Peer("/echo/a", []), {"type": "websocket.disconnect"})
     assert sent == []
+
+
+async def test_a_refusal_is_sent_only_after_the_connect_event_is_read() -> None:
+    order: list[str] = []
+    peer = Peer("/nowhere", [])
+    peer.inbox.put_nowait(connect())
+
+    async def receive() -> dict[str, Any]:
+        order.append("receive")
+        return await peer.inbox.get()
+
+    async def send(event: dict[str, Any]) -> None:
+        order.append(event["type"])
+
+    await asyncio.wait_for(ASGIAdapter(Hinoki())(peer.scope, receive, send), 5)
+    assert order == ["receive", "websocket.close"]
+
+
+async def test_a_client_gone_before_connecting_to_an_unknown_path_gets_nothing() -> (
+    None
+):
+    assert await run(Peer("/nowhere", []), {"type": "websocket.disconnect"}) == []
+
+
+class Rooms(API, path="/rooms"):
+    greeting = "hello"
+
+    @http.websocket("/{room}")
+    async def join(self, room: str, socket: http.WebSocket, size: Later) -> None:
+        await socket.send_text(f"{self.greeting} {room} {size + 1}")
+
+
+Later = int  # defined after the handler that names it: read at include time
+
+
+async def test_an_api_class_declares_websockets_under_its_prefix() -> None:
+    peer = Peer("/rooms/lobby", [])
+    peer.scope["query_string"] = b"size=3"
+    app = Hinoki(include=[Rooms])
+    for event in (connect(), {"type": "websocket.disconnect", "code": 1000}):
+        peer.inbox.put_nowait(event)
+    await asyncio.wait_for(ASGIAdapter(app)(peer.scope, peer.receive, peer.send), 5)
+    assert peer.sent[0]["type"] == "websocket.accept"
+    assert peer.sent[1] == {"type": "websocket.send", "text": "hello lobby 4"}

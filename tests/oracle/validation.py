@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from hinoki.errors import ErrorDetail
-from hinoki.fields import FieldInfo, SecretStr
+from hinoki.fields import FieldInfo, Secret
 from hinoki.fieldtypes import FieldType, decimal_limits
 from hinoki.schemaconfig import SchemaExtra
 
@@ -345,7 +345,7 @@ class Validator:
 
     def secret(self, ftype: FieldType, data: Any, path: str) -> object:
         text = self.text(ftype, data, path)
-        return INVALID if text is INVALID else SecretStr(str(text))
+        return INVALID if text is INVALID else Secret(str(text))
 
     def binary(self, ftype: FieldType, data: Any, path: str) -> object:
         raw = decode_base64(data)

@@ -11,7 +11,7 @@ import pytest
 from hinoki import Hinoki, http
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.runtime.asgi import PATHSEND, ASGIAdapter
-from hinoki.runtime.asgisocket import ASGITransport, accept
+from hinoki.runtime.asgisocket import ASGITransport, connected
 from tests.harness import Client, Feed, Sink
 
 
@@ -133,7 +133,6 @@ async def test_a_send_the_server_refuses_closes_the_transport() -> None:
     assert transport.closed == (1001, "")
 
 
-async def test_accept_is_refused_when_the_first_event_is_not_a_connect() -> None:
-    sink = Sink()
-    assert not await accept(Feed({"type": "websocket.disconnect"}), sink, None)
-    assert sink.sent == []
+async def test_a_first_event_that_is_not_a_connect_ends_the_handshake() -> None:
+    assert not await connected(Feed({"type": "websocket.disconnect"}))
+    assert await connected(Feed({"type": "websocket.connect"}))

@@ -824,8 +824,7 @@ def test_output_formats_on_dump_to_dict_and_encode() -> None:
         b'{"day":"0005-01-02","at":"09:30:00.000250-05:30","wait":"PT1H0.5S",'
         b'"amount":"0.10","blob":"AAH+/w=="}'
     )
-    with pytest.raises(TypeError):
-        core.encode_json({"blob": b"\x00"})
+    assert core.encode_json({"blob": b"\x00"}) == b'{"blob":"AA=="}'
 
 
 def test_the_json_encoder_refuses_decimals_without_a_wire_form() -> None:
@@ -988,7 +987,11 @@ def test_openapi_describes_the_wire_forms() -> None:
         "contentEncoding": "base64",
     }
     price = schemas["Priced"]["properties"]["price"]
-    assert price["minimum"] == 0.01 and price["exclusiveMaximum"] == 1000
+    # a string on the wire: its bounds are text extensions, not numeric keywords
+    assert price["x-minimum"] == "0.01" and price["x-exclusiveMaximum"] == "1000"
+    assert "minimum" not in price and "exclusiveMaximum" not in price
+    rate = schemas["Priced"]["properties"]["rate"]
+    assert rate["x-exclusiveMinimum"] == "-1.5" and rate["x-maximum"] == "1.50"
     assert "maxLength" not in price and "max_digits" not in price
     small = schemas["Blobs"]["properties"]["small"]
     assert "minLength" not in small and "maxLength" not in small

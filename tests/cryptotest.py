@@ -17,7 +17,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Request, core, http
+from hinoki import Access, Caller, Hinoki, Request, Secret, core, http
 from hinoki.crypto import (
     ClaimsJWTAuth,
     HashingBusy,
@@ -503,3 +503,11 @@ def test_claims_auth_refuses_an_unusable_subject_or_scope_claim(
     claims: dict[str, Any],
 ) -> None:
     assert ClaimsOnly().resolve_claims(claims) is None
+
+
+def test_a_jwt_key_takes_a_secret_and_never_shows_it() -> None:
+    material = "k" * 32
+    key = JWTKey(None, "HS256", Secret(material))
+    assert key.material() == material.encode()
+    assert material not in repr(key)
+    assert key.material() == JWTKey(None, "HS256", material).material()

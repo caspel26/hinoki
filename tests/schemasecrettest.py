@@ -1,4 +1,4 @@
-"""``SecretStr`` and ``pathlib.Path`` fields of a ``Schema``: validation on both
+"""``Secret`` and ``pathlib.Path`` fields of a ``Schema``: validation on both
 lanes, constructed values, masking, registration errors, OpenAPI and the
 request lanes."""
 
@@ -11,7 +11,7 @@ from typing import Annotated, Any
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import Field, Hinoki, Schema, SecretStr, http
+from hinoki import Field, Hinoki, Schema, Secret, http
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.orm import Model, field
 from hinoki.runtime.kiso import KisoWorker
@@ -24,8 +24,8 @@ from tests.xmlnativelanetest import recording
 
 class Account(Schema):
     name: str
-    password: Annotated[SecretStr, Field(min_length=8)]
-    token: SecretStr | None = None
+    password: Annotated[Secret, Field(min_length=8)]
+    token: Secret | None = None
     home: Path
     shares: list[Path] = Field(default_factory=list)
 
@@ -41,24 +41,24 @@ def errors(**changes: object) -> list[tuple[str, str, str]]:
 
 def test_a_secret_is_built_and_never_shown() -> None:
     account = Account.validate({**GOOD, "token": "t0ken"})
-    assert isinstance(account.password, SecretStr)
-    assert account.password.get_secret_value() == "correct horse"
-    assert account.token is not None and account.token.get_secret_value() == "t0ken"
+    assert isinstance(account.password, Secret)
+    assert account.password.reveal() == "correct horse"
+    assert account.token is not None and account.token.reveal() == "t0ken"
     assert "correct horse" not in repr(account)
-    assert repr(account.password) == "SecretStr('**********')"
+    assert repr(account.password) == "Secret('**********')"
     assert str(account.password) == "**********"
     assert f"{account.password}" == "**********"
 
 
 def test_secrets_compare_by_value_and_are_hashable() -> None:
-    assert SecretStr("a") == SecretStr("a")
-    assert SecretStr("a") != SecretStr("b")
-    assert SecretStr("a") != "a"
-    assert hash(SecretStr("a")) == hash(SecretStr("a"))
-    assert len(SecretStr("abc")) == 3
-    assert not SecretStr("")
+    assert Secret("a") == Secret("a")
+    assert Secret("a") != Secret("b")
+    assert Secret("a") != "a"
+    assert hash(Secret("a")) == hash(Secret("a"))
+    assert len(Secret("abc")) == 3
+    assert not Secret("")
     with pytest.raises(TypeError):
-        SecretStr(5)  # type: ignore[arg-type]
+        Secret(5)  # type: ignore[arg-type]
 
 
 def test_a_secret_is_masked_when_dumped() -> None:
@@ -81,20 +81,20 @@ def test_a_path_is_built_as_a_path_object() -> None:
 def test_the_constructor_takes_the_objects_not_a_plain_string() -> None:
     account = Account(
         name="a",
-        password=SecretStr("correct horse"),
+        password=Secret("correct horse"),
         home=Path("/x"),
-        token=SecretStr("t"),
+        token=Secret("t"),
     )
-    assert account.password == SecretStr("correct horse")
-    assert account.token == SecretStr("t")
+    assert account.password == Secret("correct horse")
+    assert account.token == Secret("t")
     with pytest.raises(ValidationError):
-        Account(name="a", password=SecretStr("short"), home=Path("/x"))
+        Account(name="a", password=Secret("short"), home=Path("/x"))
     with pytest.raises(ValidationError):
         Account(name="a", password="correct horse", home=Path("/x"))  # type: ignore[arg-type]
     with pytest.raises(ValidationError):
         Account(
             name="a",
-            password=SecretStr("correct horse"),
+            password=Secret("correct horse"),
             home="/not-a-path-object",  # type: ignore[arg-type]
         )
     with pytest.raises(ValidationError):
@@ -107,7 +107,7 @@ def test_the_constructor_takes_the_objects_not_a_plain_string() -> None:
 
 def test_a_pure_path_is_not_a_path() -> None:
     with pytest.raises(ValidationError):
-        Account(name="a", password=SecretStr("correct horse"), home=PurePosixPath("/x"))  # type: ignore[arg-type]
+        Account(name="a", password=Secret("correct horse"), home=PurePosixPath("/x"))  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -140,12 +140,12 @@ def test_the_secret_is_not_echoed_in_an_error() -> None:
 
 
 class Pinned(Schema):
-    pin: Annotated[SecretStr, Field(pattern=r"\d{4}", max_length=4)]
+    pin: Annotated[Secret, Field(pattern=r"\d{4}", max_length=4)]
     where: Annotated[Path, Field(max_length=8)]
 
 
 def test_length_and_pattern_constraints_apply() -> None:
-    assert Pinned.validate({"pin": "1234", "where": "/srv"}).pin == SecretStr("1234")
+    assert Pinned.validate({"pin": "1234", "where": "/srv"}).pin == Secret("1234")
     with pytest.raises(ValidationError) as caught:
         Pinned.validate({"pin": "12ab", "where": "/a/very/long/path"})
     assert [(d.path, d.code) for d in caught.value.details] == [
@@ -157,8 +157,8 @@ def test_length_and_pattern_constraints_apply() -> None:
 @pytest.mark.parametrize(
     "annotation",
     [
-        Annotated[SecretStr, Field(one_of=["a"])],
-        Annotated[SecretStr, Field(ge=1)],
+        Annotated[Secret, Field(one_of=["a"])],
+        Annotated[Secret, Field(ge=1)],
         Annotated[Path, Field(pattern="x")],
         Annotated[Path, Field(ge=1)],
     ],
@@ -170,13 +170,13 @@ def test_constraints_do_not_apply(annotation: Any) -> None:
 
 def test_a_bare_path_and_secret_are_encoded() -> None:
     assert encode(Path("/srv/a")) == "/srv/a"
-    assert encode({"home": Path("/x"), "key": SecretStr("k")}) == {
+    assert encode({"home": Path("/x"), "key": Secret("k")}) == {
         "home": "/x",
         "key": "**********",
     }
 
 
-@pytest.mark.parametrize("column", [Path, SecretStr])
+@pytest.mark.parametrize("column", [Path, Secret])
 def test_a_model_column_of_these_types_has_no_sql_type(column: Any) -> None:
     with pytest.raises(RegistrationError, match=r"Vault\.item: no column type holds"):
         type(
@@ -212,10 +212,10 @@ def test_openapi_describes_both_kinds() -> None:
 
 def reveal(account: Account) -> tuple[object, ...]:
     """The fields with the secrets in the clear: a secret's repr is masked."""
-    token = account.token.get_secret_value() if account.token else None
+    token = account.token.reveal() if account.token else None
     return (
         account.name,
-        account.password.get_secret_value(),
+        account.password.reveal(),
         token,
         account.home,
         account.shares,

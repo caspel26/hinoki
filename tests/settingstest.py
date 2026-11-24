@@ -615,10 +615,11 @@ def test_secret_equality_hash_truth_and_redaction_contract() -> None:
     assert value == Secret("token")
     assert value != Secret("different")
     assert value != "token"
-    assert hash(value) == hash("token")
+    assert hash(value) == hash(Secret("token"))
     assert bool(value)
     assert not Secret("")
-    assert repr(value) == str(value) == "Secret('***')"
+    assert repr(value) == "Secret('**********')"
+    assert str(value) == "**********"
 
 
 def test_toml_type_matching_covers_unions_sequences_literals_and_scalars() -> None:
@@ -894,3 +895,16 @@ def test_metrics_settings_refuse_an_empty_token_and_pass_a_token_on() -> None:
     ).native_options(version="1")
     assert options is not None
     assert options["token"] == "scrape-secret"
+
+
+class OptionalSecrets(AppSettings):
+    api_key: Secret | None = None
+
+
+def test_an_optional_secret_is_read_from_text_and_stays_masked() -> None:
+    loaded = OptionalSecrets.load(prefix="X_", env={"X_API_KEY": "k-value"})
+    assert loaded.api_key == Secret("k-value")
+    assert "k-value" not in repr(loaded)
+    assert OptionalSecrets.load(prefix="X_", env={}).api_key is None
+    direct = OptionalSecrets(api_key="typed")  # type: ignore[arg-type]
+    assert isinstance(direct.api_key, Secret) and direct.api_key.reveal() == "typed"

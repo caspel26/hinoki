@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, Caller, Hinoki, Schema, core, http
+from hinoki import API, Access, Caller, Hinoki, Schema, core, http
 from hinoki.crypto import ClaimsJWTAuth, JWTKey
 from hinoki.errors import RegistrationError
 from hinoki.runtime.kiso import KisoWorker
@@ -588,12 +588,43 @@ def test_a_path_value_converts_to_a_bool_or_is_refused() -> None:
         convert(flag, "maybe")
 
 
+@pytest.mark.parametrize("text", ["nan", "inf", "-Infinity"])
+def test_a_non_finite_float_is_refused(text: str) -> None:
+    with pytest.raises(ValueError, match=text):
+        convert(Param("ratio", float, True, True, None), text)
+
+
+def test_a_websocket_on_a_staticmethod_is_refused() -> None:
+    class Bad(API, path="/bad"):
+        @staticmethod
+        @http.websocket("/x")
+        async def handler(socket: http.WebSocket) -> None:  # noqa: ARG004
+            return None
+
+    with pytest.raises(RegistrationError, match="plain methods"):
+        Hinoki(include=[Bad])
+
+
+def test_an_api_class_with_websockets_must_be_created_without_arguments() -> None:
+    class Needy(API, path="/needy"):
+        def __init__(self, token: str) -> None:
+            self.token = token
+
+        @http.websocket("/x")
+        async def handler(self, socket: http.WebSocket) -> None:
+            return None
+
+    with pytest.raises(RegistrationError, match="without arguments"):
+        Hinoki(include=[Needy])
+
+
 def test_an_unresolvable_annotation_is_a_registration_error() -> None:
     async def handler(socket: http.WebSocket, size: Missing) -> None:  # type: ignore[name-defined]  # noqa: F821
         return None
 
+    declared = http.websocket("/x")(handler)  # read when included
     with pytest.raises(RegistrationError, match="cannot resolve annotations"):
-        http.websocket("/x")(handler)
+        Hinoki(include=[declared])
 
 
 def test_a_repeated_or_missing_query_parameter_is_refused_before_the_upgrade() -> None:
@@ -612,7 +643,7 @@ async def test_a_cancelled_handler_propagates_without_closing_the_connection() -
         raise asyncio.CancelledError
 
     route = WebSocketRoute(
-        "/x", handler, None, None, None, (), (), None, None, (), "socket", None
+        "/x", handler, None, None, None, (), (), None, None, socket="socket"
     )
     closes: list[int] = []
 

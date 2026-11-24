@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, http
+from hinoki import Access, BearerAuth, Caller, Hinoki, ModuleContext, Secret, http
 from hinoki.ai.mcpapp import select
 from hinoki.auth import BaseAuth, Credentials
 from hinoki.db import Database
@@ -25,6 +25,7 @@ from hinoki.sessions import (
     SessionModule,
     SessionRecord,
     SessionSettings,
+    SessionStore,
     SessionTooLarge,
     SessionUnavailable,
     _session_upsert,
@@ -681,3 +682,16 @@ async def test_a_slotted_composite_auth_loads_the_session_and_checks_csrf() -> N
         )
         assert allowed.status == 200
         assert allowed.body == {"user": "Alice"}
+
+
+async def test_settings_take_a_secret_and_the_module_provides_the_store_type() -> None:
+    settings = SessionSettings(csrf_secret=Secret("t" * 32))
+    assert settings.csrf_key() == b"t" * 32
+    assert "t" * 32 not in repr(settings)
+    with pytest.raises(ValueError, match="32-byte CSRF secret"):
+        SessionSettings(csrf_secret=Secret("short"))
+    store = MemorySessionStore()
+    ctx = ModuleContext()
+    async with SessionModule(store, settings).lifespan(ctx):
+        assert ctx.get(MemorySessionStore) is store
+        assert ctx.get(SessionStore) is store

@@ -63,7 +63,7 @@ def test_environment_variables_fill_the_group_and_the_password_stays_secret(
         )
     )
     assert PASSWORD not in shown
-    assert "Secret('***')" in repr(group)
+    assert "Secret('**********')" in repr(group)
 
 
 def test_the_backend_has_no_default() -> None:

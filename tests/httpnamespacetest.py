@@ -22,6 +22,7 @@ HTTP_TYPES = {
     "EventStream",
     "Event",
     "File",
+    "set_cookie",
 }
 WEBSOCKET = {"websocket", "WebSocket", "WebSocketClosed", "CloseCode"}
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,3 +86,21 @@ def old_name_imports(path: Path) -> list[str]:
             if names:
                 offenders.append(f"{path.relative_to(ROOT)}: {sorted(names)}")
     return offenders
+
+
+def test_public_modules_export_what_applications_import_and_hide_internals() -> None:
+    import hinoki.db  # noqa: PLC0415 - the module objects are the subject
+    import hinoki.http.middleware  # noqa: PLC0415
+    import hinoki.orm  # noqa: PLC0415
+
+    assert {"DatabaseModule", "AtomicScope"} <= set(hinoki.db.__all__)
+    assert "TextParser" in hinoki.__all__
+    assert "check_middleware" not in hinoki.http.middleware.__all__
+    internal = {"IN_CHUNK", "MARK", "OPERATORS", "SEPARATOR", "SNAPSHOT"}
+    internal |= {"FieldMeta", "condition", "database_var", "fetch_in"}
+    assert not internal & set(hinoki.orm.__all__)
+    assert all(
+        hasattr(module, name)
+        for module in (hinoki.db, hinoki.orm, hinoki)
+        for name in module.__all__
+    )
