@@ -329,7 +329,9 @@ async def test_serve_handles_pipeline_errors_head_and_native_final_responses(
 ) -> None:
     worker: Any = _worker()
     response = SimpleNamespace(status=200, headers=[], body=b"answer", stream=None)
-    worker.pipeline.handle_unfinished = lambda *_args: asyncio.sleep(0, result=response)
+    worker.pipeline.handle_unfinished = lambda *_args, **_kwargs: asyncio.sleep(
+        0, result=response
+    )
     worker.pipeline.handle_native = lambda *_args: asyncio.sleep(0, result=response)
     failed: list[Any] = []
 

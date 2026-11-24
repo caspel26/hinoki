@@ -7,9 +7,10 @@ from uuid import UUID
 import pytest
 
 from hinoki import Hinoki, Schema, http
-from hinoki.errors import RegistrationError
+from hinoki.errors import RegistrationError, ValidationError
 from hinoki.http.request import Request
-from hinoki.runtime.requests import MAX_BODY
+from hinoki.runtime.binding import TypedBody
+from hinoki.runtime.requests import MAX_BODY, build_request
 from hinoki.schema import Field
 from tests.harness import Client, Pool
 
@@ -209,3 +210,21 @@ async def test_non_ascii_raw_path_is_a_400(pool: Pool) -> None:
     client = await start(pool)
     reply = await client.request("GET", "/x", raw_path="/mixed/é".encode())
     assert (reply.status, reply.body["error"]) == (400, "bad_path_encoding")
+
+
+def test_request_lane_reads_a_json_schema_body_in_one_pass() -> None:
+    binding = Hinoki(include=[create]).bindings[0]
+    scope = {"method": "POST", "path": "/posts"}
+    headers = {"content-type": JSON}
+
+    _, data = build_request(
+        scope, binding, {}, headers, b'{"title":"Hi","tags":["a"]}', None, {}
+    )
+    assert type(data.body) is TypedBody
+    assert binding.collect(data)["data"] == PostCreate(title="Hi", tags=["a"])
+
+    _, data = build_request(scope, binding, {}, headers, b'{"title":""}', None, {})
+    assert data.body == {"title": ""}
+    with pytest.raises(ValidationError) as caught:
+        binding.collect(data)
+    assert [detail.path for detail in caught.value.details] == ["data.title"]

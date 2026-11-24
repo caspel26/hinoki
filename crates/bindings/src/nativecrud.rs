@@ -510,15 +510,22 @@ fn default_value(default: &ModelDefault, kind: Option<&str>) -> Option<Value> {
         ModelDefaultValue::Bool(value) => Value::Bool(*value),
         ModelDefaultValue::Int(value) => Value::Int(*value),
         ModelDefaultValue::Float(value) => Value::Float(*value),
-        ModelDefaultValue::Str(value) => Value::Text(value.clone()),
-        ModelDefaultValue::Uuid4 => Value::Uuid(Uuid::new_v4()),
-        ModelDefaultValue::UtcNow => {
-            let now = OffsetDateTime::now_utc();
-            let micros = (now.nanosecond() / 1_000) * 1_000;
-            Value::Timestamp(now.replace_nanosecond(micros).unwrap_or(now))
+        ModelDefaultValue::Str(value) | ModelDefaultValue::Stored(value) => {
+            Value::Text(value.clone())
         }
+        ModelDefaultValue::Uuid4 => Value::Uuid(Uuid::new_v4()),
+        ModelDefaultValue::Uuid7 => Value::Uuid(Uuid::now_v7()),
+        ModelDefaultValue::Token(count) => Value::Text(crate::crypto::random_token(*count).ok()?),
+        ModelDefaultValue::UtcNow => utc_now_value(),
     };
     kind_matches(kind?, &value).then_some(value)
+}
+
+/// The current time at the microsecond precision Python's clock has.
+fn utc_now_value() -> Value {
+    let now = OffsetDateTime::now_utc();
+    let micros = (now.nanosecond() / 1_000) * 1_000;
+    Value::Timestamp(now.replace_nanosecond(micros).unwrap_or(now))
 }
 
 fn kind_matches(kind: &str, value: &Value) -> bool {
@@ -532,6 +539,7 @@ fn kind_matches(kind: &str, value: &Value) -> bool {
             | ("uuid", Value::Uuid(_))
             | ("datetime", Value::Timestamp(_))
             | ("bytes", Value::Bytes(_))
+            | ("decimal" | "date", Value::Text(_))
     )
 }
 
@@ -545,6 +553,13 @@ fn validated_value(kind: &str, value: Validated) -> Option<Value> {
         Validated::Uuid(value) => Value::Uuid(value),
         Validated::Datetime(value) => Value::Timestamp(value.to_offset(UtcOffset::UTC)),
         Validated::Bytes(value) => Value::Bytes(value),
+        Validated::Date(day) if kind == "date" => Value::Text(stored_date(day)),
+        // Python stores `str(Decimal(text))`; any other spelling is left to it.
+        Validated::Decimal(text)
+            if kind == "decimal" && crate::crudplan::is_stored_decimal(&text) =>
+        {
+            Value::Text(text)
+        }
         Validated::NaiveDatetime(_)
         | Validated::Date(_)
         | Validated::Time(_)
@@ -555,6 +570,16 @@ fn validated_value(kind: &str, value: Validated) -> Option<Value> {
         | Validated::Object(_) => return None,
     };
     kind_matches(kind, &value).then_some(value)
+}
+
+/// `date.isoformat()` of a validated day (years 1 to 9999).
+fn stored_date(day: time::Date) -> String {
+    format!(
+        "{:04}-{:02}-{:02}",
+        day.year(),
+        u8::from(day.month()),
+        day.day()
+    )
 }
 
 fn write_path_id(plan: &CrudPlan, params: &[(String, String)]) -> Option<Value> {
@@ -857,9 +882,7 @@ async fn update_in_transaction(
             return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
         }
     }
-    let owner_scope = owner.map_or_else(hinoki_orm::links::Scope::default, |scope| {
-        hinoki_orm::links::Scope::column_equals(&scope.column, Value::Text(scope.value.clone()))
-    });
+    let owner_scope = link_owner_scope(plan, owner);
     if let Some(refused) =
         nativelinks::write_links(plan, dialect, transaction, &id, (links, owner_scope)).await?
     {
@@ -928,6 +951,23 @@ fn update_parameters(
         parameters.push(Value::Text(scope.value.clone()));
     }
     parameters
+}
+
+/// The rows whose links an update may lock and change: the caller's own rows
+/// when the action is owned, and only live rows of a soft-delete model, as
+/// Python's `update_row` scopes them with `model.all()`.
+fn link_owner_scope(plan: &CrudPlan, owner: Option<&OwnerScope>) -> hinoki_orm::links::Scope {
+    let mut scope = owner.map_or_else(hinoki_orm::links::Scope::default, |scope| {
+        hinoki_orm::links::Scope::column_equals(&scope.column, Value::Text(scope.value.clone()))
+    });
+    if let Some(column) = &plan.soft_delete {
+        scope.filters.push(Filter {
+            column: column.clone(),
+            op: Op::IsNull,
+            values: Vec::new(),
+        });
+    }
+    scope
 }
 
 fn scope_parameters(id: &Value, owner: Option<&OwnerScope>) -> Vec<Value> {
@@ -1017,7 +1057,12 @@ async fn delete_in_transaction(
         }
     }
     let delete_sql = required_sql(plan.delete_sql(dialect))?;
-    let mut parameters = vec![id.clone()];
+    let mut parameters: Vec<Value> = plan
+        .soft_delete_assignments()
+        .iter()
+        .map(|_| utc_now_value())
+        .collect();
+    parameters.push(id.clone());
     if let Some(scope) = owner {
         parameters.push(Value::Text(scope.value.clone()));
     }
@@ -1113,11 +1158,14 @@ async fn execute_list<D: ReadDatabase>(
     raw_query: &[u8],
     caller: Option<&str>,
 ) -> NativeRead {
-    let Some(page) = parse_page(raw_query, plan.page_size, plan.max_page_size) else {
+    let Ok(pairs) = parse_query(raw_query, 1000) else {
+        return NativeRead::Defer;
+    };
+    let Some(page) = page_from_pairs(&pairs, plan.page_size, plan.max_page_size) else {
         return NativeRead::Defer;
     };
     let dialect = database.dialect();
-    let Some(filtered) = parse_list_filters(plan, dialect, raw_query) else {
+    let Some(filtered) = parse_list_filters(plan, dialect, pairs) else {
         return NativeRead::Defer;
     };
     let Some((count_sql, count_params, list_sql, list_params)) =
@@ -1179,11 +1227,15 @@ fn list_statements(
     Some((count_sql, count_params, list_sql, list_params))
 }
 
-fn parse_list_filters(plan: &CrudPlan, dialect: &str, raw_query: &[u8]) -> Option<ListQuery> {
+fn parse_list_filters(
+    plan: &CrudPlan,
+    dialect: &str,
+    pairs: Vec<(String, String)>,
+) -> Option<ListQuery> {
     let Some(spec) = &plan.filters else {
         return Some((Vec::new(), Vec::new()));
     };
-    let grouped = group_query_pairs(parse_query(raw_query, 1000).ok()?);
+    let grouped = group_query_pairs(pairs);
     let reserved = ["page".to_owned(), "page_size".to_owned()];
     let parsed = spec.parse(&grouped, &reserved).ok()?;
     let filters = compile_filter_conditions(plan, dialect, spec.conditions(&parsed))?;
@@ -1191,13 +1243,17 @@ fn parse_list_filters(plan: &CrudPlan, dialect: &str, raw_query: &[u8]) -> Optio
     Some((filters, order))
 }
 
+/// Group repeated names in first-seen order; the index keeps it linear.
 fn group_query_pairs(pairs: Vec<(String, String)>) -> Vec<(String, Vec<String>)> {
     let mut grouped: Vec<(String, Vec<String>)> = Vec::new();
+    let mut index: HashMap<String, usize> = HashMap::with_capacity(pairs.len());
     for (name, value) in pairs {
-        if let Some((_, values)) = grouped.iter_mut().find(|(key, _)| key == &name) {
-            values.push(value);
-        } else {
-            grouped.push((name, vec![value]));
+        match index.get(&name) {
+            Some(&at) => grouped[at].1.push(value),
+            None => {
+                index.insert(name.clone(), grouped.len());
+                grouped.push((name, vec![value]));
+            }
         }
     }
     grouped
@@ -1324,14 +1380,18 @@ fn primary_key_value(plan: &CrudPlan, raw: &str) -> Option<Value> {
     }
 }
 
+#[cfg(test)]
 fn parse_page(raw: &[u8], default_size: u64, max_size: u64) -> Option<Page> {
-    let pairs = parse_query(raw, 1000).ok()?;
+    page_from_pairs(&parse_query(raw, 1000).ok()?, default_size, max_size)
+}
+
+fn page_from_pairs(pairs: &[(String, String)], default_size: u64, max_size: u64) -> Option<Page> {
     let mut page = None;
     let mut size = None;
     for (name, value) in pairs {
         match name.as_str() {
-            "page" if page.is_none() => page = Some(parse_number(&value, 1_000_000_000)?),
-            "page_size" if size.is_none() => size = Some(parse_number(&value, max_size)?),
+            "page" if page.is_none() => page = Some(parse_number(value, 1_000_000_000)?),
+            "page_size" if size.is_none() => size = Some(parse_number(value, max_size)?),
             "page" | "page_size" => return None,
             _ => {}
         }
@@ -1435,6 +1495,37 @@ mod tests {
             None,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn link_writes_on_a_soft_delete_model_only_reach_live_owner_rows() {
+        use hinoki_orm::query::Op;
+
+        let owner = super::OwnerScope {
+            column: "owner".to_owned(),
+            value: "u1".to_owned(),
+        };
+        let mut soft = plan("update");
+        soft.soft_delete = Some("deleted_at".to_owned());
+        let scope = super::link_owner_scope(&soft, Some(&owner));
+        let filters: Vec<_> = scope
+            .filters
+            .iter()
+            .map(|f| (f.column.as_str(), f.op, f.values.clone()))
+            .collect();
+        assert_eq!(
+            filters,
+            vec![
+                ("owner", Op::Eq, vec![Value::Text("u1".to_owned())]),
+                ("deleted_at", Op::IsNull, Vec::new()),
+            ]
+        );
+        let unowned = super::link_owner_scope(&soft, None);
+        assert_eq!(unowned.filters.len(), 1);
+        assert_eq!(unowned.filters[0].op, Op::IsNull);
+        assert!(super::link_owner_scope(&plan("update"), None)
+            .filters
+            .is_empty());
     }
 
     #[test]

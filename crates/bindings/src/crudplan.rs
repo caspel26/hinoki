@@ -54,7 +54,12 @@ pub(crate) enum ModelDefaultValue {
     Int(i64),
     Float(f64),
     Str(String),
+    /// Text a `date` or `Decimal` column stores, already in its stored form.
+    Stored(String),
     Uuid4,
+    Uuid7,
+    /// A URL-safe token of this many random bytes.
+    Token(usize),
     UtcNow,
 }
 
@@ -108,6 +113,9 @@ pub(crate) struct CrudPlan {
     pub(crate) read_links: Vec<usize>,
     /// Declared client filters for a `list` action; `None` when unfiltered.
     pub(crate) filters: Option<Arc<FilterSpec>>,
+    /// The soft-delete column: every read skips rows where it is set, and a
+    /// delete sets it to the current time instead of removing the row.
+    pub(crate) soft_delete: Option<String>,
     templates: Vec<DialectTemplates>,
     validation_error: Vec<u8>,
     create_schema: Option<Arc<NativeSchema>>,
@@ -128,7 +136,7 @@ impl PyCrudPlan {
         updated_at,
         read_schema, read_fields,
         create_schema=None, update_schema=None, validation_error=Vec::new(), auth=None,
-        owner=None, links=Vec::new(), filters=None
+        owner=None, links=Vec::new(), filters=None, soft_delete=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -157,6 +165,7 @@ impl PyCrudPlan {
         owner: Option<String>,
         links: Vec<(String, Py<PyLinkSpec>, Option<String>)>,
         filters: Option<Py<PyFilterPlan>>,
+        soft_delete: Option<String>,
     ) -> PyResult<Self> {
         if owner.is_some() && auth.is_none() {
             return Err(PyValueError::new_err(
@@ -200,6 +209,7 @@ impl PyCrudPlan {
                 .collect(),
         )?;
         inner.attach_filters(filters.map(|plan| Arc::clone(&plan.get().spec)))?;
+        inner.attach_soft_delete(soft_delete)?;
         Ok(Self {
             inner: Arc::new(inner),
         })
@@ -335,7 +345,10 @@ fn defaults_to_py(values: &[ModelDefault]) -> Vec<(String, String, Option<String
                 ModelDefaultValue::Int(value) => ("int", Some(value.to_string())),
                 ModelDefaultValue::Float(value) => ("float", Some(value.to_string())),
                 ModelDefaultValue::Str(value) => ("str", Some(value.clone())),
+                ModelDefaultValue::Stored(value) => ("stored", Some(value.clone())),
                 ModelDefaultValue::Uuid4 => ("uuid4", None),
+                ModelDefaultValue::Uuid7 => ("uuid7", None),
+                ModelDefaultValue::Token(count) => ("token", Some(count.to_string())),
                 ModelDefaultValue::UtcNow => ("utc_now", None),
             };
             (item.column.clone(), kind.to_owned(), value)
@@ -439,7 +452,11 @@ impl CrudPlan {
             &Update {
                 table: self.table.clone(),
                 assignments,
-                filters: scoped_filters(&self.primary_key, self.owner.as_deref(), columns.len()),
+                filters: scoped_filters(
+                    (self.soft_delete.as_deref(), &self.primary_key),
+                    self.owner.as_deref(),
+                    columns.len(),
+                ),
                 subfilters: Vec::new(),
                 returning: returning_columns(&self.columns, dialect),
             },
@@ -462,7 +479,7 @@ impl CrudPlan {
                 table: self.table.clone(),
                 columns: self.columns.clone(),
                 joins: Vec::new(),
-                filters: Vec::new(),
+                filters: soft_filters(self.soft_delete.as_deref()),
                 subfilters: Vec::new(),
                 keyset: None,
                 order,
@@ -482,6 +499,7 @@ impl CrudPlan {
     ) -> Result<(String, Vec<Value>), QueryError> {
         let dialect = find_dialect(dialect_name)
             .ok_or(QueryError::Unsupported("unsupported CRUD database dialect"))?;
+        let filters = self.with_soft_filter(filters);
         compile_select_with(
             &Select {
                 table: self.table.clone(),
@@ -514,6 +532,7 @@ impl CrudPlan {
         } else {
             order
         };
+        let filters = self.with_soft_filter(filters);
         compile_select_with(
             &Select {
                 table: self.table.clone(),
@@ -529,6 +548,56 @@ impl CrudPlan {
             },
             dialect,
         )
+    }
+
+    fn with_soft_filter(&self, filters: Vec<Filter<Value>>) -> Vec<Filter<Value>> {
+        let mut scoped = soft_filters(self.soft_delete.as_deref());
+        scoped.extend(filters);
+        scoped
+    }
+
+    /// Scope the plan to the rows `column` does not mark as deleted. The
+    /// column must be a nullable timestamp that no schema writes.
+    fn attach_soft_delete(&mut self, column: Option<String>) -> PyResult<()> {
+        let Some(column) = column else {
+            return Ok(());
+        };
+        let timestamp = self
+            .model_fields
+            .iter()
+            .any(|(name, kind, nullable)| name == &column && kind == "datetime" && *nullable);
+        if !timestamp
+            || column == self.primary_key
+            || self.update_columns.contains(&column)
+            || self.updated_at.as_deref() == Some(column.as_str())
+        {
+            return Err(PyValueError::new_err(
+                "the soft-delete column must be a nullable timestamp no route writes",
+            ));
+        }
+        self.soft_delete = Some(column);
+        self.templates = self.compile_dialect_templates()?;
+        Ok(())
+    }
+
+    fn compile_dialect_templates(&self) -> PyResult<Vec<DialectTemplates>> {
+        DIALECTS
+            .iter()
+            .map(|(name, dialect)| compile_templates(name, *dialect, self))
+            .collect()
+    }
+
+    /// The assignments of a soft delete: the column, then `updated_at` when
+    /// the model keeps one, each bound to the current time.
+    /// The columns a soft delete stamps, in bind order; empty for a hard delete.
+    pub(crate) fn soft_delete_assignments(&self) -> Vec<String> {
+        let Some(soft) = &self.soft_delete else {
+            return Vec::new();
+        };
+        std::iter::once(soft)
+            .chain(self.updated_at.iter())
+            .cloned()
+            .collect()
     }
 
     fn default_list_order(&self) -> Vec<(String, bool)> {
@@ -661,30 +730,7 @@ impl CrudPlan {
             RowPlan::with_links(columns.clone(), read_fields, (&primary_key, key_kind))
                 .map_err(|error| PyValueError::new_err(error.to_string()))?,
         );
-        let list_order = if ordering.is_empty() {
-            vec![(primary_key.clone(), false)]
-        } else {
-            ordering.clone()
-        };
-        let templates = DIALECTS
-            .iter()
-            .map(|(name, dialect)| {
-                compile_templates(
-                    name,
-                    *dialect,
-                    &table,
-                    &columns,
-                    &primary_key,
-                    &ordering,
-                    &list_order,
-                    page_size,
-                    &create_columns,
-                    &update_columns,
-                    owner.as_deref(),
-                )
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(Self {
+        let mut plan = Self {
             action,
             model_name,
             table,
@@ -706,11 +752,14 @@ impl CrudPlan {
             links: Vec::new(),
             read_links: Vec::new(),
             filters: None,
-            templates,
+            soft_delete: None,
+            templates: Vec::new(),
             validation_error,
             create_schema,
             update_schema,
-        })
+        };
+        plan.templates = plan.compile_dialect_templates()?;
+        Ok(plan)
     }
 }
 
@@ -836,7 +885,18 @@ fn parse_model_default(kind: &str, value: &str) -> PyResult<ModelDefaultValue> {
             }
         }
         "str" => Ok(ModelDefaultValue::Str(value.to_owned())),
+        "decimal" if is_stored_decimal(value) => Ok(ModelDefaultValue::Stored(value.to_owned())),
+        "date" if crate::schema::parse_date(value).is_some() => {
+            Ok(ModelDefaultValue::Stored(value.to_owned()))
+        }
         "uuid4" if value.is_empty() => Ok(ModelDefaultValue::Uuid4),
+        "uuid7" if value.is_empty() => Ok(ModelDefaultValue::Uuid7),
+        "token" => match value.parse::<usize>() {
+            Ok(count) if (1..=crate::crypto::MAX_RANDOM).contains(&count) => {
+                Ok(ModelDefaultValue::Token(count))
+            }
+            _ => Err(invalid()),
+        },
         "utc_now" if value.is_empty() => Ok(ModelDefaultValue::UtcNow),
         _ => Err(invalid()),
     }
@@ -853,8 +913,32 @@ fn validate_column_subset(
     Ok(())
 }
 
+/// Whether `text` is the stored form Python writes for a finite `Decimal`:
+/// `str(value)` without an exponent, so no leading zeros and an adjusted
+/// exponent of at least -6.
+pub(crate) fn is_stored_decimal(text: &str) -> bool {
+    let unsigned = text.strip_prefix('-').unwrap_or(text);
+    let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+    let digits = |part: &str| part.bytes().all(|byte| byte.is_ascii_digit());
+    if whole.is_empty()
+        || !digits(whole)
+        || !digits(fraction)
+        || (unsigned.contains('.') && fraction.is_empty())
+        || (whole.len() > 1 && whole.starts_with('0'))
+    {
+        return false;
+    }
+    let significant = format!("{whole}{fraction}");
+    let significant = significant.trim_start_matches('0');
+    let length = i64::try_from(significant.len().max(1)).unwrap_or(i64::MAX);
+    let places = i64::try_from(fraction.len()).unwrap_or(i64::MAX);
+    length - 1 - places >= -6
+}
+
 fn validate_model_fields(fields: &[(String, String, bool)], columns: &[String]) -> PyResult<()> {
-    let supported = ["str", "int", "float", "bool", "uuid", "datetime", "bytes"];
+    let supported = [
+        "str", "int", "float", "bool", "uuid", "datetime", "bytes", "decimal", "date",
+    ];
     let names: std::collections::HashSet<_> = fields.iter().map(|(name, _, _)| name).collect();
     if fields.len() != columns.len()
         || names.len() != fields.len()
@@ -896,80 +980,38 @@ fn validate_error_template(template: &[u8]) -> PyResult<()> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn compile_templates(
-    name: &str,
-    dialect: Dialect,
-    table: &str,
-    columns: &[String],
-    primary_key: &str,
-    ordering: &[(String, bool)],
-    list_order: &[(String, bool)],
-    page_size: u64,
-    create_columns: &[String],
-    update_columns: &[String],
-    owner: Option<&str>,
-) -> PyResult<DialectTemplates> {
-    let count = select_sql(table, &[], &[], None, None, true, dialect)?;
+fn compile_templates(name: &str, dialect: Dialect, plan: &CrudPlan) -> PyResult<DialectTemplates> {
+    let (table, columns, ordering) = (plan.table.as_str(), &plan.columns, &plan.ordering);
+    let soft = plan.soft_delete.as_deref();
+    let key = (soft, plan.primary_key.as_str());
+    let owner = plan.owner.as_deref();
+    let count = select_sql(table, &[], (soft, &[]), (None, None), true, dialect)?;
     let list = select_sql(
         table,
         columns,
-        list_order,
-        Some(page_size),
-        Some(0),
+        (soft, &plan.default_list_order()),
+        (Some(plan.page_size), Some(0)),
         false,
         dialect,
     )?;
-    let retrieve = select_filtered_sql(table, columns, primary_key, ordering, dialect)?;
-    let create_returning = returning_columns(columns, dialect);
-    let create = if create_columns.is_empty() {
+    let retrieve = select_filtered_sql(table, columns, key, ordering, dialect)?;
+    let create = create_template(plan, dialect)?;
+    let update = if plan.update_columns.is_empty() {
         None
     } else {
-        Some(
-            compile_insert_with(
-                &Insert {
-                    table: table.to_owned(),
-                    assignments: indexed(create_columns),
-                    returning: create_returning,
-                },
-                dialect,
-            )
-            .map_err(query_error)?
-            .0,
-        )
-    };
-    let update = if update_columns.is_empty() {
-        None
-    } else {
-        let mut assignments = indexed(update_columns);
-        let filter_value = assignments.len();
-        let sql = compile_update_with(
-            &Update {
-                table: table.to_owned(),
-                assignments: std::mem::take(&mut assignments),
-                filters: scoped_filters(primary_key, owner, filter_value),
-                subfilters: Vec::new(),
-                returning: returning_columns(columns, dialect),
-            },
+        Some(update_template(
+            table,
+            &plan.update_columns,
+            (key, owner),
+            columns,
             dialect,
-        )
-        .map_err(query_error)?
-        .0;
-        Some(sql)
+        )?)
     };
-    let delete = compile_delete_with(
-        &Delete {
-            table: table.to_owned(),
-            filters: scoped_filters(primary_key, owner, 0),
-            subfilters: Vec::new(),
-            returning: Vec::new(),
-        },
-        dialect,
-    )
-    .map_err(query_error)?
-    .0;
-    let read_back = select_filtered_sql(table, columns, primary_key, ordering, dialect)?;
-    let write_read_back = select_write_sql(table, columns, (primary_key, None), dialect)?;
-    let mut update_read_back = select_write_sql(table, columns, (primary_key, owner), dialect)?;
+    let delete = delete_template(plan, dialect)?;
+    let read_back = select_filtered_sql(table, columns, key, ordering, dialect)?;
+    let write_read_back =
+        select_write_sql(table, columns, ((None, &plan.primary_key), None), dialect)?;
+    let mut update_read_back = select_write_sql(table, columns, (key, owner), dialect)?;
     if dialect == Dialect::Mysql {
         // A current read: a plain read would keep the handler's snapshot and
         // return the row even when a concurrent owner change matched nothing.
@@ -994,10 +1036,86 @@ fn compile_templates(
     })
 }
 
+fn create_template(plan: &CrudPlan, dialect: Dialect) -> PyResult<Option<String>> {
+    if plan.create_columns.is_empty() {
+        return Ok(None);
+    }
+    compile_insert_with(
+        &Insert {
+            table: plan.table.clone(),
+            assignments: indexed(&plan.create_columns),
+            returning: returning_columns(&plan.columns, dialect),
+        },
+        dialect,
+    )
+    .map(|(sql, _)| Some(sql))
+    .map_err(query_error)
+}
+
+type KeyScope<'a> = ((Option<&'a str>, &'a str), Option<&'a str>);
+
+fn update_template(
+    table: &str,
+    assignments: &[String],
+    (key, owner): KeyScope<'_>,
+    returning: &[String],
+    dialect: Dialect,
+) -> PyResult<String> {
+    compile_update_with(
+        &Update {
+            table: table.to_owned(),
+            assignments: indexed(assignments),
+            filters: scoped_filters(key, owner, assignments.len()),
+            subfilters: Vec::new(),
+            returning: returning_columns(returning, dialect),
+        },
+        dialect,
+    )
+    .map(|(sql, _)| sql)
+    .map_err(query_error)
+}
+
+/// A `DELETE` by key and owner, or for a soft-delete model the `UPDATE`
+/// Python's `adelete` runs: the timestamps first, then the key, the owner
+/// and the soft-delete condition once more.
+fn delete_template(plan: &CrudPlan, dialect: Dialect) -> PyResult<String> {
+    let soft = plan.soft_delete.as_deref();
+    let key = (soft, plan.primary_key.as_str());
+    let owner = plan.owner.as_deref();
+    if soft.is_none() {
+        return compile_delete_with(
+            &Delete {
+                table: plan.table.clone(),
+                filters: scoped_filters(key, owner, 0),
+                subfilters: Vec::new(),
+                returning: Vec::new(),
+            },
+            dialect,
+        )
+        .map(|(sql, _)| sql)
+        .map_err(query_error);
+    }
+    let assignments = plan.soft_delete_assignments();
+    let mut filters = scoped_filters(key, owner, assignments.len());
+    filters.extend(soft_filters(soft));
+    compile_update_with(
+        &Update {
+            table: plan.table.clone(),
+            assignments: indexed(&assignments),
+            filters,
+            subfilters: Vec::new(),
+            returning: Vec::new(),
+        },
+        dialect,
+    )
+    .map(|(sql, _)| sql)
+    .map_err(query_error)
+}
+
 fn select_write_sql(
     table: &str,
     columns: &[String],
-    (primary_key, owner): (&str, Option<&str>),
+    (key, owner): KeyScope<'_>,
     dialect: Dialect,
 ) -> PyResult<String> {
     compile_select_fixed(
@@ -1005,7 +1123,7 @@ fn select_write_sql(
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
-            filters: scoped_filters(primary_key, owner, 0),
+            filters: scoped_filters(key, owner, 0),
             subfilters: Vec::new(),
             keyset: None,
             order: Vec::new(),
@@ -1022,9 +1140,8 @@ fn select_write_sql(
 fn select_sql(
     table: &str,
     columns: &[String],
-    order: &[(String, bool)],
-    limit: Option<u64>,
-    offset: Option<u64>,
+    (soft, order): (Option<&str>, &[(String, bool)]),
+    (limit, offset): (Option<u64>, Option<u64>),
     count: bool,
     dialect: Dialect,
 ) -> PyResult<String> {
@@ -1033,7 +1150,7 @@ fn select_sql(
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
-            filters: Vec::new(),
+            filters: soft_filters(soft),
             subfilters: Vec::new(),
             keyset: None,
             order: order.to_vec(),
@@ -1052,7 +1169,7 @@ fn select_sql(
 fn select_filtered_sql(
     table: &str,
     columns: &[String],
-    primary_key: &str,
+    key: (Option<&str>, &str),
     order: &[(String, bool)],
     dialect: Dialect,
 ) -> PyResult<String> {
@@ -1061,7 +1178,7 @@ fn select_filtered_sql(
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
-            filters: vec![equality_filter(primary_key, 0)],
+            filters: scoped_filters(key, None, 0),
             subfilters: Vec::new(),
             keyset: None,
             order: order.to_vec(),
@@ -1092,9 +1209,27 @@ fn equality_filter(column: &str, value: usize) -> Filter<usize> {
     }
 }
 
-/// The key filter, plus the owner filter on the next parameter when scoped.
-fn scoped_filters(primary_key: &str, owner: Option<&str>, first: usize) -> Vec<Filter<usize>> {
-    let mut filters = vec![equality_filter(primary_key, first)];
+/// The soft-delete condition `column IS NULL`, when the model has one.
+fn soft_filters<V>(column: Option<&str>) -> Vec<Filter<V>> {
+    column
+        .map(|column| Filter {
+            column: column.to_owned(),
+            op: Op::IsNull,
+            values: Vec::new(),
+        })
+        .into_iter()
+        .collect()
+}
+
+/// The soft-delete condition, the key filter, then the owner filter on the
+/// next parameter when scoped; the order of Python's `all().filter(...)`.
+fn scoped_filters(
+    (soft, primary_key): (Option<&str>, &str),
+    owner: Option<&str>,
+    first: usize,
+) -> Vec<Filter<usize>> {
+    let mut filters = soft_filters(soft);
+    filters.push(equality_filter(primary_key, first));
     if let Some(column) = owner {
         filters.push(equality_filter(column, first + 1));
     }

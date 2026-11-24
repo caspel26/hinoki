@@ -337,11 +337,16 @@ class Pipeline:
         source: BodySource,
         rid: str,
         route: MatchedRoute | None = None,
+        *,
+        vetted: bool = False,
     ) -> Response:
         """``handle`` without the final headers, for a transport that adds them
         itself with the route headers this leaves in ``context.route_headers``
-        (Kiso: ``PreparedRequest.respond_routed``)."""
-        return (await self._answer(scope, source, rid, route))[2]
+        (Kiso: ``PreparedRequest.respond_routed``). ``vetted`` is for a routed
+        request whose transport already applied the readiness, size, host,
+        preflight, HTTPS-redirect, probe and documentation policies of this
+        pipeline (Kiso's ``ServerCore.classify``), so they are not repeated."""
+        return (await self._answer(scope, source, rid, route, vetted=vetted))[2]
 
     async def _answer(
         self,
@@ -349,11 +354,13 @@ class Pipeline:
         source: BodySource,
         rid: str | None,
         route: MatchedRoute | None,
+        *,
+        vetted: bool = False,
     ) -> tuple[Scope, str, Response]:
         scope, trusted = effective_scope(scope, self.proxy_policy)
         rid = rid or self._request_id(scope, trusted)
         response = await self._in_request_context(
-            rid, self._respond(scope, source, rid, route)
+            rid, self._respond(scope, source, rid, route, vetted=vetted)
         )
         return scope, rid, response
 
@@ -789,11 +796,18 @@ class Pipeline:
         return Response(response.status, response.body, headers, stream)
 
     async def _respond(
-        self, scope: Scope, source: BodySource, rid: str, route: MatchedRoute | None
+        self,
+        scope: Scope,
+        source: BodySource,
+        rid: str,
+        route: MatchedRoute | None,
+        *,
+        vetted: bool = False,
     ) -> Response:
         try:
             return await run_inline(
-                self._serve(scope, source, route), self.app.runtime.request_timeout
+                self._serve(scope, source, route, vetted=vetted),
+                self.app.runtime.request_timeout,
             )
         except RequestDeadline:
             return HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
@@ -815,18 +829,25 @@ class Pipeline:
         return error
 
     async def _serve(
-        self, scope: Scope, source: BodySource, route: MatchedRoute | None
+        self,
+        scope: Scope,
+        source: BodySource,
+        route: MatchedRoute | None,
+        *,
+        vetted: bool = False,
     ) -> Response:
         """Ready check, host and preflight policies, routing, authentication,
         then (only if the action takes a body) reading and validating it, then
-        the handler."""
+        the handler. A ``vetted`` routed request skips the policies its
+        transport already applied."""
         if not self.lifespan.ready:
             raise HTTPError(HTTPStatus.SERVICE_UNAVAILABLE, "not_ready", RETRY_LATER)
         headers, header_total = core.request_headers(scope.get("headers", []))
-        self._check_request_sizes(scope, header_total)
-        early = await self._early_response(scope, headers)
-        if early is not None:
-            return early
+        if not (vetted and route is not None):
+            self._check_request_sizes(scope, header_total)
+            early = await self._early_response(scope, headers)
+            if early is not None:
+                return early
         binding, path_params = self._resolve_request(scope, route)
         if binding.route.middleware:
             return await self._through_middleware(

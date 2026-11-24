@@ -16,6 +16,10 @@ enum Kind {
     Uuid,
     Timestamp,
     Bytes,
+    /// A `Decimal` stored as text, written in fixed notation.
+    Decimal,
+    /// A `date` stored as `YYYY-MM-DD` text.
+    Date,
     /// The set of linked keys of a many-to-many relation, read apart from the row.
     Ids,
 }
@@ -30,6 +34,8 @@ impl Kind {
             "uuid" => Ok(Self::Uuid),
             "datetime" => Ok(Self::Timestamp),
             "bytes" => Ok(Self::Bytes),
+            "decimal" => Ok(Self::Decimal),
+            "date" => Ok(Self::Date),
             "ids" => Ok(Self::Ids),
             _ => Err(PyValueError::new_err(format!(
                 "unsupported row wire kind {value:?}"
@@ -363,8 +369,43 @@ fn write_value(output: &mut Vec<u8>, value: &Value, field: &Field) -> Option<()>
             use base64::{engine::general_purpose::STANDARD, Engine};
             write_json(output, &STANDARD.encode(value))
         }
+        (Kind::Decimal, Value::Text(value)) => write_json(output, &decimal_wire(value)?),
+        (Kind::Date, Value::Text(value)) => {
+            crate::schema::parse_date(value)?;
+            write_json(output, value)
+        }
         _ => None,
     }
+}
+
+/// `format(Decimal(text), "f")` for stored text without an exponent: the
+/// text with the integer part's leading zeros removed. Any other spelling,
+/// or one longer than the JSON writer allows, returns `None` so Python
+/// writes it.
+fn decimal_wire(text: &str) -> Option<String> {
+    let (sign, unsigned) = match text.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", text),
+    };
+    let (whole, fraction) = match unsigned.split_once('.') {
+        Some((whole, fraction)) if !fraction.is_empty() => (whole, Some(fraction)),
+        Some(_) => return None,
+        None => (unsigned, None),
+    };
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit());
+    if !digits(whole) || !fraction.is_none_or(digits) {
+        return None;
+    }
+    let whole = whole.trim_start_matches('0');
+    let whole = if whole.is_empty() { "0" } else { whole };
+    let length = whole.len() + fraction.map_or(0, str::len);
+    if length > crate::schema::DECIMAL_DIGITS_CEILING {
+        return None;
+    }
+    Some(match fraction {
+        Some(fraction) => format!("{sign}{whole}.{fraction}"),
+        None => format!("{sign}{whole}"),
+    })
 }
 
 fn write_key(output: &mut Vec<u8>, value: &str) -> Option<()> {
@@ -391,7 +432,7 @@ fn write_float(output: &mut Vec<u8>, value: f64) -> Option<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_item_with, encode_page, RowIds, RowPlan};
+    use super::{decimal_wire, encode_item_with, encode_page, RowIds, RowPlan};
     use hinoki_orm::Value;
     use time::macros::datetime;
     use uuid::Uuid;
@@ -614,5 +655,40 @@ mod tests {
             ("created".into(), Value::Timestamp(beyond_python)),
         ];
         assert!(encode_page(&[unprojected], &unprojected_plan, 1, 20, 1).is_none());
+    }
+
+    #[test]
+    fn decimal_wire_matches_fixed_point_formatting_or_defers() {
+        assert_eq!(decimal_wire("007.10").as_deref(), Some("7.10"));
+        assert_eq!(decimal_wire("-0.5").as_deref(), Some("-0.5"));
+        assert_eq!(decimal_wire("000").as_deref(), Some("0"));
+        for text in ["1E-7", "1.", ".5", "abc", "1.2.3"] {
+            assert_eq!(decimal_wire(text), None, "{text}");
+        }
+    }
+
+    #[test]
+    fn decimal_and_date_columns_write_valid_text_only() {
+        let plan = RowPlan::new(
+            vec!["price".into(), "due".into()],
+            vec![
+                ("price".into(), "price".into(), "decimal".into(), false),
+                ("due".into(), "due".into(), "date".into(), true),
+            ],
+        )
+        .unwrap();
+        let row = |price: &str, due: &str| {
+            vec![
+                ("price".to_owned(), Value::Text(price.to_owned())),
+                ("due".to_owned(), Value::Text(due.to_owned())),
+            ]
+        };
+        let ids = RowIds::default();
+        assert_eq!(
+            encode_item_with(&row("012.50", "2026-02-28"), &plan, &ids).unwrap(),
+            br#"{"price":"12.50","due":"2026-02-28"}"#
+        );
+        assert!(encode_item_with(&row("1.50", "2026-02-30"), &plan, &ids).is_none());
+        assert!(encode_item_with(&row("1E-7", "2026-02-28"), &plan, &ids).is_none());
     }
 }

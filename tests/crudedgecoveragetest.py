@@ -185,7 +185,7 @@ async def test_list_rows_selects_python_fallback_or_row_wire(
             self.valid = valid
             self.query_valid = query_valid
 
-        def valid_for(self, _api: Any) -> bool:
+        def armed_for(self, _api: Any) -> bool:
             return self.valid
 
         def valid_query(self, _query: Any) -> bool:

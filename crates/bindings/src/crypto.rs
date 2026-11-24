@@ -19,7 +19,7 @@ pub const MAX_PASSWORD: usize = 4096;
 const MAX_MEMORY_KIB: u32 = 256 * 1024;
 const MAX_TIME_COST: u32 = 10;
 const MAX_LANES: u32 = 16;
-const MAX_RANDOM: usize = 1024;
+pub(crate) const MAX_RANDOM: usize = 1024;
 
 fn argon(memory: u32, time: u32, lanes: u32) -> Result<Argon2<'static>, &'static str> {
     if memory > MAX_MEMORY_KIB || time > MAX_TIME_COST || lanes > MAX_LANES {

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
+import functools
 import inspect
 import math
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, cast
 from urllib.parse import urlsplit
 
@@ -29,6 +32,7 @@ from hinoki.fields import UNSET
 from hinoki.filters import FilterSet
 from hinoki.orm import Model, QuerySet
 from hinoki.orm import queryset as queryset_module
+from hinoki.orm.model import MAX_URLSAFE_BYTES, URLSAFE_PATTERN
 from hinoki.orm.queryset import condition, write_statement, written_rows
 from hinoki.pagination import PageNumberPagination, PageParams
 from hinoki.parsers import DEFAULT_PARSERS, JSONParser
@@ -61,7 +65,7 @@ from hinoki.runtime.rowplan import (
     static_state_matches,
 )
 from hinoki.schema import Schema, SchemaMeta, uses_generated_init
-from hinoki.utils import utc_now
+from hinoki.utils import utc_now, uuid7
 
 ACTION_ROUTES = {
     "list": ("GET", "/"),
@@ -159,7 +163,7 @@ DATABASE_METHODS_ORIGINAL = static_state(Database, DATABASE_METHODS)
 QUERYSET_METHODS_ORIGINAL = static_state(QuerySet, QUERYSET_METHODS)
 OWNER_METHODS_ORIGINAL = static_state(CrudBase, OWNER_METHODS)
 MODEL_METHODS_ORIGINAL = static_state(Model, MODEL_METHODS)
-IMMUTABLE_TYPES = (type(None), bool, int, float, str)
+IMMUTABLE_TYPES = (type(None), bool, int, float, str, Decimal, datetime.date)
 
 
 @dataclass(frozen=True, slots=True)
@@ -726,7 +730,7 @@ def link_events_listened(
 
 
 def plain_crud_model(model: type[Model], resource: _CrudConfig, action: str) -> bool:
-    if model.__soft_delete__ is not None or bool(model.__status_tracks__):
+    if bool(model.__status_tracks__) or not soft_delete_is_plain(model, resource):
         return False
     fields = model_fields(model)
     written = write_columns(model, resource, action)
@@ -734,10 +738,97 @@ def plain_crud_model(model: type[Model], resource: _CrudConfig, action: str) -> 
         plain_model_methods(model, action in HOOKED_ACTIONS)
         and fields is not None
         and model.__field_types__[model.__primary_key__].kind in {"int", "uuid", "str"}
-        and not set(written) & set(model.__field_validation_fields__)
+        and all(
+            natively_checked(model, resource, name)
+            for name in set(written) & set(model.__field_validation_fields__)
+        )
         and model.__clock__ is utc_now
         and (resource.create is None or model_defaults_are_plain(model, resource))
     )
+
+
+def soft_delete_is_plain(model: type[Model], resource: _CrudConfig) -> bool:
+    """A soft-delete column Rust can scope and set: a nullable timestamp that
+    defaults to ``None``, no schema writes, and the plain clock sets."""
+    column = model.__soft_delete__
+    if column is None:
+        return True
+    field_type = model.__field_types__.get(column)
+    written = {
+        name
+        for schema in (resource.create, resource.update)
+        if schema is not None
+        for name in schema.specs()
+    }
+    default = next(
+        (item for item in dataclasses.fields(cast(Any, model)) if item.name == column),
+        None,
+    )
+    return bool(
+        field_type is not None
+        and field_type.kind == "datetime"
+        and field_type.nullable
+        and column not in written
+        and default is not None
+        and default.default is None
+        and model.__soft_delete_clock__ in (None, utc_now)
+    )
+
+
+STORED_KINDS = frozenset({"decimal", "date"})
+
+
+def natively_checked(model: type[Model], resource: _CrudConfig, name: str) -> bool:
+    """Whether every check Python's model validation runs on a written column
+    already holds natively: a ``date`` or ``Decimal`` column the compiled
+    schema validates, or a generated ``urlsafe_token`` no schema writes. An
+    ``Enum`` column stays with Python: the GIL-free schema walk cannot build
+    a member."""
+    field_type = model.__field_types__[name]
+    if model.__field_validators__[name]:
+        return False
+    if field_type.enum_class is not None:
+        return False
+    if not field_type.info.constraints():
+        return field_type.kind in STORED_KINDS
+    return generated_token(model, resource, name)
+
+
+def generated_token(model: type[Model], resource: _CrudConfig, name: str) -> bool:
+    """A ``urlsafe_token`` column whose generated value meets its own
+    constraints and that no schema writes."""
+    item = next(
+        (item for item in dataclasses.fields(cast(Any, model)) if item.name == name),
+        None,
+    )
+    nbytes = token_bytes(item.default_factory) if item is not None else None
+    if nbytes is None or any(
+        name in schema.specs()
+        for schema in (resource.create, resource.update)
+        if schema is not None
+    ):
+        return False
+    info = model.__field_types__[name].info
+    length = (nbytes * 4 + 2) // 3
+    return (
+        set(info.constraints()) <= {"min_length", "max_length", "pattern"}
+        and info.pattern == URLSAFE_PATTERN
+        and (info.min_length or 0) <= length
+        and (info.max_length is None or length <= info.max_length)
+    )
+
+
+def token_bytes(factory: object) -> int | None:
+    """``nbytes`` of a ``urlsafe_token`` default factory, else ``None``."""
+    if (
+        type(factory) is not functools.partial
+        or factory.func is not core.make_token
+        or factory.keywords
+        or len(factory.args) != 1
+    ):
+        return None
+    nbytes = factory.args[0]
+    return nbytes if type(nbytes) is int and 1 <= nbytes <= MAX_URLSAFE_BYTES else None
 
 
 def plain_model_methods(model: type[Model], hooked: bool) -> bool:
@@ -794,6 +885,10 @@ DEFAULT_COLUMN_KINDS = {
     "float": {"float"},
     "bool": {"bool"},
     "uuid4": {"uuid"},
+    "uuid7": {"uuid"},
+    "token": {"str"},
+    "decimal": {"decimal"},
+    "date": {"date"},
     "utc_now": {"datetime"},
 }
 
@@ -817,8 +912,12 @@ def model_field_default(field: dataclasses.Field[Any]) -> tuple[str, str] | None
         encoded = "required", ""
     elif field.default_factory is uuid.uuid4:
         encoded = "uuid4", ""
+    elif field.default_factory is uuid7:
+        encoded = "uuid7", ""
     elif field.default_factory is utc_now:
         encoded = "utc_now", ""
+    elif (nbytes := token_bytes(field.default_factory)) is not None:
+        encoded = "token", str(nbytes)
     else:
         encoded = None
     return encoded
@@ -836,6 +935,10 @@ def encode_default(value: object) -> tuple[str, str] | None:
         encoded = "float", repr(value)
     elif type(value) is str:
         encoded = "str", value
+    elif type(value) is Decimal and value.is_finite() and "E" not in str(value):
+        encoded = "decimal", str(value)
+    elif type(value) is datetime.date:
+        encoded = "date", value.isoformat()
     return encoded
 
 
@@ -1003,6 +1106,7 @@ def schema_members_are_plain(
                 name in model.__columns__
                 and kind in ROW_KINDS
                 and kind == model.__field_types__[name].kind
+                and spec.ftype.enum_class is model.__field_types__[name].enum_class
                 and spec.ftype.item is None
                 and spec.ftype.schema is None
                 and spec.ftype.discriminator is None
@@ -1218,6 +1322,7 @@ def compile_selection(
             validation_error=validation_error_template(),
             auth=native_claims_auth(binding.route.access),
             owner=resource.owner or None,
+            soft_delete=model.__soft_delete__,
             links=[
                 (name, side.spec(), column) for name, (side, column) in links.items()
             ],
@@ -1357,6 +1462,8 @@ def value_state(
         model.__primary_key__,
         model.__updated_at__,
         model.__clock__,
+        model.__soft_delete__,
+        model.__soft_delete_clock__,
         tuple(
             (
                 schema,

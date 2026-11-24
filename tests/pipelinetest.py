@@ -191,7 +191,9 @@ async def test_shared_respond_catches_handler_errors(
 ) -> None:
     built = pipeline()
 
-    async def broken(_scope: Any, _source: Any, _route: Any) -> Response:
+    async def broken(
+        _scope: Any, _source: Any, _route: Any, **_kwargs: Any
+    ) -> Response:
         raise RuntimeError("pipeline failure")
 
     monkeypatch.setattr(built, "_serve", broken)
@@ -206,7 +208,9 @@ async def test_internal_timeout_exception_is_translated_as_an_error(
 ) -> None:
     built = pipeline()
 
-    async def timed_out(_scope: Any, _source: Any, _route: Any) -> Response:
+    async def timed_out(
+        _scope: Any, _source: Any, _route: Any, **_kwargs: Any
+    ) -> Response:
         raise TimeoutError("handler timeout")
 
     monkeypatch.setattr(built, "_serve", timed_out)
@@ -531,3 +535,23 @@ async def test_a_stream_returned_through_middleware_is_kept_as_a_stream() -> Non
     response = await built.handle(scope("GET", "/wrapped"), FakeBody(b""))
     assert response.stream is not None
     response.stream.release()
+
+
+async def test_a_vetted_routed_request_skips_the_policies_its_transport_applied() -> (
+    None
+):
+    app = Hinoki(settings=AppSettings(allowed_hosts=("api.example",)))
+    app.include(ping)
+    built = Pipeline(app)
+    built.lifespan._started = True
+    request = scope("GET", "/ping", [(b"host", b"other.example")])
+    refused = await built.handle_unfinished(request, FakeBody(b""), "r" * 32, None)
+    assert refused.status == 400
+    routed = await built.handle_unfinished(
+        request, FakeBody(b""), "r" * 32, (0, {}), vetted=True
+    )
+    assert (routed.status, json.loads(routed.body)) == (200, {"ok": True})
+    unrouted = await built.handle_unfinished(
+        request, FakeBody(b""), "r" * 32, None, vetted=True
+    )
+    assert unrouted.status == 400

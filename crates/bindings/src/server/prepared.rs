@@ -536,17 +536,7 @@ impl PreparedRequest {
         headers: Vec<(Vec<u8>, Vec<u8>)>,
         body: &[u8],
     ) -> bool {
-        let sender = self.release();
-        sender.is_some_and(|tx| {
-            handoff::reply(
-                tx,
-                Sent::Whole(Reply {
-                    status,
-                    headers,
-                    body: body.to_vec(),
-                }),
-            )
-        })
+        self.respond_owned(status, headers, body.to_vec())
     }
 
     /// Answer with a head now and the body as it is produced. The returned
@@ -647,10 +637,7 @@ impl PreparedRequest {
         headers: Vec<(Vec<u8>, Vec<u8>)>,
         body: &[u8],
     ) -> bool {
-        if !self.native_handler && !self.native_crud {
-            return false;
-        }
-        self.finish(status, headers, body, &self.route_headers)
+        self.respond_final_owned(status, headers, body.to_vec())
     }
 
     /// The same finalization for an answer the Python pipeline built: the
@@ -662,11 +649,44 @@ impl PreparedRequest {
         body: &[u8],
         route_headers: Vec<(String, String)>,
     ) -> bool {
-        self.finish(status, headers, body, &route_headers)
+        self.finish(status, headers, body.to_vec(), &route_headers)
     }
 }
 
 impl PreparedRequest {
+    /// `respond` for a body Rust already owns: the bytes move into the reply.
+    pub(crate) fn respond_owned(
+        &self,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        body: Vec<u8>,
+    ) -> bool {
+        let sender = self.release();
+        sender.is_some_and(|tx| {
+            handoff::reply(
+                tx,
+                Sent::Whole(Reply {
+                    status,
+                    headers,
+                    body,
+                }),
+            )
+        })
+    }
+
+    /// `respond_final` for a body Rust already owns: the bytes move into the reply.
+    pub(crate) fn respond_final_owned(
+        &self,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        body: Vec<u8>,
+    ) -> bool {
+        if !self.native_handler && !self.native_crud {
+            return false;
+        }
+        self.finish(status, headers, body, &self.route_headers)
+    }
+
     /// The CORS headers to add: none when the answer or the route sets its own.
     fn cors_for(&self, own: &[Header], route_headers: &[(String, String)]) -> &[Header] {
         let sets_origin = own
@@ -713,7 +733,7 @@ impl PreparedRequest {
         &self,
         status: u16,
         own: Vec<(Vec<u8>, Vec<u8>)>,
-        body: &[u8],
+        body: Vec<u8>,
         route_headers: &[(String, String)],
     ) -> bool {
         let final_headers = final_headers(
@@ -728,7 +748,7 @@ impl PreparedRequest {
         let final_body = if self.method == "HEAD" {
             Vec::new()
         } else {
-            body.to_vec()
+            body
         };
         let sender = self.release();
         sender.is_some_and(|tx| {
