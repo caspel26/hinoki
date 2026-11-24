@@ -16,6 +16,10 @@ enum Kind {
     Uuid,
     Timestamp,
     Bytes,
+    /// A `Decimal` stored as text, written in fixed notation.
+    Decimal,
+    /// A `date` stored as `YYYY-MM-DD` text.
+    Date,
     /// The set of linked keys of a many-to-many relation, read apart from the row.
     Ids,
 }
@@ -30,6 +34,8 @@ impl Kind {
             "uuid" => Ok(Self::Uuid),
             "datetime" => Ok(Self::Timestamp),
             "bytes" => Ok(Self::Bytes),
+            "decimal" => Ok(Self::Decimal),
+            "date" => Ok(Self::Date),
             "ids" => Ok(Self::Ids),
             _ => Err(PyValueError::new_err(format!(
                 "unsupported row wire kind {value:?}"
@@ -363,8 +369,43 @@ fn write_value(output: &mut Vec<u8>, value: &Value, field: &Field) -> Option<()>
             use base64::{engine::general_purpose::STANDARD, Engine};
             write_json(output, &STANDARD.encode(value))
         }
+        (Kind::Decimal, Value::Text(value)) => write_json(output, &decimal_wire(value)?),
+        (Kind::Date, Value::Text(value)) => {
+            crate::schema::parse_date(value)?;
+            write_json(output, value)
+        }
         _ => None,
     }
+}
+
+/// `format(Decimal(text), "f")` for stored text without an exponent: the
+/// text with the integer part's leading zeros removed. Any other spelling,
+/// or one longer than the JSON writer allows, returns `None` so Python
+/// writes it.
+fn decimal_wire(text: &str) -> Option<String> {
+    let (sign, unsigned) = match text.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", text),
+    };
+    let (whole, fraction) = match unsigned.split_once('.') {
+        Some((whole, fraction)) if !fraction.is_empty() => (whole, Some(fraction)),
+        Some(_) => return None,
+        None => (unsigned, None),
+    };
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit());
+    if !digits(whole) || !fraction.is_none_or(digits) {
+        return None;
+    }
+    let whole = whole.trim_start_matches('0');
+    let whole = if whole.is_empty() { "0" } else { whole };
+    let length = whole.len() + fraction.map_or(0, str::len);
+    if length > crate::schema::DECIMAL_DIGITS_CEILING {
+        return None;
+    }
+    Some(match fraction {
+        Some(fraction) => format!("{sign}{whole}.{fraction}"),
+        None => format!("{sign}{whole}"),
+    })
 }
 
 fn write_key(output: &mut Vec<u8>, value: &str) -> Option<()> {

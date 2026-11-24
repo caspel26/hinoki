@@ -510,15 +510,22 @@ fn default_value(default: &ModelDefault, kind: Option<&str>) -> Option<Value> {
         ModelDefaultValue::Bool(value) => Value::Bool(*value),
         ModelDefaultValue::Int(value) => Value::Int(*value),
         ModelDefaultValue::Float(value) => Value::Float(*value),
-        ModelDefaultValue::Str(value) => Value::Text(value.clone()),
-        ModelDefaultValue::Uuid4 => Value::Uuid(Uuid::new_v4()),
-        ModelDefaultValue::UtcNow => {
-            let now = OffsetDateTime::now_utc();
-            let micros = (now.nanosecond() / 1_000) * 1_000;
-            Value::Timestamp(now.replace_nanosecond(micros).unwrap_or(now))
+        ModelDefaultValue::Str(value) | ModelDefaultValue::Stored(value) => {
+            Value::Text(value.clone())
         }
+        ModelDefaultValue::Uuid4 => Value::Uuid(Uuid::new_v4()),
+        ModelDefaultValue::Uuid7 => Value::Uuid(Uuid::now_v7()),
+        ModelDefaultValue::Token(count) => Value::Text(crate::crypto::random_token(*count).ok()?),
+        ModelDefaultValue::UtcNow => utc_now_value(),
     };
     kind_matches(kind?, &value).then_some(value)
+}
+
+/// The current time at the microsecond precision Python's clock has.
+fn utc_now_value() -> Value {
+    let now = OffsetDateTime::now_utc();
+    let micros = (now.nanosecond() / 1_000) * 1_000;
+    Value::Timestamp(now.replace_nanosecond(micros).unwrap_or(now))
 }
 
 fn kind_matches(kind: &str, value: &Value) -> bool {
@@ -532,6 +539,7 @@ fn kind_matches(kind: &str, value: &Value) -> bool {
             | ("uuid", Value::Uuid(_))
             | ("datetime", Value::Timestamp(_))
             | ("bytes", Value::Bytes(_))
+            | ("decimal" | "date", Value::Text(_))
     )
 }
 
@@ -545,6 +553,13 @@ fn validated_value(kind: &str, value: Validated) -> Option<Value> {
         Validated::Uuid(value) => Value::Uuid(value),
         Validated::Datetime(value) => Value::Timestamp(value.to_offset(UtcOffset::UTC)),
         Validated::Bytes(value) => Value::Bytes(value),
+        Validated::Date(day) if kind == "date" => Value::Text(stored_date(day)),
+        // Python stores `str(Decimal(text))`; any other spelling is left to it.
+        Validated::Decimal(text)
+            if kind == "decimal" && crate::crudplan::is_stored_decimal(&text) =>
+        {
+            Value::Text(text)
+        }
         Validated::NaiveDatetime(_)
         | Validated::Date(_)
         | Validated::Time(_)
@@ -555,6 +570,16 @@ fn validated_value(kind: &str, value: Validated) -> Option<Value> {
         | Validated::Object(_) => return None,
     };
     kind_matches(kind, &value).then_some(value)
+}
+
+/// `date.isoformat()` of a validated day (years 1 to 9999).
+fn stored_date(day: time::Date) -> String {
+    format!(
+        "{:04}-{:02}-{:02}",
+        day.year(),
+        u8::from(day.month()),
+        day.day()
+    )
 }
 
 fn write_path_id(plan: &CrudPlan, params: &[(String, String)]) -> Option<Value> {
@@ -1017,7 +1042,12 @@ async fn delete_in_transaction(
         }
     }
     let delete_sql = required_sql(plan.delete_sql(dialect))?;
-    let mut parameters = vec![id.clone()];
+    let mut parameters: Vec<Value> = plan
+        .soft_delete_assignments()
+        .iter()
+        .map(|_| utc_now_value())
+        .collect();
+    parameters.push(id.clone());
     if let Some(scope) = owner {
         parameters.push(Value::Text(scope.value.clone()));
     }

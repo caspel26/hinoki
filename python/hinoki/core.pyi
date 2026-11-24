@@ -212,6 +212,7 @@ class _CrudPlan:
         owner: str | None = ...,
         links: list[tuple[str, LinkSpec, str | None]] = ...,
         filters: _FilterPlan | None = ...,
+        soft_delete: str | None = ...,
     ) -> None: ...
     @property
     def action(self) -> str: ...

@@ -22,7 +22,9 @@ from hinoki.runtime.binding import Binding
 from hinoki.schema import Schema, SchemaMeta, uses_generated_init
 
 CONDITION_PARTS = 3
-ROW_KINDS = frozenset({"str", "int", "float", "bool", "uuid", "datetime", "bytes"})
+ROW_KINDS = frozenset(
+    {"str", "int", "float", "bool", "uuid", "datetime", "bytes", "decimal", "date"}
+)
 OWNER_GUARD_NAMES = (
     "__init__",
     "__new__",
@@ -590,6 +592,7 @@ def schema_fields(
             name not in columns
             or field_type.kind not in ROW_KINDS
             or field_type.kind != model_types[name].kind
+            or field_type.enum_class is not model_types[name].enum_class
             or field_type.nullable != model_types[name].nullable
             or field_type.info.constraints()
             or field_type.allows_unset
