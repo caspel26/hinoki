@@ -79,6 +79,12 @@ mod tests {
     }
 
     #[test]
+    fn header_total_arithmetic_saturates_at_usize_max() {
+        assert_eq!(add_header_total(usize::MAX - 1, 2, 0), usize::MAX);
+        assert_eq!(add_header_total(usize::MAX, 0, 0), usize::MAX);
+    }
+
+    #[test]
     fn query_is_checked_before_headers() {
         let limits = Limits::default();
         assert_eq!(limits.check_request(8193, 99_999), Some(Early::UriTooLong));
