@@ -494,7 +494,7 @@
           <h1 id="email-templates">Email templates<a class="headerlink" href="#email-templates" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 03:08:43 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -657,7 +657,7 @@
 <td>Something <code>for</code> iterates; <code>for</code> over <code>None</code> renders nothing</td>
 </tr>
 <tr>
-<td><code>SecretStr</code>, <code>bytes</code>, <code>Any</code>, <code>tuple</code>, a mapping field</td>
+<td><code>Secret</code>, <code>bytes</code>, <code>Any</code>, <code>tuple</code>, a mapping field</td>
 <td>Refused when the template is checked</td>
 </tr>
 </tbody>
@@ -815,13 +815,13 @@ Your trial lasts 14 days.
     <span class="n">subject</span><span class="p">,</span> <span class="n">html</span> <span class="o">=</span> <span class="n">NOTICES</span><span class="p">[</span><span class="n">slug</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">mail</span><span class="o">.</span><span class="n">Template</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">"notice-</span><span class="si">{</span><span class="n">slug</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">subject</span><span class="o">=</span><span class="n">subject</span><span class="p">,</span> <span class="n">html</span><span class="o">=</span><span class="n">html</span><span class="p">)</span>
 </code></pre></div>
-<p>The context is a plain <code>dict</code> (<code>mail.Context</code>). Only the syntax is checked when the template is built; there is no <code>Schema</code> to check the variables against, so a missing key is found when the template is rendered, for the message being sent. A <code>SecretStr</code> in the <code>dict</code> is refused (<code>secret_value</code>). The error names the variable of the template:</p>
+<p>The context is a plain <code>dict</code> (<code>mail.Context</code>). Only the syntax is checked when the template is built; there is no <code>Schema</code> to check the variables against, so a missing key is found when the template is rendered, for the message being sent. A <code>Secret</code> in the <code>dict</code> is refused (<code>secret_value</code>). The error names the variable of the template:</p>
 <!-- output: missing-variable -->
 <div class="language-text highlight"><pre><span></span><code>template 'notice-maintenance': missing variable 'from' in html at line 1, column 47
 </code></pre></div>
 <p>The <code>/notices/{slug}</code> route turns that error into <code>400 invalid_notice</code>, so the caller learns that the notice could not be rendered without seeing a value.</p>
 <h2 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h2>
-<p>Every failure is a <code>mail.TemplateError</code>, a subclass of <code>EmailError</code> with <code>kind</code> <code>template</code>. It carries <code>reason</code>, <code>template</code> (the name), <code>field</code> (the part), <code>line</code>, <code>column</code>, <code>variable</code> and <code>problems</code> (a tuple of <code>TemplateProblem</code>, at most 20; <code>truncated</code> says there were more). Its text never holds a recipient, a subject, a rendered text or a value of the context. A secret never reaches the engine: a <code>SecretStr</code> field in a <code>Schema</code> context is <code>secret_field</code>, and one in a <code>dict</code> is <code>secret_value</code>.</p>
+<p>Every failure is a <code>mail.TemplateError</code>, a subclass of <code>EmailError</code> with <code>kind</code> <code>template</code>. It carries <code>reason</code>, <code>template</code> (the name), <code>field</code> (the part), <code>line</code>, <code>column</code>, <code>variable</code> and <code>problems</code> (a tuple of <code>TemplateProblem</code>, at most 20; <code>truncated</code> says there were more). Its text never holds a recipient, a subject, a rendered text or a value of the context. A secret never reaches the engine: a <code>Secret</code> field in a <code>Schema</code> context is <code>secret_field</code>, and one in a <code>dict</code> is <code>secret_value</code>.</p>
 <table>
 <thead>
 <tr>
@@ -886,7 +886,7 @@ Your trial lasts 14 days.
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 03:08:43 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/email-templates.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

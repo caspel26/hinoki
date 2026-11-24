@@ -494,8 +494,8 @@
           <h1 id="websockets">WebSockets<a class="headerlink" href="#websockets" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
+            <span>8 min read</span>
           </p>
           
         </header>
@@ -570,7 +570,26 @@ WebSocket action. A path with a
 parameter is declared as in HTTP: <code>@http.websocket("/rooms/{room}")</code>. Path and query
 values are bound to handler parameters typed <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> or
 <code>UUID</code>; a parameter with a default is optional. A malformed value is refused
-with <code>400</code> before the upgrade.</p>
+with <code>400</code> before the upgrade. Annotations are read when the action is
+included, so a handler may name a type defined later in its module; an
+unsupported parameter type is a <code>RegistrationError</code> at <code>Hinoki(include=...)</code>.
+The decorator keeps the handler's signature for type checkers.</p>
+<p>Under ASGI, Hinoki waits for the server's <code>websocket.connect</code> event before it
+answers: a refusal is sent only to a client that connected, and a client gone
+before connecting gets nothing.</p>
+<h3 id="on-an-api-class">On an <code>API</code> class<a class="headerlink" href="#on-an-api-class" title="Permanent link">&para;</a></h3>
+<p>An <code>API</code> class may declare WebSocket actions next to its HTTP ones. The path is
+joined to the class prefix, and the handler gets a fresh instance as <code>self</code> for
+each connection, so the class must be constructible without arguments.
+<code>@http.websocket</code> on a <code>staticmethod</code> or <code>classmethod</code> is refused.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">http</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Rooms</span><span class="p">(</span><span class="n">API</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/rooms"</span><span class="p">):</span>
+    <span class="nd">@http</span><span class="o">.</span><span class="n">websocket</span><span class="p">(</span><span class="s2">"/</span><span class="si">{room}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">room</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">socket</span><span class="p">:</span> <span class="n">http</span><span class="o">.</span><span class="n">WebSocket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">socket</span><span class="o">.</span><span class="n">send_text</span><span class="p">(</span><span class="sa">f</span><span class="s2">"welcome to </span><span class="si">{</span><span class="n">room</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
 <h2 id="access-and-the-caller">Access and the caller<a class="headerlink" href="#access-and-the-caller" title="Permanent link">&para;</a></h2>
 <p><code>access=</code> takes the same reusable <code>Access</code> as an HTTP action and is judged on
 the handshake request: its headers, cookies and query string. A browser cannot
@@ -762,8 +781,8 @@ docstring, the <code>message</code> and <code>reply</code> schema components, th
 origins and the handshake's security requirement. They are not listed under
 <code>paths</code>.</p>
 <h2 id="not-provided">Not provided<a class="headerlink" href="#not-provided" title="Permanent link">&para;</a></h2>
-<p>WebSocket over HTTP/2, <code>permessage-deflate</code>, class-based <code>@http.websocket</code> on an
-<code>API</code>, and a native (GIL-free) handler lane for WebSockets.</p>
+<p>WebSocket over HTTP/2, <code>permessage-deflate</code>, <code>@http.websocket</code> on a
+<code>RouteGroup</code>, and a native (GIL-free) handler lane for WebSockets.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -786,13 +805,15 @@ origins and the handshake's security requirement. They are not listed under
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-runs-where">What runs where</a></li><li><a href="#the-handshake">The handshake</a></li><li><a href="#access-and-the-caller">Access and the caller</a></li><li><a href="#origin">Origin</a></li><li><a href="#subprotocols">Subprotocols</a></li><li><a href="#messages">Messages</a></li><li><a href="#limits-and-back-pressure">Limits and back-pressure</a></li><li><a href="#shutdown-and-reload">Shutdown and reload</a></li><li><a href="#openapi">OpenAPI</a></li><li><a href="#not-provided">Not provided</a></li></ul>
+            <ul><li><a href="#what-runs-where">What runs where</a></li><li><a href="#the-handshake">The handshake</a>
+            <ul><li><a href="#on-an-api-class">On an API class</a></li></ul>
+          </li><li><a href="#access-and-the-caller">Access and the caller</a></li><li><a href="#origin">Origin</a></li><li><a href="#subprotocols">Subprotocols</a></li><li><a href="#messages">Messages</a></li><li><a href="#limits-and-back-pressure">Limits and back-pressure</a></li><li><a href="#shutdown-and-reload">Shutdown and reload</a></li><li><a href="#openapi">OpenAPI</a></li><li><a href="#not-provided">Not provided</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/websockets.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

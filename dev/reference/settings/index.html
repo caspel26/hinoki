@@ -508,7 +508,10 @@ The message is shown in <code>SettingsError</code>: never put a field's value in
 
 
 
-        <p>A string that never prints itself: <code>repr</code> and <code>str</code> show <code>***</code>.</p>
+        <p>Text that never shows itself: <code>repr</code>, <code>str</code>, <code>dump()</code> and JSON
+responses give <code>**********</code>; <code>reveal()</code> returns the text.</p>
+<p>The one secret type of Hinoki: a <code>Schema</code> field, a <code>Settings</code> field, a
+<code>JWTKey</code> and <code>SessionSettings(csrf_secret=...)</code> all take it.</p>
 
 
 

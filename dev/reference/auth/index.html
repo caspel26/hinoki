@@ -788,7 +788,7 @@ or plain <code>def</code>.</p>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">JWTKey</span><span class="p">(</span>
     <span class="n">kid</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">algorithm</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">key</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Secret</span><span class="p">,</span>
     <span class="n">public</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
@@ -800,8 +800,9 @@ or plain <code>def</code>.</p>
         <p>One verification (and optionally signing) key.</p>
 <p>HMAC secrets must be at least as long as the hash (32/48/64 bytes). For
 <code>EdDSA</code> the key is the 32-byte private seed, or with <code>public=True</code> the
-32-byte public key of a verify-only deployment. <code>kid</code> is required when
-several keys are configured. The key is excluded from <code>repr</code>.</p>
+32-byte public key of a verify-only deployment. <code>key</code> is bytes, text or a
+<code>Secret</code> (such as a <code>Settings</code> field). <code>kid</code> is required when several
+keys are configured. The key is excluded from <code>repr</code>.</p>
 
 
 

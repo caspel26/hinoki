@@ -494,7 +494,7 @@
           <h1 id="application-sessions">Application sessions<a class="headerlink" href="#application-sessions" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -548,6 +548,7 @@ worker:</p>
     <span class="n">modules</span><span class="o">=</span><span class="p">[</span><span class="n">SessionModule</span><span class="p">(</span><span class="n">DatabaseSessionStore</span><span class="p">(),</span> <span class="n">session_settings</span><span class="p">)],</span>
 <span class="p">)</span>
 </code></pre></div>
+<p><code>csrf_secret</code> takes <code>bytes</code>, text or a <code>settings.Secret</code> (encoded as UTF-8) of at least 32 bytes; it is left out of the settings' <code>repr</code> and comparisons, and <code>settings.csrf_key()</code> returns the bytes.</p>
 <p><code>SessionAuth</code> resolves a <code>Caller</code> from the read-only session data and works with
 <code>Access</code> and <code>Caller[T]</code>. It documents the configured cookie name as an OpenAPI
 cookie security scheme. If <code>SessionSettings.cookie_name</code> is customized, pass the
@@ -669,7 +670,7 @@ and cache migrations.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/sessions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

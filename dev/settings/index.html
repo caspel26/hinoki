@@ -494,7 +494,7 @@
           <h1 id="configure-an-application-with-settings">Configure an application with settings<a class="headerlink" href="#configure-an-application-with-settings" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -1120,7 +1120,7 @@ double underscore.</p>
 </code></pre></div>
 <h2 id="keep-secrets-secret">Keep secrets secret<a class="headerlink" href="#keep-secrets-secret" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Declare them as <code>settings.Secret</code> (or <code>settings.Secret | None</code>). A <code>settings.Secret</code> prints as <code>***</code> in <code>repr</code>, <code>str</code>, logs, error messages, <code>describe()</code> and the settings command; you get the real text only with <code>secret.reveal()</code>, at the one place that needs it (where the payment client is built: <code>app_settings.stripe_key.reveal()</code>).</li>
+<li>Declare them as <code>settings.Secret</code> (or <code>settings.Secret | None</code>). A <code>settings.Secret</code> (the same type as <code>hinoki.Secret</code>) prints as <code>**********</code> in <code>repr</code>, <code>str</code>, logs and error messages, and as <code>***</code> in <code>describe()</code> and the settings command; you get the real text only with <code>secret.reveal()</code>, at the one place that needs it (where the payment client is built: <code>app_settings.stripe_key.reveal()</code>).</li>
 <li>Put secrets in the environment, a secret manager that exports variables, or <strong>files</strong>: with Docker or Kubernetes secrets set <code>NOTES_STRIPE_KEY_FILE=/run/secrets/stripe</code>; the file's content (without the trailing newline) is the value. Only a regular file up to 64 KiB is read; setting both <code>NOTES_STRIPE_KEY</code> and <code>NOTES_STRIPE_KEY_FILE</code> is an error.</li>
 <li>A <code>.env</code> file is for development; never commit it. Pickling or serialising a settings object stores its secrets in plain text, so don't.</li>
 <li>A <code>validate()</code> method you add to a group shows its message in errors, so never put a field's value in it.</li>
@@ -1218,7 +1218,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

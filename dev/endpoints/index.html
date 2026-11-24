@@ -494,8 +494,8 @@
           <h1 id="requests-and-responses">Requests and responses<a class="headerlink" href="#requests-and-responses" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></span>
-            <span>16 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
+            <span>17 min read</span>
           </p>
           
         </header>
@@ -672,7 +672,19 @@
 <span class="nd">@invoices</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">/scans"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>  <span class="c1"># MultiPartParser() selected</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">attach_scans</span><span class="p">(</span><span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">scans</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">UploadedFile</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Attached</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
-<p><code>UploadedFile</code> requires exactly one part with that name. <code>list[UploadedFile]</code> requires at least one and keeps repeated parts in order. To make a single file optional, write <code>file: UploadedFile | None = None</code>. These declarations cannot be combined with a <code>Schema</code> body parameter. Use <code>request.POST</code> for adjacent text fields or <code>request.FILES</code> when names or repetitions are dynamic. Parser precedence for a file action: its own <code>parsers=</code> (which must then include <code>MultiPartParser</code>, or registration fails), then an application-wide <code>Hinoki(parsers=[...])</code> that includes a <code>MultiPartParser</code>, then the automatic <code>MultiPartParser()</code>. An application parser list without multipart does not apply to file actions, and actions without file parameters keep their parsers.</p>
+<p><code>UploadedFile</code> requires exactly one part with that name. <code>list[UploadedFile]</code> requires at least one and keeps repeated parts in order. To make a single file optional, write <code>file: UploadedFile | None = None</code>. Declare the text fields next to the files as a <code>Form[Schema]</code> parameter; they are converted and validated like any form body (a failure is <code>422</code> with the parameter's path, such as <code>meta.pages</code>). A plain JSON <code>Schema</code> body cannot be combined with files and is refused at registration. Use <code>request.POST</code> for undeclared text fields or <code>request.FILES</code> when names or repetitions are dynamic.</p>
+<p><div class="language-python highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ScanMeta</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">pages</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="nd">@invoices</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{invoice_id}</span><span class="s2">/scan"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">attach_scan</span><span class="p">(</span>
+    <span class="n">invoice_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">meta</span><span class="p">:</span> <span class="n">Form</span><span class="p">[</span><span class="n">ScanMeta</span><span class="p">],</span> <span class="n">scan</span><span class="p">:</span> <span class="n">UploadedFile</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Attached</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Attached</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">meta</span><span class="o">.</span><span class="n">title</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="n">scan</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">scan</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+</code></pre></div>
+ Parser precedence for a file action: its own <code>parsers=</code> (which must then include <code>MultiPartParser</code>, or registration fails), then an application-wide <code>Hinoki(parsers=[...])</code> that includes a <code>MultiPartParser</code>, then the automatic <code>MultiPartParser()</code>. An application parser list without multipart does not apply to file actions, and actions without file parameters keep their parsers.</p>
 <p>All declared files require <code>multipart/form-data</code>. A missing file is a <code>422</code> validation error; a wrong media type is <code>415</code>; malformed multipart is <code>400</code>; a part or complete body over its configured limit is <code>413 payload_too_large</code>. A zero-byte body with no <code>Content-Type</code> is treated as absent input for optional files; an explicitly multipart empty body is malformed, while a valid closing-boundary-only body has no parts. The default complete-body limit is 1 MiB, and the parser buffers bytes in memory: this API is for bounded small uploads, not streaming.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
@@ -815,7 +827,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:41:37 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

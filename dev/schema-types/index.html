@@ -494,7 +494,7 @@
           <h1 id="scalar-field-types">Scalar field types<a class="headerlink" href="#scalar-field-types" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:39:17 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -502,7 +502,7 @@
         
 <p>A <code>Schema</code> field can be <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code>, <code>UUID</code>, <code>datetime</code>,
 <code>date</code>, <code>time</code>, <code>timedelta</code>, <code>Decimal</code>, <code>bytes</code>, an <code>Enum</code> class, a <code>Literal</code>,
-an <code>ipaddress</code> type, <code>Email</code>, <code>Url</code>, <code>Slug</code>, <code>SecretStr</code> or <code>Path</code>; optionally
+an <code>ipaddress</code> type, <code>Email</code>, <code>Url</code>, <code>Slug</code>, <code>Secret</code> or <code>Path</code>; optionally
 <code>| None</code> (accepts <code>null</code>) or <code>| Unset</code>, and wrapped in
 <code>Annotated[..., Field(...)]</code>. Containers, unions and nested types are in
 <a href="../schema-collections/">collections and unions</a>. Anything else raises
@@ -661,8 +661,9 @@ returns the member.</p>
   input is capped at 65 536 bytes (<code>hinoki.fieldtypes.MAX_BYTES_LENGTH</code>);
   model-derived fields are not capped. <code>pattern</code> matches the decoded bytes read
   as Latin-1.</li>
-<li><strong>Output.</strong> The JSON encoder writes these values only inside <code>Schema</code>
-  instances; a bare <code>Decimal</code> or <code>bytes</code> in a plain dict is a <code>TypeError</code>.</li>
+<li><strong>Output.</strong> The JSON and XML encoders write these values in their wire form
+  anywhere, including in a plain dict or at the top level; a <code>JSONRenderer</code>
+  with a <code>default</code> hook passes them to the hook first outside a <code>Schema</code>.</li>
 <li><strong>OpenAPI:</strong> <code>format</code> <code>date</code>, <code>time</code>, <code>duration</code>, <code>decimal</code> (with a
   <code>pattern</code>) and <code>byte</code> (<code>contentEncoding: base64</code>).</li>
 </ul>
@@ -694,26 +695,28 @@ returns the member.</p>
   <code>Email</code> checks syntax, not deliverability. They work as model columns.</li>
 <li><strong>Models</strong> store addresses as text and check the class before a write.</li>
 </ul>
-<h2 id="secretstr-and-path"><code>SecretStr</code> and <code>Path</code><a class="headerlink" href="#secretstr-and-path" title="Permanent link">&para;</a></h2>
+<h2 id="secret-and-path"><code>Secret</code> and <code>Path</code><a class="headerlink" href="#secret-and-path" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">SecretStr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">Secret</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Account</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
-    <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">SecretStr</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">8</span><span class="p">)]</span>
+    <span class="n">password</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="n">Secret</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">8</span><span class="p">)]</span>
     <span class="n">home</span><span class="p">:</span> <span class="n">Path</span>
 
 
 <span class="n">account</span> <span class="o">=</span> <span class="n">Account</span><span class="o">.</span><span class="n">validate</span><span class="p">({</span><span class="s2">"password"</span><span class="p">:</span> <span class="s2">"correct horse"</span><span class="p">,</span> <span class="s2">"home"</span><span class="p">:</span> <span class="s2">"/srv/ann"</span><span class="p">})</span>
-<span class="k">assert</span> <span class="n">account</span><span class="o">.</span><span class="n">password</span><span class="o">.</span><span class="n">get_secret_value</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"correct horse"</span>
+<span class="k">assert</span> <span class="n">account</span><span class="o">.</span><span class="n">password</span><span class="o">.</span><span class="n">reveal</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"correct horse"</span>
 <span class="k">assert</span> <span class="n">account</span><span class="o">.</span><span class="n">dump</span><span class="p">()</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"password"</span><span class="p">:</span> <span class="s2">"**********"</span><span class="p">,</span> <span class="s2">"home"</span><span class="p">:</span> <span class="s2">"/srv/ann"</span><span class="p">}</span>
 </code></pre></div>
 <ul>
-<li><code>SecretStr</code> shows <code>**********</code> in <code>repr</code>, <code>str</code>, <code>dump()</code> and responses;
-  only <code>get_secret_value()</code> returns the text, and errors never repeat it.
-  Construction takes a <code>SecretStr</code> only.</li>
+<li><code>Secret</code> shows <code>**********</code> in <code>str</code>, <code>dump()</code> and responses (its <code>repr</code> is
+  <code>Secret('**********')</code>); only <code>reveal()</code> returns the text, and errors never
+  repeat it. Construction takes a <code>str</code> only; two secrets compare in constant
+  time. It is the same type as <code>settings.Secret</code>, and <code>JWTKey(key=...)</code> and
+  <code>SessionSettings(csrf_secret=...)</code> accept it.</li>
 <li><code>Path</code> reads a non-empty string without NUL (at most 4096 characters without
   <code>max_length</code>) and never touches the file system; code <code>path</code>.</li>
 <li>Both are served by the Python lane by design and have no model column type.</li>
@@ -749,13 +752,13 @@ returns the member.</p>
           
             <ul><li><a href="#numbers">Numbers</a>
             <ul><li><a href="#multiples">Multiples</a></li></ul>
-          </li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li><li><a href="#secretstr-and-path">SecretStr and Path</a></li><li><a href="#see-also">See also</a></li></ul>
+          </li><li><a href="#enums-and-literals">Enums and literals</a></li><li><a href="#dates-durations-decimals-and-bytes">Dates, durations, decimals and bytes</a></li><li><a href="#internet-addresses-email-url-and-slug">Internet addresses, Email, Url and Slug</a></li><li><a href="#secret-and-path">Secret and Path</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:39:17 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schema-types.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

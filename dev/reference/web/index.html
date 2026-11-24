@@ -295,7 +295,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
-            <span>32 min read</span>
+            <span>33 min read</span>
           </p>
           
         </header>
@@ -1157,6 +1157,56 @@ without a decorator removes the inherited route.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="hinoki.api.API.websockets" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">websockets</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.api.API.websockets" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">websockets</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">WebSocketRoute</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>@http.websocket</code> methods with the prefix applied, in definition
+order; the class is created without arguments for each connection.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.api.API.member_names" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">member_names</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.api.API.member_names" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">member_names</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Member names, most derived class first, so an override without a
+decorator removes the inherited action.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="hinoki.api.API.apply_replacements" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">apply_replacements</span>
 
@@ -1213,6 +1263,28 @@ without a decorator removes the inherited route.</p>
 
 <a href="#hinoki.api.API.mount" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">mount</span><span class="p">(</span><span class="n">route</span><span class="p">:</span> <span class="n">Route</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Route</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.api.API.mounted_path" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">mounted_path</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.api.API.mounted_path" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">mounted_path</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3191,7 +3263,7 @@ MCP tool description then show.</p>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Response</span><span class="p">(</span>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
     <span class="n">body</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">ResponseHeaders</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
@@ -3394,7 +3466,7 @@ semicolon or backslash); encode richer data yourself.</p>
     <span class="n">body</span><span class="p">:</span> <span class="n">Source</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">ResponseHeaders</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span>
@@ -3455,7 +3527,7 @@ sent with chunked framing (HTTP/1.1) or until the stream ends (HTTP/2).</p>
     <span class="o">|</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Event</span> <span class="o">|</span> <span class="nb">str</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">ResponseHeaders</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">keepalive</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">EllipsisType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="o">...</span><span class="p">,</span>
     <span class="n">retry</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span>
@@ -3686,7 +3758,7 @@ field. Line breaks in <code>data</code> and <code>comment</code> become separate
     <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">content_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="n">Headers</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">ResponseHeaders</span> <span class="o">=</span> <span class="p">(),</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -4895,14 +4967,15 @@ required; an action with no <code>cors=</code> keeps the application's policy.</
     <span class="n">max_message_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">idle_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span>
-    <span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="nb">object</span><span class="p">]]],</span>
-    <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="nb">object</span><span class="p">]],</span>
+    <span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]]],</span>
+    <span class="n">Callable</span><span class="p">[</span><span class="n">P</span><span class="p">,</span> <span class="n">Coroutine</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">R</span><span class="p">]],</span>
 <span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Declare a WebSocket action on <code>path</code> (<code>/rooms/{room}</code>).</p>
+        <p>Declare a WebSocket action on <code>path</code> (<code>/rooms/{room}</code>), on a function
+or on a method of an <code>API</code> class (whose prefix it then takes).</p>
 <p><code>access</code> authenticates the handshake; a refusal is the usual HTTP answer.
 <code>message</code> and <code>reply</code> are the <code>Schema</code> of the JSON the client sends and
 receives. <code>subprotocols</code> names the ones the action speaks (the client must
@@ -4910,7 +4983,8 @@ offer one); a mapping gives each its own <code>Access</code>. <code>origins</cod
 browser origins to the same-origin and application CORS ones.
 <code>max_message_bytes</code> and <code>idle_timeout</code> override the <code>execution.ws_*</code>
 settings; <code>idle_timeout</code> (seconds without a message from the client) is off
-by default.</p>
+by default. The handler's annotations are read when the application
+includes it, so they may name classes defined later.</p>
 
 
     </div>
@@ -6120,7 +6194,7 @@ first request, so routes given the same instance and the same <code>scope</code>
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
             <ul><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.middleware">middleware</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.websockets">websockets</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.events">events</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.settings_email">settings_email</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.lookup_websocket">lookup_websocket</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.resolved_pagination">resolved_pagination</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
-            <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li></ul>
+            <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.websockets">websockets</a></li><li><a href="#hinoki.api.API.member_names">member_names</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li><li><a href="#hinoki.api.API.mounted_path">mounted_path</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
             <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup.cors">cors</a></li><li><a href="#hinoki.routing.RouteGroup.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.RouteGroup.tags">tags</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li><li><a href="#hinoki.routing.RouteGroup.query">query</a></li></ul>
           </li><li><a href="#hinoki.routing.Includable">Includable</a></li><li><a href="#hinoki.routing.Mount">Mount</a>
