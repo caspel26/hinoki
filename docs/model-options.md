@@ -45,6 +45,8 @@ class Quote(Model, label="Quote", plural="Quotes"):
 | composite uniqueness | `@db.unique("a", "b", name=None)` | `UNIQUE (a, b)`, named with `name=`; one column uses `field(unique=True)` |
 | default order | `@db.ordered_by("-created_at", "id")` | order of queries without `order_by`; `-` is descending |
 | update timestamp | `@db.timestamps()` | refreshes `updated_at` on every ORM update |
+| soft delete | `@db.soft_delete("deleted_at")` | marks a nullable datetime column; `delete()` sets it and queries skip those rows ([soft delete](models.md#lifecycle-utilities)) |
+| status change time | `@db.track_status("status", changed_at="status_changed_at")` | records when the status column changes; decorators stack ([lifecycle utilities](models.md#lifecycle-utilities)) |
 | table name | `@db.table("quotes")` (optional) | replaces the derived `<app>_<models>` name |
 | app part of the name | `app="sales"` (class keyword, optional) | replaces `<app>`; ignored with an explicit table |
 | display names | `label=`, `plural=` (class keywords, optional) | replace the derived singular and plural |
@@ -133,7 +135,7 @@ See [table and display names](models.md#table-and-display-names).
   table model does not pass its options to a subclass.
 
 !!! note "Not yet"
-    Partial and expression indexes, and soft delete, are not available.
+    Partial and expression indexes are not available.
 
 ## See also
 

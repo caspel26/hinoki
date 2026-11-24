@@ -247,7 +247,7 @@ The list accepts `?title=...`, `?search=...` and `?ordering=title` from the `Fil
 | Area | What it gives you |
 | --- | --- |
 | **Contracts** | `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client. Generated lists take client filters, ordering and search from a `FilterSet`. |
-| **Rules** | `hinoki check` has eleven built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes and import direction. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason. |
+| **Rules** | `hinoki check` has twelve built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes, import direction and, when you list it, email templates that match their context. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason. |
 | **Data** | SQLite, PostgreSQL, MySQL and MariaDB, explicit relation loading, and SQL migration files you review. Importing an app never connects to a database. |
 | **Tools** | Typed settings, generated CRUD, typed events, project-wide middleware, a CLI, MCP servers for the application and for development, and an optional admin. |
 
@@ -258,6 +258,7 @@ Three self-contained projects in [`examples/`](examples/README.md), each with it
 * [**Notes**](examples/notes/README.md) (easy): one app, one model and generated CRUD, in five minutes.
 * [**Tracker**](examples/tracker/README.md) (medium): several apps with explicit dependencies, access policies, transactions, a filtered list, events, and project-wide middleware and rules.
 * [**Blog**](examples/blog/README.md) (complete): tenant, login, admin, MCP, migrations, streaming, events, a rule waiver and metrics.
+* [**Mailroom**](examples/mailroom/README.md) (focused): outbound email from templates, an API-key policy and the email-template rule.
 
 ## Interactive API docs
 

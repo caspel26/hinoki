@@ -39,7 +39,9 @@ default one. Measure a build before relying on its duration.
    samples with a retained baseline (see [Benchmarks](benchmarks.md)).
 3. Set the version, which must be the same in `pyproject.toml`
    (`project.version`) and in the workspace `Cargo.toml`
-   (`workspace.package.version`), then run `uv lock` so `uv.lock` follows.
+   (`workspace.package.version`), then run `uv lock` so `uv.lock` follows. The
+   docsite footer reads `project.version` when the site is built, so there is
+   no third place to edit.
 4. Apply the [compatibility policy](status.md): a `0.1.z` patch keeps documented
    contracts and `0.1.0` migration files compatible. A breaking pre-1.0 change
    requires a later `0.y.0`, release notes and an upgrade path for migration

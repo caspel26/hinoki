@@ -56,7 +56,7 @@ Check it at any time:
 hinoki check
 ```
 
-## The eleven rules
+## The twelve rules
 
 | ID | Rule | Phase | Checks |
 | --- | --- | --- | --- |
@@ -70,6 +70,7 @@ hinoki check
 | `HNK-SCH-002` | `Schemas.require_string_limits()` | startup | every text field a client sends (nested, in containers, `dict` values and union variants included) has `max_length` or `one_of`; `Enum` and `Literal` fields pass |
 | `HNK-DB-001` | `Models.require_explicit_table(match="*")` | startup | matching models pin their table with `@db.table(...)` or `table=`, so renaming the class cannot rename the table |
 | `HNK-DB-002` | `Models.require_foreign_key_index(match="*")` | startup | every foreign-key column leads an index, a primary key or a unique constraint |
+| `HNK-MAIL-001` | `EmailTemplatesMatch()` | static | every registered [email template](email-templates.md) loads and matches its context `Schema` (opt-in, see [below](#an-opt-in-rule-email-templates)) |
 | `HNK-IMP-001` | `Imports.forbid(source, target)` | static | modules under `source` never import `target`, read from the source files; dynamic imports are reported, not ignored |
 
 Every built-in rule has severity `error`. `HNK-API-002` matters most for actions
@@ -79,7 +80,7 @@ routes, which open their own short transactions.
 
 ## An opt-in rule: email templates
 
-`EmailTemplatesMatch()` (`HNK-MAIL-001`, phase `static`) is not in the table above and runs only when you put it in your `RuleSet`. It reads every registered [email template](email-templates.md) (the files included) and checks it against its context `Schema`, reporting one diagnostic per template that is refused. Because it reads files it declares the effect `files`, so `hinoki check` reports it as unverifiable unless you pass `--allow-effects`:
+`EmailTemplatesMatch()` (`HNK-MAIL-001`, phase `static`) is listed in the table but runs only when you put it in your `RuleSet`. It reads every registered [email template](email-templates.md) (the files included) and checks it against its context `Schema`, reporting one diagnostic per template that is refused. Because it reads files it declares the effect `files`, so `hinoki check` reports it as unverifiable unless you pass `--allow-effects`:
 
 ```python
 from hinoki.rules import EmailTemplatesMatch, RuleSet
