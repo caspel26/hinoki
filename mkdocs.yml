@@ -22,7 +22,6 @@ hooks:
 
 extra:
   generator: false
-  hn_version: "0.0.1"
 
 repo_url: https://github.com/caspel26/hinoki
 repo_name: caspel26/hinoki
@@ -164,6 +163,9 @@ nav:
       - Database: reference/database.md
       - Settings: reference/settings.md
       - Email: reference/email.md
+      - Sessions: reference/sessions.md
+      - Cache: reference/cache.md
+      - File storage: reference/storage.md
       - Rules: reference/rules.md
       - Modules and runtime: reference/runtime.md
       - MCP and scaffold: reference/tools.md

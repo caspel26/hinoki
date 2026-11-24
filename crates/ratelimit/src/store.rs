@@ -211,6 +211,9 @@ impl Store for Backend {
     }
 }
 
+/// The quota and step a hit was counted with, and the store's answer.
+type Counted<'r> = (&'r Quota, Step, Result<Option<i64>, StoreError>);
+
 pub struct Limiter {
     backend: Backend,
     limits: Limits,
@@ -260,9 +263,9 @@ impl Limiter {
         &self,
         bucket: &Bucket,
         step: &Step,
+        full: bool,
         deadline: Instant,
     ) -> Result<Option<i64>, StoreError> {
-        let full = self.full.load(Ordering::Relaxed);
         tokio::time::timeout_at(deadline, self.backend.hit(bucket, step, full))
             .await
             .unwrap_or(Err(StoreError::Timeout))
@@ -305,6 +308,23 @@ impl Limiter {
         })
     }
 
+    /// Count a new key refused by the full table against its scope's overflow
+    /// bucket, with the wider `unknown` quota: every such client shares it, so the
+    /// full table neither refuses all of them nor admits them unbounded.
+    async fn overflow<'r>(
+        &self,
+        rule: &'r Rule,
+        scope: &str,
+        now_us: i64,
+        deadline: Instant,
+    ) -> Result<Counted<'r>, LimitError> {
+        let quota = &rule.unknown;
+        let step = quota.step(now_us, rule.cost).map_err(LimitError::Quota)?;
+        let bucket = key::overflow(scope).map_err(LimitError::Key)?;
+        let hit = self.run_hit(&bucket, &step, false, deadline).await;
+        Ok((quota, step, hit))
+    }
+
     /// Count one hit. A store failure is a decision too: admitted (`fail_open`) or
     /// `Unavailable`.
     pub async fn check(
@@ -323,10 +343,13 @@ impl Limiter {
         let started = Instant::now();
         self.maybe_sweep(now_us, started + self.limits.timeout / 2)
             .await;
-        let decision = match self
-            .run_hit(&keyed.bucket, &step, started + self.limits.timeout)
-            .await
-        {
+        let deadline = started + self.limits.timeout;
+        let full = self.full.load(Ordering::Relaxed);
+        let (quota, step, hit) = match self.run_hit(&keyed.bucket, &step, full, deadline).await {
+            Ok(None) => self.overflow(rule, parts.scope, now_us, deadline).await?,
+            hit => (quota, step, hit),
+        };
+        let decision = match hit {
             Ok(Some(state)) => gcra::decide(quota, &step, state),
             Ok(None) => gcra::refuse_full(quota),
             Err(error) => return self.failure(&error, rule, quota),

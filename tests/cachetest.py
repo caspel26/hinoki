@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hinoki import Hinoki, Schema, http
+from hinoki import Hinoki, Schema, SecretStr, computed_field, http
 from hinoki.cache import (
     Cache,
     CacheDecodeError,
     CacheModule,
+    CacheUnavailable,
     CacheValueTooLarge,
     DatabaseCache,
     InvalidCacheKey,
@@ -176,5 +177,76 @@ async def test_expired_read_does_not_delete_concurrent_refresh(
         assert await cache.get_bytes("race") is None
         monkeypatch.undo()
         assert await cache.get_bytes("race") == b"fresh"
+    finally:
+        database.close()
+
+
+class Line(Schema):
+    quantity: int
+
+    @computed_field
+    def doubled(self) -> int:
+        return self.quantity * 2
+
+
+class Order(Schema):
+    lines: list[Line]
+    first: Line
+
+    @computed_field
+    def count(self) -> int:
+        return len(self.lines)
+
+
+class Login(Schema):
+    user: str
+    password: SecretStr
+
+
+class Wrapped(Schema):
+    login: Login | None = None
+
+
+async def test_cached_schemas_round_trip_without_computed_values() -> None:
+    cache = MemoryCache(max_entries=4, max_bytes=4096)
+    order = Order(lines=[Line(quantity=2)], first=Line(quantity=3))
+    await cache.set_schema("order", order, ttl=30)
+    assert await cache.get("order") == {
+        "lines": [{"quantity": 2}],
+        "first": {"quantity": 3},
+    }
+    assert await cache.get_schema("order", Order) == order
+
+
+async def test_schemas_with_secrets_are_not_cached() -> None:
+    cache = MemoryCache(max_entries=4, max_bytes=4096)
+    login = Login(user="ada", password=SecretStr("hunter2"))
+    with pytest.raises(ValueError, match=r"Login\.password is a SecretStr"):
+        await cache.set_schema("login", login, ttl=30)
+    with pytest.raises(ValueError, match=r"Login\.password is a SecretStr"):
+        await cache.set_schema("wrapped", Wrapped(), ttl=30)
+    assert await cache.get("login") is None
+    assert await cache.get("wrapped") is None
+
+
+async def test_a_namespace_follows_its_database_cache_binding(
+    tmp_path: object,
+) -> None:
+    database = await Database.connect(f"sqlite://{tmp_path}/cache-view.sqlite3")
+    try:
+        await database.execute(
+            "CREATE TABLE hinoki_cache (cache_key varchar(256) PRIMARY KEY, "
+            "value_hex text NOT NULL, expires_at text NOT NULL)"
+        )
+        cache = DatabaseCache()
+        users = cache.namespace("users")
+        cache.bind(database)
+        await users.set("value", "scoped", ttl=30)
+        assert await cache.get("users:value") == "scoped"
+        assert await users.namespace("admins").delete("value") is False
+        assert await users.purge_expired() == 0  # type: ignore[attr-defined]
+        cache.unbind()
+        with pytest.raises(CacheUnavailable):
+            await users.get("value")
     finally:
         database.close()

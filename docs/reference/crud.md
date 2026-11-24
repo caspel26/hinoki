@@ -34,3 +34,11 @@ list](../crud.md#filter-order-and-search-the-list). Declare each field as
 ::: hinoki.filters.Bounds
     options:
       show_if_no_docstring: true
+
+## Row scoping
+
+::: hinoki.resources.all_rows
+
+::: hinoki.resources.own_rows
+
+::: hinoki.resources.from_user

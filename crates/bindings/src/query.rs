@@ -3,13 +3,13 @@
 //! are mapped back afterwards, so nothing is converted or interpolated here.
 
 use hinoki_orm::query::{
-    compile_delete_with, compile_insert_with, compile_select_with, compile_update_with,
+    compile_delete_with, compile_insert_with, compile_select_bound, compile_update_with,
     like_pattern, Delete, Dialect, Filter, Insert, Join, Keyset, Op, QueryError, Select, SubFilter,
     Update,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyInt, PyString};
 
 /// `(table, alias, local, remote, left, columns, soft-delete column)`.
 pub(crate) type RawJoin = (
@@ -205,7 +205,7 @@ pub fn compile_query(
     let assignments = store.assignments(assignments.unwrap_or_default());
     let returning = returning.unwrap_or_default();
     let compiled = match kind {
-        "select" | "count" => compile_select_with(
+        "select" | "count" => compile_select_bound(
             &Select {
                 table,
                 columns: columns.unwrap_or_default(),
@@ -219,6 +219,7 @@ pub fn compile_query(
                 count: kind == "count",
             },
             dialect,
+            &mut |count| store.add(PyInt::new(py, count).into_any().unbind()),
         ),
         "insert" => compile_insert_with(
             &Insert {

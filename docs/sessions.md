@@ -59,7 +59,17 @@ app = Hinoki(
 `SessionAuth` resolves a `Caller` from the read-only session data and works with
 `Access` and `Caller[T]`. It documents the configured cookie name as an OpenAPI
 cookie security scheme. If `SessionSettings.cookie_name` is customized, pass the
-same name to `SessionAuth(cookie_name=...)`.
+same name to `SessionAuth(cookie_name=...)`. `SessionModule(store, settings)`
+requires its `SessionSettings`.
+
+A custom `Auth` that composes `SessionAuth` (for example, one that tries a bearer
+token and then the session) is detected automatically: Hinoki loads the session
+and applies the CSRF rules below. Set `uses_session = True` on an `Auth` class
+that reads the session in another way.
+
+`SessionAuth` also works on `@http.websocket` routes. The session is loaded
+read-only during the handshake, and an unknown or expired cookie refuses the
+connection. The handshake `Origin` is checked by the websocket origin rules.
 
 ## State and response lifecycle
 
@@ -80,7 +90,8 @@ If the handler raises, pending changes and cookie changes are discarded.
 use it on login and privilege changes to prevent fixation. `invalidate()`
 revokes the current token and sends a clearing cookie. Revocations are retained
 until the session's absolute expiry, so an already-running request cannot
-restore a revoked token with a stale write.
+restore a revoked token with a stale write. `MemorySessionStore` drops a revoked
+session's data immediately and keeps only a bounded record of revoked tokens.
 
 The cookie defaults to `HttpOnly`, `SameSite=Lax`, `Secure`, and `Path=/`.
 `cookie_secure=False` is available for local HTTP development. The absolute

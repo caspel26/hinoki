@@ -17,11 +17,13 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
+import threading
 import time
+import weakref
 from abc import abstractmethod
 from collections.abc import Awaitable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Self
 
 from hinoki import core
 from hinoki.auth import BearerAuth, Caller
@@ -57,6 +59,11 @@ class PasswordHasher:
     most ``workers`` extra hashes can be in flight; ``hash_sync``/``verify_sync``
     are not bounded. Only argon2id hashes are verified. For unknown users, verify
     against a fixed dummy hash so timing does not reveal who exists.
+
+    The thread pool starts with the first ``hash``/``verify`` and stops with
+    ``close()`` (or at the end of a ``with``/``async with`` block); a closed
+    hasher starts a new pool when it is used again. A hasher that is never
+    closed stops its pool when it is garbage-collected.
     """
 
     def __init__(
@@ -82,8 +89,25 @@ class PasswordHasher:
         self.time_cost = time_cost
         self.lanes = lanes
         self.max_pending = max_pending
+        self.workers = workers
         self.pending = 0
-        self.pool = ThreadPoolExecutor(workers, thread_name_prefix="hinoki-hash")
+        self._pool: ThreadPoolExecutor | None = None
+        self._finalizer: weakref.finalize[Any, Any] | None = None
+        self._pool_lock = threading.Lock()
+
+    @property
+    def pool(self) -> ThreadPoolExecutor:
+        """The hashing threads, started on first use."""
+        with self._pool_lock:
+            if self._pool is None:
+                pool = ThreadPoolExecutor(
+                    self.workers, thread_name_prefix="hinoki-hash"
+                )
+                self._pool = pool
+                self._finalizer = weakref.finalize(
+                    self, pool.shutdown, wait=False, cancel_futures=True
+                )
+            return self._pool
 
     def hash_sync(self, password: str) -> str:
         """Blocking hash (for scripts and sync handlers)."""
@@ -117,7 +141,26 @@ class PasswordHasher:
         )
 
     def close(self) -> None:
-        self.pool.shutdown(wait=False, cancel_futures=True)
+        """Stop the hashing threads; queued work is cancelled. Idempotent."""
+        with self._pool_lock:
+            pool, self._pool = self._pool, None
+            finalizer, self._finalizer = self._finalizer, None
+        if finalizer is not None:
+            finalizer.detach()
+        if pool is not None:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        self.close()
 
 
 def random_token(size: int = 32) -> str:

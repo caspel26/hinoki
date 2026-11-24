@@ -373,7 +373,7 @@ def test_list_statement_for_any_window_matches_the_python_compiler() -> None:
                 .order_by("id")
                 .limit(size)
                 .offset(offset)
-                .compile(dialect=dialect)[0]
+                .compile(dialect=dialect)
             )
             assert plan.list_sql(dialect, size, offset) == expected
 

@@ -42,6 +42,16 @@ entry of `hinoki.toml`.
 
 ::: hinoki.events.emit
 
+::: hinoki.events.listener
+
+::: hinoki.events.Linked
+
+::: hinoki.events.Unlinked
+
+::: hinoki.events.AuthRejected
+
+::: hinoki.events.RateLimited
+
 ::: hinoki.wsgi.WSGIAdapter
     options:
       members: [start, close]

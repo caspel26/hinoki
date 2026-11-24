@@ -6,19 +6,18 @@ lived JWT; ``GET /auth/me`` shows who a token belongs to. The opaque
 
 ``build_accounts`` runs only when a JWT secret is configured, so nothing (hash
 pool, keys) exists otherwise.
-Login is rate limited per client address by ``limits.LoginAttempts``, a policy of
-this example (one worker's memory: see its docstring). Not included, on purpose:
-refresh tokens.
+Login is rate limited per client address by the built-in ``RateLimit``, which counts
+in the ``hinoki_rate_limits`` table every worker shares (the ``ratelimit`` app of
+``hinoki.toml``). Not included, on purpose: refresh tokens.
 """
 
 from collections.abc import Callable, Sequence
 from typing import Annotated, Any, ClassVar
 from uuid import UUID
 
-from hinoki import Access, Caller, Field, Schema, errors, http
+from hinoki import Access, Caller, Field, RateLimit, Schema, errors, http
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
 
-from .limits import LoginAttempts
 from .models import User
 from .security import WRITE
 
@@ -71,7 +70,7 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
     sessions = Sessions()
     signed_in = Access(auth=sessions)
 
-    @http.post("/auth/login", rate_limit=LoginAttempts())
+    @http.post("/auth/login", rate_limit=RateLimit(20, 60, scope="login"))
     async def login(data: LoginIn) -> SessionOut:
         """Exchange a username and password for a short-lived bearer token."""
         user = await User.aget_or_none(username=data.username)

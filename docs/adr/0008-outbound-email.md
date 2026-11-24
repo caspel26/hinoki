@@ -1,4 +1,4 @@
-# ADR 0006 — Outbound email from a per-worker mailer
+# ADR 0008 — Outbound email from a per-worker mailer
 
 Status: Accepted · 2026-11-23
 

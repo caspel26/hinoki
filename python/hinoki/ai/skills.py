@@ -14,21 +14,23 @@ SKILLS: dict[str, tuple[str, str]] = {
    conventions. Call the `explain_action` tool on a similar action and follow it.
 2. Declare typed `Schema` classes for the request and the response. Never return
    a `Model` directly.
-3. Add the action in `{name}/api.py` with `@http.get`, `@http.post` and so on.
-   Name an `Access` policy unless the action is public on purpose. Writes use
-   `atomic=True`.
-4. List the route in `{name}/routes.py`: an unlisted action is not served.
+3. Add the action in `{name}/apps/<app>/api.py` with `@http.get`, `@http.post`
+   and so on (create the app first with `uv run hinoki app create <app>` if
+   `hinoki.toml` registers none). Name an `Access` policy unless the action is
+   public on purpose. Writes use `atomic=True`.
+4. List the route in `{name}/apps/<app>/routes.py`, which `hinoki.toml` points
+   to: an unlisted action is not served.
 5. Write a test with `hinoki.testing.ASGIClient` first, then make it pass.
-6. Run `uv run hinoki check {name}.main:app --rules {name}.rules:project_rules
-   --package {name}` and fix every diagnostic.
+6. Run `uv run hinoki check`, which reads the application and the rules from
+   `hinoki.toml`, and fix every diagnostic.
 """,
     ),
     "hinoki-fix-rule": (
         "Fix a failing Hinoki rule diagnostic without weakening the rule.",
         """# Fix a rule violation
 
-1. Run `uv run hinoki check {name}.main:app --rules {name}.rules:project_rules
-   --package {name} --format json` and read each diagnostic.
+1. Run `uv run hinoki check --format json`, which reads the application and the
+   rules from `hinoki.toml`, and read each diagnostic.
 2. Call the `explain_error` tool with the rule id (for example `HNK-ACC-001`
    for access or `HNK-TXN-001` for transactions) and apply the fix it describes.
 3. Call the `list_rules` tool to confirm which rules and waivers are active.

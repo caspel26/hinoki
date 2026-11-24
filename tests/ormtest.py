@@ -68,9 +68,9 @@ def test_filters_order_and_paging_compile_to_parameterised_sql() -> None:
     assert sql == (
         'SELECT "id", "title", "stars", "published", "note" FROM "orm_posts" '
         'WHERE "published" = $1 AND "stars" >= $2 AND "title" IN ($3, $4) '
-        'ORDER BY "stars" DESC, "title" ASC LIMIT 5 OFFSET 10'
+        'ORDER BY "stars" DESC, "title" ASC LIMIT $5 OFFSET $6'
     )
-    assert params == [True, 3, "a", "b"]
+    assert params == [True, 3, "a", "b", 5, 10]
 
 
 def test_sqlite_dialect_compiles_numbered_holders() -> None:

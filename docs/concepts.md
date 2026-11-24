@@ -49,7 +49,7 @@ Each server worker owns its module lifespan and database pool: startup creates t
 
 ## Optional rules
 
-Rules check declared routes, schemas, models and imports. Hinoki ships eleven; each reports a violation, a pass, or that it could not verify its promise. They do not prove what a function body does. Turn on the ones that suit the application and run them at startup and in development. See [rules](rules.md).
+Rules check declared routes, schemas, models and imports. Hinoki ships twelve; each reports a violation, a pass, or that it could not verify its promise. They do not prove what a function body does. Turn on the ones that suit the application and run them at startup and in development. See [rules](rules.md).
 
 ## See also
 

@@ -46,7 +46,15 @@ JSON value because that would make a stored null indistinguishable from a miss;
 use a tagged object if the application needs that distinction. `set` always
 requires a TTL between a positive value and 366 days. Keys are UTF-8 strings of
 1–256 bytes without NUL. `cache.namespace("users")` returns a view that prefixes
-keys and enforces the same full-key limit.
+keys and enforces the same full-key limit. The view delegates to its cache, so a
+namespace taken from a `DatabaseCache` follows that cache's worker binding and
+cleanup.
+
+`set_schema` stores the schema's declared fields only: `@computed_field` values
+are omitted and recomputed when `get_schema` validates the value again, so
+schemas with the default `extra="forbid"` round-trip. A schema containing a
+`SecretStr` field, including in a nested schema, is rejected with `ValueError`
+instead of caching a masked or plain secret.
 
 `get_or_set` reads, calls its factory on a miss and writes the result. It does
 not coalesce concurrent misses, so applications with expensive factories may

@@ -89,9 +89,10 @@ Tenant = Callable[[RateLimitContext], str | None]
 class DatabaseLimits:
     """Buckets in a table of the worker's ``Database``, shared by every worker.
 
-    ``max_rows`` caps the table: once full, new keys are refused until expired
-    rows are swept. ``timeout`` (seconds, at most 5) bounds one check, the wait for
-    a connection included."""
+    ``max_rows`` caps the table: once full, new keys share one overflow bucket
+    per scope, ``unknown_factor`` times as large, until expired rows are swept.
+    ``timeout`` (seconds, at most 5) bounds one check, the wait for a connection
+    included."""
 
     table: str = "hinoki_rate_limits"
     max_rows: int = 1_000_000

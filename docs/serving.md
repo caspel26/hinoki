@@ -240,6 +240,17 @@ The adapter drives the same ASGI callable on a background event loop that it own
 
 The path is checked against Kiso and Granian (`--interface wsgi`, with one and two workers) by a parity test, not against every WSGI server.
 
+## Going to production
+
+Before the first deployment:
+
+- Run `uv run hinoki check` and `uv run pytest`; both must pass.
+- Set `debug` off and narrow [`allowed_hosts`](web-security.md#allowed_hosts) to your host names.
+- Serve over HTTPS, with the TLS files or a proxy listed in `trusted_proxies`.
+- Give secrets (`Secret` settings, `cursor_secret`) through the environment, never the repository.
+- Apply migrations once per deployment, from one process, not from every worker's startup.
+- Set `workers` and the connection limits for the machine, and check `GET /health` after the rollout.
+
 ## Errors and edge cases
 
 - `error: X is neither an application nor a factory`: the target names something else, for example an ASGI wrapper; run wrappers with `granian`.

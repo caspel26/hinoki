@@ -7,7 +7,7 @@
     settings = BlogSettings.load(prefix="BLOG_", dotenv=".env")
     app = Hinoki(settings=settings)
 
-See ``docs/SETTINGS-DESIGN.md``. Errors name keys and reasons, never values.
+See ``docs/settings.md``. Errors name keys and reasons, never values.
 """
 
 from __future__ import annotations

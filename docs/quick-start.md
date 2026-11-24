@@ -62,11 +62,22 @@ last question leaves the project without one, and
     instead: no database, no `git init`, no `uv sync` and no app. All options are
     in [`hinoki new`](new-project.md).
 
-## Test and serve it
+## Check and test it
 
 ```sh
 cd ../notes
+uv run hinoki check
 uv run pytest
+```
+
+`hinoki check` runs the project's rules (the eight listed in `notes/rules.py`)
+and prints one line for each; a violation names the file, the line and a fix.
+The test calls `/health` in process and needs no database. Run both again after
+every change, as `AGENTS.md` tells an agent to.
+
+## Serve it
+
+```sh
 uv run hinoki dev
 ```
 

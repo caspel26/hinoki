@@ -51,3 +51,23 @@ Model write validation raises `ModelValidationError` from `hinoki.errors`, with 
 ::: hinoki.pagination.CursorPagination
 
 ::: hinoki.orm.Related
+
+## Mixins, options and helpers
+
+::: hinoki.orm.TimestampedModel
+
+::: hinoki.orm.SoftDeleteModel
+
+::: hinoki.orm.UUIDModel
+
+::: hinoki.orm.soft_delete
+
+::: hinoki.orm.track_status
+
+::: hinoki.orm.many_to_many
+
+::: hinoki.orm.uuid_pk
+
+::: hinoki.orm.urlsafe_token
+
+::: hinoki.orm.uuid7

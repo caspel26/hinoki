@@ -74,3 +74,14 @@ async def test_signed_tokens_with_odd_subjects_are_refused(world: World) -> None
         token = forge.issue({"sub": subject})
         reply = await world.client.get("/auth/me", headers=bearer(token))
         assert reply.status == 401, subject
+
+
+async def test_login_is_rate_limited_per_client(world: World) -> None:
+    # The test client has no known address: those requests share a bucket ten
+    # times as large (200). The limit runs before the body is read.
+    statuses = [
+        (await world.client.post("/auth/login", json={})).status for _ in range(201)
+    ]
+
+    assert set(statuses[:200]) == {422}
+    assert statuses[200] == 429

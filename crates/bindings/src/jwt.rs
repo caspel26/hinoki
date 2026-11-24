@@ -46,6 +46,17 @@ impl Alg {
             Self::EdDsa => "EdDSA",
         }
     }
+
+    /// Shortest HMAC secret, the hash output size (RFC 7518 3.2); `None` for
+    /// `EdDSA`, whose key length the signature itself checks.
+    pub fn min_secret(self) -> Option<usize> {
+        match self {
+            Self::Hs256 => Some(32),
+            Self::Hs384 => Some(48),
+            Self::Hs512 => Some(64),
+            Self::EdDsa => None,
+        }
+    }
 }
 
 /// Key material. For `EdDSA`, `public` marks verify-only keys; otherwise the
@@ -380,6 +391,13 @@ pub fn decode(token: &str, keys: &[Key], rules: &Rules<'_>) -> Result<Vec<u8>, F
 fn key_from(kid: Option<String>, algorithm: &str, bytes: Vec<u8>, public: bool) -> PyResult<Key> {
     let alg = Alg::parse(algorithm)
         .ok_or_else(|| PyValueError::new_err(format!("unsupported algorithm {algorithm:?}")))?;
+    if let Some(min) = alg.min_secret() {
+        if public || bytes.len() < min {
+            return Err(PyValueError::new_err(format!(
+                "{algorithm} needs a secret of at least {min} bytes"
+            )));
+        }
+    }
     Ok(Key {
         kid,
         alg,
@@ -848,6 +866,19 @@ mod tests {
             ),
             Err(Fail::Key)
         );
+    }
+
+    #[test]
+    fn hmac_secrets_shorter_than_the_hash_are_refused() {
+        for (algorithm, min) in [("HS256", 32), ("HS384", 48), ("HS512", 64)] {
+            assert!(key_from(None, algorithm, vec![1; min], false).is_ok());
+            assert!(key_from(None, algorithm, vec![1; min - 1], false).is_err());
+            assert!(key_from(None, algorithm, Vec::new(), false).is_err());
+            assert!(key_from(None, algorithm, vec![1; min], true).is_err());
+            let short = vec![(None, algorithm.to_owned(), vec![1; min - 1], false)];
+            assert!(Verifier::from_specs(short).is_err());
+        }
+        assert!(key_from(None, "EdDSA", vec![4; 32], false).is_ok());
     }
 
     #[test]

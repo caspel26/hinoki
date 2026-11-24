@@ -103,6 +103,7 @@ from hinoki.runtime.streaming import (
 )
 from hinoki.runtime.websockets import Admitted
 from hinoki.runtime.websockets import admit as admit_handshake
+from hinoki.runtime.websockets import needs_session as websocket_needs_session
 from hinoki.runtime.websockets import run as run_session
 from hinoki.schema import Schema, encode
 from hinoki.sessions import Session, SessionSettings, SessionStore
@@ -263,10 +264,20 @@ class Pipeline:
             for param in binding.resource_params
             if param.resource_type is not None
         )
+        self.session_websockets = frozenset(
+            id(route) for route in self.websockets if websocket_needs_session(route)
+        )
+        session_routes = (
+            *(binding.route.name for binding in self.bindings if binding.needs_session),
+            *(
+                route.name
+                for route in self.websockets
+                if id(route) in self.session_websockets
+            ),
+        )
         session_resources = tuple(
-            (kind, binding.route.name)
-            for binding in self.bindings
-            if binding.needs_session
+            (kind, name)
+            for name in session_routes
             for kind in (SessionStore, SessionSettings)
         )
         self.lifespan = Lifespan(
@@ -396,7 +407,7 @@ class Pipeline:
             if params is None:
                 raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding")
             return await run_inline(
-                admit_handshake(route, headers, scope.get("query_string", b""), params),
+                self._admit_with_session(route, scope, headers, params),
                 self.app.runtime.request_timeout,
             )
         except RequestDeadline:
@@ -409,6 +420,30 @@ class Pipeline:
             return await error_response(
                 self._default_error(exc), rid, self.app.errors, self.debug
             )
+
+    async def _admit_with_session(
+        self,
+        route: WebSocketRoute,
+        scope: Scope,
+        headers: dict[str, str],
+        params: dict[str, str],
+    ) -> Admitted:
+        """Give a session-authenticated handshake its session, read-only. The
+        handshake's ``Origin`` was already checked against the route's and the
+        CORS policy's origins, which is what keeps another site's page from
+        opening it with the visitor's cookie."""
+        session = (
+            await self._request_session(headers)
+            if id(route) in self.session_websockets
+            else None
+        )
+        return await admit_handshake(
+            route,
+            headers,
+            scope.get("query_string", b""),
+            params,
+            session=session,
+        )
 
     async def run_websocket(
         self,

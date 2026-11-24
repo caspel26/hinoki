@@ -10,7 +10,7 @@ use hinoki_orm::{Database, DbError, ErrorKind, Transaction, Value};
 use time::{OffsetDateTime, UtcOffset};
 use uuid::Uuid;
 
-use crate::crudplan::{CrudPlan, ModelDefault, ModelDefaultValue};
+use crate::crudplan::{one_row_params, CrudPlan, ModelDefault, ModelDefaultValue};
 use crate::filters::Typed;
 use crate::nativelinks::{self, InTransaction, LinkWork, Refused};
 use crate::request::{decode_json_document, decode_path_parameter, parse_query, Json};
@@ -724,7 +724,9 @@ async fn create_in_transaction(
     let read_back_sql = plan
         .read_back_sql(dialect)
         .ok_or_else(|| DbError::new(ErrorKind::Other, "CRUD read-back SQL is unavailable"))?;
-    let rows = transaction.fetch(read_back_sql, &[primary_key]).await?;
+    let rows = transaction
+        .fetch(read_back_sql, &one_row_params(primary_key))
+        .await?;
     match rows.as_slice() {
         [] => Ok(TransactionResult::NotFound(format!(
             "{} not found",
@@ -829,7 +831,7 @@ async fn update_in_transaction(
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
     let visible = transaction
-        .fetch(visible_sql, std::slice::from_ref(&id))
+        .fetch(visible_sql, &one_row_params(id.clone()))
         .await?;
     if visible.is_empty() {
         return Ok(TransactionResult::NotFound(format!(
@@ -874,7 +876,7 @@ async fn update_in_transaction(
     }
     let read_back_sql = required_sql(plan.read_back_sql(dialect))?;
     let rows = transaction
-        .fetch(read_back_sql, std::slice::from_ref(&id))
+        .fetch(read_back_sql, &one_row_params(id.clone()))
         .await?;
     match rows.as_slice() {
         [] => Ok(TransactionResult::NotFound(format!(
@@ -974,7 +976,7 @@ async fn refused_result(
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let sql = required_sql(plan.retrieve_sql(dialect))?;
-    let rows = transaction.fetch(sql, std::slice::from_ref(&id)).await?;
+    let rows = transaction.fetch(sql, &one_row_params(id.clone())).await?;
     let Some(row) = rows.first() else {
         return Ok(TransactionResult::NotFound(format!(
             "{} not found",
@@ -1001,7 +1003,7 @@ async fn delete_in_transaction(
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
     let visible = transaction
-        .fetch(visible_sql, std::slice::from_ref(&id))
+        .fetch(visible_sql, &one_row_params(id.clone()))
         .await?;
     if visible.is_empty() {
         return Ok(TransactionResult::NotFound(format!(
@@ -1167,8 +1169,8 @@ fn list_statements(
 ) -> Option<ListStatements> {
     if filters.is_empty() && order.is_empty() {
         let count_sql = plan.count_sql(dialect)?.to_owned();
-        let list_sql = plan.list_sql(dialect, page.size, page.offset).ok()?;
-        return Some((count_sql, Vec::new(), list_sql, Vec::new()));
+        let (list_sql, list_params) = plan.list_sql(dialect, page.size, page.offset).ok()?;
+        return Some((count_sql, Vec::new(), list_sql, list_params));
     }
     let (count_sql, count_params) = plan.filtered_count_sql(dialect, filters.clone()).ok()?;
     let (list_sql, list_params) = plan
@@ -1288,7 +1290,7 @@ async fn execute_retrieve<D: ReadDatabase>(
     let Some(sql) = plan.retrieve_sql(dialect) else {
         return NativeRead::Defer;
     };
-    let rows = match database.fetch(sql, &[value]).await {
+    let rows = match database.fetch(sql, &one_row_params(value)).await {
         Ok(rows) => rows,
         Err(error) => return NativeRead::Failure(error),
     };
@@ -1389,7 +1391,11 @@ mod tests {
                 if sql.to_ascii_lowercase().contains("count(") {
                     Ok(vec![vec![("count".to_owned(), Value::Int(3))]])
                 } else {
-                    let id = values.first().cloned().unwrap_or(Value::Int(2));
+                    // a retrieve binds its key first; a list binds only its window
+                    let id = match values.first() {
+                        Some(key) if !sql.contains(" OFFSET ") => key.clone(),
+                        _ => Value::Int(2),
+                    };
                     Ok(vec![vec![
                         ("id".to_owned(), id),
                         ("name".to_owned(), Value::Text("second".to_owned())),
@@ -1494,8 +1500,8 @@ mod tests {
         let statements = database.statements.lock().unwrap();
         assert_eq!(statements.len(), 2);
         assert!(statements[0].0.to_ascii_lowercase().contains("count("));
-        assert!(statements[1].0.contains("LIMIT 1"));
-        assert!(statements[1].0.contains("OFFSET 1"));
+        assert!(statements[1].0.ends_with("LIMIT $1 OFFSET $2"));
+        assert_eq!(statements[1].1, [Value::Int(1), Value::Int(1)]);
     }
 
     #[tokio::test]
@@ -1512,8 +1518,8 @@ mod tests {
         assert_eq!(body, br#"{"id":7,"name":"second"}"#);
         let statements = database.statements.lock().unwrap();
         assert_eq!(statements.len(), 1);
-        assert!(statements[0].0.contains("LIMIT 2"));
-        assert_eq!(statements[0].1, [Value::Int(7)]);
+        assert!(statements[0].0.ends_with("LIMIT $2"));
+        assert_eq!(statements[0].1, [Value::Int(7), Value::Int(2)]);
     }
 
     #[test]
@@ -1568,18 +1574,26 @@ mod tests {
     }
 
     #[test]
-    fn list_sql_for_a_window_is_the_compiled_statement() {
+    fn list_sql_for_any_window_is_one_statement_with_bound_counts() {
         let plan = plan("list");
-        for (dialect, quote) in [("postgres", '"'), ("sqlite", '"'), ("mysql", '`')] {
+        for (dialect, quote, window) in [
+            ("postgres", '"', "LIMIT $1 OFFSET $2"),
+            ("sqlite", '"', "LIMIT ?1 OFFSET ?2"),
+            ("mysql", '`', "LIMIT ? OFFSET ?"),
+        ] {
             let q = |name: &str| format!("{quote}{name}{quote}");
             let expected = format!(
-                "SELECT {}, {} FROM {} ORDER BY {} ASC LIMIT 7 OFFSET 14",
+                "SELECT {}, {} FROM {} ORDER BY {} ASC {window}",
                 q("id"),
                 q("name"),
                 q("items"),
                 q("id")
             );
-            assert_eq!(plan.list_sql(dialect, 7, 14).unwrap(), expected);
+            for (size, offset) in [(7_i64, 14_i64), (7, 7_000), (100, 0)] {
+                let (sql, params) = plan.list_sql(dialect, size as u64, offset as u64).unwrap();
+                assert_eq!(sql, expected);
+                assert_eq!(params, [Value::Int(size), Value::Int(offset)]);
+            }
         }
     }
 

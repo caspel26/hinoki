@@ -5,6 +5,7 @@ import importlib.util
 import inspect
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 from mkdocs.config import Config
@@ -57,24 +58,40 @@ def declaration(namespace: type, name: str, rule: type[rules.Rule]) -> str:
     return f"{namespace.__name__}.{name}({shown})"
 
 
+def entry(rule: type[rules.Rule], decl: str) -> dict[str, str]:
+    return {
+        "phase": rule.phase.value,
+        "title": rule.explanation,
+        "decl": decl,
+        "fix": rule.fix,
+    }
+
+
 def rule_catalogue() -> dict[str, dict[str, str]]:
     """Every built-in rule and waiver notice, keyed by its `HNK-…` ID."""
     found: dict[str, dict[str, str]] = {}
     for namespace in RULE_NAMESPACES:
         for name, rule in vars(namespace).items():
             if isinstance(rule, type) and issubclass(rule, rules.Rule):
-                found[rule.id] = {
-                    "phase": rule.phase.value,
-                    "title": rule.explanation,
-                    "decl": declaration(namespace, name, rule),
-                    "fix": rule.fix,
-                }
+                found[rule.id] = entry(rule, declaration(namespace, name, rule))
+    # A rule exported on its own, not through a namespace.
+    found[rules.EmailTemplatesMatch.id] = entry(
+        rules.EmailTemplatesMatch, "EmailTemplatesMatch()"
+    )
     return found | WAIVER_NOTICES
 
 
+def project_version(config: Config) -> str:
+    """`project.version` of the pyproject.toml beside the docs."""
+    path = Path(config["docs_dir"]).parent / "pyproject.toml"
+    version: str = tomllib.loads(path.read_text("utf-8"))["project"]["version"]
+    return version
+
+
 def on_config(config: Config) -> Config:
-    """Publish the rule catalogue to the theme."""
+    """Publish the rule catalogue and the released version to the theme."""
     config["extra"]["hn_rules"] = rule_catalogue()
+    config["extra"]["hn_version"] = project_version(config)
     return config
 
 
