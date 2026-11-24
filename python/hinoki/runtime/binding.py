@@ -609,6 +609,24 @@ def check_filters(route: Route, params: tuple[Param, ...]) -> None:
             param.filters.check_reserved(reserved)
 
 
+def check_body_and_files(
+    route: Route, params: tuple[Param, ...], sources: dict[str, TextSource]
+) -> None:
+    """One body parameter at most; next to file parameters only ``Form[...]``,
+    which reads the text fields of the same multipart body."""
+    bodies = [p for p in params if p.source == "body"]
+    if len(bodies) > 1:
+        raise RegistrationError(f"{route.name}: at most one body parameter")
+    if not bodies or not any(p.source == "file" for p in params):
+        return
+    source = sources.get(bodies[0].name)
+    if source is None or source.kind != "form":
+        raise RegistrationError(
+            f"{route.name}: a Schema body next to file parameters must be "
+            "declared Form[...]"
+        )
+
+
 def text_sources(route: Route) -> dict[str, TextSource]:
     """Parameters annotated with a text-source marker, by name. Annotations that
     cannot be resolved answer nothing here; ``bind`` reports them."""
@@ -823,14 +841,7 @@ def bind(route: Route) -> Binding:
         )
     check_query_schema(route, params)
     check_filters(route, params)
-    if sum(p.source == "body" for p in params) > 1:
-        raise RegistrationError(f"{route.name}: at most one body parameter")
-    if any(p.source == "body" for p in params) and any(
-        p.source == "file" for p in params
-    ):
-        raise RegistrationError(
-            f"{route.name}: a Schema body cannot be combined with file parameters"
-        )
+    check_body_and_files(route, params, sources)
     needs_body = any(p.source in {"body", "file"} for p in params)
     response = hints.get("return")
     streams, stream_capable = check_streaming(route, response)

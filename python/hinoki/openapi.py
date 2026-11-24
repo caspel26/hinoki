@@ -255,31 +255,9 @@ class OpenAPIBuilder:
         ]
         if parameters:
             operation["parameters"] = parameters
-        file_params = [p for p in binding.params if p.source == "file"]
-        body = next((p for p in binding.params if p.source == "body"), None)
-        if file_params:
-            properties = {
-                param.name: self.file_schema(param.file_mode == "many")
-                for param in file_params
-            }
-            required_files = [
-                param.name for param in file_params if param.file_mode != "optional"
-            ]
-            schema: dict[str, Any] = {"type": "object", "properties": properties}
-            if required_files:
-                schema["required"] = required_files
-            operation["requestBody"] = {
-                "required": bool(required_files),
-                "content": {"multipart/form-data": {"schema": schema}},
-            }
-        elif body is not None and body.schema is not None:
-            operation["requestBody"] = {
-                "required": True,
-                "content": {
-                    parser.media_type: {"schema": self.component(body.schema)}
-                    for parser in route.parsers
-                },
-            }
+        request_body = self.request_body(binding)
+        if request_body is not None:
+            operation["requestBody"] = request_body
         operation["responses"] = self.responses(binding)
         if route.access is not None:
             self.secure(operation, route.access)
@@ -287,6 +265,41 @@ class OpenAPIBuilder:
         if isinstance(route.rate_limit, RateLimit):
             self.document_rate_limit(operation["responses"], route.rate_limit)
         return operation
+
+    def request_body(self, binding: Binding) -> dict[str, Any] | None:
+        """The body: the ``Schema`` in each parsed media type, or a multipart
+        form of the file parameters (with a ``Form[...]`` body's fields)."""
+        file_params = [p for p in binding.params if p.source == "file"]
+        body = next((p for p in binding.params if p.source == "body"), None)
+        if file_params:
+            return self.multipart_body(file_params, body)
+        if body is None or body.schema is None:
+            return None
+        return {
+            "required": True,
+            "content": {
+                parser.media_type: {"schema": self.component(body.schema)}
+                for parser in binding.route.parsers
+            },
+        }
+
+    def multipart_body(
+        self, file_params: list[Param], body: Param | None
+    ) -> dict[str, Any]:
+        properties = {
+            param.name: self.file_schema(param.file_mode == "many")
+            for param in file_params
+        }
+        required = [p.name for p in file_params if p.file_mode != "optional"]
+        schema: dict[str, Any] = {"type": "object", "properties": properties}
+        if required:
+            schema["required"] = required
+        if body is not None and body.schema is not None:
+            schema = {"allOf": [self.component(body.schema), schema]}
+        return {
+            "required": bool(required) or body is not None,
+            "content": {"multipart/form-data": {"schema": schema}},
+        }
 
     @staticmethod
     def document_rate_limit(responses: dict[str, Any], limit: RateLimit) -> None:

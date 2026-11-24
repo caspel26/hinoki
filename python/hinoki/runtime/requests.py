@@ -160,12 +160,9 @@ def build_request(
             # A bodyless optional upload is a useful empty input. Cache it so
             # Request.data/POST/FILES observe the same parsed result.
             request.cached = Parsed({})
-        else:
-            if content_type != "multipart/form-data":
-                raise InvalidBody(
-                    "unsupported_media_type", "expected multipart/form-data"
-                )
-            body = request.data
+        elif content_type != "multipart/form-data":
+            raise InvalidBody("unsupported_media_type", "expected multipart/form-data")
+        body = body_value(request, binding.takes_text)
         files = {name: request.FILES.getlist(name) for name in request.FILES}
     elif binding.needs_body:
         body = body_value(request, binding.takes_text)
