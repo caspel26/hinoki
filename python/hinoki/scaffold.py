@@ -207,6 +207,10 @@ AGENTS = """# Working on {title} with an AI agent
 
 A Hinoki application. Keep changes small, typed and checked.
 
+## Framework documentation
+
+Hinoki's documentation for agents is at https://hinoki.caspel.dev/llms.txt (an index that follows the current default docs version). The full text is at https://hinoki.caspel.dev/llms-full.txt and each page is plain Markdown at `<page>.md`. Prefer these and the development MCP over guessing from other frameworks: the FastAPI, Pydantic and Django APIs do not exist in Hinoki.
+
 ## Commands
 
 ```sh
