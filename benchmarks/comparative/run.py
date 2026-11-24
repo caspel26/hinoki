@@ -2,14 +2,21 @@
 
     uv run python run.py --framework hinoki --out results/2026-11-14
     uv run python run.py --framework all --smoke        # correctness only
+    uv run python run.py --server-mode javascript --workers 8 --out results/x/js-8
 
-Per framework, ``--restarts`` times (default 2): reset the database to the seed,
-refuse to start if the port is already taken, start the server pinned to its CPU
-set, wait for a 200, verify behaviour and query counts (verify.py), then for every
-scenario warm up and take ``--runs`` samples of ``--requests`` requests each with
-``bombardier`` (100 connections) and keep each raw JSON result. The server is
-stopped (SIGTERM, then SIGKILL after a grace period) and the port must be free
-again before the next start, so a previous server is never measured by mistake.
+Every stack serves the seven routes of Django Bolt's published comparison with
+Litestar and FastAPI, over the same database (parity_seed.py), and is measured
+with that comparison's method. Per stack, ``--restarts`` times (default 2): reset
+the database to the seed, refuse to start if the port is already taken, start
+the server pinned to its CPU set with ``--workers`` processes (default 1) and a
+pool of ``--pool`` connections per process (default 8), wait for a 200, verify
+behaviour, bodies and statement counts (parity_verify.py), then for every
+scenario warm up with 1000 requests over 10 connections and take ``--runs``
+samples (default 1) of ``--duration`` seconds (default 10; ``--requests`` for a
+fixed count instead) over 100 connections with ``bombardier``, keeping each raw
+JSON result. The server is stopped (SIGTERM, then SIGKILL after a grace period)
+and the port must be free again before the next start, so a previous server is
+never measured by mistake. Stacks are separated by a ``--cooldown`` of 20 s.
 """
 
 import argparse
@@ -30,6 +37,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import loadtool
+import parity_data
 
 HERE = Path(__file__).parent
 DB = os.environ.get(
@@ -42,112 +50,123 @@ LOAD_CPUS = os.environ.get("BENCH_LOAD_CPUS", "2,3,6,7")
 # CPU pinning needs Linux `taskset`; elsewhere (macOS has no hard affinity) the
 # processes are left to the OS scheduler and the metadata records that.
 PINNED = sys.platform == "linux" and shutil.which("taskset") is not None
-WORKERS = 4
-POOL = 10
+WORKERS = 1
+POOL = 8
+DURATION = 10
+COOLDOWN = 20
+RUNS = 1
+RESTARTS = 2
+CONCURRENCY = 100
+WARMUP = {"requests": 1000, "connections": 10}
+STOP_GRACE = 15
+PORT_WAIT = 10
+QUIET_POLL = 10
+QUIET_TIMEOUT = 1800
 BOMBARDIER = (
     os.environ.get("BOMBARDIER")
     or shutil.which("bombardier")
     or str(Path.home() / "go" / "bin" / "bombardier")
 )
-
-DOCUMENTED_SERVERS = {
-    "hinoki": (
-        ["granian", "--interface", "asgi", "--workers", str(WORKERS), "--port", str(PORT),
-         "--no-log", "hinoki_app:app"],
-        {"BENCH_DATABASE__URL": DB, "BENCH_DATABASE__MAX_SIZE": str(POOL)},
-    ),
-    "fastapi": (
-        ["uvicorn", "fastapi_app:app", "--workers", str(WORKERS), "--port", str(PORT),
-         "--log-level", "warning", "--no-access-log"],
-        {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(POOL)},
-    ),
-    "ninja": (
-        ["uvicorn", "ninja_app:application", "--workers", str(WORKERS), "--port", str(PORT),
-         "--log-level", "warning", "--no-access-log"],
-        {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(POOL)},
-    ),
-    "bolt": (
-        ["python", "manage.py", "runbolt", "--host", "127.0.0.1", "--processes",
-         str(WORKERS), "--port", str(PORT), "--no-admin"],
-        {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(POOL), "BENCH_BOLT": "1",
-         "DJANGO_SETTINGS_MODULE": "dj_settings"},
-    ),
-}  # fmt: skip
-GRANIAN_SERVERS = {
-    "hinoki-granian": DOCUMENTED_SERVERS["hinoki"],
-    "fastapi-granian": (
-        ["granian", "--interface", "asgi", "--workers", str(WORKERS), "--port", str(PORT),
-         "--no-log", "fastapi_app:app"],
-        {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(POOL)},
-    ),
-    "ninja-granian": (
-        ["granian", "--interface", "asgi", "--workers", str(WORKERS), "--port", str(PORT),
-         "--no-log", "ninja_app:application"],
-        {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(POOL),
-         "DJANGO_SETTINGS_MODULE": "dj_settings"},
-    ),
-}  # fmt: skip
-KISO_SERVERS = {
-    "hinoki-kiso": (
-        ["hinoki", "serve", "hinoki_app:app", "--server", "kiso", "--workers",
-         str(WORKERS), "--host", "127.0.0.1", "--port", str(PORT)],
-        {"BENCH_DATABASE__URL": DB, "BENCH_DATABASE__MAX_SIZE": str(POOL)},
-    ),
-}  # fmt: skip
 JS_DIR = HERE / "js"
 # JavaScript runtimes, resolved once: BENCH_NODE / BENCH_BUN override the PATH lookup.
 RUNTIMES = {
     "node": os.environ.get("BENCH_NODE") or shutil.which("node"),
     "bun": os.environ.get("BENCH_BUN") or shutil.which("bun"),
 }
-JS_PACKAGES = ("fastify", "hono", "@hono/node-server", "pg")
-JS_ENV = {
-    "BENCH_DATABASE_URL": DB,
-    "BENCH_POOL": str(POOL),
-    "BENCH_WORKERS": str(WORKERS),
-    "BENCH_PORT": str(PORT),
-    "NODE_ENV": "production",
+JS_PACKAGES = ("elysia", "hono", "@hono/node-server", "pg")
+JS_STACKS = frozenset({"elysia-bun", "hono-bun", "hono-node"})
+# Django Bolt's seven routes, in its order; the auth ones carry the cookie.
+SCENARIOS = {
+    "json-1k": ("GET", "/json-1k"),
+    "json-10k": ("GET", "/json-10k"),
+    "db": ("GET", "/db"),
+    "articles": ("GET", "/articles?page=1&page_size=20"),
+    "article": ("GET", "/articles/1"),
+    "auth-me": ("GET", "/auth/me"),
+    "auth-articles": ("GET", "/auth/articles?page=1&page_size=20"),
 }
-JAVASCRIPT_SERVERS = {
-    "fastify": (["node", "js/fastify_app.js"], JS_ENV),
-    "hono": (["node", "js/hono_app.js"], JS_ENV),
-    "bun": (["bun", "js/bun_app.js"], JS_ENV),
-}
-SERVER_MODES = {
-    "documented": DOCUMENTED_SERVERS,
-    "same-granian": GRANIAN_SERVERS,
-    "kiso": KISO_SERVERS,
-    "javascript": JAVASCRIPT_SERVERS,
-}
+AUTH_SCENARIOS = frozenset({"auth-me", "auth-articles"})
+
+
+def server_modes(workers: int = WORKERS, pool: int = POOL) -> dict[str, dict]:
+    """Every stack, by mode, with ``workers`` processes and ``pool`` connections each.
+
+    Litestar, FastAPI and Ninja run on Uvicorn with uvloop and httptools, the
+    ``uvicorn[standard]`` stack of Django Bolt's comparison; Bolt gets as many
+    executor and ORM threads as pool connections, as there.
+    """
+    w, port = str(workers), str(PORT)
+    hinoki = {"BENCH_DATABASE__URL": DB, "BENCH_DATABASE__MAX_SIZE": str(pool)}
+    sqla = {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(pool)}
+    ninja = {**sqla, "DJANGO_SETTINGS_MODULE": "parity_ninja_settings"}
+    js = {**sqla, "BENCH_WORKERS": w, "BENCH_PORT": port, "NODE_ENV": "production"}
+    uvicorn = ["--workers", w, "--port", port, "--loop", "uvloop", "--http",
+               "httptools", "--log-level", "warning", "--no-access-log"]  # fmt: skip
+
+    def granian(app: str) -> list[str]:
+        return ["granian", "--interface", "asgi", "--workers", w, "--port", port,
+                "--no-log", app]  # fmt: skip
+
+    documented = {
+        "hinoki": (granian("parity_hinoki:app"), hinoki),
+        "bolt": (
+            ["python", "manage.py", "runbolt", "--host", "127.0.0.1", "--processes",
+             w, "--port", port, "--no-admin"],
+            {**sqla, "DJANGO_SETTINGS_MODULE": "parity_dj_settings",
+             "DJANGO_BOLT_EXECUTOR_THREADS": str(pool),
+             "DJANGO_BOLT_ORM_THREADS": str(pool)},
+        ),
+        "litestar": (["uvicorn", "parity_litestar:app", *uvicorn], sqla),
+        "fastapi": (["uvicorn", "parity_fastapi:app", *uvicorn], sqla),
+        "ninja": (["uvicorn", "parity_ninja:application", *uvicorn], ninja),
+    }  # fmt: skip
+    return {
+        "documented": documented,
+        "same-granian": {
+            "hinoki-granian": documented["hinoki"],
+            "litestar-granian": (granian("parity_litestar:app"), sqla),
+            "fastapi-granian": (granian("parity_fastapi:app"), sqla),
+            "ninja-granian": (granian("parity_ninja:application"), ninja),
+        },
+        "kiso": {
+            "hinoki-kiso": (
+                ["hinoki", "serve", "parity_hinoki:app", "--server", "kiso",
+                 "--workers", w, "--host", "127.0.0.1", "--port", port],
+                hinoki,
+            ),
+        },
+        # The three JavaScript servers of Django Bolt's comparison, in its order.
+        "javascript": {
+            "elysia-bun": (["bun", "js/elysia_app.js"], js),
+            "hono-bun": (["bun", "js/hono_bun.js"], js),
+            "hono-node": (["node", "js/hono_node.js"], js),
+        },
+    }  # fmt: skip
+
+
+SERVER_MODES = server_modes()
 LABELS = {
     "hinoki": "Hinoki · Granian",
+    "bolt": "Django Bolt · Actix",
+    "litestar": "Litestar · Uvicorn",
     "fastapi": "FastAPI · Uvicorn",
     "ninja": "Django Ninja · Uvicorn",
-    "bolt": "Django Bolt · Actix",
     "hinoki-granian": "Hinoki · Granian",
-    "hinoki-kiso": "Hinoki · Kiso",
+    "litestar-granian": "Litestar · Granian",
     "fastapi-granian": "FastAPI · Granian",
     "ninja-granian": "Django Ninja · Granian",
-    "fastify": "Fastify · Node.js",
-    "hono": "Hono · Node.js",
-    "bun": "Bun.serve · Bun",
+    "hinoki-kiso": "Hinoki · Kiso",
+    "elysia-bun": "Elysia · Bun",
+    "hono-bun": "Hono · Bun",
+    "hono-node": "Hono · Node.js",
 }
-CONCURRENCY = 100
-REQUESTS = 100_000
-RESTARTS = 2
-WARMUP = 10
-STOP_GRACE = 15
-PORT_WAIT = 10
-QUIET_POLL = 10
-QUIET_TIMEOUT = 1800
-SCENARIOS = {
-    "health": ("GET", "/health", None),
-    "json-1k": ("GET", "/json-1k", None),
-    "json-10k": ("GET", "/json-10k", None),
-    "list": ("GET", "/posts?page=1&page_size=20", None),
-    "detail": ("GET", "/posts/{post}", None),
-    "create": ("POST", "/posts", "create.json"),
-}
+
+
+def scenario_headers(scenario: str) -> tuple[str, ...]:
+    """A freshly minted session cookie for the authenticated scenarios."""
+    if scenario not in AUTH_SCENARIOS:
+        return ()
+    return (f"cookie: {parity_data.COOKIE}={parity_data.mint_token()}",)
 
 
 def pin(cpus: str) -> list[str]:
@@ -159,7 +178,7 @@ def sh(cmd: list[str], **kw) -> subprocess.CompletedProcess:
 
 
 def reset_db() -> None:
-    sh([sys.executable, str(HERE / "seed.py"), DB])
+    sh([sys.executable, str(HERE / "parity_seed.py"), DB])
 
 
 def http_status(url: str) -> int:
@@ -220,15 +239,28 @@ def server_table(name: str) -> tuple[list[str], dict[str, str]]:
     return servers[name]
 
 
-def server_env(name: str, base: Mapping[str, str]) -> dict[str, str]:
+def server_env(
+    name: str, base: Mapping[str, str], out: Path | None = None
+) -> dict[str, str]:
     """``base`` with only the ``BENCH_*`` variables the stack declares.
 
     A variable left over from the caller's shell (another stack's settings, the
-    runner's own options) must not change how a server configures itself.
+    runner's own options) must not change how a server configures itself. The
+    JavaScript stacks also get the path of the two ``json-*`` values, written
+    to ``out`` from parity_data.py.
     """
     _, env = server_table(name)
     inherited = {k: v for k, v in base.items() if not k.startswith("BENCH_")}
-    return {**inherited, "PYTHONPATH": str(HERE), **env}
+    extra = {}
+    if name in JS_STACKS and out is not None:
+        extra["BENCH_PAYLOADS"] = str(write_payloads(out))
+    return {**inherited, "PYTHONPATH": str(HERE), **env, **extra}
+
+
+def write_payloads(out: Path) -> Path:
+    path = (out / "payloads.json").resolve()
+    path.write_text(json.dumps(parity_data.PAYLOADS, separators=(",", ":")))
+    return path
 
 
 def server_command(command: list[str]) -> list[str]:
@@ -250,7 +282,7 @@ def start(name: str, log: Path) -> subprocess.Popen:
     return subprocess.Popen(
         [*pin(SERVER_CPUS), *server_command(command)],
         cwd=HERE,
-        env=server_env(name, os.environ),
+        env=server_env(name, os.environ, log.parent),
         stdout=log.open("wb"),
         stderr=subprocess.STDOUT,
         start_new_session=True,
@@ -294,23 +326,24 @@ def wait_port_released(port: int, timeout: float) -> None:
 
 def bombardier(
     url: str,
-    method: str,
-    body: Path | None,
     *,
     requests: int | None = None,
     seconds: int | None = None,
     out: Path | None = None,
+    connections: int = CONCURRENCY,
+    headers: tuple[str, ...] = (),
 ) -> dict:
     cmd = [
         *pin(LOAD_CPUS),
         *loadtool.command(
             BOMBARDIER,
             url,
-            method,
-            body,
-            CONCURRENCY,
+            "GET",
+            None,
+            connections,
             requests=requests,
             seconds=seconds,
+            headers=headers,
         ),
     ]
     text = sh(cmd, timeout=3600).stdout
@@ -440,9 +473,7 @@ def environment(args: argparse.Namespace) -> dict:
         "cores": os.cpu_count(),
         "loadavg_at_start": os.getloadavg(),
         "python": sys.version,
-        "packages": sh([sys.executable, "-m", "pip", "list", "--format=json"]).stdout
-        if False
-        else sh(["uv", "pip", "list", "--format=json"]).stdout,
+        "packages": sh(["uv", "pip", "list", "--format=json"]).stdout,
         "postgres": sh(
             ["docker", "exec", POSTGRES_CONTAINER, "postgres", "--version"]
         ).stdout.strip(),
@@ -451,12 +482,13 @@ def environment(args: argparse.Namespace) -> dict:
         "settings": {
             "server_mode": args.server_mode,
             "stacks": args.selected_stacks,
-            "workers": WORKERS,
-            "pool_per_worker": POOL,
+            "workers": args.workers,
+            "pool_per_worker": args.pool,
             "concurrency": CONCURRENCY,
-            "requests": args.requests,
+            **sample_stop(args),
             "restarts": args.restarts,
-            "warmup_s": args.warmup,
+            "warmup": dict(WARMUP),
+            "cooldown_s": args.cooldown,
             "max_load": args.max_load,
             "runs": args.runs,
             "run_offset": args.run_offset,
@@ -467,7 +499,14 @@ def environment(args: argparse.Namespace) -> dict:
     }
 
 
-def arguments() -> argparse.Namespace:
+def sample_stop(args: argparse.Namespace) -> dict[str, int]:
+    """What ends one sample: ``--requests`` when given, else ``--duration``."""
+    if args.requests:
+        return {"requests": args.requests}
+    return {"duration_s": args.duration}
+
+
+def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--framework", default="all")
     parser.add_argument(
@@ -475,7 +514,7 @@ def arguments() -> argparse.Namespace:
     )
     parser.add_argument("--out", type=Path, default=HERE / "results" / "scratch")
     parser.add_argument(
-        "--runs", type=int, default=5, help="samples per scenario and start"
+        "--runs", type=int, default=RUNS, help="samples per scenario and start"
     )
     parser.add_argument(
         "--restarts",
@@ -487,7 +526,22 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--scenario", choices=tuple(SCENARIOS), nargs="+")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument(
-        "--requests", type=int, default=REQUESTS, help="requests per measured sample"
+        "--duration", type=int, default=DURATION, help="seconds per measured sample"
+    )
+    parser.add_argument(
+        "--requests",
+        type=int,
+        default=None,
+        help="requests per measured sample instead of --duration",
+    )
+    parser.add_argument(
+        "--workers", type=int, default=WORKERS, help="server processes per stack"
+    )
+    parser.add_argument(
+        "--pool", type=int, default=POOL, help="database connections per process"
+    )
+    parser.add_argument(
+        "--cooldown", type=int, default=COOLDOWN, help="seconds of rest between stacks"
     )
     parser.add_argument(
         "--max-load",
@@ -495,8 +549,9 @@ def arguments() -> argparse.Namespace:
         default=None,
         help="wait before every sample until the one-minute load average is at most this",
     )
-    parser.add_argument("--warmup", type=int, default=WARMUP)
-    return parser.parse_args()
+    args = parser.parse_args(argv)
+    SERVER_MODES.update(server_modes(args.workers, args.pool))
+    return args
 
 
 def selected_stacks(args: argparse.Namespace) -> list[str]:
@@ -515,7 +570,7 @@ def verify_stack(name: str, output: Path, restart: int = 1) -> None:
         check=False,
         args=[
             sys.executable,
-            str(HERE / "verify.py"),
+            str(HERE / "parity_verify.py"),
             name,
             f"http://127.0.0.1:{PORT}",
         ],
@@ -532,28 +587,11 @@ def verify_stack(name: str, output: Path, restart: int = 1) -> None:
         raise SystemExit(f"{name} failed verification; no measurement taken")
 
 
-def reset_benchmark_rows() -> None:
-    sh(
-        [
-            "docker",
-            "exec",
-            POSTGRES_CONTAINER,
-            "psql",
-            "-U",
-            "postgres",
-            "-d",
-            "bench",
-            "-c",
-            "DELETE FROM posts WHERE title LIKE 'bench-new%' OR title = 'verify-new'",
-        ]
-    )
-
-
 def record_worker_cpu(process: subprocess.Popen, output: Path) -> None:
     """Keep cumulative CPU time per process of the server group.
 
     A stack whose work lands on one worker (SO_REUSEPORT behaves differently on
-    macOS than on Linux) must not be described as a 4-process result.
+    macOS than on Linux) must not be described as a multi-process result.
     """
     rows = command_output(["ps", "-axo", "pid=,pgid=,cputime=,command="]).splitlines()
     mine = [row for row in rows if row.split(None, 3)[1:2] == [str(process.pid)]]
@@ -580,31 +618,23 @@ def wait_for_quiet(max_load: float | None, log: Path, label: str) -> None:
 
 
 def measure_scenario(
-    name: str,
-    scenario: str,
-    args: argparse.Namespace,
-    body: Path,
-    post: str,
-    restart: int,
+    name: str, scenario: str, args: argparse.Namespace, restart: int
 ) -> None:
-    method, path, payload = SCENARIOS[scenario]
-    url = f"http://127.0.0.1:{PORT}" + path.format(post=post)
-    data = body if payload else None
-    bombardier(url, method, data, seconds=args.warmup)
+    _, path = SCENARIOS[scenario]
+    url = f"http://127.0.0.1:{PORT}{path}"
+    headers = scenario_headers(scenario)
+    stop_rule = (
+        {"requests": args.requests} if args.requests else {"seconds": args.duration}
+    )
+    bombardier(url, **WARMUP, headers=headers)
     for run in range(1, args.runs + 1):
         sample = run + args.run_offset
         label = f"{name}-{scenario}-r{restart}-{sample}"
         wait_for_quiet(args.max_load, args.out / "loadavg.txt", label)
-        bombardier(
-            url, method, data, requests=args.requests, out=args.out / f"{label}.json"
-        )
-    if scenario == "create":
-        reset_benchmark_rows()
+        bombardier(url, **stop_rule, out=args.out / f"{label}.json", headers=headers)
 
 
-def measure_start(
-    name: str, args: argparse.Namespace, body: Path, post: str, restart: int
-) -> None:
+def measure_start(name: str, args: argparse.Namespace, restart: int) -> None:
     require_free_port()
     reset_db()
     process = start(name, args.out / f"{name}-server-r{restart}.log")
@@ -614,15 +644,10 @@ def measure_start(
         if args.smoke:
             return
         for scenario in args.scenario or list(SCENARIOS):
-            measure_scenario(name, scenario, args, body, post, restart)
+            measure_scenario(name, scenario, args, restart)
         record_worker_cpu(process, args.out / f"{name}-workers-r{restart}.txt")
     finally:
         stop(process)
-
-
-def measure_stack(name: str, args: argparse.Namespace, body: Path, post: str) -> None:
-    for restart in range(1, 2 if args.smoke else args.restarts + 1):
-        measure_start(name, args, body, post, restart)
 
 
 def main() -> None:
@@ -636,21 +661,11 @@ def main() -> None:
             stamp = time.strftime("%H%M%S")
             metadata = args.out / f"environment-{args.server_mode}-{stamp}.json"
         metadata.write_text(json.dumps(environment(args), indent=2))
-    body = args.out / "create.json"
-    from seed import author_id, post_id
-
-    body.write_text(
-        json.dumps(
-            {
-                "author_id": str(author_id(1)),
-                "title": "bench-new",
-                "body": "A new post.",
-            }
-        )
-    )
-    post = str(post_id(1))  # published (1 % 5 != 0)
-    for name in names:
-        measure_stack(name, args, body, post)
+    for index, name in enumerate(names):
+        if index and args.cooldown and not args.smoke:
+            time.sleep(args.cooldown)
+        for restart in range(1, 2 if args.smoke else args.restarts + 1):
+            measure_start(name, args, restart)
 
 
 if __name__ == "__main__":

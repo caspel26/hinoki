@@ -6,11 +6,10 @@ directories (any mode except ``same-granian``) feed the overview, where every
 stack sits on one scale; ``documented`` and ``same-granian`` directories are
 also shown as expert views.
 
-New results are ``bombardier`` documents (``{stack}-{scenario}-r{start}-{n}.json``);
-older retained results are ``oha`` documents (``{stack}-{scenario}-{n}.json``, one
-start). Both are normalized for the tables, but the two formats measured
-differently (fixed duration versus fixed requests, 64 versus 100 connections) and
-the report says so instead of mixing them.
+The request types are Django Bolt's seven routes. Results are ``bombardier``
+documents (``{stack}-{scenario}-r{start}-{n}.json``); ``oha`` documents
+(``{stack}-{scenario}-{n}.json``, one start) are still read, but the two formats
+measured differently and the report says so instead of mixing them.
 """
 
 import html
@@ -23,7 +22,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import loadtool
-import payloads
+import parity_data
 import report_html
 from report_html import Cell, Scenario, Stack, rps
 
@@ -45,30 +44,33 @@ STACKS = {
     "hinoki": StackInfo("hinoki", "Hinoki", "Granian"),
     "hinoki-granian": StackInfo("hinoki", "Hinoki", "Granian"),
     "hinoki-kiso": StackInfo("hinoki-kiso", "Hinoki", "Kiso, native server"),
+    "litestar": StackInfo("litestar", "Litestar", "Uvicorn"),
+    "litestar-granian": StackInfo("litestar", "Litestar", "Granian"),
     "fastapi": StackInfo("fastapi", "FastAPI", "Uvicorn"),
     "fastapi-granian": StackInfo("fastapi", "FastAPI", "Granian"),
     "ninja": StackInfo("ninja", "Django Ninja", "Uvicorn"),
     "ninja-granian": StackInfo("ninja", "Django Ninja", "Granian"),
     "bolt": StackInfo("bolt", "Django Bolt", "Actix, native server"),
-    "fastify": StackInfo("fastify", "Fastify", "Node.js", OTHER_RUNTIMES),
-    "hono": StackInfo("hono", "Hono", "Node.js", OTHER_RUNTIMES),
-    "bun": StackInfo("bun", "Bun.serve", "Bun", OTHER_RUNTIMES),
+    "elysia-bun": StackInfo("elysia-bun", "Elysia", "Bun", OTHER_RUNTIMES),
+    "hono-bun": StackInfo("hono-bun", "Hono", "Bun", OTHER_RUNTIMES),
+    "hono-node": StackInfo("hono-node", "Hono", "Node.js", OTHER_RUNTIMES),
 }
 STACK_ORDER = list(STACKS)
 GRANIAN_KEYS = ("hinoki", "hinoki-granian")
 KISO_KEY = "hinoki-kiso"
-SCENARIOS = ["list", "detail", "health", "create"]
-OPTIONAL_SCENARIOS = ["json-1k", "json-10k"]
-# Requests that touch no database come first, then the database-backed ones.
-SCENARIO_ORDER = ["health", "json-1k", "json-10k", "list", "detail", "create"]
-EXPECTED = {
-    "health": "200",
-    "list": "200",
-    "detail": "200",
-    "create": "201",
-    "json-1k": "200",
-    "json-10k": "200",
-}
+# Django Bolt's seven routes in its order: no database first, then the database
+# and finally the routes behind the JWT cookie.
+SCENARIOS = [
+    "json-1k",
+    "json-10k",
+    "db",
+    "articles",
+    "article",
+    "auth-me",
+    "auth-articles",
+]
+SCENARIO_ORDER = SCENARIOS
+EXPECTED = dict.fromkeys(SCENARIOS, "200")
 START = re.compile(r"-r(\d+)-\d+\.json$")
 STABLE_CV = 15
 TIE_PCT = 10
@@ -240,17 +242,21 @@ def tool_label(env: JSONData) -> str:
 def sampling_text(settings: JSONData) -> str:
     runs = settings["runs"]
     starts = settings.get("restarts", 1)
-    if "requests" in settings:
+    each = (
+        f"{settings['requests']:,} requests"
+        if "requests" in settings
+        else f"{settings['duration_s']} s"
+    )
+    if "restarts" in settings:
         return (
-            f"{starts} server starts, each with {runs} samples of "
-            f"{settings['requests']:,} requests per scenario"
+            f"{starts} server starts, each with {runs} sample(s) of {each} per scenario"
         )
-    return f"{runs} measured runs of {settings['duration_s']} s"
+    return f"{runs} measured runs of {each}"
 
 
 def stack_names(directory: Path, settings: JSONData) -> list[str]:
     stacks = settings.get("stacks") or [
-        name for name in STACKS if any(directory.glob(f"{name}-health-*.json"))
+        name for name in STACKS if any(directory.glob(f"{name}-{SCENARIOS[0]}-*.json"))
     ]
     if not stacks:
         raise ValueError(f"no benchmark stacks listed or found in {directory}")
@@ -312,13 +318,10 @@ def read_environment(directory: Path) -> JSONData:
     return env
 
 
-def present_optional(directory: Path, stacks: list[str]) -> list[str]:
-    """Optional scenarios with raw files; every stack must have them or loading fails."""
-    return [
-        scenario
-        for scenario in OPTIONAL_SCENARIOS
-        if any(any(directory.glob(f"{stack}-{scenario}-*.json")) for stack in stacks)
-    ]
+def measured_scenarios(settings: JSONData) -> list[str]:
+    """The routes a run measured (``--scenario`` may narrow them), in Bolt's order."""
+    chosen = set(settings.get("scenarios") or SCENARIOS)
+    return [scenario for scenario in SCENARIOS if scenario in chosen]
 
 
 def scenario_rows(
@@ -336,7 +339,7 @@ def scenario_rows(
             )
             for stack in stacks
         }
-        for scenario in [*SCENARIOS, *present_optional(directory, stacks)]
+        for scenario in measured_scenarios(settings)
     }
     return rows, excluded
 
@@ -474,41 +477,53 @@ def total_samples(settings: JSONData) -> int:
 
 
 def scenario_name(scenario: str) -> str:
-    return {"json-1k": "JSON 1 KB", "json-10k": "JSON 10 KB"}.get(
-        scenario, scenario.title()
-    )
+    return SCENARIO_NAMES[scenario]
 
 
+SCENARIO_NAMES = {
+    "json-1k": "JSON 1 KB",
+    "json-10k": "JSON 10 KB",
+    "db": "Users",
+    "articles": "Articles",
+    "article": "Article",
+    "auth-me": "Auth: me",
+    "auth-articles": "Auth: articles",
+}
 SERVICE_ROWS = (
-    (
-        "health",
-        "GET /health",
-        "Static JSON, no database: a diagnostic of the framework and server path.",
-    ),
     (
         "json-1k",
         "GET /json-1k",
-        f"A fixed JSON body of about 1 KB ({len(payloads.BODY_1K):,} bytes), identical bytes in every stack, no database.",
+        f"A fixed JSON body of about 1 KB ({len(parity_data.BODIES['json-1k']):,} bytes), no database.",
     ),
     (
         "json-10k",
         "GET /json-10k",
-        f"A fixed JSON body of about 10 KB ({len(payloads.BODY_10K):,} bytes), identical bytes in every stack, no database.",
+        f"A fixed JSON body of about 10 KB ({len(parity_data.BODIES['json-10k']):,} bytes), no database.",
     ),
     (
-        "list",
-        "GET /posts?page=1&page_size=20",
-        "Published posts with their author, newest first, in a page envelope with the total: one COUNT and one joined SELECT.",
+        "db",
+        "GET /db",
+        "Ten users read from PostgreSQL: one SELECT.",
     ),
     (
-        "detail",
-        "GET /posts/{id}",
-        "One published post with its author: one joined SELECT.",
+        "articles",
+        "GET /articles?page=1&page_size=20",
+        "A page of articles with their author and tags and the total: a COUNT, the page joined with its author, then the tags of the page (Hinoki reads the link table and the tags in two statements).",
     ),
     (
-        "create",
-        "POST /posts",
-        "Validate the body, insert, return the post with its author: one INSERT and one author SELECT.",
+        "article",
+        "GET /articles/1",
+        "One article with its author, tags and comments: the article joined with its author, its comments, then its tags (two statements in Hinoki).",
+    ),
+    (
+        "auth-me",
+        "GET /auth/me",
+        "Validate the HS256 JWT in the access_token cookie and return its user: one SELECT.",
+    ),
+    (
+        "auth-articles",
+        "GET /auth/articles?page=1&page_size=20",
+        "The articles page behind the same JWT check: the user's SELECT, then the articles page.",
     ),
 )
 STACK_ROWS = (
@@ -520,20 +535,6 @@ STACK_ROWS = (
         ("hinoki", "granian"),
     ),
     (
-        "fastapi",
-        "FastAPI",
-        "SQLAlchemy async, asyncpg",
-        "Uvicorn with uvloop",
-        ("fastapi", "sqlalchemy", "asyncpg", "uvicorn"),
-    ),
-    (
-        "ninja",
-        "Django Ninja",
-        "Django async ORM, psycopg 3 pool",
-        "Uvicorn with uvloop",
-        ("django-ninja", "django", "psycopg"),
-    ),
-    (
         "bolt",
         "Django Bolt",
         "Django async ORM, psycopg 3 pool",
@@ -541,53 +542,76 @@ STACK_ROWS = (
         ("django-bolt",),
     ),
     (
-        "fastify",
-        "Fastify",
-        "node-postgres (pg), named prepared statements",
-        "Node.js HTTP, node:cluster",
-        ("fastify", "pg", "Node.js"),
+        "litestar",
+        "Litestar",
+        "SQLAlchemy async, asyncpg, pool_pre_ping",
+        "Uvicorn with uvloop and httptools",
+        ("litestar", "sqlalchemy", "asyncpg", "uvicorn"),
     ),
     (
-        "hono",
-        "Hono",
-        "node-postgres (pg), named prepared statements",
-        "@hono/node-server on Node.js, node:cluster",
-        ("hono", "@hono/node-server", "pg", "Node.js"),
+        "fastapi",
+        "FastAPI",
+        "SQLAlchemy async, asyncpg, pool_pre_ping",
+        "Uvicorn with uvloop and httptools",
+        ("fastapi", "sqlalchemy", "asyncpg", "uvicorn"),
     ),
     (
-        "bun",
-        "Bun.serve",
+        "ninja",
+        "Django Ninja",
+        "Django ORM on a bounded thread pool, psycopg 3 pool, django-ninja-jwt",
+        "Uvicorn with uvloop and httptools",
+        ("django-ninja", "django", "psycopg", "django-ninja-jwt"),
+    ),
+    (
+        "elysia-bun",
+        "Elysia on Bun",
         "Bun.SQL (built in), prepared statements",
-        "Bun.serve, processes sharing the port (SO_REUSEPORT)",
-        ("Bun",),
+        "Bun.serve, processes sharing the port (SO_REUSEPORT) above one process",
+        ("elysia", "Bun"),
+    ),
+    (
+        "hono-bun",
+        "Hono on Bun",
+        "Bun.SQL (built in), prepared statements",
+        "Bun.serve, processes sharing the port (SO_REUSEPORT) above one process",
+        ("hono", "Bun"),
+    ),
+    (
+        "hono-node",
+        "Hono on Node.js",
+        "node-postgres (pg), named prepared statements",
+        "@hono/node-server on Node.js, node:cluster above one process",
+        ("hono", "@hono/node-server", "pg", "Node.js"),
     ),
 )
 RUNTIME_NAMES = {"node": "Node.js", "bun": "Bun"}
 OTHER_RUNTIMES_NOTE = (
-    "Fastify, Hono and Bun.serve run on JavaScript runtimes (Node.js, Bun) instead of Python. "
-    "They serve the same service, pass the same verifier and use the same number of processes, "
+    "Elysia on Bun, Hono on Bun and Hono on Node.js are the JavaScript servers of Django Bolt's comparison; "
+    "they run on JavaScript runtimes instead of Python. "
+    "They serve the same routes, pass the same verifier and use the same number of processes, "
     "connections per process and CPU placement; their language, runtime and database driver differ."
 )
 DETAIL_VIEWS = {
     "documented": (
         "Each stack on its own server",
-        "Each framework runs on the server it documents: Hinoki on Granian, FastAPI and Django Ninja on Uvicorn, Django Bolt on its own Actix server. "
+        "Each framework runs on the server Django Bolt's comparison uses: Hinoki on Granian, Litestar, FastAPI and Django Ninja on Uvicorn, Django Bolt on its own Actix server. "
         "A difference here can come from the server as well as from the framework.",
     ),
     "same-granian": (
         "All on the same server (Granian)",
-        "Hinoki, FastAPI and Django Ninja run on one Granian version and configuration, which takes the server out of the comparison. "
+        "Hinoki, Litestar, FastAPI and Django Ninja run on one Granian version and configuration, which takes the server out of the comparison. "
         "Django Bolt is not in this view because it does not expose ASGI.",
     ),
 }
 READING_NOTES = (
     "**Requests per second and latency are one measurement.** Every sample keeps the stated number of connections busy, so higher latency means fewer requests per second; the two do not confirm each other.",
     "**Bars start at 0 and show the median requests per second.** Within a request type every stack shares one scale, and stacks keep a fixed order, so the page is not sorted into a ranking. The thin line on a bar is the lowest to highest sample.",
-    "**Samples are pooled, none is discarded.** A stack is started several times; the median, the range and the CV are computed over every sample of every start, and an unstable result lists them all.",
+    "**Samples are pooled, none is discarded.** A stack is started several times; the median, the range and the CV are computed over every sample of every start, and an unstable result lists them all. "
+    "The exact tables also give the upper median, `sorted(samples)[len // 2]`, the statistic Django Bolt's comparison publishes; with an even number of samples it is the higher middle sample.",
     "**p50 and p99 are medians of per-sample percentiles**, not percentiles of all requests pooled together. A range is descriptive, not a confidence interval.",
     f"**A gap under {TIE_PCT}% between two medians is a tie.** Differences that small are inside what this setup resolves, so no order is claimed. A larger gap is called a difference only when the sample ranges do not overlap.",
     f"**CV is the coefficient of variation of requests per second across samples.** Above {STABLE_CV}% the result is labelled Unstable: its median and samples stay on the page, but it is not given the highest or tied mark and no comparison with it is claimed.",
-    "**What this does not cover:** TLS, proxies, authentication, compression, cold data, larger tables or other hardware. Pool sizes are equal per process, but each library schedules work differently. It is not a ranking and not a production claim.",
+    "**What this does not cover:** TLS, proxies, compression, writes, cold data, larger tables, container memory limits or other hardware. Pool sizes are equal per process, but each library schedules work differently. It is not a ranking and not a production claim.",
 )
 LEGACY_NOTE = (
     "A view was sampled with `oha` for a fixed duration with 64 connections and one server start, "
@@ -597,13 +621,34 @@ LEGACY_NOTE = (
 
 
 def run_command(directory: Path, settings: JSONData) -> str:
-    base = f"uv run --locked python run.py --server-mode {server_mode(directory)}"
-    if "requests" not in settings:
-        return f"{base} --out results/YYYY-MM-DD/{server_mode(directory)} (script of the `oha` era, see git history)"
-    return (
-        f"{base} --restarts {settings['restarts']} --runs {settings['runs']} "
-        f"--requests {settings['requests']} --out results/YYYY-MM-DD/{server_mode(directory)}"
+    mode = server_mode(directory)
+    base = f"uv run --locked python run.py --server-mode {mode}"
+    if "restarts" not in settings:
+        return f"{base} --out results/YYYY-MM-DD/{mode} (script of the `oha` era, see git history)"
+    stop = (
+        f"--requests {settings['requests']}"
+        if "requests" in settings
+        else f"--duration {settings['duration_s']}"
     )
+    sizing = "".join(
+        f" --{flag} {settings[key]}"
+        for flag, key in (("workers", "workers"), ("pool", "pool_per_worker"))
+        if key in settings
+    )
+    return (
+        f"{base}{sizing} --restarts {settings['restarts']} --runs {settings['runs']} "
+        f"{stop} --out results/YYYY-MM-DD/{mode}"
+    )
+
+
+def warmup_text(settings: JSONData) -> str:
+    warmup = settings.get("warmup")
+    if isinstance(warmup, dict):
+        return (
+            f"{warmup['requests']:,} requests at {warmup['connections']} connections "
+            "per scenario and start"
+        )
+    return f"{settings['warmup_s']} s per scenario and start"
 
 
 def memory_text(env: JSONData) -> str:
@@ -639,8 +684,10 @@ def conditions_table(directories: list[Path]) -> str:
             else f"not fixed: {settings.get('duration_s')} s per sample",
         ),
         ("Samples", sampling_text(settings)),
-        ("Warm-up", f"{settings['warmup_s']} s per scenario and start"),
+        ("Warm-up", warmup_text(settings)),
         ("Server processes", f"{settings['workers']} per stack"),
+        *([("Database pool", f"{settings['pool_per_worker']} connections per process")]
+          if "pool_per_worker" in settings else []),
         ("CPU placement", unique_text([placement_text(e["settings"]) for e in envs])),
         (
             "Load average at start",
@@ -737,23 +784,27 @@ def indented(text: str, spaces: int = 4) -> str:
 def sample_end_note(env: JSONData) -> str:
     if tool_name(env) == "oha":
         return "Requests in flight at the end of a sample were aborted by `oha`; they are not counted as unexpected responses."
+    stop = (
+        "a fixed number of requests"
+        if "requests" in env["settings"]
+        else "a fixed duration"
+    )
     return (
-        "Samples are pooled across server starts and none is discarded. Each sample is a fixed number of requests; "
+        f"Samples are pooled across server starts and none is discarded. Each sample is {stop}; "
         "`bombardier` counts non-2xx responses and failed requests as unexpected."
     )
 
 
 def service_table(directories: list[Path]) -> str:
-    optional = {
+    measured = {
         scenario
         for directory in directories
-        for scenario in OPTIONAL_SCENARIOS
-        if any(directory.glob(f"*-{scenario}-*.json"))
+        for scenario in measured_scenarios(read_environment(directory)["settings"])
     }
     rows = "\n".join(
         f"| `{name}` | `{request}` | {what} |"
         for name, request, what in SERVICE_ROWS
-        if name not in OPTIONAL_SCENARIOS or name in optional
+        if name in measured
     )
     return (
         "| Scenario | Request | What the service does |\n| --- | --- | --- |\n" + rows
@@ -929,8 +980,11 @@ def method_section(directories: list[Path], first_env: JSONData) -> str:
             ),
             collapsed(
                 "Workloads, stacks and versions",
-                "One service, two tables and deterministic seed data: 100 authors and 10,000 posts, 80% published. "
-                "Every stack had to match a PostgreSQL oracle and the same SQL statement count per request before measurement. "
+                "One service with Django Bolt's seven routes, its tables and deterministic seed data: "
+                f"{parity_data.USERS} users, {parity_data.AUTHORS} authors, {parity_data.TAGS} tags, "
+                f"{parity_data.ARTICLES:,} articles and {parity_data.COMMENTS:,} comments, plus the user of the JWT. "
+                "Every stack had to match a PostgreSQL oracle and its expected SQL statement count per request before measurement "
+                "(one extra statement on the tag routes for Hinoki, none elsewhere). "
                 "The stacks differ in ORM, database driver and server, as listed below.\n\n"
                 + service_table(directories)
                 + "\n\n"

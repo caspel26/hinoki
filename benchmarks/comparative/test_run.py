@@ -5,7 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import jwt
 import loadtool  # type: ignore[import-not-found]
+import parity_data  # type: ignore[import-not-found]
 import payloads  # type: ignore[import-not-found]
 import pytest
 import run  # type: ignore[import-not-found]
@@ -58,6 +60,71 @@ def test_warmup_command_is_timed_and_has_no_body_without_one() -> None:
 def test_command_needs_exactly_one_stopping_rule() -> None:
     with pytest.raises(ValueError, match="exactly one"):
         loadtool.command("bombardier", "http://h/x", "GET", None, 100)
+
+
+def test_command_sends_each_extra_header() -> None:
+    command = loadtool.command(
+        "bombardier", "http://h/x", "GET", None, 10, requests=1000,
+        headers=("cookie: access_token=t", "x-a: 1"),
+    )  # fmt: skip
+
+    assert command[command.index("-c") + 1] == "10"
+    assert [command[i + 1] for i, part in enumerate(command) if part == "-H"] == [
+        "cookie: access_token=t",
+        "x-a: 1",
+    ]
+    assert command[-1] == "http://h/x"
+
+
+def test_every_mode_is_sized_from_workers_and_pool() -> None:
+    modes = run.server_modes(workers=8, pool=4)
+
+    assert {name for table in modes.values() for name in table} == set(run.LABELS)
+    for table in modes.values():
+        for name, (command, env) in table.items():
+            if name in run.JS_STACKS:
+                assert env["BENCH_WORKERS"] == "8", name
+            else:
+                flag = "--processes" if name == "bolt" else "--workers"
+                assert command[command.index(flag) + 1] == "8", name
+            assert "4" in {env.get("BENCH_POOL"), env.get("BENCH_DATABASE__MAX_SIZE")}
+    bolt_env = modes["documented"]["bolt"][1]
+    assert bolt_env["DJANGO_BOLT_EXECUTOR_THREADS"] == "4"
+    assert bolt_env["DJANGO_BOLT_ORM_THREADS"] == "4"
+    for name in ("litestar", "fastapi", "ninja"):
+        command = modes["documented"][name][0]
+        assert command[0] == "uvicorn"
+        assert command[command.index("--http") + 1] == "httptools"
+        assert command[command.index("--loop") + 1] == "uvloop"
+
+
+def test_defaults_follow_django_bolts_method_and_workers_is_a_variant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(run, "SERVER_MODES", dict(run.SERVER_MODES))
+    args = run.arguments([])
+
+    assert (args.workers, args.pool, args.duration, args.requests) == (1, 8, 10, None)
+    assert (args.restarts, args.runs, args.cooldown) == (2, 1, 20)
+    assert run.WARMUP == {"requests": 1000, "connections": 10}
+    assert run.CONCURRENCY == 100
+    assert run.sample_stop(args) == {"duration_s": 10}
+
+    args = run.arguments(["--workers", "8", "--requests", "100000"])
+    command, _ = run.SERVER_MODES["documented"]["hinoki"]
+    assert command[command.index("--workers") + 1] == "8"
+    assert run.sample_stop(args) == {"requests": 100000}
+
+
+def test_only_the_auth_scenarios_carry_a_valid_session_cookie() -> None:
+    (header,) = run.scenario_headers("auth-articles")
+    name, _, value = header.partition(": ")[2].partition("=")
+    claims = jwt.decode(value, parity_data.SECRET, algorithms=[parity_data.ALGORITHM])
+
+    assert name == parity_data.COOKIE
+    assert claims["sub"] == str(parity_data.AUTH_USER_ID)
+    assert claims["exp"] > claims["iat"]
+    assert run.scenario_headers("articles") == ()
 
 
 def test_parse_summarizes_rate_latency_in_milliseconds_and_unexpected() -> None:
@@ -188,18 +255,21 @@ def test_readiness_requires_a_200_answer(monkeypatch: pytest.MonkeyPatch) -> Non
     run.stop(process, grace=5, port=None)
 
 
-def test_scenarios_include_the_payload_size_endpoints_and_keep_the_old_ones() -> None:
-    assert {"health", "list", "detail", "create"} <= set(run.SCENARIOS)
-    assert run.SCENARIOS["json-1k"] == ("GET", "/json-1k", None)
-    assert run.SCENARIOS["json-10k"] == ("GET", "/json-10k", None)
+def test_scenarios_are_django_bolts_seven_get_routes_in_its_order() -> None:
+    assert list(run.SCENARIOS) == [
+        "json-1k", "json-10k", "db", "articles", "article", "auth-me", "auth-articles",
+    ]  # fmt: skip
+    assert {method for method, _ in run.SCENARIOS.values()} == {"GET"}
+    assert run.SCENARIOS["auth-articles"][1] == "/auth/articles?page=1&page_size=20"
+    assert set(run.SCENARIOS) > run.AUTH_SCENARIOS
 
 
-def test_javascript_mode_runs_three_stacks_with_the_same_pool_workers_and_port() -> (
-    None
-):
+def test_javascript_mode_runs_django_bolts_three_javascript_servers(
+    tmp_path: Path,
+) -> None:
     servers = run.SERVER_MODES["javascript"]
 
-    assert list(servers) == ["fastify", "hono", "bun"]
+    assert list(servers) == ["elysia-bun", "hono-bun", "hono-node"]
     assert not set(servers) & {
         name for mode, table in run.SERVER_MODES.items() if mode != "javascript"
         for name in table
@@ -211,8 +281,14 @@ def test_javascript_mode_runs_three_stacks_with_the_same_pool_workers_and_port()
         assert env["BENCH_POOL"] == str(run.POOL)
         assert env["BENCH_WORKERS"] == str(run.WORKERS)
         assert env["BENCH_PORT"] == str(run.PORT)
-    assert servers["bun"][0][0] == "bun"
-    assert {servers["fastify"][0][0], servers["hono"][0][0]} == {"node"}
+        payloads_path = Path(run.server_env(name, {}, tmp_path)["BENCH_PAYLOADS"])
+        assert json.loads(payloads_path.read_text()) == parity_data.PAYLOADS
+    assert {name: command[0] for name, (command, _) in servers.items()} == {
+        "elysia-bun": "bun",
+        "hono-bun": "bun",
+        "hono-node": "node",
+    }
+    assert "BENCH_PAYLOADS" not in run.server_env("hinoki", {}, tmp_path)
 
 
 def test_only_the_bench_variables_a_stack_declares_reach_its_server() -> None:
@@ -225,7 +301,7 @@ def test_only_the_bench_variables_a_stack_declares_reach_its_server() -> None:
         "BENCH_POSTGRES_CONTAINER": "other",
     }
 
-    bun = run.server_env("bun", leaked)
+    bun = run.server_env("elysia-bun", leaked)
     hinoki = run.server_env("hinoki", leaked)
     fastapi = run.server_env("fastapi", leaked)
 
@@ -263,7 +339,7 @@ def test_python_servers_run_in_this_interpreter_and_runtimes_by_path(
 def test_javascript_versions_come_from_the_runtimes_and_installed_packages(
     tmp_path: Path,
 ) -> None:
-    for name, version in {"fastify": "5.0.0", "@hono/node-server": "2.0.0"}.items():
+    for name, version in {"elysia": "1.0.0", "@hono/node-server": "2.0.0"}.items():
         package = tmp_path / "node_modules" / name
         package.mkdir(parents=True)
         (package / "package.json").write_text(json.dumps({"version": version}))
@@ -275,19 +351,13 @@ def test_javascript_versions_come_from_the_runtimes_and_installed_packages(
         == f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
     )
     assert found["runtimes"]["bun"] is None
-    assert found["packages"]["fastify"] == "5.0.0"
+    assert found["packages"]["elysia"] == "1.0.0"
     assert found["packages"]["@hono/node-server"] == "2.0.0"
     assert found["packages"]["pg"] is None
 
 
-@pytest.mark.skipif(run.RUNTIMES.get("node") is None, reason="needs Node.js")
-def test_javascript_payloads_are_the_same_bytes_as_payloads_py() -> None:
-    script = (
-        "const m = await import('./js/common.js');"
-        "process.stdout.write(JSON.stringify(Object.fromEntries("
-        "Object.entries(m.BODIES).map(([k, v]) => [k, v.toString('latin1')]))));"
-    )
-    output = subprocess.run(
+def run_node(script: str) -> str:
+    return subprocess.run(
         [run.RUNTIMES["node"], "--input-type=module", "-e", script],
         cwd=run.HERE,
         check=True,
@@ -295,8 +365,44 @@ def test_javascript_payloads_are_the_same_bytes_as_payloads_py() -> None:
         text=True,
     ).stdout
 
-    bodies = {name: body.encode("latin1") for name, body in json.loads(output).items()}
-    assert bodies == payloads.BODIES
+
+@pytest.mark.skipif(run.RUNTIMES.get("node") is None, reason="needs Node.js")
+def test_javascript_serializes_the_payloads_to_the_same_bytes(tmp_path: Path) -> None:
+    path = run.write_payloads(tmp_path)
+    script = (
+        "const m = await import('./js/common.js');"
+        f"const p = m.loadPayloads({json.dumps(str(path))});"
+        "process.stdout.write(JSON.stringify(Object.fromEntries("
+        "Object.entries(p).map(([k, v]) => [k, JSON.stringify(v)]))));"
+    )
+
+    bodies = {k: v.encode() for k, v in json.loads(run_node(script)).items()}
+
+    assert bodies == parity_data.BODIES
+
+
+@pytest.mark.skipif(run.RUNTIMES.get("node") is None, reason="needs Node.js")
+def test_javascript_accepts_the_benchmark_jwt_and_rejects_others() -> None:
+    token = parity_data.mint_token()
+    forged = jwt.encode(
+        {"sub": "1", "exp": 4102444800}, parity_data.SECRET[::-1], "HS256"
+    )
+    expired = jwt.encode(
+        {"sub": "1", "exp": 1}, parity_data.SECRET, parity_data.ALGORITHM
+    )
+    script = (
+        "const m = await import('./js/common.js');"
+        f"const tokens = {json.dumps([token, forged, expired, 'x.y.z', ''])};"
+        "process.stdout.write(JSON.stringify(tokens.map((t) => m.tokenSubject(t))));"
+    )
+
+    assert json.loads(run_node(script)) == [
+        parity_data.AUTH_USER_ID,
+        None,
+        None,
+        None,
+        None,
+    ]
 
 
 def test_payloads_are_deterministic_compact_and_the_advertised_size() -> None:

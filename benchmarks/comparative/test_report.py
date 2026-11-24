@@ -56,6 +56,7 @@ def write_environment(
     directory: Path,
     mode: str,
     stacks: list[str],
+    *,
     date: str = "2026-11-21 06:00:00 +0100",
     restarts: int = 1,
     runs: int = 3,
@@ -70,20 +71,21 @@ def write_environment(
                 "cores": 8,
                 "machine": "Linux",
                 "loadavg_at_start": [0.1, 0.2, 0.3],
-                "postgres": "PostgreSQL 17",
+                "postgres": "PostgreSQL 16",
                 "load_tool": "bombardier",
                 "bombardier": "v1.2.6",
                 "host": {"memory_bytes": 17179869184},
                 "settings": {
                     "server_mode": mode,
                     "stacks": stacks,
-                    "workers": 4,
+                    "workers": 1,
+                    "pool_per_worker": 8,
                     "server_cpus": server_cpus,
                     "load_cpus": "6-7" if server_cpus else None,
                     "concurrency": 100,
-                    "requests": 100000,
+                    "duration_s": 10,
                     "restarts": restarts,
-                    "warmup_s": 10,
+                    "warmup": {"requests": 1000, "connections": 10},
                     "runs": runs,
                 },
             }
@@ -122,8 +124,9 @@ def write_legacy_results(directory: Path, stack: str = "hinoki") -> None:
         "concurrency": 64,
         "runs": 2,
         "duration_s": 20,
+        "warmup_s": 10,
     }
-    del env["settings"]["requests"], env["settings"]["restarts"], env["host"]
+    del env["settings"]["restarts"], env["settings"]["warmup"], env["host"]
     env_path.write_text(json.dumps(env))
     (directory / f"{stack}-verify.txt").write_text("OK")
     for scenario in report.SCENARIOS:
@@ -219,8 +222,11 @@ def test_stack_labels_name_the_framework_and_the_server_the_same_way_everywhere(
     assert report.stack_label("fastapi") == "FastAPI (Uvicorn)"
     assert report.stack_label("fastapi-granian") == "FastAPI (Granian)"
     assert report.stack_label("ninja") == "Django Ninja (Uvicorn)"
+    assert report.stack_label("litestar") == "Litestar (Uvicorn)"
+    assert report.stack_label("litestar-granian") == "Litestar (Granian)"
     assert report.stack_label("bolt") == "Django Bolt (Actix, native server)"
     assert report.stack_family("fastapi-granian") == "fastapi"
+    assert report.stack_family("litestar-granian") == "litestar"
     assert report.stack_family("hinoki") == "hinoki"
     assert report.stack_family("hinoki-kiso") == "hinoki-kiso"
 
@@ -312,10 +318,13 @@ def test_the_first_lines_say_what_was_measured_and_how_kiso_compares_with_grania
     None
 ):
     overrides = {
-        ("hinoki-kiso", "health"): (200.0, 201.0, 199.0),
-        ("hinoki-kiso", "list"): (200.0, 201.0, 199.0),
-        ("hinoki-kiso", "detail"): (101.0, 102.0, 100.0),
-        ("hinoki-kiso", "create"): (50.0, 51.0, 49.0),
+        ("hinoki-kiso", "json-1k"): (200.0, 201.0, 199.0),
+        ("hinoki-kiso", "json-10k"): (200.0, 201.0, 199.0),
+        ("hinoki-kiso", "db"): (200.0, 201.0, 199.0),
+        ("hinoki-kiso", "articles"): (101.0, 102.0, 100.0),
+        ("hinoki-kiso", "article"): (50.0, 51.0, 49.0),
+        ("hinoki-kiso", "auth-me"): (50.0, 51.0, 49.0),
+        ("hinoki-kiso", "auth-articles"): (50.0, 150.0, 250.0),
     }
     with results_root() as root:
         page = page_of(*full_session(root, overrides))
@@ -327,8 +336,9 @@ def test_the_first_lines_say_what_was_measured_and_how_kiso_compares_with_grania
     assert "2026-11-21" in lead
     assert "100 concurrent connections" in lead
     assert (
-        "Hinoki (Kiso, native server) against Hinoki (Granian): ahead in 2 of 4 "
-        "request types, tied (within 10%) in 1, behind in 1." in lead
+        "Hinoki (Kiso, native server) against Hinoki (Granian): ahead in 3 of 7 "
+        "request types, tied (within 10%) in 1, behind in 2, not settled in 1 "
+        "(overlapping ranges or an unstable result)." in lead
     )
     assert "not a ranking" in lead.lower()
     assert page.index("bench-lead") < page.index('<table class="bench-matrix"')
@@ -344,7 +354,7 @@ def test_without_a_kiso_run_the_page_makes_no_kiso_claim() -> None:
 
 
 def test_an_unstable_result_stays_visible_with_its_reason_and_every_sample() -> None:
-    overrides = {("hinoki-kiso", "create"): (50.0, 100.0, 150.0, 60.0, 140.0)}
+    overrides = {("hinoki-kiso", "auth-articles"): (50.0, 100.0, 150.0, 60.0, 140.0)}
     with results_root() as root:
         page = page_of(*full_session(root, overrides))
 
@@ -352,7 +362,7 @@ def test_an_unstable_result_stays_visible_with_its_reason_and_every_sample() -> 
     assert 'class="bench-badge is-unstable"' in page
     assert "Unstable" in page
     assert "coefficient of variation" in page.lower()
-    panel = page[page.index('id="bench-request-create"') :]
+    panel = page[page.index('id="bench-request-auth-articles"') :]
     panel = panel[: panel.index("</section>")]
     assert "Hinoki (Kiso, native server)" in panel
     assert "above 15%" in panel
@@ -361,11 +371,11 @@ def test_an_unstable_result_stays_visible_with_its_reason_and_every_sample() -> 
 
 
 def test_an_unstable_stack_never_wins_the_highest_median_mark() -> None:
-    overrides = {("hinoki-kiso", "create"): (10.0, 400.0, 900.0)}
+    overrides = {("hinoki-kiso", "auth-articles"): (10.0, 400.0, 900.0)}
     with results_root() as root:
         page = page_of(*full_session(root, overrides))
 
-    panel = page[page.index('id="bench-request-create"') :]
+    panel = page[page.index('id="bench-request-auth-articles"') :]
     panel = panel[: panel.index("</section>")]
     best_row = re.search(r'<tr data-stack="[^"]*" class="is-best">.*?</tr>', panel)
     assert best_row is not None
@@ -476,7 +486,7 @@ def test_missing_raw_scenario_fails_instead_of_partial_report() -> None:
         tempfile.TemporaryDirectory() as temporary,
         pytest.raises(ValueError, match="missing raw results"),
     ):
-        report.load_runs(Path(temporary), "hinoki", "list")
+        report.load_runs(Path(temporary), "hinoki", "db")
 
 
 def test_missing_metadata_and_invalid_stack_configuration_are_rejected() -> None:
@@ -544,6 +554,10 @@ def test_report_explains_when_a_stack_is_excluded_for_worker_imbalance() -> None
             "documented",
             {"hinoki": (10.0, 11.0, 12.0), "bolt": (20.0, 21.0, 22.0)},
         )
+        env_path = root / "documented" / "environment.json"
+        env = json.loads(env_path.read_text())
+        env["settings"]["workers"] = 4
+        env_path.write_text(json.dumps(env))
         write_workers(
             root / "documented", "bolt", ["10:00.00", "0:05.00", "0:05.00", "0:05.00"]
         )
@@ -565,13 +579,12 @@ def test_cpu_time_accepts_macos_and_linux_ps_formats() -> None:
 def test_run_py_offers_a_kiso_mode_that_serves_with_the_rust_server() -> None:
     import run  # type: ignore[import-not-found]
 
-    assert run.SERVER_MODES["kiso"] is run.KISO_SERVERS
-    command, _ = run.KISO_SERVERS["hinoki-kiso"]
+    kiso = run.SERVER_MODES["kiso"]
+    command, _ = kiso["hinoki-kiso"]
     assert command[:2] == ["hinoki", "serve"]
     assert command[command.index("--server") + 1] == "kiso"
-    assert not set(run.KISO_SERVERS) & (
-        set(run.DOCUMENTED_SERVERS) | set(run.GRANIAN_SERVERS)
-    )
+    others = set(run.SERVER_MODES["documented"]) | set(run.SERVER_MODES["same-granian"])
+    assert not set(kiso) & others
 
 
 def test_a_sample_waits_for_the_load_to_fall_and_records_it(
@@ -623,12 +636,10 @@ def test_bombardier_samples_are_pooled_across_starts_without_discarding_any() ->
             2: (200.0, 202.0, 1.0),
         }.items():
             for number, rate in enumerate(values, start=1):
-                path = directory / f"hinoki-list-r{restart}-{number}.json"
+                path = directory / f"hinoki-db-r{restart}-{number}.json"
                 path.write_text(json.dumps(bombardier_sample(rate)))
 
-        summary = report.run_summary(
-            report.load_runs(directory, "hinoki", "list"), "200"
-        )
+        summary = report.run_summary(report.load_runs(directory, "hinoki", "db"), "200")
 
     assert summary["runs"] == 6
     assert summary["starts"] == 2
@@ -652,45 +663,58 @@ def test_bombardier_report_states_conditions_and_the_aggregation_rule() -> None:
     assert "none is discarded" in page
     assert "| Load generator | bombardier v1.2.6 |" in page
     assert "| Connections | 100 |" in page
-    assert "| Requests per sample | 100,000 |" in page
+    assert "| Requests per sample | not fixed: 10 s per sample |" in page
+    assert (
+        "| Warm-up | 1,000 requests at 10 connections per scenario and start |" in page
+    )
+    assert "| Server processes | 1 per stack |" in page
+    assert "| Database pool | 8 connections per process |" in page
     assert "| Memory | 16 GiB |" in page
     assert "| Date | 2026-11-21 06:00:00 +0100 |" in page
-    assert "run.py --server-mode documented" in page
-    assert "2 server starts" in page
+    assert (
+        "run.py --server-mode documented --workers 1 --pool 8 --restarts 2 --runs 3 "
+        "--duration 10 --out" in page
+    )
+    assert "2 server starts, each with 3 sample(s) of 10 s per scenario" in page
+    assert "Each sample is a fixed duration" in page
 
 
-def test_json_payload_scenarios_are_reported_only_when_their_files_exist() -> None:
+def test_a_run_narrowed_to_some_routes_reports_only_those() -> None:
     with results_root() as root:
+        directory = root / "documented"
         write_results(
-            root / "current",
-            "documented",
-            {"hinoki": (100.0, 101.0)},
-            scenarios=(*report.SCENARIOS, "json-1k", "json-10k"),
+            directory, "documented", {"hinoki": (100.0, 101.0)}, scenarios=("db",)
         )
-        write_legacy_results(root / "legacy")
+        env = json.loads((directory / "environment.json").read_text())
+        env["settings"]["scenarios"] = ["db"]
+        (directory / "environment.json").write_text(json.dumps(env))
 
-        reported = report.scenario_rows(root / "current")[0]
-        legacy_reported = report.scenario_rows(root / "legacy")[0]
+        reported = report.scenario_rows(directory)[0]
+        page = page_of(directory)
 
-    assert {"json-1k", "json-10k"} <= set(reported)
-    assert not {"json-1k", "json-10k"} & set(legacy_reported)
+    assert list(reported) == ["db"]
+    assert "`GET /db`" in page
+    assert "`GET /json-1k`" not in page
 
 
-def test_scenarios_follow_the_order_without_a_database_first() -> None:
+def test_scenarios_follow_bolts_order_without_a_database_first() -> None:
     with results_root() as root:
-        write_results(
-            root / "documented",
-            "documented",
-            {"hinoki": (100.0, 101.0)},
-            scenarios=(*report.SCENARIOS, "json-1k", "json-10k"),
-        )
+        write_results(root / "documented", "documented", {"hinoki": (100.0, 101.0)})
         page = page_of(root / "documented")
 
     table = page[page.index('<table class="bench-matrix"') :]
     names = re.findall(
         r'<th scope="row">([^<]+)</th>', table[: table.index("</table>")]
     )
-    assert names == ["Health", "JSON 1 KB", "JSON 10 KB", "List", "Detail", "Create"]
+    assert names == [
+        "JSON 1 KB",
+        "JSON 10 KB",
+        "Users",
+        "Articles",
+        "Article",
+        "Auth: me",
+        "Auth: articles",
+    ]
 
 
 def test_legacy_oha_results_are_labelled_and_not_mixed_with_bombardier() -> None:
@@ -712,7 +736,7 @@ def test_legacy_oha_results_are_labelled_and_not_mixed_with_bombardier() -> None
 
 JS_VERSIONS = {
     "runtimes": {"node": "26.12.0", "bun": "1.4.5"},
-    "packages": {"fastify": "5.12.8", "hono": "4.13.21", "@hono/node-server": "2.1.11", "pg": "8.23.1"},
+    "packages": {"elysia": "1.4.32", "hono": "4.13.21", "@hono/node-server": "2.1.11", "pg": "8.23.1"},
 }  # fmt: skip
 
 
@@ -727,7 +751,7 @@ def with_javascript_run(root: Path) -> list[Path]:
     write_results(
         javascript,
         "javascript",
-        {"fastify": (80.0, 81.0, 79.0), "hono": (70.0, 71.0, 69.0), "bun": (90.0, 91.0, 89.0)},
+        {"elysia-bun": (90.0, 91.0, 89.0), "hono-bun": (80.0, 81.0, 79.0), "hono-node": (70.0, 71.0, 69.0)},
         date="2026-11-21 20:10:00 +0100",
     )  # fmt: skip
     env = json.loads((javascript / "environment.json").read_text())
@@ -738,12 +762,15 @@ def with_javascript_run(root: Path) -> list[Path]:
 
 
 def test_javascript_stacks_are_labelled_by_framework_and_runtime() -> None:
-    assert report.stack_label("fastify") == "Fastify (Node.js)"
-    assert report.stack_label("hono") == "Hono (Node.js)"
-    assert report.stack_label("bun") == "Bun.serve (Bun)"
-    assert {report.STACKS[key].group for key in ("fastify", "hono", "bun")} == {
-        "Other runtimes"
-    }
+    javascript = ("elysia-bun", "hono-bun", "hono-node")
+
+    assert [report.stack_label(key) for key in javascript] == [
+        "Elysia (Bun)",
+        "Hono (Bun)",
+        "Hono (Node.js)",
+    ]
+    assert {report.STACKS[key].group for key in javascript} == {"Other runtimes"}
+    assert len({report.stack_family(key) for key in javascript}) == 3
     assert {report.STACKS[key].group for key in ("hinoki", "bolt")} == {"Python"}
 
 
@@ -760,9 +787,9 @@ def test_other_runtimes_sit_after_python_in_a_separate_overview_group() -> None:
         "Request type",
         "Hinoki (Granian)",
         "FastAPI (Uvicorn)",
-        "Fastify (Node.js)",
+        "Elysia (Bun)",
+        "Hono (Bun)",
         "Hono (Node.js)",
-        "Bun.serve (Bun)",
     ]
     assert matrix.count("is-group-start") == 1 + len(report.SCENARIOS)
     legend = page[page.index('<ul class="bench-legend"') :]
@@ -772,7 +799,7 @@ def test_other_runtimes_sit_after_python_in_a_separate_overview_group() -> None:
     assert "JavaScript runtimes" in page
     assert "## Server setups in detail" in page  # the documented view only
     assert (
-        "Fastify"
+        "Elysia"
         not in page.split("## Server setups in detail")[1].split(
             "## Method and limits"
         )[0]
@@ -803,13 +830,14 @@ def test_method_lists_javascript_runtimes_drivers_and_how_to_install_them() -> N
         page = page_of(*with_javascript_run(root))
 
     assert "| JavaScript runtimes | Node.js 26.12.0; Bun 1.4.5 |" in page
-    assert "| Fastify | node-postgres (pg)" in page
-    assert "fastify 5.12.8, pg 8.23.1, Node.js 26.12.0 |" in page
+    assert "| Hono on Node.js | node-postgres (pg)" in page
     assert (
         "hono 4.13.21, @hono/node-server 2.1.11, pg 8.23.1, Node.js 26.12.0 |" in page
     )
-    assert "| Bun.serve | Bun.SQL" in page
-    assert "Bun 1.4.5 |" in page
+    assert "| Elysia on Bun | Bun.SQL" in page
+    assert "elysia 1.4.32, Bun 1.4.5 |" in page
+    assert "| Hono on Bun | Bun.SQL" in page
+    assert "hono 4.13.21, Bun 1.4.5 |" in page
     assert "npm ci" in page
     assert "run.py --server-mode javascript" in page
 
@@ -818,5 +846,24 @@ def test_python_only_pages_do_not_mention_javascript() -> None:
     with results_root() as root:
         page = page_of(*full_session(root))
 
-    for word in ("Fastify", "Hono", "Bun", "npm", "JavaScript"):
+    for word in ("Elysia", "Hono", "Bun", "npm", "JavaScript"):
         assert word not in page
+
+
+def test_exact_tables_add_the_upper_median_django_bolt_publishes() -> None:
+    with results_root() as root:
+        write_results(
+            root / "documented",
+            "documented",
+            {"hinoki": (100.0, 200.0), "bolt": (300.0, 500.0, 400.0)},
+        )
+        page = page_of(root / "documented")
+
+    panel = page[page.index('id="bench-request-db"') :]
+    panel = panel[: panel.index("</section>")]
+    assert '<th scope="col">Upper median</th>' in panel
+    hinoki = re.search(r'<tr data-stack="hinoki".*?</tr>', panel)
+    bolt = re.search(r'<tr data-stack="bolt".*?</tr>', panel)
+    assert hinoki is not None and bolt is not None
+    assert "<td>150</td><td>200</td><td>100&ndash;200</td>" in hinoki[0]
+    assert "<td>400</td><td>400</td><td>300&ndash;500</td>" in bolt[0]
