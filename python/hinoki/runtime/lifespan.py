@@ -15,7 +15,7 @@ from hinoki.errors import STARTUP_HOOK, ShutdownError, StartupError
 from hinoki.events import EventBus, events_var
 from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import Module, ModuleContext, Resource, order_modules
-from hinoki.orm import database_var
+from hinoki.orm.context import database_var
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.executor import SyncExecutor
 

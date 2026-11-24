@@ -25,7 +25,7 @@ RESERVED = {"content-length", "transfer-encoding", "connection", "x-request-id"}
 SAME_SITE = {"Strict", "Lax", "None"}
 MIN_STATUS, MAX_STATUS = 200, 599
 
-Headers = Mapping[str, str] | Sequence[tuple[str, str]]
+ResponseHeaders = Mapping[str, str] | Sequence[tuple[str, str]]
 
 
 def encode_header(name: str, value: str) -> tuple[bytes, bytes]:
@@ -51,7 +51,7 @@ class Response:
         self,
         status: int = 200,
         body: bytes | str = b"",
-        headers: Headers = (),
+        headers: ResponseHeaders = (),
         content_type: str | None = None,
     ) -> None:
         if not MIN_STATUS <= status <= MAX_STATUS:
@@ -121,4 +121,4 @@ def set_cookie(
     return "set-cookie", "; ".join(parts)
 
 
-__all__ = ["Headers", "Response", "set_cookie"]
+__all__ = ["Response", "ResponseHeaders", "set_cookie"]

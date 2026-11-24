@@ -46,7 +46,7 @@ from hinoki.http.security import same_site_origin
 from hinoki.http.stream import File, Streamed
 from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
-from hinoki.orm import database_var
+from hinoki.orm.context import database_var
 from hinoki.orm.links import check_resolved
 from hinoki.orm.model import Model
 from hinoki.pagination import Page as ResultPage

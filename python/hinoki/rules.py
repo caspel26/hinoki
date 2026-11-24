@@ -688,7 +688,7 @@ class RequireExplicitTable(Rule):
 
 def is_indexed(model: Any, column: str) -> bool:
     """The column leads a primary key, a unique column or group, or an index."""
-    from hinoki.orm import MARK, FieldMeta  # noqa: PLC0415 - orm is only needed here
+    from hinoki.orm.model import MARK, FieldMeta  # noqa: PLC0415 - orm is only needed here
 
     unique_columns = {
         item.name

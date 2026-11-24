@@ -20,7 +20,7 @@ from hinoki.app import Hinoki
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
-from hinoki.orm import database_var
+from hinoki.orm.context import database_var
 from hinoki.runtime.executor import SyncExecutor
 from hinoki.runtime.lifespan import Lifespan
 

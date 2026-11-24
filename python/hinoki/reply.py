@@ -6,7 +6,7 @@ kept for one compatibility cycle.
 
 import warnings
 
-from hinoki.http.response import Headers, Response, encode_header, set_cookie
+from hinoki.http.response import Response, ResponseHeaders, encode_header, set_cookie
 
 warnings.warn(
     "hinoki.reply is deprecated; import Response from hinoki.http.response",
@@ -16,4 +16,4 @@ warnings.warn(
 
 Reply = Response
 
-__all__ = ["Headers", "Reply", "Response", "encode_header", "set_cookie"]
+__all__ = ["Reply", "Response", "ResponseHeaders", "encode_header", "set_cookie"]

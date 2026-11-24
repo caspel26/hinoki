@@ -623,6 +623,8 @@ class FileStorageModule(Module):
             await self.storage.start()
         try:
             ctx.provide(FileStorage, self.storage)
+            if type(self.storage) is not FileStorage:
+                ctx.provide(type(self.storage), self.storage)
             yield
         finally:
             if isinstance(self.storage, LocalFileStorage):

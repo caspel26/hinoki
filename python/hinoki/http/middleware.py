@@ -33,7 +33,7 @@ from dataclasses import dataclass
 
 from hinoki.http.response import Response
 
-__all__ = ["Middleware", "MiddlewareRequest", "Next", "check_middleware"]
+__all__ = ["Middleware", "MiddlewareRequest", "Next"]
 
 
 @dataclass(frozen=True, slots=True)

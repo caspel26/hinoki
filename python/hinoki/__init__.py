@@ -28,6 +28,7 @@ from hinoki.parsers import (
     JSONParser,
     MultiPartParser,
     Parser,
+    TextParser,
     UploadedFile,
     XMLParser,
 )
@@ -122,6 +123,7 @@ __all__ = [
     "Schemas",
     "Secret",
     "Slug",
+    "TextParser",
     "Transactions",
     "Unset",
     "UploadedFile",

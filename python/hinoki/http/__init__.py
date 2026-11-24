@@ -15,7 +15,7 @@ package is the public surface for the verbs and HTTP request/response types.
 from hinoki.http.cors import Cors
 from hinoki.http.middleware import Middleware, MiddlewareRequest, Next
 from hinoki.http.request import Request
-from hinoki.http.response import Response
+from hinoki.http.response import Response, set_cookie
 from hinoki.http.stream import Event, EventStream, File, Stream
 from hinoki.routing import delete, get, patch, post, put, query
 from hinoki.websocket import CloseCode, WebSocket, WebSocketClosed, websocket
@@ -40,5 +40,6 @@ __all__ = [
     "post",
     "put",
     "query",
+    "set_cookie",
     "websocket",
 ]

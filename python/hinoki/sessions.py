@@ -568,6 +568,8 @@ class SessionModule(Module):
             database_store.bind(ctx.get(Database))
         try:
             ctx.provide(SessionStore, self.store)
+            if type(self.store) is not SessionStore:
+                ctx.provide(type(self.store), self.store)
             ctx.provide(SessionSettings, self.settings)
             yield
         finally:
