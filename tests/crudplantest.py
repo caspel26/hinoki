@@ -2,13 +2,15 @@
 
 import asyncio
 import dataclasses
+import enum
 import json
 import math
 import os
 import re
 import sys
 import types
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Annotated, Any, ClassVar, Literal, cast
@@ -42,7 +44,17 @@ from hinoki.fields import UNSET
 from hinoki.filters import Eq, FilterSet, In, Range, Search
 from hinoki.http.request import Request
 from hinoki.modules import ModuleContext
-from hinoki.orm import ManyToMany, Model, QuerySet, field, many_to_many
+from hinoki.orm import (
+    ManyToMany,
+    Model,
+    QuerySet,
+    SoftDeleteModel,
+    UUIDModel,
+    field,
+    many_to_many,
+    urlsafe_token,
+    uuid_pk,
+)
 from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.orm.queryset import write_statement
 from hinoki.pagination import CursorPagination, PageNumberPagination
@@ -230,7 +242,6 @@ def test_function_form_keeps_native_plan_eligibility() -> None:
 
 
 def test_lifecycle_models_fail_closed_on_native_crud_lane() -> None:
-    assert not crudplan_module.plain_crud_model(SoftPlanItem, cast(Any, None), "delete")
     assert not crudplan_module.plain_crud_model(
         TrackedPlanItem, cast(Any, None), "update"
     )
@@ -2765,5 +2776,210 @@ async def test_native_filtered_list_matches_python_lane_on_sqlite(
         assert all(status == 200 for status, _ in native_valid)
         assert native_errors == python_errors
         assert all(status == 422 for status, _ in native_errors)
+    finally:
+        await worker.stop()
+
+
+class Tier(enum.Enum):
+    BASIC = "basic"
+    GOLD = "gold"
+
+
+class RichPlanItem(UUIDModel, SoftDeleteModel, table="crud_rich_items"):
+    id: UUID = uuid_pk(version=7)
+    name: str
+    share: str = urlsafe_token(nbytes=12)
+    price: Decimal = Decimal("0.50")
+    due: date | None = None
+
+
+class RichPlanItemOut(Schema):
+    id: UUID
+    name: str
+    share: str
+    price: Decimal
+    due: date | None
+
+
+class RichPlanItemIn(Schema):
+    name: str
+    price: Decimal = Decimal("1.25")
+    due: date | None = None
+
+
+class RichPlanItemPatch(Schema):
+    name: str | Unset = UNSET
+    price: Decimal | Unset = UNSET
+    due: date | Unset | None = UNSET
+
+
+RichPlanItems = crud(
+    RichPlanItem,
+    path="/rich-items",
+    read=RichPlanItemOut,
+    create=RichPlanItemIn,
+    update=RichPlanItemPatch,
+    delete=True,
+    public_writes=True,
+).api()
+
+
+def test_lifecycle_columns_compile_native_crud_plans() -> None:
+    app = Hinoki(
+        include=[RichPlanItems],
+        modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+    selected = [item for item in pipeline.crud_plan_selections if item is not None]
+    assert [item.action for item in selected] == [
+        "list",
+        "retrieve",
+        "create",
+        "update",
+        "delete",
+    ], pipeline.crud_plan_reasons
+
+
+class TierPlanItem(Model, table="crud_tier_items"):
+    id: int = field(primary_key=True)
+    tier: Tier = Tier.BASIC
+
+
+class TierPlanItemOut(Schema):
+    id: int
+    tier: Tier
+
+
+def test_enum_columns_stay_on_python_crud_lane() -> None:
+    app = Hinoki(
+        include=[crud(TierPlanItem, path="/tiers", read=TierPlanItemOut).api()],
+        modules=[DatabaseModule("sqlite:///crud-plan-unused.sqlite3")],
+    )
+    pipeline = Pipeline(app)
+    build_server_core(pipeline)
+    assert not any(pipeline.crud_plan_selections)
+
+
+async def _rich_crud_sequence(
+    port: int, engine: Any
+) -> tuple[
+    list[tuple[int, list[tuple[str, str]], bytes]],
+    list[list[tuple[str, str, tuple[Any, ...]]]],
+]:
+    async def call(
+        method: str, target: str, body: bytes = b""
+    ) -> tuple[
+        tuple[int, list[tuple[str, str]], bytes],
+        list[tuple[str, str, tuple[Any, ...]]],
+    ]:
+        response, trace = await _traced_crud_http_request(
+            engine, port, method, target, body=body
+        )
+        masked = [
+            (kind, sql, tuple(_mask_rich_value(value) for value in values))
+            for kind, sql, values in trace
+        ]
+        return response, masked
+
+    cases = [await call("POST", "/rich-items", b'{"name":"plain"}')]
+    created, trace = await call(
+        "POST",
+        "/rich-items",
+        b'{"name":"dated","price":"12.50","due":"2026-02-28"}',
+    )
+    cases.append((created, trace))
+    target = f"/rich-items/{core.decode_json(created[2])['id']}"
+    for method, path, body in (
+        ("GET", "/rich-items", b""),
+        ("GET", target, b""),
+        ("PATCH", target, b'{"price":"7.10","due":null}'),
+        ("DELETE", target, b""),
+        ("GET", target, b""),
+        ("PATCH", target, b'{"name":"gone"}'),
+        ("DELETE", target, b""),
+        ("GET", "/rich-items?page_size=1", b""),
+    ):
+        cases.append(await call(method, path, body))
+    return [_mask_rich_response(item) for item, _ in cases], [
+        trace for _, trace in cases
+    ]
+
+
+def _mask_rich_value(value: Any) -> Any:
+    if isinstance(value, UUID):
+        return "<uuid>"
+    if isinstance(value, datetime):
+        return "<now>"
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{16}", value):
+        return "<token>"
+    return value
+
+
+def _mask_rich_response(
+    response: tuple[int, list[tuple[str, str]], bytes],
+) -> tuple[int, list[tuple[str, str]], bytes]:
+    status, headers, body = response
+    if not body.startswith(b"{"):
+        return response
+    data = core.decode_json(body)
+    for item in data.get("items", [data]):
+        for name in ("id", "share"):
+            if name in item:
+                item[name] = f"<{name}>"
+    return status, headers, core.encode_json(data)
+
+
+async def test_lifecycle_columns_match_forced_python_lane_on_sqlite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    require_sql_trace()
+    database_url = f"sqlite:///{tmp_path / 'native-rich.db'}"
+    database = await Database.connect(database_url, max_size=2, wait=1)
+    await database.execute(
+        "CREATE TABLE crud_rich_items (deleted_at TEXT, id UUID PRIMARY KEY, "
+        "name TEXT NOT NULL, share TEXT NOT NULL UNIQUE, price TEXT NOT NULL, "
+        "due TEXT)"
+    )
+    database.close()
+    app = Hinoki(
+        settings=AppSettings(
+            server=ServerSettings(trusted_proxies=("127.0.0.1",), trust_request_id=True)
+        ),
+        include=[RichPlanItems],
+        modules=[DatabaseModule(database_url)],
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    monkeypatch.setattr(worker, "_check_crud_snapshots", lambda: None)
+    await worker.start()
+    originals = {
+        name: getattr(RichPlanItems, name) for name in ("store", "change", "remove")
+    }
+    try:
+        for name in originals:
+            monkeypatch.setattr(
+                RichPlanItems,
+                name,
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    AssertionError("native CRUD write called a Python hook")
+                ),
+            )
+        database_context = worker.pipeline.ctx.find(Database)
+        assert database_context is not None
+        engine = database_context.engine
+        native_results, native_traces = await _rich_crud_sequence(
+            worker.address[1], engine
+        )
+        worker.core._disarm_crud_plans()
+        reset = await Database.connect(database_url, max_size=1, wait=1)
+        await reset.execute("DELETE FROM crud_rich_items")
+        reset.close()
+        for name, value in originals.items():
+            monkeypatch.setattr(RichPlanItems, name, value)
+        python_results, python_traces = await _rich_crud_sequence(
+            worker.address[1], engine
+        )
+        assert native_results == python_results
+        _assert_sql_traces_equal(native_traces, python_traces)
     finally:
         await worker.stop()

@@ -432,7 +432,7 @@ fn write_float(output: &mut Vec<u8>, value: f64) -> Option<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_item_with, encode_page, RowIds, RowPlan};
+    use super::{decimal_wire, encode_item_with, encode_page, RowIds, RowPlan};
     use hinoki_orm::Value;
     use time::macros::datetime;
     use uuid::Uuid;
@@ -655,5 +655,40 @@ mod tests {
             ("created".into(), Value::Timestamp(beyond_python)),
         ];
         assert!(encode_page(&[unprojected], &unprojected_plan, 1, 20, 1).is_none());
+    }
+
+    #[test]
+    fn decimal_wire_matches_fixed_point_formatting_or_defers() {
+        assert_eq!(decimal_wire("007.10").as_deref(), Some("7.10"));
+        assert_eq!(decimal_wire("-0.5").as_deref(), Some("-0.5"));
+        assert_eq!(decimal_wire("000").as_deref(), Some("0"));
+        for text in ["1E-7", "1.", ".5", "abc", "1.2.3"] {
+            assert_eq!(decimal_wire(text), None, "{text}");
+        }
+    }
+
+    #[test]
+    fn decimal_and_date_columns_write_valid_text_only() {
+        let plan = RowPlan::new(
+            vec!["price".into(), "due".into()],
+            vec![
+                ("price".into(), "price".into(), "decimal".into(), false),
+                ("due".into(), "due".into(), "date".into(), true),
+            ],
+        )
+        .unwrap();
+        let row = |price: &str, due: &str| {
+            vec![
+                ("price".to_owned(), Value::Text(price.to_owned())),
+                ("due".to_owned(), Value::Text(due.to_owned())),
+            ]
+        };
+        let ids = RowIds::default();
+        assert_eq!(
+            encode_item_with(&row("012.50", "2026-02-28"), &plan, &ids).unwrap(),
+            br#"{"price":"12.50","due":"2026-02-28"}"#
+        );
+        assert!(encode_item_with(&row("1.50", "2026-02-30"), &plan, &ids).is_none());
+        assert!(encode_item_with(&row("1E-7", "2026-02-28"), &plan, &ids).is_none());
     }
 }
