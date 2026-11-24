@@ -137,7 +137,7 @@ The command builds the app without serving it or opening a database; it works ev
 
 `--breaking-against BASELINE` compares the generated document with an earlier OpenAPI JSON file (the released version) and prints one `breaking: …` line per change that would break an existing client.
 
-Reported: a removed operation or success response, new or newly required request input, a removed response property, a changed type, and a request enum that narrows or a response enum that widens. Additions are compatible and are not reported. Exit status is `0` when nothing breaks, `1` when something does, and `2` when the target cannot load or the baseline is missing or not a JSON object. It cannot be combined with `--output` or `--check`. The comparison reads the documents only; it does not check behavior that an OpenAPI document does not describe.
+Reported: a removed operation or success response, new or newly required request input (a parameter that becomes required, a required request body where there was none), a removed response property or JSON body, a changed type (parameters included), a changed type, and a request enum that narrows or a response enum that widens. Additions are compatible and are not reported. Exit status is `0` when nothing breaks, `1` when something does, and `2` when the target cannot load or the baseline is missing or not a JSON object. It cannot be combined with `--output` or `--check`. The comparison reads the documents only; it does not check behavior that an OpenAPI document does not describe.
 
 Run `--check` in CI to catch an OpenAPI document that drifted from the code, and
 `--breaking-against` with the last released document before a release. See
