@@ -6,9 +6,10 @@
   --bench-fastapi: #7f9aa6;
   --bench-ninja: #8b97ab;
   --bench-bolt: #a39a8d;
-  --bench-fastify: #9aa77f;
-  --bench-hono: #c29a6b;
-  --bench-bun: #b98a9e;
+  --bench-litestar: #9aa77f;
+  --bench-elysia-bun: #b98a9e;
+  --bench-hono-bun: #c29a6b;
+  --bench-hono-node: #86a7c9;
   --bench-track: color-mix(in srgb, var(--hn-edge) 55%, transparent);
   --bench-good: #6fcf97;
   --bench-warn: #f2b45a;
@@ -23,9 +24,10 @@
   --bench-fastapi: #5d7782;
   --bench-ninja: #66728a;
   --bench-bolt: #7d7465;
-  --bench-fastify: #6a7650;
-  --bench-hono: #8f6a3c;
-  --bench-bun: #875a6e;
+  --bench-litestar: #6a7650;
+  --bench-elysia-bun: #875a6e;
+  --bench-hono-bun: #8f6a3c;
+  --bench-hono-node: #4f7399;
   --bench-good: #1a7f4b;
   --bench-warn: #9a5b00;
 }
@@ -51,9 +53,10 @@
 [data-stack="fastapi"] { --bench-color: var(--bench-fastapi); }
 [data-stack="ninja"] { --bench-color: var(--bench-ninja); }
 [data-stack="bolt"] { --bench-color: var(--bench-bolt); }
-[data-stack="fastify"] { --bench-color: var(--bench-fastify); }
-[data-stack="hono"] { --bench-color: var(--bench-hono); }
-[data-stack="bun"] { --bench-color: var(--bench-bun); }
+[data-stack="litestar"] { --bench-color: var(--bench-litestar); }
+[data-stack="elysia-bun"] { --bench-color: var(--bench-elysia-bun); }
+[data-stack="hono-bun"] { --bench-color: var(--bench-hono-bun); }
+[data-stack="hono-node"] { --bench-color: var(--bench-hono-node); }
 
 /* Conclusion */
 
