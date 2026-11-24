@@ -30,10 +30,16 @@ pub fn header_total<'a, I>(headers: I) -> usize
 where
     I: IntoIterator<Item = (&'a [u8], &'a [u8])>,
 {
-    headers
-        .into_iter()
-        .map(|(name, value)| name.len() + value.len() + HEADER_OVERHEAD)
-        .sum()
+    headers.into_iter().fold(0usize, |total, (name, value)| {
+        add_header_total(total, name.len(), value.len())
+    })
+}
+
+fn add_header_total(total: usize, name_len: usize, value_len: usize) -> usize {
+    total
+        .saturating_add(name_len)
+        .saturating_add(value_len)
+        .saturating_add(HEADER_OVERHEAD)
 }
 
 impl Limits {
