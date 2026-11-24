@@ -141,21 +141,23 @@ def collection_check(name: str, arm: object) -> Check:
         )
     item = compile_item(name, args[0])
     if origin is list:
-
-        def fallback(value: object) -> bool:
-            return isinstance(value, list) and all(item(v) for v in value)
-
-        nested = unwrap(args[0])
-        if typing.get_origin(nested) is dict and typing.get_args(nested) == (
-            str,
-            object,
-        ):
-            return core._ResponseObjectList(fallback, item)
-        return fallback
+        return list_check(args[0], item)
     container = origin
     return lambda value: (
         isinstance(value, container) and all(item(v) for v in value.items)
     )
+
+
+def list_check(annotation: object, item: Check) -> Check:
+    def fallback(value: object) -> bool:
+        return isinstance(value, list) and all(item(v) for v in value)
+
+    nested = unwrap(annotation)
+    if typing.get_origin(nested) is dict and typing.get_args(nested) == (str, object):
+        return core._ResponseObjectList(fallback, item)
+    if isinstance(nested, type) and issubclass(nested, Schema | Model):
+        return core._ResponseTypeList(nested, fallback)
+    return fallback
 
 
 def compile_item(name: str, annotation: object) -> Check:

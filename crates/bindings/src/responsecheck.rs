@@ -40,3 +40,35 @@ impl ResponseObjectList {
         Ok(true)
     }
 }
+
+/// Fast check for list[Schema] and list[Model], with Python checks for list subclasses.
+#[pyclass(module = "hinoki.core", frozen, name = "_ResponseTypeList")]
+pub struct ResponseTypeList {
+    target: Py<PyAny>,
+    fallback: Py<PyAny>,
+}
+
+#[pymethods]
+impl ResponseTypeList {
+    #[new]
+    fn new(target: Py<PyAny>, fallback: Py<PyAny>) -> Self {
+        Self { target, fallback }
+    }
+
+    fn __call__(&self, py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+        if !value.is_exact_instance_of::<PyList>() {
+            return self.fallback.bind(py).call1((value,))?.is_truthy();
+        }
+        let list = value.cast::<PyList>()?;
+        let target = self.target.bind(py);
+        let mut index = 0;
+        while index < list.len() {
+            let item = list.get_item(index)?;
+            if !item.is_instance(target)? {
+                return Ok(false);
+            }
+            index += 1;
+        }
+        Ok(true)
+    }
+}
