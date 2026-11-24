@@ -306,10 +306,9 @@ def test_plan_templates_match_python_compilers_for_all_dialects() -> None:
             templates[dialect, "list"]
             == ordered.limit(20).offset(0).compile(dialect=dialect)[0]
         )
-        # One-row reads keep their constant two-row cap as a literal.
-        by_id = query.filter(id=UUID(int=1)).compile(dialect=dialect)[0] + " LIMIT 2"
-        assert templates[dialect, "retrieve"] == by_id
-        assert templates[dialect, "read_back"] == by_id
+        by_id = query.filter(id=UUID(int=1)).limit(2)
+        assert templates[dialect, "retrieve"] == by_id.compile(dialect=dialect)[0]
+        assert templates[dialect, "read_back"] == by_id.compile(dialect=dialect)[0]
         assert (
             templates[dialect, "write_read_back"]
             == query.filter(id=UUID(int=1)).compile(dialect=dialect)[0]

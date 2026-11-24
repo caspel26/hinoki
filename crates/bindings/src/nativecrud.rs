@@ -1510,8 +1510,8 @@ mod tests {
         assert_eq!(body, br#"{"id":7,"name":"second"}"#);
         let statements = database.statements.lock().unwrap();
         assert_eq!(statements.len(), 1);
-        assert!(statements[0].0.contains("LIMIT 2"));
-        assert_eq!(statements[0].1, [Value::Int(7)]);
+        assert!(statements[0].0.ends_with("LIMIT $2"));
+        assert_eq!(statements[0].1, [Value::Int(7), Value::Int(2)]);
     }
 
     #[test]
