@@ -264,12 +264,12 @@ def test_scenarios_are_django_bolts_seven_get_routes_in_its_order() -> None:
     assert set(run.SCENARIOS) > run.AUTH_SCENARIOS
 
 
-def test_javascript_mode_runs_three_stacks_with_the_same_pool_workers_and_port(
+def test_javascript_mode_runs_django_bolts_three_javascript_servers(
     tmp_path: Path,
 ) -> None:
     servers = run.SERVER_MODES["javascript"]
 
-    assert list(servers) == ["fastify", "hono", "bun"]
+    assert list(servers) == ["elysia-bun", "hono-bun", "hono-node"]
     assert not set(servers) & {
         name for mode, table in run.SERVER_MODES.items() if mode != "javascript"
         for name in table
@@ -283,8 +283,11 @@ def test_javascript_mode_runs_three_stacks_with_the_same_pool_workers_and_port(
         assert env["BENCH_PORT"] == str(run.PORT)
         payloads_path = Path(run.server_env(name, {}, tmp_path)["BENCH_PAYLOADS"])
         assert json.loads(payloads_path.read_text()) == parity_data.PAYLOADS
-    assert servers["bun"][0][0] == "bun"
-    assert {servers["fastify"][0][0], servers["hono"][0][0]} == {"node"}
+    assert {name: command[0] for name, (command, _) in servers.items()} == {
+        "elysia-bun": "bun",
+        "hono-bun": "bun",
+        "hono-node": "node",
+    }
     assert "BENCH_PAYLOADS" not in run.server_env("hinoki", {}, tmp_path)
 
 
@@ -298,7 +301,7 @@ def test_only_the_bench_variables_a_stack_declares_reach_its_server() -> None:
         "BENCH_POSTGRES_CONTAINER": "other",
     }
 
-    bun = run.server_env("bun", leaked)
+    bun = run.server_env("elysia-bun", leaked)
     hinoki = run.server_env("hinoki", leaked)
     fastapi = run.server_env("fastapi", leaked)
 
@@ -336,7 +339,7 @@ def test_python_servers_run_in_this_interpreter_and_runtimes_by_path(
 def test_javascript_versions_come_from_the_runtimes_and_installed_packages(
     tmp_path: Path,
 ) -> None:
-    for name, version in {"fastify": "5.0.0", "@hono/node-server": "2.0.0"}.items():
+    for name, version in {"elysia": "1.0.0", "@hono/node-server": "2.0.0"}.items():
         package = tmp_path / "node_modules" / name
         package.mkdir(parents=True)
         (package / "package.json").write_text(json.dumps({"version": version}))
@@ -348,7 +351,7 @@ def test_javascript_versions_come_from_the_runtimes_and_installed_packages(
         == f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
     )
     assert found["runtimes"]["bun"] is None
-    assert found["packages"]["fastify"] == "5.0.0"
+    assert found["packages"]["elysia"] == "1.0.0"
     assert found["packages"]["@hono/node-server"] == "2.0.0"
     assert found["packages"]["pg"] is None
 

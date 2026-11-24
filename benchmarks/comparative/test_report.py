@@ -736,7 +736,7 @@ def test_legacy_oha_results_are_labelled_and_not_mixed_with_bombardier() -> None
 
 JS_VERSIONS = {
     "runtimes": {"node": "26.12.0", "bun": "1.4.5"},
-    "packages": {"fastify": "5.12.8", "hono": "4.13.21", "@hono/node-server": "2.1.11", "pg": "8.23.1"},
+    "packages": {"elysia": "1.4.32", "hono": "4.13.21", "@hono/node-server": "2.1.11", "pg": "8.23.1"},
 }  # fmt: skip
 
 
@@ -751,7 +751,7 @@ def with_javascript_run(root: Path) -> list[Path]:
     write_results(
         javascript,
         "javascript",
-        {"fastify": (80.0, 81.0, 79.0), "hono": (70.0, 71.0, 69.0), "bun": (90.0, 91.0, 89.0)},
+        {"elysia-bun": (90.0, 91.0, 89.0), "hono-bun": (80.0, 81.0, 79.0), "hono-node": (70.0, 71.0, 69.0)},
         date="2026-11-21 20:10:00 +0100",
     )  # fmt: skip
     env = json.loads((javascript / "environment.json").read_text())
@@ -762,12 +762,15 @@ def with_javascript_run(root: Path) -> list[Path]:
 
 
 def test_javascript_stacks_are_labelled_by_framework_and_runtime() -> None:
-    assert report.stack_label("fastify") == "Fastify (Node.js)"
-    assert report.stack_label("hono") == "Hono (Node.js)"
-    assert report.stack_label("bun") == "Bun.serve (Bun)"
-    assert {report.STACKS[key].group for key in ("fastify", "hono", "bun")} == {
-        "Other runtimes"
-    }
+    javascript = ("elysia-bun", "hono-bun", "hono-node")
+
+    assert [report.stack_label(key) for key in javascript] == [
+        "Elysia (Bun)",
+        "Hono (Bun)",
+        "Hono (Node.js)",
+    ]
+    assert {report.STACKS[key].group for key in javascript} == {"Other runtimes"}
+    assert len({report.stack_family(key) for key in javascript}) == 3
     assert {report.STACKS[key].group for key in ("hinoki", "bolt")} == {"Python"}
 
 
@@ -784,9 +787,9 @@ def test_other_runtimes_sit_after_python_in_a_separate_overview_group() -> None:
         "Request type",
         "Hinoki (Granian)",
         "FastAPI (Uvicorn)",
-        "Fastify (Node.js)",
+        "Elysia (Bun)",
+        "Hono (Bun)",
         "Hono (Node.js)",
-        "Bun.serve (Bun)",
     ]
     assert matrix.count("is-group-start") == 1 + len(report.SCENARIOS)
     legend = page[page.index('<ul class="bench-legend"') :]
@@ -796,7 +799,7 @@ def test_other_runtimes_sit_after_python_in_a_separate_overview_group() -> None:
     assert "JavaScript runtimes" in page
     assert "## Server setups in detail" in page  # the documented view only
     assert (
-        "Fastify"
+        "Elysia"
         not in page.split("## Server setups in detail")[1].split(
             "## Method and limits"
         )[0]
@@ -827,13 +830,14 @@ def test_method_lists_javascript_runtimes_drivers_and_how_to_install_them() -> N
         page = page_of(*with_javascript_run(root))
 
     assert "| JavaScript runtimes | Node.js 26.12.0; Bun 1.4.5 |" in page
-    assert "| Fastify | node-postgres (pg)" in page
-    assert "fastify 5.12.8, pg 8.23.1, Node.js 26.12.0 |" in page
+    assert "| Hono on Node.js | node-postgres (pg)" in page
     assert (
         "hono 4.13.21, @hono/node-server 2.1.11, pg 8.23.1, Node.js 26.12.0 |" in page
     )
-    assert "| Bun.serve | Bun.SQL" in page
-    assert "Bun 1.4.5 |" in page
+    assert "| Elysia on Bun | Bun.SQL" in page
+    assert "elysia 1.4.32, Bun 1.4.5 |" in page
+    assert "| Hono on Bun | Bun.SQL" in page
+    assert "hono 4.13.21, Bun 1.4.5 |" in page
     assert "npm ci" in page
     assert "run.py --server-mode javascript" in page
 
@@ -842,7 +846,7 @@ def test_python_only_pages_do_not_mention_javascript() -> None:
     with results_root() as root:
         page = page_of(*full_session(root))
 
-    for word in ("Fastify", "Hono", "Bun", "npm", "JavaScript"):
+    for word in ("Elysia", "Hono", "Bun", "npm", "JavaScript"):
         assert word not in page
 
 
