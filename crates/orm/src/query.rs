@@ -690,11 +690,57 @@ fn reads_table<V>(select: &Select<V>, table: &str) -> bool {
             .any(|sub| reads_table(&sub.select, table))
 }
 
-pub fn compile_select<V: Clone>(q: &Select<V>) -> Compiled<V> {
+/// A parameter value carrying a `LIMIT` or `OFFSET` row count.
+pub trait FromCount {
+    fn from_count(count: i64) -> Self;
+}
+
+impl FromCount for crate::value::Value {
+    fn from_count(count: i64) -> Self {
+        Self::Int(count)
+    }
+}
+
+impl FromCount for i64 {
+    fn from_count(count: i64) -> Self {
+        count
+    }
+}
+
+pub fn compile_select<V: Clone + FromCount>(q: &Select<V>) -> Compiled<V> {
     compile_select_with(q, Dialect::Postgres)
 }
 
-pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compiled<V> {
+/// The statement with `LIMIT` and `OFFSET` bound as parameters after every
+/// other value, so any page window shares one statement text (and one entry
+/// in a prepared-statement cache).
+pub fn compile_select_with<V: Clone + FromCount>(q: &Select<V>, dialect: Dialect) -> Compiled<V> {
+    compile_select_bound(q, dialect, &mut V::from_count)
+}
+
+/// [`compile_select_with`] with each row count turned into a parameter by
+/// `count`, for values that need context to hold an integer.
+pub fn compile_select_bound<V: Clone>(
+    q: &Select<V>,
+    dialect: Dialect,
+    count: &mut impl FnMut(i64) -> V,
+) -> Compiled<V> {
+    compile_select_counted(q, dialect, &mut |n| Some(count(n)))
+}
+
+/// The statement with `LIMIT` and `OFFSET` written as literals. Only for
+/// statements built once with fixed counts (plan templates): a count taken
+/// from a request must go through [`compile_select_with`], or each distinct
+/// value becomes a new statement text.
+pub fn compile_select_fixed<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compiled<V> {
+    compile_select_counted(q, dialect, &mut |_| None)
+}
+
+fn compile_select_counted<V: Clone>(
+    q: &Select<V>,
+    dialect: Dialect,
+    count: &mut dyn FnMut(i64) -> Option<V>,
+) -> Compiled<V> {
     let table = quote_with(&q.table, dialect)?;
     let joined = !q.joins.is_empty();
     let mut columns = select_list(q, joined, dialect)?;
@@ -710,39 +756,71 @@ pub fn compile_select_with<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compile
     }
     b.conditions(&q.filters, q.keyset.as_ref(), &q.subfilters)?;
     if !q.order.is_empty() {
-        let parts = q
-            .order
-            .iter()
-            .map(|(c, desc)| {
-                column_ref(c, b.base.as_deref(), dialect).map(|c| {
-                    if *desc {
-                        format!("{c} DESC")
-                    } else {
-                        format!("{c} ASC")
-                    }
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        b.sql.push_str(&format!(" ORDER BY {}", parts.join(", ")));
+        let order = order_clause(&q.order, b.base.as_deref(), dialect)?;
+        b.sql.push_str(&order);
     }
-    b.sql.push_str(&limit_clause(dialect, q.limit, q.offset));
+    b.limit_clause(q.limit, q.offset, count);
     Ok((b.sql, b.params))
 }
 
-/// `LIMIT` and `OFFSET`; SQLite and MySQL reject an `OFFSET` with no `LIMIT`, so
-/// each gets its own "no limit" value.
-fn limit_clause(dialect: Dialect, limit: Option<u64>, offset: Option<u64>) -> String {
-    let mut clause = String::new();
-    match (limit, offset, dialect) {
-        (Some(limit), _, _) => clause.push_str(&format!(" LIMIT {limit}")),
-        (None, Some(_), Dialect::Mysql) => clause.push_str(" LIMIT 18446744073709551615"),
-        (None, Some(_), Dialect::Sqlite) => clause.push_str(" LIMIT -1"),
-        _ => {}
+fn order_clause(
+    order: &[(String, bool)],
+    base: Option<&str>,
+    dialect: Dialect,
+) -> Result<String, QueryError> {
+    let parts = order
+        .iter()
+        .map(|(c, desc)| {
+            column_ref(c, base, dialect).map(|c| {
+                if *desc {
+                    format!("{c} DESC")
+                } else {
+                    format!("{c} ASC")
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(format!(" ORDER BY {}", parts.join(", ")))
+}
+
+/// A row count as the signed 64-bit integer every server takes; a larger count
+/// is clamped (no table holds that many rows, so the result is unchanged).
+fn clamp_count(count: u64) -> i64 {
+    i64::try_from(count).unwrap_or(i64::MAX)
+}
+
+impl<V: Clone> Builder<V> {
+    /// `LIMIT` and `OFFSET`; SQLite and MySQL reject an `OFFSET` with no
+    /// `LIMIT`, so each gets its own constant "no limit" value. A count becomes
+    /// the parameter `count` returns, or a literal when it returns `None`.
+    fn limit_clause(
+        &mut self,
+        limit: Option<u64>,
+        offset: Option<u64>,
+        count: &mut dyn FnMut(i64) -> Option<V>,
+    ) {
+        match (limit, offset, self.dialect) {
+            (Some(limit), _, _) => {
+                let limit = self.count_holder(limit, count);
+                self.sql.push_str(&format!(" LIMIT {limit}"));
+            }
+            (None, Some(_), Dialect::Mysql) => self.sql.push_str(" LIMIT 18446744073709551615"),
+            (None, Some(_), Dialect::Sqlite) => self.sql.push_str(" LIMIT -1"),
+            _ => {}
+        }
+        if let Some(offset) = offset {
+            let offset = self.count_holder(offset, count);
+            self.sql.push_str(&format!(" OFFSET {offset}"));
+        }
     }
-    if let Some(offset) = offset {
-        clause.push_str(&format!(" OFFSET {offset}"));
+
+    fn count_holder(&mut self, value: u64, count: &mut dyn FnMut(i64) -> Option<V>) -> String {
+        let value = clamp_count(value);
+        match count(value) {
+            Some(param) => self.placeholder(param),
+            None => value.to_string(),
+        }
     }
-    clause
 }
 
 pub fn compile_insert<V: Clone>(q: &Insert<V>) -> Compiled<V> {

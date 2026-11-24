@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use hinoki_orm::query::{
-    compile_delete_with, compile_insert_with, compile_select_with, compile_update_with, Delete,
-    Dialect, Filter, Insert, Op, QueryError, Select, Update,
+    compile_delete_with, compile_insert_with, compile_select_fixed, compile_select_with,
+    compile_update_with, Delete, Dialect, Filter, Insert, Op, QueryError, Select, Update,
 };
 use hinoki_orm::Value;
 use pyo3::exceptions::PyValueError;
@@ -223,10 +223,23 @@ impl PyCrudPlan {
             .collect()
     }
 
-    /// The list statement for any page window, for differential tests.
+    /// The list statement and its bound page window, for differential tests.
     #[pyo3(name = "list_sql")]
-    fn py_list_sql(&self, dialect: &str, page_size: u64, offset: u64) -> PyResult<String> {
-        self.inner.list_sql(dialect, page_size, offset)
+    fn py_list_sql(
+        &self,
+        dialect: &str,
+        page_size: u64,
+        offset: u64,
+    ) -> PyResult<(String, Vec<i64>)> {
+        let (sql, params) = self.inner.list_sql(dialect, page_size, offset)?;
+        let counts = params
+            .into_iter()
+            .map(|value| match value {
+                Value::Int(count) => Ok(count),
+                _ => Err(PyValueError::new_err("list window is not a row count")),
+            })
+            .collect::<PyResult<_>>()?;
+        Ok((sql, counts))
     }
 
     /// Compiled SQL as `(dialect, kind, sql)` tuples for differential tests.
@@ -440,11 +453,11 @@ impl CrudPlan {
         dialect_name: &str,
         page_size: u64,
         offset: u64,
-    ) -> PyResult<String> {
+    ) -> PyResult<(String, Vec<Value>)> {
         let dialect = resolve_dialect(dialect_name)?;
         let order = self.default_list_order();
         compile_select_with(
-            &Select::<usize> {
+            &Select::<Value> {
                 table: self.table.clone(),
                 columns: self.columns.clone(),
                 joins: Vec::new(),
@@ -458,7 +471,6 @@ impl CrudPlan {
             },
             dialect,
         )
-        .map(|(sql, _)| sql)
         .map_err(query_error)
     }
 
@@ -987,7 +999,7 @@ fn select_write_sql(
     (primary_key, owner): (&str, Option<&str>),
     dialect: Dialect,
 ) -> PyResult<String> {
-    compile_select_with(
+    compile_select_fixed(
         &Select::<usize> {
             table: table.to_owned(),
             columns: columns.to_vec(),
@@ -1016,7 +1028,7 @@ fn select_sql(
     dialect: Dialect,
 ) -> PyResult<String> {
     compile_select_with(
-        &Select::<usize> {
+        &Select::<i64> {
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
@@ -1042,7 +1054,7 @@ fn select_filtered_sql(
     limit: Option<u64>,
     dialect: Dialect,
 ) -> PyResult<String> {
-    compile_select_with(
+    compile_select_fixed(
         &Select::<usize> {
             table: table.to_owned(),
             columns: columns.to_vec(),

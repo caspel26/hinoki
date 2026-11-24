@@ -1159,8 +1159,8 @@ fn list_statements(
 ) -> Option<ListStatements> {
     if filters.is_empty() && order.is_empty() {
         let count_sql = plan.count_sql(dialect)?.to_owned();
-        let list_sql = plan.list_sql(dialect, page.size, page.offset).ok()?;
-        return Some((count_sql, Vec::new(), list_sql, Vec::new()));
+        let (list_sql, list_params) = plan.list_sql(dialect, page.size, page.offset).ok()?;
+        return Some((count_sql, Vec::new(), list_sql, list_params));
     }
     let (count_sql, count_params) = plan.filtered_count_sql(dialect, filters.clone()).ok()?;
     let (list_sql, list_params) = plan
