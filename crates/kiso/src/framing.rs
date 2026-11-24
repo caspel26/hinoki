@@ -560,4 +560,18 @@ transfer-encoding: chunked
         assert!(!close.close.load(Ordering::Acquire));
     }
 
+    #[test]
+    fn leading_empty_lines_count_toward_the_head_bound() {
+        let head: &[u8] = b"\r\n\r\nGET / HTTP/1.1\r\n\r\n";
+        let close = Arc::new(Signals::default());
+        let mut f = Framing::new(head.len() - 1, Arc::clone(&close));
+        let out = run(&mut f, &[head]);
+        assert!(out.contains(&0));
+        assert!(close.close.load(Ordering::Acquire));
+
+        let close = Arc::new(Signals::default());
+        let mut f = Framing::new(head.len(), Arc::clone(&close));
+        assert_eq!(run(&mut f, &[&head[..3], &head[3..]]), head);
+        assert!(!close.close.load(Ordering::Acquire));
+    }
 }
