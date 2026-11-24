@@ -1,17 +1,20 @@
 """Forms derived from model annotations.
 
 Supported column types become inputs (text, textarea, number, checkbox, UUID,
-datetime, or a select for a foreign key); anything else is shown read-only
-rather than guessed. Conversion from form text is strict and reports one
-message per field. On edit, only fields the user actually changed are
-converted and saved, so untouched values are never rewritten by a browser's
-re-encoding (for example a datetime that a ``datetime-local`` input cannot show).
+datetime, date, time, decimal, or a select for an enum or a foreign key);
+anything else is shown read-only rather than guessed. Conversion from form
+text is strict and reports one message per field. On edit, only fields the
+user actually changed are converted and saved, so untouched values are never
+rewritten by a browser's re-encoding (for example a datetime that a
+``datetime-local`` input cannot show).
 """
 
 from __future__ import annotations
 
 import dataclasses
 import datetime
+import decimal
+import enum
 import typing
 import uuid
 from collections.abc import Mapping, Sequence
@@ -35,6 +38,9 @@ SIMPLE_KINDS: dict[Any, str] = {
     float: "number",
     uuid.UUID: "uuid",
     datetime.datetime: "datetime",
+    datetime.date: "date",
+    datetime.time: "time",
+    decimal.Decimal: "decimal",
 }
 TEXT_KINDS = {"text", "textarea"}
 UTC_ZONE = datetime.UTC
@@ -44,7 +50,11 @@ INPUT_TYPES = {
     "number": "text",
     "uuid": "text",
     "datetime": "datetime-local",
+    "date": "date",
+    "time": "time",
+    "decimal": "text",
 }
+MAX_DECIMAL = 100  # the longest decimal text the admin accepts
 
 
 class FieldProblem(ValueError):
@@ -88,6 +98,8 @@ def kind_of(python_type: Any, max_length: int | None) -> str:
     if python_type is str:
         long = max_length is None or max_length > TEXTAREA_ABOVE
         return "textarea" if long else "text"
+    if isinstance(python_type, type) and issubclass(python_type, enum.Enum):
+        return "enum"
     return SIMPLE_KINDS.get(python_type, "readonly")
 
 
@@ -173,6 +185,40 @@ def to_number(field: FormField, raw: str) -> int | float:
     return value
 
 
+def to_date(raw: str) -> datetime.date:
+    try:
+        return datetime.date.fromisoformat(raw)
+    except ValueError:
+        raise FieldProblem("use a date such as 2026-11-13") from None
+
+
+def to_time(raw: str) -> datetime.time:
+    try:
+        value = datetime.time.fromisoformat(raw)
+    except ValueError:
+        raise FieldProblem("use a time such as 09:30") from None
+    if value.tzinfo is not None:
+        raise FieldProblem("enter a time without a UTC offset")
+    return value
+
+
+def to_decimal(raw: str) -> decimal.Decimal:
+    try:
+        value = decimal.Decimal(raw)
+    except (decimal.InvalidOperation, ValueError):
+        value = decimal.Decimal("NaN")
+    if len(raw) > MAX_DECIMAL or not value.is_finite():
+        raise FieldProblem("enter a decimal number such as 12.50")
+    return value
+
+
+def to_enum(field: FormField, raw: str) -> enum.Enum:
+    try:
+        return field.python_type[raw]  # type: ignore[no-any-return]
+    except KeyError:
+        raise FieldProblem("choose one of the options shown") from None
+
+
 def to_text(field: FormField, raw: str) -> str:
     if "\x00" in raw:
         raise FieldProblem("remove the NUL character")
@@ -189,6 +235,15 @@ def convert_text(field: FormField, raw: str, zone: tzinfo) -> Any:
         return to_uuid(raw)
     if field.kind == "datetime":
         return to_datetime(raw, zone)
+    return convert_other(field, raw)
+
+
+def convert_other(field: FormField, raw: str) -> Any:
+    if field.kind == "enum":
+        return to_enum(field, raw)
+    convert_plain = {"date": to_date, "time": to_time, "decimal": to_decimal}
+    if field.kind in convert_plain:
+        return convert_plain[field.kind](raw)
     return to_text(field, raw)
 
 
@@ -219,13 +274,14 @@ def convert(
 
 def input_text(value: Any, zone: tzinfo = UTC_ZONE) -> str:
     """The zone-local text a browser input holds without an offset."""
-    if value is None:
-        return ""
     if isinstance(value, datetime.datetime):
         moment = value.replace(tzinfo=datetime.UTC) if value.tzinfo is None else value
-        moment = moment.astimezone(zone).replace(tzinfo=None)
-        return moment.isoformat(timespec="seconds")
-    return str(value)
+        value = moment.astimezone(zone).replace(tzinfo=None)
+    if isinstance(value, datetime.datetime | datetime.time):
+        return value.isoformat(timespec="seconds")
+    if isinstance(value, enum.Enum):
+        return value.name
+    return "" if value is None else str(value)
 
 
 def unchanged(
@@ -240,9 +296,18 @@ def unchanged(
         if field.kind in TEXT_KINDS
         else (raw or "").strip()
     )
-    return sent == shown.replace("\r\n", "\n") or (
-        field.kind == "datetime" and (raw or "").strip() == shown
-    )
+    return sent == shown.replace("\r\n", "\n") or same_value(field, sent, original)
+
+
+def same_value(field: FormField, sent: str, original: Any) -> bool:
+    """A time or decimal typed differently (``09:30`` for ``09:30:00``, ``12.5``
+    for ``12.50``) that still means the stored value."""
+    if field.kind not in {"time", "decimal"} or original is None:
+        return False
+    try:
+        return bool(convert_other(field, sent) == original)
+    except FieldProblem:
+        return False
 
 
 def collect(
@@ -365,7 +430,7 @@ def password_control(attrs: str) -> Raw:
     return Raw(f'<input type="password" autocomplete="new-password" {attrs}>')
 
 
-def choices_control(field: FormField, value: Any) -> Raw:
+def choices_control(field: FormField, value: Any, error: str | None = None) -> Raw:
     """A group of checkboxes sharing one name; ``value`` is the checked set."""
     chosen = set(value) if isinstance(value, set | frozenset | list | tuple) else set()
     name = escape(field.name)
@@ -375,7 +440,10 @@ def choices_control(field: FormField, value: Any) -> Raw:
         f"{escape(label)}</label>"
         for key, label in field.choices
     )
-    return Raw(f'<div class="hn-choices" id="f-{name}" role="group">{boxes}</div>')
+    invalid = f' aria-invalid="true" aria-describedby="e-{name}"' if error else ""
+    return Raw(
+        f'<div class="hn-choices" id="f-{name}" role="group"{invalid}>{boxes}</div>'
+    )
 
 
 def links_control(
@@ -407,7 +475,7 @@ def plain_control(field: FormField, value: Any, attrs: str, zone: tzinfo) -> Raw
         # a value that itself starts with a newline round-trips.
         return Raw(f"<textarea {attrs}>\n{text}</textarea>")
     mode = ' inputmode="decimal"' if field.kind == "number" else ""
-    step = ' step="1"' if field.kind == "datetime" else ""
+    step = ' step="1"' if field.kind in {"datetime", "time"} else ""
     kind = INPUT_TYPES[field.kind]
     return Raw(f'<input type="{kind}"{mode}{step} {attrs} value="{text}">')
 
@@ -416,7 +484,7 @@ def collection_control(
     field: FormField, value: Any, error: str | None, options: Sequence[tuple[str, str]]
 ) -> Raw:
     if field.kind == "choices":
-        return choices_control(field, value)
+        return choices_control(field, value, error)
     return links_control(field, value, error, options)
 
 
@@ -432,7 +500,9 @@ def control(
         return password_control(attrs)
     if field.kind in {"choices", "links"}:
         return collection_control(field, value, error, options or ())
-    if field.select and options is not None:
+    if field.kind == "enum":
+        options = [(member.name, member.name) for member in field.python_type]
+    if options is not None and (field.select or field.kind == "enum"):
         return select_control(field, value, attrs, options, zone)
     return plain_control(field, value, attrs, zone)
 

@@ -79,6 +79,7 @@ from hinoki.orm import (
     use_database,
 )
 from hinoki.settings import AppSettings
+from hinoki.testing import ASGIClient
 from hinoki.utils import utc_now
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
@@ -2159,3 +2160,22 @@ def test_site_admin_refuses_a_class_for_another_model_or_a_non_admin() -> None:
     with pytest.raises(RegistrationError, match="decorates a ModelAdmin class"):
         site.admin(Note)(int)  # type: ignore[type-var]
     site.admin(Note)(ForNote)  # naming the same model twice is fine
+
+
+async def test_an_admin_mounted_at_the_root_links_back_to_the_root(
+    tmp_path: Path,
+) -> None:
+    target = f"sqlite://{tmp_path / 'root.sqlite3'}"
+    setup = await Database.connect(target, max_size=1)
+    await setup.execute("CREATE TABLE admin_owners (id integer PRIMARY KEY, name text)")
+    setup.close()
+    admin = Admin(access=staff, secret=SECRET, prefix="", site="Test Admin")
+    admin.register(Owner, slug="owners")
+    app = Hinoki(openapi_url="/openapi.json")
+    app.include(admin.api())
+    app.install(DatabaseModule(target, max_size=1))
+    async with ASGIClient(app) as client:
+        page = await client.request("GET", "/", headers=STAFF)
+    body = page.body
+    assert page.status == 200 and 'href=""' not in body
+    assert 'href="/"' in body and 'href="/owners"' in body

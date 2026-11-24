@@ -57,13 +57,15 @@ class PostAdmin(ModelAdmin[Post]):
 
 Search matches a row when any `search` column contains the typed text, compared case-insensitively as text (a number or date matches its printed form). Naming an `exclude`d column in `search` is refused at registration, because which rows match would reveal its value.
 
+Form inputs follow the column type: text, number, checkbox, UUID, datetime, `date`, `time` (without a UTC offset), `Decimal` (finite values only) and `Enum` (a select of member names). Another type is shown read-only. A time or decimal that is retyped but means the stored value (`09:30` for `09:30:00`, `12.5` for `12.50`) is not saved again.
+
 Datetime fields use the app's `settings.timezone` (UTC without built-in settings): stored instants are shown there and edited `datetime-local` values are read there, then saved as UTC-aware datetimes. A time that does not exist or occurs twice during a daylight-saving change is refused for correction.
 
 ### Soft-deleted models
 
 For a model using `@db.soft_delete()` or `SoftDeleteModel`, the admin's Active
 list and default `queryset(principal)` contain live rows. When `tabs` is unset,
-the list shows Active and Deleted views; `?deleted=1` selects the latter. The
+the list shows Active and Deleted views; `?deleted=1` selects the latter. With custom `tabs` the Deleted view is a last tab after them. The
 default `deleted_queryset(principal)` is `self.model.only_deleted()`. Override
 it to add tenant or ownership filters; the admin always narrows it to rows with
 a delete timestamp, and uses that same scope for restore and hard-delete.

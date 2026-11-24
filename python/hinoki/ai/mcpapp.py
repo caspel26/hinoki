@@ -209,6 +209,15 @@ def select(
     return chosen
 
 
+def checked_selection(
+    app: Hinoki, patterns: list[str], allow_writes: bool, mount: str
+) -> list[Tool]:
+    found = select(app, patterns, allow_writes, mount)
+    if not found:
+        raise ExposureError("no action matches the tools patterns")
+    return found
+
+
 async def dispatch(
     app: Hinoki, tool: Tool, parts: tuple[str, str, bytes], request: Request
 ) -> dict[str, Any]:
@@ -373,11 +382,10 @@ def expose_as_mcp(
 
     def tool_table() -> dict[str, Tool]:
         if not cache:  # built once, after every action is registered
-            found = select(app, patterns, allow_writes, path)
-            if not found:
-                raise ExposureError("no action matches the tools patterns")
-            cache.extend(found)
+            cache.extend(checked_selection(app, patterns, allow_writes, path))
         return {t.name: t for t in cache}
+
+    checked_selection(app, patterns, allow_writes, path)  # fail at build, not on a call
 
     @http.post(path, access=access)
     async def mcp_endpoint(request: Request) -> Response:
