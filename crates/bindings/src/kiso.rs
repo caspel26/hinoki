@@ -316,7 +316,7 @@ fn is_write_action(action: &str) -> bool {
 fn finish_native_read(request: &PreparedRequest, plan: &CrudPlan, result: NativeRead) -> bool {
     match result {
         NativeRead::Reply { status, body } => {
-            request.respond_final(status, json_headers(status), &body);
+            request.respond_final_owned(status, json_headers(status), body);
             false
         }
         NativeRead::Rows(rows, page_info) => {
@@ -348,7 +348,7 @@ fn finish_native_read(request: &PreparedRequest, plan: &CrudPlan, result: Native
 fn finish_native_write(request: &PreparedRequest, result: NativeWrite) -> bool {
     match result {
         NativeWrite::Reply { status, body } => {
-            request.respond_final(status, json_headers(status), &body);
+            request.respond_final_owned(status, json_headers(status), body);
             false
         }
         NativeWrite::Failure(error) => {
@@ -377,7 +377,11 @@ fn finish_native_write(request: &PreparedRequest, result: NativeWrite) -> bool {
         }
         NativeWrite::Defer(body) => {
             if body.is_some_and(|bytes| !request.buffer_native_body(bytes)) {
-                request.respond_final(500, vec![(b"content-length".to_vec(), b"0".to_vec())], &[]);
+                request.respond_final_owned(
+                    500,
+                    vec![(b"content-length".to_vec(), b"0".to_vec())],
+                    Vec::new(),
+                );
                 return false;
             }
             true
@@ -438,7 +442,7 @@ fn requeue_native(core: &Core, wake: &mut impl Write, request: PreparedRequest, 
         Ok(false) => {}
         Err(error) => {
             let (request, reply) = *error;
-            request.respond(reply.status, reply.headers, &reply.body);
+            request.respond_owned(reply.status, reply.headers, reply.body);
         }
     }
 }

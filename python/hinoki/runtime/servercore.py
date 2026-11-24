@@ -348,6 +348,20 @@ def static_pages_of(
     return pages
 
 
+def log_crud_refusal(
+    binding: Binding, selection: CrudPlanSelection | None, reason: str
+) -> None:
+    """Name the reason a generated CRUD route stays on the Python lane, so a
+    model that misses the native lane is visible at startup."""
+    if selection is None and reason not in {"", "not_generated_crud_action"}:
+        log.debug(
+            "generated CRUD route %s %s uses the Python lane: %s",
+            binding.route.method,
+            binding.route.path,
+            reason,
+        )
+
+
 def build_server_core(pipeline: Pipeline) -> core.ServerCore:
     """The classifier for one worker. It starts not ready; the lifespan flips it."""
     app = pipeline.app
@@ -369,6 +383,7 @@ def build_server_core(pipeline: Pipeline) -> core.ServerCore:
                 exc_info=True,
             )
             selection, reason = None, "native_plan_build_failed"
+        log_crud_refusal(binding, selection, reason)
         selections.append(selection)
         reasons.append(reason)
         routes.append(route_spec(index, binding, selection.plan if selection else None))

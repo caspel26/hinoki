@@ -671,6 +671,7 @@ class KisoWorker:
             RustBody(request),
             request.request_id,
             route,
+            vetted=True,
         ), False
 
     async def _serve(self, request: core.PreparedRequest) -> None:

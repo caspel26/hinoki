@@ -644,7 +644,7 @@ async def list_rows(
     query = await with_links(self, query, principal)
     if (
         _row_plan is not None
-        and _row_plan.valid_for(self)
+        and _row_plan.armed_for(self)
         and _row_plan.valid_query(base)
     ):
         return await wire_list_rows(self, query, page, _row_plan)
@@ -706,7 +706,7 @@ async def list_cursor_rows(
     cursor = prepare(query, page, b"" if filters is None else filters.scope)
     if (
         _row_plan is not None
-        and _row_plan.valid_for(self)
+        and _row_plan.armed_for(self)
         and _row_plan.valid_query(base)
         and _row_plan.valid_window(
             cursor.walk, order=cursor.walk.order, limit=page.limit + 1, offset=None
