@@ -75,6 +75,8 @@ pub struct Keyset<V> {
 /// `JOIN table AS alias ON alias.remote = base.local`. The joined columns
 /// are selected as `alias__N` (N = position in `columns`, so long column names
 /// never overflow the identifier limit); an empty list joins only for filtering.
+/// `live` names the joined table's soft-delete column: the join then matches
+/// only rows where it `IS NULL`, so a soft-deleted row never shows through it.
 #[derive(Debug, Clone)]
 pub struct Join {
     pub table: String,
@@ -83,6 +85,7 @@ pub struct Join {
     pub remote: String,
     pub left: bool,
     pub columns: Vec<String>,
+    pub live: Option<String>,
 }
 
 /// `column [NOT] IN (SELECT ...)`: a condition on the outer statement that
@@ -676,6 +679,12 @@ pub(crate) fn render_joins(
             column_ref(&format!("{}.{}", join.alias, join.remote), None, dialect)?,
             column_ref(&join.local, Some(table), dialect)?
         ));
+        if let Some(live) = &join.live {
+            sql.push_str(&format!(
+                " AND {} IS NULL",
+                column_ref(&format!("{}.{live}", join.alias), None, dialect)?
+            ));
+        }
     }
     Ok(sql)
 }
@@ -936,6 +945,7 @@ mod tests {
             remote: "id".into(),
             left: false,
             columns: vec![],
+            live: None,
         }];
         q.keyset = Some(keyset(&[("id", false)], &[1]));
         assert!(compile_select(&q)
@@ -967,6 +977,7 @@ mod tests {
             remote: "id".into(),
             left: false,
             columns: vec!["id".into(), "name".into()],
+            live: None,
         }];
         q.order = vec![("author.name".into(), false), ("title".into(), true)];
         let (sql, params) = compile_select(&q).unwrap();
@@ -982,6 +993,27 @@ mod tests {
         q.joins[0].alias = "posts".into();
         assert!(compile_select(&q).is_err());
         q.joins[0].alias = "a\"; DROP".into();
+        assert!(compile_select(&q).is_err());
+    }
+
+    #[test]
+    fn a_live_join_matches_only_rows_that_are_not_soft_deleted() {
+        let mut q = select(vec![]);
+        q.joins = vec![Join {
+            table: "users".into(),
+            alias: "author".into(),
+            local: "author_id".into(),
+            remote: "id".into(),
+            left: true,
+            columns: vec![],
+            live: Some("deleted_at".into()),
+        }];
+        let (sql, _) = compile_select_with(&q, Dialect::Mysql).unwrap();
+        assert!(sql.contains(
+            "LEFT JOIN `users` AS `author` ON `author`.`id` = `posts`.`author_id` \
+             AND `author`.`deleted_at` IS NULL"
+        ));
+        q.joins[0].live = Some("x; DROP".into());
         assert!(compile_select(&q).is_err());
     }
 
@@ -1276,6 +1308,7 @@ mod tests {
             remote: "id".into(),
             left: false,
             columns: vec![],
+            live: None,
         }];
         let mut q = select(vec![]);
         q.subfilters = vec![SubFilter {

@@ -116,6 +116,7 @@ impl PyRouter {
 #[pymodule]
 fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
+    m.add("CURSOR_MAX_TOKEN", cursor::MAX_TOKEN_CHARS)?;
     m.add_class::<PyRouter>()?;
     m.add_class::<crudplan::PyCrudPlan>()?;
     m.add_class::<filters::PyFilterPlan>()?;

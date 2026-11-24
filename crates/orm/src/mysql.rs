@@ -262,6 +262,12 @@ impl MysqlLease {
         }
     }
 
+    /// Whether a request was interrupted mid-flight; dropping the lease then
+    /// disconnects, which rolls back any open transaction on the server.
+    pub(crate) fn is_interrupted(&self) -> bool {
+        self.interrupted.load(Ordering::Acquire)
+    }
+
     pub(crate) fn release(mut self) {
         self.conn.take();
     }

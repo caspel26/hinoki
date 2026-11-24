@@ -1069,9 +1069,17 @@ fn add_update_timestamp(plan: &CrudPlan, mut values: Vec<(String, Value)>) -> Ve
     values
 }
 
+/// Undo the write's savepoint and release it: `ROLLBACK TO` keeps the
+/// savepoint, so without the release every refused write would leave one open.
 async fn rollback_savepoint(transaction: &Transaction, plan: &CrudPlan) {
-    if let Some(sql) = plan.rollback_savepoint_sql("mysql") {
-        let _ = transaction.execute(sql, &[]).await;
+    let Some(sql) = plan.rollback_savepoint_sql("mysql") else {
+        return;
+    };
+    if transaction.execute(sql, &[]).await.is_err() {
+        return;
+    }
+    if let Some(release) = plan.release_savepoint_sql("mysql") {
+        let _ = transaction.execute(release, &[]).await;
     }
 }
 
