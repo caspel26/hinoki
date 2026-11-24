@@ -103,7 +103,11 @@ def table_rows(
             )
         for index, name in enumerate(columns):
             content = site.parts.cell(entry.display(row, name))
-            if index == 0 and entry.can(site.principal, "change", row):
+            if (
+                index == 0
+                and not row.is_deleted
+                and entry.can(site.principal, "change", row)
+            ):
                 href = site.url(slug, key, **site.state.query(done=""))
                 content = Raw(
                     f'<a class="hn-rowlink" href="{escape(href)}">{content}</a>'
@@ -158,6 +162,18 @@ def pagination_for(site: Site, slug: str, page: int, per_page: int, total: int) 
 
 
 def tab_bar(site: Site, slug: str, entry: ModelAdmin[Any]) -> Raw:
+    if entry.model.__soft_delete__ is not None and not entry.tabs:
+        return Raw(
+            "".join(
+                site.admin.templates.render(
+                    "tab",
+                    href=site.url(slug, **site.state.query(deleted=deleted, page=1)),
+                    label=label,
+                    selected="true" if site.state.deleted is deleted else "false",
+                )
+                for label, deleted in (("Active", False), ("Deleted", True))
+            )
+        )
     if not entry.tab_list:
         return Raw("")
     labels = ["All", *[tab.label for tab in entry.tab_list]]
@@ -180,58 +196,17 @@ async def list_panel(
 ) -> Raw:
     """Toolbar, table and pagination of one model's list."""
     state = site.state
-    query = apply_state(entry, entry.queryset(site.principal), state)
+    query = apply_state(entry, list_scope(site, entry), state)
     from hinoki.pagination import PageParams  # noqa: PLC0415 - only here
 
     found = await query.apaginate(PageParams(state.page, cast(int, entry.per_page)))
-    bulk_delete = entry.bulk_delete and entry.can(site.principal, "delete")
-    actions = tuple(
-        action
-        for action in entry.bulk_actions
-        if entry.can(site.principal, action.name)
-    )
+    bulk_delete, actions = bulk_controls(site, entry)
     bulk = bulk_delete or bool(actions)
-    t = site.admin.templates
-    hidden = ""
-    if state.view:
-        hidden += f'<input type="hidden" name="view" value="{state.view}">'
-    toolbar = t.render(
-        "toolbar",
-        tabs=tab_bar(site, slug, entry),
-        action=site.url(slug),
-        hidden=Raw(hidden),
-        query=state.q,
-        placeholder=f"Search {entry.plural().lower()}…"
-        if entry.search
-        else "Search is not set up",
-        actions=Raw(""),
-    )
-    bulk_buttons = []
-    if bulk_delete:
-        bulk_buttons.append(
-            '<button class="hn-btn hn-danger-soft" type="submit" '
-            'name="action" value="delete">Delete selected</button>'
-        )
-    bulk_buttons.extend(
-        [
-            (
-                '<button class="hn-btn" type="submit" name="action" '
-                f'value="{escape(action.name)}">{escape(action.label)}</button>'
-            )
-            for action in actions
-        ]
-    )
-    bulkbar = Raw(
-        '<div class="hn-bulkbar" data-hn-bulkbar>'
-        "<span><strong data-hn-selected-count>0</strong> selected</span>"
-        + "".join(bulk_buttons)
-        + "</div>"
-        if bulk
-        else ""
-    )
-    table = t.render(
+    toolbar = render_toolbar(site, slug, entry)
+    bulkbar = render_bulkbar(bulk_delete, actions, bulk)
+    table = site.admin.templates.render(
         "table",
-        bulk_action=site.url(slug, "bulk"),
+        bulk_action=site.url(slug, "bulk", **state.query(done="")),
         csrf=site.token,
         bulkbar=bulkbar,
         caption=f"{entry.plural()} list",
@@ -240,6 +215,81 @@ async def list_panel(
     )
     pager = pagination_for(site, slug, found.page, found.page_size, found.total)
     return Raw(f"{toolbar}{table}{pager}")
+
+
+def list_scope(site: Site, entry: ModelAdmin[Any]) -> QuerySet[Any]:
+    """The active or deleted row scope selected by the list query string."""
+    if site.state.deleted and entry.model.__soft_delete__ is not None:
+        return entry.deleted_scope(site.principal)
+    return entry.active_scope(site.principal)
+
+
+def bulk_controls(
+    site: Site, entry: ModelAdmin[Any]
+) -> tuple[bool, list[tuple[str, str]]]:
+    """Actions visible for the current active/deleted list scope."""
+    state = site.state
+    bulk_delete = (
+        not state.deleted and entry.bulk_delete and entry.can(site.principal, "delete")
+    )
+    actions = [
+        (action.name, action.label)
+        for action in entry.bulk_actions
+        if not state.deleted and entry.can(site.principal, action.name)
+    ]
+    if state.deleted and entry.model.__soft_delete__ is not None:
+        if entry.can(site.principal, "change"):
+            actions.append(("restore", "Restore selected"))
+        if entry.allow_hard_delete and entry.can(site.principal, "delete"):
+            actions.append(("hard-delete", "Hard-delete selected"))
+    return bulk_delete, actions
+
+
+def render_toolbar(site: Site, slug: str, entry: ModelAdmin[Any]) -> Raw:
+    """The search toolbar with the current view carried by its form."""
+    state = site.state
+    hidden = ""
+    if state.view:
+        hidden += f'<input type="hidden" name="view" value="{state.view}">'
+    if state.deleted:
+        hidden += '<input type="hidden" name="deleted" value="1">'
+    placeholder = (
+        f"Search {entry.plural().lower()}…" if entry.search else "Search is not set up"
+    )
+    return site.admin.templates.render(
+        "toolbar",
+        tabs=tab_bar(site, slug, entry),
+        action=site.url(slug),
+        hidden=Raw(hidden),
+        query=state.q,
+        placeholder=placeholder,
+        actions=Raw(""),
+    )
+
+
+def render_bulkbar(
+    bulk_delete: bool, actions: list[tuple[str, str]], visible: bool
+) -> Raw:
+    """The buttons for delete, restore and registered bulk actions."""
+    if not visible:
+        return Raw("")
+    buttons = []
+    if bulk_delete:
+        buttons.append(
+            '<button class="hn-btn hn-danger-soft" type="submit" '
+            'name="action" value="delete">Delete selected</button>'
+        )
+    for name, label in actions:
+        buttons.append(
+            '<button class="hn-btn" type="submit" name="action" '
+            f'value="{escape(name)}">{escape(label)}</button>'
+        )
+    return Raw(
+        '<div class="hn-bulkbar" data-hn-bulkbar>'
+        "<span><strong data-hn-selected-count>0</strong> selected</span>"
+        + "".join(buttons)
+        + "</div>"
+    )
 
 
 def list_header(site: Site, slug: str, entry: ModelAdmin[Any]) -> Raw:

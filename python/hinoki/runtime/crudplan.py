@@ -726,6 +726,8 @@ def link_events_listened(
 
 
 def plain_crud_model(model: type[Model], resource: _CrudConfig, action: str) -> bool:
+    if model.__soft_delete__ is not None or bool(model.__status_tracks__):
+        return False
     fields = model_fields(model)
     written = write_columns(model, resource, action)
     return bool(
@@ -901,6 +903,8 @@ def native_links(resource: _CrudConfig) -> dict[str, tuple[Any, str | None]] | N
     found: dict[str, tuple[Any, str | None]] = {}
     for name in sorted(shown):
         side = resource.link_ids[name]
+        if side.target.__soft_delete__ is not None:
+            return None
         scope = resource.links.get(side.declared)
         if type(scope) is AllRows and scope.model is side.target:
             found[name] = (side, None)

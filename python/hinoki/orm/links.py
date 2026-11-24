@@ -206,7 +206,7 @@ class LinkSide:
 
     def base_query(self, within: QuerySet[Any] | None) -> QuerySet[Any]:
         if within is None:
-            return QuerySet(self.target)
+            return self.target.all()
         self.check_within(within)
         query: QuerySet[Any] = QuerySet(
             self.target,
@@ -284,7 +284,7 @@ class LinkSide:
         if not wanted:
             return []
         key = self.target.__primary_key__
-        base = QuerySet(self.target) if within is None else within
+        base = self.target.all() if within is None else within
         found: list[Any] = []
         chunks = range(0, len(wanted), IN_CHUNK)
         for start in chunks:

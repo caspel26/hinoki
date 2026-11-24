@@ -30,7 +30,7 @@ from datetime import datetime
 from typing import get_type_hints
 
 from hinoki.errors import RegistrationError
-from hinoki.orm.model import Model
+from hinoki.orm.model import Model, StatusTrack
 from hinoki.utils import Clock, utc_now
 
 MIN_UNIQUE = 2
@@ -204,6 +204,13 @@ def timestamps[M: type[Model]](
             raise RegistrationError(
                 f"{model.__name__}: timestamps clock must be callable"
             )
+        if updated_at == model.__soft_delete__ or any(
+            track.changed_at == updated_at for track in model.__status_tracks__
+        ):
+            raise RegistrationError(
+                f"{model.__name__}: timestamps field {updated_at!r} conflicts "
+                "with another managed datetime column"
+            )
         try:
             annotation = get_type_hints(model).get(updated_at)
         except (NameError, TypeError) as exc:
@@ -217,6 +224,87 @@ def timestamps[M: type[Model]](
         model.replace_inherited("timestamps")
         model.__updated_at__ = updated_at
         model.__clock__ = clock
+        return model
+
+    return apply
+
+
+def soft_delete[M: type[Model]](
+    column: str = "deleted_at", *, clock: Clock | None = None
+) -> Callable[[M], M]:
+    """Mark a nullable datetime column as the model's soft-delete marker."""
+    if type(column) is not str:
+        raise RegistrationError("@soft_delete column must be a string")
+
+    def apply(model: M) -> M:
+        known(model, (column,), "soft_delete")
+        if column == model.__primary_key__:
+            raise RegistrationError(
+                f"{model.__name__}: soft-delete column cannot be the primary key"
+            )
+        if column == model.__updated_at__ or any(
+            track.changed_at == column for track in model.__status_tracks__
+        ):
+            raise RegistrationError(
+                f"{model.__name__}: soft-delete column {column!r} conflicts with "
+                "another managed datetime column"
+            )
+        if (
+            model.__field_types__[column].kind != "datetime"
+            or not model.__field_types__[column].nullable
+        ):
+            raise RegistrationError(
+                f"{model.__name__}: soft-delete column {column!r} must be "
+                "datetime | None"
+            )
+        if clock is not None and not callable(clock):
+            raise RegistrationError(
+                f"{model.__name__}: soft-delete clock must be callable"
+            )
+        model.replace_inherited("soft_delete")
+        model.__soft_delete__ = column
+        model.__soft_delete_clock__ = clock
+        return model
+
+    return apply
+
+
+def track_status[M: type[Model]](
+    field: str = "status",
+    *,
+    changed_at: str = "status_changed_at",
+    clock: Clock | None = None,
+) -> Callable[[M], M]:
+    """Record when a declared status column changes; decorators may be stacked."""
+    if type(field) is not str or type(changed_at) is not str:
+        raise RegistrationError("@track_status field and changed_at must be strings")
+
+    def apply(model: M) -> M:
+        known(model, (field, changed_at), "track_status")
+        current = (
+            ()
+            if "status_tracks" in model.__inherited_options__
+            else model.__status_tracks__
+        )
+        if field == changed_at:
+            raise RegistrationError(
+                f"{model.__name__}: track_status field and changed_at must differ"
+            )
+        conflicts = {model.__primary_key__, model.__updated_at__, model.__soft_delete__}
+        if changed_at in conflicts or any(
+            track.changed_at == changed_at or track.field == field for track in current
+        ):
+            raise RegistrationError(
+                f"{model.__name__}: duplicate or conflicting status track"
+            )
+        if model.__field_types__[changed_at].kind != "datetime":
+            raise RegistrationError(
+                f"{model.__name__}: tracked timestamp {changed_at!r} must be datetime"
+            )
+        if clock is not None and not callable(clock):
+            raise RegistrationError(f"{model.__name__}: status clock must be callable")
+        model.replace_inherited("status_tracks")
+        model.__status_tracks__ = (*current, StatusTrack(field, changed_at, clock))
         return model
 
     return apply

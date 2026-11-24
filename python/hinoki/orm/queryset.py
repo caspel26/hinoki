@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 from hinoki import core, events
 from hinoki.blocking import run_sync
 from hinoki.db import Database, current_owner
-from hinoki.errors import FieldError, MultipleObjectsReturned
+from hinoki.errors import FieldError, ModelError, MultipleObjectsReturned
 from hinoki.orm.context import current_database
 from hinoki.orm.keyset import fetch_page
 from hinoki.orm.relations import ALIAS_PREFIX, STORE, Relation, store
@@ -97,6 +97,7 @@ class QuerySet[M: Model]:
         self.limit_to = limit_to
         self.offset_by = offset_by
         self.loading = loading
+        self.implicit_filter_count = 0
 
     def derive(self, **changes: Any) -> QuerySet[M]:
         state = {
@@ -106,11 +107,18 @@ class QuerySet[M: Model]:
             "offset_by": self.offset_by,
             "loading": self.loading,
         }
-        return QuerySet(self.model, **{**state, **changes})
+        implicit = changes.pop("implicit_filter_count", self.implicit_filter_count)
+        query = QuerySet(self.model, **{**state, **changes})
+        query.implicit_filter_count = implicit
+        return query
+
+    def has_explicit_write_filter(self) -> bool:
+        """Ignore only the default live/deleted marker added by model scopes."""
+        return len(self.filters) > self.implicit_filter_count or bool(self.subfilters)
 
     def with_subfilters(self, extra: tuple[SubQuery, ...]) -> QuerySet[M]:
         """The query with more conditions across a many-to-many relation."""
-        return LinkedQuerySet(
+        query = LinkedQuerySet(
             self.model,
             self.filters,
             self.order,
@@ -119,6 +127,8 @@ class QuerySet[M: Model]:
             self.loading,
             (*self.subfilters, *extra),
         )
+        query.implicit_filter_count = self.implicit_filter_count
+        return query
 
     def filter(self, **conditions: Any) -> QuerySet[M]:
         query = self
@@ -328,7 +338,10 @@ class QuerySet[M: Model]:
     async def prefetch_reverse(self, relation: Relation, instances: list[M]) -> None:
         key = self.model.__primary_key__
         found = await fetch_in(
-            relation.model, relation.column, [getattr(i, key) for i in instances]
+            relation.model,
+            relation.column,
+            [getattr(i, key) for i in instances],
+            live_only=True,
         )
         children: dict[Any, list[Model]] = {}
         for row in found:
@@ -429,8 +442,8 @@ class QuerySet[M: Model]:
         with ``limit`` or ``offset`` is refused, because the statement would
         change every matching row. ``returning=False`` reads nothing back and
         returns the row count the database reports instead."""
-        if not self.filters or not values:
-            raise FieldError("aupdate needs filters and values")
+        if not self.has_explicit_write_filter() or not values:
+            raise FieldError("aupdate needs at least one explicit condition and values")
         self.refuse_window("aupdate")
         for name in values:
             self.model.check_field(name)
@@ -440,6 +453,7 @@ class QuerySet[M: Model]:
                 **values,
                 timestamp: _read_utc(self.model.__clock__),
             }
+        values = tracked_values(self.model, values)
         self.model.validate_values(values)
         if self.loading.joined or self.subfilters:
             raise FieldError("updates cannot filter across a relation")
@@ -467,13 +481,69 @@ class QuerySet[M: Model]:
         """Delete the rows this query matches; returns how many. A query
         without filters is refused so it cannot wipe the table, and so is one
         with ``limit`` or ``offset``: the statement would delete every match."""
-        if not self.filters:
-            raise FieldError("adelete needs at least one condition")
+        if not self.has_explicit_write_filter():
+            raise FieldError("adelete needs at least one explicit condition")
         self.refuse_window("adelete")
         if self.loading.joined or self.subfilters:
             raise FieldError(
                 "adelete cannot filter across a relation; look the keys up first"
             )
+        database = current_database()
+        refuse_sqlite_decimal(self.model, self.filters, (), database.dialect)
+        soft_column = self.model.__soft_delete__
+        if soft_column is not None:
+            assignments = [
+                (
+                    soft_column,
+                    _read_utc(self.model.__soft_delete_clock__ or self.model.__clock__),
+                )
+            ]
+            if self.model.__updated_at__ is not None:
+                assignments.append(
+                    (self.model.__updated_at__, _read_utc(self.model.__clock__))
+                )
+            filters = [*self.filters, (soft_column, "isnull", [])]
+            sql, params = write_statement(
+                self.model,
+                "update",
+                assignments,
+                filters,
+                returning=False,
+                dialect=database.dialect,
+            )
+        else:
+            filters = list(self.filters)
+            sql, params = core.compile_query(
+                "delete",
+                self.model.__table__,
+                filters=filters,
+                dialect=database.dialect,
+            )
+        bus = events.listener(events.Deleted, self.model)
+        if bus is None:
+            return await database.execute(sql, *params)
+        return await self.delete_observed(bus, database, sql, params)
+
+    async def arestore(self) -> int:
+        """Restore deleted rows selected by this query."""
+        column = self.model.__soft_delete__
+        if column is None:
+            raise ModelError(f"{self.model.__name__} does not support soft deletion")
+        if not self.has_explicit_write_filter():
+            raise FieldError("arestore needs at least one explicit condition")
+        self.refuse_window("arestore")
+        if self.loading.joined or self.subfilters:
+            raise FieldError("arestore cannot filter across a relation")
+        filters = [*self.filters, (column, "notnull", [])]
+        return await self.update_deleted_marker(column, None, filters)
+
+    async def ahard_delete(self) -> int:
+        """Physically delete rows selected by this query."""
+        if not self.has_explicit_write_filter():
+            raise FieldError("ahard_delete needs at least one explicit condition")
+        self.refuse_window("ahard_delete")
+        if self.loading.joined or self.subfilters:
+            raise FieldError("ahard_delete cannot filter across a relation")
         database = current_database()
         refuse_sqlite_decimal(self.model, self.filters, (), database.dialect)
         sql, params = core.compile_query(
@@ -486,6 +556,27 @@ class QuerySet[M: Model]:
         if bus is None:
             return await database.execute(sql, *params)
         return await self.delete_observed(bus, database, sql, params)
+
+    async def update_deleted_marker(
+        self, column: str, value: Any, filters: list[Filter]
+    ) -> int:
+        """Update deletion state and return affected rows."""
+        database = current_database()
+        refuse_sqlite_decimal(self.model, filters, (), database.dialect)
+        assignments = [(column, value)]
+        if self.model.__updated_at__ is not None:
+            assignments.append(
+                (self.model.__updated_at__, _read_utc(self.model.__clock__))
+            )
+        sql, params = write_statement(
+            self.model,
+            "update",
+            assignments,
+            filters,
+            returning=False,
+            dialect=database.dialect,
+        )
+        return await database.execute(sql, *params)
 
     async def delete_observed(
         self, bus: EventBus, database: Database, sql: str, params: list[Any]
@@ -553,6 +644,14 @@ class QuerySet[M: Model]:
     def delete(self) -> int:
         """Sync ``adelete``."""
         return run_sync(self.adelete())
+
+    def restore(self) -> int:
+        """Sync ``arestore``."""
+        return run_sync(self.arestore())
+
+    def hard_delete(self) -> int:
+        """Sync ``ahard_delete``."""
+        return run_sync(self.ahard_delete())
 
     def count(self) -> int:
         return run_sync(self.acount())
@@ -693,7 +792,10 @@ class LinkedQuerySet[M: Model](QuerySet[M]):
             "loading": self.loading,
             "subfilters": self.subfilters,
         }
-        return LinkedQuerySet(self.model, **{**state, **changes})
+        implicit = changes.pop("implicit_filter_count", self.implicit_filter_count)
+        query = LinkedQuerySet(self.model, **{**state, **changes})
+        query.implicit_filter_count = implicit
+        return query
 
     def compile(
         self,
@@ -764,6 +866,12 @@ def write_statement(
     """An INSERT or UPDATE that returns every column when ``returning`` is set
     and the dialect supports it, and nothing otherwise."""
     reads = returning and dialect not in NO_RETURNING
+    if kind == "update":
+        assigned = dict(assignments)
+        for track in model.__status_tracks__:
+            if track.field in assigned and track.changed_at not in assigned:
+                assigned[track.changed_at] = _read_utc(track.clock or model.__clock__)
+        assignments = list(assigned.items())
     refuse_sqlite_decimal(model, filters, (), dialect)
     return core.compile_query(
         kind,
@@ -773,6 +881,15 @@ def write_statement(
         returning=list(model.__columns__) if reads else [],
         dialect=dialect,
     )
+
+
+def tracked_values(model: type[Model], values: dict[str, Any]) -> dict[str, Any]:
+    """Add the changed-at values for status fields present in a bulk update."""
+    tracked = dict(values)
+    for item in model.__status_tracks__:
+        if item.field in tracked and item.changed_at not in tracked:
+            tracked[item.changed_at] = _read_utc(item.clock or model.__clock__)
+    return tracked
 
 
 def write_transaction(database: Database) -> AbstractAsyncContextManager[Any]:
@@ -853,13 +970,16 @@ async def locked_keys(
     return [row[key] for row in rows]
 
 
-async def fetch_in(model: type[Model], column: str, values: list[Any]) -> list[Any]:
+async def fetch_in(
+    model: type[Model], column: str, values: list[Any], *, live_only: bool = False
+) -> list[Any]:
     """Rows of ``model`` whose ``column`` is one of ``values`` (chunked so the
     statement stays far below PostgreSQL's parameter limit)."""
     found: list[Model] = []
     for start in range(0, len(values), IN_CHUNK):
         chunk = values[start : start + IN_CHUNK]
-        found.extend(await QuerySet(model).filter(**{f"{column}__in": chunk}))
+        base = model.all() if live_only else QuerySet(model)
+        found.extend(await base.filter(**{f"{column}__in": chunk}))
     return found
 
 
