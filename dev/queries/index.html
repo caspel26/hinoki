@@ -494,8 +494,8 @@
           <h1 id="query-and-write-rows">Query and write rows<a class="headerlink" href="#query-and-write-rows" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:22:11 UTC">November 24, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -514,6 +514,7 @@ models from <a href="../models/">Define models</a>.</p>
 <span class="n">first</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">afirst</span><span class="p">()</span>
 <span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">acount</span><span class="p">()</span>
 <span class="n">page</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">PageParams</span><span class="p">(</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">page_size</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
+<span class="n">projected</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">)</span><span class="o">.</span><span class="n">aproject</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
@@ -526,6 +527,7 @@ models from <a href="../models/">Define models</a>.</p>
 <span class="n">first</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
 <span class="n">count</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
 <span class="n">page</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">paginate</span><span class="p">(</span><span class="n">PageParams</span><span class="p">(</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">page_size</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
+<span class="n">projected</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">)</span><span class="o">.</span><span class="n">project</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">)</span>
 </code></pre></div>
 </div>
 </div>
@@ -533,7 +535,11 @@ models from <a href="../models/">Define models</a>.</p>
 <p><code>PageParams</code> comes from <code>hinoki.pagination</code>. <code>aget</code> raises <code>Invoice.NotFound</code>
 (a 404 in a request) or <code>MultipleObjectsReturned</code>. Building a query
 (<code>filter</code>, <code>order_by</code>, <code>limit</code>, <code>offset</code>, <code>select_related</code>) issues no SQL;
-awaiting it or calling an evaluation method does.</p>
+awaiting it or calling an evaluation method does. <code>aproject</code> / <code>project</code> (and
+<code>apaginate_as</code> / <code>paginate_as</code> for pages) encode eligible scalar and
+<code>select_related</code> schemas directly from Rust rows, materializing Python <code>Schema</code>
+instances lazily from the owned rows if inspected and falling back transparently
+when hooks, computed fields, or <code>prefetch_related</code> are present.</p>
 <h3 id="filters">Filters<a class="headerlink" href="#filters" title="Permanent link">&para;</a></h3>
 <p><code>filter(field=value)</code> and <code>filter(field__op=value)</code> accept model field names and
 the supported comparison and membership operators (<code>ne</code>, <code>in</code>, <code>isnull</code>, <code>gt</code>,
@@ -766,7 +772,7 @@ declare a field named <code>returning</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:22:11 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

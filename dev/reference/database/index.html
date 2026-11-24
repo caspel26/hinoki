@@ -295,7 +295,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
-            <span>5 min read</span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -545,6 +545,128 @@ operations may need backend-specific SQL.</p>
     <div class="doc doc-contents ">
 
         <p>Rows built into finished model instances (private; <code>QuerySet.fetch</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Database.fetch_page_models" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fetch_page_models</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.Database.fetch_page_models" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">fetch_page_models</span><span class="p">(</span>
+    <span class="n">rows_sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">rows_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">count_sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">count_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="n">_ModelRows</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">concurrent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="nb">int</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fetch one page of model instances and its total count (private).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Database.fetch_page_rows" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fetch_page_rows</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.Database.fetch_page_rows" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">fetch_page_rows</span><span class="p">(</span>
+    <span class="n">rows_sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">rows_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">count_sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">count_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">concurrent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Row</span><span class="p">],</span> <span class="nb">int</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fetch one page of raw rows and its total count (private).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Database.fetch_projected_list" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fetch_projected_list</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.Database.fetch_projected_list" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">fetch_projected_list</span><span class="p">(</span>
+    <span class="n">sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">plan</span><span class="p">:</span> <span class="n">_RowPlan</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_ProjectedRows</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Row</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fetch rows pre-encoded to JSON by Rust, or raw rows on fallback.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.Database.fetch_projected_page" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">fetch_projected_page</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.Database.fetch_projected_page" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">fetch_projected_page</span><span class="p">(</span>
+    <span class="n">rows_sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">rows_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">count_sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">count_params</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="n">_RowPlan</span><span class="p">,</span>
+    <span class="n">page_window</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">concurrent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_ProjectedRows</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Row</span><span class="p">],</span> <span class="nb">int</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Fetch one page pre-encoded to JSON by Rust, or raw rows on fallback.</p>
 
 
     </div>
@@ -1245,7 +1367,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
           
           
             <ul><li><a href="#configure-a-backend">Configure a backend</a></li><li><a href="#backend-behavior-and-limits">Backend behavior and limits</a></li><li><a href="#hinoki.db.Database">Database</a>
-            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database.fetch_models">fetch_models</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.atomic">atomic</a></li><li><a href="#hinoki.db.Database.after_commit">after_commit</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
+            <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database.fetch_models">fetch_models</a></li><li><a href="#hinoki.db.Database.fetch_page_models">fetch_page_models</a></li><li><a href="#hinoki.db.Database.fetch_page_rows">fetch_page_rows</a></li><li><a href="#hinoki.db.Database.fetch_projected_list">fetch_projected_list</a></li><li><a href="#hinoki.db.Database.fetch_projected_page">fetch_projected_page</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.atomic">atomic</a></li><li><a href="#hinoki.db.Database.after_commit">after_commit</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
           </li><li><a href="#hinoki.db.atomic">atomic</a></li><li><a href="#hinoki.db.Atomic">Atomic</a>
             <ul><li><a href="#hinoki.db.Atomic.leave">leave</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseModule">DatabaseModule</a>

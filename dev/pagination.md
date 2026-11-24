@@ -50,6 +50,32 @@ Precedence, from strongest to weakest: a size set on the action's `PageNumberPag
 
 Use the queryset's `apaginate`/`paginate` methods for database rows. They append the primary key as the last sort key (after any `order_by`), so rows with equal sort values keep one position across pages. `Page.of(rows, params)` slices an in-memory sequence and counts that sequence; it is not a substitute for database pagination on large tables.
 
+### Concurrent count and rows
+
+Pass `concurrent=True` to run the `COUNT(*)` and page-row queries together on PostgreSQL or MySQL pools with `max_size >= 2`:
+
+```python
+@invoices.get("/fast", pagination=PageNumberPagination(), atomic=False)
+async def list_invoices_fast(page: PageParams) -> Page[InvoiceOut]:
+    return (await Invoice.all().apaginate(page, concurrent=True)).map(
+        InvoiceOut.from_model
+    )
+```
+
+Because the two queries check out separate pool connections, they may observe slightly different snapshots under concurrent writes (the same trade-off as any non-transactional read). Inside an active transaction (`atomic=True` or `async with db.atomic():`), on SQLite, or when the pool has `max_size < 2`, `apaginate(..., concurrent=True)` automatically runs the count and row queries sequentially on one connection so transactions preserve read-your-writes and single-connection pools never deadlock.
+
+### Direct schema projection
+
+Use `apaginate_as` (or `paginate_as` in sync handlers) to project rows directly to a `Schema` in Rust without constructing intermediate Python `Model` or `Schema` objects on the response path:
+
+```python
+@invoices.get("/projected", pagination=PageNumberPagination())
+async def list_invoices_projected(page: PageParams) -> Page[InvoiceOut]:
+    return await Invoice.all().apaginate_as(InvoiceOut, page, concurrent=True)
+```
+
+The returned `Page[InvoiceOut]` carries the pre-encoded JSON bytes and owned rows. Returning it from a handler emits the exact same JSON as `(await Invoice.all().apaginate(page)).map(InvoiceOut.from_model)` and passes `validate_response=True` checks. Accessing `.items`, calling `.map()`, or inspecting elements materializes the `InvoiceOut` instances from the owned rows without issuing a second database query. Schemas with computed fields, hooks, validators, custom `dump()`, or `prefetch_related` fall back to normal Python hydration transparently.
+
 ## Cursor (keyset) pagination
 
 `pagination=CursorPagination(...)` pages by position instead of by offset. A response carries `next` and `previous` cursors that clients should treat as opaque; the database starts each page at the cursor's row through the sort index, so a page costs the same at any depth, and no `COUNT` runs. Use it for long, growing lists or feeds; keep page numbers when users jump to page *n* or need a total.

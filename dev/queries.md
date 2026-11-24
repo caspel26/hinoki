@@ -16,6 +16,7 @@ models from [Define models](https://hinoki.caspel.dev/dev/models.md).
     first = await Invoice.filter(paid=False).afirst()
     count = await Invoice.filter(paid=False).acount()
     page = await Invoice.all().apaginate(PageParams(page=1, page_size=20))
+    projected = await Invoice.filter(paid=False).order_by("reference").aproject(InvoiceOut)
     ```
 
 === "Sync"
@@ -30,12 +31,17 @@ models from [Define models](https://hinoki.caspel.dev/dev/models.md).
     first = Invoice.filter(paid=False).first()
     count = Invoice.filter(paid=False).count()
     page = Invoice.all().paginate(PageParams(page=1, page_size=20))
+    projected = Invoice.filter(paid=False).order_by("reference").project(InvoiceOut)
     ```
 
 `PageParams` comes from `hinoki.pagination`. `aget` raises `Invoice.NotFound`
 (a 404 in a request) or `MultipleObjectsReturned`. Building a query
 (`filter`, `order_by`, `limit`, `offset`, `select_related`) issues no SQL;
-awaiting it or calling an evaluation method does.
+awaiting it or calling an evaluation method does. `aproject` / `project` (and
+`apaginate_as` / `paginate_as` for pages) encode eligible scalar and
+`select_related` schemas directly from Rust rows, materializing Python `Schema`
+instances lazily from the owned rows if inspected and falling back transparently
+when hooks, computed fields, or `prefetch_related` are present.
 
 ### Filters
 
