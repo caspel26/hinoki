@@ -869,6 +869,19 @@ mod tests {
     }
 
     #[test]
+    fn hmac_secrets_shorter_than_the_hash_are_refused() {
+        for (algorithm, min) in [("HS256", 32), ("HS384", 48), ("HS512", 64)] {
+            assert!(key_from(None, algorithm, vec![1; min], false).is_ok());
+            assert!(key_from(None, algorithm, vec![1; min - 1], false).is_err());
+            assert!(key_from(None, algorithm, Vec::new(), false).is_err());
+            assert!(key_from(None, algorithm, vec![1; min], true).is_err());
+            let short = vec![(None, algorithm.to_owned(), vec![1; min - 1], false)];
+            assert!(Verifier::from_specs(short).is_err());
+        }
+        assert!(key_from(None, "EdDSA", vec![4; 32], false).is_ok());
+    }
+
+    #[test]
     fn immutable_verifier_matches_fresh_decode_for_every_algorithm() {
         let algorithms = [
             ("HS256", vec![1; 32]),
