@@ -153,6 +153,7 @@ nav:
           - Development MCP: dev-mcp.md
           - Build with a coding agent: ai-workflow.md
       - Operating:
+          - Best practices: best-practices.md
           - Sync and async code: sync-async.md
           - Benchmarks: benchmarks.md
           - Changelog: changelog.md
