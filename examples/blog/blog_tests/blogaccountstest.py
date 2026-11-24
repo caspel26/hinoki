@@ -79,9 +79,12 @@ async def test_signed_tokens_with_odd_subjects_are_refused(world: World) -> None
 async def test_login_is_rate_limited_per_client(world: World) -> None:
     # The test client has no known address: those requests share a bucket ten
     # times as large (200). The limit runs before the body is read.
-    statuses = [
-        (await world.client.post("/auth/login", json={})).status for _ in range(201)
-    ]
+    # The bucket refills one slot every three seconds, so a slow run can let a
+    # few extra requests through: send until the first refusal, with a cap.
+    statuses: list[int] = []
+    while len(statuses) < 260 and 429 not in statuses:
+        statuses.append((await world.client.post("/auth/login", json={})).status)
 
-    assert set(statuses[:200]) == {422}
-    assert statuses[200] == 429
+    assert statuses[-1] == 429
+    assert len(statuses) > 200
+    assert set(statuses[:-1]) == {422}
