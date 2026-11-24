@@ -3,11 +3,13 @@
 import asyncio
 import io
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from hinoki.__main__ import main
 from hinoki.admin.users import AdminAccounts, AdminSession, AdminUser, migrations_path
+from hinoki.cli import check, migrations
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
 from hinoki.scaffold import create
@@ -259,3 +261,49 @@ def test_the_cli_follows_the_project_admin_settings(
     code = main(["admin", "create-superuser", "ada", "--password-stdin"])
 
     assert code == 2 and "at least 40" in capsys.readouterr().err
+
+
+def test_an_explicit_database_works_when_the_project_application_is_broken(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = create("adminexplicit", tmp_path, database="sqlite")
+    target = f"sqlite://{tmp_path / 'explicit.sqlite3'}"
+
+    async def prepare() -> None:
+        database = await Database.connect(target, max_size=1)
+        await migrator.apply(database, migrations_path(), namespace="admin")
+        database.close()
+
+    asyncio.run(prepare())
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv("ADMINEXPLICIT_DATABASE__MAX_SIZE", "0")
+    stdin(monkeypatch, PASSWORD + "\n")
+
+    code = main(
+        ["admin", "create-superuser", "ada", "--password-stdin", "--database", target]
+    )
+
+    assert code == 0, capsys.readouterr().err
+    assert stored(target) == [("ada", True, 0)]
+
+
+def test_the_application_is_built_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = create("adminonce", tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    builds: list[str] = []
+    real = check.build_app
+
+    def counted(target: str) -> Any:
+        builds.append(target)
+        return real(target)
+
+    monkeypatch.setattr(migrations, "build_app", counted, raising=True)
+    stdin(monkeypatch, PASSWORD + "\n")
+
+    main(["admin", "create-superuser", "ada", "--password-stdin"])
+
+    assert len(builds) == 1
