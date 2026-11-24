@@ -495,7 +495,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>26 min read</span>
+            <span>27 min read</span>
           </p>
           
         </header>
@@ -639,7 +639,20 @@ async def reindex() -&gt; dict[str, str]: ...
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>⚡ Native Kiso lane for filtered <code>crud(...)</code> lists</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>⚡ Lifecycle models on the native CRUD lane</h4>
+<blockquote>
+<p><code>crates/bindings/src/crudplan.rs</code>, <code>crates/bindings/src/nativecrud.rs</code>, <code>crates/bindings/src/rows.rs</code>, <code>python/hinoki/runtime/crudplan.py</code>, <code>python/hinoki/runtime/rowplan.py</code>, <code>python/hinoki/runtime/servercore.py</code>, <code>python/hinoki/runtime/requests.py</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/kiso.py</code>, <code>docs/kiso.md</code></p>
+</blockquote>
+<p>Generated <code>crud(...)</code> routes over <code>SoftDeleteModel</code>, <code>UUIDModel</code> (<code>uuid_pk()</code> with UUIDv4 or <code>version=7</code>), <code>urlsafe_token()</code> columns and <code>Decimal</code> or <code>date</code> columns now run on Kiso's native CRUD lane instead of falling back to Python. A soft delete stamps <code>deleted_at</code> (and <code>updated_at</code>) in Rust, and every native read only sees live rows, with the same SQL as the Python lane. A <code>Decimal</code> that Rust cannot render exactly as Python would, such as one Python writes in exponent form, is handed back to Python. <code>Enum</code> columns and <code>CursorPagination</code> lists still use the Python lane. With debug logging on, startup logs the reason each generated CRUD route stays on the Python lane.</p>
+<p>The Python lane also does less work per request:</p>
+<ul>
+<li>row-wire list guards run once per worker start instead of on every request, and soft-delete lists use them;</li>
+<li>a JSON <code>Schema</code> body is validated in one Rust pass from the bytes;</li>
+<li>a request Kiso has already routed no longer repeats the host, CORS, redirect, probe and size checks in Python;</li>
+<li>native responses are moved rather than copied;</li>
+<li>the CRUD query string is parsed once.</li>
+</ul>
+<h4>⚡ Native Kiso lane for filtered <code>crud(...)</code> lists</h4>
 <blockquote>
 <p><code>crates/bindings/src/filters.rs</code>, <code>crates/bindings/src/crudplan.rs</code>, <code>crates/bindings/src/nativecrud.rs</code>, <code>python/hinoki/runtime/crudplan.py</code>, <code>python/hinoki/core.pyi</code>, <code>docs/crud.md</code>, <code>docs/status.md</code></p>
 </blockquote>
@@ -691,6 +704,7 @@ async def reindex() -&gt; dict[str, str]: ...
 <li>The test client's <code>json=</code> also accepts <code>datetime</code> and <code>UUID</code> values.</li>
 <li>A JSON column whose bytes start with a UTF-8 byte order mark raises <code>FieldError</code>.</li>
 </ul></section><section class="cl__sec" data-kind="fixes"><h3>🐛 Fixes</h3><ul>
+<li><strong>Kiso request heads:</strong> blank lines before the request line now count toward <code>execution.max_header_bytes</code>, so the head bound matches what the HTTP parser reads (<code>crates/kiso/src/framing.rs</code>).</li>
 <li><strong>Admin forms and lists:</strong> create and edit forms accept <code>date</code>, <code>time</code>, <code>Decimal</code> and <code>Enum</code> columns (a select of member names); required columns of these types no longer make creation fail. A soft-delete model with custom <code>tabs</code> keeps its Deleted tab, an admin at <code>Admin(prefix="")</code> links to <code>/</code>, the bento theme keeps Sign out and Change password on phones, the bulk bar works without JavaScript, and the paper and bento lists keep column sorting and select-all. Navigation links drop a stale success banner, the search form and tab bar are omitted when there is nothing to search or choose, and the admin UI reads its component and icon files on first use instead of at import (<code>python/hinoki/admin/</code>).</li>
 <li><strong><code>hinoki admin</code>:</strong> the command builds <code>AdminAccounts</code> from the project's <code>admin</code> settings, so <code>admin.min_password_length</code> applies to <code>create-superuser</code> and <code>set-password</code> (<code>python/hinoki/cli/admin.py</code>).</li>
 <li><strong>MCP, OpenAPI diff and rules:</strong> <code>expose_as_mcp()</code> refuses an exposure that selects no allowed action, a streaming action or an action left out of the schema when it is built, not on the first call; <code>hinoki openapi --breaking-against</code> also reports a parameter that becomes required or changes type, a newly required request body and a dropped response body; generated <code>time</code> samples carry a UTC offset; <code>Schemas.forbid_exposure</code> reports a <code>dict</code> return as unverifiable (<code>python/hinoki/ai/</code>, <code>python/hinoki/rules.py</code>).</li>
