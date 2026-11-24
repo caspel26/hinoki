@@ -30,10 +30,16 @@ pub fn header_total<'a, I>(headers: I) -> usize
 where
     I: IntoIterator<Item = (&'a [u8], &'a [u8])>,
 {
-    headers
-        .into_iter()
-        .map(|(name, value)| name.len() + value.len() + HEADER_OVERHEAD)
-        .sum()
+    headers.into_iter().fold(0usize, |total, (name, value)| {
+        add_header_total(total, name.len(), value.len())
+    })
+}
+
+fn add_header_total(total: usize, name_len: usize, value_len: usize) -> usize {
+    total
+        .saturating_add(name_len)
+        .saturating_add(value_len)
+        .saturating_add(HEADER_OVERHEAD)
 }
 
 impl Limits {
@@ -70,6 +76,12 @@ mod tests {
     fn header_total_counts_overhead() {
         let headers: [(&[u8], &[u8]); 2] = [(b"a", b"bb"), (b"ccc", b"")];
         assert_eq!(header_total(headers), (1 + 2 + 4) + (3 + 4));
+    }
+
+    #[test]
+    fn header_total_arithmetic_saturates_at_usize_max() {
+        assert_eq!(add_header_total(usize::MAX - 1, 2, 0), usize::MAX);
+        assert_eq!(add_header_total(usize::MAX, 0, 0), usize::MAX);
     }
 
     #[test]

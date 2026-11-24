@@ -360,6 +360,7 @@ dependencies = [
 name = "kiso-fuzz"
 version = "0.0.0"
 dependencies = [
+ "httparse",
  "kiso",
  "libfuzzer-sys",
 ]
