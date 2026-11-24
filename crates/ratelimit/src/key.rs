@@ -19,6 +19,7 @@ const TAG_CLIENT: u8 = 2;
 const TAG_CALLER: u8 = 3;
 const TAG_CUSTOM: u8 = 4;
 const TAG_TENANT: u8 = 5;
+const TAG_OVERFLOW: u8 = 6;
 
 /// The SHA-256 of a normalised key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -175,6 +176,19 @@ pub fn bucket(parts: &KeyParts<'_>) -> Result<Keyed, KeyError> {
     })
 }
 
+/// The bucket a scope's new keys share while the table is full. It ignores the
+/// client and the tenant, so the full table grows by at most one row per scope.
+pub fn overflow(scope: &str) -> Result<Bucket, KeyError> {
+    if scope.len() > MAX_SEGMENT {
+        return Err(KeyError::TooLong);
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(PREFIX);
+    feed(&mut hasher, TAG_SCOPE, scope.as_bytes())?;
+    feed(&mut hasher, TAG_OVERFLOW, &[])?;
+    Ok(Bucket(hasher.finalize().into()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,5 +294,19 @@ mod tests {
         assert!(text
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
+    }
+
+    #[test]
+    fn the_overflow_bucket_is_one_per_scope_and_no_client_bucket() {
+        let shared = overflow("GET /x").unwrap();
+        assert_eq!(shared, overflow("GET /x").unwrap());
+        assert_ne!(shared, overflow("GET /y").unwrap());
+        for who in [Who::Client(None), Who::Caller(""), Who::Custom("")] {
+            assert_ne!(shared, of(who, None));
+        }
+        assert_eq!(
+            overflow(&"s".repeat(MAX_SEGMENT + 1)),
+            Err(KeyError::TooLong)
+        );
     }
 }

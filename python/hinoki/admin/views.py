@@ -435,7 +435,9 @@ async def bulk_rows(
 
 
 def authorized_bulk_action(
-    entry: ModelAdmin[Any], principal: Caller[Any], name: str
+    entry: ModelAdmin[Any],
+    principal: Caller[Any],
+    name: str,
 ) -> tuple[bool, BulkAction[Any] | None] | None:
     if name == "delete":
         return (
@@ -565,7 +567,12 @@ async def bulk(
     if entry is None:
         return await site.problem(404, "No such model.")
     selected_action = request.POST.get("action", "delete")
-    resolved = authorized_bulk_action(entry, principal, selected_action)
+    deleted_view = bool(getattr(getattr(site, "state", None), "deleted", False))
+    resolved = (
+        None
+        if deleted_view and selected_action not in {"restore", "hard-delete"}
+        else authorized_bulk_action(entry, principal, selected_action)
+    )
     if resolved is None:
         return await site.problem(404, "No such action.")
     is_delete, action = resolved

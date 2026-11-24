@@ -23,7 +23,7 @@ from types import NoneType, UnionType
 from uuid import UUID
 
 from hinoki import core
-from hinoki.auth import Caller
+from hinoki.auth import Caller, session_auth
 from hinoki.errors import (
     ErrorDetail,
     InvalidBody,
@@ -459,7 +459,7 @@ def special_param(
 
 def _uses_session_auth(access: object | None) -> bool:
     auth = getattr(access, "auth", None)
-    return bool(getattr(auth, "__hinoki_session_auth__", False))
+    return auth is not None and session_auth(auth)
 
 
 def regular_special_param(

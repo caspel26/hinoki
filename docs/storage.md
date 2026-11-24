@@ -66,6 +66,18 @@ buffers its bounded value in that response; the local backend returns a streamed
 `File` (a `Response` subtype), sent by the server without copying its body into
 a Python response buffer.
 
+Pass `filename=` and `content_type=` to `open_response()` to set the download
+name and media type. Without them both backends behave alike: the stored
+content type is used unless it is `application/octet-stream`, otherwise the type
+is guessed from the file name, and a file with no name is sent as a plain
+`attachment`. The storage key is never offered as a file name.
+
+`disposition="inline"` is honored only for passive media types: `image/png`,
+`image/jpeg`, `image/gif`, `image/webp`, `image/avif`, `application/pdf` and
+`text/plain`. Any other type, such as `text/html`, `image/svg+xml` or
+`text/javascript`, is sent as `attachment` so an uploaded file cannot run script
+in the application's origin. An unknown disposition raises `ValueError`.
+
 `LocalFileStorage` creates its root during worker startup, checks that it is a
 writable directory, uses unique generated keys and atomically replaces a
 temporary file. Directories use mode `0700` and files use `0600`. The uploaded

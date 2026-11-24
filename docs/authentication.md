@@ -115,7 +115,9 @@ actions explicitly.
 
 `hinoki.crypto.PasswordHasher` hashes and verifies with Argon2id in Rust, off the
 event loop. Create it where you own its lifetime (a factory or a module) and call
-`close()` at shutdown.
+`close()` at shutdown, or use it as a context manager (`with` or `async with`).
+Its worker threads start on first use; a closed hasher starts them again if it
+is used, and a hasher that is garbage-collected shuts them down.
 
 ```python
 # blog/apps/blog/passwords.py

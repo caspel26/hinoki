@@ -9,7 +9,7 @@ rules checked after authentication (401 -> no/invalid credentials,
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Iterable
+from collections.abc import Awaitable, Iterable, Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -71,6 +71,12 @@ class BaseAuth[T](ABC):
     """
 
     challenge: str | None = None
+    uses_session: bool = False
+    """``True`` for a provider that reads ``Credentials.session``. The request
+    is then given its application session before authentication, and unsafe
+    methods carrying a session cookie must pass the session CSRF check. A
+    provider that holds others (as attributes, or in a list or tuple) uses the
+    session when any of them does."""
 
     def openapi_scheme(self) -> dict[str, object] | None:
         """OpenAPI security scheme describing this provider, if it has one."""
@@ -81,6 +87,50 @@ class BaseAuth[T](ABC):
         self, credentials: Credentials
     ) -> Caller[T] | Awaitable[Caller[T] | None] | None:
         """``async def`` or plain ``def`` (a plain one runs on the sync executor)."""
+
+
+MAX_AUTH_NESTING = 8
+
+
+def session_auth(auth: object, depth: int = 0) -> bool:
+    """Whether ``auth``, or a provider it is composed of, reads the session."""
+    if getattr(auth, "uses_session", False) is True:
+        return True
+    # Providers written before ``uses_session`` existed.
+    if getattr(auth, "__hinoki_session_auth__", False) is True:
+        return True
+    if depth >= MAX_AUTH_NESTING:
+        return False
+    return any(session_auth(part, depth + 1) for part in _composed(auth))
+
+
+def _slot_names(cls: type) -> Iterator[str]:
+    for klass in cls.__mro__:
+        slots = klass.__dict__.get("__slots__", ())
+        names = (slots,) if isinstance(slots, str) else slots
+        yield from (name for name in names if name not in _SLOT_INTERNALS)
+
+
+_SLOT_INTERNALS = frozenset({"__dict__", "__weakref__"})
+
+
+def _attribute_values(auth: object) -> list[object]:
+    """Instance attribute values, from ``__dict__`` and from ``__slots__``."""
+    values = list(getattr(auth, "__dict__", {}).values())
+    values.extend(getattr(auth, name, None) for name in _slot_names(type(auth)))
+    return values
+
+
+def _composed(auth: object) -> list[BaseAuth[object]]:
+    """The providers ``auth`` holds directly, as attributes or in sequences."""
+    values = _attribute_values(auth)
+    found: list[BaseAuth[object]] = []
+    for value in values:
+        if isinstance(value, BaseAuth):
+            found.append(value)
+        elif isinstance(value, list | tuple | set | frozenset):
+            found.extend(item for item in value if isinstance(item, BaseAuth))
+    return found
 
 
 class HeaderAuth[T](BaseAuth[T]):

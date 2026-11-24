@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 import pytest
 
 from hinoki import db
+from hinoki.admin import views
 from hinoki.admin.components import Components
 from hinoki.admin.lists import bulk_controls, table_rows
 from hinoki.admin.modeladmin import BulkAction, ModelAdmin
@@ -262,3 +263,100 @@ async def test_empty_bulk_cancel_redirect_preserves_deleted_query() -> None:
         site, ScopedAdmin(), "audited-rows", [], "restore", None, False
     )
     assert response.headers[0] == (b"location", b"/admin/audited-rows?deleted=1")
+
+
+class TenantAdmin(ModelAdmin[AuditedRow]):
+    allow_hard_delete = True
+
+    def queryset(self, principal: Caller[Any]) -> Any:
+        return AuditedRow.all().filter(owner=principal.id)
+
+
+class PostForm:
+    def __init__(self, fields: dict[str, list[str]]) -> None:
+        self.fields = fields
+
+    def get(self, name: str, default: str | None = None) -> str | None:
+        values = self.fields.get(name)
+        return values[0] if values else default
+
+    def getlist(self, name: str) -> list[str]:
+        return self.fields.get(name, [])
+
+
+async def seed_deleted(*owners: tuple[int, str]) -> None:
+    for key, owner in owners:
+        row = await AuditedRow.acreate(
+            id=key, owner=owner, status_changed_at=datetime(2026, 11, 24, tzinfo=UTC)
+        )
+        await row.asoft_delete()
+
+
+async def test_deleted_scope_inherits_queryset_tenant_filters(
+    database: Database,
+) -> None:
+    await seed_deleted((50, "owner-a"), (51, "owner-b"))
+    await AuditedRow.acreate(
+        id=52, owner="owner-a", status_changed_at=datetime(2026, 11, 24, tzinfo=UTC)
+    )
+    entry = TenantAdmin()
+    a = Caller(id="owner-a", user="owner-a")
+    b = Caller(id="owner-b", user="owner-b")
+    assert [r.id for r in await entry.deleted_queryset(a).fetch()] == [50]
+    assert [r.id for r in await entry.deleted_scope(a).fetch()] == [50]
+    assert [r.id for r in await entry.deleted_scope(b).fetch()] == [51]
+    assert [r.id for r in await entry.active_scope(a).fetch()] == [52]
+
+
+async def test_cross_tenant_restore_and_hard_delete_do_not_touch_other_rows(
+    database: Database,
+) -> None:
+    await seed_deleted((60, "owner-a"), (61, "owner-b"))
+    entry = TenantAdmin()
+    attacker = Caller(id="owner-a", user="owner-a")
+    foreign = (await AuditedRow.with_deleted().filter(id=61).fetch())[0]
+    await run_bulk_action(entry, [foreign], attacker, None, "restore")
+    assert await AuditedRow.only_deleted().filter(id=61).aexists()
+    await run_bulk_action(entry, [foreign], attacker, None, "hard-delete")
+    assert await AuditedRow.with_deleted().filter(id=61).aexists()
+
+    site: Any = fake_site(ListState(deleted=True), attacker)
+    site.request = SimpleNamespace(POST={"confirmed": "1"})
+    response = await finish_bulk(
+        site, entry, "audited-rows", ["61"], "restore", None, False
+    )
+    assert response.status == 404
+    assert await AuditedRow.only_deleted().filter(id=61).aexists()
+
+
+async def test_deleted_view_bulk_rejects_delete_and_custom_actions(
+    database: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seed_deleted((70, "owner-a"))
+    calls: list[str] = []
+
+    async def spy(_rows: tuple[AuditedRow, ...], _principal: Caller[Any]) -> None:
+        calls.append("custom")
+
+    class SpyAdmin(TenantAdmin):
+        bulk_delete = True
+        bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = (
+            BulkAction("custom", "Custom", "Run?", spy),
+        )
+
+    entry = SpyAdmin()
+    principal = Caller(id="owner-a", user="owner-a")
+
+    for action in ("delete", "custom"):
+        site: Any = fake_site(ListState(deleted=True), principal)
+        site.entry = lambda _model: entry
+        site.csrf_ok = lambda: True
+        monkeypatch.setattr(views, "Site", lambda *_args, _site=site: _site)
+        request = SimpleNamespace(
+            POST=PostForm({"action": [action], "ids": ["70"], "confirmed": ["1"]})
+        )
+        api: Any = SimpleNamespace(admin=SimpleNamespace())
+        response = await views.bulk(api, cast(Any, request), principal, "audited-rows")
+        assert response.status == 404
+    assert calls == []
+    assert await AuditedRow.only_deleted().filter(id=70).aexists()
