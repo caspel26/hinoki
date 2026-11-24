@@ -947,7 +947,8 @@ impl<'py> Encoder<'py> {
             push_float(&mut self.out, value.cast::<PyFloat>()?.value())
         } else if let Ok(dict) = value.cast::<PyDict>() {
             self.mapping(dict, depth)
-        } else if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
+        } else if value.is_exact_instance_of::<PyList>() || value.is_exact_instance_of::<PyTuple>()
+        {
             self.sequence(value, depth)
         } else {
             self.scalar(value, depth)
@@ -1126,9 +1127,26 @@ impl<'py> Encoder<'py> {
         }
     }
 
+    fn try_preencoded(&mut self, value: &Bound<'py, PyAny>) -> PyResult<bool> {
+        if self.indent.is_some() || self.sort_keys || self.default.is_some() {
+            return Ok(false);
+        }
+        if let Some(handle) = preencoded_handle(value)? {
+            self.out.extend_from_slice(&handle.json);
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     /// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
     /// anything with a `dump()` method, then the caller's `default` hook.
     fn object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        if self.try_preencoded(value)? {
+            return Ok(());
+        }
+        if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
+            return self.sequence(value, depth);
+        }
         // Exact UUIDs and datetimes cannot be schema instances: skip that lookup.
         if let Some(text) = crate::pytypes::exact_uuid_text(value)? {
             return write_string(&mut self.out, &text);
@@ -1140,8 +1158,13 @@ impl<'py> Encoder<'py> {
             return self.write_isoformat(value);
         }
         if let Some(plan) = crate::schema::json_field_plan(value, quoted_json_key)? {
-            self.schema_object(value, &plan, depth)?;
-        } else if value.is_instance(crate::pytypes::uuid_class(value.py())?)? {
+            return self.schema_object(value, &plan, depth);
+        }
+        self.fallback_object(value, depth)
+    }
+
+    fn fallback_object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        if value.is_instance(crate::pytypes::uuid_class(value.py())?)? {
             write_string(&mut self.out, &value.str()?.to_string())?;
         } else if value.is_instance(crate::pytypes::datetime_class(value.py())?)? {
             self.write_isoformat(value)?;
@@ -1345,12 +1368,49 @@ pub(crate) fn is_instance_of_named(
     value.is_instance(&wanted)
 }
 
+fn preencoded_handle<'py>(
+    value: &Bound<'py, PyAny>,
+) -> PyResult<Option<PyRef<'py, crate::rows::PyProjectedRows>>> {
+    if let Ok(handle) = value.extract::<PyRef<'py, crate::rows::PyProjectedRows>>() {
+        return Ok(Some(handle));
+    }
+    let py = value.py();
+    let ty = value.get_type();
+    if !ty.is(crate::pytypes::projected_list_class(py)?)
+        && !ty.is(crate::pytypes::projected_page_class(py)?)
+    {
+        return Ok(None);
+    }
+    let found = value.getattr(intern!(py, "_projected_handle"))?;
+    if found.is_none() {
+        return Ok(None);
+    }
+    Ok(found
+        .extract::<PyRef<'py, crate::rows::PyProjectedRows>>()
+        .ok())
+}
+
+fn is_plain_builtin(value: &Bound<'_, PyAny>) -> bool {
+    value.is_exact_instance_of::<PyDict>()
+        || value.is_exact_instance_of::<PyList>()
+        || value.is_exact_instance_of::<PyString>()
+        || value.is_exact_instance_of::<PyInt>()
+        || value.is_exact_instance_of::<PyFloat>()
+        || value.is_exact_instance_of::<PyBool>()
+        || value.is_none()
+}
+
 fn encode_into<'py>(
     value: &Bound<'py, PyAny>,
     indent: Option<usize>,
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
 ) -> PyResult<Vec<u8>> {
+    if indent.is_none() && !sort_keys && default.is_none() && !is_plain_builtin(value) {
+        if let Some(handle) = preencoded_handle(value)? {
+            return Ok(handle.json.clone());
+        }
+    }
     static LAST_LEN: AtomicUsize = AtomicUsize::new(512);
     let capacity = LAST_LEN.load(Ordering::Relaxed).clamp(512, 64 * 1024);
     let mut encoder = Encoder {

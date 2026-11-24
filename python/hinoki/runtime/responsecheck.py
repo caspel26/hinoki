@@ -22,6 +22,7 @@ from hinoki import core
 from hinoki.errors import RegistrationError
 from hinoki.http.response import Response
 from hinoki.orm.model import Model
+from hinoki.orm.projection import _ProjectedList, _ProjectedPage
 from hinoki.pagination import CursorPage, Page
 from hinoki.schema import Schema
 
@@ -142,15 +143,42 @@ def collection_check(name: str, arm: object) -> Check:
     item = compile_item(name, args[0])
     if origin is list:
         return list_check(args[0], item)
+    if origin is Page:
+        return page_check(args[0], item)
     container = origin
     return lambda value: (
         isinstance(value, container) and all(item(v) for v in value.items)
     )
 
 
+def _schema_matches_annotation(schema_cls: type[Schema], annotation: object) -> bool:
+    for arm in union_arms(annotation):
+        nested = unwrap(arm)
+        if nested is typing.Any or nested is object:
+            return True
+        if isinstance(nested, type) and issubclass(schema_cls, nested):
+            return True
+    return False
+
+
+def page_check(annotation: object, item: Check) -> Check:
+    def check(value: object) -> bool:
+        if not isinstance(value, Page):
+            return False
+        if isinstance(value, _ProjectedPage) and value._projected_handle is not None:
+            return _schema_matches_annotation(value._schema, annotation)
+        return all(item(v) for v in value.items)
+
+    return check
+
+
 def list_check(annotation: object, item: Check) -> Check:
     def fallback(value: object) -> bool:
-        return isinstance(value, list) and all(item(v) for v in value)
+        if not isinstance(value, list):
+            return False
+        if isinstance(value, _ProjectedList) and value._projected_handle is not None:
+            return _schema_matches_annotation(value._schema, annotation)
+        return all(item(v) for v in value)
 
     nested = unwrap(annotation)
     if typing.get_origin(nested) is dict and typing.get_args(nested) == (str, object):

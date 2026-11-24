@@ -17,6 +17,8 @@ static PURE_PATH: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static SECRET: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static ENUM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static PROJECTED_LIST: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static PROJECTED_PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static OBJECT_NEW: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static COPY_DEEPCOPY: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
@@ -29,6 +31,14 @@ pub fn uuid_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
 /// so the module is already imported.
 pub fn page_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     PAGE.import(py, "hinoki.pagination", "Page")
+}
+
+pub fn projected_list_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PROJECTED_LIST.import(py, "hinoki.orm.projection", "_ProjectedList")
+}
+
+pub fn projected_page_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PROJECTED_PAGE.import(py, "hinoki.orm.projection", "_ProjectedPage")
 }
 
 pub fn object_new<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {

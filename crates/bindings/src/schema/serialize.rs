@@ -44,8 +44,13 @@ fn convert<'py>(
     if crate::pytypes::is_plain_scalar(value) {
         return Ok(value.clone());
     }
-    if let Ok(list) = value.cast::<PyList>() {
-        return convert_list(py, list.iter(), mode, depth);
+    if value.is_exact_instance_of::<PyList>() {
+        if let Ok(list) = value.cast::<PyList>() {
+            return convert_list(py, list.iter(), mode, depth);
+        }
+    } else if value.is_instance_of::<PyList>() {
+        let items: Vec<Bound<'py, PyAny>> = value.try_iter()?.collect::<PyResult<_>>()?;
+        return convert_list(py, items.into_iter(), mode, depth);
     }
     if let Some(grouped) = convert_grouped(value, mode, depth)? {
         return Ok(grouped);

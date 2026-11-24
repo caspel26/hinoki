@@ -44,7 +44,14 @@ from hinoki.core import (
 from hinoki.modules import Module, ModuleContext, Resource
 
 if TYPE_CHECKING:
-    from hinoki.core import Param, Row, _CursorCodec, _ModelRows, _RowPlan
+    from hinoki.core import (
+        Param,
+        Row,
+        _CursorCodec,
+        _ModelRows,
+        _ProjectedRows,
+        _RowPlan,
+    )
     from hinoki.orm.options import (
         indexed,
         ordered_by,
@@ -210,6 +217,85 @@ class Database(Resource):
         active = self.active()
         target = active.native if active else self.engine
         return await target.fetch_models(sql, list(params), plan)
+
+    async def fetch_page_models(
+        self,
+        rows_sql: str,
+        rows_params: list[Any],
+        count_sql: str,
+        count_params: list[Any],
+        plan: _ModelRows,
+        *,
+        concurrent: bool = False,
+    ) -> tuple[list[Any], int]:
+        """Fetch one page of model instances and its total count (private)."""
+        active = self.active()
+        target = active.native if active else self.engine
+        return await target.fetch_page_models(
+            rows_sql,
+            list(rows_params),
+            count_sql,
+            list(count_params),
+            plan,
+            concurrent,
+        )
+
+    async def fetch_page_rows(
+        self,
+        rows_sql: str,
+        rows_params: list[Any],
+        count_sql: str,
+        count_params: list[Any],
+        *,
+        concurrent: bool = False,
+    ) -> tuple[list[Row], int]:
+        """Fetch one page of raw rows and its total count (private)."""
+        active = self.active()
+        target = active.native if active else self.engine
+        return await target.fetch_page_rows(
+            rows_sql,
+            list(rows_params),
+            count_sql,
+            list(count_params),
+            concurrent,
+        )
+
+    async def fetch_projected_list(
+        self,
+        sql: str,
+        params: list[Any],
+        plan: _RowPlan,
+    ) -> _ProjectedRows | list[Row]:
+        """Fetch rows pre-encoded to JSON by Rust, or raw rows on fallback."""
+        active = self.active()
+        target = active.native if active else self.engine
+        return await target.fetch_projected_list(sql, list(params), plan)
+
+    async def fetch_projected_page(
+        self,
+        rows_sql: str,
+        rows_params: list[Any],
+        count_sql: str,
+        count_params: list[Any],
+        plan: _RowPlan,
+        page_window: tuple[int, int],
+        *,
+        concurrent: bool = False,
+    ) -> _ProjectedRows | tuple[list[Row], int]:
+        """Fetch one page pre-encoded to JSON by Rust, or raw rows on fallback."""
+        page, page_size = page_window
+        active = self.active()
+        target = active.native if active else self.engine
+        return await target.fetch_projected_page(
+            rows_sql,
+            list(rows_params),
+            count_sql,
+            list(count_params),
+            plan,
+            page,
+            page_size,
+            concurrent,
+        )
 
     async def _fetch_page_wire(
         self,

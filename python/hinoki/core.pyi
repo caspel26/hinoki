@@ -101,12 +101,23 @@ class ModelPlan:
     ) -> None: ...
     def build(self, row: Any, extra: dict[str, Any] | None = None) -> Any: ...
 
+type RawNestedPlan = tuple[str, str, str, list[tuple[str, str, str, bool]]]
+
 class _RowPlan:
     def __init__(
         self,
         columns: list[str],
         fields: list[tuple[str, str, str, bool]],
+        nested: list[RawNestedPlan] = ...,
     ) -> None: ...
+
+class _ProjectedRows:
+    @property
+    def len(self) -> int: ...
+    @property
+    def page_info(self) -> tuple[int, int, int] | None: ...
+    def json_bytes(self) -> bytes: ...
+    def rows(self) -> list[Row]: ...
 
 class _FilterPlan:
     """The declared client filters of one ``FilterSet``: checks a query string
@@ -350,6 +361,40 @@ class Transaction:
     async def fetch_models(
         self, sql: str, params: list[Param], plan: _ModelRows
     ) -> list[Any]: ...
+    async def fetch_page_models(
+        self,
+        rows_sql: str,
+        rows_params: list[Param],
+        count_sql: str,
+        count_params: list[Param],
+        plan: _ModelRows,
+        concurrent: bool = False,
+    ) -> tuple[list[Any], int]: ...
+    async def fetch_page_rows(
+        self,
+        rows_sql: str,
+        rows_params: list[Param],
+        count_sql: str,
+        count_params: list[Param],
+        concurrent: bool = False,
+    ) -> tuple[list[Row], int]: ...
+    async def fetch_projected_list(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+    ) -> _ProjectedRows | list[Row]: ...
+    async def fetch_projected_page(
+        self,
+        rows_sql: str,
+        rows_params: list[Param],
+        count_sql: str,
+        count_params: list[Param],
+        plan: _RowPlan,
+        page: int,
+        page_size: int,
+        concurrent: bool = False,
+    ) -> _ProjectedRows | tuple[list[Row], int]: ...
     async def _fetch_page_wire(
         self,
         sql: str,
@@ -388,6 +433,40 @@ class Database:
     async def fetch_models(
         self, sql: str, params: list[Param], plan: _ModelRows
     ) -> list[Any]: ...
+    async def fetch_page_models(
+        self,
+        rows_sql: str,
+        rows_params: list[Param],
+        count_sql: str,
+        count_params: list[Param],
+        plan: _ModelRows,
+        concurrent: bool = False,
+    ) -> tuple[list[Any], int]: ...
+    async def fetch_page_rows(
+        self,
+        rows_sql: str,
+        rows_params: list[Param],
+        count_sql: str,
+        count_params: list[Param],
+        concurrent: bool = False,
+    ) -> tuple[list[Row], int]: ...
+    async def fetch_projected_list(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+    ) -> _ProjectedRows | list[Row]: ...
+    async def fetch_projected_page(
+        self,
+        rows_sql: str,
+        rows_params: list[Param],
+        count_sql: str,
+        count_params: list[Param],
+        plan: _RowPlan,
+        page: int,
+        page_size: int,
+        concurrent: bool = False,
+    ) -> _ProjectedRows | tuple[list[Row], int]: ...
     async def _fetch_page_wire(
         self,
         sql: str,
