@@ -1,3 +1,7 @@
+---
+description: "API reference for `Settings`: loading, explaining and validating application settings."
+---
+
 # Settings
 
 ::: hinoki.settings.Settings

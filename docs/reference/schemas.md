@@ -1,3 +1,7 @@
+---
+description: API reference for `Schema`, its fields and the checks that run on input.
+---
+
 # Schemas
 
 ::: hinoki.schema.Schema

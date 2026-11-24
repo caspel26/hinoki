@@ -1,3 +1,7 @@
+---
+description: API reference for rules, rule sets and waivers.
+---
+
 # Rules API
 
 ::: hinoki.rules.RuleSet

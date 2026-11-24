@@ -1,3 +1,7 @@
+---
+description: API reference for the optional admin.
+---
+
 # Admin API
 
 ::: hinoki.admin.Admin

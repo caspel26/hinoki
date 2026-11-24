@@ -1,3 +1,7 @@
+---
+description: API reference for request parsers and response renderers.
+---
+
 # Parsers and renderers
 
 ::: hinoki.parsers.Parser
