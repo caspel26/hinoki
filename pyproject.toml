@@ -139,7 +139,7 @@ known-first-party = ["hinoki", "examples", "tests"]
 python_version = "3.12"
 strict = true
 warn_unused_ignores = true
-files = ["python/hinoki", "tests", "examples"]
+files = ["python/hinoki", "tests", "examples", "docsite/llms.py"]
 # Playwright is a development tool run with uvx, not a project dependency.
 exclude = ["tests/browser/", "tests/mcpclient/"]
 mypy_path = "python:examples/notes:examples/tracker:examples/blog:examples/mailroom:examples/tracker/tracker_tests/support:examples/blog/blog_tests/support"
