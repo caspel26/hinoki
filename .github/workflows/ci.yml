@@ -351,6 +351,8 @@ jobs:
           enable-cache: true
       - name: Build the documentation site, strictly (broken links fail)
         run: uv run --locked --group docs mkdocs build --strict -d /tmp/site
+      - name: Check the llms.txt outputs exist
+        run: test -s /tmp/site/llms.txt && test -s /tmp/site/llms-full.txt && test -s /tmp/site/crud.md
 
   wheel:
     needs: changes
