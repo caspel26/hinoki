@@ -1,0 +1,175 @@
+# Hinoki
+
+> A Python API framework that checks its own architecture. Typed `Schema`, ORM and settings of its own, a Rust core and the Kiso server. Not built on FastAPI, Starlette, Pydantic or Django: their APIs do not exist here.
+
+Docs version: dev. Every page is Markdown at https://hinoki.caspel.dev/dev/<page>.md; all non-optional pages are in https://hinoki.caspel.dev/dev/llms-full.txt.
+
+## Write Hinoki, not FastAPI
+
+* Import from `hinoki`: `Hinoki`, `Schema`, `Access`, `RouteGroup`, `http`, `db` and `crud`. A model class comes from `hinoki.orm` (`from hinoki.orm import Model, field, pk`).
+* Declare actions with `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@http.query`, then pass them to `Hinoki(include=[...])`. Parameters and the return type are annotations.
+* Name an `Access` policy with `access=`; leave it out only for an action that is public on purpose. Writes use `atomic=True`, alone or on a `RouteGroup`.
+* Request bodies and responses are `Schema` classes. Never return a `Model`: convert it with `XOut.from_model(row)`.
+* Load relations explicitly with `select_related(...)` or `prefetch_related(...)`; nothing loads lazily.
+* `crud(Model, ...)` generates list, retrieve and write actions for a model.
+* Run `hinoki check` after each change; `hinoki mcp` serves the real registry, rules and models to the agent.
+* Does not exist here: `BaseModel`, `Depends`, `APIRouter`, `@app.get(...)` and `with get/post` blocks.
+
+```python
+from hinoki import Hinoki, Schema, http
+
+
+class Greeting(Schema):
+    message: str
+
+
+class GreetingIn(Schema):
+    name: str
+
+
+@http.get("/greeting")
+async def read_greeting() -> Greeting:
+    return Greeting(message="hello")
+
+
+@http.post("/greeting", atomic=True)
+async def create_greeting(body: GreetingIn) -> Greeting:
+    return Greeting(message=f"hello {body.name}")
+
+
+app = Hinoki(include=[read_greeting, create_greeting])
+assert "/greeting" in app.openapi()["paths"]
+```
+
+## Get started
+
+- [Installation](https://hinoki.caspel.dev/dev/getting-started.md): Hinoki is pre-alpha and installs from a source checkout.
+- [Quick start](https://hinoki.caspel.dev/dev/quick-start.md): Create a project, run its tests and serve it.
+
+## Tutorial
+
+- [Overview](https://hinoki.caspel.dev/dev/tutorial/index.md): Follow the Tracker, an API where members keep their own tasks, one layer per chapter.
+- [1. Models](https://hinoki.caspel.dev/dev/tutorial/1-models.md): A model declares a table.
+- [2. Schemas](https://hinoki.caspel.dev/dev/tutorial/2-schemas.md): A model describes a table; a `Schema` describes what crosses the API.
+- [3. Operations](https://hinoki.caspel.dev/dev/tutorial/3-operations.md): The rules of the application live in plain async functions.
+- [4. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md): The HTTP layer maps requests to operations and results to responses.
+- [5. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md): Rules turn the project's promises into checks.
+- [6. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md): Settings are a typed class.
+- [7. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md): A `Schema` validates in three steps, all before your code runs: built-in constraints reject invalid input, normalizers make valid strings canonical, and…
+- [8. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md): An app is a package with its own models, migrations and routes, registered in `hinoki.toml`.
+
+## Guides
+
+- [Overview](https://hinoki.caspel.dev/dev/guides.md): One page per task.
+
+## Data
+
+- [Configure a database](https://hinoki.caspel.dev/dev/databases.md): choose the backend, set the URL or connection fields, keep credentials secret.
+- [Define models](https://hinoki.caspel.dev/dev/models.md): columns, primary keys, column types, table names and write-time validators.
+- [Model options](https://hinoki.caspel.dev/dev/model-options.md): indexes, composite uniqueness, default order, update timestamps and names, as decorators.
+- [Relations](https://hinoki.caspel.dev/dev/relations.md): foreign keys, one-to-one, many-to-many association models and explicit loading.
+- [Query and write rows](https://hinoki.caspel.dev/dev/queries.md): filters, pagination, reusable queries, creates, updates and bulk writes.
+- [Lifecycle hooks](https://hinoki.caspel.dev/dev/model-hooks.md): react to a model's own writes and inspect its changed columns.
+- [Events](https://hinoki.caspel.dev/dev/events.md): typed events with explicit handlers that run inside the transaction or after the commit.
+- [Migrations](https://hinoki.caspel.dev/dev/migrations.md): plan, review, apply and check migrations for every app.
+- [Schemas](https://hinoki.caspel.dev/dev/schemas.md): declare the data that crosses the API boundary and convert it to and from rows.
+- [Scalar field types](https://hinoki.caspel.dev/dev/schema-types.md): enums, literals, dates, decimals, bytes, addresses, secrets and paths.
+- [Collections and unions](https://hinoki.caspel.dev/dev/schema-collections.md): sets, tuples, dictionaries, unions, discriminated unions, TypedDicts and dataclasses.
+- [Validate input](https://hinoki.caspel.dev/dev/schema-validation.md): constraints, normalization, field and object checks, and input reshaping.
+- [Schemas from models](https://hinoki.caspel.dev/dev/model-schemas.md): derive a `Schema` from a `Model` and convert rows with `from_model`.
+- [Time and utilities](https://hinoki.caspel.dev/dev/utilities.md): UTC time, the application timezone, test clocks and update timestamps.
+
+## Endpoints
+
+- [Function-based APIs](https://hinoki.caspel.dev/dev/function-endpoints.md): the default pattern: plain functions grouped by a `RouteGroup` that states access, transactions and errors once.
+- [Class-based APIs](https://hinoki.caspel.dev/dev/class-endpoints.md): `API` classes for `@crud` resources with hooks, inheritance and resources you ship to others.
+- [Register routes](https://hinoki.caspel.dev/dev/routes.md): how `routes.py` and `hinoki.toml` build the route map, with `Mount`, `include=` in tests and `hinoki routes`.
+- [Requests and responses](https://hinoki.caspel.dev/dev/endpoints.md): what an action receives (path, query, body, forms, XML, files) and how its result is checked.
+- [Store uploaded files](https://hinoki.caspel.dev/dev/storage.md): bounded memory or local-disk storage with opaque keys and streamed downloads.
+- [Generate CRUD routes](https://hinoki.caspel.dev/dev/crud.md): list, retrieve and write actions from a model, with access and ownership rules.
+- [Errors](https://hinoki.caspel.dev/dev/errors.md): malformed requests, authentication failures and declared application errors.
+- [Stream a response](https://hinoki.caspel.dev/dev/streaming.md): `Stream`, `EventStream` and `File` answers sent while they are produced, on Kiso and Granian.
+- [WebSockets](https://hinoki.caspel.dev/dev/websockets.md): `@http.websocket` actions with `Access`, typed JSON messages, limits and back-pressure, on Kiso and Granian.
+- [Compress responses](https://hinoki.caspel.dev/dev/compression.md): optional brotli and gzip compression of bodies, on Kiso only.
+- [Export Prometheus metrics](https://hinoki.caspel.dev/dev/metrics.md): request counters and histograms on a dedicated listener, on Kiso only.
+- [Send email](https://hinoki.caspel.dev/dev/email.md): SMTP, console and memory backends from a per-worker mailer, sent after a commit; no queue.
+- [Email templates](https://hinoki.caspel.dev/dev/email-templates.md): typed TOML templates rendered in Rust, checked at startup and previewed from the CLI.
+- [Middleware](https://hinoki.caspel.dev/dev/middleware.md): typed `Middleware` around an action or the whole app, identical on Kiso and Granian.
+- [Pagination](https://hinoki.caspel.dev/dev/pagination.md): page-number pagination with `PageNumberPagination` and keyset cursors with `CursorPagination`.
+- [Parsers and renderers](https://hinoki.caspel.dev/dev/codecs.md): other body formats in and out.
+- [OpenAPI document](https://hinoki.caspel.dev/dev/openapi.md): the OpenAPI 3.2 document (3.1 on request) generated from routes, signatures and `Schema` declarations.
+
+## Security and checks
+
+- [Authentication and access](https://hinoki.caspel.dev/dev/authentication.md): providers resolve a `Caller`; `Access` policies check permissions.
+- [Application sessions](https://hinoki.caspel.dev/dev/sessions.md): server-side state, cookie lifecycle, CSRF checks, session authentication and explicit stores.
+- [Hosts, CORS and HTTPS](https://hinoki.caspel.dev/dev/web-security.md): restrict the host names an app answers to, which browser origins may read it, browser security headers, HTTPS redirects and trusted proxies.
+- [Rules](https://hinoki.caspel.dev/dev/rules.md): typed promises about your application, checked with a stable ID, a location and an explanation.
+
+## Runtime
+
+- [Application modules](https://hinoki.caspel.dev/dev/modules.md): resources that live as long as a worker, such as a database pool.
+- [Cache values](https://hinoki.caspel.dev/dev/cache.md): bounded Rust memory cache or a shared database backend with explicit TTL and failure behavior.
+- [Transactions](https://hinoki.caspel.dev/dev/transactions.md): `atomic=True` on actions, `db.atomic` in application code.
+- [Settings](https://hinoki.caspel.dev/dev/settings.md): typed, immutable settings from the environment, dotenv and TOML, with redacted secrets.
+- [Serve an application](https://hinoki.caspel.dev/dev/serving.md): `hinoki dev` while you work, `hinoki serve` in production, on Kiso (the default) or Granian.
+- [Kiso server](https://hinoki.caspel.dev/dev/kiso.md): what Hinoki's Rust server runs natively, its limits, workers and signals, reload and reverse-proxy behaviour.
+- [Test an application](https://hinoki.caspel.dev/dev/testing.md): test through the whole stack with `ASGIClient`, against a disposable database, from the test `hinoki new` generates.
+- [Command line](https://hinoki.caspel.dev/dev/cli.md): every `hinoki` command, the short forms inside a project and the explicit forms outside one.
+- [Create a project](https://hinoki.caspel.dev/dev/new-project.md): the interactive `hinoki new` flow, its options and what the generated project contains.
+- [Inspect an application](https://hinoki.caspel.dev/dev/inspect.md): check rules, list routes, export the OpenAPI document, show settings and diagnose the environment.
+- [Interactive shell](https://hinoki.caspel.dev/dev/shell.md): an async-capable prompt with the app's settings and models.
+- [Typing](https://hinoki.caspel.dev/dev/typing.md): what a type checker catches in handlers, decorators and `Schema` construction.
+
+## Integrations
+
+- [Add an admin](https://hinoki.caspel.dev/dev/admin.md): staff pages for your models, with a sign-in page, users and per-model permissions.
+- [Customize the admin](https://hinoki.caspel.dev/dev/admin-customize.md): columns, hooks, bulk actions, templates and themes.
+- [Expose actions over MCP](https://hinoki.caspel.dev/dev/app-mcp.md): selected actions as tools for a remote MCP client.
+- [Development MCP](https://hinoki.caspel.dev/dev/dev-mcp.md): a server that describes your app to a coding agent; it can run requests against the app only when you enable `--scenarios`.
+- [Build with a coding agent](https://hinoki.caspel.dev/dev/ai-workflow.md): a project, rules and tools ready for an agent, the llms.txt files and Markdown mirrors of these docs, and where its authority ends.
+
+## Operating
+
+- [Sync and async code](https://hinoki.caspel.dev/dev/sync-async.md): the event loop, the bounded sync pool and which style each surface accepts.
+
+## Concepts
+
+- [Concepts](https://hinoki.caspel.dev/dev/concepts.md): how models, `Schema` classes, actions, workers and rules fit together.
+- [Request lifecycle](https://hinoki.caspel.dev/dev/request-lifecycle.md): the order of routing, access, binding, handler, commit and response.
+- [Structure an application](https://hinoki.caspel.dev/dev/patterns.md): layers, where each concern lives, and why.
+- [Glossary](https://hinoki.caspel.dev/dev/glossary.md): one word, one meaning.
+- [Use other libraries](https://hinoki.caspel.dev/dev/ecosystem.md): what owning `Schema` and `Model` means, and the extension points.
+
+## Optional
+
+- [Operating: Benchmarks](https://hinoki.caspel.dev/dev/benchmarks.md): retained measurements with their environment, method and limits.
+- [Operating: Changelog](https://hinoki.caspel.dev/dev/changelog.md): every user-facing change, explorable by version and type.
+- [Operating: Native CRUD orientation run](https://hinoki.caspel.dev/dev/rust-crud-orientation.md): a workload-specific measurement of generated CRUD.
+- [Reference: Overview](https://hinoki.caspel.dev/dev/reference/index.md): public names, signatures and docstrings.
+- [Reference: Core API](https://hinoki.caspel.dev/dev/reference/web.md): `from hinoki import Hinoki, RouteGroup, Mount, http, errors` and `from hinoki.project import manifest_routes`.
+- [Reference: Generated CRUD](https://hinoki.caspel.dev/dev/reference/crud.md): The CRUD guide explains action generation, access policies, ownership, schema requirements and route replacement.
+- [Reference: Schemas](https://hinoki.caspel.dev/dev/reference/schemas.md): API reference for `Schema`, its fields and the checks that run on input.
+- [Reference: Models and queries](https://hinoki.caspel.dev/dev/reference/orm.md): API reference for `Model`, columns, relations, indexes and querysets.
+- [Reference: Parsers and renderers](https://hinoki.caspel.dev/dev/reference/codecs.md): API reference for request parsers and response renderers.
+- [Reference: Auth and crypto](https://hinoki.caspel.dev/dev/reference/auth.md): `JWTAuth` delegates signature and registered-claim verification to the Rust core.
+- [Reference: Database](https://hinoki.caspel.dev/dev/reference/database.md): For setup, application settings, URL examples and migration workflow, see configure a database.
+- [Reference: Settings](https://hinoki.caspel.dev/dev/reference/settings.md): API reference for `Settings`: loading, explaining and validating application settings.
+- [Reference: Email](https://hinoki.caspel.dev/dev/reference/email.md): API reference for email messages, senders and templates.
+- [Reference: Sessions](https://hinoki.caspel.dev/dev/reference/sessions.md): `from hinoki.sessions import SessionModule, SessionAuth, Session`.
+- [Reference: Cache](https://hinoki.caspel.dev/dev/reference/cache.md): `from hinoki.cache import Cache, CacheModule, MemoryCache, DatabaseCache`.
+- [Reference: File storage](https://hinoki.caspel.dev/dev/reference/storage.md): `from hinoki.storage import FileStorage, FileStorageModule, LocalFileStorage`.
+- [Reference: Rules](https://hinoki.caspel.dev/dev/reference/rules.md): API reference for rules, rule sets and waivers.
+- [Reference: Modules and runtime](https://hinoki.caspel.dev/dev/reference/runtime.md): The events guide explains the two moments a handler runs in.
+- [Reference: MCP and scaffold](https://hinoki.caspel.dev/dev/reference/tools.md): Project scaffolding is a command-line interface; see command line.
+- [Reference: Admin](https://hinoki.caspel.dev/dev/reference/admin.md): API reference for the optional admin.
+- [Reference: Testing](https://hinoki.caspel.dev/dev/reference/testing.md): API reference for the test clients and helpers.
+- [Reference: Utilities](https://hinoki.caspel.dev/dev/reference/utilities.md): API reference for UTC time, clocks and other utilities.
+- [Project: Status](https://hinoki.caspel.dev/dev/status.md): what works today and what does not yet.
+- [Project: Documentation versions](https://hinoki.caspel.dev/dev/documentation-versions.md): how `dev` and release docs are published.
+- [Project: Roadmap](https://github.com/caspel26/hinoki/blob/main/ROADMAP.md)
+- [Project: Contributing](https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md)
+- [Project: Troubleshooting](https://hinoki.caspel.dev/dev/troubleshooting.md): common errors by their message.
+- [Project: Toolchain and CI](https://hinoki.caspel.dev/dev/toolchain.md): local and CI commands for contributors.
+- [Project: Release checklist](https://hinoki.caspel.dev/dev/release.md): build, check and publish a release.
+- [Full documentation](https://hinoki.caspel.dev/dev/llms-full.txt): every non-optional page in one file
