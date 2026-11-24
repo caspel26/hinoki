@@ -30,6 +30,7 @@ OUTPUT = re.compile(
 SAMPLE = "mailroom/samples/reset_password.json"
 ENVIRONMENT = {
     **os.environ,
+    "MAILROOM_API_KEY": "doc-test-key",
     "MAILROOM_EMAIL__BACKEND": "memory",
     "MAILROOM_EMAIL__DEFAULT_SENDER": "noreply@example.com",
     "NO_COLOR": "1",
