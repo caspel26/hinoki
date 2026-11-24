@@ -25,13 +25,20 @@ from hinoki.orm.relations import (
     forward_value,
     store,
 )
-from hinoki.pagination import CursorPage, CursorParams, Page, PageParams
+from hinoki.pagination import (
+    DEFAULT_PAGE_SIZE,
+    CursorPage,
+    CursorParams,
+    Page,
+    PageParams,
+)
 from hinoki.utils import _read_utc
 
 if TYPE_CHECKING:
     from hinoki.core import Row
     from hinoki.events import EventBus
     from hinoki.orm.model import Model
+    from hinoki.schema import Schema
 
 OPERATORS = {"gt", "gte", "lt", "lte", "ne", "in", "isnull", "contains"}
 SEPARATOR = "__"
@@ -422,6 +429,12 @@ class QuerySet[M: Model]:
             joins.append((name, related_plan, f"{ALIAS_PREFIX}{name}{SEPARATOR}", key))
         return plan.joined(joins, STORE)
 
+    def _model_plan(self) -> core._ModelRows | None:
+        plan = self.model.row_plan() if self.uses_stock_builders() else None
+        if plan is not None and self.loading.selected:
+            return self.joined_plan(plan)
+        return plan
+
     async def fetch(self) -> list[M]:
         """Run the query and build the rows; what ``await queryset`` returns."""
         database = current_database()
@@ -432,9 +445,7 @@ class QuerySet[M: Model]:
         self, database: Database, sql: str, params: list[Any]
     ) -> list[M]:
         """Run ``sql`` compiled from this query and build its rows."""
-        plan = self.model.row_plan() if self.uses_stock_builders() else None
-        if plan is not None and self.loading.selected:
-            plan = self.joined_plan(plan)
+        plan = self._model_plan()
         fetch_models = getattr(database, "fetch_models", None)
         if plan is not None and fetch_models is not None:
             instances: list[M] = await fetch_models(sql, list(params), plan)
@@ -698,8 +709,24 @@ class QuerySet[M: Model]:
     def exists(self) -> bool:
         return run_sync(self.aexists())
 
-    def paginate(self, params: PageParams) -> Page[M]:
-        return run_sync(self.apaginate(params))
+    def paginate(
+        self, params: PageParams | None = None, *, concurrent: bool = False
+    ) -> Page[M]:
+        return run_sync(self.apaginate(params, concurrent=concurrent))
+
+    def project[S: Schema](self, schema: type[S]) -> builtins.list[S]:
+        """Sync ``aproject``."""
+        return run_sync(self.aproject(schema))
+
+    def paginate_as[S: Schema](
+        self,
+        schema: type[S],
+        params: PageParams | None = None,
+        *,
+        concurrent: bool = False,
+    ) -> Page[S]:
+        """Sync ``apaginate_as``."""
+        return run_sync(self.apaginate_as(schema, params, concurrent=concurrent))
 
     def stably_ordered(self) -> QuerySet[M]:
         """The queryset with the primary key as the last sort key, so rows with
@@ -709,13 +736,91 @@ class QuerySet[M: Model]:
             return self
         return self.derive(order=(*self.order, (key, False)))
 
-    async def apaginate(self, params: PageParams) -> Page[M]:
+    async def aproject[S: Schema](self, schema: type[S]) -> builtins.list[S]:
+        """Project matching rows directly to ``schema`` in Rust when eligible,
+        returning a lazy ``list[S]`` that emits pre-encoded JSON with zero
+        Python ``Model``/``Schema`` allocations and materializes transparently
+        on Python access without a second database query."""
+        # local import avoids circular dependency with hinoki.orm.model
+        from hinoki.orm.projection import project_list  # noqa: PLC0415
+
+        return await project_list(self, schema, current_database())
+
+    async def apaginate_as[S: Schema](
+        self,
+        schema: type[S],
+        params: PageParams | None = None,
+        *,
+        concurrent: bool = False,
+    ) -> Page[S]:
+        """Paginate and project matching rows directly to ``schema`` in Rust
+        when eligible, returning a lazy ``Page[S]`` that emits pre-encoded JSON
+        and materializes ``.items`` transparently without a second query."""
+        # local import avoids circular dependency with hinoki.orm.model
+        from hinoki.orm.projection import paginate_projected  # noqa: PLC0415
+
+        resolved = PageParams(1, DEFAULT_PAGE_SIZE) if params is None else params
+        return await paginate_projected(
+            self, schema, resolved, current_database(), concurrent=concurrent
+        )
+
+    async def apaginate(
+        self, params: PageParams | None = None, *, concurrent: bool = False
+    ) -> Page[M]:
         """One page plus the total. The primary key is the final sort key so
-        pages are stable."""
+        pages are stable.
+
+        With ``concurrent=True``, the row and count queries run together on
+        pools with capacity for at least two connections (outside an active
+        transaction); SQLite, single-connection pools and active transactions
+        always run them sequentially.
+        """
+        resolved = PageParams(1, DEFAULT_PAGE_SIZE) if params is None else params
         ordered = self.stably_ordered()
+        if not concurrent:
+            total = await self.acount()
+            window = ordered.limit(resolved.page_size).offset(resolved.offset)
+            return Page(await window, resolved.page, resolved.page_size, total)
+        window = ordered.limit(resolved.page_size).offset(resolved.offset)
+        items, total = await self._fetch_page_concurrent(window)
+        return Page(items, resolved.page, resolved.page_size, total)
+
+    async def _fetch_page_concurrent(
+        self, window: QuerySet[M]
+    ) -> tuple[builtins.list[M], int]:
+        """Fetch rows and total count for ``window`` via the native page path,
+        falling back cleanly when a custom builder or database stub is used."""
+        database = current_database()
+        rows_sql, rows_params = window.compile(dialect=database.dialect)
+        count_sql, count_params = self.derive(
+            order=(), limit_to=None, offset_by=None
+        ).compile("count", database.dialect)
+        plan = window._model_plan()
+        fetch_page_models = getattr(database, "fetch_page_models", None)
+        if plan is not None and fetch_page_models is not None:
+            instances: builtins.list[M]
+            instances, total = await fetch_page_models(
+                rows_sql,
+                list(rows_params),
+                count_sql,
+                list(count_params),
+                plan,
+                concurrent=True,
+            )
+            await window.load(instances)
+            return instances, total
+        fetch_page_rows = getattr(database, "fetch_page_rows", None)
+        if fetch_page_rows is not None:
+            rows, total = await fetch_page_rows(
+                rows_sql,
+                list(rows_params),
+                count_sql,
+                list(count_params),
+                concurrent=True,
+            )
+            return await window._hydrate(rows), total
         total = await self.acount()
-        window = ordered.limit(params.page_size).offset(params.offset)
-        return Page(await window, params.page, params.page_size, total)
+        return await window, total
 
     async def apaginate_cursor(self, params: CursorParams) -> CursorPage[M]:
         """One keyset page: ordered like this query with the primary key as the

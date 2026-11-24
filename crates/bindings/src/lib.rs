@@ -180,6 +180,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(schema::dump_for_storage, m)?)?;
     m.add_class::<schema::ModelPlan>()?;
     m.add_class::<rows::PyRowPlan>()?;
+    m.add_class::<rows::PyProjectedRows>()?;
     m.add_class::<modelrows::PyModelRows>()?;
     m.add_class::<driver::NativeWait>()?;
     m.add_function(wrap_pyfunction!(driver::_drive, m)?)?;

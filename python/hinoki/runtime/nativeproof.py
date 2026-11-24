@@ -48,7 +48,9 @@ MODEL_WRITES = frozenset(
 QUERYSET_BUILDERS = frozenset(
     {"filter", "select_related", "order_by", "limit", "offset"}
 )
-QUERYSET_TERMINALS = frozenset({"aget", "afirst", "acount", "aexists"})
+QUERYSET_TERMINALS = frozenset(
+    {"aget", "afirst", "acount", "aexists", "aproject", "apaginate_as"}
+)
 QUERYSET_WRITES = frozenset({"aupdate", "adelete"})
 # The model event a write emits; ``aupdate`` and ``aupdate_where`` emit none.
 MODEL_WRITE_EVENTS: dict[str, type] = {

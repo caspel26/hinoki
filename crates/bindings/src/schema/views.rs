@@ -276,7 +276,15 @@ impl<'py> View for PyView<'_, 'py> {
     }
 
     fn list(&self, data: &Self::Data) -> Option<Self::List> {
-        data.cast::<PyList>().ok().cloned()
+        if data.is_exact_instance_of::<PyList>() {
+            return data.cast::<PyList>().ok().cloned();
+        }
+        if !data.is_instance_of::<PyList>() {
+            return None;
+        }
+        let iter = data.try_iter().ok()?;
+        let items: Vec<Bound<'py, PyAny>> = iter.collect::<PyResult<_>>().ok()?;
+        PyList::new(self.py, items).ok()
     }
 
     fn list_len(&self, list: &Self::List) -> usize {

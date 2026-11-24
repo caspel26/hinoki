@@ -6,7 +6,7 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use hinoki_orm::links::{apply, Canon, LinkOp, LinkWrite};
-use hinoki_orm::{Database, DbError, ErrorKind, Transaction, Value};
+use hinoki_orm::{Database, DbError, ErrorKind, PageQueries, Transaction, Value};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
@@ -15,7 +15,9 @@ use tokio::sync::Mutex;
 use crate::cursor::{CursorQuery, CursorWire, PyCursorCodec};
 use crate::links::{outcome_to_py, raw_keys, scope_of, PyLinkSpec, RawScope};
 use crate::modelrows::{models_to_py, PyModelRows};
-use crate::rows::{PageWireResult, PyRowPlan};
+use crate::rows::{
+    PageWireResult, ProjectedListResult, ProjectedPageResult, PyProjectedRows, PyRowPlan,
+};
 
 pyo3::create_exception!(core, DatabaseError, pyo3::exceptions::PyException);
 pyo3::create_exception!(core, UniqueViolation, DatabaseError);
@@ -302,6 +304,119 @@ impl PyDatabase {
         bridge!(py, fut, |py2, rows| models_to_py(py2, &rows, &plan))
     }
 
+    #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, plan, concurrent=false))]
+    #[allow(clippy::too_many_arguments)]
+    fn fetch_page_models<'py>(
+        &self,
+        py: Python<'py>,
+        rows_sql: String,
+        rows_params: &Bound<'py, PyList>,
+        count_sql: String,
+        count_params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyModelRows>,
+        concurrent: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let db = self.inner.clone();
+        let rows_values = to_values(rows_params)?;
+        let count_values = to_values(count_params)?;
+        let plan = plan.inner.clone();
+        let fut = async move {
+            let queries = PageQueries {
+                rows_sql: &rows_sql,
+                rows_params: &rows_values,
+                count_sql: &count_sql,
+                count_params: &count_values,
+            };
+            db.fetch_page(&queries, concurrent).await
+        };
+        bridge!(py, fut, |py2, result| {
+            let (rows, total) = result;
+            let models = models_to_py(py2, &rows, &plan)?;
+            Ok((models, total).into_pyobject(py2)?.into_any().unbind())
+        })
+    }
+
+    #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, concurrent=false))]
+    fn fetch_page_rows<'py>(
+        &self,
+        py: Python<'py>,
+        rows_sql: String,
+        rows_params: &Bound<'py, PyList>,
+        count_sql: String,
+        count_params: &Bound<'py, PyList>,
+        concurrent: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let db = self.inner.clone();
+        let rows_values = to_values(rows_params)?;
+        let count_values = to_values(count_params)?;
+        let fut = async move {
+            let queries = PageQueries {
+                rows_sql: &rows_sql,
+                rows_params: &rows_values,
+                count_sql: &count_sql,
+                count_params: &count_values,
+            };
+            db.fetch_page(&queries, concurrent).await
+        };
+        bridge!(py, fut, |py2, result| {
+            let (rows, total) = result;
+            let py_rows = rows_to_py(py2, &rows)?;
+            Ok((py_rows, total).into_pyobject(py2)?.into_any().unbind())
+        })
+    }
+
+    #[pyo3(signature = (sql, params, plan))]
+    fn fetch_projected_list<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let rows = db.fetch(&sql, &values).await?;
+            Ok::<_, DbError>(match crate::rows::encode_list(&rows, &plan) {
+                Some(json) => ProjectedListResult::Encoded(json, rows),
+                None => ProjectedListResult::Fallback(rows),
+            })
+        };
+        bridge!(py, fut, |py2, result| projected_list_to_py(py2, result))
+    }
+
+    #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, plan, page, page_size, concurrent=false))]
+    #[allow(clippy::too_many_arguments)]
+    fn fetch_projected_page<'py>(
+        &self,
+        py: Python<'py>,
+        rows_sql: String,
+        rows_params: &Bound<'py, PyList>,
+        count_sql: String,
+        count_params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+        page: u64,
+        page_size: u64,
+        concurrent: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let db = self.inner.clone();
+        let rows_values = to_values(rows_params)?;
+        let count_values = to_values(count_params)?;
+        let plan = plan.inner.clone();
+        let fut = async move {
+            let queries = PageQueries {
+                rows_sql: &rows_sql,
+                rows_params: &rows_values,
+                count_sql: &count_sql,
+                count_params: &count_values,
+            };
+            let (rows, total) = db.fetch_page(&queries, concurrent).await?;
+            Ok::<_, DbError>(finish_projected_page(rows, total, &plan, page, page_size))
+        };
+        bridge!(py, fut, |py2, result| projected_page_to_py(
+            py2, result, page, page_size
+        ))
+    }
+
     #[pyo3(signature = (sql, params, plan, page_info))]
     fn _fetch_page_wire<'py>(
         &self,
@@ -416,6 +531,50 @@ impl PyDatabase {
     }
 }
 
+fn finish_projected_page(
+    rows: Vec<Vec<(String, Value)>>,
+    total: i64,
+    plan: &crate::rows::RowPlan,
+    page: u64,
+    page_size: u64,
+) -> ProjectedPageResult {
+    match u64::try_from(total)
+        .ok()
+        .and_then(|count| crate::rows::encode_page(&rows, plan, page, page_size, count))
+    {
+        Some(json) => ProjectedPageResult::Encoded(json, rows, total as u64),
+        None => ProjectedPageResult::Fallback(rows, total),
+    }
+}
+
+fn projected_list_to_py(py: Python<'_>, result: ProjectedListResult) -> PyResult<Py<PyAny>> {
+    match result {
+        ProjectedListResult::Encoded(json, rows) => {
+            Ok(Py::new(py, PyProjectedRows::new(json, rows, None))?.into_any())
+        }
+        ProjectedListResult::Fallback(rows) => rows_to_py(py, &rows),
+    }
+}
+
+fn projected_page_to_py(
+    py: Python<'_>,
+    result: ProjectedPageResult,
+    page: u64,
+    page_size: u64,
+) -> PyResult<Py<PyAny>> {
+    match result {
+        ProjectedPageResult::Encoded(json, rows, total) => Ok(Py::new(
+            py,
+            PyProjectedRows::new(json, rows, Some((page, page_size, total))),
+        )?
+        .into_any()),
+        ProjectedPageResult::Fallback(rows, total) => {
+            let py_rows = rows_to_py(py, &rows)?;
+            Ok((py_rows, total).into_pyobject(py)?.into_any().unbind())
+        }
+    }
+}
+
 fn coerce_one(kind: &hinoki_orm::links::KeyKind, key: &Bound<'_, PyAny>) -> PyResult<Canon> {
     let list = PyList::new(key.py(), [key])?;
     coerce_all(kind, &list)?
@@ -468,6 +627,130 @@ impl PyTransaction {
             tx.fetch(&sql, &values).await
         };
         bridge!(py, fut, |py2, rows| models_to_py(py2, &rows, &plan))
+    }
+
+    #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, plan, concurrent=false))]
+    #[allow(clippy::too_many_arguments)]
+    fn fetch_page_models<'py>(
+        &self,
+        py: Python<'py>,
+        rows_sql: String,
+        rows_params: &Bound<'py, PyList>,
+        count_sql: String,
+        count_params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyModelRows>,
+        concurrent: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = concurrent; // Transactions own one connection and always execute sequentially.
+        let inner = self.inner.clone();
+        let rows_values = to_values(rows_params)?;
+        let count_values = to_values(count_params)?;
+        let plan = plan.inner.clone();
+        let fut = async move {
+            let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            let tx = guard.as_ref().ok_or_else(busy_error)?;
+            let queries = PageQueries {
+                rows_sql: &rows_sql,
+                rows_params: &rows_values,
+                count_sql: &count_sql,
+                count_params: &count_values,
+            };
+            tx.fetch_page(&queries).await
+        };
+        bridge!(py, fut, |py2, result| {
+            let (rows, total) = result;
+            let models = models_to_py(py2, &rows, &plan)?;
+            Ok((models, total).into_pyobject(py2)?.into_any().unbind())
+        })
+    }
+
+    #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, concurrent=false))]
+    fn fetch_page_rows<'py>(
+        &self,
+        py: Python<'py>,
+        rows_sql: String,
+        rows_params: &Bound<'py, PyList>,
+        count_sql: String,
+        count_params: &Bound<'py, PyList>,
+        concurrent: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = concurrent; // Transactions own one connection and always execute sequentially.
+        let inner = self.inner.clone();
+        let rows_values = to_values(rows_params)?;
+        let count_values = to_values(count_params)?;
+        let fut = async move {
+            let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            let tx = guard.as_ref().ok_or_else(busy_error)?;
+            let queries = PageQueries {
+                rows_sql: &rows_sql,
+                rows_params: &rows_values,
+                count_sql: &count_sql,
+                count_params: &count_values,
+            };
+            tx.fetch_page(&queries).await
+        };
+        bridge!(py, fut, |py2, result| {
+            let (rows, total) = result;
+            let py_rows = rows_to_py(py2, &rows)?;
+            Ok((py_rows, total).into_pyobject(py2)?.into_any().unbind())
+        })
+    }
+
+    #[pyo3(signature = (sql, params, plan))]
+    fn fetch_projected_list<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (inner, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            let tx = guard.as_ref().ok_or_else(busy_error)?;
+            let rows = tx.fetch(&sql, &values).await?;
+            Ok::<_, DbError>(match crate::rows::encode_list(&rows, &plan) {
+                Some(json) => ProjectedListResult::Encoded(json, rows),
+                None => ProjectedListResult::Fallback(rows),
+            })
+        };
+        bridge!(py, fut, |py2, result| projected_list_to_py(py2, result))
+    }
+
+    #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, plan, page, page_size, concurrent=false))]
+    #[allow(clippy::too_many_arguments)]
+    fn fetch_projected_page<'py>(
+        &self,
+        py: Python<'py>,
+        rows_sql: String,
+        rows_params: &Bound<'py, PyList>,
+        count_sql: String,
+        count_params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+        page: u64,
+        page_size: u64,
+        concurrent: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = concurrent; // Transactions own one connection and always execute sequentially.
+        let inner = self.inner.clone();
+        let rows_values = to_values(rows_params)?;
+        let count_values = to_values(count_params)?;
+        let plan = plan.inner.clone();
+        let fut = async move {
+            let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            let tx = guard.as_ref().ok_or_else(busy_error)?;
+            let queries = PageQueries {
+                rows_sql: &rows_sql,
+                rows_params: &rows_values,
+                count_sql: &count_sql,
+                count_params: &count_values,
+            };
+            let (rows, total) = tx.fetch_page(&queries).await?;
+            Ok::<_, DbError>(finish_projected_page(rows, total, &plan, page, page_size))
+        };
+        bridge!(py, fut, |py2, result| projected_page_to_py(
+            py2, result, page, page_size
+        ))
     }
 
     /// Add, remove or replace links of one owner (see `hinoki_orm::links`).

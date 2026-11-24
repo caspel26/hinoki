@@ -20,6 +20,28 @@ use crate::value::Value;
 /// One result row: column names with decoded values, in column order.
 pub type Row = Vec<(String, Value)>;
 
+/// The rows and count queries for one paginated page.
+pub struct PageQueries<'a> {
+    pub rows_sql: &'a str,
+    pub rows_params: &'a [Value],
+    pub count_sql: &'a str,
+    pub count_params: &'a [Value],
+}
+
+fn extract_count(rows: &[Row]) -> Result<i64, DbError> {
+    let value = rows
+        .first()
+        .and_then(|row| row.first())
+        .map(|(_, value)| value);
+    match value {
+        Some(Value::Int(count)) => Ok(*count),
+        _ => Err(DbError::new(
+            ErrorKind::Type,
+            "expected an integer count from the count query",
+        )),
+    }
+}
+
 #[cfg(feature = "sql-trace")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SqlTraceEntry {
@@ -60,6 +82,7 @@ impl SqlTrace {
 #[derive(Clone)]
 pub struct Database {
     backend: DatabaseBackend,
+    max_size: usize,
     #[cfg(feature = "sql-trace")]
     trace: SqlTrace,
 }
@@ -359,6 +382,7 @@ impl Database {
             let path = connect_path(url)?;
             return Ok(Self {
                 backend: DatabaseBackend::Sqlite(SqlitePool::open(&path, max_size, wait)?),
+                max_size,
                 #[cfg(feature = "sql-trace")]
                 trace: SqlTrace::default(),
             });
@@ -374,6 +398,7 @@ impl Database {
                     pool: MysqlPool::connect(&driver_url, max_size, wait)?,
                     dialect,
                 },
+                max_size,
                 #[cfg(feature = "sql-trace")]
                 trace: SqlTrace::default(),
             });
@@ -406,6 +431,7 @@ impl Database {
         .map_err(|_| DbError::new(ErrorKind::Connect, "invalid database configuration"))?;
         Ok(Self {
             backend: DatabaseBackend::Postgres { pool, tls },
+            max_size,
             #[cfg(feature = "sql-trace")]
             trace: SqlTrace::default(),
         })
@@ -453,6 +479,38 @@ impl Database {
         let outcome = fetch_with_recovery(lease.get()?, sql, values).await;
         lease.release();
         outcome
+    }
+
+    /// Whether the pool can safely run two read statements concurrently.
+    /// SQLite runs sequentially to avoid file-lock contention, and any pool
+    /// with `max_size < 2` runs sequentially so one request never deadlocks
+    /// waiting for a second connection.
+    pub fn supports_concurrent_reads(&self) -> bool {
+        self.max_size >= 2 && !matches!(&self.backend, DatabaseBackend::Sqlite(_))
+    }
+
+    /// Run a page's count and rows queries, returning `(rows, total)`.
+    ///
+    /// When `concurrent` is true and [`Self::supports_concurrent_reads`] holds,
+    /// both queries run concurrently via `tokio::try_join!`, dropping the
+    /// sibling future on error so no connection leaks. Otherwise they run
+    /// sequentially (count then rows).
+    pub async fn fetch_page(
+        &self,
+        queries: &PageQueries<'_>,
+        concurrent: bool,
+    ) -> Result<(Vec<Row>, i64), DbError> {
+        if concurrent && self.supports_concurrent_reads() {
+            let (count_rows, rows) = tokio::try_join!(
+                self.fetch(queries.count_sql, queries.count_params),
+                self.fetch(queries.rows_sql, queries.rows_params),
+            )?;
+            return Ok((rows, extract_count(&count_rows)?));
+        }
+        let count_rows = self.fetch(queries.count_sql, queries.count_params).await?;
+        let total = extract_count(&count_rows)?;
+        let rows = self.fetch(queries.rows_sql, queries.rows_params).await?;
+        Ok((rows, total))
     }
 
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
@@ -833,6 +891,15 @@ impl Transaction {
         }
     }
 
+    /// Run a page's count and rows queries sequentially on this transaction's
+    /// single connection. Never runs concurrently.
+    pub async fn fetch_page(&self, queries: &PageQueries<'_>) -> Result<(Vec<Row>, i64), DbError> {
+        let count_rows = self.fetch(queries.count_sql, queries.count_params).await?;
+        let total = extract_count(&count_rows)?;
+        let rows = self.fetch(queries.rows_sql, queries.rows_params).await?;
+        Ok((rows, total))
+    }
+
     pub async fn execute(&self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
         #[cfg(feature = "sql-trace")]
         self.trace.record("execute", sql, values);
@@ -1049,5 +1116,101 @@ mod tests {
         ] {
             assert!(check_postgres_scheme(url).is_ok(), "{url}");
         }
+    }
+
+    #[test]
+    fn extract_count_reads_integer_and_rejects_bad_rows() {
+        use super::extract_count;
+        use crate::Value;
+
+        let ok = vec![vec![("count".to_owned(), Value::Int(42))]];
+        assert_eq!(extract_count(&ok).unwrap(), 42);
+
+        let empty: Vec<super::Row> = vec![];
+        assert_eq!(extract_count(&empty).unwrap_err().kind, ErrorKind::Type);
+
+        let wrong = vec![vec![("count".to_owned(), Value::Text("42".to_owned()))]];
+        assert_eq!(extract_count(&wrong).unwrap_err().kind, ErrorKind::Type);
+    }
+
+    fn temp_sqlite_url(tag: &str) -> (String, std::path::PathBuf) {
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
+        let path = dir.join(format!("hinoki-orm-{tag}-{}.sqlite3", uuid::Uuid::new_v4()));
+        (format!("sqlite://{}", path.display()), path)
+    }
+
+    fn cleanup_sqlite(path: &std::path::Path) {
+        for suffix in ["", "-wal", "-shm"] {
+            let mut os = path.as_os_str().to_os_string();
+            os.push(suffix);
+            let _ = std::fs::remove_file(os);
+        }
+    }
+
+    #[test]
+    fn supports_concurrent_reads_respects_backend_and_pool_size() {
+        use super::Database;
+        use std::time::Duration;
+
+        let wait = Duration::from_secs(1);
+        let (url, path) = temp_sqlite_url("concurrent-cap");
+        let sqlite_small = Database::connect(&url, 1, wait).unwrap();
+        let sqlite_large = Database::connect(&url, 4, wait).unwrap();
+        assert!(!sqlite_small.supports_concurrent_reads());
+        assert!(!sqlite_large.supports_concurrent_reads());
+        sqlite_small.close();
+        sqlite_large.close();
+        cleanup_sqlite(&path);
+
+        let pg_one =
+            Database::connect("postgres://localhost/test?sslmode=disable", 1, wait).unwrap();
+        let pg_two =
+            Database::connect("postgres://localhost/test?sslmode=disable", 2, wait).unwrap();
+        assert!(!pg_one.supports_concurrent_reads());
+        assert!(pg_two.supports_concurrent_reads());
+    }
+
+    #[tokio::test]
+    async fn sqlite_fetch_page_runs_without_deadlock_on_pool_size_one() {
+        use super::{Database, PageQueries};
+        use crate::Value;
+        use std::time::Duration;
+
+        let (url, path) = temp_sqlite_url("fetch-page");
+        let db = Database::connect(&url, 1, Duration::from_secs(1)).unwrap();
+        db.execute(
+            "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)",
+            &[],
+        )
+        .await
+        .unwrap();
+        db.execute(
+            "INSERT INTO items (id, name) VALUES (1, 'a'), (2, 'b')",
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let queries = PageQueries {
+            rows_sql: "SELECT id, name FROM items ORDER BY id ASC LIMIT ?1 OFFSET ?2",
+            rows_params: &[Value::Int(1), Value::Int(1)],
+            count_sql: "SELECT count(*) AS count FROM items",
+            count_params: &[],
+        };
+        let (rows, total) = db.fetch_page(&queries, true).await.unwrap();
+        assert_eq!(total, 2);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0][1].1, Value::Text("b".to_owned()));
+
+        let tx = db.begin().await.unwrap();
+        tx.execute("INSERT INTO items (id, name) VALUES (3, 'c')", &[])
+            .await
+            .unwrap();
+        let (tx_rows, tx_total) = tx.fetch_page(&queries).await.unwrap();
+        assert_eq!(tx_total, 3);
+        assert_eq!(tx_rows.len(), 1);
+        tx.rollback().await.unwrap();
+        db.close();
+        cleanup_sqlite(&path);
     }
 }
