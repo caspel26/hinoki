@@ -16,7 +16,7 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 #### 📎 `Form[Schema]` next to uploaded files
 > `python/hinoki/runtime/binding.py`, `python/hinoki/runtime/requests.py`, `python/hinoki/openapi.py`, `docs/endpoints.md`
 
-A `Form[Schema]` parameter binds the text parts of a multipart body next to `UploadedFile` parameters, and OpenAPI documents the body as `allOf` of the component and the files.
+A `Form[Schema]` parameter binds the text parts of a multipart body next to `UploadedFile` parameters, and OpenAPI documents the body as one object with the schema's fields and the files.
 
 #### 🧩 Model lifecycle utilities
 > `crates/bindings/src/crypto.rs`, `python/hinoki/utils.py`, `python/hinoki/orm/model.py`, `python/hinoki/orm/mixins.py`, `python/hinoki/orm/options.py`, `python/hinoki/orm/queryset.py`, `python/hinoki/admin/`, `docs/models.md`, `docs/queries.md`
@@ -188,7 +188,7 @@ key = JWTKey("2026-11", "HS256", Secret("from-a-secret-manager-at-least-32-bytes
 #### 🧾 Wire forms at any depth (breaking)
 > `crates/bindings/src/request/json.rs`, `crates/bindings/src/xml_encode.rs`, `docs/codecs.md`
 
-The JSON and XML encoders write `Decimal`, `date`, `time`, `timedelta`, `bytes`, sets, IP addresses, paths, `Secret` and enum members in their wire form anywhere, including at the top level, instead of raising `TypeError` outside a `Schema`. A `JSONRenderer(default=...)` hook still sees such values first outside a `Schema`.
+The JSON and XML encoders write `Decimal`, `date`, `time`, `timedelta`, `bytes`, sets, IP addresses, paths, `Secret` and enum members in their wire form anywhere, including at the top level, instead of raising `TypeError` outside a `Schema`. A `JSONRenderer(default=...)` hook still sees such values first outside a `Schema`, except a `Secret`, which is always masked.
 
 #### ⚡ Native Kiso lane for filtered `crud(...)` lists
 > `crates/bindings/src/filters.rs`, `crates/bindings/src/crudplan.rs`, `crates/bindings/src/nativecrud.rs`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/core.pyi`, `docs/crud.md`, `docs/status.md`
@@ -246,7 +246,7 @@ The command line, the migration state files, the JSON log format, the MCP server
 
 ### 🐛 Fixes
 
-- **OpenAPI names and decimals.** Security schemes and page envelopes that would share a component name get a numeric suffix instead of overwriting each other; page envelopes of scalar items are named after the item (`Page_integer`). `Decimal` bounds are written as `x-minimum`/`x-maximum`/`x-exclusiveMinimum`/`x-exclusiveMaximum` strings and decimal examples as text. `Field(description=..., examples=..., deprecated=..., discriminator=...)` used as a default now reaches the schema, and its overloads type-check as a default.
+- **OpenAPI names and decimals.** Security schemes, page envelopes and `Schema` classes that would share a component name get a numeric suffix instead of overwriting each other; page envelopes of scalar items are named after the item (`Page_integer`). `Decimal` bounds are written as `x-minimum`/`x-maximum`/`x-exclusiveMinimum`/`x-exclusiveMaximum` strings and decimal examples as text. `Field(description=..., examples=..., deprecated=..., discriminator=...)` used as a default now reaches the schema, and its overloads type-check as a default.
 - **SQLite lock waits:** the SQLite writer-lock wait now follows a larger `Database.connect(wait=...)` value instead of always ending after five seconds; the default remains five seconds (`crates/orm/src/sqlite.rs`).
 - **Long page indexes:** the sticky table of contents now scrolls within the viewport instead of extending over the footer (`theme/static/css/base.css`).
 - **Security review fixes:** WebSocket handshakes over ASGI route on the raw path and honour `allowed_hosts` and trusted proxies, and the same-origin check compares the scheme (also on Kiso over HTTPS); a duplicate `Host` on HTTP/1.0 is refused; a non-numeric `Host` port no longer breaks WSGI; the admin form uses the admin timezone; documentation URLs are escaped; a full sign-in table keeps blocked addresses, sign-in and password change count apart, and a user name is delayed after repeated failures; MySQL `require_ssl` precedes a URL fragment; Kiso's WSGI host bounds the body bytes being read; a remote PostgreSQL URL without `sslmode` and a world-readable TLS key log a warning.
