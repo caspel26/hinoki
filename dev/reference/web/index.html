@@ -246,6 +246,18 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Sessions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../storage/"><span>File storage</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
@@ -282,8 +294,8 @@
           <h1 id="core-api-application-routing-and-http">Core API: application, routing and HTTP<a class="headerlink" href="#core-api-application-routing-and-http" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>26 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
+            <span>32 min read</span>
           </p>
           
         </header>
@@ -4758,6 +4770,616 @@ or pass <code>middleware=[...]</code> to <code>Hinoki</code>.</p>
 
     </div>
 
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="hinoki.http.Next" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">hinoki.http.Next</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.Next" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">Next</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Response</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.cors.Cors" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.cors.Cors</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.http.cors.Cors" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Cors</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.settings.CorsSettings
+
+
+  
+      dataclass
+  " href="../settings/#hinoki.settings.CorsSettings">CorsSettings</a></code></p>
+
+
+
+        <p>The browser origins that may read this action's answers.</p>
+<p>It takes the fields of <code>settings.CorsSettings</code> and replaces the
+application's policy for the action: nothing is merged. <code>origins</code> is
+required; an action with no <code>cors=</code> keeps the application's policy.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.cors.Cors.validate" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validate</span>
+
+
+<a href="#hinoki.http.cors.Cors.validate" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">validate</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="websockets">WebSockets<a class="headerlink" href="#websockets" title="Permanent link">&para;</a></h2>
+<p>The <a href="../../websockets/">WebSockets guide</a> explains the handler, access policies, origins and limits.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.http.websocket" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.http.websocket</span>
+
+
+<a href="#hinoki.http.websocket" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">websocket</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">reply</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">subprotocols</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Access</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">origins</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">max_message_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">idle_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span>
+    <span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="nb">object</span><span class="p">]]],</span>
+    <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="nb">object</span><span class="p">]],</span>
+<span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare a WebSocket action on <code>path</code> (<code>/rooms/{room}</code>).</p>
+<p><code>access</code> authenticates the handshake; a refusal is the usual HTTP answer.
+<code>message</code> and <code>reply</code> are the <code>Schema</code> of the JSON the client sends and
+receives. <code>subprotocols</code> names the ones the action speaks (the client must
+offer one); a mapping gives each its own <code>Access</code>. <code>origins</code> adds allowed
+browser origins to the same-origin and application CORS ones.
+<code>max_message_bytes</code> and <code>idle_timeout</code> override the <code>execution.ws_*</code>
+settings; <code>idle_timeout</code> (seconds without a message from the client) is off
+by default.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.WebSocket" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.WebSocket</span>
+
+
+<a href="#hinoki.http.WebSocket" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">WebSocket</span><span class="p">(</span>
+    <span class="n">transport</span><span class="p">:</span> <span class="n">Transport</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">subprotocol</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">reply</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>One open WebSocket, as the handler sees it.</p>
+<p><code>receive_*</code> wait for the next message and raise <code>WebSocketClosed</code> once the
+connection is over; <code>send_*</code> wait for room in the bounded outgoing queue.
+<code>async for message in socket</code> ends when the connection does.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.WebSocket.transport" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">transport</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.transport" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">transport</span> <span class="o">=</span> <span class="n">transport</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.WebSocket.path" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">path</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.path" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.WebSocket.subprotocol" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">subprotocol</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.subprotocol" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">subprotocol</span> <span class="o">=</span> <span class="n">subprotocol</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.WebSocket.message" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">message</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.message" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.WebSocket.reply" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">reply</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.reply" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">reply</span> <span class="o">=</span> <span class="n">reply</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.WebSocket.closed" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">closed</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.closed" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">closed</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>(code, reason)</code> once the connection is over, else <code>None</code>.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.WebSocket.receive_text" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">receive_text</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.receive_text" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">receive_text</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The next message, which must be text; a binary one closes with 1003.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.WebSocket.receive_bytes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">receive_bytes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.receive_bytes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">receive_bytes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bytes</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The next message, which must be binary; a text one closes with 1003.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.WebSocket.receive_json" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">receive_json</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.receive_json" class="headerlink" title="Permanent link">&para;</a></h3>
+          <div class="doc-overloads">
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">receive_json</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div><div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">receive_json</span><span class="p">(</span><span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">S</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">S</span>
+</code></pre></div>          </div>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">receive_json</span><span class="p">(</span><span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Schema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The next text message parsed as JSON and, with a <code>Schema</code> (the
+argument, else the route's <code>message</code>), validated. Text that is not JSON
+closes with 1007; JSON that does not validate closes with 1008.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.WebSocket.send_text" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">send_text</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.send_text" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">send_text</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.WebSocket.send_bytes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">send_bytes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.send_bytes" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">send_bytes</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.WebSocket.send_json" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">send_json</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.send_json" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">send_json</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Send <code>value</code> as a JSON text message. With <code>reply=</code> on the route a
+<code>dict</code> is validated into that <code>Schema</code> first.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.http.WebSocket.close" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">close</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.http.WebSocket.close" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">close</span><span class="p">(</span>
+    <span class="n">code</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">CloseCode</span><span class="o">.</span><span class="n">NORMAL</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Close after the messages already queued. <code>ValueError</code> for a code that
+a peer may not send (<code>1005</code>, <code>1006</code>, <code>1015</code> and anything outside 1000
+to 4999); closing a closed connection does nothing.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.WebSocketClosed" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.WebSocketClosed</span>
+
+
+<a href="#hinoki.http.WebSocketClosed" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">WebSocketClosed</span><span class="p">(</span><span class="n">code</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">ABNORMAL</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="Exception">Exception</span></code></p>
+
+
+
+        <p>The connection is closed: the peer closed it, the server did (shutdown,
+idle timeout, a limit), or the handler did. <code>code</code> and <code>reason</code> are the
+close the connection ended with (<code>1006</code> when it was lost without one).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.http.CloseCode" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.http.CloseCode</span>
+
+
+<a href="#hinoki.http.CloseCode" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.IntEnum">IntEnum</span></code></p>
+
+
+
+        <p>The status codes a handler is likely to send (RFC 6455, section 7.4).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
 </div><h2 id="rate-limits">Rate limits<a class="headerlink" href="#rate-limits" title="Permanent link">&para;</a></h2>
 
 
@@ -4888,6 +5510,596 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
     </div>
 
 </div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.ratelimit.RateLimit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.ratelimit.RateLimit</span>
+
+
+<a href="#hinoki.ratelimit.RateLimit" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">RateLimit</span><span class="p">(</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">window</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">KeySource</span> <span class="o">=</span> <span class="s2">"client"</span><span class="p">,</span>
+    <span class="n">tenant</span><span class="p">:</span> <span class="n">Tenant</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">cost</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">unknown_factor</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">on_error</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"closed"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"closed"</span><span class="p">,</span>
+    <span class="n">storage</span><span class="p">:</span> <span class="n">Storage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">clock</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">datetime</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>At most <code>limit</code> requests per <code>window</code> seconds for one key, counted in
+one shared table (or in memory, see <code>storage</code>).</p>
+<p>A cell rate algorithm: a burst of <code>limit</code> is admitted at once and the
+sustained rate is <code>limit</code> per <code>window</code>. A refusal does not use up quota.
+The key is hashed in the native core, so a client address, user id or custom
+key never reaches SQL, logs or metrics.</p>
+<p><code>key</code> is <code>"client"</code> (the trusted address, an IPv6 one by its /64),
+<code>"caller"</code> (the authenticated caller, the client for an anonymous request)
+or a plain function of the context returning a string. <code>scope</code> defaults to the
+method and the route, so routes count apart; give routes the same <code>scope</code> to
+share a quota.
+<code>tenant</code> adds a segment to the key. A request with no known client shares one
+bucket <code>unknown_factor</code> times as large. <code>on_error="closed"</code> answers 503 when
+storage is unavailable, <code>"open"</code> admits the request and counts it.</p>
+<p><code>headers=True</code> adds <code>RateLimit-Limit</code>, <code>RateLimit-Remaining</code> and
+<code>RateLimit-Reset</code> (whole seconds) to admitted and refused answers.
+<code>clock</code> returns an aware <code>datetime</code> (<code>hinoki.testing.ManualClock</code>); the
+default is the system clock.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.storage" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">storage</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.storage" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">storage</span><span class="p">:</span> <span class="n">Storage</span> <span class="o">=</span> <span class="n">storage</span> <span class="ow">or</span> <span class="n">DatabaseLimits</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.limit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">limit</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.limit" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">limit</span> <span class="o">=</span> <span class="n">limit</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.window" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">window</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.window" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">window</span> <span class="o">=</span> <span class="n">_window_seconds</span><span class="p">(</span><span class="n">window</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.key" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">key</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.key" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">key</span> <span class="o">=</span> <span class="n">key</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.tenant" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">tenant</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.tenant" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">tenant</span> <span class="o">=</span> <span class="n">tenant</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.scope" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">scope</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.scope" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">scope</span> <span class="o">=</span> <span class="n">scope</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.headers" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">headers</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.headers" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">headers</span> <span class="o">=</span> <span class="n">headers</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.on_error" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">on_error</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.on_error" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">on_error</span> <span class="o">=</span> <span class="n">on_error</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.clock" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">clock</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.clock" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">clock</span> <span class="o">=</span> <span class="n">clock</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.ratelimit.RateLimit.rule" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">rule</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.rule" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">rule</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">RateRule</span><span class="p">(</span>
+    <span class="n">limit</span><span class="p">,</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">window</span><span class="p">,</span>
+    <span class="n">cost</span><span class="p">,</span>
+    <span class="n">unknown_factor</span><span class="p">,</span>
+    <span class="n">on_error</span> <span class="o">==</span> <span class="s2">"open"</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.attach_metrics" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">attach_metrics</span>
+
+
+<a href="#hinoki.ratelimit.RateLimit.attach_metrics" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">attach_metrics</span><span class="p">(</span><span class="n">metrics</span><span class="p">:</span> <span class="n">RateLimitMetrics</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Count this limiter's decisions into the server's metrics, replacing
+the metrics of an earlier worker in this process.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.release" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">release</span>
+
+
+<a href="#hinoki.ratelimit.RateLimit.release" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">release</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Forget the limiters bound to a worker's database, and its metrics, when
+that worker shuts down; a later worker binds its own. Memory buckets stay
+with their <code>MemoryLimits</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.decide" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">decide</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.decide" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">decide</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">core</span><span class="o">.</span><span class="n">RateDecision</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Count one hit and return the decision; raises
+<code>core.RateLimitUnavailable</code> when storage fails and <code>on_error</code> is closed.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.decide_sync" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">decide_sync</span>
+
+
+<a href="#hinoki.ratelimit.RateLimit.decide_sync" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">decide_sync</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">core</span><span class="o">.</span><span class="n">RateDecision</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>decide</code> for a thread with no event loop. Raises <code>RuntimeError</code> on
+an event loop thread.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.header_items" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">header_items</span>
+
+
+<a href="#hinoki.ratelimit.RateLimit.header_items" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">header_items</span><span class="p">(</span>
+    <span class="n">decision</span><span class="p">:</span> <span class="n">RateDecision</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>RateLimit-*</code> headers of a decision, or none unless <code>headers</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.refusal" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">refusal</span>
+
+
+<a href="#hinoki.ratelimit.RateLimit.refusal" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">refusal</span><span class="p">(</span><span class="n">decision</span><span class="p">:</span> <span class="n">RateDecision</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TooManyRequests</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>TooManyRequests</code> of a refused decision.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.check" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.RateLimit.check" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.ratelimit.RateLimit.check_sync" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_sync</span>
+
+
+<a href="#hinoki.ratelimit.RateLimit.check_sync" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check_sync</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.ratelimit.DatabaseLimits" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.ratelimit.DatabaseLimits</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.DatabaseLimits" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">DatabaseLimits</span><span class="p">(</span>
+    <span class="n">table</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"hinoki_rate_limits"</span><span class="p">,</span>
+    <span class="n">max_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000000</span><span class="p">,</span>
+    <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">sweep_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Buckets in a table of the worker's <code>Database</code>, shared by every worker.</p>
+<p><code>max_rows</code> caps the table: once full, new keys share one overflow bucket
+per scope, <code>unknown_factor</code> times as large, until expired rows are swept.
+<code>timeout</code> (seconds, at most 5) bounds one check, the wait for a connection
+included.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.ratelimit.MemoryLimits" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.ratelimit.MemoryLimits</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.ratelimit.MemoryLimits" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">MemoryLimits</span><span class="p">(</span>
+    <span class="n">max_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100000</span><span class="p">,</span> <span class="n">sweep_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Buckets in the memory of ONE worker: not shared, reset on restart. For
+development and tests. The buckets belong to this instance, created at the
+first request, so routes given the same instance and the same <code>scope</code> and
+<code>tenant</code> count together.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
         
       </article>
 
@@ -4931,15 +6143,21 @@ example a Redis client or the <code>Database</code>); <code>LookupError</code> i
             <ul><li><a href="#hinoki.errors.ErrorRegistry.is_builtin">is_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate_builtin">translate_builtin</a></li><li><a href="#hinoki.errors.ErrorRegistry.translate">translate</a></li></ul>
           </li><li><a href="#middleware">Middleware</a></li><li><a href="#hinoki.http.Middleware">Middleware</a></li><li><a href="#hinoki.http.MiddlewareRequest">MiddlewareRequest</a>
             <ul><li><a href="#hinoki.http.MiddlewareRequest.method">method</a></li><li><a href="#hinoki.http.MiddlewareRequest.path">path</a></li><li><a href="#hinoki.http.MiddlewareRequest.route">route</a></li><li><a href="#hinoki.http.MiddlewareRequest.headers">headers</a></li><li><a href="#hinoki.http.MiddlewareRequest.query">query</a></li><li><a href="#hinoki.http.MiddlewareRequest.client">client</a></li><li><a href="#hinoki.http.MiddlewareRequest.scheme">scheme</a></li><li><a href="#hinoki.http.MiddlewareRequest.request_id">request_id</a></li></ul>
-          </li><li><a href="#rate-limits">Rate limits</a></li><li><a href="#hinoki.ratelimit.RateLimitPolicy">RateLimitPolicy</a></li><li><a href="#hinoki.ratelimit.RateLimitContext">RateLimitContext</a>
+          </li><li><a href="#hinoki.http.Next">Next</a></li><li><a href="#hinoki.http.cors.Cors">Cors</a>
+            <ul><li><a href="#hinoki.http.cors.Cors.validate">validate</a></li></ul>
+          </li><li><a href="#websockets">WebSockets</a></li><li><a href="#hinoki.http.websocket">websocket</a></li><li><a href="#hinoki.http.WebSocket">WebSocket</a>
+            <ul><li><a href="#hinoki.http.WebSocket.transport">transport</a></li><li><a href="#hinoki.http.WebSocket.path">path</a></li><li><a href="#hinoki.http.WebSocket.subprotocol">subprotocol</a></li><li><a href="#hinoki.http.WebSocket.message">message</a></li><li><a href="#hinoki.http.WebSocket.reply">reply</a></li><li><a href="#hinoki.http.WebSocket.closed">closed</a></li><li><a href="#hinoki.http.WebSocket.receive_text">receive_text</a></li><li><a href="#hinoki.http.WebSocket.receive_bytes">receive_bytes</a></li><li><a href="#hinoki.http.WebSocket.receive_json">receive_json</a></li><li><a href="#hinoki.http.WebSocket.send_text">send_text</a></li><li><a href="#hinoki.http.WebSocket.send_bytes">send_bytes</a></li><li><a href="#hinoki.http.WebSocket.send_json">send_json</a></li><li><a href="#hinoki.http.WebSocket.close">close</a></li></ul>
+          </li><li><a href="#hinoki.http.WebSocketClosed">WebSocketClosed</a></li><li><a href="#hinoki.http.CloseCode">CloseCode</a></li><li><a href="#rate-limits">Rate limits</a></li><li><a href="#hinoki.ratelimit.RateLimitPolicy">RateLimitPolicy</a></li><li><a href="#hinoki.ratelimit.RateLimitContext">RateLimitContext</a>
             <ul><li><a href="#hinoki.ratelimit.RateLimitContext.resource">resource</a></li></ul>
-          </li></ul>
+          </li><li><a href="#hinoki.ratelimit.RateLimit">RateLimit</a>
+            <ul><li><a href="#hinoki.ratelimit.RateLimit.storage">storage</a></li><li><a href="#hinoki.ratelimit.RateLimit.limit">limit</a></li><li><a href="#hinoki.ratelimit.RateLimit.window">window</a></li><li><a href="#hinoki.ratelimit.RateLimit.key">key</a></li><li><a href="#hinoki.ratelimit.RateLimit.tenant">tenant</a></li><li><a href="#hinoki.ratelimit.RateLimit.scope">scope</a></li><li><a href="#hinoki.ratelimit.RateLimit.headers">headers</a></li><li><a href="#hinoki.ratelimit.RateLimit.on_error">on_error</a></li><li><a href="#hinoki.ratelimit.RateLimit.clock">clock</a></li><li><a href="#hinoki.ratelimit.RateLimit.rule">rule</a></li><li><a href="#hinoki.ratelimit.RateLimit.attach_metrics">attach_metrics</a></li><li><a href="#hinoki.ratelimit.RateLimit.release">release</a></li><li><a href="#hinoki.ratelimit.RateLimit.decide">decide</a></li><li><a href="#hinoki.ratelimit.RateLimit.decide_sync">decide_sync</a></li><li><a href="#hinoki.ratelimit.RateLimit.header_items">header_items</a></li><li><a href="#hinoki.ratelimit.RateLimit.refusal">refusal</a></li><li><a href="#hinoki.ratelimit.RateLimit.check">check</a></li><li><a href="#hinoki.ratelimit.RateLimit.check_sync">check_sync</a></li></ul>
+          </li><li><a href="#hinoki.ratelimit.DatabaseLimits">DatabaseLimits</a></li><li><a href="#hinoki.ratelimit.MemoryLimits">MemoryLimits</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/web.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

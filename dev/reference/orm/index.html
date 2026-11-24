@@ -246,6 +246,18 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Sessions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../storage/"><span>File storage</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
@@ -282,8 +294,8 @@
           <h1 id="models-and-queries">Models and queries<a class="headerlink" href="#models-and-queries" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></span>
-            <span>27 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
+            <span>30 min read</span>
           </p>
           
         </header>
@@ -5103,6 +5115,345 @@ articles: ClassVar[Related[list[Article]]]
 
     </div>
 
+</div><h2 id="mixins-options-and-helpers">Mixins, options and helpers<a class="headerlink" href="#mixins-options-and-helpers" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.TimestampedModel" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.TimestampedModel</span>
+
+
+<a href="#hinoki.orm.TimestampedModel" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.orm.Model (hinoki.orm.model.Model)" href="#hinoki.orm.Model">Model</a></code></p>
+
+
+
+        <p>Abstract base with ordinary <code>created_at</code> and <code>updated_at</code> columns.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.SoftDeleteModel" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.SoftDeleteModel</span>
+
+
+<a href="#hinoki.orm.SoftDeleteModel" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.orm.Model (hinoki.orm.model.Model)" href="#hinoki.orm.Model">Model</a></code></p>
+
+
+
+        <p>Abstract base with an indexed nullable <code>deleted_at</code> column.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.UUIDModel" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.UUIDModel</span>
+
+
+<a href="#hinoki.orm.UUIDModel" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.orm.Model (hinoki.orm.model.Model)" href="#hinoki.orm.Model">Model</a></code></p>
+
+
+
+        <p>Abstract base with a UUIDv4 primary key column <code>id</code>.</p>
+<p>Override <code>id: UUID = uuid_pk(version=7)</code> (or pass a custom
+<code>default_factory</code>) on a subclass or project base model to use another
+UUID generator.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.soft_delete" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.soft_delete</span>
+
+
+<a href="#hinoki.orm.soft_delete" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">soft_delete</span><span class="p">(</span>
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"deleted_at"</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">clock</span><span class="p">:</span> <span class="n">Clock</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">M</span><span class="p">],</span> <span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Mark a nullable datetime column as the model's soft-delete marker.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.track_status" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.track_status</span>
+
+
+<a href="#hinoki.orm.track_status" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">track_status</span><span class="p">(</span>
+    <span class="n">field</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"status"</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">changed_at</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"status_changed_at"</span><span class="p">,</span>
+    <span class="n">clock</span><span class="p">:</span> <span class="n">Clock</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">M</span><span class="p">],</span> <span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Record when a declared status column changes; decorators may be stacked.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.many_to_many" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.many_to_many</span>
+
+
+<a href="#hinoki.orm.many_to_many" class="headerlink" title="Permanent link">&para;</a></h2>
+          <div class="doc-overloads">
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">many_to_many</span><span class="p">(</span>
+    <span class="n">target</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">related_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">on_delete</span><span class="p">:</span> <span class="n">OnDelete</span> <span class="o">=</span> <span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+    <span class="n">target_on_delete</span><span class="p">:</span> <span class="n">OnDelete</span> <span class="o">=</span> <span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+    <span class="n">bridge</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">table</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">ids_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">max_items</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_ITEMS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ManyToMany</span><span class="p">[</span><span class="n">T</span><span class="p">]</span>
+</code></pre></div><div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">many_to_many</span><span class="p">(</span>
+    <span class="n">target</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"self"</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">related_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">on_delete</span><span class="p">:</span> <span class="n">OnDelete</span> <span class="o">=</span> <span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+    <span class="n">target_on_delete</span><span class="p">:</span> <span class="n">OnDelete</span> <span class="o">=</span> <span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+    <span class="n">bridge</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">table</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">ids_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">max_items</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_ITEMS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ManyToMany</span><span class="p">[</span><span class="n">T</span><span class="p">]</span>
+</code></pre></div>          </div>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">many_to_many</span><span class="p">(</span>
+    <span class="n">target</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">related_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">on_delete</span><span class="p">:</span> <span class="n">OnDelete</span> <span class="o">=</span> <span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+    <span class="n">target_on_delete</span><span class="p">:</span> <span class="n">OnDelete</span> <span class="o">=</span> <span class="n">OnDelete</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+    <span class="n">bridge</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">columns</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">table</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">ids_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">max_items</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_ITEMS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ManyToMany</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare a many-to-many relation on a model::</p>
+<div class="language-text highlight"><pre><span></span><code>tags: ClassVar[ManyToMany[Tag]] = many_to_many(Tag, related_name="posts")
+</code></pre></div>
+<p>A bridge model (table <code>&lt;owner table&gt;_&lt;name&gt;</code>) is generated and migrated;
+<code>bridge="PostTag"</code> adopts a model of the same module instead, and
+<code>many_to_many("self")</code> relates a model to itself (it needs <code>columns</code>
+or the generated <code>from_*_id</code> / <code>to_*_id</code> names).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.uuid_pk" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.uuid_pk</span>
+
+
+<a href="#hinoki.orm.uuid_pk" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">uuid_pk</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">version</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">7</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">default_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">UUID</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">constraints</span><span class="p">:</span> <span class="n">FieldInfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">validators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare a UUID primary key.</p>
+<p>Defaults to <code>uuid4</code>. Pass <code>version=7</code> for time-ordered RFC 9562 UUIDv7,
+or <code>default_factory=...</code> for any custom UUID generator.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.urlsafe_token" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.urlsafe_token</span>
+
+
+<a href="#hinoki.orm.urlsafe_token" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">urlsafe_token</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">nbytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">,</span>
+    <span class="n">unique</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">max_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">constraints</span><span class="p">:</span> <span class="n">FieldInfo</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">validators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare a URL-safe random token column backed by Rust's CSPRNG
+(<code>hinoki.core.make_token</code>).</p>
+<p>Suitable for opaque public identifiers or share codes. For authentication
+secrets, store a hash instead of the raw token.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.uuid7" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.uuid7</span>
+
+
+<a href="#hinoki.orm.uuid7" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">uuid7</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">UUID</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return a time-ordered UUID version 7 (RFC 9562), generated in Rust.</p>
+
+
+    </div>
+
 </div>
         
       </article>
@@ -5137,13 +5488,13 @@ articles: ClassVar[Related[list[Article]]]
             <ul><li><a href="#hinoki.pagination.CursorPagination.resolved">resolved</a></li></ul>
           </li><li><a href="#hinoki.orm.Related">Related</a>
             <ul><li><a href="#hinoki.orm.Related.stale">stale</a></li></ul>
-          </li></ul>
+          </li><li><a href="#mixins-options-and-helpers">Mixins, options and helpers</a></li><li><a href="#hinoki.orm.TimestampedModel">TimestampedModel</a></li><li><a href="#hinoki.orm.SoftDeleteModel">SoftDeleteModel</a></li><li><a href="#hinoki.orm.UUIDModel">UUIDModel</a></li><li><a href="#hinoki.orm.soft_delete">soft_delete</a></li><li><a href="#hinoki.orm.track_status">track_status</a></li><li><a href="#hinoki.orm.many_to_many">many_to_many</a></li><li><a href="#hinoki.orm.uuid_pk">uuid_pk</a></li><li><a href="#hinoki.orm.urlsafe_token">urlsafe_token</a></li><li><a href="#hinoki.orm.uuid7">uuid7</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 02:46:11 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/orm.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

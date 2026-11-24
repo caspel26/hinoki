@@ -294,7 +294,7 @@
           </a>
           <p>Public symbols, signatures and docstrings.</p>
           <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-5"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="hn-index__pages" id="hn-idx-5"><ul><li><a href="reference/"><i>5.1</i><span>Overview</span></a></li><li><a href="reference/web/"><i>5.2</i><span>Core API</span></a></li><li><a href="reference/crud/"><i>5.3</i><span>Generated CRUD</span></a></li><li><a href="reference/schemas/"><i>5.4</i><span>Schemas</span></a></li><li><a href="reference/orm/"><i>5.5</i><span>Models and queries</span></a></li><li><a href="reference/codecs/"><i>5.6</i><span>Parsers and renderers</span></a></li><li><a href="reference/auth/"><i>5.7</i><span>Auth and crypto</span></a></li><li><a href="reference/database/"><i>5.8</i><span>Database</span></a></li><li><a href="reference/settings/"><i>5.9</i><span>Settings</span></a></li><li><a href="reference/email/"><i>5.10</i><span>Email</span></a></li><li><a href="reference/rules/"><i>5.11</i><span>Rules</span></a></li><li><a href="reference/runtime/"><i>5.12</i><span>Modules and runtime</span></a></li><li><a href="reference/tools/"><i>5.13</i><span>MCP and scaffold</span></a></li><li><a href="reference/admin/"><i>5.14</i><span>Admin</span></a></li><li><a href="reference/testing/"><i>5.15</i><span>Testing</span></a></li><li><a href="reference/utilities/"><i>5.16</i><span>Utilities</span></a></li></ul></div>
+          <div class="hn-index__pages" id="hn-idx-5"><ul><li><a href="reference/"><i>5.1</i><span>Overview</span></a></li><li><a href="reference/web/"><i>5.2</i><span>Core API</span></a></li><li><a href="reference/crud/"><i>5.3</i><span>Generated CRUD</span></a></li><li><a href="reference/schemas/"><i>5.4</i><span>Schemas</span></a></li><li><a href="reference/orm/"><i>5.5</i><span>Models and queries</span></a></li><li><a href="reference/codecs/"><i>5.6</i><span>Parsers and renderers</span></a></li><li><a href="reference/auth/"><i>5.7</i><span>Auth and crypto</span></a></li><li><a href="reference/database/"><i>5.8</i><span>Database</span></a></li><li><a href="reference/settings/"><i>5.9</i><span>Settings</span></a></li><li><a href="reference/email/"><i>5.10</i><span>Email</span></a></li><li><a href="reference/sessions/"><i>5.11</i><span>Sessions</span></a></li><li><a href="reference/cache/"><i>5.12</i><span>Cache</span></a></li><li><a href="reference/storage/"><i>5.13</i><span>File storage</span></a></li><li><a href="reference/rules/"><i>5.14</i><span>Rules</span></a></li><li><a href="reference/runtime/"><i>5.15</i><span>Modules and runtime</span></a></li><li><a href="reference/tools/"><i>5.16</i><span>MCP and scaffold</span></a></li><li><a href="reference/admin/"><i>5.17</i><span>Admin</span></a></li><li><a href="reference/testing/"><i>5.18</i><span>Testing</span></a></li><li><a href="reference/utilities/"><i>5.19</i><span>Utilities</span></a></li></ul></div>
         </article>
       
         <article class="hn-index__card reveal">
@@ -313,7 +313,7 @@
       <p class="hn-label reveal"><b>01</b> The problem</p>
       <h2 id="hn-problem-title" class="reveal">Architecture drifts. Hinoki turns each promise into a check.</h2>
       <ul class="hn-gaps" data-stagger>
-        <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">An endpoint that forgot its access policy is public by default.</p><p class="hn-gaps__fix">Declare <code>access=</code>; <a href="rules/#the-eleven-rules"><code>HNK-ACC-001</code></a> fails the check when it is missing.</p></li>
+        <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">An endpoint that forgot its access policy is public by default.</p><p class="hn-gaps__fix">Declare <code>access=</code>; <a href="rules/#the-twelve-rules"><code>HNK-ACC-001</code></a> fails the check when it is missing.</p></li>
         <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">A write that should be atomic is not.</p><p class="hn-gaps__fix">Declare <code>atomic=True</code>; <code>HNK-TXN-001</code> reports every state-changing action without it.</p></li>
         <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">A response leaks a token or a whole model.</p><p class="hn-gaps__fix"><code>HNK-SCH-001</code> and <code>HNK-API-001</code> keep named fields out of responses and models out of handlers.</p></li>
         <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">Layers drift: models start importing the API.</p><p class="hn-gaps__fix"><code>HNK-IMP-001</code> reads the source files and reports forbidden imports.</p></li>
@@ -381,7 +381,7 @@
         <li class="reveal"><h3>Model hooks</h3><p>Lifecycle hooks with instance state, and callbacks that run after the commit.</p><a class="hn-link" href="model-hooks/">Lifecycle hooks</a></li>
         <li class="reveal"><h3>Bulk writes</h3><p><code>bulk_create</code>, <code>bulk_update</code> and <code>bulk_delete</code>, and their <code>abulk_*</code> forms, each in one transaction.</p><a class="hn-link" href="queries/">Query and write rows</a></li>
         <li class="reveal"><h3>Checked responses</h3><p>Every response is checked at runtime against its return annotation. An annotation that cannot be checked stops the app at startup.</p><a class="hn-link" href="endpoints/#the-response-is-checked-against-the-annotation">Requests and responses</a></li>
-        <li class="reveal"><h3>Optional admin</h3><p>An extra you activate explicitly, with four styles, its own users, a sign-in page and per-model permissions.</p><a class="hn-link" href="admin/">Admin</a></li>
+        <li class="reveal"><h3>Optional admin</h3><p>A built-in app you activate explicitly, with four styles, its own users, a sign-in page and per-model permissions.</p><a class="hn-link" href="admin/">Admin</a></li>
         <li class="reveal"><h3>Kiso server</h3><p>The default server is Kiso, Hinoki's Rust HTTP server. Granian stays available with <code>--server granian</code>.</p><a class="hn-link" href="kiso/">Kiso server</a></li>
         <li class="reveal"><h3>MCP and OpenAPI</h3><p>A generated OpenAPI document, a development MCP server and an application MCP server.</p><a class="hn-link" href="dev-mcp/">Development MCP</a></li>
       </ul>
@@ -389,12 +389,12 @@
 
     <section class="hn-section" aria-labelledby="hn-rules-title">
       <p class="hn-label reveal"><b>05</b> Rules</p>
-      <h2 id="hn-rules-title" class="reveal">Eleven rules ship today. All are optional.</h2>
+      <h2 id="hn-rules-title" class="reveal">Twelve rules ship today. All are optional.</h2>
       <div class="hn-explorer reveal" data-hn-explorer>
         <div class="hn-explorer__filters" data-slider role="group" aria-label="Filter rules by phase">
-          <button type="button" data-phase="all" aria-pressed="true">all <span>11</span></button>
+          <button type="button" data-phase="all" aria-pressed="true">all <span>12</span></button>
           <button type="button" data-phase="startup" aria-pressed="false">startup <span>10</span></button>
-          <button type="button" data-phase="static" aria-pressed="false">static <span>1</span></button>
+          <button type="button" data-phase="static" aria-pressed="false">static <span>2</span></button>
         </div>
         <div class="hn-explorer__grid">
           <ul class="hn-explorer__list">
@@ -409,6 +409,7 @@
             <li><button type="button" data-rule="db1" data-phase="startup" aria-pressed="false"><code>HNK-DB-001</code><b>Models pin their table name explicitly.</b></button></li>
             <li><button type="button" data-rule="db2" data-phase="startup" aria-pressed="false"><code>HNK-DB-002</code><b>Every foreign-key column is indexed.</b></button></li>
             <li><button type="button" data-rule="imp" data-phase="static" aria-pressed="false"><code>HNK-IMP-001</code><span class="hn-chip">static</span><b>Modules under a source never import a target.</b></button></li>
+            <li><button type="button" data-rule="mail" data-phase="static" aria-pressed="false"><code>HNK-MAIL-001</code><span class="hn-chip">static</span><b>Every email template matches its context <code>Schema</code>.</b></button></li>
           </ul>
           <div class="hn-explorer__detail" aria-live="polite" tabindex="0" role="region" aria-label="Rule detail">
             <div data-detail="acc">
@@ -459,6 +460,10 @@
 )</code></pre>
               <p class="hn-note">Read from the source files; dynamic imports are reported, not ignored. Example output: see the <a href="rules/">Rules guide</a>.</p>
             </div>
+            <div data-detail="mail" hidden>
+              <p class="hn-file">declaration</p><pre><code><span class="f">EmailTemplatesMatch</span>()</code></pre>
+              <p class="hn-note">Opt-in: list it in your <code>RuleSet</code>. It reads the template files, so run <code>hinoki check --allow-effects</code>. See the <a href="rules/#an-opt-in-rule-email-templates">Rules guide</a>.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -483,7 +488,7 @@
             <li>Production use: the API and migration format may change.</li>
             <li>SQL Server or Oracle, which are not supported yet.</li>
             <li>Workloads that need end-to-end performance claims.</li>
-            <li>Implicit many-to-many relations and advanced relation paths.</li>
+            <li>Through-model columns on generated many-to-many links and advanced relation paths.</li>
           </ul>
         </div>
       </div>

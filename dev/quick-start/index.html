@@ -226,7 +226,7 @@
           <h1 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -325,10 +325,17 @@ gives the same answers without prompts. Plain <code>--no-input</code> uses the d
 instead: no database, no <code>git init</code>, no <code>uv sync</code> and no app. All options are
 in <a href="../new-project/"><code>hinoki new</code></a>.</p>
 </div>
-<h2 id="test-and-serve-it">Test and serve it<a class="headerlink" href="#test-and-serve-it" title="Permanent link">&para;</a></h2>
+<h2 id="check-and-test-it">Check and test it<a class="headerlink" href="#check-and-test-it" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>../notes
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check
 uv<span class="w"> </span>run<span class="w"> </span>pytest
-uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev
+</code></pre></div>
+<p><code>hinoki check</code> runs the project's rules (the eight listed in <code>notes/rules.py</code>)
+and prints one line for each; a violation names the file, the line and a fix.
+The test calls <code>/health</code> in process and needs no database. Run both again after
+every change, as <code>AGENTS.md</code> tells an agent to.</p>
+<h2 id="serve-it">Serve it<a class="headerlink" href="#serve-it" title="Permanent link">&para;</a></h2>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>dev
 </code></pre></div>
 <p>The test calls <code>/health</code> in process and needs no database. <code>hinoki dev</code> serves
 on <code>http://127.0.0.1:8000</code> and reloads when a file changes. In another terminal:</p>
@@ -448,7 +455,7 @@ walks through it.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#create-a-project">Create a project</a></li><li><a href="#test-and-serve-it">Test and serve it</a></li><li><a href="#what-the-manifest-does">What the manifest does</a></li><li><a href="#where-the-database-is-configured">Where the database is configured</a></li><li><a href="#your-first-app">Your first app</a>
+            <ul><li><a href="#create-a-project">Create a project</a></li><li><a href="#check-and-test-it">Check and test it</a></li><li><a href="#serve-it">Serve it</a></li><li><a href="#what-the-manifest-does">What the manifest does</a></li><li><a href="#where-the-database-is-configured">Where the database is configured</a></li><li><a href="#your-first-app">Your first app</a>
             <ul><li><a href="#add-another-app">Add another app</a></li></ul>
           </li><li><a href="#next">Next</a></li></ul>
           
@@ -456,7 +463,7 @@ walks through it.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

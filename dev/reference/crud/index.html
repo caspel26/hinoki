@@ -246,6 +246,18 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Sessions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../storage/"><span>File storage</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
@@ -282,7 +294,7 @@
           <h1 id="generated-crud-api">Generated CRUD API<a class="headerlink" href="#generated-crud-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 16:02:45 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
             <span>7 min read</span>
           </p>
           
@@ -1634,6 +1646,74 @@ any of them matching.</p>
 
     </div>
 
+</div><h2 id="row-scoping">Row scoping<a class="headerlink" href="#row-scoping" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.resources.all_rows" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.resources.all_rows</span>
+
+
+<a href="#hinoki.resources.all_rows" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">all_rows</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">object</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>A <code>links=</code> entry that lets the caller link every row of <code>model</code>: the
+explicit choice for targets that are not private to anyone.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.resources.own_rows" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.resources.own_rows</span>
+
+
+<a href="#hinoki.resources.own_rows" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">own_rows</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">T</span><span class="p">],</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">object</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>A <code>links=</code> entry that lets the caller link and see only the rows of
+<code>model</code> whose text <code>column</code> holds the caller's id (<code>Caller.id</code>). It
+needs access on every action, and generated CRUD keeps it on the native
+lane.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.resources.from_user" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.resources.from_user</span>
+
+
+<a href="#hinoki.resources.from_user" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">from_user</span><span class="p">(</span><span class="n">attr</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UserAttr</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Extract <code>attr</code> (or a dotted attribute path) from <code>Caller.user</code> for
+<code>crud(..., assign={...})</code> or <code>identity_key=...</code>.</p>
+
+
+    </div>
+
 </div>
         
       </article>
@@ -1662,13 +1742,13 @@ any of them matching.</p>
             <ul><li><a href="#hinoki.filters.Search.columns">columns</a></li></ul>
           </li><li><a href="#hinoki.filters.Bounds">Bounds</a>
             <ul><li><a href="#hinoki.filters.Bounds.from_">from_</a></li><li><a href="#hinoki.filters.Bounds.to">to</a></li></ul>
-          </li></ul>
+          </li><li><a href="#row-scoping">Row scoping</a></li><li><a href="#hinoki.resources.all_rows">all_rows</a></li><li><a href="#hinoki.resources.own_rows">own_rows</a></li><li><a href="#hinoki.resources.from_user">from_user</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 16:02:45 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

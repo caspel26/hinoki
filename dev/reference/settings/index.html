@@ -246,6 +246,18 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Sessions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../storage/"><span>File storage</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
@@ -282,8 +294,8 @@
           <h1 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
-            <span>11 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
+            <span>14 min read</span>
           </p>
           
         </header>
@@ -807,6 +819,81 @@ The message is shown in <code>SettingsError</code>: never put a field's value in
 <a href="#hinoki.settings.AppSettings.cors" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">cors</span><span class="p">:</span> <span class="n">CorsSettings</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
     <span class="n">default_factory</span><span class="o">=</span><span class="n">CorsSettings</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AppSettings.compression" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">compression</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AppSettings.compression" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">compression</span><span class="p">:</span> <span class="n">CompressionSettings</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
+    <span class="n">default_factory</span><span class="o">=</span><span class="n">CompressionSettings</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AppSettings.metrics" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">metrics</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AppSettings.metrics" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">metrics</span><span class="p">:</span> <span class="n">MetricsSettings</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
+    <span class="n">default_factory</span><span class="o">=</span><span class="n">MetricsSettings</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AppSettings.events" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">events</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AppSettings.events" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">events</span><span class="p">:</span> <span class="n">EventsSettings</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
+    <span class="n">default_factory</span><span class="o">=</span><span class="n">EventsSettings</span>
 <span class="p">)</span>
 </code></pre></div>
 
@@ -1775,6 +1862,29 @@ The message is shown in <code>SettingsError</code>: never put a field's value in
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.DocsSettings.openapi_version" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">openapi_version</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.DocsSettings.openapi_version" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">openapi_version</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'3.1'</span><span class="p">,</span> <span class="s1">'3.2'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'3.2'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
 
 
 
@@ -2150,6 +2260,29 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
 
 
 
+<h3 id="hinoki.settings.ServerSettings.sighup" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">sighup</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.sighup" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">sighup</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'reload'</span><span class="p">,</span> <span class="s1">'stop'</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h3 id="hinoki.settings.ServerSettings.max_connections" class="doc doc-heading">
             <span class="doc doc-object-name doc-attribute-name">max_connections</span>
 
@@ -2505,6 +2638,52 @@ cursors; <code>cursor_ttl_seconds</code> makes them expire (<code>None</code>: t
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.PaginationSettings.cursor_secret" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">cursor_secret</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.PaginationSettings.cursor_secret" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">cursor_secret</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.PaginationSettings.cursor_ttl_seconds" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">cursor_ttl_seconds</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.PaginationSettings.cursor_ttl_seconds" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">cursor_ttl_seconds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
 
 
 
@@ -2700,6 +2879,615 @@ cursors; <code>cursor_ttl_seconds</code> makes them expire (<code>None</code>: t
 
 <a href="#hinoki.settings.CorsSettings.max_age" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_age</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">600</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.settings.CompressionSettings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.CompressionSettings</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">CompressionSettings</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.settings.Settings
+
+
+  
+      dataclass
+  " href="#hinoki.settings.Settings">Settings</a></code></p>
+
+
+
+        <p>Response compression, done by Kiso only (it is ignored under another
+runner, and <code>hinoki serve --server granian</code> refuses <code>enabled</code>).</p>
+<p>Off while <code>enabled</code> is false. <code>encodings</code> lists what the server offers in
+its order of preference (<code>br</code>, <code>gzip</code>). Bodies known to be smaller than
+<code>min_size</code> bytes, types outside <code>types</code> (<code>type/subtype</code>, <code>type/*</code> or
+<code>*/*+suffix</code>) and responses with <code>cache-control: no-transform</code> are sent
+as they are. <code>event_streams</code> also compresses <code>text/event-stream</code> and
+<code>files</code> compresses file responses. <code>gzip_level</code> is 1 to 9,
+<code>brotli_quality</code> 0 to 9, and <code>max_concurrent</code> bounds the compressions
+in progress in one worker: past it, answers go out uncompressed.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.enabled" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">enabled</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.encodings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">encodings</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.encodings" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">encodings</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">COMPRESSION_ENCODINGS</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.min_size" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">min_size</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.min_size" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">min_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.types" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">types</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.types" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">types</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">COMPRESSION_TYPES</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.event_streams" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">event_streams</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.event_streams" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">event_streams</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.files" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">files</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.files" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">files</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.gzip_level" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">gzip_level</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.gzip_level" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">gzip_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.brotli_quality" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">brotli_quality</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.brotli_quality" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">brotli_quality</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.CompressionSettings.max_concurrent" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_concurrent</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.CompressionSettings.max_concurrent" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_concurrent</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.settings.MetricsSettings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.MetricsSettings</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.settings.MetricsSettings" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">MetricsSettings</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.settings.Settings
+
+
+  
+      dataclass
+  " href="#hinoki.settings.Settings">Settings</a></code></p>
+
+
+
+        <p>Prometheus metrics, kept and served by Kiso only (they are ignored under
+another runner, and <code>hinoki serve --server granian</code> refuses <code>listen</code>).</p>
+<p>Off while <code>listen</code> is unset. <code>listen</code> is the <code>host:port</code> of a
+dedicated listener (an IPv6 host goes in brackets) that serves only the
+exposition at <code>path</code>; it never shares the application's port. A listener
+off the loopback needs <code>allow</code> (addresses or CIDRs of the peers that may
+scrape) or a <code>token</code> (the bearer token a scrape sends). <code>buckets</code> are the
+upper bounds, in seconds, of the duration histogram: 1 to 32 finite values,
+strictly increasing. With several workers each one writes a snapshot every
+<code>snapshot_interval</code> seconds and any worker's scrape reports them all, one
+series per <code>worker</code> label.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.MetricsSettings.listen" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">listen</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.MetricsSettings.listen" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">listen</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.MetricsSettings.path" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">path</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.MetricsSettings.path" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'/metrics'</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.MetricsSettings.allow" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">allow</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.MetricsSettings.allow" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">allow</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.MetricsSettings.token" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">token</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.MetricsSettings.token" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">token</span><span class="p">:</span> <span class="n">Secret</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.MetricsSettings.buckets" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">buckets</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.MetricsSettings.buckets" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">buckets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">METRICS_BUCKETS</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.MetricsSettings.snapshot_interval" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">snapshot_interval</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.MetricsSettings.snapshot_interval" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">snapshot_interval</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.settings.EventsSettings" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.settings.EventsSettings</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.settings.EventsSettings" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">EventsSettings</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.settings.Settings
+
+
+  
+      dataclass
+  " href="#hinoki.settings.Settings">Settings</a></code></p>
+
+
+
+        <p>Limits of the typed event handlers (see <code>hinoki.events</code>): the time one
+handler may take, how many handlers one event and phase may have, and how
+deep a handler that emits events may nest.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EventsSettings.handler_timeout" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">handler_timeout</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EventsSettings.handler_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">handler_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EventsSettings.max_handlers" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_handlers</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EventsSettings.max_handlers" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_handlers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.EventsSettings.max_depth" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_depth</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.EventsSettings.max_depth" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3047,6 +3835,29 @@ its own users' sessions and passwords.</p>
 
 <a href="#hinoki.settings.AdminSettings.min_password_length" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">min_password_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">12</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.AdminSettings.theme" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">theme</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.AdminSettings.theme" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">theme</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4292,7 +5103,7 @@ and a failure aborts the start. <code>memory_capacity</code> bounds the outbox.<
           </li><li><a href="#hinoki.settings.Secret">Secret</a>
             <ul><li><a href="#hinoki.settings.Secret.reveal">reveal</a></li></ul>
           </li><li><a href="#hinoki.settings.SettingsError">SettingsError</a></li><li><a href="#hinoki.settings.AppSettings">AppSettings</a>
-            <ul><li><a href="#hinoki.settings.AppSettings.execution">execution</a></li><li><a href="#hinoki.settings.AppSettings.lifecycle">lifecycle</a></li><li><a href="#hinoki.settings.AppSettings.logging">logging</a></li><li><a href="#hinoki.settings.AppSettings.docs">docs</a></li><li><a href="#hinoki.settings.AppSettings.server">server</a></li><li><a href="#hinoki.settings.AppSettings.pagination">pagination</a></li><li><a href="#hinoki.settings.AppSettings.cors">cors</a></li><li><a href="#hinoki.settings.AppSettings.security">security</a></li><li><a href="#hinoki.settings.AppSettings.admin">admin</a></li><li><a href="#hinoki.settings.AppSettings.timezone">timezone</a></li><li><a href="#hinoki.settings.AppSettings.debug">debug</a></li><li><a href="#hinoki.settings.AppSettings.allowed_hosts">allowed_hosts</a></li><li><a href="#hinoki.settings.AppSettings.runtime_config">runtime_config</a></li></ul>
+            <ul><li><a href="#hinoki.settings.AppSettings.execution">execution</a></li><li><a href="#hinoki.settings.AppSettings.lifecycle">lifecycle</a></li><li><a href="#hinoki.settings.AppSettings.logging">logging</a></li><li><a href="#hinoki.settings.AppSettings.docs">docs</a></li><li><a href="#hinoki.settings.AppSettings.server">server</a></li><li><a href="#hinoki.settings.AppSettings.pagination">pagination</a></li><li><a href="#hinoki.settings.AppSettings.cors">cors</a></li><li><a href="#hinoki.settings.AppSettings.compression">compression</a></li><li><a href="#hinoki.settings.AppSettings.metrics">metrics</a></li><li><a href="#hinoki.settings.AppSettings.events">events</a></li><li><a href="#hinoki.settings.AppSettings.security">security</a></li><li><a href="#hinoki.settings.AppSettings.admin">admin</a></li><li><a href="#hinoki.settings.AppSettings.timezone">timezone</a></li><li><a href="#hinoki.settings.AppSettings.debug">debug</a></li><li><a href="#hinoki.settings.AppSettings.allowed_hosts">allowed_hosts</a></li><li><a href="#hinoki.settings.AppSettings.runtime_config">runtime_config</a></li></ul>
           </li><li><a href="#hinoki.settings.ExecutionSettings">ExecutionSettings</a>
             <ul><li><a href="#hinoki.settings.ExecutionSettings.sync_workers">sync_workers</a></li><li><a href="#hinoki.settings.ExecutionSettings.sync_queue">sync_queue</a></li><li><a href="#hinoki.settings.ExecutionSettings.request_timeout">request_timeout</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_body_bytes">max_body_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_query_bytes">max_query_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_header_bytes">max_header_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_streams">max_streams</a></li><li><a href="#hinoki.settings.ExecutionSettings.stream_idle_timeout">stream_idle_timeout</a></li><li><a href="#hinoki.settings.ExecutionSettings.sse_keepalive">sse_keepalive</a></li><li><a href="#hinoki.settings.ExecutionSettings.max_websockets">max_websockets</a></li><li><a href="#hinoki.settings.ExecutionSettings.ws_max_message_bytes">ws_max_message_bytes</a></li><li><a href="#hinoki.settings.ExecutionSettings.ws_queue">ws_queue</a></li><li><a href="#hinoki.settings.ExecutionSettings.ws_ping_interval">ws_ping_interval</a></li><li><a href="#hinoki.settings.ExecutionSettings.ws_pong_timeout">ws_pong_timeout</a></li><li><a href="#hinoki.settings.ExecutionSettings.ws_close_timeout">ws_close_timeout</a></li></ul>
           </li><li><a href="#hinoki.settings.LifecycleSettings">LifecycleSettings</a>
@@ -4300,17 +5111,23 @@ and a failure aborts the start. <code>memory_capacity</code> bounds the outbox.<
           </li><li><a href="#hinoki.settings.LoggingSettings">LoggingSettings</a>
             <ul><li><a href="#hinoki.settings.LoggingSettings.level">level</a></li><li><a href="#hinoki.settings.LoggingSettings.format">format</a></li><li><a href="#hinoki.settings.LoggingSettings.include_request_id">include_request_id</a></li><li><a href="#hinoki.settings.LoggingSettings.apply">apply</a></li></ul>
           </li><li><a href="#hinoki.settings.DocsSettings">DocsSettings</a>
-            <ul><li><a href="#hinoki.settings.DocsSettings.title">title</a></li><li><a href="#hinoki.settings.DocsSettings.version">version</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_url">openapi_url</a></li><li><a href="#hinoki.settings.DocsSettings.docs_url">docs_url</a></li><li><a href="#hinoki.settings.DocsSettings.redoc_url">redoc_url</a></li></ul>
+            <ul><li><a href="#hinoki.settings.DocsSettings.title">title</a></li><li><a href="#hinoki.settings.DocsSettings.version">version</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_url">openapi_url</a></li><li><a href="#hinoki.settings.DocsSettings.docs_url">docs_url</a></li><li><a href="#hinoki.settings.DocsSettings.redoc_url">redoc_url</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_version">openapi_version</a></li></ul>
           </li><li><a href="#hinoki.settings.ServerSettings">ServerSettings</a>
-            <ul><li><a href="#hinoki.settings.ServerSettings.server">server</a></li><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_format">access_log_format</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_skip">access_log_skip</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_slow_ms">access_log_slow_ms</a></li><li><a href="#hinoki.settings.ServerSettings.recent_requests">recent_requests</a></li><li><a href="#hinoki.settings.ServerSettings.server_timing">server_timing</a></li><li><a href="#hinoki.settings.ServerSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.ServerSettings.header_read_timeout">header_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.body_read_timeout">body_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.write_timeout">write_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.tls_cert_file">tls_cert_file</a></li><li><a href="#hinoki.settings.ServerSettings.tls_key_file">tls_key_file</a></li><li><a href="#hinoki.settings.ServerSettings.http2">http2</a></li><li><a href="#hinoki.settings.ServerSettings.native_dispatch">native_dispatch</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
+            <ul><li><a href="#hinoki.settings.ServerSettings.server">server</a></li><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_format">access_log_format</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_skip">access_log_skip</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_slow_ms">access_log_slow_ms</a></li><li><a href="#hinoki.settings.ServerSettings.recent_requests">recent_requests</a></li><li><a href="#hinoki.settings.ServerSettings.server_timing">server_timing</a></li><li><a href="#hinoki.settings.ServerSettings.sighup">sighup</a></li><li><a href="#hinoki.settings.ServerSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.ServerSettings.header_read_timeout">header_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.body_read_timeout">body_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.write_timeout">write_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.tls_cert_file">tls_cert_file</a></li><li><a href="#hinoki.settings.ServerSettings.tls_key_file">tls_key_file</a></li><li><a href="#hinoki.settings.ServerSettings.http2">http2</a></li><li><a href="#hinoki.settings.ServerSettings.native_dispatch">native_dispatch</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
           </li><li><a href="#hinoki.settings.PaginationSettings">PaginationSettings</a>
-            <ul><li><a href="#hinoki.settings.PaginationSettings.page_size">page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.max_page_size">max_page_size</a></li></ul>
+            <ul><li><a href="#hinoki.settings.PaginationSettings.page_size">page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.max_page_size">max_page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.cursor_secret">cursor_secret</a></li><li><a href="#hinoki.settings.PaginationSettings.cursor_ttl_seconds">cursor_ttl_seconds</a></li></ul>
           </li><li><a href="#hinoki.settings.CorsSettings">CorsSettings</a>
             <ul><li><a href="#hinoki.settings.CorsSettings.origins">origins</a></li><li><a href="#hinoki.settings.CorsSettings.methods">methods</a></li><li><a href="#hinoki.settings.CorsSettings.headers">headers</a></li><li><a href="#hinoki.settings.CorsSettings.expose_headers">expose_headers</a></li><li><a href="#hinoki.settings.CorsSettings.credentials">credentials</a></li><li><a href="#hinoki.settings.CorsSettings.max_age">max_age</a></li></ul>
+          </li><li><a href="#hinoki.settings.CompressionSettings">CompressionSettings</a>
+            <ul><li><a href="#hinoki.settings.CompressionSettings.enabled">enabled</a></li><li><a href="#hinoki.settings.CompressionSettings.encodings">encodings</a></li><li><a href="#hinoki.settings.CompressionSettings.min_size">min_size</a></li><li><a href="#hinoki.settings.CompressionSettings.types">types</a></li><li><a href="#hinoki.settings.CompressionSettings.event_streams">event_streams</a></li><li><a href="#hinoki.settings.CompressionSettings.files">files</a></li><li><a href="#hinoki.settings.CompressionSettings.gzip_level">gzip_level</a></li><li><a href="#hinoki.settings.CompressionSettings.brotli_quality">brotli_quality</a></li><li><a href="#hinoki.settings.CompressionSettings.max_concurrent">max_concurrent</a></li></ul>
+          </li><li><a href="#hinoki.settings.MetricsSettings">MetricsSettings</a>
+            <ul><li><a href="#hinoki.settings.MetricsSettings.listen">listen</a></li><li><a href="#hinoki.settings.MetricsSettings.path">path</a></li><li><a href="#hinoki.settings.MetricsSettings.allow">allow</a></li><li><a href="#hinoki.settings.MetricsSettings.token">token</a></li><li><a href="#hinoki.settings.MetricsSettings.buckets">buckets</a></li><li><a href="#hinoki.settings.MetricsSettings.snapshot_interval">snapshot_interval</a></li></ul>
+          </li><li><a href="#hinoki.settings.EventsSettings">EventsSettings</a>
+            <ul><li><a href="#hinoki.settings.EventsSettings.handler_timeout">handler_timeout</a></li><li><a href="#hinoki.settings.EventsSettings.max_handlers">max_handlers</a></li><li><a href="#hinoki.settings.EventsSettings.max_depth">max_depth</a></li></ul>
           </li><li><a href="#hinoki.settings.SecuritySettings">SecuritySettings</a>
             <ul><li><a href="#hinoki.settings.SecuritySettings.redirect_https">redirect_https</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_seconds">hsts_seconds</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_include_subdomains">hsts_include_subdomains</a></li><li><a href="#hinoki.settings.SecuritySettings.hsts_preload">hsts_preload</a></li><li><a href="#hinoki.settings.SecuritySettings.frame_options">frame_options</a></li><li><a href="#hinoki.settings.SecuritySettings.referrer_policy">referrer_policy</a></li></ul>
           </li><li><a href="#hinoki.settings.AdminSettings">AdminSettings</a>
-            <ul><li><a href="#hinoki.settings.AdminSettings.secret">secret</a></li><li><a href="#hinoki.settings.AdminSettings.session_hours">session_hours</a></li><li><a href="#hinoki.settings.AdminSettings.idle_minutes">idle_minutes</a></li><li><a href="#hinoki.settings.AdminSettings.min_password_length">min_password_length</a></li></ul>
+            <ul><li><a href="#hinoki.settings.AdminSettings.secret">secret</a></li><li><a href="#hinoki.settings.AdminSettings.session_hours">session_hours</a></li><li><a href="#hinoki.settings.AdminSettings.idle_minutes">idle_minutes</a></li><li><a href="#hinoki.settings.AdminSettings.min_password_length">min_password_length</a></li><li><a href="#hinoki.settings.AdminSettings.theme">theme</a></li></ul>
           </li><li><a href="#hinoki.settings.FrameOptions">FrameOptions</a></li><li><a href="#hinoki.settings.ReferrerPolicy">ReferrerPolicy</a></li><li><a href="#hinoki.settings.DatabaseSettings">DatabaseSettings</a>
             <ul><li><a href="#hinoki.settings.DatabaseSettings.url">url</a></li><li><a href="#hinoki.settings.DatabaseSettings.engine">engine</a></li><li><a href="#hinoki.settings.DatabaseSettings.name">name</a></li><li><a href="#hinoki.settings.DatabaseSettings.user">user</a></li><li><a href="#hinoki.settings.DatabaseSettings.password">password</a></li><li><a href="#hinoki.settings.DatabaseSettings.host">host</a></li><li><a href="#hinoki.settings.DatabaseSettings.port">port</a></li><li><a href="#hinoki.settings.DatabaseSettings.options">options</a></li><li><a href="#hinoki.settings.DatabaseSettings.max_size">max_size</a></li></ul>
           </li><li><a href="#hinoki.settings.DatabaseEngine">DatabaseEngine</a></li><li><a href="#hinoki.settings.EmailSettings">EmailSettings</a>
@@ -4321,7 +5138,7 @@ and a failure aborts the start. <code>memory_capacity</code> bounds the outbox.<
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -246,6 +246,18 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Sessions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../storage/"><span>File storage</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
@@ -282,8 +294,8 @@
           <h1 id="admin-api">Admin API<a class="headerlink" href="#admin-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
-            <span>11 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -2862,6 +2874,341 @@ sparkline; without data there is no chart.</p>
     </div>
 
 </div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.admin.action" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.admin.action</span>
+
+
+<a href="#hinoki.admin.action" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">action</span><span class="p">(</span>
+    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">confirm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">F</span><span class="p">],</span> <span class="n">F</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Declare a bulk action on a <code>ModelAdmin</code> method.</p>
+<div class="language-text highlight"><pre><span></span><code>@action(confirm="Publish the selected posts?")
+async def publish(self, rows, principal): ...
+</code></pre></div>
+<p>The name is the function's (<code>_</code> becomes <code>-</code>) and the permission checked
+by <code>ModelAdmin.can</code>; the label defaults to "Publish selected".</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.admin.Tone" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.admin.Tone</span>
+
+
+<a href="#hinoki.admin.Tone" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="enum.StrEnum">StrEnum</span></code></p>
+
+
+
+        <p>The color role of a badge, stat or event.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.admin.users.limits.LoginWindow" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.admin.users.limits.LoginWindow</span>
+
+
+<a href="#hinoki.admin.users.limits.LoginWindow" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">LoginWindow</span><span class="p">(</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">,</span>
+    <span class="n">clock</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>At most <code>limit</code> attempts per <code>window</code> seconds from one address.</p>
+<p>Requests with no known client address (a Unix socket, a proxy that is not
+listed in <code>server.trusted_proxies</code>) share one window <code>UNKNOWN_FACTOR</code>
+times as large, so they cannot lock everyone out of sign-in with a few
+requests.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.admin.users.limits.LoginWindow.limit" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">limit</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.users.limits.LoginWindow.limit" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">limit</span> <span class="o">=</span> <span class="n">limit</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.admin.users.limits.LoginWindow.window" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">window</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.users.limits.LoginWindow.window" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">window</span> <span class="o">=</span> <span class="n">window</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.admin.users.limits.LoginWindow.clock" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">clock</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.users.limits.LoginWindow.clock" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">clock</span> <span class="o">=</span> <span class="n">clock</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.admin.users.limits.LoginWindow.windows" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">windows</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.admin.users.limits.LoginWindow.windows" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">windows</span><span class="p">:</span> <span class="n">OrderedDict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.users.limits.LoginWindow.check" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check</span>
+
+
+<a href="#hinoki.admin.users.limits.LoginWindow.check" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">check</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">RateLimitContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.users.limits.LoginWindow.make_room" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">make_room</span>
+
+
+<a href="#hinoki.admin.users.limits.LoginWindow.make_room" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">make_room</span><span class="p">(</span><span class="n">now</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Evict the oldest window, unless it is a blocked address: forgetting
+it would let a flood of new addresses reset a block. The table then
+refuses new addresses until the oldest block expires.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.admin.users.limits.LoginWindow.expire" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">expire</span>
+
+
+<a href="#hinoki.admin.users.limits.LoginWindow.expire" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">expire</span><span class="p">(</span><span class="n">now</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.admin.users.limits.DatabaseLoginWindow" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.admin.users.limits.DatabaseLoginWindow</span>
+
+
+<a href="#hinoki.admin.users.limits.DatabaseLoginWindow" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">DatabaseLoginWindow</span><span class="p">(</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">,</span>
+    <span class="n">clock</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">datetime</span><span class="p">]</span> <span class="o">=</span> <span class="n">utc_now</span><span class="p">,</span>
+    <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="hinoki.ratelimit.RateLimit" href="../web/#hinoki.ratelimit.RateLimit">RateLimit</a></code></p>
+
+
+
+        <p>At most <code>limit</code> attempts per <code>window</code> seconds from one address on one
+route, counted by the shared <code>RateLimit</code> in the <code>hinoki_admin_rate_limits</code>
+table, so every worker and every host counts together and a restart keeps it.</p>
+<p>Clients are stored as a SHA-256 digest, never as an address. Requests with no
+known address share one bucket <code>UNKNOWN_FACTOR</code> times as large. A storage
+failure refuses the attempt (503).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
         
       </article>
 
@@ -2885,13 +3232,15 @@ sparkline; without data there is no chart.</p>
             <ul><li><a href="#hinoki.admin.ModelAdmin.model">model</a></li><li><a href="#hinoki.admin.ModelAdmin.slug">slug</a></li><li><a href="#hinoki.admin.ModelAdmin.label">label</a></li><li><a href="#hinoki.admin.ModelAdmin.icon">icon</a></li><li><a href="#hinoki.admin.ModelAdmin.columns">columns</a></li><li><a href="#hinoki.admin.ModelAdmin.search">search</a></li><li><a href="#hinoki.admin.ModelAdmin.ordering">ordering</a></li><li><a href="#hinoki.admin.ModelAdmin.exclude">exclude</a></li><li><a href="#hinoki.admin.ModelAdmin.readonly">readonly</a></li><li><a href="#hinoki.admin.ModelAdmin.assign">assign</a></li><li><a href="#hinoki.admin.ModelAdmin.badges">badges</a></li><li><a href="#hinoki.admin.ModelAdmin.tabs">tabs</a></li><li><a href="#hinoki.admin.ModelAdmin.fieldsets">fieldsets</a></li><li><a href="#hinoki.admin.ModelAdmin.modified_field">modified_field</a></li><li><a href="#hinoki.admin.ModelAdmin.modified_label">modified_label</a></li><li><a href="#hinoki.admin.ModelAdmin.per_page">per_page</a></li><li><a href="#hinoki.admin.ModelAdmin.show_count">show_count</a></li><li><a href="#hinoki.admin.ModelAdmin.bulk_delete">bulk_delete</a></li><li><a href="#hinoki.admin.ModelAdmin.allow_hard_delete">allow_hard_delete</a></li><li><a href="#hinoki.admin.ModelAdmin.bulk_actions">bulk_actions</a></li><li><a href="#hinoki.admin.ModelAdmin.extra_fields">extra_fields</a></li><li><a href="#hinoki.admin.ModelAdmin.site">site</a></li><li><a href="#hinoki.admin.ModelAdmin.tab_list">tab_list</a></li><li><a href="#hinoki.admin.ModelAdmin.fieldset_list">fieldset_list</a></li><li><a href="#hinoki.admin.ModelAdmin.extras">extras</a></li><li><a href="#hinoki.admin.ModelAdmin.extra_initial">extra_initial</a></li><li><a href="#hinoki.admin.ModelAdmin.queryset">queryset</a></li><li><a href="#hinoki.admin.ModelAdmin.active_scope">active_scope</a></li><li><a href="#hinoki.admin.ModelAdmin.deleted_queryset">deleted_queryset</a></li><li><a href="#hinoki.admin.ModelAdmin.deleted_scope">deleted_scope</a></li><li><a href="#hinoki.admin.ModelAdmin.can">can</a></li><li><a href="#hinoki.admin.ModelAdmin.title_of">title_of</a></li><li><a href="#hinoki.admin.ModelAdmin.display">display</a></li><li><a href="#hinoki.admin.ModelAdmin.stats">stats</a></li><li><a href="#hinoki.admin.ModelAdmin.check">check</a></li><li><a href="#hinoki.admin.ModelAdmin.save">save</a></li><li><a href="#hinoki.admin.ModelAdmin.remove">remove</a></li><li><a href="#hinoki.admin.ModelAdmin.ensure_visible">ensure_visible</a></li><li><a href="#hinoki.admin.ModelAdmin.plural">plural</a></li><li><a href="#hinoki.admin.ModelAdmin.shown_columns">shown_columns</a></li><li><a href="#hinoki.admin.ModelAdmin.default_search">default_search</a></li><li><a href="#hinoki.admin.ModelAdmin.skipped">skipped</a></li><li><a href="#hinoki.admin.ModelAdmin.normalize">normalize</a></li><li><a href="#hinoki.admin.ModelAdmin.validate_config">validate_config</a></li></ul>
           </li><li><a href="#hinoki.admin.BulkAction">BulkAction</a></li><li><a href="#hinoki.admin.Theme">Theme</a>
             <ul><li><a href="#hinoki.admin.Theme.check">check</a></li><li><a href="#hinoki.admin.Theme.tokens_css">tokens_css</a></li></ul>
-          </li><li><a href="#hinoki.admin.Avatar">Avatar</a></li><li><a href="#hinoki.admin.Badge">Badge</a></li><li><a href="#hinoki.admin.Tab">Tab</a></li><li><a href="#hinoki.admin.Fieldset">Fieldset</a></li><li><a href="#hinoki.admin.Extra">Extra</a></li><li><a href="#hinoki.admin.Refusal">Refusal</a></li><li><a href="#hinoki.admin.Event">Event</a></li><li><a href="#hinoki.admin.Link">Link</a></li><li><a href="#hinoki.admin.Stat">Stat</a></li><li><a href="#hinoki.admin.THEMES">THEMES</a></li></ul>
+          </li><li><a href="#hinoki.admin.Avatar">Avatar</a></li><li><a href="#hinoki.admin.Badge">Badge</a></li><li><a href="#hinoki.admin.Tab">Tab</a></li><li><a href="#hinoki.admin.Fieldset">Fieldset</a></li><li><a href="#hinoki.admin.Extra">Extra</a></li><li><a href="#hinoki.admin.Refusal">Refusal</a></li><li><a href="#hinoki.admin.Event">Event</a></li><li><a href="#hinoki.admin.Link">Link</a></li><li><a href="#hinoki.admin.Stat">Stat</a></li><li><a href="#hinoki.admin.THEMES">THEMES</a></li><li><a href="#hinoki.admin.action">action</a></li><li><a href="#hinoki.admin.Tone">Tone</a></li><li><a href="#hinoki.admin.users.limits.LoginWindow">LoginWindow</a>
+            <ul><li><a href="#hinoki.admin.users.limits.LoginWindow.limit">limit</a></li><li><a href="#hinoki.admin.users.limits.LoginWindow.window">window</a></li><li><a href="#hinoki.admin.users.limits.LoginWindow.clock">clock</a></li><li><a href="#hinoki.admin.users.limits.LoginWindow.windows">windows</a></li><li><a href="#hinoki.admin.users.limits.LoginWindow.check">check</a></li><li><a href="#hinoki.admin.users.limits.LoginWindow.make_room">make_room</a></li><li><a href="#hinoki.admin.users.limits.LoginWindow.expire">expire</a></li></ul>
+          </li><li><a href="#hinoki.admin.users.limits.DatabaseLoginWindow">DatabaseLoginWindow</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

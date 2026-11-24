@@ -246,6 +246,18 @@
               
             
               
+                <li><a class="side__link" href="../sessions/"><span>Sessions</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../cache/"><span>Cache</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../storage/"><span>File storage</span></a></li>
+              
+            
+              
                 <li><a class="side__link" href="../rules/"><span>Rules</span></a></li>
               
             
@@ -282,8 +294,8 @@
           <h1 id="modules-and-runtime-api">Modules and runtime API<a class="headerlink" href="#modules-and-runtime-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>4 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -1404,6 +1416,265 @@ that differed from the stored row before the write.</p>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.events.listener" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.events.listener</span>
+
+
+<a href="#hinoki.events.listener" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">listener</span><span class="p">(</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">type</span><span class="p">,</span> <span class="n">subject</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EventBus</span> <span class="o">|</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The current bus when a write of <code>subject</code> (or, for an event with no
+subject, any emitter) must emit <code>kind</code>, else <code>None</code>: the guard of the
+emitting code paths (one context-variable read when no application bus is
+current).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.Linked" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.Linked</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.events.Linked" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Linked</span><span class="p">(</span>
+    <span class="n">subject</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span>
+    <span class="n">relation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="n">targets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Links were added to a many-to-many relation (<code>add</code> or <code>set</code> of a
+<code>LinkSet</code>). <code>subject</code> is the model that declares <code>relation</code>; <code>key</code>
+is the primary key of the owner that was written (the declaring model, or
+the target when writing from the reverse side) and <code>targets</code> the keys of
+the rows now linked to it, in ascending order. Emitted only when something
+was added; needs <code>after_commit</code> handlers.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.Unlinked" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.Unlinked</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.events.Unlinked" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Unlinked</span><span class="p">(</span>
+    <span class="n">subject</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span>
+    <span class="n">relation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="n">targets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Links were removed from a many-to-many relation (<code>remove</code> or <code>set</code>
+of a <code>LinkSet</code>); the fields are those of <code>Linked</code>. Deleting a row that
+has links removes them without this event, like <code>Deleted</code>. Emitted only
+when something was removed; needs <code>after_commit</code> handlers.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.AuthRejected" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.AuthRejected</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.events.AuthRejected" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">AuthRejected</span><span class="p">(</span><span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">route</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A route's access policy refused a request (HTTP 401 or 403).</p>
+<p><code>reason</code> is <code>"missing"</code> (no credentials), <code>"invalid"</code> (credentials the
+provider rejected) or <code>"forbidden"</code> (a caller without a required
+permission). <code>route</code> is the path template (<code>/notes/{note_id}</code>), never the
+requested path; <code>method</code> is the HTTP method, or <code>WEBSOCKET</code>. The payload
+holds no credential, caller, address or query string. Delivered through
+<code>EventBus.notify</code>, so it needs <code>after_commit</code> handlers.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.events.RateLimited" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.events.RateLimited</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.events.RateLimited" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">RateLimited</span><span class="p">(</span>
+    <span class="n">policy</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">route</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">retry_after</span><span class="p">:</span> <span class="nb">int</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A route's rate-limit policy refused a request (HTTP 429).</p>
+<p><code>policy</code> is the class name of the route's policy, <code>retry_after</code> the whole
+seconds the client was told to wait. The payload holds no key, caller,
+address or path. Delivered through <code>EventBus.notify</code>, so it needs
+<code>after_commit</code> handlers.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 <div class="doc doc-object doc-class">
 
 
@@ -1517,7 +1788,7 @@ that differed from the stored row before the write.</p>
             <ul><li><a href="#hinoki.runtime.config.RuntimeConfig.idle_timeout">idle_timeout</a></li></ul>
           </li><li><a href="#hinoki.errors.ModuleGraphError">ModuleGraphError</a></li><li><a href="#hinoki.errors.RegistrationError">RegistrationError</a></li><li><a href="#events">Events</a></li><li><a href="#hinoki.events.Handlers">Handlers</a>
             <ul><li><a href="#hinoki.events.Handlers.name">name</a></li><li><a href="#hinoki.events.Handlers.registrations">registrations</a></li><li><a href="#hinoki.events.Handlers.in_transaction">in_transaction</a></li><li><a href="#hinoki.events.Handlers.after_commit">after_commit</a></li></ul>
-          </li><li><a href="#hinoki.events.Created">Created</a></li><li><a href="#hinoki.events.Updated">Updated</a></li><li><a href="#hinoki.events.Deleted">Deleted</a></li><li><a href="#hinoki.events.emit">emit</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
+          </li><li><a href="#hinoki.events.Created">Created</a></li><li><a href="#hinoki.events.Updated">Updated</a></li><li><a href="#hinoki.events.Deleted">Deleted</a></li><li><a href="#hinoki.events.emit">emit</a></li><li><a href="#hinoki.events.listener">listener</a></li><li><a href="#hinoki.events.Linked">Linked</a></li><li><a href="#hinoki.events.Unlinked">Unlinked</a></li><li><a href="#hinoki.events.AuthRejected">AuthRejected</a></li><li><a href="#hinoki.events.RateLimited">RateLimited</a></li><li><a href="#hinoki.wsgi.WSGIAdapter">WSGIAdapter</a>
             <ul><li><a href="#hinoki.wsgi.WSGIAdapter.start">start</a></li><li><a href="#hinoki.wsgi.WSGIAdapter.close">close</a></li></ul>
           </li></ul>
           
@@ -1525,7 +1796,7 @@ that differed from the stored row before the write.</p>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/runtime.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
