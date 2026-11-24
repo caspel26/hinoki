@@ -494,7 +494,7 @@
           <h1 id="cache-values">Cache values<a class="headerlink" href="#cache-values" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 21:02:21 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -538,7 +538,14 @@ JSON value because that would make a stored null indistinguishable from a miss;
 use a tagged object if the application needs that distinction. <code>set</code> always
 requires a TTL between a positive value and 366 days. Keys are UTF-8 strings of
 1–256 bytes without NUL. <code>cache.namespace("users")</code> returns a view that prefixes
-keys and enforces the same full-key limit.</p>
+keys and enforces the same full-key limit. The view delegates to its cache, so a
+namespace taken from a <code>DatabaseCache</code> follows that cache's worker binding and
+cleanup.</p>
+<p><code>set_schema</code> stores the schema's declared fields only: <code>@computed_field</code> values
+are omitted and recomputed when <code>get_schema</code> validates the value again, so
+schemas with the default <code>extra="forbid"</code> round-trip. A schema containing a
+<code>SecretStr</code> field, including in a nested schema, is rejected with <code>ValueError</code>
+instead of caching a masked or plain secret.</p>
 <p><code>get_or_set</code> reads, calls its factory on a miss and writes the result. It does
 not coalesce concurrent misses, so applications with expensive factories may
 need their own single-flight or locking policy. Schema validation mismatches in
@@ -613,7 +620,7 @@ query caching, distributed invalidation, or security-sensitive rate limiting.</p
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 21:02:21 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cache.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

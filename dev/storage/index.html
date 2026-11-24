@@ -494,7 +494,7 @@
           <h1 id="store-uploaded-files">Store uploaded files<a class="headerlink" href="#store-uploaded-files" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -570,6 +570,16 @@ cleanup or cross-host coordination is provided.</p>
 buffers its bounded value in that response; the local backend returns a streamed
 <code>File</code> (a <code>Response</code> subtype), sent by the server without copying its body into
 a Python response buffer.</p>
+<p>Pass <code>filename=</code> and <code>content_type=</code> to <code>open_response()</code> to set the download
+name and media type. Without them both backends behave alike: the stored
+content type is used unless it is <code>application/octet-stream</code>, otherwise the type
+is guessed from the file name, and a file with no name is sent as a plain
+<code>attachment</code>. The storage key is never offered as a file name.</p>
+<p><code>disposition="inline"</code> is honored only for passive media types: <code>image/png</code>,
+<code>image/jpeg</code>, <code>image/gif</code>, <code>image/webp</code>, <code>image/avif</code>, <code>application/pdf</code> and
+<code>text/plain</code>. Any other type, such as <code>text/html</code>, <code>image/svg+xml</code> or
+<code>text/javascript</code>, is sent as <code>attachment</code> so an uploaded file cannot run script
+in the application's origin. An unknown disposition raises <code>ValueError</code>.</p>
 <p><code>LocalFileStorage</code> creates its root during worker startup, checks that it is a
 writable directory, uses unique generated keys and atomically replaces a
 temporary file. Directories use mode <code>0700</code> and files use <code>0600</code>. The uploaded
@@ -610,7 +620,7 @@ values; storage does not stream request uploads directly to disk.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/storage.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

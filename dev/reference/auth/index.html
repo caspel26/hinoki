@@ -283,7 +283,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 01:33:42 UTC">November 19, 2026</span></span>
-            <span>5 min read</span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -476,6 +476,35 @@ invalid. Providers hold no per-request state.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.auth.BaseAuth.uses_session" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">uses_session</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.auth.BaseAuth.uses_session" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">uses_session</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>True</code> for a provider that reads <code>Credentials.session</code>. The request
+is then given its application session before authentication, and unsafe
+methods carrying a session cookie must pass the session CSRF check. A
+provider that holds others (as attributes, or in a list or tuple) uses the
+session when any of them does.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -1049,6 +1078,10 @@ cancelled while its hash runs frees its slot but the thread finishes, so at
 most <code>workers</code> extra hashes can be in flight; <code>hash_sync</code>/<code>verify_sync</code>
 are not bounded. Only argon2id hashes are verified. For unknown users, verify
 against a fixed dummy hash so timing does not reveal who exists.</p>
+<p>The thread pool starts with the first <code>hash</code>/<code>verify</code> and stops with
+<code>close()</code> (or at the end of a <code>with</code>/<code>async with</code> block); a closed
+hasher starts a new pool when it is used again. A hasher that is never
+closed stops its pool when it is garbage-collected.</p>
 
 
 
@@ -1067,6 +1100,30 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.crypto.PasswordHasher.pool" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">pool</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.crypto.PasswordHasher.pool" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">pool</span><span class="p">:</span> <span class="n">ThreadPoolExecutor</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The hashing threads, started on first use.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -1131,6 +1188,26 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.crypto.PasswordHasher.close" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">close</span>
+
+
+<a href="#hinoki.crypto.PasswordHasher.close" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">close</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Stop the hashing threads; queued work is cancelled. Idempotent.</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -1176,7 +1253,7 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
           
           
             <ul><li><a href="#hinoki.auth.Caller">Caller</a></li><li><a href="#hinoki.auth.Permission">Permission</a></li><li><a href="#hinoki.auth.Credentials">Credentials</a></li><li><a href="#hinoki.auth.BaseAuth">BaseAuth</a>
-            <ul><li><a href="#hinoki.auth.BaseAuth.openapi_scheme">openapi_scheme</a></li><li><a href="#hinoki.auth.BaseAuth.authenticate">authenticate</a></li></ul>
+            <ul><li><a href="#hinoki.auth.BaseAuth.uses_session">uses_session</a></li><li><a href="#hinoki.auth.BaseAuth.openapi_scheme">openapi_scheme</a></li><li><a href="#hinoki.auth.BaseAuth.authenticate">authenticate</a></li></ul>
           </li><li><a href="#hinoki.auth.HeaderAuth">HeaderAuth</a>
             <ul><li><a href="#hinoki.auth.HeaderAuth.resolve">resolve</a></li></ul>
           </li><li><a href="#hinoki.auth.BearerAuth">BearerAuth</a>
@@ -1186,7 +1263,7 @@ against a fixed dummy hash so timing does not reveal who exists.</p>
           </li><li><a href="#hinoki.crypto.JWTAuth">JWTAuth</a>
             <ul><li><a href="#hinoki.crypto.JWTAuth.now">now</a></li><li><a href="#hinoki.crypto.JWTAuth.resolve_claims">resolve_claims</a></li><li><a href="#hinoki.crypto.JWTAuth.issue">issue</a></li></ul>
           </li><li><a href="#hinoki.crypto.ClaimsJWTAuth">ClaimsJWTAuth</a></li><li><a href="#hinoki.crypto.PasswordHasher">PasswordHasher</a>
-            <ul><li><a href="#hinoki.crypto.PasswordHasher.hash_sync">hash_sync</a></li><li><a href="#hinoki.crypto.PasswordHasher.verify_sync">verify_sync</a></li><li><a href="#hinoki.crypto.PasswordHasher.needs_rehash">needs_rehash</a></li></ul>
+            <ul><li><a href="#hinoki.crypto.PasswordHasher.pool">pool</a></li><li><a href="#hinoki.crypto.PasswordHasher.hash_sync">hash_sync</a></li><li><a href="#hinoki.crypto.PasswordHasher.verify_sync">verify_sync</a></li><li><a href="#hinoki.crypto.PasswordHasher.needs_rehash">needs_rehash</a></li><li><a href="#hinoki.crypto.PasswordHasher.close">close</a></li></ul>
           </li><li><a href="#hinoki.crypto.random_token">random_token</a></li></ul>
           
         </nav>

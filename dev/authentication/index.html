@@ -494,7 +494,7 @@
           <h1 id="protect-endpoints-with-authentication-and-access">Protect endpoints with authentication and access<a class="headerlink" href="#protect-endpoints-with-authentication-and-access" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -628,7 +628,9 @@ actions explicitly.</p>
 <h2 id="hash-passwords">Hash passwords<a class="headerlink" href="#hash-passwords" title="Permanent link">&para;</a></h2>
 <p><code>hinoki.crypto.PasswordHasher</code> hashes and verifies with Argon2id in Rust, off the
 event loop. Create it where you own its lifetime (a factory or a module) and call
-<code>close()</code> at shutdown.</p>
+<code>close()</code> at shutdown, or use it as a context manager (<code>with</code> or <code>async with</code>).
+Its worker threads start on first use; a closed hasher starts them again if it
+is used, and a hasher that is garbage-collected shuts them down.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/passwords.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.crypto</span><span class="w"> </span><span class="kn">import</span> <span class="n">PasswordHasher</span>
 
@@ -770,7 +772,7 @@ that lacks the permission it is <code>403</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

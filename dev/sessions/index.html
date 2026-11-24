@@ -494,7 +494,7 @@
           <h1 id="application-sessions">Application sessions<a class="headerlink" href="#application-sessions" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -551,7 +551,15 @@ worker:</p>
 <p><code>SessionAuth</code> resolves a <code>Caller</code> from the read-only session data and works with
 <code>Access</code> and <code>Caller[T]</code>. It documents the configured cookie name as an OpenAPI
 cookie security scheme. If <code>SessionSettings.cookie_name</code> is customized, pass the
-same name to <code>SessionAuth(cookie_name=...)</code>.</p>
+same name to <code>SessionAuth(cookie_name=...)</code>. <code>SessionModule(store, settings)</code>
+requires its <code>SessionSettings</code>.</p>
+<p>A custom <code>Auth</code> that composes <code>SessionAuth</code> (for example, one that tries a bearer
+token and then the session) is detected automatically: Hinoki loads the session
+and applies the CSRF rules below. Set <code>uses_session = True</code> on an <code>Auth</code> class
+that reads the session in another way.</p>
+<p><code>SessionAuth</code> also works on <code>@http.websocket</code> routes. The session is loaded
+read-only during the handshake, and an unknown or expired cookie refuses the
+connection. The handshake <code>Origin</code> is checked by the websocket origin rules.</p>
 <h2 id="state-and-response-lifecycle">State and response lifecycle<a class="headerlink" href="#state-and-response-lifecycle" title="Permanent link">&para;</a></h2>
 <p><code>Session</code> is request-scoped. It provides <code>get</code>, item lookup and assignment,
 <code>del session[key]</code>, <code>clear</code>, <code>rotate</code>, <code>invalidate</code>, <code>csrf_token</code>, <code>is_new</code>,
@@ -568,7 +576,8 @@ If the handler raises, pending changes and cookie changes are discarded.</p>
 use it on login and privilege changes to prevent fixation. <code>invalidate()</code>
 revokes the current token and sends a clearing cookie. Revocations are retained
 until the session's absolute expiry, so an already-running request cannot
-restore a revoked token with a stale write.</p>
+restore a revoked token with a stale write. <code>MemorySessionStore</code> drops a revoked
+session's data immediately and keeps only a bounded record of revoked tokens.</p>
 <p>The cookie defaults to <code>HttpOnly</code>, <code>SameSite=Lax</code>, <code>Secure</code>, and <code>Path=/</code>.
 <code>cookie_secure=False</code> is available for local HTTP development. The absolute
 timeout defaults to 14 days and the idle timeout to one day. A successful
@@ -660,7 +669,7 @@ and cache migrations.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:12:11 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:34:22 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/sessions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
