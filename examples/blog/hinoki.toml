@@ -14,3 +14,10 @@ name = "admin"
 models = "hinoki.admin.users.models"
 migrations = "hinoki.admin.users.migrations"
 requires = []
+
+# The shared rate limiter's table, used by POST /auth/login.
+[[apps]]
+name = "ratelimit"
+models = "hinoki.ratelimit_store.models"
+migrations = "hinoki.ratelimit_store.migrations"
+requires = []
