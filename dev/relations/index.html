@@ -494,7 +494,7 @@
           <h1 id="relations">Relations<a class="headerlink" href="#relations" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 12:57:52 UTC">November 24, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -598,7 +598,7 @@ database enforces it.</p>
 <tr>
 <td><code>prefetch_related("invoices")</code></td>
 <td>a reverse or collection relation</td>
-<td>one separate, bounded query</td>
+<td>separate, bounded queries per owner chunk</td>
 </tr>
 </tbody>
 </table>
@@ -674,8 +674,18 @@ MySQL and MariaDB) until the commit, so a target deleted at the same moment
 either makes the write fail with <code>UnknownLinkTarget</code> or removes the new link
 with it; on MySQL and MariaDB the reads that decide a write use locking reads,
 because a transaction there reads one snapshot. SQLite has a single writer.
-<code>prefetch_related</code> orders all targets of an owner by the target's default
-ordering (else its key) as one list, however many queries it took.
+For each chunk of owners, the many-to-many prefetch runs one bounded query
+from the target table with an inner join to the bridge. It returns one target
+row per link, so a target shared by owners is repeated in the result. Each
+statement sees its chunk under the database's transaction isolation; different
+chunks can observe different states. Rust builds and groups eligible model
+rows, and Python orchestrates the queries, shares instances across chunks and
+stores the loaded relations. Custom row builders use the Python fallback.</p>
+<p><code>prefetch_related</code> orders targets by the target's default ordering (else its
+key), with the primary key as the final tie-breaker. NULL sorts before values
+in ascending order and after values in descending order, including on
+PostgreSQL. A scoped query may supply an ordering when the model has a default
+ordering.
 When the target model is soft-deleting, a deleted target is not linked: reads,
 filters and prefetches skip it, adding it raises <code>UnknownLinkTarget</code>, it does
 not count towards <code>max_items</code>, and <code>aset</code>/<code>aremove</code> leave its link alone unless
@@ -773,7 +783,7 @@ abstract model. <code>{model}</code> is the only placeholder.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 12:57:52 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/relations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

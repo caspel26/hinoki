@@ -495,7 +495,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>28 min read</span>
+            <span>29 min read</span>
           </p>
           
         </header>
@@ -649,7 +649,15 @@ async def reindex() -&gt; dict[str, str]: ...
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>🔐 One <code>Secret</code> type (breaking)</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>🔗 One query per many-to-many prefetch chunk</h4>
+<blockquote>
+<p><code>python/hinoki/orm/links.py</code>, <code>python/hinoki/orm/queryset.py</code>, <code>crates/bindings/src/modelrows.rs</code>, <code>crates/orm/src/query.rs</code>, <code>docs/relations.md</code></p>
+</blockquote>
+<p>Many-to-many prefetch reads targets and their bridge in one bounded query per
+owner chunk. On PostgreSQL, NULL now sorts before non-NULL values in ascending
+order and after them in descending order even when targets fit in one chunk,
+matching the order previously used when target reads spanned multiple chunks.</p>
+<h4>🔐 One <code>Secret</code> type (breaking)</h4>
 <blockquote>
 <p><code>python/hinoki/fields.py</code>, <code>python/hinoki/settings.py</code>, <code>python/hinoki/crypto.py</code>, <code>python/hinoki/sessions.py</code>, <code>crates/bindings/src/pytypes.rs</code>, <code>docs/schema-types.md</code>, <code>docs/settings.md</code></p>
 </blockquote>

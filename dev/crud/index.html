@@ -494,7 +494,7 @@
           <h1 id="generate-crud-routes">Generate CRUD routes<a class="headerlink" href="#generate-crud-routes" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:10:05 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 12:57:52 UTC">November 24, 2026</span></span>
             <span>16 min read</span>
           </p>
           
@@ -836,7 +836,7 @@
 <li><code>links=</code> is required for every relation whose ids field appears in a schema; the callable receives <code>Caller.user</code> (<code>None</code> on public routes) and returns the targets a caller may link and see. The class form can override <code>link_queryset(relation, principal)</code> instead.</li>
 <li>A write replaces the whole set; an omitted field keeps it and <code>[]</code> clears it. Only the links inside the scope are replaced, so links to targets the caller cannot see are neither shown nor removed.</li>
 <li>An id that does not exist and an id outside the scope give the same <code>422</code> (type <code>unknown_reference</code>) without echoing the id; more ids than the field's <code>max_length</code> is a <code>422</code> too. The owner row is checked against <code>get_queryset</code> and the owner policy first, and the row and its links are written in one transaction.</li>
-<li>A read schema includes the ids through a prefetch bounded by the field's limit: one more query per page and relation, not one per row.</li>
+<li>A read schema includes the ids through a prefetch bounded by the field's limit: one joined target-and-bridge query per owner chunk and relation. Each statement reads that chunk under the database's transaction isolation, and shared targets appear once per link in its rows. Rust builds eligible models; Python orchestrates the prefetch and handles custom row builders. See <a href="../relations/#many-to-many">many-to-many prefetch</a>.</li>
 <li>The <code>max_length</code> of every ids field in a create or update schema is required.</li>
 <li><code>own_rows(Tag, "owner")</code> scopes the targets to those whose text <code>owner</code> column equals the caller's id (<code>Caller.id</code>); <code>all_rows(Tag)</code> allows every row. The owner value is checked again inside the write's transaction, after the owner row is locked.</li>
 </ul>
@@ -907,7 +907,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 23:10:05 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 12:57:52 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
