@@ -494,8 +494,8 @@
           <h1 id="openapi-document">OpenAPI document<a class="headerlink" href="#openapi-document" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 05:05:09 UTC">November 24, 2026</span></span>
-            <span>10 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
+            <span>12 min read</span>
           </p>
           
         </header>
@@ -523,8 +523,24 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
     <span class="n">redoc_url</span><span class="o">=</span><span class="s2">"/redoc"</span><span class="p">,</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>The corresponding <code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> settings provide the same defaults. A viewer requires <code>openapi_url</code>. <code>Hinoki(...)</code> arguments override settings; passing <code>None</code> disables a page. The packaged viewers (Swagger UI 5.35.1 and ReDoc 3.2.0, which read OpenAPI 3.2 and list <code>QUERY</code> operations) work without a CDN; ReDoc 3 is loaded as a JavaScript module with its usage reporting turned off.</p>
+<p>The corresponding <code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> settings provide the same defaults. A viewer requires <code>openapi_url</code>. <code>llms_url</code> does not: see <a href="#llms">describe the API for agents</a>. <code>Hinoki(...)</code> arguments override settings; passing <code>None</code> disables a page. The packaged viewers (Swagger UI 5.35.1 and ReDoc 3.2.0, which read OpenAPI 3.2 and list <code>QUERY</code> operations) work without a CDN; ReDoc 3 is loaded as a JavaScript module with its usage reporting turned off.</p>
 <p>The generated OpenAPI document, Swagger UI, ReDoc and their assets answer <code>HEAD</code> with the same status and representation headers as <code>GET</code>, without a response body. Each request still has its own request ID in the configured response header (<code>x-request-id</code> by default).</p>
+<h2 id="llms">Describe the API for agents (<code>llms.txt</code>)<a class="headerlink" href="#llms" title="Permanent link">&para;</a></h2>
+<p>The same document can be rendered as an <a href="https://llmstxt.org/">llms.txt</a> Markdown text for a coding agent or an LLM client: the title and version, then the operations grouped by their first tag, each with its method, path, operation ID, summary and a few facts (<code>deprecated</code>, the security scheme names, the request and success response components). Untagged operations are listed under <code>Operations</code>.</p>
+<div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>llms
+hinoki<span class="w"> </span>llms<span class="w"> </span>--output<span class="w"> </span>llms.txt
+hinoki<span class="w"> </span>llms<span class="w"> </span>--check<span class="w"> </span>llms.txt
+</code></pre></div>
+<p>The command opens no database and works when <code>openapi_url</code> is disabled. <code>--check</code> exits <code>1</code> when the committed file differs from the generated text. See <a href="../inspect/#llms">inspect an application</a> for output and exit status.</p>
+<p>Serving it is opt-in. Set <code>llms_url</code>, or <code>docs.llms_url</code>, and the text is answered at that path; the default <code>None</code> serves nothing:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">llms_url</span><span class="o">=</span><span class="s2">"/llms.txt"</span><span class="p">)</span>
+</code></pre></div>
+<p>The <code>Hinoki(...)</code> argument overrides the setting and <code>None</code> disables the page. Unlike the viewers it does not need <code>openapi_url</code>: the text is rendered from <code>Hinoki.openapi()</code> once at startup. It answers <code>GET</code> and <code>HEAD</code> as <code>text/markdown; charset=utf-8</code> (the media type of Markdown, RFC 7763) with <code>Cache-Control: no-cache</code>, and it is not listed in the OpenAPI document. <code>llms_url</code> cannot equal <code>openapi_url</code>, <code>docs_url</code> or <code>redoc_url</code>, and a route on the same path stops startup. <code>hinoki new</code> does not enable it.</p>
+<p>The page is public, like the OpenAPI document when that is served. It is built only from the document, so it leaves out what the document leaves out: <code>include_in_schema=False</code> actions and the admin's pages. Leaving an action out neither hides it nor authorizes anything. The text names security schemes, never credentials.</p>
+<p>The renderer, <a href="../reference/tools/"><code>hinoki.ai.llms.render_llms</code></a>, is Python: it reads the dictionary that the Python OpenAPI builder produces and does no I/O. The finished page is handed to Kiso as a prebuilt static answer, like the document and the viewers. <a href="../ai-workflow/#docs-for-agents">Hinoki's own documentation for agents</a> is a separate set of files.</p>
 <h2 id="the-document-version">The document version<a class="headerlink" href="#the-document-version" title="Permanent link">&para;</a></h2>
 <p>The <code>openapi</code> field is <code>3.2.0</code> by default. <code>Hinoki(openapi_version="3.1")</code> or the <code>docs.openapi_version</code> setting (<code>"3.1"</code> or <code>"3.2"</code>) writes a <code>3.1.0</code> document instead; any other value raises <code>ValueError</code>. <code>hinoki openapi</code> and the served document follow the application's choice. The version changes one thing: where a <code>QUERY</code> action is written. Every other operation, schema and component is the same in both.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
@@ -660,13 +676,13 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#serve-the-document-and-viewers">Serve the document and viewers</a></li><li><a href="#the-document-version">The document version</a></li><li><a href="#query-operations">QUERY operations</a></li><li><a href="#what-is-generated">What is generated</a></li><li><a href="#per-action-controls">Per-action controls</a></li><li><a href="#deprecate-an-action">Deprecate an action</a></li><li><a href="#current-limits">Current limits</a></li></ul>
+            <ul><li><a href="#serve-the-document-and-viewers">Serve the document and viewers</a></li><li><a href="#llms">Describe the API for agents (llms.txt)</a></li><li><a href="#the-document-version">The document version</a></li><li><a href="#query-operations">QUERY operations</a></li><li><a href="#what-is-generated">What is generated</a></li><li><a href="#per-action-controls">Per-action controls</a></li><li><a href="#deprecate-an-action">Deprecate an action</a></li><li><a href="#current-limits">Current limits</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 05:05:09 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/openapi.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

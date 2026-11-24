@@ -294,7 +294,7 @@
           <h1 id="application-mcp-and-scaffold-api">Application MCP and scaffold API<a class="headerlink" href="#application-mcp-and-scaffold-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 17:42:10 UTC">November 19, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
             <span>1 min read</span>
           </p>
           
@@ -369,6 +369,33 @@ still a risky combination; prefer bearer credentials.</p>
 
     </div>
 
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.ai.llms.render_llms" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.ai.llms.render_llms</span>
+
+
+<a href="#hinoki.ai.llms.render_llms" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">render_llms</span><span class="p">(</span>
+    <span class="n">document</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">openapi_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The llms.txt Markdown for an OpenAPI <code>document</code>, with a trailing newline.</p>
+<p><code>openapi_url</code> is linked as the machine-readable document when the
+application serves it. The output is deterministic: sections are sorted by
+tag, operations by path and then by method.</p>
+
+
+    </div>
+
 </div><p>Project scaffolding is a command-line interface; see <a href="../../cli/">command line</a>. For the stdio development server and its tools, see the <a href="../../dev-mcp/">development MCP guide</a>. Application MCP is mounted separately on selected routes.</p>
         
       </article>
@@ -387,13 +414,13 @@ still a risky combination; prefer bearer credentials.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#hinoki.ai.mcpapp.expose_as_mcp">expose_as_mcp</a></li><li><a href="#hinoki.ai.mcpapp.ExposureError">ExposureError</a></li></ul>
+            <ul><li><a href="#hinoki.ai.mcpapp.expose_as_mcp">expose_as_mcp</a></li><li><a href="#hinoki.ai.mcpapp.ExposureError">ExposureError</a></li><li><a href="#hinoki.ai.llms.render_llms">render_llms</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 17:42:10 UTC">November 19, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/tools.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

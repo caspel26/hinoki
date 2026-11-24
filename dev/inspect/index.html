@@ -494,7 +494,7 @@
           <h1 id="inspect-an-application">Inspect an application<a class="headerlink" href="#inspect-an-application" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -630,6 +630,12 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <p>Run <code>--check</code> in CI to catch an OpenAPI document that drifted from the code, and
 <code>--breaking-against</code> with the last released document before a release. See
 <a href="../openapi/">OpenAPI</a> for what the document contains.</p>
+<h2 id="llms">Render llms.txt with <code>llms</code><a class="headerlink" href="#llms" title="Permanent link">&para;</a></h2>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>llms
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>llms<span class="w"> </span>--output<span class="w"> </span>llms.txt
+uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>llms<span class="w"> </span>--check<span class="w"> </span>llms.txt
+</code></pre></div>
+<p>Renders the application's OpenAPI document as an <a href="../openapi/#llms">llms.txt</a> Markdown text: a title, the version, then the operations grouped by first tag with their summary, deprecation, security scheme names and request and response components. Like <code>openapi</code>, it builds the app without serving it or opening a database and works when <code>openapi_url</code> is disabled; an action with <code>include_in_schema=False</code> is not listed. With no file option it prints the text; <code>--output FILE</code> writes the same text as UTF-8 with LF line endings on every platform, and <code>--check FILE</code> compares it exactly, except that a CRLF line ending in the file (a Windows checkout with <code>autocrlf</code>) counts as LF. Exit status is <code>0</code> when the file matches or is written, <code>1</code> when it differs, and <code>2</code> when the target cannot load or the check file is missing or unreadable, or the output cannot be written. <code>--output</code> and <code>--check</code> cannot be used together.</p>
 <h2 id="settings">Show settings with <code>settings</code><a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>settings
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>settings<span class="w"> </span>--format<span class="w"> </span>json
@@ -687,13 +693,13 @@ values with no printable default (secrets, unset values). See
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#doctor">Diagnose a project with doctor</a></li><li><a href="#check">Check the rules with check</a></li><li><a href="#routes">List routes with routes</a></li><li><a href="#events">List event handlers with events</a></li><li><a href="#openapi">Export the OpenAPI document with openapi</a></li><li><a href="#settings">Show settings with settings</a></li><li><a href="#version">Report versions with version</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#doctor">Diagnose a project with doctor</a></li><li><a href="#check">Check the rules with check</a></li><li><a href="#routes">List routes with routes</a></li><li><a href="#events">List event handlers with events</a></li><li><a href="#openapi">Export the OpenAPI document with openapi</a></li><li><a href="#llms">Render llms.txt with llms</a></li><li><a href="#settings">Show settings with settings</a></li><li><a href="#version">Report versions with version</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/inspect.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

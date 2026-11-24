@@ -494,7 +494,7 @@
           <h1 id="configure-an-application-with-settings">Configure an application with settings<a class="headerlink" href="#configure-an-application-with-settings" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -529,8 +529,8 @@ is not shadowed.</p>
 <p><code>settings.AppSettings</code> brings the built-in groups: <code>execution</code>, <code>lifecycle</code>,
 <code>logging</code>, <code>docs</code>, <code>server</code>, <code>pagination</code>, <code>cors</code>, <code>compression</code>, <code>metrics</code>, <code>security</code>, <code>events</code> and <code>admin</code>, plus
 <code>timezone</code>, <code>debug</code> and <code>allowed_hosts</code> (see <a href="../web-security/">Hosts, CORS and HTTPS</a>).
-<code>docs.openapi_url</code>, <code>docs.docs_url</code> and <code>docs.redoc_url</code> default to <code>None</code>; the
-generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments, which win over settings.</p>
+<code>docs.openapi_url</code>, <code>docs.docs_url</code>, <code>docs.redoc_url</code> and <code>docs.llms_url</code> default to <code>None</code>; the
+generated <code>main.py</code> passes <code>openapi_url</code> and <code>docs_url</code> as <code>Hinoki(...)</code> arguments, which win over settings; the other two stay off. <code>llms_url</code> must start with <code>/</code>.</p>
 <h2 id="built-in-fields-and-defaults">Built-in fields and defaults<a class="headerlink" href="#built-in-fields-and-defaults" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -697,6 +697,12 @@ generated <code>main.py</code> sets them with <code>Hinoki(...)</code> arguments
 <td><code>redoc_url</code></td>
 <td><code>None</code></td>
 <td>ReDoc route; requires <code>openapi_url</code></td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td><code>llms_url</code></td>
+<td><code>None</code></td>
+<td>llms.txt route; does not need <code>openapi_url</code></td>
 </tr>
 <tr>
 <td><code>docs</code></td>
@@ -1218,7 +1224,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

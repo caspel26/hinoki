@@ -494,8 +494,8 @@
           <h1 id="build-with-a-coding-agent">Build with a coding agent<a class="headerlink" href="#build-with-a-coding-agent" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
-            <span>4 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -508,6 +508,46 @@ uv<span class="w"> </span>run<span class="w"> </span>pytest
 uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>check
 </code></pre></div>
 <p>The generated tests pass and <code>hinoki check</code> exits 0; this repository's own test suite generates a project and runs both on every change.</p>
+<h2 id="hinoki-at-a-glance">Hinoki at a glance<a class="headerlink" href="#hinoki-at-a-glance" title="Permanent link">&para;</a></h2>
+<p>A model that has seen other Python web frameworks tends to write their code. This summary is the part of these docs that corrects that; it is also the first block of <a href="#docs-for-agents"><code>llms.txt</code></a>.</p>
+<!-- llms:start -->
+<ul>
+<li>Import from <code>hinoki</code>: <code>Hinoki</code>, <code>Schema</code>, <code>Access</code>, <code>RouteGroup</code>, <code>http</code>, <code>db</code> and <code>crud</code>. A model class comes from <code>hinoki.orm</code> (<code>from hinoki.orm import Model, field, pk</code>).</li>
+<li>Declare actions with <code>@http.get</code>, <code>@http.post</code>, <code>@http.put</code>, <code>@http.patch</code>, <code>@http.delete</code> or <code>@http.query</code>, then pass them to <code>Hinoki(include=[...])</code>. Parameters and the return type are annotations.</li>
+<li>Name an <code>Access</code> policy with <code>access=</code>; leave it out only for an action that is public on purpose. Writes use <code>atomic=True</code>, alone or on a <code>RouteGroup</code>.</li>
+<li>Request bodies and responses are <code>Schema</code> classes. Never return a <code>Model</code>: convert it with <code>XOut.from_model(row)</code>.</li>
+<li>Load relations explicitly with <code>select_related(...)</code> or <code>prefetch_related(...)</code>; nothing loads lazily.</li>
+<li><code>crud(Model, ...)</code> generates list, retrieve and write actions for a model.</li>
+<li>Run <code>hinoki check</code> after each change; <code>hinoki mcp</code> serves the real registry, rules and models to the agent.</li>
+<li>Does not exist here: <code>BaseModel</code>, <code>Depends</code>, <code>APIRouter</code>, <code>@app.get(...)</code> and <code>with get/post</code> blocks.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Greeting</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">GreetingIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/greeting"</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">read_greeting</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Greeting</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Greeting</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="s2">"hello"</span><span class="p">)</span>
+
+
+<span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/greeting"</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_greeting</span><span class="p">(</span><span class="n">body</span><span class="p">:</span> <span class="n">GreetingIn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Greeting</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">Greeting</span><span class="p">(</span><span class="n">message</span><span class="o">=</span><span class="sa">f</span><span class="s2">"hello </span><span class="si">{</span><span class="n">body</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="n">read_greeting</span><span class="p">,</span> <span class="n">create_greeting</span><span class="p">])</span>
+<span class="k">assert</span> <span class="s2">"/greeting"</span> <span class="ow">in</span> <span class="n">app</span><span class="o">.</span><span class="n">openapi</span><span class="p">()[</span><span class="s2">"paths"</span><span class="p">]</span>
+</code></pre></div>
+<!-- llms:end -->
+
+<p>A test runs this block against the installed package, so the names and syntax above stay true. See <a href="../function-endpoints/">function-based APIs</a> for <code>RouteGroup</code> and <a href="../patterns/">structure an application</a> for the conventions.</p>
 <h2 id="what-the-project-contains">What the project contains<a class="headerlink" href="#what-the-project-contains" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -519,7 +559,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <tbody>
 <tr>
 <td><code>AGENTS.md</code></td>
-<td>Commands, conventions and where the agent's authority ends; <code>CLAUDE.md</code> points to it</td>
+<td>Commands, conventions, a pointer to <a href="#docs-for-agents">Hinoki's docs for agents</a> and where the agent's authority ends; <code>CLAUDE.md</code> points to it</td>
 </tr>
 <tr>
 <td><code>rules.py</code></td>
@@ -589,6 +629,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<span class="w"> </span>openapi-baseline.json
 </code></pre></div>
 <p>Take the baseline from the released version. The second command exits <code>1</code> and lists each change that breaks an existing client: removed operations or response fields, new required input, narrowed enums, changed types. See <a href="../inspect/#openapi"><code>hinoki openapi</code></a>.</p>
+<p><code>hinoki llms</code> renders the same document as an <a href="../openapi/#llms">llms.txt</a> text of your application's own operations, for an agent that works on a client of it; <code>Hinoki(llms_url="/llms.txt")</code> serves it. Neither is on by default.</p>
 <h2 id="generate-request-bodies">Generate request bodies<a class="headerlink" href="#generate-request-bodies" title="Permanent link">&para;</a></h2>
 <p><code>request_cases</code> reads an OpenAPI document and returns one <code>RequestCase</code> per operation with a JSON body: <code>method</code>, <code>path</code>, a valid <code>body</code>, and <code>invalid</code>, a list of <code>(description, body)</code> pairs that each break one constraint.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/bodiestest.py</span>
@@ -600,6 +641,32 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
 </code></pre></div>
 <p>Parametrize a test over <code>CASES</code>: send <code>case.body</code> and expect a <code>2xx</code>, then send each body in <code>case.invalid</code> and expect <code>422</code>.</p>
 <p>It raises <code>CannotSample</code> for a schema it cannot build a value for, such as a regular-expression pattern. Fill path parameters with real values before sending, and use a disposable database.</p>
+<h2 id="docs-for-agents">Docs for agents<a class="headerlink" href="#docs-for-agents" title="Permanent link">&para;</a></h2>
+<p>Every build of this site also publishes the documentation as plain Markdown, in the layout of <a href="https://llmstxt.org/">llmstxt.org</a>:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>llms.txt</code></td>
+<td>An index: the block above, then one link and description per page, grouped like the guides. Reference, project pages, the changelog and benchmarks are under <code>Optional</code></td>
+</tr>
+<tr>
+<td><code>llms-full.txt</code></td>
+<td>Every page except the <code>Optional</code> ones, concatenated in navigation order</td>
+</tr>
+<tr>
+<td><code>&lt;page&gt;.md</code></td>
+<td>One page as Markdown, for example <code>crud.md</code> or <code>tutorial/1-models.md</code>; links inside it are absolute, and a <code>reference/</code> page lists each documented name with its signature and a link to the rendered page</td>
+</tr>
+</tbody>
+</table>
+<p>The generated <code>AGENTS.md</code> points an agent at <code>llms.txt</code> and tells it to prefer these files and the development MCP over guessing from other frameworks.</p>
+<p>Each documentation version has its own copy, for example <code>https://hinoki.caspel.dev/dev/llms.txt</code> and <code>https://hinoki.caspel.dev/dev/crud.md</code>; the root <code>https://hinoki.caspel.dev/llms.txt</code> follows the default version (see <a href="../documentation-versions/">documentation versions</a>). The files come from the same pages as the site, and the build fails when a link or a description is missing.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The development MCP describes and checks a project. To let an agent use a running app, <a href="../app-mcp/">expose selected actions over MCP</a>.</li>
@@ -635,13 +702,13 @@ hinoki<span class="w"> </span>openapi<span class="w"> </span>--breaking-against<
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-the-project-contains">What the project contains</a></li><li><a href="#give-the-agent-tools">Give the agent tools</a></li><li><a href="#the-loop">The loop</a></li><li><a href="#check-a-change-against-clients">Check a change against clients</a></li><li><a href="#generate-request-bodies">Generate request bodies</a></li><li><a href="#limits">Limits</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#hinoki-at-a-glance">Hinoki at a glance</a></li><li><a href="#what-the-project-contains">What the project contains</a></li><li><a href="#give-the-agent-tools">Give the agent tools</a></li><li><a href="#the-loop">The loop</a></li><li><a href="#check-a-change-against-clients">Check a change against clients</a></li><li><a href="#generate-request-bodies">Generate request bodies</a></li><li><a href="#docs-for-agents">Docs for agents</a></li><li><a href="#limits">Limits</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/ai-workflow.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

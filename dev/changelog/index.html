@@ -495,13 +495,23 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>29 min read</span>
+            <span>30 min read</span>
           </p>
           
         </header>
         
 <p>Every user-facing change to Hinoki, newest first. Hinoki is pre-alpha and no release has been tagged yet, so changes are listed under <strong>Unreleased</strong>. In the planned <code>0.1.x</code> line, documented Python, CLI, settings and runtime contracts, plus migration files, stay compatible across patch releases. A later <code>0.y.0</code> may include breaking changes, described in its release notes. The same text lives in <a href="https://github.com/caspel26/hinoki/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>.</p>
-<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🔌 WebSockets on <code>API</code> classes and typed decorators</h4>
+<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🤖 <code>hinoki llms</code> and an opt-in <code>llms_url</code></h4>
+<blockquote>
+<p><code>python/hinoki/ai/llms.py</code>, <code>python/hinoki/cli/llms.py</code>, <code>python/hinoki/app.py</code>, <code>python/hinoki/settings.py</code>, <code>python/hinoki/docsui/__init__.py</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>docs/openapi.md</code>, <code>docs/inspect.md</code></p>
+</blockquote>
+<p><code>hinoki llms [TARGET] [--output FILE | --check FILE]</code> renders the application's OpenAPI document as an <a href="https://llmstxt.org/">llms.txt</a> Markdown text for a coding agent: operations grouped by first tag with summary, deprecation, security scheme names and request and response components, <code>QUERY</code> included in both OpenAPI versions. Like <code>hinoki openapi</code> it opens no database, and <code>--check</code> exits <code>1</code> on drift. <code>Hinoki(llms_url="/llms.txt")</code> or the <code>docs.llms_url</code> setting serves the same text as <code>text/markdown</code>, off by default and without needing <code>openapi_url</code>; it answers <code>HEAD</code> like the OpenAPI document and leaves out what the document leaves out. See <a href="docs/openapi.md#llms">describe the API for agents</a>.</p>
+<h4>🧭 <code>AGENTS.md</code> points at Hinoki's docs for agents</h4>
+<blockquote>
+<p><code>python/hinoki/scaffold.py</code>, <code>docs/ai-workflow.md</code></p>
+</blockquote>
+<p>The <code>AGENTS.md</code> that <code>hinoki new</code> writes names <code>https://hinoki.caspel.dev/llms.txt</code>, <code>llms-full.txt</code> and the per-page Markdown, and tells the agent to prefer them and the development MCP over guessing from other frameworks.</p>
+<h4>🔌 WebSockets on <code>API</code> classes and typed decorators</h4>
 <blockquote>
 <p><code>python/hinoki/websocket.py</code>, <code>python/hinoki/api.py</code>, <code>python/hinoki/app.py</code>, <code>python/hinoki/runtime/asgi.py</code>, <code>docs/websockets.md</code></p>
 </blockquote>
@@ -756,7 +766,8 @@ key = JWTKey(&quot;2026-11&quot;, &quot;HS256&quot;, Secret(&quot;from-a-secret-
 <li><strong>Model validation:</strong> text length errors count characters, not items (<code>python/hinoki/orm/model.py</code>, #396).</li>
 <li><strong>WSGI:</strong> a plain WSGI callable reads its settings from the environment (<code>python/hinoki/runtime/wsgiworker.py</code>, #400).</li>
 <li><strong>JSON nesting limits:</strong> reading accepts exactly 128 nested arrays or objects and writing exactly 200, as documented; the 129th and the 201st are refused. An empty innermost array or object used to count as one more, and a <code>Schema</code> object is now counted as a container (<code>crates/bindings/src/request.rs</code>).</li>
-</ul></section><section class="cl__sec" data-kind="docs"><h3>📚 Documentation</h3><p>The docsite has a new navigation, rules explorer, entry cards, footer and page transitions. The README is restructured around an animated request flow, the demo is rendered in HD at 60 fps, the comparative benchmark page is reorganized, and documentation links point at <code>hinoki.caspel.dev</code> (#388, #406, #409, #413, #416, #417, #419, #420, #423, #425, #426).</p>
+</ul></section><section class="cl__sec" data-kind="docs"><h3>📚 Documentation</h3><p>The docs site publishes <code>llms.txt</code>, <code>llms-full.txt</code> and a Markdown copy of every page at the site root and under each version, generated at build time by <code>docsite/llms.py</code> and checked in CI (<code>docs/ai-workflow.md</code>, <code>.github/workflows/deploy-docs.yml</code>).</p>
+<p>The docsite has a new navigation, rules explorer, entry cards, footer and page transitions. The README is restructured around an animated request flow, the demo is rendered in HD at 60 fps, the comparative benchmark page is reorganized, and documentation links point at <code>hinoki.caspel.dev</code> (#388, #406, #409, #413, #416, #417, #419, #420, #423, #425, #426).</p>
 <p>Kiso's fuzz workflow now covers request-line framing and request-head limits
 with <code>head_framing</code> and <code>request_head_limits</code> (<code>fuzz/</code>,
 <code>.github/workflows/fuzz.yml</code>, <code>docs/kiso.md</code>).</p>

@@ -1,0 +1,63 @@
+# Use other libraries
+
+Hinoki has its own `Schema` and `Model` classes. It does not accept Pydantic, SQLAlchemy or Django models as request bodies, responses or tables. This page says why, what that costs, and which extension points exist today.
+
+## Why the framework owns them
+
+- **One declaration feeds every output.** Request binding, the response check, OpenAPI, application MCP, the admin and [rules](https://hinoki.caspel.dev/dev/rules.md) read the same `Schema` and `Model` classes, so they can promise the same contract.
+- **The hot paths are native.** Routing, selected request parsing and ORM execution run in Rust against Hinoki's own declarations, without calling back into a validation library or a foreign ORM per request.
+- **Rules need known structure.** "A response `Schema` never exposes `password_hash`" is checkable because the `Schema` is an inspectable Hinoki class.
+
+## What this costs
+
+- A library that expects its own model type does not plug in: a Pydantic-based SDK, a SQLAlchemy extension or a Django app cannot be given a Hinoki `Model` or `Schema`.
+- There is no adapter from SQLAlchemy, Django or Pydantic models, and no plugin system.
+- Databases are SQLite, PostgreSQL, MySQL and MariaDB through Hinoki's own drivers; another ORM's connections are not shared with its pool.
+
+## Bring a library anyway
+
+Anything that works on plain Python data works with Hinoki. `Schema.to_dict()` and `Schema.dump()` return plain data, and a `Schema` is built from plain values:
+
+```python
+# notes/apps/quotes/api.py
+from hinoki import Schema, http
+
+from notes.apps.quotes.client import fetch_quote  # any library returning plain data
+
+
+class Quote(Schema):
+    symbol: str
+    price: float
+
+
+@http.get("/{symbol}", access=None)
+async def quote(symbol: str) -> Quote:
+    raw = await fetch_quote(symbol)
+    return Quote(symbol=raw["symbol"], price=raw["price"])
+```
+
+Keep the translation at the edge of the handler, and keep a second store's connections in a [module](https://hinoki.caspel.dev/dev/modules.md) so their lifetime follows the worker. Hinoki does not time-box what that code does.
+
+## Extension points
+
+| You want to | Use | Guide |
+| --- | --- | --- |
+| Add an authentication scheme | Subclass `BearerAuth`, `APIKeyAuth` or `HeaderAuth` | [Authentication](https://hinoki.caspel.dev/dev/authentication.md#define-a-provider) |
+| Reuse a permission rule | A typed `Access` policy | [Authentication](https://hinoki.caspel.dev/dev/authentication.md) |
+| Accept or answer another body format | A parser or renderer | [Parsers and renderers](https://hinoki.caspel.dev/dev/codecs.md) |
+| Translate a library's exception | `app.error_handler(Kind)` | [Errors](https://hinoki.caspel.dev/dev/errors.md) |
+| Own a resource per worker | A module with `ctx.provide` and `ctx.get`, or a `DatabaseModule` subclass | [Modules](https://hinoki.caspel.dev/dev/modules.md) |
+| Enforce a team convention | Subclass `hinoki.rules.Rule` | [Rules](https://hinoki.caspel.dev/dev/rules.md#your-own-rules) |
+| Add typed configuration | `settings.AppSettings` | [Settings](https://hinoki.caspel.dev/dev/settings.md) |
+| Ship routes in a package | Anything a `routes` list accepts: a function, a `RouteGroup`, an `API` class, a `Mount`, or an object with an `api()` method | [Register routes](https://hinoki.caspel.dev/dev/routes.md) |
+| Expose actions to an agent | `expose_as_mcp` with an allowlist | [Expose actions over MCP](https://hinoki.caspel.dev/dev/app-mcp.md) |
+| Add metrics, tracing or other cross-cutting behaviour | Wrap the ASGI application | [Serving](https://hinoki.caspel.dev/dev/serving.md#metrics-and-tracing) |
+| Run where only WSGI is available | `WSGIAdapter` | [Serving](https://hinoki.caspel.dev/dev/serving.md#wsgi) |
+
+Cross-cutting behaviour around an action belongs in a [middleware](https://hinoki.caspel.dev/dev/middleware.md), which behaves the same on Kiso and Granian. An ASGI wrapper still works on Granian and sees the request before and after Hinoki. To run another web application next to Hinoki, put it behind the same reverse proxy or dispatch by path in your own ASGI code.
+
+## See also
+
+* [Concepts](https://hinoki.caspel.dev/dev/concepts.md)
+* [Project status](https://hinoki.caspel.dev/dev/status.md)
+* [Glossary](https://hinoki.caspel.dev/dev/glossary.md)
