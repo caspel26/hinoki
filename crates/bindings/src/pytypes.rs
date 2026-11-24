@@ -7,6 +7,7 @@ use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
 
 static UUID: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DATETIME: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static UTC: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static DATE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static TIME: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static TIMEDELTA: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
@@ -16,6 +17,8 @@ static PURE_PATH: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static SECRET: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static ENUM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static OBJECT_NEW: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static COPY_DEEPCOPY: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
 
 pub fn uuid_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
@@ -28,8 +31,47 @@ pub fn page_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     PAGE.import(py, "hinoki.pagination", "Page")
 }
 
+pub fn object_new<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    OBJECT_NEW
+        .get_or_try_init(py, || {
+            Ok(py
+                .import("builtins")?
+                .getattr("object")?
+                .getattr("__new__")?
+                .unbind())
+        })
+        .map(|obj| obj.bind(py))
+}
+
+pub fn copy_deepcopy<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    COPY_DEEPCOPY.import(py, "copy", "deepcopy")
+}
+
 pub fn datetime_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     DATETIME.import(py, "datetime", "datetime")
+}
+
+pub fn utc_tz<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    UTC.import(py, "datetime", "UTC")
+}
+
+/// Build a UTC `datetime.datetime` directly from a database timestamp without
+/// formatting and re-parsing an ISO string.
+pub fn new_timestamp<'py>(
+    py: Python<'py>,
+    value: &time::OffsetDateTime,
+) -> PyResult<Bound<'py, PyAny>> {
+    let utc = value.to_offset(time::UtcOffset::UTC);
+    datetime_class(py)?.call1((
+        utc.year(),
+        u8::from(utc.month()),
+        utc.day(),
+        utc.hour(),
+        utc.minute(),
+        utc.second(),
+        utc.microsecond(),
+        utc_tz(py)?,
+    ))
 }
 
 pub fn date_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
@@ -170,5 +212,38 @@ pub fn new_uuid<'py>(py: Python<'py>, value: uuid::Uuid) -> PyResult<Bound<'py, 
     match fast_uuid(py) {
         Some(fast) => build(py, fast, value.as_u128()),
         None => uuid_class(py)?.call1((value.to_string(),)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
+
+    #[test]
+    fn new_timestamp_preserves_utc_micros_and_rejects_out_of_range() {
+        Python::initialize();
+        Python::attach(|py| {
+            let offset = UtcOffset::from_hms(2, 0, 0).unwrap();
+            let date = Date::from_calendar_date(2026, Month::May, 15).unwrap();
+            let time = Time::from_hms_micro(14, 30, 45, 123_456).unwrap();
+            let ts = PrimitiveDateTime::new(date, time).assume_offset(offset);
+            let py_dt = new_timestamp(py, &ts).unwrap();
+            assert_eq!(
+                py_dt
+                    .call_method0("isoformat")
+                    .unwrap()
+                    .extract::<String>()
+                    .unwrap(),
+                "2026-05-15T12:30:45.123456+00:00"
+            );
+            assert!(py_dt.getattr("tzinfo").unwrap().is(utc_tz(py).unwrap()));
+
+            let out_of_range = OffsetDateTime::from_unix_timestamp(-62_167_219_200).unwrap();
+            assert!(new_timestamp(py, &out_of_range).is_err());
+            let db_err =
+                crate::db::from_value(py, &hinoki_orm::Value::Timestamp(out_of_range)).unwrap_err();
+            assert!(db_err.is_instance_of::<crate::db::DatabaseError>(py));
+        });
     }
 }
