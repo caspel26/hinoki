@@ -1,6 +1,7 @@
 """Typed, bounded multipart uploads through the public request and test APIs."""
 
 import pytest
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 from openapi_spec_validator import validate
 
 from hinoki import (
@@ -621,6 +622,9 @@ def test_the_openapi_body_joins_the_form_schema_and_the_files() -> None:
     body = document["paths"]["/form-and-file"]["post"]["requestBody"]
     schema = body["content"]["multipart/form-data"]["schema"]
     assert body["required"] is True
-    assert schema["allOf"][0] == {"$ref": "#/components/schemas/Upload"}
-    assert schema["allOf"][1]["required"] == ["file"]
-    assert set(schema["allOf"][1]["properties"]) == {"file", "extra"}
+    assert schema["additionalProperties"] is False
+    assert set(schema["properties"]) == {"title", "pages", "file", "extra"}
+    assert schema["required"] == ["title", "pages", "file"]
+    payload = {"title": "Report", "pages": 3, "file": "r"}
+    assert Draft202012Validator(schema).is_valid(payload)
+    assert not Draft202012Validator(schema).is_valid({**payload, "other": 1})

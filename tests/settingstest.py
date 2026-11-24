@@ -908,3 +908,13 @@ def test_an_optional_secret_is_read_from_text_and_stays_masked() -> None:
     assert OptionalSecrets.load(prefix="X_", env={}).api_key is None
     direct = OptionalSecrets(api_key="typed")  # type: ignore[arg-type]
     assert isinstance(direct.api_key, Secret) and direct.api_key.reveal() == "typed"
+
+
+class DefaultedSecret(AppSettings):
+    token: Secret | None = "dev-raw-secret"  # type: ignore[assignment]
+
+
+def test_the_env_example_never_writes_an_optional_secret_default() -> None:
+    text = DefaultedSecret.example("X_")
+    assert "dev-raw-secret" not in text
+    assert text.endswith("\n# secret, optional\n# X_TOKEN=")

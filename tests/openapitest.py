@@ -451,3 +451,37 @@ def test_field_notes_on_a_default_and_decimal_examples_are_documented() -> None:
     assert properties["amount"]["examples"] == ["9.90"]
     assert properties["amount"]["deprecated"] is True
     assert properties["limits"]["examples"] == [["1.5"]]
+
+
+class Book(Schema):
+    title: str
+
+
+class Page_Book(Schema):  # the name a Page[Book] envelope takes
+    note: str
+
+
+def test_a_schema_named_like_a_page_envelope_does_not_replace_it() -> None:
+    @http.get("/books", pagination=PageNumberPagination())
+    async def books(page: PageParams) -> Page[Book]:
+        raise NotImplementedError
+
+    @http.get("/note")
+    async def note() -> Page_Book:
+        raise NotImplementedError
+
+    orders: list[list[Any]] = [[books, note], [note, books]]
+    for include in orders:
+        document = Hinoki(include=include).openapi()
+        validate(document)
+        schemas = document["components"]["schemas"]
+        paths = document["paths"]
+        refs = {
+            path: paths[path]["get"]["responses"]["200"]["content"]["application/json"][
+                "schema"
+            ]["$ref"].rsplit("/", 1)[-1]
+            for path in ("/books", "/note")
+        }
+        assert refs["/books"] != refs["/note"]
+        assert "page" in schemas[refs["/books"]]["properties"]
+        assert set(schemas[refs["/note"]]["properties"]) == {"note"}

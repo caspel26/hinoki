@@ -10,7 +10,7 @@ from urllib.parse import parse_qs
 
 import pytest
 
-from hinoki import Schema, core
+from hinoki import Schema, Secret, core
 
 
 @pytest.mark.parametrize(
@@ -428,3 +428,16 @@ def test_encode_survives_a_hook_that_mutates_the_containers_being_written() -> N
 )
 def test_encode_writes_wire_forms_at_the_top_level(value: Any, expected: bytes) -> None:
     assert core.encode_json(value) == expected
+
+
+def test_a_secret_is_masked_and_never_given_to_the_default_hook() -> None:
+    seen: list[object] = []
+
+    def hook(value: object) -> object:
+        seen.append(value)
+        return "hooked"
+
+    encoded = core.encode_json({"token": Secret("raw")}, None, False, hook)
+    assert encoded == b'{"token":"**********"}'
+    assert core.encode_json(Secret("raw"), None, False, hook) == b'"**********"'
+    assert seen == []
