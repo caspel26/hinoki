@@ -230,6 +230,10 @@ The command line, the migration state files, the JSON log format, the MCP server
 
 The docsite has a new navigation, rules explorer, entry cards, footer and page transitions. The README is restructured around an animated request flow, the demo is rendered in HD at 60 fps, the comparative benchmark page is reorganized, and documentation links point at `hinoki.caspel.dev` (#388, #406, #409, #413, #416, #417, #419, #420, #423, #425, #426).
 
+Kiso's fuzz workflow now covers request-line framing and request-head limits
+with `head_framing` and `request_head_limits` (`fuzz/`,
+`.github/workflows/fuzz.yml`, `docs/kiso.md`).
+
 ---
 
 ### 🎯 Summary

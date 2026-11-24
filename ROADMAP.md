@@ -26,7 +26,7 @@ pre-1.0 break policy.
 - OpenAPI 3.2 documents (3.1 with `docs.openapi_version`), with `QUERY` as the `query` operation (`x-query` in 3.1) and per-action `tags`, `deprecated`, `operation_id` and `include_in_schema`. See [OpenAPI](docs/openapi.md).
 - A CORS policy for the whole application that an action, a `RouteGroup` or `crud(...)` can replace. See [per-route CORS](docs/web-security.md#cors-per-route).
 - Prometheus metrics from a dedicated Kiso listener (off by default). See [metrics](docs/metrics.md).
-- A [security policy](SECURITY.md) with private reporting, and scheduled fuzzing of Kiso's host, redirect, length and WebSocket handling.
+- A [security policy](SECURITY.md) with private reporting, and scheduled fuzzing of Kiso's request-line, header, host, redirect, length and WebSocket handling.
 
 See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](examples/) for current details. No performance claims are made without comparable retained measurements.
 
@@ -37,7 +37,6 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Cursor (keyset) pagination is available as `CursorPagination` for generated lists and handwritten routes (see [pagination](docs/pagination.md#cursor-keyset-pagination)); the admin lists keep page numbers.
 - Before the first release (`0.1.0`):
-    - fuzzing of the request-line and header limits Kiso applies over its HTTP parser;
     - a final audit of the public Python API surface (`hinoki`, `hinoki.http`, `hinoki.db`, `hinoki.orm`, `hinoki.admin`) before locking the `0.1.x` compatibility promise;
     - a clean-wheel dry-run verifying packaging (quickstart, migrations, admin static assets and `hinoki serve` from a built wheel);
     - a full review of the admin templates and styles across themes, viewports and interactive flows;

@@ -38,6 +38,18 @@ workers = 4
 Granian instead when you need an ASGI wrapper around the application
 ([Serve an application](serving.md#choose-a-server)).
 
+## Request-head fuzzing
+
+The fuzz workflow checks Kiso's HTTP/1 request-line and header
+handling with two focused targets. `head_framing` checks chunk-boundary
+invariance, the hard head-size bound, parser safety and that declared-length
+bodies stay opaque. `request_head_limits` checks the `httparse` header-slot
+bound, header-byte accounting, query-limit precedence and exact limit
+boundaries. These targets run alongside the host, redirect, declared-length
+and WebSocket fuzzers in CI; locally they can be run with
+`cargo +nightly fuzz run head_framing` and
+`cargo +nightly fuzz run request_head_limits`.
+
 ## What is native and what still runs in Python
 
 The listener, HTTP/1.1 parsing, connection and header limits, body framing and its limits and timeouts, route matching, the request ID, and the answers that need no application code run on the native runtime without taking the Python interpreter lock. Without host, CORS or HTTPS-redirect policies, a request the native layer can answer by itself is answered there: unknown paths and methods (`404`, `405` with `Allow`), oversized request lines or headers, `503` while the worker is not ready or the in-flight limit is reached, and malformed requests. When one of those policies is active, the Rust classifier checks it first and then answers unmatched requests itself, with the same CORS headers as the Python pipeline. The response carries the same security headers, request ID, CORS and HSTS policy as one produced by the application.
