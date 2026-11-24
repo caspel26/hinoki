@@ -35,7 +35,8 @@ pub struct PyLinkSpec {
 #[pymethods]
 impl PyLinkSpec {
     #[new]
-    #[pyo3(signature = (bridge, bridge_pk, owner, target, max_items, declared_max=None, target_live=None))]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (bridge, bridge_pk, owner, target, max_items, declared_max=None, target_live=None, owner_live=None))]
     fn new(
         bridge: String,
         bridge_pk: String,
@@ -44,6 +45,7 @@ impl PyLinkSpec {
         max_items: usize,
         declared_max: Option<usize>,
         target_live: Option<String>,
+        owner_live: Option<String>,
     ) -> PyResult<Self> {
         let (owner_table, owner_pk, owner_column, owner_kind, owner_length) = owner;
         let (target_table, target_pk, target_column, target_kind, target_length) = target;
@@ -61,6 +63,7 @@ impl PyLinkSpec {
             max_items,
             declared_max,
             target_live,
+            owner_live,
         };
         table
             .validate()

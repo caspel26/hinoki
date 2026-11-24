@@ -112,6 +112,7 @@ class LinkSide:
             self.max_items,
             None if self.forward else self.declarer.__links__[self.declared].max_items,
             self.target.__soft_delete__,
+            self.source.__soft_delete__,
         )
 
     def subquery(self, items: list[tuple[str, Any]]) -> SubQuery:

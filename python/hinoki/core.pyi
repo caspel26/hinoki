@@ -427,7 +427,8 @@ _KeyEnd = tuple[str, str, str, str, int | None]
 class LinkSpec:
     """Tables, columns and key types of one many-to-many relation; each end is
     ``(table, primary key, bridge column, "uuid" | "int" | "text", max length)``.
-    ``target_live`` is the target's soft-delete column, if it has one."""
+    ``target_live`` and ``owner_live`` are the soft-delete columns of the
+    target and the owner, if they have one."""
     def __init__(
         self,
         bridge: str,
@@ -437,6 +438,7 @@ class LinkSpec:
         max_items: int,
         declared_max: int | None = None,
         target_live: str | None = None,
+        owner_live: str | None = None,
     ) -> None: ...
 
 def coerce_link_keys(

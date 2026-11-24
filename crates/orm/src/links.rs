@@ -136,6 +136,9 @@ pub struct LinkTable {
     /// The target's soft-delete column: a link to a target marked deleted does
     /// not count towards `max_items`.
     pub target_live: Option<String>,
+    /// The owner's soft-delete column: on the reverse end, a link held by an
+    /// owner marked deleted does not count towards the declaring end's limit.
+    pub owner_live: Option<String>,
 }
 
 impl LinkTable {
@@ -150,7 +153,8 @@ impl LinkTable {
             &self.target_pk,
             &self.target_column,
         ];
-        for name in names.into_iter().chain(&self.target_live) {
+        let live = self.target_live.iter().chain(&self.owner_live);
+        for name in names.into_iter().chain(live) {
             quote_with(name, Dialect::Postgres)?;
         }
         if self.max_items == 0 || self.max_items > MAX_LINK_ITEMS {
@@ -498,10 +502,11 @@ impl Ctx<'_> {
                 .collect();
             let column = self.q(&t.target_column)?;
             let sql = format!(
-                "SELECT {column} FROM {} WHERE {column} IN ({}) GROUP BY {column} \
+                "SELECT {column} FROM {} WHERE {column} IN ({}){} GROUP BY {column} \
                  HAVING count(*) > {limit}{}",
                 self.q(&t.bridge)?,
                 holders.join(", "),
+                self.live_owners()?,
                 self.locking(" FOR UPDATE"),
             );
             if !self.fetch(&sql, &values(chunk)).await?.is_empty() {
@@ -509,6 +514,21 @@ impl Ctx<'_> {
             }
         }
         Ok(false)
+    }
+
+    /// ` AND owner IN (live owners)` when the owner soft-deletes, else nothing.
+    fn live_owners(&self) -> Result<String, DbError> {
+        let t = self.table;
+        let Some(live) = &t.owner_live else {
+            return Ok(String::new());
+        };
+        Ok(format!(
+            " AND {} IN (SELECT {} FROM {} WHERE {} IS NULL)",
+            self.q(&t.owner_column)?,
+            self.q(&t.owner_pk)?,
+            self.q(&t.owner_table)?,
+            self.q(live)?,
+        ))
     }
 
     /// The links this owner holds to targets that are not soft-deleted, whatever
@@ -1015,6 +1035,7 @@ mod tests {
             max_items: 3,
             declared_max: None,
             target_live: None,
+            owner_live: None,
         }
     }
 
@@ -1055,6 +1076,11 @@ mod tests {
             ..table()
         };
         assert!(bad.validate().is_err());
+        let bad_owner = LinkTable {
+            owner_live: Some("bad name".into()),
+            ..table()
+        };
+        assert!(bad_owner.validate().is_err());
     }
 
     #[test]
