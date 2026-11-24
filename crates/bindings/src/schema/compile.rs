@@ -2,14 +2,15 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyString};
+use pyo3::sync::PyOnceLock;
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyString, PyTuple, PyType};
 use regex::Regex;
 
 use super::internet::NetKind;
 use super::model::{
-    Choice, Collection, Compiled, Definition, Direct, Field, FieldTable, Kind, LimitValue,
-    NativeChoices, NativeLimit, NativeRules, NativeSchema, Node, Normalize, Number, PyClass,
-    PyRules, Rules, SchemaInstanceFields, SchemaWireNames,
+    Choice, Collection, Compiled, Definition, Direct, Field, FieldTable, JsonFieldEntry,
+    JsonFieldPlan, Kind, LimitValue, NativeChoices, NativeLimit, NativeRules, NativeSchema, Node,
+    Normalize, Number, PyClass, PyRules, Rules, SchemaInstanceFields, SchemaWireNames,
 };
 use super::scalars::DecimalNumber;
 use super::typeddecode;
@@ -261,6 +262,7 @@ pub fn compile_schemas(
         unset,
         native,
         typed,
+        json_plan: PyOnceLock::new(),
     })
 }
 
@@ -508,6 +510,178 @@ pub(super) fn shown_choices(py: Python<'_>, choices: &[Py<PyAny>]) -> String {
     shown.join(", ")
 }
 
+fn has_custom_dump(
+    py: Python<'_>,
+    class: &Bound<'_, PyType>,
+    table: &Bound<'_, PyAny>,
+) -> PyResult<bool> {
+    let key = intern!(py, "__native_dump__");
+    match table.get_item(key) {
+        Ok(flag) => Ok(!flag.is_truthy()?),
+        Err(_) => {
+            class.call_method0(intern!(py, "native_schema"))?;
+            Ok(!class
+                .getattr(intern!(py, "__dict__"))?
+                .get_item(key)?
+                .is_truthy()?)
+        }
+    }
+}
+
+fn resolve_compiled<'py>(
+    py: Python<'py>,
+    class: &Bound<'py, PyType>,
+    table: &Bound<'py, PyAny>,
+    honour_custom_dump: bool,
+) -> PyResult<Option<PyRef<'py, Compiled>>> {
+    if honour_custom_dump && has_custom_dump(py, class, table)? {
+        return Ok(None);
+    }
+    let own = table.get_item(intern!(py, "__native__")).ok();
+    let compiled = match own {
+        Some(found) if !found.is_none() => found,
+        _ => class.call_method0(intern!(py, "native_schema"))?,
+    };
+    Ok(Some(compiled.extract()?))
+}
+
+fn member_descriptor_type<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    static TYPE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+    TYPE.import(py, "types", "MemberDescriptorType")
+}
+
+fn object_getattribute<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    static ATTR: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+    ATTR.get_or_try_init(py, || {
+        Ok(py
+            .import("builtins")?
+            .getattr("object")?
+            .getattr("__getattribute__")?
+            .unbind())
+    })
+    .map(|obj| obj.bind(py))
+}
+
+fn has_custom_descriptor(
+    py: Python<'_>,
+    mro: &Bound<'_, PyTuple>,
+    attr: &Bound<'_, PyString>,
+    member_desc: &Bound<'_, PyAny>,
+) -> PyResult<bool> {
+    let dict_key = intern!(py, "__dict__");
+    let get_key = intern!(py, "__get__");
+    for base in mro.iter() {
+        let table = base.getattr(dict_key)?;
+        if let Ok(found) = table.get_item(attr) {
+            return Ok(found.hasattr(get_key)? && !found.is_instance(member_desc)?);
+        }
+    }
+    Ok(false)
+}
+
+fn class_is_streamable(
+    py: Python<'_>,
+    class: &Bound<'_, PyType>,
+    entries: &[JsonFieldEntry],
+) -> PyResult<bool> {
+    if class.hasattr(intern!(py, "__getattr__"))? {
+        return Ok(false);
+    }
+    if !class
+        .getattr(intern!(py, "__getattribute__"))?
+        .is(object_getattribute(py)?)
+    {
+        return Ok(false);
+    }
+    let mro_obj = class.getattr(intern!(py, "__mro__"))?;
+    let mro = mro_obj.cast::<PyTuple>()?;
+    let member_desc = member_descriptor_type(py)?;
+    for entry in entries {
+        if has_custom_descriptor(py, mro, entry.attr.bind(py), member_desc)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn same_computed(cached: Option<&Py<PyAny>>, current: Option<&Bound<'_, PyAny>>) -> bool {
+    match (cached, current) {
+        (None, None) => true,
+        (Some(a), Some(b)) => b.is(a),
+        _ => false,
+    }
+}
+
+fn build_json_field_plan(
+    py: Python<'_>,
+    class: &Bound<'_, PyType>,
+    compiled: &Compiled,
+    computed_obj: Option<&Bound<'_, PyAny>>,
+    quote_key: fn(&str) -> Box<[u8]>,
+) -> PyResult<JsonFieldPlan> {
+    let declared = &compiled.definitions[compiled.root].fields;
+    let mut entries = Vec::with_capacity(declared.len());
+    for field in declared {
+        entries.push(JsonFieldEntry {
+            attr: PyString::intern(py, &field.name).unbind(),
+            wire_name: field.wire_name.clone(),
+            quoted_key: quote_key(&field.wire_name),
+        });
+    }
+    let mut has_computed = false;
+    if let Some(computed) = computed_obj {
+        for entry in computed.try_iter()? {
+            let (name, wire_name): (String, String) = entry?.extract()?;
+            has_computed = true;
+            entries.push(JsonFieldEntry {
+                attr: PyString::intern(py, &name).unbind(),
+                quoted_key: quote_key(&wire_name),
+                wire_name,
+            });
+        }
+    }
+    let streamable = !has_computed && class_is_streamable(py, class, &entries)?;
+    Ok(JsonFieldPlan {
+        entries: entries.into_boxed_slice(),
+        unset: compiled.unset.clone_ref(py),
+        streamable,
+        computed_source: computed_obj.map(|obj| obj.clone().unbind()),
+    })
+}
+
+/// Cached JSON encoding plan for a `Schema` instance's class, or `None` when
+/// `value` is not a schema instance or its class overrides `dump()`.
+pub(crate) fn json_field_plan(
+    value: &Bound<'_, PyAny>,
+    quote_key: fn(&str) -> Box<[u8]>,
+) -> PyResult<Option<Arc<JsonFieldPlan>>> {
+    let class = value.get_type();
+    let py = value.py();
+    if !class.hasattr(intern!(py, "__hinoki_schema__"))? {
+        return Ok(None);
+    }
+    let table = class.getattr(intern!(py, "__dict__"))?;
+    let Some(compiled) = resolve_compiled(py, &class, &table, true)? else {
+        return Ok(None);
+    };
+    let current_computed = table.get_item(intern!(py, "__hinoki_computed__")).ok();
+    let cached = compiled.json_plan.get_or_try_init(py, || {
+        build_json_field_plan(py, &class, &compiled, current_computed.as_ref(), quote_key)
+            .map(Arc::new)
+    })?;
+    if same_computed(cached.computed_source.as_ref(), current_computed.as_ref()) {
+        Ok(Some(Arc::clone(cached)))
+    } else {
+        Ok(Some(Arc::new(build_json_field_plan(
+            py,
+            &class,
+            &compiled,
+            current_computed.as_ref(),
+            quote_key,
+        )?)))
+    }
+}
+
 /// For a `Schema` instance: its field names in declaration order and the
 /// `UNSET` sentinel (fields holding it are not serialised). The class is
 /// compiled on first use. `None` when `value` is not a schema instance (or,
@@ -525,29 +699,9 @@ pub fn instance_fields(
     }
     // Read the class's own entries: a subclass must not use its parent's table.
     let table = class.getattr(intern!(py, "__dict__"))?;
-    // A class that overrides `dump()` decides what it exposes: the caller falls
-    // back to calling it, exactly as the Python encoder always did.
-    if honour_custom_dump {
-        let overrides = match table.get_item(intern!(py, "__native_dump__")) {
-            Ok(flag) => !flag.is_truthy()?,
-            Err(_) => {
-                class.call_method0("native_schema")?;
-                !class
-                    .getattr("__dict__")?
-                    .get_item("__native_dump__")?
-                    .is_truthy()?
-            }
-        };
-        if overrides {
-            return Ok(None);
-        }
-    }
-    let own = table.get_item(intern!(py, "__native__")).ok();
-    let compiled = match own {
-        Some(found) if !found.is_none() => found,
-        _ => class.call_method0("native_schema")?,
+    let Some(compiled) = resolve_compiled(py, &class, &table, honour_custom_dump)? else {
+        return Ok(None);
     };
-    let compiled: PyRef<'_, Compiled> = compiled.extract()?;
     let mut names: SchemaWireNames = compiled.definitions[compiled.root]
         .fields
         .iter()

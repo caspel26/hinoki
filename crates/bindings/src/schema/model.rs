@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::sync::PyOnceLock;
+use pyo3::types::{PyDict, PyString};
 use regex::Regex;
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
@@ -15,6 +16,21 @@ use super::typeddecode;
 pub type SchemaWireNames = Vec<(String, String)>;
 /// Wire names, the `UNSET` sentinel and how many trailing names are computed.
 pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>, usize)>;
+
+/// One pre-resolved field entry in a schema's cached JSON encoding plan.
+pub(crate) struct JsonFieldEntry {
+    pub(crate) attr: Py<PyString>,
+    pub(crate) wire_name: String,
+    pub(crate) quoted_key: Box<[u8]>,
+}
+
+/// Cached, immutable field plan used by the JSON encoder for a `Schema` class.
+pub(crate) struct JsonFieldPlan {
+    pub(crate) entries: Box<[JsonFieldEntry]>,
+    pub(crate) unset: Py<PyAny>,
+    pub(crate) streamable: bool,
+    pub(super) computed_source: Option<Py<PyAny>>,
+}
 
 pub(super) const MAX_ERRORS: usize = 50;
 pub(super) const MAX_KEY_ECHO: usize = 64;
@@ -227,6 +243,8 @@ pub struct Compiled {
     pub(super) native: Option<Arc<NativeSchema>>,
     /// The one-pass body decode of this schema, when it is inside its subset.
     pub(super) typed: Option<Arc<typeddecode::Typed>>,
+    /// Cached JSON serialization plan for this class, built on first encode.
+    pub(super) json_plan: PyOnceLock<Arc<JsonFieldPlan>>,
 }
 
 /// The GIL-free copy of a [`Compiled`] schema.
