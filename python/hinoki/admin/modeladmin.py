@@ -145,8 +145,21 @@ class ModelAdmin[M: Model]:
         return query
 
     def deleted_queryset(self, principal: Caller[Any]) -> QuerySet[M]:
-        """Rows available in the deleted view; override to preserve tenant scope."""
-        return self.model.only_deleted()
+        """Soft-deleted rows within ``queryset``'s scope.
+
+        The implicit live-row filter is dropped and every other filter kept, so
+        tenant and ownership scoping carries over. Override to customise.
+        """
+        column = self.model.__soft_delete__
+        if column is None:
+            return self.model.only_deleted()
+        query = self.queryset(principal)
+        live = self.model.all().filters
+        kept = tuple(item for item in query.filters if item not in live)
+        dropped = len(query.filters) - len(kept)
+        implicit = max(0, query.implicit_filter_count - dropped) + 1
+        deleted = query.derive(filters=kept).filter(**{f"{column}__isnull": False})
+        return deleted.derive(implicit_filter_count=implicit)
 
     def deleted_scope(self, principal: Caller[Any]) -> QuerySet[M]:
         """The override's scope, narrowed to soft-deleted rows unconditionally."""
