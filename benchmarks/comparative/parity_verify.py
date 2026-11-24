@@ -4,9 +4,8 @@
 
 Every service must answer each route with the same status and data as rows read
 straight from PostgreSQL, issue the same number of SQL statements (counted with
-pg_stat_statements after warming every worker; see ``expected_statements`` for the
-one disclosed exception), and return the two ``json-*``
-bodies byte for byte. A service that fails any check stops the run.
+pg_stat_statements after warming every worker, see ``EXPECTED_STATEMENTS``), and
+return the two ``json-*`` bodies byte for byte. A service that fails any check stops the run.
 """
 
 import json
@@ -47,16 +46,6 @@ EXPECTED_STATEMENTS = {
     "auth-me": 1,
     "auth-articles": 4,
 }
-# Hinoki's ORM loads a many-to-many relation in two steps, the link table then
-# the targets, so each route that prefetches tags issues one more statement. That
-# extra round trip is a cost Hinoki pays, never a shortcut, and is reported.
-TWO_STEP_M2M_STACKS = frozenset({"hinoki", "hinoki-granian", "hinoki-kiso"})
-TAG_ROUTES = frozenset({"articles", "article", "auth-articles"})
-
-
-def expected_statements(stack: str, route: str) -> int:
-    extra = stack in TWO_STEP_M2M_STACKS and route in TAG_ROUTES
-    return EXPECTED_STATEMENTS[route] + int(extra)
 
 
 def statements(conn: psycopg.Connection) -> list[tuple[str, int]]:
@@ -234,7 +223,7 @@ class Checker:
                 normal(shape(json.loads(body))) == normal(shape(expected)),
                 f"{name} data differs from the oracle",
             )
-        expected_sql = expected_statements(self.stack, name)
+        expected_sql = EXPECTED_STATEMENTS[name]
         self.check(
             issued == expected_sql,
             f"{name} issued {issued} statements, expected {expected_sql}",
