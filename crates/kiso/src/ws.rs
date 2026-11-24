@@ -682,6 +682,41 @@ mod tests {
     }
 
     #[test]
+    fn a_message_may_span_at_most_the_fragment_limit() {
+        let mut stream = masked(BINARY, false, b"a");
+        for _ in 2..MAX_FRAGMENTS {
+            stream.extend(masked(CONTINUATION, false, b""));
+        }
+        let mut last = stream.clone();
+        last.extend(masked(CONTINUATION, true, b"z"));
+        assert_eq!(decode(&last).unwrap(), [Event::Binary(b"az".to_vec())]);
+        stream.extend(masked(CONTINUATION, false, b""));
+        stream.extend(masked(CONTINUATION, true, b"z"));
+        assert_eq!(decode(&stream), Err(Fault::Protocol("too many fragments")));
+    }
+
+    #[test]
+    fn decoded_frames_are_skipped_and_the_rest_kept_across_pushes() {
+        let mut stream = Vec::new();
+        for byte in 0..200u8 {
+            stream.extend(masked(BINARY, true, &[byte]));
+        }
+        let tail = masked(TEXT, true, b"tail");
+        stream.extend_from_slice(&tail[..3]);
+        let mut decoder = Decoder::new(1024);
+        decoder.push(&stream);
+        for byte in 0..200u8 {
+            assert_eq!(decoder.next().unwrap(), Some(Event::Binary(vec![byte])));
+        }
+        assert_eq!(decoder.next().unwrap(), None);
+        assert_eq!(decoder.pending(), &tail[..3]);
+        decoder.push(&tail[3..]);
+        assert_eq!(decoder.start, 0);
+        assert_eq!(decoder.next().unwrap(), Some(Event::Text("tail".into())));
+        assert!(decoder.buffer.is_empty());
+    }
+
+    #[test]
     fn a_length_with_the_top_bit_set_is_refused() {
         let mut decoder = Decoder::new(10);
         let mut head = vec![0x82, 0x80 | 127];
