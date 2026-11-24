@@ -494,8 +494,8 @@
           <h1 id="kiso-hinokis-rust-server">Kiso, Hinoki's Rust server<a class="headerlink" href="#kiso-hinokis-rust-server" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></span>
-            <span>25 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 01:35:46 UTC">November 24, 2026</span></span>
+            <span>26 min read</span>
           </p>
           
         </header>
@@ -522,6 +522,16 @@ you choose Granian, and it can answer many requests without entering Python.</p>
 <p><code>--server kiso</code> selects it explicitly when a project defaults to Granian. Choose
 Granian instead when you need an ASGI wrapper around the application
 (<a href="../serving/#choose-a-server">Serve an application</a>).</p>
+<h2 id="request-head-fuzzing">Request-head fuzzing<a class="headerlink" href="#request-head-fuzzing" title="Permanent link">&para;</a></h2>
+<p>The fuzz workflow checks Kiso's HTTP/1 request-line and header
+handling with two focused targets. <code>head_framing</code> checks chunk-boundary
+invariance, the hard head-size bound, parser safety and that declared-length
+bodies stay opaque. <code>request_head_limits</code> checks the <code>httparse</code> header-slot
+bound, header-byte accounting, query-limit precedence and exact limit
+boundaries. These targets run alongside the host, redirect, declared-length
+and WebSocket fuzzers in CI; locally they can be run with
+<code>cargo +nightly fuzz run head_framing</code> and
+<code>cargo +nightly fuzz run request_head_limits</code>.</p>
 <h2 id="what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python<a class="headerlink" href="#what-is-native-and-what-still-runs-in-python" title="Permanent link">&para;</a></h2>
 <p>The listener, HTTP/1.1 parsing, connection and header limits, body framing and its limits and timeouts, route matching, the request ID, and the answers that need no application code run on the native runtime without taking the Python interpreter lock. Without host, CORS or HTTPS-redirect policies, a request the native layer can answer by itself is answered there: unknown paths and methods (<code>404</code>, <code>405</code> with <code>Allow</code>), oversized request lines or headers, <code>503</code> while the worker is not ready or the in-flight limit is reached, and malformed requests. When one of those policies is active, the Rust classifier checks it first and then answers unmatched requests itself, with the same CORS headers as the Python pipeline. The response carries the same security headers, request ID, CORS and HSTS policy as one produced by the application.</p>
 <p>The lifespan, handwritten handlers and their database calls still use Python. The OpenAPI document and the documentation pages and assets are built once at startup by the same Python code and answered by the Rust classifier for <code>GET</code> and <code>HEAD</code> (other methods continue to route lookup), with the same status, headers, request ID, CORS and security headers; they cross into Python only when a request target is not plain ASCII. Host allow-list checks, CORS preflight answers and HTTPS redirects run in the Rust classifier before docs and route lookup, with the same response order and headers as the Python pipeline. For matched routes that continue through the Python pipeline, Kiso also percent-decodes the captured path values and passes them to Python; an invalid UTF-8 escape is carried as an error marker and reported at the same point where the pipeline previously decoded it. Python still applies <code>str</code>, <code>int</code>, UUID, bool and custom converters, and owns authentication, hooks, body/query binding, handlers, error translation and response assembly.</p>
@@ -670,13 +680,13 @@ reloaded 4 workers (generation 2)
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#limits">Limits</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#response-compression">Response compression</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#reload-on-sighup">Reload on SIGHUP</a></li><li><a href="#reload-with-hinoki-dev">Reload with hinoki dev</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
+            <ul><li><a href="#request-head-fuzzing">Request-head fuzzing</a></li><li><a href="#what-is-native-and-what-still-runs-in-python">What is native and what still runs in Python</a></li><li><a href="#the-native-handler-lane">The native handler lane</a></li><li><a href="#generated-crud">Generated CRUD</a></li><li><a href="#limits">Limits</a></li><li><a href="#streamed-responses">Streamed responses</a></li><li><a href="#response-compression">Response compression</a></li><li><a href="#workers-signals-and-restarts">Workers, signals and restarts</a></li><li><a href="#reload-on-sighup">Reload on SIGHUP</a></li><li><a href="#reload-with-hinoki-dev">Reload with hinoki dev</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#errors-and-edge-cases">Errors and edge cases</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 17:40:43 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 01:35:46 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

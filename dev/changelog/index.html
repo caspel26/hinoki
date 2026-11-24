@@ -495,7 +495,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>24 min read</span>
+            <span>25 min read</span>
           </p>
           
         </header>
@@ -700,7 +700,10 @@ async def reindex() -&gt; dict[str, str]: ...
 <li><strong>Model validation:</strong> text length errors count characters, not items (<code>python/hinoki/orm/model.py</code>, #396).</li>
 <li><strong>WSGI:</strong> a plain WSGI callable reads its settings from the environment (<code>python/hinoki/runtime/wsgiworker.py</code>, #400).</li>
 <li><strong>JSON nesting limits:</strong> reading accepts exactly 128 nested arrays or objects and writing exactly 200, as documented; the 129th and the 201st are refused. An empty innermost array or object used to count as one more, and a <code>Schema</code> object is now counted as a container (<code>crates/bindings/src/request.rs</code>).</li>
-</ul></section><section class="cl__sec" data-kind="docs"><h3>📚 Documentation</h3><p>The docsite has a new navigation, rules explorer, entry cards, footer and page transitions. The README is restructured around an animated request flow, the demo is rendered in HD at 60 fps, the comparative benchmark page is reorganized, and documentation links point at <code>hinoki.caspel.dev</code> (#388, #406, #409, #413, #416, #417, #419, #420, #423, #425, #426).</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
+</ul></section><section class="cl__sec" data-kind="docs"><h3>📚 Documentation</h3><p>The docsite has a new navigation, rules explorer, entry cards, footer and page transitions. The README is restructured around an animated request flow, the demo is rendered in HD at 60 fps, the comparative benchmark page is reorganized, and documentation links point at <code>hinoki.caspel.dev</code> (#388, #406, #409, #413, #416, #417, #419, #420, #423, #425, #426).</p>
+<p>Kiso's fuzz workflow now covers request-line framing and request-head limits
+with <code>head_framing</code> and <code>request_head_limits</code> (<code>fuzz/</code>,
+<code>.github/workflows/fuzz.yml</code>, <code>docs/kiso.md</code>).</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
         
       </article>
 
