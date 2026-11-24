@@ -17,7 +17,7 @@ import pytest
 
 from hinoki import API, Caller, Field, Hinoki, JSONRenderer, Schema, crud
 from hinoki.db import Database, DatabaseModule
-from hinoki.orm import Model, QuerySet, field
+from hinoki.orm import Model, QuerySet, SoftDeleteModel, field
 from hinoki.resources import CrudBase
 from hinoki.runtime import rowplan
 from tests.harness import Client, Feed, Pool, Sink
@@ -1090,3 +1090,45 @@ def test_queryset_patch_before_include_is_not_snapshotted_as_default(
     )
     app = Hinoki(include=[DynamicRecords])
     assert app.bindings[0].row_wire is None
+
+
+def test_row_wire_class_guards_are_frozen_per_generation() -> None:
+    selection = Hinoki(include=[WireRecords]).bindings[0].row_wire
+    assert selection is not None
+    original = cast(Any, WireRecords).to_schema
+    try:
+        assert selection.armed_for(wire_api())
+        cast(Any, WireRecords).to_schema = changed_crud_schema
+        assert selection.armed_for(wire_api())
+        rowplan.refreeze_row_wire()
+        assert not selection.armed_for(wire_api())
+    finally:
+        cast(Any, WireRecords).to_schema = original
+    rowplan.refreeze_row_wire()
+    assert selection.armed_for(wire_api())
+    api = wire_api()
+    cast(Any, api).to_schema = changed_crud_schema.__get__(api, WireRecords)
+    assert not selection.armed_for(api)
+
+
+class SoftWireRecord(SoftDeleteModel, table="row_wire_soft_records"):
+    id: int = field(primary_key=True)
+    name: str
+
+
+class SoftWireRecordOut(Schema):
+    id: int
+    name: str
+
+
+@crud(SoftWireRecord, path="/soft-rows", read=SoftWireRecordOut)
+class SoftWireRecords(API):
+    pass
+
+
+def test_soft_delete_lists_accept_only_their_live_row_filter() -> None:
+    selection = Hinoki(include=[SoftWireRecords]).bindings[0].row_wire
+    assert selection is not None
+    assert selection.valid_query(SoftWireRecord.all())
+    assert not selection.valid_query(SoftWireRecord.with_deleted())
+    assert not selection.valid_query(SoftWireRecord.all().filter(name="x"))

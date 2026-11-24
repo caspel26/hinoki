@@ -118,6 +118,10 @@ pub struct Framing {
     declared: Option<u64>,
     chunked: bool,
     previous: u8,
+    /// A byte other than CR/LF was collected: the empty lines httparse skips
+    /// before a request line (RFC 9112 §2.2) do not end a head, but they count
+    /// toward its bound as they do toward httparse's head length.
+    started: bool,
     max_head: usize,
     signals: Arc<Signals>,
 }
@@ -134,6 +138,7 @@ impl Framing {
             declared: None,
             chunked: false,
             previous: 0,
+            started: false,
             max_head,
             signals,
         }
@@ -165,6 +170,7 @@ impl Framing {
         for (index, byte) in bytes.iter_mut().enumerate() {
             let bare = *byte == b'\n' && self.previous != b'\r';
             self.previous = *byte;
+            self.started |= !matches!(*byte, b'\r' | b'\n');
             self.collected.push(*byte);
             // A head above the bound fails closed like any other refusal: the
             // NUL makes httparse refuse it, so nothing past the bound is
@@ -175,7 +181,7 @@ impl Framing {
                 self.give_up();
                 return index + 1;
             }
-            if self.collected.ends_with(HEAD_END) {
+            if self.started && self.collected.ends_with(HEAD_END) {
                 self.end_head();
                 return index + 1;
             }
@@ -223,6 +229,7 @@ impl Framing {
         self.declared = None;
         self.chunked = false;
         self.previous = 0;
+        self.started = false;
     }
 
     fn give_up(&mut self) {
@@ -550,6 +557,21 @@ transfer-encoding: chunked
         let (mut f, close) = framing();
         let request = b"\r\n\r\nGET / HTTP/1.1\r\nhost: t\r\n\r\n";
         assert_eq!(run(&mut f, &[request]), request);
+        assert!(!close.close.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn leading_empty_lines_count_toward_the_head_bound() {
+        let head: &[u8] = b"\r\n\r\nGET / HTTP/1.1\r\n\r\n";
+        let close = Arc::new(Signals::default());
+        let mut f = Framing::new(head.len() - 1, Arc::clone(&close));
+        let out = run(&mut f, &[head]);
+        assert!(out.contains(&0));
+        assert!(close.close.load(Ordering::Acquire));
+
+        let close = Arc::new(Signals::default());
+        let mut f = Framing::new(head.len(), Arc::clone(&close));
+        assert_eq!(run(&mut f, &[&head[..3], &head[3..]]), head);
         assert!(!close.close.load(Ordering::Acquire));
     }
 }

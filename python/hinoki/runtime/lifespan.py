@@ -18,6 +18,7 @@ from hinoki.modules import Module, ModuleContext, Resource, order_modules
 from hinoki.orm.context import database_var
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.executor import SyncExecutor
+from hinoki.runtime.rowplan import refreeze_row_wire
 
 log = logging.getLogger("hinoki.runtime")
 
@@ -102,6 +103,7 @@ class Lifespan:
                 for hook in self.on_startup:
                     current = STARTUP_HOOK + hook_name(hook)
                     await self._call(hook)
+                refreeze_row_wire()
         except BaseException as exc:
             if not self._can_cleanup_after_startup_error(exc):
                 raise exc from None

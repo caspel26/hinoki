@@ -22,7 +22,9 @@ from hinoki.runtime.binding import Binding
 from hinoki.schema import Schema, SchemaMeta, uses_generated_init
 
 CONDITION_PARTS = 3
-ROW_KINDS = frozenset({"str", "int", "float", "bool", "uuid", "datetime", "bytes"})
+ROW_KINDS = frozenset(
+    {"str", "int", "float", "bool", "uuid", "datetime", "bytes", "decimal", "date"}
+)
 OWNER_GUARD_NAMES = (
     "__init__",
     "__new__",
@@ -104,6 +106,11 @@ class RowWireSelection:
     schema_config: object
     schema_field_descriptors: tuple[tuple[str, object | None], ...]
     queryset_state: tuple[object, ...]
+    base_filters: tuple[object, ...]
+    base_implicit_filters: int
+    frozen: list[object] = dataclasses.field(
+        default_factory=lambda: [None, False], compare=False
+    )
 
     def valid_query(self, query: object) -> TypeGuard[QuerySet[Any]]:
         return valid_base_query(self, query)
@@ -127,6 +134,32 @@ class RowWireSelection:
             and api.model is self.model
             and api.resource.read is self.schema
         )
+
+    def armed_for(self, api: CrudBase) -> bool:
+        """The per-request guard: the class-level checks of ``valid_for`` run
+        once per freeze generation, so a request pays only for the instance."""
+        if type(api) is not self.owner or has_shadowed_owner_state(api):
+            return False
+        generation = FREEZE_GENERATION[0]
+        frozen = self.frozen
+        if frozen[0] != generation:
+            frozen[1] = self.valid_for(api)
+            frozen[0] = generation
+        return (
+            frozen[1] is True
+            and api.resource is self.resource
+            and api.model is self.model
+        )
+
+
+# The row-wire class guards are frozen per generation; a worker startup
+# starts a new one, so hooks patched before (or while) the app starts are seen.
+FREEZE_GENERATION = [0]
+
+
+def refreeze_row_wire() -> None:
+    """Re-run every row-wire class guard on its next request."""
+    FREEZE_GENERATION[0] += 1
 
 
 def with_row_wire(binding: Binding) -> Binding:
@@ -249,6 +282,7 @@ def build_selection(
     fields: list[tuple[str, str, str, bool]],
 ) -> RowWireSelection:
     plan = core._RowPlan(list(model.__columns__), fields)
+    base = model.all()
     # Compile the validator now: the first compile later (the native CRUD lane
     # does it at startup) must not look like a patched ``__native__``.
     schema.native_schema()
@@ -289,6 +323,8 @@ def build_selection(
             None,
             object.__setattr__,
         ),
+        base_filters=base.filters,
+        base_implicit_filters=base.implicit_filter_count,
     )
 
 
@@ -310,9 +346,10 @@ def valid_base_query(
     }:
         return False
     expected = default_order(selection.model)
-    return not attributes["filters"] and valid_query_state(
-        selection, query, order=expected, limit=None, offset=None
-    )
+    return (
+        attributes["filters"] == selection.base_filters
+        and attributes["implicit_filter_count"] == selection.base_implicit_filters
+    ) and valid_query_state(selection, query, order=expected, limit=None, offset=None)
 
 
 def default_order(model: type[Model]) -> tuple[tuple[str, bool], ...]:
@@ -590,6 +627,7 @@ def schema_fields(
             name not in columns
             or field_type.kind not in ROW_KINDS
             or field_type.kind != model_types[name].kind
+            or field_type.enum_class is not model_types[name].enum_class
             or field_type.nullable != model_types[name].nullable
             or field_type.info.constraints()
             or field_type.allows_unset

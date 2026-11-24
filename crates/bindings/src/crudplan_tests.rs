@@ -1,6 +1,6 @@
 use super::{
-    parse_model_default, validate_error_template, validate_metadata, ModelDefaultValue,
-    REQUEST_ID_SENTINEL,
+    is_stored_decimal, parse_model_default, validate_error_template, validate_metadata,
+    ModelDefaultValue, REQUEST_ID_SENTINEL,
 };
 
 #[test]
@@ -78,4 +78,48 @@ fn model_defaults_are_converted_to_rust_owned_values() {
         ModelDefaultValue::Str(value) if value == "value"
     ));
     assert!(parse_model_default("float", "NaN").is_err());
+}
+
+#[test]
+fn lifecycle_defaults_parse_to_generated_or_stored_values() {
+    assert!(matches!(
+        parse_model_default("uuid7", "").unwrap(),
+        ModelDefaultValue::Uuid7
+    ));
+    assert!(matches!(
+        parse_model_default("token", "16").unwrap(),
+        ModelDefaultValue::Token(16)
+    ));
+    assert!(parse_model_default("token", "0").is_err());
+    assert!(matches!(
+        parse_model_default("date", "2026-02-28").unwrap(),
+        ModelDefaultValue::Stored(value) if value == "2026-02-28"
+    ));
+    assert!(parse_model_default("date", "2026-02-30").is_err());
+    assert!(matches!(
+        parse_model_default("decimal", "1.25").unwrap(),
+        ModelDefaultValue::Stored(value) if value == "1.25"
+    ));
+    assert!(parse_model_default("decimal", "1E+2").is_err());
+}
+
+#[test]
+fn stored_decimals_are_the_plain_text_python_writes() {
+    for text in ["0", "-0", "12.50", "0.000001", "0.000000", "-7.10"] {
+        assert!(is_stored_decimal(text), "{text}");
+    }
+    for text in [
+        "",
+        "-",
+        "1.",
+        ".5",
+        "007",
+        "1E-7",
+        "0.0000001",
+        "0.0000000",
+        "1.2.3",
+        "+1",
+    ] {
+        assert!(!is_stored_decimal(text), "{text}");
+    }
 }

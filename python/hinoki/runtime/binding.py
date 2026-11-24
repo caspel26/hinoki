@@ -140,6 +140,13 @@ class RequestData:
     files: dict[str, list[UploadedFile]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class TypedBody:
+    """A body parameter Rust already read and validated from the bytes."""
+
+    value: object
+
+
 def problem(path: str, code: str, message: str) -> ValidationError:
     return ValidationError([ErrorDetail(path, code, message)])
 
@@ -199,6 +206,8 @@ class Param:
         return self.convert_text(values[0])
 
     def from_body(self, request: RequestData) -> object:
+        if type(request.body) is TypedBody:
+            return request.body.value
         return self.checked(request.body)
 
     def from_queryschema(self, request: RequestData) -> object:

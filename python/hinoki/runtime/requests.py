@@ -15,11 +15,18 @@ from hinoki.context import request_id
 from hinoki.errors import Forbidden, InvalidBody, Unauthorized
 from hinoki.events import AuthRejected, listener
 from hinoki.http.request import Headers, Request
-from hinoki.parsers import Parsed, UploadedFile
+from hinoki.parsers import (
+    JSONParser,
+    Parsed,
+    UploadedFile,
+    choose,
+    is_native_parser,
+)
 from hinoki.runtime.binding import (
     MISSING,
     Binding,
     RequestData,
+    TypedBody,
     parse_query,
 )
 from hinoki.runtime.responses import HTTPError
@@ -153,17 +160,40 @@ def build_request(
         parsers=binding.route.parsers,
     )
     body: object = MISSING
-    files: dict[str, list[UploadedFile]] = {}
     if binding.has_files:
-        content_type = request.content_type
-        if not raw_body and not content_type:
-            # A bodyless optional upload is a useful empty input. Cache it so
-            # Request.data/POST/FILES observe the same parsed result.
-            request.cached = Parsed({})
-        elif content_type != "multipart/form-data":
-            raise InvalidBody("unsupported_media_type", "expected multipart/form-data")
-        body = body_value(request, binding.takes_text)
-        files = {name: request.FILES.getlist(name) for name in request.FILES}
-    elif binding.needs_body:
-        body = body_value(request, binding.takes_text)
-    return request, RequestData(path, query, body, principal, files)
+        body, files = upload_body(request, binding.takes_text)
+        return request, RequestData(path, query, body, principal, files)
+    if binding.needs_body:
+        body = typed_body(binding, request)
+        if body is None:
+            body = body_value(request, binding.takes_text)
+    return request, RequestData(path, query, body, principal, {})
+
+
+def upload_body(
+    request: Request, takes_text: bool
+) -> tuple[object, dict[str, list[UploadedFile]]]:
+    """The body and the files of an action that takes uploads."""
+    content_type = request.content_type
+    if not request.body and not content_type:
+        # A bodyless optional upload is a useful empty input. Cache it so
+        # Request.data/POST/FILES observe the same parsed result.
+        request.cached = Parsed({})
+    elif content_type != "multipart/form-data":
+        raise InvalidBody("unsupported_media_type", "expected multipart/form-data")
+    body = body_value(request, takes_text)
+    return body, {name: request.FILES.getlist(name) for name in request.FILES}
+
+
+def typed_body(binding: Binding, request: Request) -> TypedBody | None:
+    """The ``Schema`` body read from the bytes in one Rust pass, or ``None``
+    when the parser, the source or the input needs the parse-then-validate
+    path (which then reports the same errors)."""
+    param = binding.body_param
+    if param is None or param.schema is None or param.text:
+        return None
+    parser = choose(request.parsers, request.content_type)
+    if type(parser) is not JSONParser or not is_native_parser(parser):
+        return None
+    value = param.schema.validate_json(request.body)
+    return None if value is None else TypedBody(value)

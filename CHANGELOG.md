@@ -190,6 +190,19 @@ key = JWTKey("2026-11", "HS256", Secret("from-a-secret-manager-at-least-32-bytes
 
 The JSON and XML encoders write `Decimal`, `date`, `time`, `timedelta`, `bytes`, sets, IP addresses, paths, `Secret` and enum members in their wire form anywhere, including at the top level, instead of raising `TypeError` outside a `Schema`. A `JSONRenderer(default=...)` hook still sees such values first outside a `Schema`, except a `Secret`, which is always masked.
 
+#### ⚡ Lifecycle models on the native CRUD lane
+> `crates/bindings/src/crudplan.rs`, `crates/bindings/src/nativecrud.rs`, `crates/bindings/src/rows.rs`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/runtime/rowplan.py`, `python/hinoki/runtime/servercore.py`, `python/hinoki/runtime/requests.py`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/kiso.py`, `docs/kiso.md`
+
+Generated `crud(...)` routes over `SoftDeleteModel`, `UUIDModel` (`uuid_pk()` with UUIDv4 or `version=7`), `urlsafe_token()` columns and `Decimal` or `date` columns now run on Kiso's native CRUD lane instead of falling back to Python. A soft delete stamps `deleted_at` (and `updated_at`) in Rust, and every native read only sees live rows, with the same SQL as the Python lane. A `Decimal` that Rust cannot render exactly as Python would, such as one Python writes in exponent form, is handed back to Python. `Enum` columns and `CursorPagination` lists still use the Python lane. With debug logging on, startup logs the reason each generated CRUD route stays on the Python lane.
+
+The Python lane also does less work per request:
+
+- row-wire list guards run once per worker start instead of on every request, and soft-delete lists use them;
+- a JSON `Schema` body is validated in one Rust pass from the bytes;
+- a request Kiso has already routed no longer repeats the host, CORS, redirect, probe and size checks in Python;
+- native responses are moved rather than copied;
+- the CRUD query string is parsed once.
+
 #### ⚡ Native Kiso lane for filtered `crud(...)` lists
 > `crates/bindings/src/filters.rs`, `crates/bindings/src/crudplan.rs`, `crates/bindings/src/nativecrud.rs`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/core.pyi`, `docs/crud.md`, `docs/status.md`
 
@@ -247,6 +260,7 @@ The command line, the migration state files, the JSON log format, the MCP server
 ### 🐛 Fixes
 
 - **OpenAPI names and decimals.** Security schemes, page envelopes and `Schema` classes that would share a component name get a numeric suffix instead of overwriting each other; page envelopes of scalar items are named after the item (`Page_integer`). `Decimal` bounds are written as `x-minimum`/`x-maximum`/`x-exclusiveMinimum`/`x-exclusiveMaximum` strings and decimal examples as text. `Field(description=..., examples=..., deprecated=..., discriminator=...)` used as a default now reaches the schema, and its overloads type-check as a default.
+- **Kiso request heads:** blank lines before the request line now count toward `execution.max_header_bytes`, so the head bound matches what the HTTP parser reads (`crates/kiso/src/framing.rs`).
 - **Admin forms and lists:** create and edit forms accept `date`, `time`, `Decimal` and `Enum` columns (a select of member names); required columns of these types no longer make creation fail. A soft-delete model with custom `tabs` keeps its Deleted tab, an admin at `Admin(prefix="")` links to `/`, the bento theme keeps Sign out and Change password on phones, the bulk bar works without JavaScript, and the paper and bento lists keep column sorting and select-all. Navigation links drop a stale success banner, the search form and tab bar are omitted when there is nothing to search or choose, and the admin UI reads its component and icon files on first use instead of at import (`python/hinoki/admin/`).
 - **`hinoki admin`:** the command builds `AdminAccounts` from the project's `admin` settings, so `admin.min_password_length` applies to `create-superuser` and `set-password` (`python/hinoki/cli/admin.py`).
 - **MCP, OpenAPI diff and rules:** `expose_as_mcp()` refuses an exposure that selects no allowed action, a streaming action or an action left out of the schema when it is built, not on the first call; `hinoki openapi --breaking-against` also reports a parameter that becomes required or changes type, a newly required request body and a dropped response body; generated `time` samples carry a UTC offset; `Schemas.forbid_exposure` reports a `dict` return as unverifiable (`python/hinoki/ai/`, `python/hinoki/rules.py`).
