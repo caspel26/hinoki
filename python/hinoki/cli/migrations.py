@@ -36,7 +36,12 @@ from hinoki.project import (
     find_manifest_or_none,
     load_manifest,
 )
-from hinoki.settings import LOCAL_DATABASE_URL, DatabaseSettings, SettingsError
+from hinoki.settings import (
+    LOCAL_DATABASE_URL,
+    AdminSettings,
+    DatabaseSettings,
+    SettingsError,
+)
 
 URL_VARIABLE = "HINOKI_DATABASE_URL"
 DEFAULT_SOURCE = "local SQLite default"
@@ -100,9 +105,39 @@ def migration_database(
     environment = os.environ.get(URL_VARIABLE)
     if environment:
         return MigrationDatabase(environment, URL_VARIABLE)
-    configured = _application_database(manifest) if manifest is not None else None
+    return _resolved_database(manifest, _load_application)
+
+
+def _resolved_database(
+    manifest: ProjectManifest | None, load: Any
+) -> MigrationDatabase:
+    configured = _application_database(load(manifest)) if manifest is not None else None
     url, source = configured or (DatabaseSettings().url.reveal(), DEFAULT_SOURCE)
     return MigrationDatabase(_anchor_sqlite(url, manifest), source)
+
+
+def migration_database_and_admin(
+    args: argparse.Namespace, manifest: ProjectManifest | None
+) -> tuple[MigrationDatabase, AdminSettings | None]:
+    """The database of :func:`migration_database` and the application's admin settings.
+
+    The application is built once. With ``--database`` or the URL variable the
+    settings are read best-effort: an application that cannot be built then
+    yields no settings, not an error.
+    """
+    explicit = getattr(args, "database", None) or os.environ.get(URL_VARIABLE)
+    if manifest is None:
+        return migration_database(args, manifest), None
+    try:
+        app = _load_application(manifest)
+    except DatabaseResolutionError:
+        if not explicit:
+            raise
+        return migration_database(args, manifest), None
+    if explicit:
+        return migration_database(args, manifest), _admin_settings(app)
+    database = _resolved_database(manifest, lambda _manifest: app)
+    return database, _admin_settings(app)
 
 
 def migration_database_url(
@@ -112,14 +147,13 @@ def migration_database_url(
     return migration_database(args, manifest).url
 
 
-def _application_database(manifest: ProjectManifest) -> tuple[str, str] | None:
+def _application_database(app: Any) -> tuple[str, str] | None:
     """The URL and source of the application's database, if it declares one.
 
     The application is built from the project root, so relative settings files
     such as ``.env`` are the ones the server reads when started there. Building
     it reads the settings but opens no connection; its output goes to stderr.
     """
-    app = _load_application(manifest)
     module = next(
         (m for m in getattr(app, "modules", ()) if m.name == DatabaseModule.name),
         None,
@@ -134,6 +168,11 @@ def _application_database(manifest: ProjectManifest) -> tuple[str, str] | None:
         f"cannot tell which database the application's {type(module).__name__} "
         f"module uses; choose it with --database or {URL_VARIABLE}"
     )
+
+
+def _admin_settings(app: Any) -> AdminSettings | None:
+    group = getattr(app.settings, "admin", None)
+    return group if isinstance(group, AdminSettings) else None
 
 
 def _load_application(manifest: ProjectManifest) -> Any:

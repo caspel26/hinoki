@@ -195,3 +195,38 @@ def test_cli_rejects_an_unreadable_or_non_object_baseline(
     baseline.write_text(content, encoding="utf-8")
     assert main(["openapi", TARGET, "--breaking-against", str(baseline)]) == 2
     assert message in capsys.readouterr().err
+
+
+def param(required: bool = False, **schema: Any) -> dict[str, Any]:
+    return {
+        "name": "q",
+        "in": "query",
+        "required": required,
+        "schema": schema or {"type": "string"},
+    }
+
+
+def test_a_parameter_that_becomes_required_or_changes_type_breaks_clients() -> None:
+    old = doc(parameters=[param(), param(enum=["a", "b"])])
+    old["paths"]["/items"]["post"]["parameters"][1]["name"] = "kind"
+    assert breaking_changes(old, old) == []
+    new = doc(parameters=[param(required=True, type="integer"), param(enum=["a"])])
+    new["paths"]["/items"]["post"]["parameters"][1]["name"] = "kind"
+    assert breaking_changes(old, new) == [
+        "POST /items: query parameter 'q' became required",
+        "POST /items: query parameter 'q': type changed from string to integer",
+        "POST /items: query parameter 'kind': enum lost values ['b']",
+    ]
+
+
+def test_a_new_required_body_or_a_dropped_response_body_breaks_clients() -> None:
+    old = doc()
+    new = doc(request=obj())
+    assert breaking_changes(old, new) == []
+    new["paths"]["/items"]["post"]["requestBody"]["required"] = True
+    assert breaking_changes(old, new) == ["POST /items: new required request body"]
+    dropped = doc()
+    dropped["paths"]["/items"]["post"]["responses"]["200"] = {"description": "ok"}
+    assert breaking_changes(old, dropped) == [
+        "POST /items: response 200 dropped its JSON body"
+    ]

@@ -226,7 +226,7 @@ async def password_submit(
         secure=secure(admin, request),
         name=admin.session_cookie,
     )
-    return redirect(f"{admin.base}?done=password", cookie)
+    return redirect(f"{admin.base or '/'}?done=password", cookie)
 
 
 async def change_password(

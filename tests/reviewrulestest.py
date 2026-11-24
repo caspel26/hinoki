@@ -435,3 +435,16 @@ def test_string_limits_see_union_variants() -> None:
     found = RuleSet(Schemas.require_string_limits()).run(project(app))
 
     assert any(d.subject.endswith("Cat.note") for d in found)
+
+
+def test_dict_returns_cannot_be_checked_for_exposure() -> None:
+    @http.get("/plain")
+    async def plain() -> dict[str, str]:
+        return {}
+
+    app = Hinoki()
+    app.include(plain)
+    found = RuleSet(Schemas.forbid_exposure("password_hash")).run(project(app))
+    assert [(d.status.value, d.subject) for d in found] == [
+        ("unverifiable", qualified(app.routes[0]))
+    ]

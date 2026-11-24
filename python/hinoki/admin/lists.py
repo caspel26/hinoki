@@ -48,7 +48,7 @@ def column_label(name: str) -> str:
 def _heading_for_column(site: Site, slug: str, name: str, label: str) -> str:
     state = site.state
     flip = "desc" if state.sort == name and state.direction == "asc" else "asc"
-    href = site.url(slug, **state.query(sort=name, direction=flip, page=1))
+    href = site.url(slug, **state.query(sort=name, direction=flip, page=1, done=""))
     mark = (
         ' <svg class="hn-icon" aria-hidden="true"><use href="#i-arrow-down-up"/></svg>'
         if state.sort == name
@@ -135,7 +135,9 @@ def pagination_for(site: Site, slug: str, page: int, per_page: int, total: int) 
     chevron_right = '<svg class="hn-icon" aria-hidden="true"><use href="#i-chevron-right"/></svg><span class="hn-visually-hidden">Next</span>'
     links: list[tuple[str, str, bool]] = [
         (
-            site.url(slug, **site.state.query(page=page - 1)) if page > 1 else "",
+            site.url(slug, **site.state.query(page=page - 1, done=""))
+            if page > 1
+            else "",
             chevron_left,
             False,
         )
@@ -146,14 +148,16 @@ def pagination_for(site: Site, slug: str, page: int, per_page: int, total: int) 
         else:
             links.append(
                 (
-                    site.url(slug, **site.state.query(page=number_)),
+                    site.url(slug, **site.state.query(page=number_, done="")),
                     str(number_),
                     number_ == page,
                 )
             )
     links.append(
         (
-            site.url(slug, **site.state.query(page=page + 1)) if page < pages else "",
+            site.url(slug, **site.state.query(page=page + 1, done=""))
+            if page < pages
+            else "",
             chevron_right,
             False,
         )
@@ -162,33 +166,46 @@ def pagination_for(site: Site, slug: str, page: int, per_page: int, total: int) 
 
 
 def tab_bar(site: Site, slug: str, entry: ModelAdmin[Any]) -> Raw:
-    if entry.model.__soft_delete__ is not None and not entry.tabs:
-        return Raw(
-            "".join(
-                site.admin.templates.render(
-                    "tab",
-                    href=site.url(slug, **site.state.query(deleted=deleted, page=1)),
-                    label=label,
-                    selected="true" if site.state.deleted is deleted else "false",
+    """The view tabs: Active/Deleted for a soft-delete model, with any custom
+    tabs in front of Deleted. Empty when there is nothing to choose between."""
+    soft = entry.model.__soft_delete__ is not None
+    state = site.state
+    if soft and not entry.tab_list:
+        tabs = [("Active", False, not state.deleted), ("Deleted", True, state.deleted)]
+        links = [
+            (label, state.query(deleted=deleted, page=1, done=""), current)
+            for label, deleted, current in tabs
+        ]
+    elif entry.tab_list:
+        links = [
+            (
+                label,
+                state.query(view=index, deleted=False, page=1, done=""),
+                not state.deleted and state.view == index,
+            )
+            for index, label in enumerate(["All", *[t.label for t in entry.tab_list]])
+        ]
+        if soft:
+            links.append(
+                (
+                    "Deleted",
+                    state.query(view=0, deleted=True, page=1, done=""),
+                    state.deleted,
                 )
-                for label, deleted in (("Active", False), ("Deleted", True))
             )
-        )
-    if not entry.tab_list:
+    else:
         return Raw("")
-    labels = ["All", *[tab.label for tab in entry.tab_list]]
     t = site.admin.templates
-    return Raw(
-        "".join(
-            t.render(
-                "tab",
-                href=site.url(slug, **site.state.query(view=index, page=1)),
-                label=label,
-                selected="true" if site.state.view == index else "false",
-            )
-            for index, label in enumerate(labels)
+    items = "".join(
+        t.render(
+            "tab",
+            href=site.url(slug, **query),
+            label=label,
+            current=Raw(' aria-current="page"' if current else ""),
         )
+        for label, query, current in links
     )
+    return Raw(f'<nav class="hn-tabs" aria-label="Views">{items}</nav>')
 
 
 async def list_panel(
@@ -253,17 +270,18 @@ def render_toolbar(site: Site, slug: str, entry: ModelAdmin[Any]) -> Raw:
         hidden += f'<input type="hidden" name="view" value="{state.view}">'
     if state.deleted:
         hidden += '<input type="hidden" name="deleted" value="1">'
-    placeholder = (
-        f"Search {entry.plural().lower()}…" if entry.search else "Search is not set up"
-    )
-    return site.admin.templates.render(
-        "toolbar",
-        tabs=tab_bar(site, slug, entry),
-        action=site.url(slug),
-        hidden=Raw(hidden),
-        query=state.q,
-        placeholder=placeholder,
-        actions=Raw(""),
+    t = site.admin.templates
+    search = Raw("")
+    if entry.search:
+        search = t.render(
+            "search",
+            action=site.url(slug),
+            hidden=Raw(hidden),
+            query=state.q,
+            placeholder=f"Search {entry.plural().lower()}…",
+        )
+    return t.render(
+        "toolbar", tabs=tab_bar(site, slug, entry), search=search, actions=Raw("")
     )
 
 

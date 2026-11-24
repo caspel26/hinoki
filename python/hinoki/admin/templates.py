@@ -10,6 +10,7 @@ component names are looked up, so a name cannot walk the filesystem.
 
 from __future__ import annotations
 
+import functools
 import html
 import re
 from pathlib import Path
@@ -18,8 +19,13 @@ from typing import Any
 from hinoki.admin.themes import Theme, resolve
 
 UI = Path(__file__).parent / "ui"
-COMPONENTS = tuple(sorted(p.stem for p in (UI / "components").glob("*.html")))
 PLACEHOLDER = re.compile(r"\{\{\{\s*(\w+)\s*\}\}\}|\{\{\s*(\w+)\s*\}\}")
+
+
+@functools.cache
+def component_names() -> tuple[str, ...]:
+    """The built-in component names, read from disk on first use."""
+    return tuple(sorted(p.stem for p in (UI / "components").glob("*.html")))
 
 
 class TemplateError(Exception):
@@ -55,7 +61,7 @@ class Templates:
         self.directory = Path(directory) if directory else None
         self.theme = resolve(theme)
         self.check_overrides()
-        self.sources = {name: self.read(name) for name in COMPONENTS}
+        self.sources = {name: self.read(name) for name in component_names()}
         self.sprite = Raw((UI / "icons.svg").read_text(encoding="utf-8"))
 
     def check_overrides(self) -> None:
@@ -65,10 +71,10 @@ class Templates:
         if self.directory is None:
             return
         for path in sorted((self.directory / "components").glob("*.html")):
-            if path.stem not in COMPONENTS:
+            if path.stem not in component_names():
                 raise TemplateError(
                     f"{path.name}: no admin component has this name; "
-                    f"the components are {', '.join(COMPONENTS)}"
+                    f"the components are {', '.join(component_names())}"
                 )
             builtin = placeholders((UI / "components" / path.name).read_text("utf-8"))
             custom = placeholders(path.read_text(encoding="utf-8"))
