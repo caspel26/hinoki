@@ -34,6 +34,7 @@ uv run hinoki migrations apply
 | | `hinoki mail preview NAME` | Render one registered email template from a sample or a JSON context, without sending. | [Email templates](email-templates.md#preview) |
 | | `hinoki settings` | Effective settings and their sources, secrets redacted. | [Inspect](inspect.md#settings) |
 | | `hinoki openapi` | Print, write or diff the OpenAPI document. | [Inspect](inspect.md#openapi) |
+| | `hinoki llms` | Print, write or check the API as llms.txt Markdown for agents. | [Inspect](inspect.md#llms) |
 | | `hinoki version` | The Hinoki version; `--verbose` adds Python, platform, native core and Granian. | [Inspect](inspect.md#version) |
 | Data | `hinoki migrations plan\|status\|apply\|sql` | Plan and apply migrations for every registered app. | [below](#migrations) |
 | | `hinoki admin create-superuser\|set-password` | Manage admin users from the terminal. | [below](#admin) |

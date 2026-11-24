@@ -8,6 +8,16 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🤖 `hinoki llms` and an opt-in `llms_url`
+> `python/hinoki/ai/llms.py`, `python/hinoki/cli/llms.py`, `python/hinoki/app.py`, `python/hinoki/settings.py`, `python/hinoki/docsui/__init__.py`, `python/hinoki/runtime/pipeline.py`, `docs/openapi.md`, `docs/inspect.md`
+
+`hinoki llms [TARGET] [--output FILE | --check FILE]` renders the application's OpenAPI document as an [llms.txt](https://llmstxt.org/) Markdown text for a coding agent: operations grouped by first tag with summary, deprecation, security scheme names and request and response components, `QUERY` included in both OpenAPI versions. Like `hinoki openapi` it opens no database, and `--check` exits `1` on drift. `Hinoki(llms_url="/llms.txt")` or the `docs.llms_url` setting serves the same text as `text/markdown`, off by default and without needing `openapi_url`; it answers `HEAD` like the OpenAPI document and leaves out what the document leaves out. See [describe the API for agents](docs/openapi.md#llms).
+
+#### 🧭 `AGENTS.md` points at Hinoki's docs for agents
+> `python/hinoki/scaffold.py`, `docs/ai-workflow.md`
+
+The `AGENTS.md` that `hinoki new` writes names `https://hinoki.caspel.dev/llms.txt`, `llms-full.txt` and the per-page Markdown, and tells the agent to prefer them and the development MCP over guessing from other frameworks.
+
 #### 🔌 WebSockets on `API` classes and typed decorators
 > `python/hinoki/websocket.py`, `python/hinoki/api.py`, `python/hinoki/app.py`, `python/hinoki/runtime/asgi.py`, `docs/websockets.md`
 
@@ -285,6 +295,8 @@ The command line, the migration state files, the JSON log format, the MCP server
 ---
 
 ### 📚 Documentation
+
+The docs site publishes `llms.txt`, `llms-full.txt` and a Markdown copy of every page at the site root and under each version, generated at build time by `docsite/llms.py` and checked in CI (`docs/ai-workflow.md`, `.github/workflows/deploy-docs.yml`).
 
 The docsite has a new navigation, rules explorer, entry cards, footer and page transitions. The README is restructured around an animated request flow, the demo is rendered in HD at 60 fps, the comparative benchmark page is reorganized, and documentation links point at `hinoki.caspel.dev` (#388, #406, #409, #413, #416, #417, #419, #420, #423, #425, #426).
 

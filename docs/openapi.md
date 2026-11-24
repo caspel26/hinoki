@@ -41,9 +41,36 @@ app = Hinoki(
 )
 ```
 
-The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` settings provide the same defaults. A viewer requires `openapi_url`. `Hinoki(...)` arguments override settings; passing `None` disables a page. The packaged viewers (Swagger UI 5.35.1 and ReDoc 3.2.0, which read OpenAPI 3.2 and list `QUERY` operations) work without a CDN; ReDoc 3 is loaded as a JavaScript module with its usage reporting turned off.
+The corresponding `docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` settings provide the same defaults. A viewer requires `openapi_url`. `llms_url` does not: see [describe the API for agents](#llms). `Hinoki(...)` arguments override settings; passing `None` disables a page. The packaged viewers (Swagger UI 5.35.1 and ReDoc 3.2.0, which read OpenAPI 3.2 and list `QUERY` operations) work without a CDN; ReDoc 3 is loaded as a JavaScript module with its usage reporting turned off.
 
 The generated OpenAPI document, Swagger UI, ReDoc and their assets answer `HEAD` with the same status and representation headers as `GET`, without a response body. Each request still has its own request ID in the configured response header (`x-request-id` by default).
+
+## Describe the API for agents (`llms.txt`) {#llms}
+
+The same document can be rendered as an [llms.txt](https://llmstxt.org/) Markdown text for a coding agent or an LLM client: the title and version, then the operations grouped by their first tag, each with its method, path, operation ID, summary and a few facts (`deprecated`, the security scheme names, the request and success response components). Untagged operations are listed under `Operations`.
+
+```sh
+hinoki llms
+hinoki llms --output llms.txt
+hinoki llms --check llms.txt
+```
+
+The command opens no database and works when `openapi_url` is disabled. `--check` exits `1` when the committed file differs from the generated text. See [inspect an application](inspect.md#llms) for output and exit status.
+
+Serving it is opt-in. Set `llms_url`, or `docs.llms_url`, and the text is answered at that path; the default `None` serves nothing:
+
+```python
+# notes/main.py
+from hinoki import Hinoki
+
+app = Hinoki(llms_url="/llms.txt")
+```
+
+The `Hinoki(...)` argument overrides the setting and `None` disables the page. Unlike the viewers it does not need `openapi_url`: the text is rendered from `Hinoki.openapi()` once at startup. It answers `GET` and `HEAD` as `text/markdown; charset=utf-8` (the media type of Markdown, RFC 7763) with `Cache-Control: no-cache`, and it is not listed in the OpenAPI document. `llms_url` cannot equal `openapi_url`, `docs_url` or `redoc_url`, and a route on the same path stops startup. `hinoki new` does not enable it.
+
+The page is public, like the OpenAPI document when that is served. It is built only from the document, so it leaves out what the document leaves out: `include_in_schema=False` actions and the admin's pages. Leaving an action out neither hides it nor authorizes anything. The text names security schemes, never credentials.
+
+The renderer, [`hinoki.ai.llms.render_llms`](reference/tools.md), is Python: it reads the dictionary that the Python OpenAPI builder produces and does no I/O. The finished page is handed to Kiso as a prebuilt static answer, like the document and the viewers. [Hinoki's own documentation for agents](ai-workflow.md#docs-for-agents) is a separate set of files.
 
 ## The document version
 

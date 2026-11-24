@@ -73,7 +73,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 - [Email templates](email-templates.md): typed TOML templates rendered in Rust, checked at startup and previewed from the CLI.
 - [Expose actions over MCP](app-mcp.md): selected actions as tools for a remote MCP client.
 - [Development MCP](dev-mcp.md): a server that describes your app to a coding agent; it can run requests against the app only when you enable `--scenarios`.
-- [Build with a coding agent](ai-workflow.md): a project, rules and tools ready for an agent, and where its authority ends.
+- [Build with a coding agent](ai-workflow.md): a project, rules and tools ready for an agent, the llms.txt files and Markdown mirrors of these docs, and where its authority ends.
 
 ## Operating
 

@@ -1,28 +1,44 @@
 """Page data for the Hinoki theme: reading time, related pages and the rule
 catalogue behind the `HNK-…` popovers."""
 
+import importlib
 import importlib.util
 import inspect
+import logging
 import re
 import sys
 import tomllib
 from pathlib import Path
+from types import ModuleType
 
 from mkdocs.config import Config
+from mkdocs.exceptions import PluginError
 from mkdocs.structure.files import Files
+from mkdocs.structure.nav import Link, Navigation, Section
 from mkdocs.structure.pages import Page
+from mkdocs.utils.meta import get_data
 
 from hinoki import rules, waivers
 
-# mkdocs loads this file by path, so its sibling module is loaded the same way.
-_spec = importlib.util.spec_from_file_location(
-    "docsite_changelog", Path(__file__).with_name("changelog.py")
-)
-if _spec is None or _spec.loader is None:
-    raise ImportError("cannot load docsite/changelog.py")
-changelog = importlib.util.module_from_spec(_spec)
-sys.modules[_spec.name] = changelog
-_spec.loader.exec_module(changelog)
+
+def load_sibling(name: str) -> ModuleType:
+    """Load `docsite/<name>.py` by path, as mkdocs loads this file."""
+    spec = importlib.util.spec_from_file_location(
+        f"docsite_{name}", Path(__file__).with_name(f"{name}.py")
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load docsite/{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+changelog = load_sibling("changelog")
+llms = load_sibling("llms")
+log = logging.getLogger("mkdocs.hooks.llms")
+# Filled by on_nav for the build in progress and read by on_post_build.
+build_state: dict[str, object] = {}
 
 RULE_NAMESPACES = (
     rules.Actions,
@@ -122,3 +138,121 @@ def on_page_content(html: str, page: Page, config: Config, files: Files) -> str:
     words = len(TAG.sub(" ", html).split())
     page.meta["reading_minutes"] = max(1, round(words / WORDS_PER_MINUTE))
     return html
+
+
+def flatten_nav(
+    items: list[object], section: tuple[str, ...] = ()
+) -> list["llms.NavEntry"]:
+    """Navigation leaves in order; excluded pages are left out."""
+    found: list[llms.NavEntry] = []
+    for item in items:
+        if isinstance(item, Section):
+            found += flatten_nav(item.children, (*section, item.title))
+        elif isinstance(item, Link):
+            found.append(llms.NavEntry(section, item.title, url=item.url))
+        elif isinstance(item, Page) and item.file.inclusion.is_included():
+            found.append(
+                llms.NavEntry(
+                    section,
+                    item.title or item.file.src_uri,
+                    item.file.src_uri,
+                    item.url,
+                )
+            )
+    return found
+
+
+def on_nav(nav: Navigation, config: Config, files: Files) -> Navigation:  # noqa: ARG001
+    """Record the navigation and the file sets for the llms.txt outputs."""
+    entries = flatten_nav(list(nav.items))
+    by_uri = {file.src_uri: file for file in files}
+    build_state.clear()
+    build_state["entries"] = tuple(entries)
+    build_state["sources"] = {
+        entry.src_uri: by_uri[entry.src_uri].abs_src_path
+        for entry in entries
+        if entry.src_uri
+    }
+    build_state["excluded"] = frozenset(
+        file.src_uri for file in files if not file.inclusion.is_included()
+    )
+    build_state["assets"] = frozenset(
+        file.src_uri
+        for file in files
+        if not file.is_documentation_page() and file.inclusion.is_included()
+    )
+    return nav
+
+
+def import_object(path: str) -> object:
+    """The module, class or function a dotted path names."""
+    parts = path.split(".")
+    for end in range(len(parts), 0, -1):
+        try:
+            found: object = importlib.import_module(".".join(parts[:end]))
+        except ImportError:
+            continue
+        for name in parts[end:]:
+            found = getattr(found, name)
+        return found
+    raise ImportError(path)
+
+
+def autodoc_summary(path: str) -> tuple[str, str]:
+    """Signature and first docstring paragraph of a documented object."""
+    try:
+        target = import_object(path)
+    except Exception:
+        return path, ""
+    return llms.autodoc_entry(path, target)
+
+
+def llms_inputs() -> "llms.Inputs":
+    """The recorded navigation with sources read from disk."""
+    sources = {
+        uri: Path(str(path)).read_text("utf-8")
+        for uri, path in build_state["sources"].items()  # type: ignore[attr-defined]
+    }
+    for uri, text in sources.items():
+        if text.startswith("---") and not get_data(text)[1]:
+            raise PluginError(f"{uri}: front matter is not valid YAML")
+    return llms.Inputs(
+        entries=build_state["entries"],  # type: ignore[arg-type]
+        sources=sources,
+        assets=build_state["assets"],  # type: ignore[arg-type]
+        excluded=build_state["excluded"],  # type: ignore[arg-type]
+        resolver=autodoc_summary,
+    )
+
+
+def llms_site(config: Config) -> "llms.Site":
+    """The site settings, with the version-aware URL mike sets."""
+    settings = config["extra"].get("llms", {})
+    site_url = llms.normalise_site_url(config["site_url"])
+    policy = llms.Policy(
+        optional=tuple(settings.get("optional", ())),
+        index_max_bytes=int(settings.get("index_max_bytes", 24576)),
+        full_max_bytes=int(settings.get("full_max_bytes", 2097152)),
+    )
+    return llms.Site(
+        site_url=site_url,
+        description=config["site_description"],
+        version=llms.version_label(site_url, config["extra"]["hn_version"]),
+        repo_url=config["repo_url"],
+        policy=policy,
+    )
+
+
+def on_post_build(config: Config) -> None:
+    """Write llms.txt, llms-full.txt and the Markdown mirrors into the site."""
+    report = llms.build_outputs(llms_site(config), llms_inputs())
+    if report.errors:
+        raise PluginError("llms.txt: " + "; ".join(report.errors))
+    root = Path(config["site_dir"])
+    for name, text in report.files.items():
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, "utf-8")
+    for name in (llms.INDEX_NAME, llms.FULL_NAME):
+        size = len(report.files[name].encode())
+        log.info("%s: %d bytes, about %d tokens", name, size, size // 4)

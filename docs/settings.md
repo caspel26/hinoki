@@ -43,8 +43,8 @@ is not shadowed.
 `settings.AppSettings` brings the built-in groups: `execution`, `lifecycle`,
 `logging`, `docs`, `server`, `pagination`, `cors`, `compression`, `metrics`, `security`, `events` and `admin`, plus
 `timezone`, `debug` and `allowed_hosts` (see [Hosts, CORS and HTTPS](web-security.md)).
-`docs.openapi_url`, `docs.docs_url` and `docs.redoc_url` default to `None`; the
-generated `main.py` sets them with `Hinoki(...)` arguments, which win over settings.
+`docs.openapi_url`, `docs.docs_url`, `docs.redoc_url` and `docs.llms_url` default to `None`; the
+generated `main.py` passes `openapi_url` and `docs_url` as `Hinoki(...)` arguments, which win over settings; the other two stay off. `llms_url` must start with `/`.
 
 ## Built-in fields and defaults
 
@@ -76,6 +76,7 @@ generated `main.py` sets them with `Hinoki(...)` arguments, which win over setti
 | `docs` | `openapi_url` | `None` | JSON document route; disabled when `None` |
 | `docs` | `docs_url` | `None` | Swagger UI route; requires `openapi_url` |
 | `docs` | `redoc_url` | `None` | ReDoc route; requires `openapi_url` |
+| `docs` | `llms_url` | `None` | llms.txt route; does not need `openapi_url` |
 | `docs` | `openapi_version` | `3.2` | `3.2` or `3.1`: the document's `openapi` version; `Hinoki(openapi_version=...)` overrides it. See [the document version](openapi.md#the-document-version) |
 | `server` | `server` | `kiso` | `granian` or `kiso`; `--server` overrides it. See [Kiso server](kiso.md) |
 | `server` | `interface` | `asgi` | `asgi` or `wsgi`: what `hinoki serve` calls (a Hinoki application or a WSGI callable); `--interface` overrides it. See [WSGI](serving.md#wsgi) |

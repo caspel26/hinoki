@@ -19,6 +19,7 @@ from hinoki import jsontext
 
 STATIC = Path(__file__).parent / "static"
 HTML = "text/html; charset=utf-8"
+MARKDOWN = "text/markdown; charset=utf-8"
 JS = "text/javascript; charset=utf-8"
 CSS = "text/css; charset=utf-8"
 CSP = (
@@ -119,3 +120,21 @@ def pages(
     if redoc_url:
         found.update(redoc_pages(redoc_url, openapi_url))
     return found
+
+
+def check_llms_url(llms_url: str | None, *taken: str | None) -> None:
+    """Refuse an ``llms_url`` that is also the document or a viewer's path."""
+    if llms_url and not llms_url.startswith("/"):
+        raise ValueError(f"llms_url must start with '/', not {llms_url!r}")
+    if llms_url and llms_url in taken:
+        raise ValueError(
+            "llms_url must differ from openapi_url, docs_url and redoc_url"
+        )
+
+
+def llms_pages(llms_url: str | None, text: str) -> dict[str, Page]:
+    """The llms.txt page at ``llms_url``, if enabled. It is not cacheable by
+    clients for a day, like the document, because it follows the deployment."""
+    if not llms_url:
+        return {}
+    return {llms_url: Page(text.encode(), MARKDOWN, False)}

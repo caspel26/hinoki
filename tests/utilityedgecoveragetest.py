@@ -324,7 +324,7 @@ def test_openapi_writer_returns_error_for_an_unwritable_path(
     def fail_write(*_args: object, **_kwargs: object) -> int:
         raise OSError("disk unavailable")
 
-    monkeypatch.setattr(Path, "write_text", fail_write)
+    monkeypatch.setattr(Path, "write_bytes", fail_write)
     assert write_document(tmp_path / "openapi.json", "{}") == 2
     assert "disk unavailable" in capsys.readouterr().err
 

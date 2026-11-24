@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 from hinoki.api import API
 from hinoki.core import Router
 from hinoki.db import DatabaseModule
+from hinoki.docsui import check_llms_url
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import ErrorRegistrar, ErrorRegistry, RegistrationError
 from hinoki.events import EventBus, Handlers
@@ -195,6 +196,7 @@ class Hinoki:
         openapi_url: str | Unset | None = UNSET,
         docs_url: str | Unset | None = UNSET,
         redoc_url: str | Unset | None = UNSET,
+        llms_url: str | Unset | None = UNSET,
         openapi_version: Literal["3.1", "3.2"] | None = None,
         rules: RuleSet | None = None,
         enforce_rules: bool = True,
@@ -217,7 +219,14 @@ class Hinoki:
         self.middleware = check_middleware(middleware)
         self._configure_runtime(built_in, runtime)
         self._configure_docs(
-            docs, title, version, openapi_url, docs_url, redoc_url, openapi_version
+            docs,
+            title,
+            version,
+            openapi_url,
+            docs_url,
+            redoc_url,
+            llms_url=llms_url,
+            openapi_version=openapi_version,
         )
         self._configure_policy(built_in, rules, enforce_rules, parsers, renderers)
         # An explicit waiver file wins over the project's ``hinoki-rules.toml``.
@@ -295,6 +304,8 @@ class Hinoki:
         openapi_url: str | Unset | None,
         docs_url: str | Unset | None,
         redoc_url: str | Unset | None,
+        *,
+        llms_url: str | Unset | None,
         openapi_version: str | None,
     ) -> None:
         self.title = title if title is not None else docs.title
@@ -316,7 +327,9 @@ class Hinoki:
         self.openapi_url = openapi_url
         self.docs_url = docs_url
         self.redoc_url = redoc_url
+        self.llms_url = docs.llms_url if isinstance(llms_url, Unset) else llms_url
         docs_pages(openapi_url, docs_url, redoc_url)  # fail early on a bad combination
+        check_llms_url(self.llms_url, openapi_url, docs_url, redoc_url)
 
     def _configure_policy(
         self,

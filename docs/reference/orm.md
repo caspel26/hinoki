@@ -1,3 +1,7 @@
+---
+description: API reference for `Model`, columns, relations, indexes and querysets.
+---
+
 # Models and queries
 
 Concrete models may omit `@db.table(...)` (or the compatible `table=` class

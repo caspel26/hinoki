@@ -24,6 +24,7 @@ GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "mail",
             "settings",
             "openapi",
+            "llms",
             "version",
         ),
     ),

@@ -1,3 +1,7 @@
+---
+description: API reference for email messages, senders and templates.
+---
+
 # Email API
 
 ::: hinoki.mail.Message

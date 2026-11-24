@@ -79,6 +79,8 @@ def test_the_project_has_what_an_agent_needs(tmp_path: Path) -> None:
         and "request: Request" in agents
         and "explain_error" in agents
     )
+    assert "https://hinoki.caspel.dev/llms.txt" in agents
+    assert "llms-full.txt" in agents
     mcp = json.loads((target / ".mcp.json").read_text())
     assert mcp["mcpServers"]["hinoki"]["args"] == ["run", "hinoki", "mcp"]
     assert "read and follow" in (target / "CLAUDE.md").read_text().lower()

@@ -46,6 +46,38 @@ jobs:
           else
             uv run --locked mike set-default --push --branch gh-pages dev
           fi
+      - name: Copy llms.txt to the site root while dev is the default
+        env:
+          SOURCE_VERSION: dev
+          TARGETS: "."
+        run: |
+          set -euo pipefail
+          if uv run --locked mike list --json --branch gh-pages | python -c 'import json, sys; versions = json.load(sys.stdin); sys.exit(0 if any("stable" in v.get("aliases", []) for v in versions) else 1)'; then
+            echo "A stable release exists; the root follows it."
+            exit 0
+          fi
+          site="$RUNNER_TEMP/gh-pages"
+          git worktree add "$site" gh-pages
+          cp "$site/dev/llms.txt" "$site/dev/llms-full.txt" "$site/"
+          git -C "$site" add llms.txt llms-full.txt
+          if git -C "$site" diff --cached --quiet; then
+            echo "The llms files are already current."
+          else
+            git -C "$site" commit -m "docs: copy llms.txt for dev to the site root"
+            git -C "$site" push origin HEAD:gh-pages
+          fi
+          git worktree remove --force "$site"
+      - name: Check the published llms.txt (best effort)
+        env:
+          LLMS_URL: https://hinoki.caspel.dev/dev/llms.txt
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl -fsI "$LLMS_URL"; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::$LLMS_URL is not reachable yet; the CDN may still be updating."
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -97,3 +129,34 @@ jobs:
           uv run --locked mike deploy --push --branch gh-pages --alias-type redirect \
             --update-aliases "$version" stable latest
           uv run --locked mike set-default --push --branch gh-pages latest
+      - name: Copy llms.txt to the site root and the stable and latest aliases
+        env:
+          TARGETS: ". stable latest"
+        run: |
+          set -euo pipefail
+          source_version="${GITHUB_REF_NAME#v}"
+          site="$RUNNER_TEMP/gh-pages"
+          git worktree add "$site" gh-pages
+          for target in $TARGETS; do
+            mkdir -p "$site/$target"
+            cp "$site/$source_version/llms.txt" "$site/$source_version/llms-full.txt" "$site/$target/"
+            git -C "$site" add "$target/llms.txt" "$target/llms-full.txt"
+          done
+          if git -C "$site" diff --cached --quiet; then
+            echo "The llms files are already current."
+          else
+            git -C "$site" commit -m "docs: copy llms.txt for $source_version to the site root"
+            git -C "$site" push origin HEAD:gh-pages
+          fi
+          git worktree remove --force "$site"
+      - name: Check the published llms.txt (best effort)
+        env:
+          LLMS_URL: https://hinoki.caspel.dev/llms.txt
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl -fsI "$LLMS_URL"; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::$LLMS_URL is not reachable yet; the CDN may still be updating."

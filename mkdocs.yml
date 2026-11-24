@@ -22,6 +22,17 @@ hooks:
 
 extra:
   generator: false
+  # Read by docsite/hooks.py; sections and pages that go under `Optional` in
+  # llms.txt and stay out of llms-full.txt.
+  llms:
+    optional:
+      - Reference
+      - Project
+      - benchmarks.md
+      - changelog.md
+      - rust-crud-orientation.md
+    index_max_bytes: 24576
+    full_max_bytes: 2097152
 
 repo_url: https://github.com/caspel26/hinoki
 repo_name: caspel26/hinoki
