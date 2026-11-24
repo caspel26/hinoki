@@ -986,13 +986,16 @@ mod tests {
             ids_select(&table(), Dialect::Postgres, &Scope::default(), &owners).unwrap();
         assert_eq!(
             open,
-            "SELECT \"post_id\", \"tag_id\" FROM \"posts_tags\" WHERE \"post_id\" IN ($1, $2) LIMIT 7"
+            "SELECT \"post_id\", \"tag_id\" FROM \"posts_tags\" WHERE \"post_id\" IN ($1, $2) LIMIT $3"
         );
-        assert_eq!(params, vec![Value::Int(1), Value::Int(2)]);
+        assert_eq!(params, vec![Value::Int(1), Value::Int(2), Value::Int(7)]);
         let scope = Scope::column_equals("owner", Value::Text("ann".into()));
         let (scoped, params) = ids_select(&table(), Dialect::Sqlite, &scope, &owners[..1]).unwrap();
         assert!(scoped.contains("\"tag_id\" IN (SELECT \"id\" FROM \"tags\" WHERE"));
-        assert_eq!(params.last(), Some(&Value::Text("ann".into())));
+        assert_eq!(
+            params[params.len() - 2..],
+            [Value::Text("ann".into()), Value::Int(4)]
+        );
     }
 
     #[test]

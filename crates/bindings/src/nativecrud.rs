@@ -1381,7 +1381,11 @@ mod tests {
                 if sql.to_ascii_lowercase().contains("count(") {
                     Ok(vec![vec![("count".to_owned(), Value::Int(3))]])
                 } else {
-                    let id = values.first().cloned().unwrap_or(Value::Int(2));
+                    // a retrieve binds its key first; a list binds only its window
+                    let id = match values.first() {
+                        Some(key) if !sql.contains(" OFFSET ") => key.clone(),
+                        _ => Value::Int(2),
+                    };
                     Ok(vec![vec![
                         ("id".to_owned(), id),
                         ("name".to_owned(), Value::Text("second".to_owned())),
@@ -1486,8 +1490,8 @@ mod tests {
         let statements = database.statements.lock().unwrap();
         assert_eq!(statements.len(), 2);
         assert!(statements[0].0.to_ascii_lowercase().contains("count("));
-        assert!(statements[1].0.contains("LIMIT 1"));
-        assert!(statements[1].0.contains("OFFSET 1"));
+        assert!(statements[1].0.ends_with("LIMIT $1 OFFSET $2"));
+        assert_eq!(statements[1].1, [Value::Int(1), Value::Int(1)]);
     }
 
     #[tokio::test]
@@ -1560,18 +1564,26 @@ mod tests {
     }
 
     #[test]
-    fn list_sql_for_a_window_is_the_compiled_statement() {
+    fn list_sql_for_any_window_is_one_statement_with_bound_counts() {
         let plan = plan("list");
-        for (dialect, quote) in [("postgres", '"'), ("sqlite", '"'), ("mysql", '`')] {
+        for (dialect, quote, window) in [
+            ("postgres", '"', "LIMIT $1 OFFSET $2"),
+            ("sqlite", '"', "LIMIT ?1 OFFSET ?2"),
+            ("mysql", '`', "LIMIT ? OFFSET ?"),
+        ] {
             let q = |name: &str| format!("{quote}{name}{quote}");
             let expected = format!(
-                "SELECT {}, {} FROM {} ORDER BY {} ASC LIMIT 7 OFFSET 14",
+                "SELECT {}, {} FROM {} ORDER BY {} ASC {window}",
                 q("id"),
                 q("name"),
                 q("items"),
                 q("id")
             );
-            assert_eq!(plan.list_sql(dialect, 7, 14).unwrap(), expected);
+            for (size, offset) in [(7_i64, 14_i64), (7, 7_000), (100, 0)] {
+                let (sql, params) = plan.list_sql(dialect, size as u64, offset as u64).unwrap();
+                assert_eq!(sql, expected);
+                assert_eq!(params, [Value::Int(size), Value::Int(offset)]);
+            }
         }
     }
 

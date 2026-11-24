@@ -900,6 +900,18 @@ pub fn compile_delete_with<V: Clone>(q: &Delete<V>, dialect: Dialect) -> Compile
 mod tests {
     use super::*;
 
+    impl FromCount for i32 {
+        fn from_count(count: i64) -> Self {
+            i32::try_from(count).unwrap_or(i32::MAX)
+        }
+    }
+
+    impl FromCount for String {
+        fn from_count(count: i64) -> Self {
+            count.to_string()
+        }
+    }
+
     fn f(column: &str, op: Op, values: &[i32]) -> Filter<i32> {
         Filter {
             column: column.into(),
@@ -933,9 +945,63 @@ mod tests {
         assert_eq!(
             sql,
             "SELECT \"id\", \"title\" FROM \"posts\" WHERE \"published\" = $1 AND \"n\" >= $2 \
-             ORDER BY \"created_at\" DESC, \"id\" ASC LIMIT 10 OFFSET 20"
+             ORDER BY \"created_at\" DESC, \"id\" ASC LIMIT $3 OFFSET $4"
         );
-        assert_eq!(params, vec![1, 5]);
+        assert_eq!(params, vec![1, 5, 10, 20]);
+    }
+
+    #[test]
+    fn paging_is_bound_so_every_window_shares_one_statement() {
+        let mut q = select(vec![f("published", Op::Eq, &[1])]);
+        q.limit = Some(10);
+        let mut texts = Vec::new();
+        for (dialect, tail) in [
+            (Dialect::Postgres, " LIMIT $2 OFFSET $3"),
+            (Dialect::Sqlite, " LIMIT ?2 OFFSET ?3"),
+            (Dialect::Mysql, " LIMIT ? OFFSET ?"),
+        ] {
+            for offset in [0, 10, 990] {
+                q.offset = Some(offset);
+                let (sql, params) = compile_select_with(&q, dialect).unwrap();
+                assert!(sql.ends_with(tail), "{sql}");
+                assert_eq!(params, vec![1, 10, i32::try_from(offset).unwrap()]);
+                texts.push(sql);
+            }
+        }
+        texts.dedup();
+        assert_eq!(texts.len(), 3);
+    }
+
+    #[test]
+    fn counts_past_the_signed_range_are_clamped() {
+        let mut q = select(vec![]);
+        q.limit = Some(u64::MAX);
+        q.offset = Some(u64::MAX);
+        let (sql, params) = compile_select_bound(&q, Dialect::Postgres, &mut |n| {
+            assert_eq!(n, i64::MAX);
+            0
+        })
+        .unwrap();
+        assert!(sql.ends_with(" LIMIT $1 OFFSET $2"), "{sql}");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn fixed_statements_keep_literal_counts() {
+        let mut q = select(vec![f("id", Op::Eq, &[7])]);
+        q.limit = Some(2);
+        q.offset = Some(4);
+        let (sql, params) = compile_select_fixed(&q, Dialect::Postgres).unwrap();
+        assert!(sql.ends_with("WHERE \"id\" = $1 LIMIT 2 OFFSET 4"), "{sql}");
+        assert_eq!(params, vec![7]);
+        let mut next = 100;
+        let (sql, params) = compile_select_bound(&q, Dialect::Sqlite, &mut |n| {
+            next += 1;
+            next + i32::try_from(n).unwrap()
+        })
+        .unwrap();
+        assert!(sql.ends_with(" LIMIT ?2 OFFSET ?3"), "{sql}");
+        assert_eq!(params, vec![7, 103, 106]);
     }
 
     #[test]
@@ -1220,16 +1286,17 @@ mod tests {
         let mut query = select(vec![]);
         query.offset = Some(4);
         let (sql, params) = compile_select_with(&query, Dialect::Mysql).unwrap();
-        assert!(sql.ends_with(" LIMIT 18446744073709551615 OFFSET 4"));
-        assert!(params.is_empty());
+        assert!(sql.ends_with(" LIMIT 18446744073709551615 OFFSET ?"));
+        assert_eq!(params, vec![4]);
     }
 
     #[test]
     fn sqlite_offset_without_limit_uses_an_unbounded_limit() {
         let mut query = select(vec![]);
         query.offset = Some(4);
-        let (sql, _) = compile_select_with(&query, Dialect::Sqlite).unwrap();
-        assert!(sql.ends_with(" LIMIT -1 OFFSET 4"));
+        let (sql, params) = compile_select_with(&query, Dialect::Sqlite).unwrap();
+        assert!(sql.ends_with(" LIMIT -1 OFFSET ?1"));
+        assert_eq!(params, vec![4]);
     }
 
     #[test]
