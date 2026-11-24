@@ -1,0 +1,10 @@
+pid pgid cputime command
+ 557534  557534 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557548  557534 00:00:41 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557549  557534 00:00:34 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557550  557534 00:00:35 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557554  557534 00:00:34 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557558  557534 00:00:33 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557562  557534 00:00:36 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557566  557534 00:00:36 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin
+ 557572  557534 00:00:39 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 8 --port 8801 --no-admin

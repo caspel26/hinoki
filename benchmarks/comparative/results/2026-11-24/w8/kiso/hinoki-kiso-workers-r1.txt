@@ -1,0 +1,10 @@
+pid pgid cputime command
+1161925 1161925 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki serve parity_hinoki:app --server kiso --workers 8 --host 127.0.0.1 --port 8801
+1161926 1161925 00:00:30 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925
+1161927 1161925 00:00:35 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925
+1161928 1161925 00:00:32 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925
+1161929 1161925 00:00:40 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925
+1161930 1161925 00:00:36 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925
+1161931 1161925 00:00:39 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925
+1161932 1161925 00:00:34 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925
+1161933 1161925 00:00:32 /root/hinoki/benchmarks/comparative/.venv/bin/python -m hinoki.runtime.kiso parity_hinoki:app --fd 3 --parent 1161925

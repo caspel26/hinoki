@@ -1,0 +1,10 @@
+pid pgid cputime command
+1172050 1172050 00:00:00 /root/.local/bin/bun js/hono_bun.js
+1172058 1172050 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js
+1172059 1172050 00:00:26 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js
+1172060 1172050 00:00:26 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js
+1172061 1172050 00:00:26 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js
+1172062 1172050 00:00:26 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js
+1172063 1172050 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js
+1172064 1172050 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js
+1172070 1172050 00:00:26 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/hono_bun.js

@@ -1,0 +1,10 @@
+pid pgid cputime command
+1168544 1168544 00:00:00 /root/.local/bin/bun js/elysia_app.js
+1168552 1168544 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
+1168553 1168544 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
+1168554 1168544 00:00:26 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
+1168555 1168544 00:00:25 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
+1168556 1168544 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
+1168557 1168544 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
+1168558 1168544 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
+1168559 1168544 00:00:27 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/elysia_app.js
