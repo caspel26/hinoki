@@ -508,12 +508,12 @@ SERVICE_ROWS = (
     (
         "articles",
         "GET /articles?page=1&page_size=20",
-        "A page of articles with their author and tags and the total: a COUNT, the page joined with its author, then the tags of the page (Hinoki reads the link table and the tags in two statements).",
+        "A page of articles with their author and tags and the total: a COUNT, the page joined with its author, then the tags of the page.",
     ),
     (
         "article",
         "GET /articles/1",
-        "One article with its author, tags and comments: the article joined with its author, its comments, then its tags (two statements in Hinoki).",
+        "One article with its author, tags and comments: the article joined with its author, its comments, then its tags.",
     ),
     (
         "auth-me",
