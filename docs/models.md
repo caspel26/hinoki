@@ -231,8 +231,9 @@ class Article(Keyed, Tracked):
 * `abstract=True` is not inherited; an abstract model needs no primary key, a
   table model needs exactly one, its own or inherited.
 * **Options** from abstract bases are inherited: all `@db.unique` and
-  `@db.indexed`, and the order and timestamp column of the first base that sets
-  one. A decorator on the subclass *replaces* that kind of option. A
+  `@db.indexed`, the order and timestamp column of the first base that sets
+  one, a soft-delete option, and status tracks. A decorator on the subclass
+  *replaces* that kind of option. A
   `field(index=True)` index belongs to its column and is dropped when a subclass
   redeclares the column without it. Constraint names are not inherited: an
   abstract model cannot use `@db.unique(..., name=...)`.
@@ -248,6 +249,60 @@ class Article(Keyed, Tracked):
 
 A foreign key in an abstract model needs a per-subclass reverse name; see
 [relations](relations.md#foreign-keys-in-abstract-models-and-mixins).
+
+## Lifecycle utilities
+
+`TimestampedModel` and `SoftDeleteModel` are composable abstract bases. Their
+columns remain ordinary typed fields and are included in `table_state()` and
+migration plans. `TimestampedModel` supplies `created_at` and `updated_at`;
+`SoftDeleteModel` supplies an indexed nullable `deleted_at` column.
+
+```python
+from datetime import datetime
+from uuid import UUID, uuid4
+
+from hinoki import db
+from hinoki.orm import Model, SoftDeleteModel, TimestampedModel, field, pk
+from hinoki.utils import utc_now
+
+
+class Document(TimestampedModel, SoftDeleteModel):
+    id: UUID = pk(default_factory=uuid4)
+    title: str
+
+
+@db.track_status("status", changed_at="status_changed_at")
+class Order(Model):
+    id: UUID = pk(default_factory=uuid4)
+    status: str = "draft"
+    status_changed_at: datetime = field(default_factory=utc_now)
+```
+
+`@db.soft_delete(column="archived_at", clock=...)` and
+`@db.track_status(field="state", changed_at="state_changed_at", clock=...)`
+can use custom declared columns. Decorators validate columns and types when the
+model is registered; tracked status decorators can be stacked. The supplied
+clock is used for managed timestamps, otherwise the model's
+`@db.timestamps(clock=...)` clock is used.
+
+On a soft-delete model, `all()`, `filter()` and model lookups see live rows
+only. `with_deleted()` includes every row and `only_deleted()` selects deleted
+rows. Instance `asoft_delete()` / `soft_delete()` and `arestore()` / `restore()`
+run normal save hooks. `is_deleted` reports the instance state. These methods
+are idempotent; unsaved instances are refused. `previous(name)` returns the
+stored value (or `UNSET` on a new instance), and `changed_fields` lists fields
+that differ from the last snapshot.
+
+Status tracking updates its timestamp only when an instance save actually
+changes the tracked value; an explicit timestamp value is preserved. A bulk
+`QuerySet.aupdate()` is a single SQL statement and cannot compare old values, so
+it updates the timestamp whenever the tracked field is included in `values`,
+even when the supplied status equals the current value.
+
+Soft deletion is an `UPDATE`; database `ON DELETE CASCADE` and `RESTRICT`
+actions apply only to physical `ahard_delete()` calls. Ordinary `unique=True`
+and `@db.unique(...)` constraints continue to include soft-deleted rows. A
+partial unique index for live rows needs a custom SQL migration.
 
 ## Relate models through a link table
 

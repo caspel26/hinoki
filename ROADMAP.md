@@ -20,6 +20,8 @@ pre-1.0 break policy.
 - Reload on `SIGHUP` in Kiso (`hinoki serve`, POSIX): the supervisor, which is Python, starts new workers one at a time, waits until each serves, then stops the old one gracefully, all on the same listening socket. See [Kiso](docs/kiso.md#reload-on-sighup).
 - WebSockets (`@http.websocket`) on Kiso, with framing and limits in Rust, and through the ASGI `websocket` scope on Granian. See [WebSockets](docs/websockets.md).
 - Typed events with explicit handlers (`in_transaction` and `after_commit`), including model events and `AuthRejected`/`RateLimited`. See [events](docs/events.md).
+- Composable model lifecycle utilities: `TimestampedModel`, `SoftDeleteModel`, `@db.soft_delete()`, stackable `@db.track_status()`, soft-delete query scopes and explicit restore/hard-delete operations. See [models](docs/models.md#lifecycle-utilities).
+- Many-to-many relations (`many_to_many(...)`, generated CRUD ids fields, admin multi-select, MCP description); routes with an ids field run on the native generated-CRUD lane when targets are scoped with `all_rows(...)`/`own_rows(...)`, and stay on the Python lane with a custom scope, hook, soft-delete target or link event handler.
 - Client filters, ordering and search on generated `crud(...)` lists through a `FilterSet`, parsed and compiled in Rust, with typed OpenAPI parameters; on Kiso, offset-paginated filtered lists without custom `get_queryset`/`filter_queryset` hooks run on the native generated-CRUD lane. See [CRUD](docs/crud.md#filter-order-and-search-the-list).
 - OpenAPI 3.2 documents (3.1 with `docs.openapi_version`), with `QUERY` as the `query` operation (`x-query` in 3.1) and per-action `tags`, `deprecated`, `operation_id` and `include_in_schema`. See [OpenAPI](docs/openapi.md).
 - A CORS policy for the whole application that an action, a `RouteGroup` or `crud(...)` can replace. See [per-route CORS](docs/web-security.md#cors-per-route).
@@ -35,12 +37,11 @@ See the [documentation](https://hinoki.caspel.dev/) and runnable [examples](exam
 - Validate the server integration, admin styles and generated typing contracts across real usage.
 - Cursor (keyset) pagination is available as `CursorPagination` for generated lists and handwritten routes (see [pagination](docs/pagination.md#cursor-keyset-pagination)); the admin lists keep page numbers.
 - Before the first release (`0.1.0`):
-    - many-to-many relations (`many_to_many(...)`, generated CRUD ids fields, admin multi-select, MCP description); routes with an ids field run on the native generated-CRUD lane when the targets are scoped with `all_rows(...)`/`own_rows(...)` (ids read by one extra query per page, writes in the row's transaction), and stay on the Python lane with a custom scope, hook or link event handler;
-    - a stable CI on `main` and a clean quality gate. This remains in progress: recent Actions runs showed intermittent server/process and shared-rate-limit failures. The current branch's complete applicable Python suite passes locally on Python 3.13 after isolating process/SQLite stress suites and aligning the SQLite write-stress test with its single-writer behavior. GitHub Actions still needs to confirm the fix before this gate is considered stable;
-    - common model utilities for lifecycle needs, such as timestamps, status-change tracking, soft deletion and field-change tracking, with their migration, query-scope and admin behavior defined;
     - fuzzing of the request-line and header limits Kiso applies over its HTTP parser;
-    - a written compatibility policy, including what is promised about the migration format;
-    - a tested quickstart from the published package, and a load and a soak test described in the documentation;
+    - a final audit of the public Python API surface (`hinoki`, `hinoki.http`, `hinoki.db`, `hinoki.orm`, `hinoki.admin`) before locking the `0.1.x` compatibility promise;
+    - a clean-wheel dry-run verifying packaging (quickstart, migrations, admin static assets and `hinoki serve` from a built wheel);
+    - a full review of the admin templates and styles across themes, viewports and interactive flows;
+    - end-to-end validation of Hinoki on a production-ready application project;
     - a review of the security findings, and a review of the site and release process before publishing.
 
 ## Planned for 0.2.0
