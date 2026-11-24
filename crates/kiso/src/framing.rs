@@ -118,6 +118,10 @@ pub struct Framing {
     declared: Option<u64>,
     chunked: bool,
     previous: u8,
+    /// A byte other than CR/LF was collected: the empty lines httparse skips
+    /// before a request line (RFC 9112 §2.2) do not end a head, but they count
+    /// toward its bound as they do toward httparse's head length.
+    started: bool,
     max_head: usize,
     signals: Arc<Signals>,
 }
@@ -134,6 +138,7 @@ impl Framing {
             declared: None,
             chunked: false,
             previous: 0,
+            started: false,
             max_head,
             signals,
         }
@@ -165,6 +170,7 @@ impl Framing {
         for (index, byte) in bytes.iter_mut().enumerate() {
             let bare = *byte == b'\n' && self.previous != b'\r';
             self.previous = *byte;
+            self.started |= !matches!(*byte, b'\r' | b'\n');
             self.collected.push(*byte);
             // A head above the bound fails closed like any other refusal: the
             // NUL makes httparse refuse it, so nothing past the bound is
@@ -175,7 +181,7 @@ impl Framing {
                 self.give_up();
                 return index + 1;
             }
-            if self.collected.ends_with(HEAD_END) {
+            if self.started && self.collected.ends_with(HEAD_END) {
                 self.end_head();
                 return index + 1;
             }
@@ -223,6 +229,7 @@ impl Framing {
         self.declared = None;
         self.chunked = false;
         self.previous = 0;
+        self.started = false;
     }
 
     fn give_up(&mut self) {
@@ -552,4 +559,5 @@ transfer-encoding: chunked
         assert_eq!(run(&mut f, &[request]), request);
         assert!(!close.close.load(Ordering::Acquire));
     }
+
 }
