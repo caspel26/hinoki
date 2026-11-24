@@ -1158,8 +1158,12 @@ impl<'py> Encoder<'py> {
     }
 
     /// The wire text of a `date`, `time`, `timedelta`, `Decimal`, `bytes` and
-    /// the other text scalars, at any depth, the top level included.
+    /// the other text scalars, at any depth, the top level included. A
+    /// `Secret` is always masked: it never reaches the `default` hook.
     fn wire_text(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<String>> {
+        if value.is_instance(crate::pytypes::secret_class(value.py())?)? {
+            return Ok(Some(crate::schema::SECRET_MASK.to_owned()));
+        }
         if !self.wire_forms() {
             return Ok(None);
         }

@@ -40,8 +40,8 @@ use model::{Definition, Kind, Node, MAX_DEPTH};
 #[allow(unused_imports)]
 pub use model::{SchemaInstanceFields, SchemaWireNames};
 pub use modelplan::ModelPlan;
-pub(crate) use scalars::wire_text;
 pub use scalars::wire_text_of;
+pub(crate) use scalars::{wire_text, SECRET_MASK};
 pub use serialize::{dump_for_storage, dump_instance, serialize_instance};
 pub use typeddecode::{NativeInit, NativeMethod, Pinned};
 use validate::is_composite;
