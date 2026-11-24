@@ -113,7 +113,7 @@ class PageNumberPagination:
         return default
 
 
-MAX_TOKEN = 1024  # characters; the Rust codec rejects longer tokens as well
+MAX_TOKEN = core.CURSOR_MAX_TOKEN  # characters; shared with the Rust cursor codec
 
 
 @dataclass(frozen=True, slots=True)

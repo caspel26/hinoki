@@ -47,6 +47,7 @@ from hinoki.http.stream import File, Streamed
 from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
 from hinoki.orm import database_var
+from hinoki.orm.links import check_resolved
 from hinoki.orm.model import Model
 from hinoki.pagination import Page as ResultPage
 from hinoki.parsers import JSONParser, Parser, choose, is_native_parser
@@ -195,6 +196,7 @@ class Pipeline:
     """One pipeline per worker process; it owns that worker's runtime state."""
 
     def __init__(self, app: Hinoki) -> None:
+        check_resolved()
         self.app = app
         self.bindings = app.bindings
         self.rate_limit_metrics: core.RateLimitMetrics | None = None

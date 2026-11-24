@@ -94,6 +94,22 @@ class LinkEnd(Protocol):
     ) -> None: ...
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class Hidden:
+    """A loaded forward relation whose row is soft-deleted: it reads as
+    ``None`` while the foreign key still holds ``key``."""
+
+    key: Any
+
+
+def forward_value(model: type[Model], key: Any, found: Any) -> Any:
+    """What a loaded forward relation stores: ``found``, or ``Hidden`` when a
+    soft-deleting target was not found although the foreign key names one."""
+    if found is None and key is not None and model.__soft_delete__ is not None:
+        return Hidden(key)
+    return found
+
+
 class Related[T]:
     """Class attribute that serves a loaded relation from the instance.
 
@@ -132,11 +148,13 @@ class Related[T]:
                 f"{type(instance).__name__}.{self.name} was loaded for another "
                 f"{self.column}: query again with .select_related({self.name!r})"
             )
-        return value
+        return None if isinstance(value, Hidden) else value
 
     def stale(self, instance: Any, value: Any) -> bool:
         """The foreign key changed after the relation was loaded."""
         current = getattr(instance, self.column)
+        if isinstance(value, Hidden):
+            return bool(value.key != current)
         if value is None:
             return current is not None
         return bool(getattr(value, self.key) != current)

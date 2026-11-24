@@ -18,7 +18,7 @@ import types
 import typing
 import weakref
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any, Literal, Self, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, overload
 from uuid import UUID, uuid4
 
 from hinoki import core, events
@@ -111,6 +111,7 @@ class LinkSide:
             key_end(self.target, self.far),
             self.max_items,
             None if self.forward else self.declarer.__links__[self.declared].max_items,
+            self.target.__soft_delete__,
         )
 
     def subquery(self, items: list[tuple[str, Any]]) -> SubQuery:
@@ -118,7 +119,7 @@ class LinkSide:
         ``items`` (``name__op`` and value) on the target."""
         target = self.target
         key = target.__primary_key__
-        joins: list[tuple[str, str, str, str, bool, list[str]]] = []
+        joins: list[tuple[str, str, str, str, bool, list[str], str | None]] = []
         filters: list[tuple[str, str, list[Any]]] = []
         checks: list[tuple[str, str, list[Any]]] = []
         negated = False
@@ -135,13 +136,18 @@ class LinkSide:
                 filters.append((self.far, op, values))
                 continue
             if not joins:
-                joins.append((target.__table__, ALIAS, self.far, key, True, []))
+                joins.append((target.__table__, ALIAS, self.far, key, True, [], None))
             filters.append((f"{ALIAS}.{column}", op, values))
             checks.append((column, op, values))
         if negated and (filters or len(items) > 1):
             raise FieldError(
                 f"{self.name}__isnull cannot be combined with other conditions"
             )
+        if target.__soft_delete__ is not None:
+            # a link to a soft-deleted target does not count as a link
+            if not joins:
+                joins.append((target.__table__, ALIAS, self.far, key, True, [], None))
+            filters.append((f"{ALIAS}.{target.__soft_delete__}", "isnull", []))
         return SubQuery(
             self.source.__primary_key__,
             negated,
@@ -186,7 +192,10 @@ class LinkSide:
         self, within: QuerySet[Any] | None
     ) -> tuple[list[Any], list[Any], list[core._RawSub]]:
         if within is None:
-            return ([], [], [])
+            if self.target.__soft_delete__ is None:
+                return ([], [], [])
+            # soft-deleted targets cannot be linked, unlinked or replaced
+            within = self.target.all()
         self.check_within(within)
         return raw_scope(within)
 
@@ -246,6 +255,8 @@ class LinkSide:
     ) -> list[tuple[Any, Any]]:
         database = current_database()
         subfilters = []
+        if within is None and self.target.__soft_delete__ is not None:
+            within = self.target.all()
         if within is not None:
             subfilters = [self.in_scope(within).raw()]
         sql, params = core.compile_query(
@@ -570,6 +581,8 @@ class ManyToMany[T: Model]:
     """The declaration (``many_to_many(Tag)``) and, once bound, the attribute
     that gives each instance its ``LinkSet``."""
 
+    __hinoki_link__: ClassVar[bool] = True
+    """Lets model registration leave a missing ``ClassVar`` to ``bind``."""
     side: LinkSide | None
 
     def __init__(self, declaration: Declaration | None = None) -> None:
@@ -706,6 +719,18 @@ def bind(cls: type[Model], *, abstract: bool) -> None:
         adopt(owner, name, declaration, cls)
     for name, declaration in declared:
         register(cls, name, declaration)
+
+
+def check_resolved() -> None:
+    """Refuse a ``many_to_many(bridge="Name")`` whose bridge model was never
+    defined: the relation would otherwise stay unusable without a word."""
+    if not PENDING:
+        return
+    waiting = ", ".join(
+        f"{owner.__name__}.{name} (bridge {module}.{bridge})"
+        for (module, bridge), (owner, name) in sorted(PENDING.items())
+    )
+    raise RegistrationError(f"many_to_many bridges never defined: {waiting}")
 
 
 def resolved_target(owner: type[Model], decl: Declaration) -> type[Model]:

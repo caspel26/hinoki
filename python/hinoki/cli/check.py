@@ -17,6 +17,7 @@ from hinoki.cli.new import add_arguments as add_new_arguments
 from hinoki.cli.reportui import check_summary, check_text
 from hinoki.errors import RegistrationError
 from hinoki.mail import TemplateError
+from hinoki.orm.links import check_resolved
 from hinoki.project import find_manifest_or_none, load_manifest
 from hinoki.rules import (
     SCHEMA_VERSION,
@@ -132,6 +133,7 @@ def run_check(args: argparse.Namespace, today: datetime.date | None = None) -> i
     try:
         app = build_app(args.target)
         import_project_models(args.target)
+        check_resolved()
         rules = build_rules(args.rules, app)
         project = Project(app, tuple(args.package or default_packages(args.target)))
         phase = Phase(args.phase) if args.phase else None

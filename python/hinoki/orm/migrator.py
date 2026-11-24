@@ -32,6 +32,19 @@ CREATE_MYSQL_LEDGER = (
     "applied_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)) ENGINE=InnoDB"
 )
 SELECT_LEDGER = "SELECT name, checksum FROM hinoki_migrations"
+LEDGER_EXISTS = {
+    "sqlite": (
+        "SELECT name FROM sqlite_master "
+        "WHERE type = 'table' AND name = 'hinoki_migrations'"
+    ),
+    "mysql": (
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = DATABASE() AND table_name = 'hinoki_migrations'"
+    ),
+    "postgres": (
+        "SELECT 1 AS present WHERE to_regclass('hinoki_migrations') IS NOT NULL"
+    ),
+}
 INSERT_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES ($1, $2)"
 INSERT_SQLITE_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES (?1, ?2)"
 INSERT_MYSQL_LEDGER = "INSERT INTO hinoki_migrations (name, checksum) VALUES (?, ?)"
@@ -51,11 +64,7 @@ async def recorded(database: Database, namespace: str = "") -> dict[str, str]:
     }
 
 
-async def status(
-    database: Database, directory: Path, *, namespace: str = ""
-) -> list[tuple[str, str]]:
-    """``(name, state)`` per migration: ``applied``, ``pending``, ``changed``
-    (applied, but the file differs) or ``missing`` (applied, file gone)."""
+async def ensure_ledger(database: Database) -> None:
     await database.execute(
         CREATE_SQLITE_LEDGER
         if database.dialect == "sqlite"
@@ -63,7 +72,22 @@ async def status(
         if database.dialect in {"mysql", "mariadb"}
         else CREATE_LEDGER
     )
-    applied = await recorded(database, namespace)
+
+
+async def ledger_exists(database: Database) -> bool:
+    dialect = "mysql" if database.dialect == "mariadb" else database.dialect
+    return bool(await database.fetch(LEDGER_EXISTS[dialect]))
+
+
+async def status(
+    database: Database, directory: Path, *, namespace: str = ""
+) -> list[tuple[str, str]]:
+    """``(name, state)`` per migration: ``applied``, ``pending``, ``changed``
+    (applied, but the file differs) or ``missing`` (applied, file gone).
+    Read-only: without a ledger table nothing has been applied."""
+    applied = (
+        await recorded(database, namespace) if await ledger_exists(database) else {}
+    )
     files = {p.stem: p for p in migration_files(directory)}
     result: list[tuple[str, str]] = []
     for name in sorted(files.keys() | applied.keys()):
@@ -82,6 +106,7 @@ async def apply(
     database: Database, directory: Path, *, namespace: str = ""
 ) -> list[str]:
     """Apply pending migrations in order; returns the names applied."""
+    await ensure_ledger(database)
     problems = [
         f"{n} is {s}"
         for n, s in await status(database, directory, namespace=namespace)

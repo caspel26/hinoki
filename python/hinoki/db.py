@@ -371,10 +371,28 @@ class AtomicScope:
         await self.run_commit_callbacks(state)
 
     async def leave_savepoint(self, state: ActiveTransaction, ok: bool) -> None:
-        verb = "RELEASE SAVEPOINT" if ok else "ROLLBACK TO SAVEPOINT"
-        if not ok:
-            del state.commit_callbacks[self.callback_mark :]
-        await state.native.execute(f"{verb} {self.savepoint}", [])
+        """Release the savepoint, or roll back to it and then release it: a
+        ``ROLLBACK TO`` keeps the savepoint open. A failed release counts as a
+        rollback, so the block's ``after_commit`` callbacks are dropped."""
+        if ok:
+            try:
+                await state.native.execute(f"RELEASE SAVEPOINT {self.savepoint}", [])
+            except BaseException:
+                del state.commit_callbacks[self.callback_mark :]
+                await self.undo_savepoint(state)
+                raise
+            return
+        del state.commit_callbacks[self.callback_mark :]
+        await state.native.execute(f"ROLLBACK TO SAVEPOINT {self.savepoint}", [])
+        await state.native.execute(f"RELEASE SAVEPOINT {self.savepoint}", [])
+
+    async def undo_savepoint(self, state: ActiveTransaction) -> None:
+        """Best effort after a failed release; the release error propagates."""
+        try:
+            await state.native.execute(f"ROLLBACK TO SAVEPOINT {self.savepoint}", [])
+            await state.native.execute(f"RELEASE SAVEPOINT {self.savepoint}", [])
+        except Exception:
+            log.exception("rolling back savepoint %s failed", self.savepoint)
 
     @staticmethod
     async def run_commit_callbacks(state: ActiveTransaction) -> None:
