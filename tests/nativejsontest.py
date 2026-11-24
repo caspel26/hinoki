@@ -415,6 +415,19 @@ def test_encode_survives_a_hook_that_mutates_the_containers_being_written() -> N
     assert core.encode_json(items, default=clear_items) == b"[null]"
     assert core.encode_json(table, default=clear_table) == b'{"a":null,"b":2}'
 
+    class Mutator:
+        def __init__(self, target: dict[str, Any]) -> None:
+            self.target = target
+
+        def dump(self) -> dict[str, bool]:
+            self.target.clear()
+            return {"ok": True}
+
+    dumped: dict[str, Any] = {}
+    dumped["first"] = Mutator(dumped)
+    dumped["second"] = 2
+    assert core.encode_json(dumped) == b'{"first":{"ok":true},"second":2}'
+
 
 @pytest.mark.parametrize(
     ("value", "expected"),
@@ -441,3 +454,27 @@ def test_a_secret_is_masked_and_never_given_to_the_default_hook() -> None:
     assert encoded == b'{"token":"**********"}'
     assert core.encode_json(Secret("raw"), None, False, hook) == b'"**********"'
     assert seen == []
+
+
+def test_encode_handles_datetime_edge_cases_and_subclasses() -> None:
+    offset = datetime.timezone(datetime.timedelta(hours=-5, minutes=-30))
+    naive = datetime.datetime(2026, 2, 28, 8, 9, 10)
+    with_micros = datetime.datetime(2026, 2, 28, 8, 9, 10, 42, tzinfo=offset)
+
+    class CustomDateTime(datetime.datetime):
+        def isoformat(self, sep: str = "T", timespec: str = "auto") -> str:
+            return f"custom:{super().isoformat(sep, timespec)}"
+
+    class NonStrIsoDateTime(datetime.datetime):
+        def isoformat(self, sep: str = "T", timespec: str = "auto") -> Any:
+            return 12345
+
+    custom = CustomDateTime(2026, 3, 1, 12, 0, tzinfo=datetime.UTC)
+    non_str = NonStrIsoDateTime(2026, 3, 1, 12, 0, tzinfo=datetime.UTC)
+    got = json.loads(core.encode_json([naive, with_micros, custom, non_str]))
+    assert got == [
+        naive.isoformat(),
+        with_micros.isoformat(),
+        custom.isoformat(),
+        "12345",
+    ]

@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from hinoki import core
 from hinoki.errors import RegistrationError
 from hinoki.http.response import Response
 from hinoki.orm.model import Model
@@ -140,7 +141,17 @@ def collection_check(name: str, arm: object) -> Check:
         )
     item = compile_item(name, args[0])
     if origin is list:
-        return lambda value: isinstance(value, list) and all(item(v) for v in value)
+
+        def fallback(value: object) -> bool:
+            return isinstance(value, list) and all(item(v) for v in value)
+
+        nested = unwrap(args[0])
+        if typing.get_origin(nested) is dict and typing.get_args(nested) == (
+            str,
+            object,
+        ):
+            return core._ResponseObjectList(fallback, item)
+        return fallback
     container = origin
     return lambda value: (
         isinstance(value, container) and all(item(v) for v in value.items)

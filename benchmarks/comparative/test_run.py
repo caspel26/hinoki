@@ -77,7 +77,7 @@ def test_command_sends_each_extra_header() -> None:
 
 
 def test_every_mode_is_sized_from_workers_and_pool() -> None:
-    modes = run.server_modes(workers=8, pool=4)
+    modes = run.server_modes(workers=8, pool=4, runtime_threads=3)
 
     assert {name for table in modes.values() for name in table} == set(run.LABELS)
     for table in modes.values():
@@ -91,6 +91,13 @@ def test_every_mode_is_sized_from_workers_and_pool() -> None:
     bolt_env = modes["documented"]["bolt"][1]
     assert bolt_env["DJANGO_BOLT_EXECUTOR_THREADS"] == "4"
     assert bolt_env["DJANGO_BOLT_ORM_THREADS"] == "4"
+    assert modes["kiso"]["hinoki-kiso"][1]["BENCH_SERVER__RUNTIME_THREADS"] == "3"
+    assert "BENCH_SERVER__RUNTIME_THREADS" not in modes["documented"]["hinoki"][1]
+    assert all(
+        "BENCH_SERVER__RUNTIME_THREADS" not in env
+        for name, (_, env) in modes["same-granian"].items()
+        if name != "hinoki-kiso"
+    )
     for name in ("litestar", "fastapi", "ninja"):
         command = modes["documented"][name][0]
         assert command[0] == "uvicorn"
@@ -104,7 +111,19 @@ def test_defaults_follow_django_bolts_method_and_workers_is_a_variant(
     monkeypatch.setattr(run, "SERVER_MODES", dict(run.SERVER_MODES))
     args = run.arguments([])
 
-    assert (args.workers, args.pool, args.duration, args.requests) == (1, 8, 10, None)
+    assert (
+        args.workers,
+        args.pool,
+        args.runtime_threads,
+        args.duration,
+        args.requests,
+    ) == (
+        1,
+        8,
+        1,
+        10,
+        None,
+    )
     assert (args.restarts, args.runs, args.cooldown) == (2, 1, 20)
     assert run.WARMUP == {"requests": 1000, "connections": 10}
     assert run.CONCURRENCY == 100
@@ -113,7 +132,68 @@ def test_defaults_follow_django_bolts_method_and_workers_is_a_variant(
     args = run.arguments(["--workers", "8", "--requests", "100000"])
     command, _ = run.SERVER_MODES["documented"]["hinoki"]
     assert command[command.index("--workers") + 1] == "8"
+    kiso_args = run.arguments(
+        [
+            "--server-mode",
+            "kiso",
+            "--runtime-threads",
+            "3",
+        ]
+    )
+    assert kiso_args.runtime_threads == 3
+    assert (
+        run.SERVER_MODES["kiso"]["hinoki-kiso"][1]["BENCH_SERVER__RUNTIME_THREADS"]
+        == "3"
+    )
     assert run.sample_stop(args) == {"requests": 100000}
+
+
+def test_runtime_threads_must_be_positive(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        run.arguments(["--server-mode", "kiso", "--runtime-threads", "0"])
+    assert "--runtime-threads must be at least 1" in capsys.readouterr().err
+
+
+def test_runtime_threads_are_kiso_only(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        run.arguments(["--runtime-threads", "2"])
+    assert "only available with --server-mode kiso" in capsys.readouterr().err
+
+
+def test_git_source_state_records_commit_and_dirty_status(tmp_path: Path) -> None:
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    git("init", "--quiet")
+    (tmp_path / "source.py").write_text("value = 1\n")
+    git("add", "source.py")
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(tmp_path),
+            "-c",
+            "user.name=Benchmark test",
+            "-c",
+            "user.email=benchmark@example.test",
+            "commit",
+            "--quiet",
+            "-m",
+            "baseline",
+        ],
+        check=True,
+    )
+    commit = git("rev-parse", "HEAD")
+
+    assert run.git_source_state(tmp_path) == {"git_hash": commit, "dirty": False}
+
+    (tmp_path / "source.py").write_text("value = 2\n")
+    assert run.git_source_state(tmp_path) == {"git_hash": commit, "dirty": True}
 
 
 def test_only_the_auth_scenarios_carry_a_valid_session_cookie() -> None:
@@ -303,6 +383,7 @@ def test_only_the_bench_variables_a_stack_declares_reach_its_server() -> None:
 
     bun = run.server_env("elysia-bun", leaked)
     hinoki = run.server_env("hinoki", leaked)
+    kiso = run.server_env("hinoki-kiso", leaked)
     fastapi = run.server_env("fastapi", leaked)
 
     assert bun["PATH"] == "/bin"
@@ -314,9 +395,11 @@ def test_only_the_bench_variables_a_stack_declares_reach_its_server() -> None:
         "BENCH_DATABASE__MAX_SIZE",
     }
     assert hinoki["BENCH_DATABASE__URL"] == run.DB
+    assert "BENCH_SERVER__RUNTIME_THREADS" not in hinoki
     assert "BENCH_POSTGRES_CONTAINER" not in fastapi
     assert fastapi["BENCH_POOL"] == str(run.POOL)
     assert fastapi["PYTHONPATH"] == str(run.HERE)
+    assert kiso["BENCH_SERVER__RUNTIME_THREADS"] == "1"
 
 
 def test_python_servers_run_in_this_interpreter_and_runtimes_by_path(

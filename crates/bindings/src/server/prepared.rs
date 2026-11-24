@@ -640,6 +640,18 @@ impl PreparedRequest {
         self.respond_final_owned(status, headers, body.to_vec())
     }
 
+    /// Encode `value` directly into the owned response buffer and complete the
+    /// native request without creating an intermediate Python `bytes` object.
+    pub(crate) fn respond_final_json(
+        &self,
+        status: u16,
+        headers: Vec<(Vec<u8>, Vec<u8>)>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<bool> {
+        let body = crate::request::encode_json_vec(value)?;
+        Ok(self.respond_final_owned(status, headers, body))
+    }
+
     /// The same finalization for an answer the Python pipeline built: the
     /// route's own headers are the ones that pipeline resolved for the request.
     pub(crate) fn respond_routed(

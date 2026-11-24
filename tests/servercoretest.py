@@ -824,3 +824,41 @@ def test_body_methods_are_native_only_with_one_schema_body_and_built_in_parsers(
         "/form": True,
         "/bare": False,
     }
+
+
+def test_respond_final_json_handles_get_head_and_encode_errors() -> None:
+    app = Hinoki()
+    app.include(native)
+    server = classifier(app)
+
+    get_sub = server.submit("GET", "/native", b"", [])
+    [get_req] = server.drain(1)
+    assert get_req.respond_final_json(
+        200, [(b"content-type", b"application/json")], {"ok": True}
+    )
+    get_reply = get_sub.reply()
+    assert get_reply is not None
+    assert get_reply[0] == 200 and get_reply[2] == b'{"ok":true}'
+
+    head_sub = server.submit("HEAD", "/native", b"", [])
+    [head_req] = server.drain(1)
+    assert head_req.respond_final_json(
+        200, [(b"content-type", b"application/json")], {"ok": True}
+    )
+    head_reply = head_sub.reply()
+    assert head_reply is not None
+    assert head_reply[0] == 200 and head_reply[2] == b""
+    assert dict(head_reply[1])[b"content-length"] == str(len(b'{"ok":true}')).encode()
+
+    err_sub = server.submit("GET", "/native", b"", [])
+    [err_req] = server.drain(1)
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        err_req.respond_final_json(
+            200, [(b"content-type", b"application/json")], object()
+        )
+    assert err_req.respond_final(
+        500, [(b"content-type", b"application/json")], b'{"error":"internal_error"}'
+    )
+    err_reply = err_sub.reply()
+    assert err_reply is not None
+    assert err_reply[0] == 500 and err_reply[2] == b'{"error":"internal_error"}'

@@ -26,6 +26,7 @@ from hinoki import (
     RateLimitContext,
     RuntimeConfig,
     Schema,
+    context,
     core,
     http,
 )
@@ -45,7 +46,7 @@ from hinoki.runtime.nativelane import (
     resume,
     timeout_response,
 )
-from hinoki.runtime.responses import Response
+from hinoki.runtime.responses import NO_PAYLOAD, Response
 from hinoki.runtime.servercore import stock_owner
 from tests.kisoservertest import Received, fetch
 from tests.providers import TokenAuth
@@ -880,6 +881,10 @@ class FakeRequest:
             raise OSError("peer gone")
         self.answers.append(status)
 
+    def respond_final_json(self, status: int, headers: Any, value: object) -> None:
+        body = core.encode_json(value, None, False, None)
+        self.respond_final(status, headers, body)
+
 
 class FakePipeline:
     def __init__(self) -> None:
@@ -1081,3 +1086,102 @@ def test_closing_a_resumed_coroutine_closes_the_coroutine() -> None:
     assert next(generator) == "yielded"
     generator.close()
     assert closed == [True]
+
+
+async def test_deferred_json_sends_headers_and_translates_encode_errors() -> None:
+    lane, pipeline, failed = make_lane()
+    sent: list[tuple[int, list[tuple[bytes, bytes]], bytes]] = []
+
+    class RecordingRequest(FakeRequest):
+        def respond_final(self, status: int, headers: Any, body: bytes) -> None:
+            sent.append((status, list(headers), body))
+            super().respond_final(status, headers, body)
+
+    ok_req = RecordingRequest("ok")
+    ok_run = run_of(lane, ok_req)
+    ok_run.ctx.run(context.rate_limit_headers.set, (("x-ratelimit-remaining", "9"),))
+    lane._finish(
+        ok_run,
+        Response(200, b"", [(b"content-type", b"application/json")], payload={"a": 1}),
+        None,
+        None,
+    )
+    assert sent == [
+        (
+            200,
+            [
+                (b"content-type", b"application/json"),
+                (b"x-ratelimit-remaining", b"9"),
+            ],
+            b'{"a":1}',
+        )
+    ]
+
+    bad_finish = FakeRequest("bad-finish")
+    pipeline.failure = Response(500)
+    lane._finish(
+        run_of(lane, bad_finish),
+        Response(200, b"", [(b"content-type", b"application/json")], payload=object()),
+        None,
+        None,
+    )
+    assert bad_finish.answers == [500] and failed == []
+
+    bad_handover = FakeRequest("bad-handover")
+    handover_run = run_of(lane, bad_handover)
+
+    async def deferred_bad() -> Response:
+        return Response(
+            200, b"", [(b"content-type", b"application/json")], payload=object()
+        )
+
+    task = lane._track(lane._answer(handover_run, deferred_bad()), handover_run.ctx)
+    await task
+    assert bad_handover.answers == [500] and failed == []
+
+
+async def test_handle_native_is_non_deferred_and_atomic_rolls_back_on_encode_error(
+    tmp_path: Path,
+) -> None:
+    db_url = f"sqlite://{tmp_path / 'atomic_encode.sqlite3'}"
+
+    @http.get("/plain")
+    async def plain() -> dict[str, int]:
+        return {"n": 1}
+
+    @http.post("/atomic-bad", atomic=True, validate_response=False)
+    async def atomic_bad() -> dict[str, object]:
+        await LaneNote.acreate(id=99, title="rolled-back")
+        return {"bad": object()}
+
+    app = Hinoki(
+        include=[plain, atomic_bad],
+        modules=[DatabaseModule(db_url), Holder()],
+    )
+    Holder.current.clear()
+    pipeline = app.asgi().pipeline
+    await pipeline.lifespan.startup()
+    try:
+        plain_binding = next(b for b in pipeline.bindings if b.route.path == "/plain")
+        atomic_binding = next(
+            b for b in pipeline.bindings if b.route.path == "/atomic-bad"
+        )
+        eager = await pipeline.handle_native(plain_binding, "r1", {}, None)
+        assert eager.payload is NO_PAYLOAD and eager.body == b'{"n":1}'
+
+        ctx = pipeline.native_context("r2")
+        deferred = await asyncio.get_running_loop().create_task(
+            pipeline.drive_native(plain_binding, {}), context=ctx
+        )
+        assert deferred.payload == {"n": 1} and deferred.body == b""
+
+        with pytest.raises(TypeError, match="not JSON serializable"):
+            await asyncio.get_running_loop().create_task(
+                pipeline.drive_native(atomic_binding, {}),
+                context=pipeline.native_context("r3"),
+            )
+        db = Holder.current[-1]
+        rows = await db.fetch("select id from lane_notes where id = 99")
+        assert rows == []
+    finally:
+        await pipeline.lifespan.shutdown()

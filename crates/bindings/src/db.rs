@@ -196,10 +196,7 @@ pub(crate) fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
         Value::Text(s) => s.into_pyobject(py)?.into_any().unbind(),
         Value::Bytes(b) => PyBytes::new(py, b).into_any().unbind(),
         Value::Uuid(u) => crate::pytypes::new_uuid(py, *u)?.unbind(),
-        Value::Timestamp(t) => py
-            .import("datetime")?
-            .getattr("datetime")?
-            .call_method1("fromisoformat", (hinoki_orm::timestamp_iso(t),))
+        Value::Timestamp(t) => crate::pytypes::new_timestamp(py, t)
             .map_err(|_| {
                 let message = "timestamp cannot be represented as a Python datetime";
                 db_error(py, &DbError::new(ErrorKind::Type, message))

@@ -64,6 +64,7 @@ Known differences, disclosed rather than hidden: a different language, runtime a
 | --- | --- | --- |
 | Processes | 1 per framework (8 in the JavaScript comparison's second view) | `--workers 1`; `--workers 8` as a variant |
 | Pool | 8 connections | `--pool 8` per process |
+| Hinoki Kiso runtime threads | Not applicable (Bolt does not use Kiso) | `--runtime-threads 1` per worker (Kiso mode only) |
 | Load | `bombardier -c 100 -d 10s` | the same (`--duration 10`; `--requests N` fixes the request count instead) |
 | Warm-up | 1 000 requests at `-c 10` | the same |
 | Samples | 1 per route and start, 2 starts | `--runs 1`, `--restarts 2` |
@@ -111,13 +112,13 @@ unzip -q bun-linux-x64.zip -d ~/.local/opt/bun-v1.4.5
 ln -s ~/.local/opt/bun-v1.4.5/bun-linux-x64/bun ~/.local/bin/bun
 ```
 
-`run.py` finds `node` and `bun` on `PATH`, or at the paths in `BENCH_NODE` and `BENCH_BUN`, and stops with a message if a runtime is missing. Use `--framework NAME` to run a single stack and `--smoke` with any `--server-mode` to verify behaviour and statement counts without measuring. Use `--runs`, `--restarts`, `--duration`, `--requests`, `--workers` and `--pool` only when recording the chosen values in the report metadata and rationale. Remove the disposable container when finished: `docker rm -f hinoki-bench-pg`.
+`run.py` finds `node` and `bun` on `PATH`, or at the paths in `BENCH_NODE` and `BENCH_BUN`, and stops with a message if a runtime is missing. Use `--framework NAME` to run a single stack and `--smoke` with any `--server-mode` to verify behaviour and statement counts without measuring. Use `--runs`, `--restarts`, `--duration`, `--requests`, `--workers`, `--pool` and `--runtime-threads` only when recording the chosen values in the report metadata and rationale. `--runtime-threads` sets Hinoki's `server.runtime_threads` for Kiso; it does not change Granian or the other stacks. The `environment.json` records the checkout's Git commit and whether it was dirty at run start, before the output directory is created. Remove the disposable container when finished: `docker rm -f hinoki-bench-pg`.
 
 `--max-load N` holds every measured sample until the one-minute load average is at most `N` (it polls every 10 s and stops the run after 30 minutes without getting there). The load at the start of each sample is appended to `loadavg.txt` in the results directory, and the limit is recorded as `max_load` in `environment.json`. Without the option the load is only recorded.
 
 If a route's sample CV exceeds 15%, inspect host variance and repeat that route with `--scenario articles --run-offset 1` (or the affected route), keeping both the original and additional raw samples. The report includes every sample found in its directory.
 
-Exact package versions, the CPU model, the load average when the run started and every setting are written to `environment.json`; each raw `bombardier` result (`{stack}-{scenario}-r{start}-{n}.json`) is kept next to the report, with the server log, the verifier output and the worker CPU times of every start.
+Exact package versions, the source commit and dirty status, the CPU model, the load average when the run started and every setting are written to `environment.json`; each raw `bombardier` result (`{stack}-{scenario}-r{start}-{n}.json`) is kept next to the report, with the server log, the verifier output and the worker CPU times of every start.
 
 The directories `results/2026-11-18/` and `results/2026-11-23/` hold runs of the earlier posts service (`health`, `json-1k`, `json-10k`, `list`, `detail`, `create`, pool 10, PostgreSQL 17) and are what the current page shows until the next run; `report.py` no longer reads their scenarios. `schema.sql`, `seed.py`, `hinoki_app.py`, `ninja_app.py`, `dj_settings.py` and `benchapp/` belong to that service and stay for the experiments in `benchmarks/README.md`.
 

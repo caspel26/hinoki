@@ -15,8 +15,8 @@ mod pyapi;
 pub(crate) use self::json::json_to_python;
 pub use self::json::{decode_json, encode_json, JsonDecodeError};
 pub(crate) use self::json::{
-    decode_json_document, float_text, int_text, is_instance_of_named, key_text, string_bytes, Json,
-    JsonObject, MAX_DEPTH,
+    decode_json_document, encode_json_vec, float_text, int_text, is_instance_of_named, key_text,
+    string_bytes, Json, JsonObject, MAX_DEPTH,
 };
 #[allow(unused_imports)]
 pub use self::multipart::{

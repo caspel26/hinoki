@@ -6,8 +6,9 @@ use std::sync::Arc;
 
 use hinoki_orm::{DbError, ErrorKind, Value};
 use pyo3::exceptions::PyValueError;
+use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyDict, PyList};
+use pyo3::types::{PyAny, PyDict, PyList, PyString};
 
 use crate::db::{db_error, from_value};
 use crate::request::{decode_json, JsonDecodeError};
@@ -16,12 +17,13 @@ pub(crate) struct ModelRows {
     cls: Py<PyAny>,
     name: String,
     columns: Vec<String>,
+    column_keys: Arc<[Py<PyString>]>,
     json: Vec<bool>,
-    snapshot_key: String,
+    snapshot_key: Py<PyString>,
     /// `select_related` relations whose columns follow the model's own, and
     /// the instance `__dict__` key their instances are stored under.
-    joins: Vec<Join>,
-    store_key: Option<String>,
+    joins: Arc<[Join]>,
+    store_key: Option<Py<PyString>>,
     linked: Option<Linked>,
 }
 
@@ -33,9 +35,8 @@ struct Linked {
 
 /// One joined relation: its model's plan, the aliased column names it is read
 /// from and the position of its primary key (a NULL key means no related row).
-#[derive(Clone)]
 struct Join {
-    name: String,
+    name: Py<PyString>,
     plan: Arc<ModelRows>,
     aliases: Vec<String>,
     key: usize,
@@ -56,15 +57,21 @@ impl PyModelRows {
         json_columns: Vec<String>,
         snapshot_key: String,
     ) -> PyResult<Self> {
+        let py = cls.py();
+        let column_keys: Arc<[Py<PyString>]> = columns
+            .iter()
+            .map(|c| PyString::intern(py, c).unbind())
+            .collect();
         let json = columns.iter().map(|c| json_columns.contains(c)).collect();
         Ok(Self {
             inner: Arc::new(ModelRows {
                 cls: cls.clone().unbind(),
                 name: cls.getattr("__name__")?.extract()?,
                 columns,
+                column_keys,
                 json,
-                snapshot_key,
-                joins: Vec::new(),
+                snapshot_key: PyString::intern(py, &snapshot_key).unbind(),
+                joins: Arc::from([]),
                 store_key: None,
                 linked: None,
             }),
@@ -91,7 +98,7 @@ impl PyModelRows {
                     .map(|index| format!("{prefix}{index}"))
                     .collect();
                 Ok(Join {
-                    name,
+                    name: PyString::intern(py, &name).unbind(),
                     plan,
                     aliases,
                     key,
@@ -104,10 +111,11 @@ impl PyModelRows {
                 cls: base.cls.clone_ref(py),
                 name: base.name.clone(),
                 columns: base.columns.clone(),
+                column_keys: Arc::clone(&base.column_keys),
                 json: base.json.clone(),
-                snapshot_key: base.snapshot_key.clone(),
-                joins,
-                store_key: Some(store_key),
+                snapshot_key: base.snapshot_key.clone_ref(py),
+                joins: Arc::from(joins),
+                store_key: Some(PyString::intern(py, &store_key).unbind()),
                 linked: None,
             }),
         })
@@ -127,10 +135,11 @@ impl PyModelRows {
                 cls: base.cls.clone_ref(py),
                 name: base.name.clone(),
                 columns: base.columns.clone(),
+                column_keys: Arc::clone(&base.column_keys),
                 json: base.json.clone(),
-                snapshot_key: base.snapshot_key.clone(),
-                joins: base.joins.clone(),
-                store_key: base.store_key.clone(),
+                snapshot_key: base.snapshot_key.clone_ref(py),
+                joins: Arc::clone(&base.joins),
+                store_key: base.store_key.as_ref().map(|key| key.clone_ref(py)),
                 linked: Some(Linked {
                     alias,
                     key,
@@ -196,15 +205,22 @@ fn build_one<'py>(
     names: &[String],
     new: &Bound<'py, PyAny>,
     deepcopy: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
+) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyDict>)> {
     if row.len() != names.len() {
         return Err(mismatch(py, plan));
     }
     let instance = new.call1((plan.cls.bind(py),))?;
-    let stored = instance.getattr("__dict__")?.cast_into::<PyDict>()?;
+    let stored = instance
+        .getattr(intern!(py, "__dict__"))?
+        .cast_into::<PyDict>()?;
     let snapshot = PyDict::new(py);
-    let columns = row.iter().zip(names).zip(&plan.columns).zip(&plan.json);
-    for ((((name, value), wanted), column), is_json) in columns {
+    let columns = row
+        .iter()
+        .zip(names)
+        .zip(&plan.columns)
+        .zip(&plan.json)
+        .zip(plan.column_keys.iter());
+    for (((((name, value), wanted), column), is_json), column_key) in columns {
         if name != wanted {
             return Err(mismatch(py, plan));
         }
@@ -216,15 +232,16 @@ fn build_one<'py>(
         // Only decoded JSON can hold a list or dict; every other cell is an
         // immutable scalar, UUID, datetime or bytes.
         let shared = !(*is_json || matches!(value, Value::Json(_))) || is_scalar(&cell);
-        stored.set_item(column, &cell)?;
+        let key = column_key.bind(py);
+        stored.set_item(key, &cell)?;
         if shared {
-            snapshot.set_item(column, &cell)?;
+            snapshot.set_item(key, &cell)?;
         } else {
-            snapshot.set_item(column, deepcopy.call1((&cell,))?)?;
+            snapshot.set_item(key, deepcopy.call1((&cell,))?)?;
         }
     }
-    stored.set_item(&plan.snapshot_key, snapshot)?;
-    Ok(instance)
+    stored.set_item(plan.snapshot_key.bind(py), snapshot)?;
+    Ok((instance, stored))
 }
 
 /// One result row: the model's own columns, then each joined relation's.
@@ -240,16 +257,19 @@ fn build_row<'py>(
     if row.len() != width + joined {
         return Err(mismatch(py, plan));
     }
-    let instance = build_one(py, plan, &row[..width], &plan.columns, new, deepcopy)?;
+    let (instance, stored) = build_one(py, plan, &row[..width], &plan.columns, new, deepcopy)?;
     if let Some(store_key) = &plan.store_key {
         let related = PyDict::new(py);
         let mut at = width;
-        for join in &plan.joins {
+        for join in plan.joins.iter() {
             let cells = &row[at..at + join.aliases.len()];
             at += join.aliases.len();
-            related.set_item(&join.name, build_related(py, join, cells, new, deepcopy)?)?;
+            related.set_item(
+                join.name.bind(py),
+                build_related(py, join, cells, new, deepcopy)?,
+            )?;
         }
-        instance.getattr("__dict__")?.set_item(store_key, related)?;
+        stored.set_item(store_key.bind(py), related)?;
     }
     Ok(instance)
 }
@@ -273,7 +293,7 @@ fn build_related<'py>(
         }
         return Ok(py.None().into_bound(py));
     }
-    build_one(py, &join.plan, cells, &join.aliases, new, deepcopy)
+    build_one(py, &join.plan, cells, &join.aliases, new, deepcopy).map(|(instance, _)| instance)
 }
 
 pub(crate) fn models_to_py(
@@ -281,17 +301,14 @@ pub(crate) fn models_to_py(
     rows: &[Vec<(String, Value)>],
     plan: &ModelRows,
 ) -> PyResult<Py<PyAny>> {
-    let new = py
-        .import("builtins")?
-        .getattr("object")?
-        .getattr("__new__")?;
-    let deepcopy = py.import("copy")?.getattr("deepcopy")?;
+    let new = crate::pytypes::object_new(py)?;
+    let deepcopy = crate::pytypes::copy_deepcopy(py)?;
     if let Some(linked) = &plan.linked {
-        return linked_models(py, rows, plan, linked, &new, &deepcopy);
+        return linked_models(py, rows, plan, linked, new, deepcopy);
     }
     let out = PyList::empty(py);
     for row in rows {
-        out.append(build_row(py, plan, row, &new, &deepcopy)?)?;
+        out.append(build_row(py, plan, row, new, deepcopy)?)?;
     }
     Ok(out.into_any().unbind())
 }
@@ -313,23 +330,20 @@ fn linked_models(
             return Err(mismatch(py, plan));
         }
         validate_linked_row(py, plan, cells)?;
-        let owner_key = from_value(py, &owner.1)?.into_bound(py).str()?.to_string();
-        let key = from_value(py, &cells[linked.key].1)?
-            .into_bound(py)
-            .str()?
-            .to_string();
+        let owner_key = from_value(py, &owner.1)?.into_bound(py).str()?;
+        let key = from_value(py, &cells[linked.key].1)?.into_bound(py).str()?;
         let target = if let Some(existing) = targets.get_item(&key)? {
             existing
         } else {
             let target = build_row(py, plan, cells, new, deepcopy)?;
-            targets.set_item(key, &target)?;
+            targets.set_item(&key, &target)?;
             target
         };
         let group = match owners.get_item(&owner_key)? {
             Some(group) => group.cast_into::<PyList>()?,
             None => {
                 let group = PyList::empty(py);
-                owners.set_item(owner_key, &group)?;
+                owners.set_item(&owner_key, &group)?;
                 group
             }
         };
@@ -487,6 +501,104 @@ mod tests {
             let found = found.bind(py).cast::<PyDict>().unwrap();
             assert!(found.contains(id.to_string()).unwrap());
             assert!(found.contains("7").unwrap());
+        });
+    }
+
+    #[test]
+    fn joined_and_json_snapshot_use_interned_keys_and_isolate_mutable_json() {
+        Python::initialize();
+        Python::attach(|py| {
+            let module = PyModule::from_code(
+                py,
+                c"class Author:\n    pass\nclass Post:\n    pass\n",
+                c"joined_test.py",
+                c"joined_test",
+            )
+            .unwrap();
+            let author_cls = module.getattr("Author").unwrap();
+            let post_cls = module.getattr("Post").unwrap();
+            let author_plan = PyModelRows::new(
+                &author_cls,
+                vec!["id".into(), "name".into()],
+                vec![],
+                "_snap".into(),
+            )
+            .unwrap();
+            let post_plan = PyModelRows::new(
+                &post_cls,
+                vec!["id".into(), "meta".into()],
+                vec!["meta".into()],
+                "_snap".into(),
+            )
+            .unwrap();
+            let joined_plan = {
+                let author_py = Py::new(py, author_plan).unwrap();
+                let author_ref = author_py.borrow(py);
+                post_plan
+                    .joined(
+                        py,
+                        vec![("author".into(), author_ref, "a__".into(), 0)],
+                        "_rel".into(),
+                    )
+                    .unwrap()
+            };
+            let rows = vec![
+                vec![
+                    ("id".into(), Value::Int(10)),
+                    ("meta".into(), Value::Text(r#"{"tags":["a"]}"#.into())),
+                    ("a__0".into(), Value::Int(1)),
+                    ("a__1".into(), Value::Text("Ada".into())),
+                ],
+                vec![
+                    ("id".into(), Value::Int(11)),
+                    ("meta".into(), Value::Text(r#"{"tags":[]}"#.into())),
+                    ("a__0".into(), Value::Null),
+                    ("a__1".into(), Value::Null),
+                ],
+            ];
+            let built = models_to_py(py, &rows, &joined_plan.inner)
+                .unwrap()
+                .into_bound(py)
+                .cast_into::<PyList>()
+                .unwrap();
+            let first = built.get_item(0).unwrap();
+            let meta = first
+                .getattr("meta")
+                .unwrap()
+                .cast_into::<PyDict>()
+                .unwrap();
+            meta.set_item("mutated", true).unwrap();
+            let snap = first
+                .getattr("_snap")
+                .unwrap()
+                .cast_into::<PyDict>()
+                .unwrap();
+            let snap_meta = snap
+                .get_item("meta")
+                .unwrap()
+                .unwrap()
+                .cast_into::<PyDict>()
+                .unwrap();
+            assert!(!snap_meta.contains("mutated").unwrap());
+
+            let rel = first
+                .getattr("_rel")
+                .unwrap()
+                .cast_into::<PyDict>()
+                .unwrap();
+            let author = rel.get_item("author").unwrap().unwrap();
+            assert_eq!(
+                author.getattr("name").unwrap().extract::<String>().unwrap(),
+                "Ada"
+            );
+            let second_rel = built
+                .get_item(1)
+                .unwrap()
+                .getattr("_rel")
+                .unwrap()
+                .cast_into::<PyDict>()
+                .unwrap();
+            assert!(second_rel.get_item("author").unwrap().unwrap().is_none());
         });
     }
 }
