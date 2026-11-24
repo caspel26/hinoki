@@ -1113,11 +1113,14 @@ async fn execute_list<D: ReadDatabase>(
     raw_query: &[u8],
     caller: Option<&str>,
 ) -> NativeRead {
-    let Some(page) = parse_page(raw_query, plan.page_size, plan.max_page_size) else {
+    let Ok(pairs) = parse_query(raw_query, 1000) else {
+        return NativeRead::Defer;
+    };
+    let Some(page) = page_from_pairs(&pairs, plan.page_size, plan.max_page_size) else {
         return NativeRead::Defer;
     };
     let dialect = database.dialect();
-    let Some(filtered) = parse_list_filters(plan, dialect, raw_query) else {
+    let Some(filtered) = parse_list_filters(plan, dialect, pairs) else {
         return NativeRead::Defer;
     };
     let Some((count_sql, count_params, list_sql, list_params)) =
@@ -1179,11 +1182,15 @@ fn list_statements(
     Some((count_sql, count_params, list_sql, list_params))
 }
 
-fn parse_list_filters(plan: &CrudPlan, dialect: &str, raw_query: &[u8]) -> Option<ListQuery> {
+fn parse_list_filters(
+    plan: &CrudPlan,
+    dialect: &str,
+    pairs: Vec<(String, String)>,
+) -> Option<ListQuery> {
     let Some(spec) = &plan.filters else {
         return Some((Vec::new(), Vec::new()));
     };
-    let grouped = group_query_pairs(parse_query(raw_query, 1000).ok()?);
+    let grouped = group_query_pairs(pairs);
     let reserved = ["page".to_owned(), "page_size".to_owned()];
     let parsed = spec.parse(&grouped, &reserved).ok()?;
     let filters = compile_filter_conditions(plan, dialect, spec.conditions(&parsed))?;
@@ -1191,13 +1198,17 @@ fn parse_list_filters(plan: &CrudPlan, dialect: &str, raw_query: &[u8]) -> Optio
     Some((filters, order))
 }
 
+/// Group repeated names in first-seen order; the index keeps it linear.
 fn group_query_pairs(pairs: Vec<(String, String)>) -> Vec<(String, Vec<String>)> {
     let mut grouped: Vec<(String, Vec<String>)> = Vec::new();
+    let mut index: HashMap<String, usize> = HashMap::with_capacity(pairs.len());
     for (name, value) in pairs {
-        if let Some((_, values)) = grouped.iter_mut().find(|(key, _)| key == &name) {
-            values.push(value);
-        } else {
-            grouped.push((name, vec![value]));
+        match index.get(&name) {
+            Some(&at) => grouped[at].1.push(value),
+            None => {
+                index.insert(name.clone(), grouped.len());
+                grouped.push((name, vec![value]));
+            }
         }
     }
     grouped
@@ -1324,14 +1335,18 @@ fn primary_key_value(plan: &CrudPlan, raw: &str) -> Option<Value> {
     }
 }
 
+#[cfg(test)]
 fn parse_page(raw: &[u8], default_size: u64, max_size: u64) -> Option<Page> {
-    let pairs = parse_query(raw, 1000).ok()?;
+    page_from_pairs(&parse_query(raw, 1000).ok()?, default_size, max_size)
+}
+
+fn page_from_pairs(pairs: &[(String, String)], default_size: u64, max_size: u64) -> Option<Page> {
     let mut page = None;
     let mut size = None;
     for (name, value) in pairs {
         match name.as_str() {
-            "page" if page.is_none() => page = Some(parse_number(&value, 1_000_000_000)?),
-            "page_size" if size.is_none() => size = Some(parse_number(&value, max_size)?),
+            "page" if page.is_none() => page = Some(parse_number(value, 1_000_000_000)?),
+            "page_size" if size.is_none() => size = Some(parse_number(value, max_size)?),
             "page" | "page_size" => return None,
             _ => {}
         }

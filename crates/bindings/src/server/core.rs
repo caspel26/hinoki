@@ -769,7 +769,7 @@ impl ServerCore {
                         headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
                         body: Vec::new(),
                     });
-                request.respond(reply.status, reply.headers, &reply.body);
+                request.respond_owned(reply.status, reply.headers, reply.body);
                 Submission {
                     early: None,
                     wake: false,
