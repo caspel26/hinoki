@@ -20,6 +20,7 @@ from hinoki.utils import utc_now
 
 if TYPE_CHECKING:
     from hinoki.core import Row
+    from hinoki.fieldtypes import FieldType
 
 S = TypeVar("S", bound=Schema)
 log = logging.getLogger("hinoki.cache")
@@ -130,11 +131,9 @@ class Cache(Resource):
         self._prefix = ""
 
     def namespace(self, name: str) -> Cache:
-        prefix = _key(name, self._prefix)
-        view = object.__new__(type(self))
-        view.__dict__ = self.__dict__.copy()
-        view._prefix = prefix
-        return view
+        """A view whose keys are prefixed with ``name``; it shares this backend,
+        so the backend's worker binding and cleanup still apply to it."""
+        return _NamespacedCache(self, _key(name))
 
     def _name(self, key: str) -> str:
         return _key(key, self._prefix)
@@ -198,7 +197,90 @@ class Cache(Resource):
             return None
 
     async def set_schema(self, key: str, value: S, *, ttl: float | timedelta) -> None:
-        await self.set(key, value, ttl=ttl)
+        """Store the declared fields of ``value``; computed values are left out
+        so ``get_schema`` validates them back. A schema with a ``SecretStr``
+        field is refused: the cache would only ever hold its mask."""
+        await self.set_bytes(key, _schema_bytes(value), ttl=ttl)
+
+
+def _schema_bytes(value: Schema) -> bytes:
+    if not isinstance(value, Schema):
+        raise TypeError("set_schema stores a Schema instance")
+    secret = _secret_field(type(value))
+    if secret is not None:
+        raise ValueError(
+            f"{secret} is a SecretStr field; secrets cannot be cached because "
+            "they serialize masked"
+        )
+    return core.encode_json(core.dump_for_storage(value))
+
+
+def _secret_field(
+    schema: type[Schema], seen: frozenset[type] = frozenset()
+) -> str | None:
+    """``Schema.field`` path of the first ``SecretStr`` declared in ``schema``."""
+    if schema in seen:
+        return None
+    for name, spec in schema.specs().items():
+        found = _secret_in(spec.ftype, seen | {schema})
+        if found is not None:
+            return f"{schema.__name__}.{name}" if found == "" else found
+    return None
+
+
+def _secret_in(ftype: FieldType, seen: frozenset[type]) -> str | None:
+    """``""`` for a secret here, a nested path, or ``None`` when there is none."""
+    if ftype.kind == "secret":
+        return ""
+    nested = [ftype.schema, *(variant for _, variant in ftype.variants)]
+    for schema in nested:
+        if schema is not None:
+            found = _secret_field(schema, seen)
+            if found is not None:
+                return found
+    for child in ftype.children():
+        found = _secret_in(child, seen)
+        if found is not None:
+            return found
+    return None
+
+
+class _NamespacedCache(Cache):
+    """A key-prefixed view that delegates every operation to its backend."""
+
+    def __init__(self, backend: Cache, prefix: str) -> None:
+        super().__init__()
+        self._backend = backend
+        self._prefix = prefix
+
+    def namespace(self, name: str) -> Cache:
+        return _NamespacedCache(self._backend, _key(name, self._prefix))
+
+    def __getattr__(self, name: str) -> object:
+        # Backend-specific helpers such as ``purge_expired`` or ``database``.
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._backend, name)
+
+    async def get_bytes(self, key: str) -> bytes | None:
+        return await self._backend.get_bytes(self._name(key))
+
+    def get_bytes_sync(self, key: str) -> bytes | None:
+        return self._backend.get_bytes_sync(self._name(key))
+
+    async def set_bytes(
+        self, key: str, value: bytes, *, ttl: float | timedelta
+    ) -> None:
+        await self._backend.set_bytes(self._name(key), value, ttl=ttl)
+
+    def set_bytes_sync(self, key: str, value: bytes, *, ttl: float | timedelta) -> None:
+        self._backend.set_bytes_sync(self._name(key), value, ttl=ttl)
+
+    async def delete(self, key: str) -> bool:
+        return await self._backend.delete(self._name(key))
+
+    def delete_sync(self, key: str) -> bool:
+        return self._backend.delete_sync(self._name(key))
 
 
 class MemoryCache(Cache):

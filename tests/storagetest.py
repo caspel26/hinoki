@@ -296,3 +296,67 @@ async def test_local_quota_and_startup_failure(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="startup failed"):
         async with ASGIClient(broken):
             pytest.fail("a file cannot be used as the storage root")
+
+
+@pytest.mark.parametrize("backend_kind", ["memory", "local"])
+async def test_inline_is_kept_only_for_passive_media_types(
+    tmp_path: Path, backend_kind: str
+) -> None:
+    backend: FileStorage = (
+        MemoryFileStorage()
+        if backend_kind == "memory"
+        else LocalFileStorage(tmp_path / "inline")
+    )
+    if isinstance(backend, LocalFileStorage):
+        await backend.start()
+    try:
+        cases = {
+            "page.html": ("text/html", "attachment"),
+            "logo.svg": ("image/svg+xml", "attachment"),
+            "page.xhtml": ("application/xhtml+xml", "attachment"),
+            "app.js": ("text/javascript", "attachment"),
+            "photo.png": ("image/png", "inline"),
+            "notes.txt": ("text/plain", "inline"),
+        }
+        for name, (media, expected) in cases.items():
+            saved = await backend.save(b"<script>1</script>", content_type=media)
+            answer = await backend.open_response(
+                saved.key, filename=name, disposition="inline"
+            )
+            assert answer.headers[0] == (
+                b"content-disposition",
+                f'{expected}; filename="{name}"'.encode(),
+            )
+        with pytest.raises(ValueError, match="disposition"):
+            await backend.open_response(saved.key, disposition="form-data")  # type: ignore[arg-type]
+    finally:
+        if isinstance(backend, LocalFileStorage):
+            await backend.close()
+
+
+@pytest.mark.parametrize("backend_kind", ["memory", "local"])
+async def test_open_response_resolves_name_and_type_alike(
+    tmp_path: Path, backend_kind: str
+) -> None:
+    backend: FileStorage = (
+        MemoryFileStorage()
+        if backend_kind == "memory"
+        else LocalFileStorage(tmp_path / "parity")
+    )
+    if isinstance(backend, LocalFileStorage):
+        await backend.start()
+    try:
+        saved = await backend.save(b"data")
+        anonymous = await backend.open_response(saved.key)
+        # No stored name: the storage key is never offered as the file name.
+        assert (b"content-disposition", b"attachment") in anonymous.headers
+        assert (b"content-type", b"application/octet-stream") in anonymous.headers
+        named = await backend.open_response(saved.key, filename="report.pdf")
+        assert (b"content-type", b"application/pdf") in named.headers
+        explicit = await backend.open_response(
+            saved.key, filename="report.pdf", content_type="text/plain"
+        )
+        assert (b"content-type", b"text/plain") in explicit.headers
+    finally:
+        if isinstance(backend, LocalFileStorage):
+            await backend.close()
