@@ -88,7 +88,11 @@ SCENARIOS = {
 AUTH_SCENARIOS = frozenset({"auth-me", "auth-articles"})
 
 
-def server_modes(workers: int = WORKERS, pool: int = POOL) -> dict[str, dict]:
+def server_modes(
+    workers: int = WORKERS,
+    pool: int = POOL,
+    runtime_threads: int = 1,
+) -> dict[str, dict]:
     """Every stack, by mode, with ``workers`` processes and ``pool`` connections each.
 
     Litestar, FastAPI and Ninja run on Uvicorn with uvloop and httptools, the
@@ -97,6 +101,10 @@ def server_modes(workers: int = WORKERS, pool: int = POOL) -> dict[str, dict]:
     """
     w, port = str(workers), str(PORT)
     hinoki = {"BENCH_DATABASE__URL": DB, "BENCH_DATABASE__MAX_SIZE": str(pool)}
+    hinoki_kiso = {
+        **hinoki,
+        "BENCH_SERVER__RUNTIME_THREADS": str(runtime_threads),
+    }
     sqla = {"BENCH_DATABASE_URL": DB, "BENCH_POOL": str(pool)}
     ninja = {**sqla, "DJANGO_SETTINGS_MODULE": "parity_ninja_settings"}
     js = {**sqla, "BENCH_WORKERS": w, "BENCH_PORT": port, "NODE_ENV": "production"}
@@ -132,7 +140,7 @@ def server_modes(workers: int = WORKERS, pool: int = POOL) -> dict[str, dict]:
             "hinoki-kiso": (
                 ["hinoki", "serve", "parity_hinoki:app", "--server", "kiso",
                  "--workers", w, "--host", "127.0.0.1", "--port", port],
-                hinoki,
+                hinoki_kiso,
             ),
         },
         # The three JavaScript servers of Django Bolt's comparison, in its order.
@@ -458,7 +466,16 @@ def javascript_versions(
     }
 
 
-def environment(args: argparse.Namespace) -> dict:
+def git_source_state(root: Path = HERE) -> dict[str, str | bool]:
+    """Capture the checkout revision and whether it had local changes."""
+    commit = sh(["git", "-C", str(root), "rev-parse", "HEAD"]).stdout.strip()
+    status = sh(
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"]
+    ).stdout
+    return {"git_hash": commit, "dirty": bool(status)}
+
+
+def environment(args: argparse.Namespace, source: dict[str, str | bool]) -> dict:
     javascript = (
         {"javascript": javascript_versions()}
         if args.server_mode == "javascript"
@@ -466,6 +483,7 @@ def environment(args: argparse.Namespace) -> dict:
     )
     return {
         **javascript,
+        "source": source,
         "date": time.strftime("%Y-%m-%d %H:%M:%S %z"),
         "machine": platform.platform(),
         "cpu": cpu_model(),
@@ -484,6 +502,9 @@ def environment(args: argparse.Namespace) -> dict:
             "stacks": args.selected_stacks,
             "workers": args.workers,
             "pool_per_worker": args.pool,
+            "runtime_threads": (
+                args.runtime_threads if args.server_mode == "kiso" else None
+            ),
             "concurrency": CONCURRENCY,
             **sample_stop(args),
             "restarts": args.restarts,
@@ -538,6 +559,12 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
         "--workers", type=int, default=WORKERS, help="server processes per stack"
     )
     parser.add_argument(
+        "--runtime-threads",
+        type=int,
+        default=None,
+        help="Hinoki Kiso runtime threads per worker",
+    )
+    parser.add_argument(
         "--pool", type=int, default=POOL, help="database connections per process"
     )
     parser.add_argument(
@@ -550,7 +577,13 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
         help="wait before every sample until the one-minute load average is at most this",
     )
     args = parser.parse_args(argv)
-    SERVER_MODES.update(server_modes(args.workers, args.pool))
+    if args.runtime_threads is not None and args.server_mode != "kiso":
+        parser.error("--runtime-threads is only available with --server-mode kiso")
+    if args.runtime_threads is None:
+        args.runtime_threads = 1
+    if args.runtime_threads < 1:
+        parser.error("--runtime-threads must be at least 1")
+    SERVER_MODES.update(server_modes(args.workers, args.pool, args.runtime_threads))
     return args
 
 
@@ -654,13 +687,14 @@ def main() -> None:
     args = arguments()
     names = selected_stacks(args)
     args.selected_stacks = names
+    source = git_source_state()
     args.out.mkdir(parents=True, exist_ok=True)
     if not args.smoke:
         metadata = args.out / "environment.json"
         if metadata.exists():
             stamp = time.strftime("%H%M%S")
             metadata = args.out / f"environment-{args.server_mode}-{stamp}.json"
-        metadata.write_text(json.dumps(environment(args), indent=2))
+        metadata.write_text(json.dumps(environment(args, source), indent=2))
     for index, name in enumerate(names):
         if index and args.cooldown and not args.smoke:
             time.sleep(args.cooldown)
