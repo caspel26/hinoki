@@ -1,7 +1,8 @@
 """``hinoki new NAME``: a small project an AI agent can work in.
 
-The generated project has a health route, rules that are on from day one
-(`HNK-ACC-001`, `HNK-TXN-001`, `HNK-SCH-001`), an `AGENTS.md` that tells an
+The generated project has a health route, eight rules that are on from day one
+(access, permissions, response types, pagination, transactions, exposed fields
+and request string limits; see ``RULES``), an `AGENTS.md` that tells an
 agent the conventions and where its authority ends, a `.mcp.json` that starts
 the read-only development MCP, and a test. Nothing is installed or executed.
 """
@@ -217,7 +218,7 @@ uv run hinoki check                             # the project's rules
 uv run hinoki dev                               # reload; `serve` runs it for production
 ```
 
-`check` and the MCP server build the app without opening a database, but settings are still loaded: once you add a required field such as `database: settings.DatabaseSettings`, run them with a dummy value (`{upper}_DATABASE__URL=postgres://unused uv run hinoki check ...`, and add it under `env` in `.mcp.json`). Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
+`check` and the MCP server build the app without opening a database. A `database: settings.DatabaseSettings` field needs no value: it defaults to the local SQLite file `.hinoki/local.sqlite3`. Set `{upper}_DATABASE__URL` (and under `env` in `.mcp.json`) only to use another database. Tests that touch the database need a real disposable one in `HINOKI_TEST_DATABASE_URL`.
 
 `check` runs the project's rules and prints diagnostics with stable IDs
 (`HNK-ACC-001` access, `HNK-TXN-001` transactions, `HNK-SCH-001` exposed fields,
