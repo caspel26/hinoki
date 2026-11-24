@@ -1,15 +1,17 @@
 """OpenAPI generation from declarations, validated against the 3.1 meta-schema."""
 
+from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID
 
 import pytest
 from openapi_spec_validator import validate
 
-from hinoki import API, Access, Caller, Hinoki, Response, Schema, http
+from hinoki import API, Access, Caller, HeaderAuth, Hinoki, Response, Schema, http
 from hinoki.errors import Conflict, Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.openapi import OpenAPIBuilder
+from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.schema import Field
 from tests.harness import Pool
 from tests.providers import TokenAuth
@@ -362,3 +364,124 @@ def test_a_websocket_action_documents_its_docstring() -> None:
     assert described["/chat"]["description"] == "Messages are echoed to everyone."
     assert "summary" not in described["/quiet"]
     assert "description" not in described["/quiet"]
+
+
+class KeyAuth(HeaderAuth[str]):
+    def __init__(self, header: str) -> None:
+        self.header = header
+
+    def resolve(self, value: str) -> Caller[str] | None:
+        return None
+
+
+def test_two_security_schemes_with_one_class_name_both_stay_documented() -> None:
+    @http.get("/a", access=Access(KeyAuth("x-key")))
+    async def a() -> None: ...
+
+    @http.get("/b", access=Access(KeyAuth("x-other")))
+    async def b() -> None: ...
+
+    @http.get("/c", access=Access(KeyAuth("x-key")))
+    async def c() -> None: ...
+
+    document = Hinoki(include=[a, b, c]).openapi()
+    validate(document)
+    schemes = document["components"]["securitySchemes"]
+    assert schemes["KeyAuth"]["name"] == "x-key"
+    assert schemes["KeyAuth_2"]["name"] == "x-other"
+    security = [document["paths"][p]["get"]["security"] for p in ("/a", "/b", "/c")]
+    assert security == [[{"KeyAuth": []}], [{"KeyAuth_2": []}], [{"KeyAuth": []}]]
+
+
+def test_pages_of_different_scalar_items_get_distinct_components() -> None:
+    @http.get("/numbers", pagination=PageNumberPagination())
+    async def numbers(page: PageParams) -> Page[int]:
+        raise NotImplementedError
+
+    @http.get("/words", pagination=PageNumberPagination())
+    async def words(page: PageParams) -> Page[str]:
+        raise NotImplementedError
+
+    @http.get("/ratios", pagination=PageNumberPagination())
+    async def ratios(page: PageParams) -> Page[float]:
+        raise NotImplementedError
+
+    @http.get("/pairs", pagination=PageNumberPagination())
+    async def pairs(page: PageParams) -> Page[list[int]]:
+        raise NotImplementedError
+
+    @http.get("/names", pagination=PageNumberPagination())
+    async def names(page: PageParams) -> Page[list[str]]:
+        raise NotImplementedError
+
+    document = Hinoki(include=[numbers, words, ratios, pairs, names]).openapi()
+    validate(document)
+    refs = {
+        path: document["paths"][path]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]["$ref"].rsplit("/", 1)[-1]
+        for path in ("/numbers", "/words", "/ratios", "/pairs", "/names")
+    }
+    assert refs == {
+        "/numbers": "Page_integer",
+        "/words": "Page_string",
+        "/ratios": "Page_number",
+        "/pairs": "Page_array",
+        "/names": "Page_array_2",
+    }
+
+
+class Priced(Schema):
+    amount: Decimal = Field(
+        description="a price", examples=[Decimal("9.90")], deprecated=True
+    )
+    limits: Annotated[list[Decimal], Field(examples=[[Decimal("1.5")]])] = Field(
+        default_factory=list
+    )
+
+
+def test_field_notes_on_a_default_and_decimal_examples_are_documented() -> None:
+    @http.post("/priced")
+    async def priced(body: Priced) -> None: ...
+
+    document = Hinoki(include=[priced]).openapi()
+    validate(document)
+    properties = document["components"]["schemas"]["Priced"]["properties"]
+    assert properties["amount"]["description"] == "a price"
+    assert properties["amount"]["examples"] == ["9.90"]
+    assert properties["amount"]["deprecated"] is True
+    assert properties["limits"]["examples"] == [["1.5"]]
+
+
+class Book(Schema):
+    title: str
+
+
+class Page_Book(Schema):  # the name a Page[Book] envelope takes
+    note: str
+
+
+def test_a_schema_named_like_a_page_envelope_does_not_replace_it() -> None:
+    @http.get("/books", pagination=PageNumberPagination())
+    async def books(page: PageParams) -> Page[Book]:
+        raise NotImplementedError
+
+    @http.get("/note")
+    async def note() -> Page_Book:
+        raise NotImplementedError
+
+    orders: list[list[Any]] = [[books, note], [note, books]]
+    for include in orders:
+        document = Hinoki(include=include).openapi()
+        validate(document)
+        schemas = document["components"]["schemas"]
+        paths = document["paths"]
+        refs = {
+            path: paths[path]["get"]["responses"]["200"]["content"]["application/json"][
+                "schema"
+            ]["$ref"].rsplit("/", 1)[-1]
+            for path in ("/books", "/note")
+        }
+        assert refs["/books"] != refs["/note"]
+        assert "page" in schemas[refs["/books"]]["properties"]
+        assert set(schemas[refs["/note"]]["properties"]) == {"note"}

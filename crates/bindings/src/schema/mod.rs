@@ -41,7 +41,7 @@ use model::{Definition, Kind, Node, MAX_DEPTH};
 pub use model::{SchemaInstanceFields, SchemaWireNames};
 pub use modelplan::ModelPlan;
 pub use scalars::wire_text_of;
-pub(crate) use scalars::{parse_date, wire_text, DECIMAL_DIGITS_CEILING};
+pub(crate) use scalars::{parse_date, wire_text, DECIMAL_DIGITS_CEILING, SECRET_MASK};
 pub use serialize::{dump_for_storage, dump_instance, serialize_instance};
 pub use typeddecode::{NativeInit, NativeMethod, Pinned};
 use validate::is_composite;

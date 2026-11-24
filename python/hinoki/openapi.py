@@ -93,6 +93,12 @@ CONSTRAINT_KEYWORDS = {
     "one_of": "enum",
     "multiple_of": "multipleOf",
 }
+DECIMAL_BOUNDS = {
+    "ge": "x-minimum",
+    "le": "x-maximum",
+    "gt": "x-exclusiveMinimum",
+    "lt": "x-exclusiveMaximum",
+}
 LENGTH_KEYWORDS = {
     "string": ("minLength", "maxLength"),
     "array": ("minItems", "maxItems"),
@@ -178,7 +184,9 @@ class OpenAPIBuilder:
         self.version = version
         self.spec_version = spec_version
         self.components: dict[str, dict[str, Any]] = {}
-        self.owners: dict[str, type[Schema]] = {}
+        # A component name's owner: a ``Schema`` class or a page envelope.
+        self.owners: dict[str, object] = {}
+        self.schema_names: dict[type[Schema], str] = {}
         self.operation_ids: set[str] = {
             route.operation_id
             for route in app.routes
@@ -255,31 +263,9 @@ class OpenAPIBuilder:
         ]
         if parameters:
             operation["parameters"] = parameters
-        file_params = [p for p in binding.params if p.source == "file"]
-        body = next((p for p in binding.params if p.source == "body"), None)
-        if file_params:
-            properties = {
-                param.name: self.file_schema(param.file_mode == "many")
-                for param in file_params
-            }
-            required_files = [
-                param.name for param in file_params if param.file_mode != "optional"
-            ]
-            schema: dict[str, Any] = {"type": "object", "properties": properties}
-            if required_files:
-                schema["required"] = required_files
-            operation["requestBody"] = {
-                "required": bool(required_files),
-                "content": {"multipart/form-data": {"schema": schema}},
-            }
-        elif body is not None and body.schema is not None:
-            operation["requestBody"] = {
-                "required": True,
-                "content": {
-                    parser.media_type: {"schema": self.component(body.schema)}
-                    for parser in route.parsers
-                },
-            }
+        request_body = self.request_body(binding)
+        if request_body is not None:
+            operation["requestBody"] = request_body
         operation["responses"] = self.responses(binding)
         if route.access is not None:
             self.secure(operation, route.access)
@@ -287,6 +273,45 @@ class OpenAPIBuilder:
         if isinstance(route.rate_limit, RateLimit):
             self.document_rate_limit(operation["responses"], route.rate_limit)
         return operation
+
+    def request_body(self, binding: Binding) -> dict[str, Any] | None:
+        """The body: the ``Schema`` in each parsed media type, or a multipart
+        form of the file parameters (with a ``Form[...]`` body's fields)."""
+        file_params = [p for p in binding.params if p.source == "file"]
+        body = next((p for p in binding.params if p.source == "body"), None)
+        if file_params:
+            return self.multipart_body(file_params, body)
+        if body is None or body.schema is None:
+            return None
+        return {
+            "required": True,
+            "content": {
+                parser.media_type: {"schema": self.component(body.schema)}
+                for parser in binding.route.parsers
+            },
+        }
+
+    def multipart_body(
+        self, file_params: list[Param], body: Param | None
+    ) -> dict[str, Any]:
+        properties = {
+            param.name: self.file_schema(param.file_mode == "many")
+            for param in file_params
+        }
+        required = [p.name for p in file_params if p.file_mode != "optional"]
+        schema: dict[str, Any] = {"type": "object", "properties": properties}
+        if body is not None and body.schema is not None:
+            # One object, not ``allOf``: a closed form schema would refuse the
+            # file properties that the other branch declares.
+            schema = self.object_schema(body.schema)
+            schema["properties"] = {**schema["properties"], **properties}
+            required = [*schema.get("required", ()), *required]
+        if required:
+            schema["required"] = required
+        return {
+            "required": bool(required) or body is not None,
+            "content": {"multipart/form-data": {"schema": schema}},
+        }
 
     @staticmethod
     def document_rate_limit(responses: dict[str, Any], limit: RateLimit) -> None:
@@ -348,7 +373,8 @@ class OpenAPIBuilder:
         name = type(access.auth).__name__
         scheme = access.auth.openapi_scheme()
         if scheme is not None:
-            self.security_schemes.setdefault(name, scheme)
+            name = unique_name(self.security_schemes, name, scheme)
+            self.security_schemes[name] = scheme
             operation["security"] = [{name: sorted(access.permissions)}]
         responses = operation["responses"]
         responses["401"] = {"description": "Missing or invalid credentials"}
@@ -469,46 +495,59 @@ class OpenAPIBuilder:
 
     def cursor_page_schema(self, item: object) -> dict[str, Any]:
         items = self.annotation(item)
-        name = "CursorPage_" + str(items.get("$ref", "item")).rsplit("/", 1)[-1]
-        if name not in self.components:
-            cursor: dict[str, Any] = {"type": ["string", "null"]}
-            self.components[name] = {
-                "type": "object",
-                "properties": {
-                    "items": {"type": "array", "items": items},
-                    "next": cursor,
-                    "previous": cursor,
-                    "page_size": {"type": "integer"},
-                },
-                "required": ["items", "next", "previous", "page_size"],
-            }
-        return ref(name)
+        cursor: dict[str, Any] = {"type": ["string", "null"]}
+        page = {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array", "items": items},
+                "next": cursor,
+                "previous": cursor,
+                "page_size": {"type": "integer"},
+            },
+            "required": ["items", "next", "previous", "page_size"],
+        }
+        return self.page_component("CursorPage_", items, page)
 
     def page_schema(self, item: object) -> dict[str, Any]:
         items = self.annotation(item)
-        name = "Page_" + str(items.get("$ref", "item")).rsplit("/", 1)[-1]
-        if name not in self.components:
-            integer: dict[str, Any] = {"type": "integer"}
-            self.components[name] = {
-                "type": "object",
-                "properties": {
-                    "items": {"type": "array", "items": items},
-                    "page": integer,
-                    "page_size": integer,
-                    "total": integer,
-                    "pages": integer,
-                },
-                "required": ["items", "page", "page_size", "total", "pages"],
-            }
+        integer: dict[str, Any] = {"type": "integer"}
+        page = {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array", "items": items},
+                "page": integer,
+                "page_size": integer,
+                "total": integer,
+                "pages": integer,
+            },
+            "required": ["items", "page", "page_size", "total", "pages"],
+        }
+        return self.page_component("Page_", items, page)
+
+    def page_component(
+        self, prefix: str, items: dict[str, Any], page: dict[str, Any]
+    ) -> dict[str, str]:
+        """A page envelope named after its items (``Page_Book``, ``Page_integer``,
+        ``Page_date``), suffixed when another item type took that name."""
+        name = self.claim(prefix + item_label(items), page)
+        self.components[name] = page
         return ref(name)
 
-    def component(self, schema: type[Schema]) -> dict[str, str]:
-        name = component_name(schema)
+    def claim(self, name: str, owner: object) -> str:
+        """A component name for ``owner``: ``name`` unless something else holds
+        it, then ``name_2``... Two schemas with one name are an error."""
         known = self.owners.get(name)
-        if known is not None and known is not schema:
+        if isinstance(known, type) and isinstance(owner, type) and known is not owner:
             raise RegistrationError(f"two different schemas are both named {name!r}")
-        if known is None:
-            self.owners[name] = schema
+        name = unique_name(self.owners, name, owner)
+        self.owners[name] = owner
+        return name
+
+    def component(self, schema: type[Schema]) -> dict[str, str]:
+        name = self.schema_names.get(schema)
+        if name is None:
+            name = self.claim(component_name(schema), schema)
+            self.schema_names[schema] = name
             self.components[name] = {}  # placeholder: breaks recursion
             # Replaces the placeholder.
             self.components[name] = self.object_schema(schema)  # NOSONAR
@@ -585,15 +624,12 @@ class OpenAPIBuilder:
         return array
 
     def union(self, ftype: FieldType) -> dict[str, Any]:
-        variants = [(tag, schema) for tag, schema in ftype.variants]
+        variants = [(tag, self.component(schema)) for tag, schema in ftype.variants]
         return {
-            "oneOf": [self.component(schema) for _, schema in variants],
+            "oneOf": [reference for _, reference in variants],
             "discriminator": {
                 "propertyName": ftype.discriminator_wire_name,
-                "mapping": {
-                    tag: f"#/components/schemas/{component_name(schema)}"
-                    for tag, schema in variants
-                },
+                "mapping": {tag: reference["$ref"] for tag, reference in variants},
             },
         }
 
@@ -612,9 +648,14 @@ class OpenAPIBuilder:
         for name, value in ftype.info.constraints().items():
             if name in skipped:
                 continue
+            if ftype.kind == "decimal" and name in DECIMAL_BOUNDS:
+                # The value is a string on the wire: numeric keywords do not
+                # apply to it, so the bounds are extensions holding the text.
+                base[DECIMAL_BOUNDS[name]] = str(document_value(value))
+                continue
             keyword = constraint_keyword(name, base)
             if keyword is not None:
-                base[keyword] = document_value(value)
+                base[keyword] = constraint_value(value)
             elif name == "pattern":
                 # JSON Schema patterns are unanchored; the runtime matches fully.
                 base["pattern"] = f"^(?:{value})$"
@@ -638,10 +679,18 @@ def streamed_content(annotation: object) -> dict[str, Any]:
 
 
 def document_value(value: object) -> object:
-    """A constraint value as JSON: a tuple as a list, a ``Decimal`` as a number."""
-    if isinstance(value, tuple):
-        return list(value)
-    return float(value) if isinstance(value, Decimal) else value
+    """A value as the JSON it is on the wire: a tuple as a list, a ``Decimal`` as
+    its text, inside lists and objects too."""
+    if isinstance(value, tuple | list):
+        return [document_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: document_value(item) for key, item in value.items()}
+    return format(value, "f") if isinstance(value, Decimal) else value
+
+
+def constraint_value(value: object) -> object:
+    """A keyword value: a ``Decimal`` bound of a number as a number."""
+    return float(value) if isinstance(value, Decimal) else document_value(value)
 
 
 def constraint_keyword(name: str, schema: dict[str, Any]) -> str | None:
@@ -860,3 +909,21 @@ def validation_error_schema() -> dict[str, Any]:
         },
         "required": ["error", "details"],
     }
+
+
+def unique_name(taken: dict[str, Any], name: str, value: object) -> str:
+    """``name``, or ``name_2``, ``name_3``... until it is free or already holds
+    the same value: two distinct definitions never share a component name."""
+    candidate, number = name, 2
+    while candidate in taken and taken[candidate] != value:
+        candidate, number = f"{name}_{number}", number + 1
+    return candidate
+
+
+def item_label(items: dict[str, Any]) -> str:
+    """The name part of a page component: the item's ``$ref`` name, else its
+    ``format`` or a plain ``type``."""
+    if "$ref" in items:
+        return str(items["$ref"]).rsplit("/", 1)[-1]
+    kind = items.get("format", items.get("type"))
+    return kind if isinstance(kind, str) else "item"

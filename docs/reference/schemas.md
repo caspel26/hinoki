@@ -26,7 +26,7 @@
 
 ::: hinoki.computed.computed_field
 
-::: hinoki.fields.SecretStr
+::: hinoki.fields.Secret
 
 ::: hinoki.errors.ValidationError
 

@@ -26,7 +26,7 @@ from uuid import UUID
 
 from hinoki import core
 from hinoki.errors import RegistrationError
-from hinoki.fields import FieldInfo, SecretStr, Unset
+from hinoki.fields import FieldInfo, Secret, Unset
 from hinoki.objecttypes import generated_schema, is_object_type
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ SCALARS: dict[type, str] = {
     IPv4Network: "ipv4network",
     IPv6Network: "ipv6network",
     Path: "path",
-    SecretStr: "secret",
+    Secret: "secret",
     Any: "any",
     object: "any",
 }

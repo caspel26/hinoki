@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hinoki import Hinoki, Schema, SecretStr, computed_field, http
+from hinoki import Hinoki, Schema, Secret, computed_field, http
 from hinoki.cache import (
     Cache,
     CacheDecodeError,
@@ -200,7 +200,7 @@ class Order(Schema):
 
 class Login(Schema):
     user: str
-    password: SecretStr
+    password: Secret
 
 
 class Wrapped(Schema):
@@ -220,10 +220,10 @@ async def test_cached_schemas_round_trip_without_computed_values() -> None:
 
 async def test_schemas_with_secrets_are_not_cached() -> None:
     cache = MemoryCache(max_entries=4, max_bytes=4096)
-    login = Login(user="ada", password=SecretStr("hunter2"))
-    with pytest.raises(ValueError, match=r"Login\.password is a SecretStr"):
+    login = Login(user="ada", password=Secret("hunter2"))
+    with pytest.raises(ValueError, match=r"Login\.password is a Secret"):
         await cache.set_schema("login", login, ttl=30)
-    with pytest.raises(ValueError, match=r"Login\.password is a SecretStr"):
+    with pytest.raises(ValueError, match=r"Login\.password is a Secret"):
         await cache.set_schema("wrapped", Wrapped(), ttl=30)
     assert await cache.get("login") is None
     assert await cache.get("wrapped") is None

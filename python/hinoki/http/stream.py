@@ -26,7 +26,7 @@ from collections.abc import AsyncIterable, Iterable
 from types import EllipsisType
 
 from hinoki import core
-from hinoki.http.response import Headers, Response
+from hinoki.http.response import Response, ResponseHeaders
 from hinoki.runtime.responses import BODYLESS
 
 Source = AsyncIterable[object] | Iterable[object]
@@ -45,7 +45,7 @@ class Streamed(Response):
     def __init__(
         self,
         status: int,
-        headers: Headers,
+        headers: ResponseHeaders,
         content_type: str | None,
         default_type: str,
     ) -> None:
@@ -72,7 +72,7 @@ class Sourced(Streamed):
         self,
         source: Source,
         status: int,
-        headers: Headers,
+        headers: ResponseHeaders,
         content_type: str | None,
         default_type: str,
         length: int | None,
@@ -128,7 +128,7 @@ class Stream(Sourced):
         body: Source,
         *,
         status: int = 200,
-        headers: Headers = (),
+        headers: ResponseHeaders = (),
         content_type: str | None = None,
         length: int | None = None,
     ) -> None:
@@ -181,7 +181,7 @@ class EventStream(Sourced):
         events: AsyncIterable[Event | str] | Iterable[Event | str],
         *,
         status: int = 200,
-        headers: Headers = (),
+        headers: ResponseHeaders = (),
         keepalive: float | EllipsisType | None = ...,
         retry: int | None = None,
     ) -> None:
@@ -242,7 +242,7 @@ class File(Streamed):
         filename: str | None = None,
         content_type: str | None = None,
         status: int = 200,
-        headers: Headers = (),
+        headers: ResponseHeaders = (),
     ) -> None:
         extra = [("accept-ranges", "none")]
         if filename is not None:
@@ -263,7 +263,7 @@ class File(Streamed):
         )
 
 
-def _items(headers: Headers) -> list[tuple[str, str]]:
+def _items(headers: ResponseHeaders) -> list[tuple[str, str]]:
     return list(headers.items() if hasattr(headers, "items") else headers)
 
 

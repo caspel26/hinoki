@@ -14,8 +14,9 @@ from typing import cast
 
 from hinoki.events import Handlers
 from hinoki.http.middleware import Middleware, check_middleware
-from hinoki.orm import MARK, FieldMeta, Model
+from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
+from hinoki.orm.model import MARK, FieldMeta
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.routing import Includable, Mount
 from hinoki.rules import Rule, RuleSet

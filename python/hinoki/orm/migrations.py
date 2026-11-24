@@ -21,9 +21,10 @@ from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from hinoki import jsontext
 from hinoki.errors import DestructiveMigration, MigrationError
-from hinoki.orm import MARK, FieldMeta, Model
+from hinoki.orm import Model
 from hinoki.orm.columntypes import sql_type
 from hinoki.orm.links import check_resolved
+from hinoki.orm.model import MARK, FieldMeta
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
 from hinoki.orm.relations import ON_DELETE
 from hinoki.target import add_project_to_import_path

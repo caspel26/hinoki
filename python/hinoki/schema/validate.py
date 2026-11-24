@@ -13,7 +13,7 @@ from uuid import UUID
 
 from hinoki import core
 from hinoki.errors import ErrorDetail, ValidationError
-from hinoki.fields import UNSET, SecretStr
+from hinoki.fields import UNSET, Secret
 from hinoki.fieldtypes import DECIMAL_DIGITS_CEILING, FieldType
 from hinoki.schema.decorators import _INSTANCE_MISSING, _INVALID_INSTANCE_VALUE
 
@@ -192,7 +192,7 @@ PLAIN_TYPES: dict[str, type | tuple[type, ...]] = {
     "decimal": Decimal,
     "bytes": bytes,
     "path": Path,
-    "secret": SecretStr,
+    "secret": Secret,
     "ipv4": IPv4Address,
     "ipv6": IPv6Address,
     "ipv4network": IPv4Network,
@@ -276,7 +276,7 @@ WIRE_KINDS = {
     "ipv4network": (IPv4Network, "an IPv4 network"),
     "ipv6network": (IPv6Network, "an IPv6 network"),
     "path": (Path, "a path"),
-    "secret": (SecretStr, "a secret string"),
+    "secret": (Secret, "a secret string"),
 }
 OVERSIZED_DECIMAL = "9" * (DECIMAL_DIGITS_CEILING + 1)
 TEXT_READERS: dict[str, Callable[[Any], str]] = {
@@ -285,7 +285,7 @@ TEXT_READERS: dict[str, Callable[[Any], str]] = {
     "ipv4network": str,
     "ipv6network": str,
     "path": str,
-    "secret": SecretStr.get_secret_value,
+    "secret": Secret.reveal,
 }
 """Kinds whose constructor value is read back as text by one plain call."""
 

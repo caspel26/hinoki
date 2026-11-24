@@ -15,7 +15,7 @@ struct Mode {
     exclude_unset: bool,
     controlled: bool,
     /// Storage dumps (the cache) keep only declared fields, at every depth,
-    /// ignore `dump()` overrides and refuse `SecretStr` values, so the result
+    /// ignore `dump()` overrides and refuse `Secret` values, so the result
     /// validates back into the same schema.
     storage: bool,
 }
@@ -151,7 +151,7 @@ fn convert_json_object<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     if storage && value.is_instance(crate::pytypes::secret_class(value.py())?)? {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "SecretStr values cannot be stored: they would be written masked",
+            "Secret values cannot be stored: they would be written masked",
         ));
     }
     if let Some(text) = crate::pytypes::exact_uuid_text(value)? {
@@ -331,7 +331,7 @@ pub fn serialize_instance<'py>(
 
 /// JSON-compatible declared fields of a schema instance, for storage that is
 /// validated back into the same schema (the cache): no computed values at any
-/// depth, `dump()` overrides ignored, and `ValueError` for a `SecretStr`
+/// depth, `dump()` overrides ignored, and `ValueError` for a `Secret`
 /// value, which would otherwise be written as its mask.
 #[pyfunction]
 pub fn dump_for_storage<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {

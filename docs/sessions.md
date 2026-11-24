@@ -56,6 +56,8 @@ app = Hinoki(
 )
 ```
 
+`csrf_secret` takes `bytes`, text or a `settings.Secret` (encoded as UTF-8) of at least 32 bytes; it is left out of the settings' `repr` and comparisons, and `settings.csrf_key()` returns the bytes.
+
 `SessionAuth` resolves a `Caller` from the read-only session data and works with
 `Access` and `Caller[T]`. It documents the configured cookie name as an OpenAPI
 cookie security scheme. If `SessionSettings.cookie_name` is customized, pass the

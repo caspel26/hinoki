@@ -27,7 +27,8 @@ from hinoki.cli.shellui import farewell, greeting, prompts
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import ShutdownError, StartupError
 from hinoki.modules import Module, ModuleContext
-from hinoki.orm import Model, database_var, field
+from hinoki.orm import Model, field
+from hinoki.orm.context import database_var
 from hinoki.project import ProjectError
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.terminal import ANSI, Style

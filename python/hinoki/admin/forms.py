@@ -22,7 +22,8 @@ from datetime import tzinfo
 from typing import Any
 
 from hinoki.admin.templates import Raw, Templates, escape
-from hinoki.orm import MARK, FieldMeta, Model
+from hinoki.orm import Model
+from hinoki.orm.model import MARK, FieldMeta
 from hinoki.runtime.binding import to_float, to_int
 
 TEXTAREA_ABOVE = 200

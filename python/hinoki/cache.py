@@ -198,7 +198,7 @@ class Cache(Resource):
 
     async def set_schema(self, key: str, value: S, *, ttl: float | timedelta) -> None:
         """Store the declared fields of ``value``; computed values are left out
-        so ``get_schema`` validates them back. A schema with a ``SecretStr``
+        so ``get_schema`` validates them back. A schema with a ``Secret``
         field is refused: the cache would only ever hold its mask."""
         await self.set_bytes(key, _schema_bytes(value), ttl=ttl)
 
@@ -209,7 +209,7 @@ def _schema_bytes(value: Schema) -> bytes:
     secret = _secret_field(type(value))
     if secret is not None:
         raise ValueError(
-            f"{secret} is a SecretStr field; secrets cannot be cached because "
+            f"{secret} is a Secret field; secrets cannot be cached because "
             "they serialize masked"
         )
     return core.encode_json(core.dump_for_storage(value))
@@ -218,7 +218,7 @@ def _schema_bytes(value: Schema) -> bytes:
 def _secret_field(
     schema: type[Schema], seen: frozenset[type] = frozenset()
 ) -> str | None:
-    """``Schema.field`` path of the first ``SecretStr`` declared in ``schema``."""
+    """``Schema.field`` path of the first ``Secret`` declared in ``schema``."""
     if schema in seen:
         return None
     for name, spec in schema.specs().items():

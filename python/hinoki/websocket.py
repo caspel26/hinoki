@@ -16,14 +16,22 @@ Rust server (Kiso); the handler only sees whole messages.
 from __future__ import annotations
 
 import inspect
+import math
 import re
 import types
 import typing
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass, replace
 from enum import IntEnum
-from typing import Any, Final, Protocol, TypeVar, overload
+from typing import Any, Final, ParamSpec, Protocol, TypeVar, overload
 
 from hinoki import core
 from hinoki.access import Access
@@ -32,6 +40,8 @@ from hinoki.errors import RegistrationError, ValidationError
 from hinoki.schema import Schema, encode
 
 S = TypeVar("S", bound=Schema)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 WS_ATTR: Final = "__hinoki_websocket__"
 SCALARS: Final = (str, int, float, bool, uuid.UUID)
@@ -229,13 +239,24 @@ class WebSocketRoute:
     origins: tuple[str, ...]
     max_message_bytes: int | None
     idle_timeout: float | None
-    params: tuple[Param, ...]
-    socket: str
-    caller: str | None
+    # Read from the handler's signature when the application includes the
+    # route (``bound``), so annotations may be forward references until then.
+    params: tuple[Param, ...] = ()
+    socket: str = ""
+    caller: str | None = None
+    owner: type | None = None  # the ``API`` class of a method, made per connection
+    bound: bool = False
 
     @property
     def name(self) -> str:
         return f"{self.handler.__module__}.{self.handler.__qualname__}"
+
+    def resolved(self) -> WebSocketRoute:
+        """The route with its parameters read from the handler's signature."""
+        if self.bound:
+            return self
+        socket, caller, params = bind_signature(self)
+        return replace(self, socket=socket, caller=caller, params=params, bound=True)
 
 
 def websocket_of(obj: object) -> WebSocketRoute | None:
@@ -258,8 +279,11 @@ def websocket(  # noqa: PLR0913 - one keyword per documented option
     origins: Sequence[str] = (),
     max_message_bytes: int | None = None,
     idle_timeout: float | None = None,
-) -> Callable[[Callable[..., Awaitable[object]]], Callable[..., Awaitable[object]]]:
-    """Declare a WebSocket action on ``path`` (``/rooms/{room}``).
+) -> Callable[
+    [Callable[P, Coroutine[Any, Any, R]]], Callable[P, Coroutine[Any, Any, R]]
+]:
+    """Declare a WebSocket action on ``path`` (``/rooms/{room}``), on a function
+    or on a method of an ``API`` class (whose prefix it then takes).
 
     ``access`` authenticates the handshake; a refusal is the usual HTTP answer.
     ``message`` and ``reply`` are the ``Schema`` of the JSON the client sends and
@@ -268,19 +292,19 @@ def websocket(  # noqa: PLR0913 - one keyword per documented option
     browser origins to the same-origin and application CORS ones.
     ``max_message_bytes`` and ``idle_timeout`` override the ``execution.ws_*``
     settings; ``idle_timeout`` (seconds without a message from the client) is off
-    by default."""
+    by default. The handler's annotations are read when the application
+    includes it, so they may name classes defined later."""
     checked = check_options(
         path, message, reply, subprotocols, origins, max_message_bytes, idle_timeout
     )
 
     def decorate(
-        fn: Callable[..., Awaitable[object]],
-    ) -> Callable[..., Awaitable[object]]:
+        fn: Callable[P, Coroutine[Any, Any, R]],
+    ) -> Callable[P, Coroutine[Any, Any, R]]:
         if hasattr(fn, WS_ATTR):
             raise RegistrationError(f"{fn.__qualname__} already declares a WebSocket")
         if not inspect.iscoroutinefunction(fn):
             raise RegistrationError(f"{fn.__qualname__} must be an async def")
-        socket, caller, params = bind_signature(fn, path, access, checked[0])
         declared = WebSocketRoute(
             path,
             fn,
@@ -291,9 +315,6 @@ def websocket(  # noqa: PLR0913 - one keyword per documented option
             checked[1],
             max_message_bytes,
             idle_timeout,
-            params,
-            socket,
-            caller,
         )
         setattr(fn, WS_ATTR, declared)
         return fn
@@ -357,24 +378,47 @@ def check_origins(origins: Sequence[str]) -> tuple[str, ...]:
     return tuple(origin.lower() for origin in origins)
 
 
-def bind_signature(
-    fn: Callable[..., object],
-    path: str,
-    access: Access | None,
-    subprotocols: tuple[tuple[str, Access | None], ...],
-) -> tuple[str, str | None, tuple[Param, ...]]:
-    """The socket and caller parameter names, and the others as ``Param``."""
+def handler_hints(fn: Callable[..., object]) -> dict[str, Any]:
     try:
-        hints = typing.get_type_hints(fn)
+        return typing.get_type_hints(fn)
     except Exception as exc:
         raise RegistrationError(
             f"{fn.__qualname__}: cannot resolve annotations: {exc}"
         ) from exc
+
+
+def handler_parameters(route: WebSocketRoute) -> list[inspect.Parameter]:
+    """The parameters the server fills: every one after ``self`` on a method."""
+    parameters = list(inspect.signature(route.handler).parameters.values())
+    if route.owner is None:
+        return parameters
+    required = [
+        p.name
+        for p in inspect.signature(route.owner).parameters.values()
+        if p.default is inspect.Parameter.empty
+        and p.kind
+        not in {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}
+    ]
+    if required:
+        raise RegistrationError(
+            f"{route.owner.__name__} is created without arguments per connection; "
+            f"its __init__ requires {required}"
+        )
+    return parameters[1:]
+
+
+def bind_signature(
+    route: WebSocketRoute,
+) -> tuple[str, str | None, tuple[Param, ...]]:
+    """The socket and caller parameter names, and the others as ``Param``."""
+    fn, path, access = route.handler, route.path, route.access
+    hints = handler_hints(fn)
     in_path = set(PATH_PARAM.findall(path))
     socket: str | None = None
     caller: str | None = None
     params: list[Param] = []
-    for name, parameter in inspect.signature(fn).parameters.items():
+    for parameter in handler_parameters(route):
+        name = parameter.name
         hint = hints.get(name, str)
         if hint is WebSocket:
             socket = name
@@ -386,7 +430,11 @@ def bind_signature(
         raise RegistrationError(
             f"{fn.__qualname__} needs a parameter annotated http.WebSocket"
         )
-    if caller is not None and access is None and not any(a for _, a in subprotocols):
+    if (
+        caller is not None
+        and access is None
+        and not any(a for _, a in route.subprotocols)
+    ):
         raise RegistrationError(
             f"{fn.__qualname__} takes a Caller but declares no access"
         )
@@ -431,4 +479,7 @@ def convert(param: Param, text: str) -> object:
         if lowered not in {"true", "false", "1", "0"}:
             raise ValueError(text)
         return lowered in {"true", "1"}
-    return param.hint(text)
+    value = param.hint(text)
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(text)  # as HTTP parameters: no nan or inf
+    return value

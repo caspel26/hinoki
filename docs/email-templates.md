@@ -151,7 +151,7 @@ An identifier is ASCII letters, digits and `_`, not starting with a digit, up to
 | `Decimal`, `date`, `datetime`, `UUID` | The text `dump()` gives |
 | nested `Schema` | An object: use `user.name` |
 | `list[...]` | Something `for` iterates; `for` over `None` renders nothing |
-| `SecretStr`, `bytes`, `Any`, `tuple`, a mapping field | Refused when the template is checked |
+| `Secret`, `bytes`, `Any`, `tuple`, a mapping field | Refused when the template is checked |
 
 An object or a list cannot be inserted with `{{ }}` (`not_text`); a `for` over a value that is not a list is `not_a_list`; a path through a non-object is `not_an_object`.
 
@@ -292,7 +292,7 @@ def notice_template(slug: str) -> mail.Template[mail.Context]:
     return mail.Template(name=f"notice-{slug}", subject=subject, html=html)
 ```
 
-The context is a plain `dict` (`mail.Context`). Only the syntax is checked when the template is built; there is no `Schema` to check the variables against, so a missing key is found when the template is rendered, for the message being sent. A `SecretStr` in the `dict` is refused (`secret_value`). The error names the variable of the template:
+The context is a plain `dict` (`mail.Context`). Only the syntax is checked when the template is built; there is no `Schema` to check the variables against, so a missing key is found when the template is rendered, for the message being sent. A `Secret` in the `dict` is refused (`secret_value`). The error names the variable of the template:
 
 <!-- output: missing-variable -->
 ```text
@@ -303,7 +303,7 @@ The `/notices/{slug}` route turns that error into `400 invalid_notice`, so the c
 
 ## Errors
 
-Every failure is a `mail.TemplateError`, a subclass of `EmailError` with `kind` `template`. It carries `reason`, `template` (the name), `field` (the part), `line`, `column`, `variable` and `problems` (a tuple of `TemplateProblem`, at most 20; `truncated` says there were more). Its text never holds a recipient, a subject, a rendered text or a value of the context. A secret never reaches the engine: a `SecretStr` field in a `Schema` context is `secret_field`, and one in a `dict` is `secret_value`.
+Every failure is a `mail.TemplateError`, a subclass of `EmailError` with `kind` `template`. It carries `reason`, `template` (the name), `field` (the part), `line`, `column`, `variable` and `problems` (a tuple of `TemplateProblem`, at most 20; `truncated` says there were more). Its text never holds a recipient, a subject, a rendered text or a value of the context. A secret never reaches the engine: a `Secret` field in a `Schema` context is `secret_field`, and one in a `dict` is `secret_value`.
 
 | Reason | When |
 | --- | --- |

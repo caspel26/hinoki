@@ -142,7 +142,8 @@ async def run(
     )
     code, reason = CloseCode.NORMAL, ""
     try:
-        await route.handler(**admitted.kwargs, **{route.socket: socket})
+        owner = () if route.owner is None else (route.owner(),)
+        await route.handler(*owner, **admitted.kwargs, **{route.socket: socket})
     except WebSocketClosed:
         pass
     except asyncio.CancelledError:

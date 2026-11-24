@@ -252,8 +252,7 @@ def test_the_json_encoder_writes_members_inside_schemas() -> None:
     assert '"number":2' in text
     assert '"colour":"red"' in text
     assert '"level":3' in text
-    with pytest.raises(TypeError):
-        core.encode_json({"plain": Plain.SMALL})
+    assert core.encode_json({"plain": Plain.SMALL}) == b'{"plain":"s"}'
 
 
 @pytest.mark.parametrize(

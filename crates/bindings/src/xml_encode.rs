@@ -148,9 +148,6 @@ struct XmlEncoder<'py> {
     out: Vec<u8>,
     item: Rc<str>,
     hops: usize,
-    /// Schema instances being written: only inside one do `date`, `time`,
-    /// `timedelta`, `Decimal` and `bytes` values have a wire form.
-    schemas: usize,
     _py: std::marker::PhantomData<Bound<'py, PyAny>>,
 }
 
@@ -289,7 +286,6 @@ impl<'py> XmlEncoder<'py> {
     }
 
     /// UUID and datetime subclasses, then the wire text of `date`, `Decimal`...
-    /// inside a schema instance.
     fn instance_text(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<String>> {
         if is_instance_of_named(value, "uuid", "UUID")? {
             return Ok(Some(value.str()?.to_string()));
@@ -297,25 +293,19 @@ impl<'py> XmlEncoder<'py> {
         if is_instance_of_named(value, "datetime", "datetime")? {
             return Ok(Some(value.call_method0("isoformat")?.str()?.to_string()));
         }
-        if self.schemas == 0 {
-            return Ok(None);
-        }
         crate::schema::wire_text(value)
     }
 
-    /// What stands in for a set or enum member (inside a schema instance) or a
-    /// `dump()` object.
+    /// What stands in for a set, an enum member or a `dump()` object.
     fn substitute(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        if self.schemas > 0 {
-            let is_set = value.is_instance_of::<pyo3::types::PySet>()
-                || value.is_instance_of::<pyo3::types::PyFrozenSet>();
-            if is_set {
-                let members = crate::pytypes::sorted_members(value)?;
-                return Ok(Some(PyList::new(value.py(), members)?.into_any()));
-            }
-            if let Some(member) = crate::pytypes::enum_value(value)? {
-                return Ok(Some(member));
-            }
+        let is_set = value.is_instance_of::<pyo3::types::PySet>()
+            || value.is_instance_of::<pyo3::types::PyFrozenSet>();
+        if is_set {
+            let members = crate::pytypes::sorted_members(value)?;
+            return Ok(Some(PyList::new(value.py(), members)?.into_any()));
+        }
+        if let Some(member) = crate::pytypes::enum_value(value)? {
+            return Ok(Some(member));
         }
         if value.hasattr("dump")? {
             return value.call_method0("dump").map(Some);
@@ -338,10 +328,7 @@ impl<'py> XmlEncoder<'py> {
                 present.push((wire_name, item));
             }
         }
-        self.schemas += 1;
-        let result = self.members(tag, present, depth);
-        self.schemas -= 1;
-        result
+        self.members(tag, present, depth)
     }
 }
 
@@ -382,7 +369,6 @@ pub fn encode_xml<'py>(
         out: Vec::with_capacity(128),
         item: Rc::from(item),
         hops: 0,
-        schemas: 0,
         _py: std::marker::PhantomData,
     };
     encoder.out.extend_from_slice(DECLARATION);

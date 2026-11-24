@@ -57,9 +57,11 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Atomic",
+    "AtomicScope",
     "CheckViolation",
     "Database",
     "DatabaseError",
+    "DatabaseModule",
     "ForeignKeyViolation",
     "NotNullViolation",
     "UniqueViolation",

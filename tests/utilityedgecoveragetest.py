@@ -265,6 +265,7 @@ def test_optional_upload_binding_caches_an_empty_request_body() -> None:
     binding = SimpleNamespace(
         has_files=True,
         needs_body=False,
+        takes_text=False,
         route=SimpleNamespace(parsers=DEFAULT_PARSERS),
     )
     request, data = build_request(

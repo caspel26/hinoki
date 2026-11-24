@@ -161,7 +161,7 @@ def build_request(
     )
     body: object = MISSING
     if binding.has_files:
-        body, files = upload_body(request)
+        body, files = upload_body(request, binding.takes_text)
         return request, RequestData(path, query, body, principal, files)
     if binding.needs_body:
         body = typed_body(binding, request)
@@ -170,18 +170,18 @@ def build_request(
     return request, RequestData(path, query, body, principal, {})
 
 
-def upload_body(request: Request) -> tuple[object, dict[str, list[UploadedFile]]]:
+def upload_body(
+    request: Request, takes_text: bool
+) -> tuple[object, dict[str, list[UploadedFile]]]:
     """The body and the files of an action that takes uploads."""
-    body: object = MISSING
     content_type = request.content_type
     if not request.body and not content_type:
         # A bodyless optional upload is a useful empty input. Cache it so
         # Request.data/POST/FILES observe the same parsed result.
         request.cached = Parsed({})
-    else:
-        if content_type != "multipart/form-data":
-            raise InvalidBody("unsupported_media_type", "expected multipart/form-data")
-        body = request.data
+    elif content_type != "multipart/form-data":
+        raise InvalidBody("unsupported_media_type", "expected multipart/form-data")
+    body = body_value(request, takes_text)
     return body, {name: request.FILES.getlist(name) for name in request.FILES}
 
 

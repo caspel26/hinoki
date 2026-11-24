@@ -88,7 +88,7 @@ never changes the database: create the tables with
 
 A stored value that does not read back as its annotation raises `FieldError`.
 `date` and `timedelta` compare and order by value. A column type without a
-SQL type (a set, tuple, `Literal`, `Path`, `SecretStr`, `Any`, `object`, or a
+SQL type (a set, tuple, `Literal`, `Path`, `Secret`, `Any`, `object`, or a
 union of several types such as `int | str`) raises `RegistrationError` when the
 class is defined. `Annotated[str, Field(max_length=32)]` sizes the column like
 `field(max_length=32)`. SQLite's `contains` folds ASCII case only.

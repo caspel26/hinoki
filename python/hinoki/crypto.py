@@ -29,6 +29,7 @@ from hinoki import core
 from hinoki.auth import BearerAuth, Caller
 from hinoki.blocking import call_hook
 from hinoki.errors import APIError
+from hinoki.fields import Secret, secret_bytes
 
 log = logging.getLogger("hinoki.crypto")
 
@@ -174,13 +175,14 @@ class JWTKey:
 
     HMAC secrets must be at least as long as the hash (32/48/64 bytes). For
     ``EdDSA`` the key is the 32-byte private seed, or with ``public=True`` the
-    32-byte public key of a verify-only deployment. ``kid`` is required when
-    several keys are configured. The key is excluded from ``repr``.
+    32-byte public key of a verify-only deployment. ``key`` is bytes, text or a
+    ``Secret`` (such as a ``Settings`` field). ``kid`` is required when several
+    keys are configured. The key is excluded from ``repr``.
     """
 
     kid: str | None
     algorithm: str
-    key: bytes | str = dataclasses.field(repr=False)  # never printed or logged
+    key: bytes | str | Secret = dataclasses.field(repr=False)  # never printed
     public: bool = False
 
     def __post_init__(self) -> None:
@@ -208,7 +210,7 @@ class JWTKey:
         return cls(kid, "EdDSA", public_key, public=True)
 
     def material(self) -> bytes:
-        return self.key.encode() if isinstance(self.key, str) else bytes(self.key)
+        return secret_bytes(self.key)
 
     def spec(self) -> tuple[str | None, str, bytes, bool]:
         return (self.kid, self.algorithm, self.material(), self.public)

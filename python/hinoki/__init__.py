@@ -18,7 +18,7 @@ from hinoki.auth import (
 from hinoki.computed import computed_field
 from hinoki.core import core_version
 from hinoki.derive import derive
-from hinoki.fields import Email, SecretStr, Slug, Url
+from hinoki.fields import Email, Secret, Slug, Url
 from hinoki.http.request import Request
 from hinoki.http.response import Response, set_cookie
 from hinoki.modules import Module, ModuleContext, Resource
@@ -28,6 +28,7 @@ from hinoki.parsers import (
     JSONParser,
     MultiPartParser,
     Parser,
+    TextParser,
     UploadedFile,
     XMLParser,
 )
@@ -120,8 +121,9 @@ __all__ = [
     "SchemaConfig",
     "SchemaExtra",
     "Schemas",
-    "SecretStr",
+    "Secret",
     "Slug",
+    "TextParser",
     "Transactions",
     "Unset",
     "UploadedFile",

@@ -30,11 +30,11 @@ from typing import Final, TypedDict, Unpack, overload
 
 from hinoki import core
 from hinoki.errors import RegistrationError
-from hinoki.fields import SecretStr
+from hinoki.fields import Secret
 from hinoki.fieldtypes import FieldType
 from hinoki.modules import Module, ModuleContext
 from hinoki.schema import Schema
-from hinoki.settings import EmailBackend, EmailSettings, Secret
+from hinoki.settings import EmailBackend, EmailSettings
 
 CONSOLE_SEPARATOR = "-" * 72
 HEADER_PAIR = 2
@@ -787,7 +787,7 @@ def schema_children(
     found: list[tuple[object, str]] = []
     for name in type(value).computed_fields():
         got = getattr(value, name)
-        if isinstance(got, SecretStr | Secret):
+        if isinstance(got, Secret):
             raise template_failure(
                 template, TemplateReason.SECRET_VALUE, variable=f"{prefix}{name}"
             )

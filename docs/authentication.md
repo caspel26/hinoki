@@ -145,7 +145,7 @@ shows a complete login with constant-time behaviour for unknown users.
 
 Subclass `JWTAuth[User]`, list the keys and implement `resolve_claims`, which
 turns verified claims into a `Caller` (or `None`). Read secrets from a
-`settings.Secret` field and reveal them only when you build the provider.
+`settings.Secret` field and pass it as the key: `JWTKey("2026-11", "HS256", app_settings.jwt_key)` accepts `bytes`, text or a `Secret`, and the key never appears in its `repr`.
 
 For `JWTAuth`, Rust verifies the signature and registered claims using the current key snapshot. `now()` and the configured issuer, audience, leeway (0 to 120 seconds; a provider with another value fails when it is built) and expiry policy are read for each verification. A request already verifying with a captured key snapshot finishes with that snapshot; a later verification observes key rotation. Rust does not turn token claims into a `Caller`: the application's `resolve_claims` hook still runs for every valid token, and remains responsible for loading or rejecting the identity and deciding its permissions. Sync, async and sync functions returning awaitables follow the normal hook execution path.
 

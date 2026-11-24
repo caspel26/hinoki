@@ -54,8 +54,9 @@ def test_a_handler_must_be_async_and_take_a_socket() -> None:
     async def no_socket(room: str) -> None:
         return None
 
+    declared = http.websocket("/x/{room}")(no_socket)
     with pytest.raises(RegistrationError, match=r"http\.WebSocket"):
-        http.websocket("/x/{room}")(no_socket)
+        Hinoki(include=[declared])
 
 
 def test_parameters_are_scalars_and_path_names_must_be_taken() -> None:
@@ -63,10 +64,10 @@ def test_parameters_are_scalars_and_path_names_must_be_taken() -> None:
         return None
 
     with pytest.raises(RegistrationError, match="must be str, int"):
-        http.websocket("/x")(listy)
+        Hinoki(include=[http.websocket("/x")(listy)])
 
     with pytest.raises(RegistrationError, match="lacks a parameter"):
-        http.websocket("/x/{room}")(noop)
+        Hinoki(include=[http.websocket("/x/{room}")(noop)])
 
 
 def test_a_caller_needs_an_access() -> None:
@@ -74,7 +75,7 @@ def test_a_caller_needs_an_access() -> None:
         return None
 
     with pytest.raises(RegistrationError, match="declares no access"):
-        http.websocket("/x")(anonymous)
+        Hinoki(include=[http.websocket("/x")(anonymous)])
 
 
 def test_a_function_declares_one_websocket_only() -> None:

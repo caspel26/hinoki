@@ -13,7 +13,6 @@ import pytest
 
 from hinoki import UNSET, Field, Schema, Unset, core, mail
 from hinoki.computed import computed_field
-from hinoki.fields import SecretStr
 from hinoki.mail import TemplateError, TemplateReason
 from hinoki.settings import Secret
 
@@ -178,7 +177,7 @@ def test_computed_fields_are_variables_of_the_context() -> None:
 
 def test_secret_fields_and_values_are_never_rendered() -> None:
     class Login(Schema):
-        token: SecretStr
+        token: Secret
 
     error = refused(
         lambda: mail.Template(name="l", subject="s", html="<p>x</p>", context=Login)
@@ -186,11 +185,11 @@ def test_secret_fields_and_values_are_never_rendered() -> None:
     assert error.reason is TemplateReason.SECRET_FIELD
 
     template = mail.Template(name="d", subject="s", html="<p>{{ t }}</p>")
-    for value in (SecretStr(SECRET), Secret(SECRET)):
-        error = refused(lambda value=value: template.render({"t": value}))
-        assert error.reason is TemplateReason.SECRET_VALUE
-        assert error.variable == "t"
-        assert SECRET not in str(error)
+    shown = {"t": Secret(SECRET)}
+    error = refused(lambda: template.render(shown))  # type: ignore[arg-type]
+    assert error.reason is TemplateReason.SECRET_VALUE
+    assert error.variable == "t"
+    assert SECRET not in str(error)
 
 
 def test_an_unset_field_cannot_be_verified_statically() -> None:
@@ -234,7 +233,7 @@ def test_a_schema_that_overrides_dump_is_unsupported_at_any_depth() -> None:
 
 def test_a_union_with_a_secret_is_a_secret_field() -> None:
     class Mixed(Schema):
-        token: str | SecretStr
+        token: str | Secret
 
     error = refused(
         lambda: mail.Template(name="m", subject="s", html="{{ token }}", context=Mixed)
@@ -249,7 +248,7 @@ def test_a_computed_field_that_returns_a_secret_is_refused_at_render() -> None:
 
         @computed_field
         def code(self) -> str:
-            return SecretStr(SECRET)  # type: ignore[return-value]
+            return Secret(SECRET)  # type: ignore[return-value]
 
     class Outer(Schema):
         items: list[Inner]

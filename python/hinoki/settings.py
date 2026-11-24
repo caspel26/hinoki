@@ -15,7 +15,6 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import functools
-import hmac
 import ipaddress
 import logging
 import logging.config
@@ -35,6 +34,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hinoki import core, jsontext
 from hinoki.context import request_id
+from hinoki.fields import Secret as Secret  # noqa: PLC0414 - re-exported
 from hinoki.runtime.config import MAX_REQUEST_INPUT_BYTES, RuntimeConfig
 from hinoki.target import load_target
 
@@ -137,34 +137,6 @@ class SettingsError(ValueError):
     def __init__(self, problems: list[str]) -> None:
         super().__init__("invalid settings:\n" + "\n".join(f"  {p}" for p in problems))
         self.problems = problems
-
-
-class Secret:
-    """A string that never prints itself: ``repr`` and ``str`` show ``***``."""
-
-    __slots__ = ("_value",)
-
-    def __init__(self, value: str) -> None:
-        self._value = value
-
-    def reveal(self) -> str:
-        return self._value
-
-    def __repr__(self) -> str:
-        return "Secret('***')"
-
-    __str__ = __repr__
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, Secret) and hmac.compare_digest(
-            self._value.encode(), other._value.encode()
-        )
-
-    def __hash__(self) -> int:
-        return hash(self._value)
-
-    def __bool__(self) -> bool:
-        return bool(self._value)
 
 
 @dataclass_transform(frozen_default=True, kw_only_default=True)
@@ -274,7 +246,7 @@ class Settings:
     def __post_init__(self) -> None:
         for name, hint in self.fields_of().items():
             value = getattr(self, name, None)
-            if hint is Secret and isinstance(value, str):  # built directly in code
+            if isinstance(value, str) and is_secret_hint(hint):  # built in code
                 object.__setattr__(self, name, Secret(value))
         self.validate()
 
@@ -534,7 +506,7 @@ def example_line(cls: type[Settings], name: str, hint: Any, variable: str) -> st
     """One field of a ``.env.example``: a type comment, then the variable."""
     field = {f.name: f for f in dataclasses.fields(cls)}[name]
     required = has_default(cls, name) is False
-    default = "" if required or hint is Secret else describe_default(field)
+    default = "" if required or is_secret_hint(hint) else describe_default(field)
     note = type_name(hint) + (", required" if required else "")
     # A blank line would set the empty value; leave an optional one commented
     # so a copied example keeps the default.
@@ -1076,8 +1048,6 @@ class DatabaseSettings(Settings):
     def validate(self) -> None:
         if self.max_size < 1:
             raise ValueError("max_size must be >= 1")
-        if isinstance(self.password, str):  # built directly in code
-            object.__setattr__(self, "password", Secret(self.password))
         fields = [name for name in DATABASE_FIELDS if self.field_is_set(name)]
         if self.engine is None:
             if fields:
@@ -1726,8 +1696,6 @@ class EmailSettings(Settings):
         return self.port if self.port is not None else EMAIL_PORTS[self.security]
 
     def validate(self) -> None:
-        if isinstance(self.password, str):  # built directly in code
-            object.__setattr__(self, "password", Secret(self.password))
         for name, kind in (("backend", EmailBackend), ("security", EmailSecurity)):
             try:
                 object.__setattr__(self, name, kind(getattr(self, name)))

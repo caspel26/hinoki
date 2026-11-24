@@ -180,7 +180,21 @@ async def attach(
 async def attach_scans(invoice_id: UUID, scans: list[UploadedFile]) -> Attached: ...
 ```
 
-`UploadedFile` requires exactly one part with that name. `list[UploadedFile]` requires at least one and keeps repeated parts in order. To make a single file optional, write `file: UploadedFile | None = None`. These declarations cannot be combined with a `Schema` body parameter. Use `request.POST` for adjacent text fields or `request.FILES` when names or repetitions are dynamic. Parser precedence for a file action: its own `parsers=` (which must then include `MultiPartParser`, or registration fails), then an application-wide `Hinoki(parsers=[...])` that includes a `MultiPartParser`, then the automatic `MultiPartParser()`. An application parser list without multipart does not apply to file actions, and actions without file parameters keep their parsers.
+`UploadedFile` requires exactly one part with that name. `list[UploadedFile]` requires at least one and keeps repeated parts in order. To make a single file optional, write `file: UploadedFile | None = None`. Declare the text fields next to the files as a `Form[Schema]` parameter; they are converted and validated like any form body (a failure is `422` with the parameter's path, such as `meta.pages`). A plain JSON `Schema` body cannot be combined with files and is refused at registration. Use `request.POST` for undeclared text fields or `request.FILES` when names or repetitions are dynamic.
+
+```python
+class ScanMeta(Schema):
+    title: str
+    pages: int
+
+
+@invoices.post("/{invoice_id}/scan", status=201)
+async def attach_scan(
+    invoice_id: UUID, meta: Form[ScanMeta], scan: UploadedFile
+) -> Attached:
+    return Attached(title=meta.title, filename=scan.filename, size=scan.size)
+```
+ Parser precedence for a file action: its own `parsers=` (which must then include `MultiPartParser`, or registration fails), then an application-wide `Hinoki(parsers=[...])` that includes a `MultiPartParser`, then the automatic `MultiPartParser()`. An application parser list without multipart does not apply to file actions, and actions without file parameters keep their parsers.
 
 All declared files require `multipart/form-data`. A missing file is a `422` validation error; a wrong media type is `415`; malformed multipart is `400`; a part or complete body over its configured limit is `413 payload_too_large`. A zero-byte body with no `Content-Type` is treated as absent input for optional files; an explicitly multipart empty body is malformed, while a valid closing-boundary-only body has no parts. The default complete-body limit is 1 MiB, and the parser buffers bytes in memory: this API is for bounded small uploads, not streaming.
 

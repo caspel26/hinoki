@@ -53,7 +53,7 @@ cleanup.
 `set_schema` stores the schema's declared fields only: `@computed_field` values
 are omitted and recomputed when `get_schema` validates the value again, so
 schemas with the default `extra="forbid"` round-trip. A schema containing a
-`SecretStr` field, including in a nested schema, is rejected with `ValueError`
+`Secret` field, including in a nested schema, is rejected with `ValueError`
 instead of caching a masked or plain secret.
 
 `get_or_set` reads, calls its factory on a miss and writes the result. It does
