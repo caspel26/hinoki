@@ -23,6 +23,7 @@ from hinoki.orm import (
     foreign_key,
     many_to_many,
 )
+from hinoki.pagination import PageParams
 
 
 class BenchmarkUser(Model, table="benchmark_users"):
@@ -220,23 +221,20 @@ def article_out(article: Article) -> ArticleOut:
 
 
 async def articles_page(page: int, page_size: int) -> ArticlePage:
-    page = max(1, page)
-    page_size = max(1, min(100, page_size))
-    total = await Article.all().acount()
-    found = (
+    params = PageParams(page=max(1, page), page_size=max(1, min(100, page_size)))
+    paged = (
         await Article.all()
         .select_related("author")
         .prefetch_related("tags")
         .order_by("-created_at")
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .apaginate(params, concurrent=True)
     )
     return ArticlePage(
-        items=[article_out(article) for article in found],
-        total=total,
-        page=page,
-        page_size=page_size,
-        pages=-(-total // page_size),
+        items=[article_out(article) for article in paged.items],
+        total=paged.total,
+        page=paged.page,
+        page_size=paged.page_size,
+        pages=paged.pages,
     )
 
 
@@ -257,18 +255,7 @@ async def json_10k() -> list[dict[str, object]]:
 
 @http.get("/db")
 async def db_read() -> list[UserOut]:
-    users = await BenchmarkUser.all().limit(10)
-    return [
-        UserOut(
-            id=u.id,
-            username=u.username,
-            email=u.email,
-            first_name=u.first_name,
-            last_name=u.last_name,
-            is_active=u.is_active,
-        )
-        for u in users
-    ]
+    return await BenchmarkUser.all().limit(10).aproject(UserOut)
 
 
 @http.get("/articles")
