@@ -200,6 +200,8 @@ closing with `1001`) is off by default, since a server-push connection can be
 silent from the client on purpose. Frames that are malformed, unmasked from a
 client, reserved or oversized control frames, invalid UTF-8 in text, and bad
 close codes end the connection with `1002` or `1007` as RFC 6455 requires. A
+fragmented message may span at most 4,096 frames, its first one included; a
+fragment past that ends the connection with `1002`, whatever the message size. A
 write that makes no progress for `execution.request_timeout` seconds drops the
 connection.
 
