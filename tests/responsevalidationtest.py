@@ -320,3 +320,109 @@ def test_a_union_check_creates_no_generator_per_response() -> None:
         sys.setprofile(None)
 
     assert "<genexpr>" not in created
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_object_dict_list_preserves_subclass_iteration_and_mutation(
+    native: bool,
+) -> None:
+    events: list[str] = []
+    values: list[object] = []
+
+    class Special(dict[str, object]):
+        def items(self) -> Any:
+            events.append("items")
+            values.append({"added": object()})
+            return super().items()
+
+    values.extend([{"first": 1}, Special(x=1)])
+
+    def item(value: object) -> bool:
+        return isinstance(value, dict) and all(
+            type(key) is str for key, _ in value.items()
+        )
+
+    def reference(value: object) -> bool:
+        return isinstance(value, list) and all(item(entry) for entry in value)
+
+    check = (
+        compile_response_check("action", list[dict[str, object]])
+        if native
+        else reference
+    )
+    assert check(values)
+    assert events == ["items"]
+    assert len(values) == 3
+
+
+def test_object_dict_list_matches_python_for_subclasses_and_errors() -> None:
+    events: list[str] = []
+
+    class Key(str):
+        pass
+
+    class CustomDict(dict[str, object]):
+        def items(self) -> Any:
+            events.append("dict")
+            raise RuntimeError("items called")
+
+    class CustomList(list[object]):
+        def __iter__(self) -> Any:
+            events.append("list")
+            return iter([{"ok": 1}])
+
+    check = compile_response_check("action", list[dict[str, object]])
+    assert check([])
+    assert check([{"ok": object()}])
+    assert not check([{Key("bad"): 1}])
+    assert not check([{}, 1])
+    assert not check([{1: "bad"}, CustomDict()])
+    assert events == []
+    assert check(CustomList([None]))
+    assert events == ["list"]
+    with pytest.raises(RuntimeError, match="items called"):
+        check([CustomDict()])
+    assert events == ["list", "dict"]
+
+
+@pytest.mark.parametrize("mutation", ["remove", "append_invalid", "raise"])
+def test_object_dict_list_matches_python_when_nested_dict_changes_list(
+    mutation: str,
+) -> None:
+    def run(native: bool) -> tuple[object, list[str]]:
+        events: list[str] = []
+        values: list[object] = []
+
+        class CustomDict(dict[str, object]):
+            def items(self) -> Any:
+                events.append("items")
+                if mutation == "remove":
+                    values.pop()
+                elif mutation == "append_invalid":
+                    values.append({1: "bad"})
+                else:
+                    raise RuntimeError("custom failure")
+                return super().items()
+
+        values.extend([CustomDict(a=1), {1: "bad"} if mutation == "remove" else {}])
+
+        def item(value: object) -> bool:
+            return isinstance(value, dict) and all(
+                type(key) is str for key, _ in value.items()
+            )
+
+        def reference(value: object) -> bool:
+            return isinstance(value, list) and all(item(entry) for entry in value)
+
+        check = (
+            compile_response_check("action", list[dict[str, object]])
+            if native
+            else reference
+        )
+        try:
+            result: object = check(values)
+        except RuntimeError as error:
+            result = (type(error), str(error))
+        return result, events
+
+    assert run(True) == run(False)
