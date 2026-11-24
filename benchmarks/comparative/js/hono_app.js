@@ -1,70 +1,57 @@
 // The benchmark service on Hono with @hono/node-server (Node.js, node:cluster) and node-postgres (`pg`).
-// Input is checked with Hono's `validator` middleware and the shared rules in common.js.
+// Handlers are async; values are encoded by Hono's `c.json`.
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
-import { validator } from "hono/validator";
+import { getCookie } from "hono/cookie";
+import { createMiddleware } from "hono/factory";
 import pg from "pg";
+import { onTerminate, runCluster } from "./cluster.js";
 import {
-  BODIES,
+  COOKIE,
   INVALID,
   NOT_FOUND,
   SQL,
-  createdOut,
-  isUuid,
-  pageOut,
+  UNAUTHORIZED,
+  articleId,
+  loadPayloads,
   pageParams,
-  postInput,
-  postOut,
+  queries,
   settings,
 } from "./common.js";
-import { onTerminate, runCluster } from "./cluster.js";
 
 // Named queries make `pg` prepare each statement once per connection.
-const run = (pool, name, values) => pool.query({ name, text: SQL[name], values });
-const JSON_TYPE = { "content-type": "application/json" };
+const runner = (pool) => async (name, values) => (await pool.query({ name, text: SQL[name], values })).rows;
 
-const pageQuery = validator("query", (query, c) => pageParams(query.page, query.page_size) ?? c.json(INVALID, 422));
-const postId = validator("param", (params, c) => (isUuid(params.post_id) ? params : c.json(INVALID, 422)));
-const postBody = validator("json", (data, c) => postInput(data) ?? c.json(INVALID, 422));
-
-function routes(app, pool) {
+function routes(app, db, payloads) {
   app.get("/health", (c) => c.json({ status: "ok" }));
-  for (const name of Object.keys(BODIES)) {
-    app.get(`/${name}`, (c) => c.body(BODIES[name], 200, JSON_TYPE));
-  }
-  app.get("/posts", pageQuery, async (c) => {
-    const params = c.req.valid("query");
-    const counted = await run(pool, "count", []);
-    const total = Number(counted.rows[0].total);
-    const found = await run(pool, "list", [params.pageSize, (params.page - 1) * params.pageSize]);
-    return c.json(pageOut(found.rows, total, params));
+  for (const name of Object.keys(payloads)) app.get(`/${name}`, async (c) => c.json(payloads[name]));
+  app.get("/db", async (c) => c.json(await db.users()));
+  const listing = async (c) => {
+    const params = pageParams(c.req.query("page"), c.req.query("page_size"));
+    return params ? c.json(await db.articlesPage(params)) : c.json(INVALID, 422);
+  };
+  app.get("/articles", listing);
+  app.get("/articles/:article_id", async (c) => {
+    const id = articleId(c.req.param("article_id"));
+    if (id === null) return c.json(INVALID, 422);
+    const found = await db.article(id);
+    return found ? c.json(found) : c.json(NOT_FOUND, 404);
   });
-  app.get("/posts/:post_id", postId, async (c) => {
-    const found = await run(pool, "detail", [c.req.valid("param").post_id]);
-    if (found.rows.length === 0) return c.json(NOT_FOUND, 404);
-    return c.json(postOut(found.rows[0]));
+  // The access token is checked, and its user loaded, before the protected handlers run.
+  const authenticated = createMiddleware(async (c, next) => {
+    const user = await db.currentUser(getCookie(c, COOKIE));
+    if (!user) return c.json(UNAUTHORIZED, 401);
+    c.set("user", user);
+    await next();
   });
-  app.post("/posts", postBody, async (c) => {
-    const input = c.req.valid("json");
-    const id = crypto.randomUUID();
-    const createdAt = new Date();
-    await run(pool, "insert", [id, input.authorId, input.title, input.body, createdAt]);
-    const found = await run(pool, "author", [input.authorId]);
-    return c.json(createdOut(id, input, createdAt, found.rows[0]), 201);
-  });
-  // Unreadable JSON is a 400 HTTPException in Hono; the other stacks answer 422.
-  app.onError((error, c) => {
-    if (error instanceof HTTPException && error.status === 400) return c.json(INVALID, 422);
-    console.error(error);
-    return c.json({ detail: "internal error" }, 500);
-  });
+  app.get("/auth/me", authenticated, async (c) => c.json(c.get("user")));
+  app.get("/auth/articles", authenticated, listing);
 }
 
 async function worker(config) {
   const pool = new pg.Pool({ connectionString: config.databaseUrl, max: config.pool });
   const app = new Hono();
-  routes(app, pool);
+  routes(app, queries(runner(pool)), loadPayloads(config.payloads));
   const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: config.port });
   onTerminate(async () => {
     await new Promise((resolve) => server.close(resolve));

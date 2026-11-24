@@ -1,6 +1,7 @@
-// Node.js process model: one primary forks `workers` processes with node:cluster.
-// The primary accepts connections and hands them out round-robin (Node's default on Linux).
-// A worker that dies outside a shutdown stops the whole server, so a broken stack is never measured.
+// Node.js process model: with one worker the server runs in this process; with more, one primary
+// forks `workers` processes with node:cluster, accepts connections and hands them out round-robin
+// (Node's default on Linux). A worker that dies outside a shutdown stops the whole server, so a
+// broken stack is never measured.
 import cluster from "node:cluster";
 
 function primary(workers) {
@@ -21,7 +22,7 @@ function primary(workers) {
 }
 
 export function runCluster(config, startWorker) {
-  if (cluster.isPrimary) {
+  if (cluster.isPrimary && config.workers > 1) {
     primary(config.workers);
     return;
   }

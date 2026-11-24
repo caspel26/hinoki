@@ -1,66 +1,75 @@
 // The benchmark service on Bun.serve (no framework) with Bun's built-in PostgreSQL client (Bun.SQL).
-// A launcher process starts `BENCH_WORKERS` server processes sharing the port with SO_REUSEPORT,
-// so the kernel spreads connections over them. Tagged-template queries are prepared per connection.
+// With more than one worker, a launcher process starts `BENCH_WORKERS` server processes sharing the
+// port with SO_REUSEPORT, so the kernel spreads connections over them. Values are encoded by
+// `Response.json`.
 import { SQL as Client } from "bun";
-import { BODIES, INVALID, NOT_FOUND, createdOut, isUuid, pageOut, pageParams, postInput, postOut, settings } from "./common.js";
+import {
+  INVALID,
+  NOT_FOUND,
+  SQL,
+  UNAUTHORIZED,
+  articleId,
+  cookie,
+  loadPayloads,
+  pageParams,
+  queries,
+  settings,
+} from "./common.js";
 
-const JSON_HEADERS = { "content-type": "application/json" };
+const json = (data, status = 200) => Response.json(data, { status });
 
-function json(data, status = 200) {
-  return Response.json(data, { status });
-}
-
-function handlers(sql) {
+function handlers(db) {
   const listing = async (request) => {
     const query = new URL(request.url).searchParams;
     const params = pageParams(query.get("page") ?? undefined, query.get("page_size") ?? undefined);
-    if (!params) return json(INVALID, 422);
-    const [counted] = await sql`SELECT count(*) AS total FROM posts WHERE published`;
-    const total = Number(counted.total);
-    const rows = await sql`SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name FROM posts p JOIN authors a ON a.id = p.author_id WHERE p.published ORDER BY p.created_at DESC, p.id DESC LIMIT ${params.pageSize} OFFSET ${(params.page - 1) * params.pageSize}`;
-    return json(pageOut(rows, total, params));
+    return params ? json(await db.articlesPage(params)) : json(INVALID, 422);
   };
-  const detail = async (request) => {
-    const id = request.params.post_id;
-    if (!isUuid(id)) return json(INVALID, 422);
-    const rows = await sql`SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name FROM posts p JOIN authors a ON a.id = p.author_id WHERE p.id = ${id} AND p.published`;
-    return rows.length === 0 ? json(NOT_FOUND, 404) : json(postOut(rows[0]));
+  const article = async (request) => {
+    const id = articleId(request.params.article_id);
+    if (id === null) return json(INVALID, 422);
+    const found = await db.article(id);
+    return found ? json(found) : json(NOT_FOUND, 404);
   };
-  const create = async (request) => {
-    let data;
-    try {
-      data = await request.json();
-    } catch {
-      return json(INVALID, 422);
-    }
-    const input = postInput(data);
-    if (!input) return json(INVALID, 422);
-    const id = crypto.randomUUID();
-    const createdAt = new Date();
-    await sql`INSERT INTO posts (id, author_id, title, body, published, created_at) VALUES (${id}, ${input.authorId}, ${input.title}, ${input.body}, true, ${createdAt})`;
-    const [author] = await sql`SELECT id, name FROM authors WHERE id = ${input.authorId}`;
-    return json(createdOut(id, input, createdAt, author), 201);
+  // The access token is checked, and its user loaded, before the protected handler runs.
+  const authenticated = (handler) => async (request) => {
+    const user = await db.currentUser(cookie(request.headers.get("cookie")));
+    return user ? handler(request, user) : json(UNAUTHORIZED, 401);
   };
-  return { listing, detail, create };
+  return {
+    listing,
+    article,
+    users: async () => json(await db.users()),
+    me: authenticated(async (_request, user) => json(user)),
+    authListing: authenticated(listing),
+  };
 }
+
+// Bun.SQL's `unsafe` sends a JavaScript array as "1,2,3", which PostgreSQL rejects for a
+// `bigint[]` parameter, so the id list is sent as an array literal.
+const parameter = (value) => (Array.isArray(value) ? `{${value.join(",")}}` : value);
 
 function serveWorker(config) {
   const sql = new Client({ url: config.databaseUrl, max: config.pool, prepare: true });
-  const { listing, detail, create } = handlers(sql);
-  const payload = (name) => ({ GET: () => new Response(BODIES[name], { headers: JSON_HEADERS }) });
+  const db = queries((name, values) => sql.unsafe(SQL[name], values.map(parameter)));
+  const routes = handlers(db);
+  const payloads = loadPayloads(config.payloads);
+  const payload = (name) => ({ GET: async () => json(payloads[name]) });
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: config.port,
-    reusePort: true,
+    reusePort: config.workers > 1,
     development: false,
     routes: {
       "/health": { GET: () => json({ status: "ok" }) },
       "/json-1k": payload("json-1k"),
       "/json-10k": payload("json-10k"),
-      "/posts": { GET: listing, POST: create },
-      "/posts/:post_id": { GET: detail },
+      "/db": { GET: routes.users },
+      "/articles": { GET: routes.listing },
+      "/articles/:article_id": { GET: routes.article },
+      "/auth/me": { GET: routes.me },
+      "/auth/articles": { GET: routes.authListing },
     },
-    fetch: () => json(NOT_FOUND, 404),
+    fetch: () => json({ detail: "Not Found" }, 404),
     error(error) {
       console.error(error);
       return json({ detail: "internal error" }, 500);
@@ -100,5 +109,5 @@ function launch(config) {
 }
 
 const config = settings(process.env);
-if (process.env.BENCH_BUN_WORKER === "1") serveWorker(config);
+if (config.workers === 1 || process.env.BENCH_BUN_WORKER === "1") serveWorker(config);
 else launch(config);

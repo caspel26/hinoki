@@ -68,6 +68,11 @@ def rps(value: float) -> str:
     return f"{value:,.0f}"
 
 
+def upper_median(values: tuple[float, ...]) -> float:
+    """The statistic Django Bolt's comparison publishes: ``sorted(samples)[len // 2]``."""
+    return sorted(values)[len(values) // 2]
+
+
 def fmt_ms(value: float) -> str:
     return f"{value:,.0f}" if value >= 100 else f"{value:.1f}"
 
@@ -230,7 +235,8 @@ def exact_row(cell: Cell) -> str:
     return (
         f'<tr data-stack="{esc(cell.family)}" class="{state_class(cell)}">'
         f'<th scope="row">{esc(cell.label)}</th>'
-        f"<td>{rps(cell.median)}</td><td>{rps(cell.low)}&ndash;{rps(cell.high)}</td>"
+        f"<td>{rps(cell.median)}</td><td>{rps(upper_median(cell.samples))}</td>"
+        f"<td>{rps(cell.low)}&ndash;{rps(cell.high)}</td>"
         f"<td>{fmt_ms(cell.p50_ms)}</td><td>{fmt_ms(cell.p99_ms)}</td>"
         f"<td>{cv_text(cell)}</td><td>{cell.wrong}</td><td>{len(cell.samples)}</td>"
         f"<td>{status_badge(cell)}</td></tr>"
@@ -243,6 +249,7 @@ def exact_table(scenario: Scenario) -> str:
         f'<th scope="col">{name}</th>'
         for name in (
             "Median req/s",
+            "Upper median",
             "Lowest&ndash;highest",
             "p50 ms",
             "p99 ms",
@@ -256,7 +263,8 @@ def exact_table(scenario: Scenario) -> str:
         '<div class="bench-scroll" role="region" tabindex="0" '
         f'aria-label="{esc(scenario.name)}: exact numbers">'
         '<table class="bench-exact">'
-        f"<caption>{esc(scenario.name)}: median and lowest to highest sample of requests per second, "
+        f"<caption>{esc(scenario.name)}: median, upper median (the statistic Django Bolt publishes) "
+        "and lowest to highest sample of requests per second, "
         "median p50 and p99 latency, run-to-run variation (CV) and status</caption>"
         f'<thead><tr><th scope="col">Stack</th>{heads}</tr></thead><tbody>{rows}</tbody></table></div>'
     )

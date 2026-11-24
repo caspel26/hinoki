@@ -1,39 +1,16 @@
-// Behaviour shared by the JavaScript stacks: settings, fixed payloads, SQL, input rules and response shape.
-// Plain ECMAScript plus Buffer, so Node.js and Bun load the same file.
+// Behaviour shared by the JavaScript stacks: settings, payloads, SQL, the access token and the response shapes.
+// Plain ECMAScript plus node:crypto and node:fs, so Node.js and Bun load the same file.
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 
-const CATEGORIES = ["books", "garden", "kitchen", "music", "outdoor", "toys"];
-const TARGET_BYTES = { "json-1k": 1024, "json-10k": 10240 };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const COOKIE = "access_token";
+const SECRET = "hinoki-bolt-parity-benchmark-secret-not-for-production";
 const INTEGER = /^[+-]?\d+$/;
+const SUBJECT = /^\d+$/;
 
-export const NOT_FOUND = { detail: "not found" };
+export const NOT_FOUND = { detail: "Article not found" };
+export const UNAUTHORIZED = { detail: "Authentication required" };
 export const INVALID = { detail: "invalid input" };
-
-// Same generator as payloads.py; verify.py compares the bytes with that file's output.
-export function makeItems(count) {
-  const items = [];
-  for (let number = 1; number <= count; number += 1) {
-    items.push({
-      id: number,
-      name: `Item ${String(number).padStart(4, "0")}`,
-      description: `Deterministic sample item number ${number}.`,
-      price_cents: 199 + ((number * 37) % 9000),
-      category: CATEGORIES[number % CATEGORIES.length],
-      in_stock: number % 3 !== 0,
-    });
-  }
-  return items;
-}
-
-function itemsFor(target) {
-  let count = 1;
-  while (Buffer.byteLength(JSON.stringify(makeItems(count + 1))) <= target) count += 1;
-  return makeItems(count);
-}
-
-export const BODIES = Object.fromEntries(
-  Object.entries(TARGET_BYTES).map(([name, size]) => [name, Buffer.from(JSON.stringify(itemsFor(size)))]),
-);
 
 function positive(env, name, fallback) {
   const raw = env[name] ?? fallback;
@@ -44,84 +21,161 @@ function positive(env, name, fallback) {
 
 export function settings(env) {
   if (!env.BENCH_DATABASE_URL) throw new Error("BENCH_DATABASE_URL is required");
+  if (!env.BENCH_PAYLOADS) throw new Error("BENCH_PAYLOADS is required");
   return {
     databaseUrl: env.BENCH_DATABASE_URL,
-    pool: positive(env, "BENCH_POOL", "10"),
-    workers: positive(env, "BENCH_WORKERS", "4"),
+    payloads: env.BENCH_PAYLOADS,
+    pool: positive(env, "BENCH_POOL", "8"),
+    workers: positive(env, "BENCH_WORKERS", "1"),
     port: positive(env, "BENCH_PORT", "8801"),
   };
 }
 
+// The two `json-*` values, written by run.py from parity_data.py; each framework encodes them itself.
+export const loadPayloads = (path) => JSON.parse(readFileSync(path, "utf8"));
+
+// The statements of Django Bolt's handlers: COUNT, the page joined with its author, then the tags
+// of every article on the page in one query; the detail adds the comments.
+const ARTICLE =
+  "SELECT a.id, a.title, a.content, a.published, a.created_at, a.updated_at, " +
+  "u.id AS author_id, u.name AS author_name, u.email AS author_email, u.bio AS author_bio, " +
+  "u.created_at AS author_created_at FROM articles_article a JOIN articles_author u ON u.id = a.author_id";
 export const SQL = {
-  count: "SELECT count(*) AS total FROM posts WHERE published",
-  list:
-    "SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name " +
-    "FROM posts p JOIN authors a ON a.id = p.author_id WHERE p.published " +
-    "ORDER BY p.created_at DESC, p.id DESC LIMIT $1 OFFSET $2",
-  detail:
-    "SELECT p.id, p.title, p.body, p.published, p.created_at, a.id AS author_id, a.name AS author_name " +
-    "FROM posts p JOIN authors a ON a.id = p.author_id WHERE p.id = $1 AND p.published",
-  insert:
-    "INSERT INTO posts (id, author_id, title, body, published, created_at) VALUES ($1, $2, $3, $4, true, $5)",
-  author: "SELECT id, name FROM authors WHERE id = $1",
+  users: "SELECT id, username, email, first_name, last_name, is_active FROM benchmark_users LIMIT 10",
+  count: "SELECT count(*) AS total FROM articles_article",
+  page: `${ARTICLE} ORDER BY a.created_at DESC LIMIT $1 OFFSET $2`,
+  article: `${ARTICLE} WHERE a.id = $1`,
+  tags:
+    "SELECT l.article_id, t.id, t.name, t.slug FROM articles_tag t " +
+    "JOIN articles_article_tags l ON l.tag_id = t.id WHERE l.article_id = ANY($1::bigint[])",
+  comments:
+    "SELECT id, article_id, author_name, content, created_at FROM articles_comment " +
+    "WHERE article_id = $1 ORDER BY created_at DESC",
+  user: "SELECT id, username, email, first_name, last_name, is_active FROM auth_user WHERE id = $1",
 };
 
-export const isUuid = (value) => typeof value === "string" && UUID.test(value);
-
-function integer(raw, fallback, low, high) {
+function integer(raw, fallback) {
   if (raw === undefined || raw === null) return fallback;
-  if (!INTEGER.test(raw)) return null;
-  const value = Number(raw);
-  return value >= low && value <= high ? value : null;
+  return INTEGER.test(raw) ? Number(raw) : null;
 }
 
-// `page >= 1` and `1 <= page_size <= 100`; null means the request is a 422.
+// Out-of-range values are clamped as Django Bolt's handlers do; a non-integer is a 422.
 export function pageParams(page, pageSize) {
-  const number = integer(page, 1, 1, Number.MAX_SAFE_INTEGER);
-  const size = integer(pageSize, 20, 1, 100);
-  return number === null || size === null ? null : { page: number, pageSize: size };
+  const number = integer(page, 1);
+  const size = integer(pageSize, 20);
+  if (number === null || size === null) return null;
+  return { page: Math.max(1, number), pageSize: Math.max(1, Math.min(100, size)) };
 }
 
-// Lengths count code points, as Python and PostgreSQL do, not UTF-16 units.
-const length = (text) => [...text].length;
+export const articleId = (raw) => (INTEGER.test(raw) ? Number(raw) : null);
 
-export function postInput(data) {
-  if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
-  const { author_id: authorId, title, body } = data;
-  if (!isUuid(authorId) || typeof title !== "string" || typeof body !== "string") return null;
-  if (length(title) < 1 || length(title) > 120 || length(body) < 1) return null;
-  return { authorId, title, body };
+const decode = (part) => JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
+
+// The user id of a valid HS256 access token (signature, `exp` and `sub` required), else null.
+export function tokenSubject(token, now = Date.now() / 1000) {
+  const parts = typeof token === "string" ? token.split(".") : [];
+  if (parts.length !== 3) return null;
+  try {
+    if (decode(parts[0]).alg !== "HS256") return null;
+    const expected = createHmac("sha256", SECRET).update(`${parts[0]}.${parts[1]}`).digest();
+    const signature = Buffer.from(parts[2], "base64url");
+    if (signature.length !== expected.length || !timingSafeEqual(signature, expected)) return null;
+    const claims = decode(parts[1]);
+    if (typeof claims.exp !== "number" || claims.exp <= now) return null;
+    return typeof claims.sub === "string" && SUBJECT.test(claims.sub) ? Number(claims.sub) : null;
+  } catch {
+    return null;
+  }
 }
 
-export function postOut(row) {
+// The value of one cookie in a `Cookie` header.
+export function cookie(header, name = COOKIE) {
+  for (const pair of (header ?? "").split(";")) {
+    const index = pair.indexOf("=");
+    if (index > 0 && pair.slice(0, index).trim() === name) return pair.slice(index + 1).trim();
+  }
+  return undefined;
+}
+
+export const userOut = (row) => ({
+  id: Number(row.id),
+  username: row.username,
+  email: row.email,
+  first_name: row.first_name,
+  last_name: row.last_name,
+  is_active: row.is_active,
+});
+
+export function articleOut(row, tags) {
   return {
-    id: row.id,
+    id: Number(row.id),
     title: row.title,
-    body: row.body,
+    content: row.content,
     published: row.published,
+    author: {
+      id: Number(row.author_id),
+      name: row.author_name,
+      email: row.author_email,
+      bio: row.author_bio,
+      created_at: row.author_created_at,
+    },
+    tags: tags.get(Number(row.id)) ?? [],
     created_at: row.created_at,
-    author: { id: row.author_id, name: row.author_name },
+    updated_at: row.updated_at,
   };
 }
 
-export function pageOut(rows, total, { page, pageSize }) {
+// Tag rows grouped by article id, in the order the database returned them.
+export function tagsByArticle(rows) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const id = Number(row.article_id);
+    if (!grouped.has(id)) grouped.set(id, []);
+    grouped.get(id).push({ id: Number(row.id), name: row.name, slug: row.slug });
+  }
+  return grouped;
+}
+
+export const commentOut = (row) => ({
+  id: Number(row.id),
+  article_id: Number(row.article_id),
+  author_name: row.author_name,
+  content: row.content,
+  created_at: row.created_at,
+});
+
+export function pageOut(rows, tags, total, { page, pageSize }) {
   return {
-    items: rows.map(postOut),
+    items: rows.map((row) => articleOut(row, tags)),
+    total,
     page,
     page_size: pageSize,
-    total,
     pages: Math.ceil(total / pageSize),
   };
 }
 
-export function createdOut(id, input, createdAt, author) {
-  return postOut({
-    id,
-    title: input.title,
-    body: input.body,
-    published: true,
-    created_at: createdAt,
-    author_id: author.id,
-    author_name: author.name,
-  });
+// The handlers' database work over a `query(name, values)` function that returns the rows.
+export function queries(query) {
+  const articlesPage = async (params) => {
+    const [counted] = await query("count", []);
+    const rows = await query("page", [params.pageSize, (params.page - 1) * params.pageSize]);
+    const tags = await query("tags", [rows.map((row) => row.id)]);
+    return pageOut(rows, tagsByArticle(tags), Number(counted.total), params);
+  };
+  const article = async (id) => {
+    const [row] = await query("article", [id]);
+    if (!row) return null;
+    const tags = await query("tags", [[row.id]]);
+    const comments = await query("comments", [id]);
+    return { ...articleOut(row, tagsByArticle(tags)), comments: comments.map(commentOut) };
+  };
+  const users = async () => (await query("users", [])).map(userOut);
+  // The user of a request's access token, or null; the row is read only for a valid token.
+  const currentUser = async (token) => {
+    const subject = tokenSubject(token);
+    if (subject === null) return null;
+    const [row] = await query("user", [subject]);
+    return row ? userOut(row) : null;
+  };
+  return { articlesPage, article, users, currentUser };
 }
