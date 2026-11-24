@@ -1,0 +1,6 @@
+pid pgid cputime command
+4189540 4189540 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+4189551 4189540 00:07:39 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+4189552 4189540 00:07:39 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+4189553 4189540 00:07:39 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin
+4189555 4189540 00:07:39 /root/hinoki/benchmarks/comparative/.venv/bin/python manage.py runbolt --host 127.0.0.1 --processes 4 --port 8801 --no-admin

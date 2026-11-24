@@ -1,7 +1,0 @@
-pid pgid cputime command
-2287137 2287137 00:00:08 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -m uvicorn ninja_app:application --workers 4 --port 8801 --log-level warning --no-access-log
-2287138 2287137 00:00:00 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -c from multiprocessing.resource_tracker import main;main(6)
-2287139 2287137 00:21:33 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=9) --multiprocessing-fork
-2287140 2287137 00:21:38 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=13) --multiprocessing-fork
-2287141 2287137 00:21:43 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=17) --multiprocessing-fork
-2287142 2287137 00:21:41 /home/caspel/Documents/hinoki/.claude/worktrees/benchd/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=21) --multiprocessing-fork

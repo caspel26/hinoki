@@ -1,0 +1,6 @@
+pid pgid cputime command
+  45456   45456 00:00:00 /root/.local/bin/bun js/bun_app.js
+  45462   45456 00:01:24 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/bun_app.js
+  45463   45456 00:01:25 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/bun_app.js
+  45464   45456 00:01:23 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/bun_app.js
+  45465   45456 00:01:26 /root/.local/opt/bun-v1.4.5/bun-linux-x64/bun /root/hinoki/benchmarks/comparative/js/bun_app.js

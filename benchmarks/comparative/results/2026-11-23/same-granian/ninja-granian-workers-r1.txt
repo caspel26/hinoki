@@ -1,0 +1,7 @@
+pid pgid cputime command
+   1112    1112 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -m granian --interface asgi --workers 4 --port 8801 --no-log ninja_app:application
+   1113    1112 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.resource_tracker import main;main(16)
+   1114    1112 00:23:37 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=19) --multiprocessing-fork
+   1116    1112 00:23:38 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=21) --multiprocessing-fork
+   1118    1112 00:23:39 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=23) --multiprocessing-fork
+   1120    1112 00:23:39 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=17, pipe_handle=25) --multiprocessing-fork

@@ -1,0 +1,7 @@
+pid pgid cputime command
+  22093   22093 00:00:02 /root/hinoki/benchmarks/comparative/.venv/bin/python -m uvicorn fastapi_app:app --workers 4 --port 8801 --log-level warning --no-access-log
+  22094   22093 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.resource_tracker import main;main(6)
+  22095   22093 00:12:37 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=9) --multiprocessing-fork
+  22096   22093 00:12:37 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=13) --multiprocessing-fork
+  22097   22093 00:12:37 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=17) --multiprocessing-fork
+  22098   22093 00:12:38 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=21) --multiprocessing-fork
