@@ -5,22 +5,32 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid1
 
 import pytest
 
 from hinoki import db, events
 from hinoki.db import Database
-from hinoki.errors import FieldError, ModelError, RegistrationError
-from hinoki.fields import UNSET
+from hinoki.errors import (
+    FieldError,
+    ModelError,
+    ModelValidationError,
+    RegistrationError,
+)
+from hinoki.fields import UNSET, Field
 from hinoki.orm import (
     Model,
     OnDelete,
     SoftDeleteModel,
     TimestampedModel,
+    UUIDModel,
     field,
     foreign_key,
     pk,
+    urlsafe_token,
     use_database,
+    uuid7,
+    uuid_pk,
 )
 from hinoki.orm.migrations import table_state
 
@@ -289,11 +299,11 @@ async def test_soft_delete_scopes_restore_hard_delete_and_status_tracking(
 
 
 async def test_soft_delete_writes_require_explicit_filters(database: Database) -> None:
-    with pytest.raises(FieldError, match="explicit condition"):
+    with pytest.raises(FieldError, match="adelete needs at least one condition"):
         await UtilityRecord.all().adelete()
     with pytest.raises(FieldError, match="explicit condition"):
         await UtilityRecord.all().ahard_delete()
-    with pytest.raises(FieldError, match="explicit condition"):
+    with pytest.raises(FieldError, match="aupdate needs filters and values"):
         await UtilityRecord.all().aupdate({"name": "wipe"})
     with pytest.raises(FieldError, match="explicit condition"):
         await UtilityRecord.only_deleted().arestore()
@@ -401,3 +411,83 @@ async def test_queryset_soft_delete_emits_deleted_count(database: Database) -> N
         assert await UtilityRecord.filter(id=9).adelete() == 1
         assert await UtilityRecord.filter(id=9).adelete() == 0
     assert [(event.subject, event.count) for event in seen] == [(UtilityRecord, 1)]
+
+
+async def test_uuid_model_uuid_pk_and_urlsafe_token_work_end_to_end(
+    tmp_path: Path,
+) -> None:
+    class ShareLink(UUIDModel, TimestampedModel, table="utility_share_links"):
+        token: str = urlsafe_token()
+        short_code: str = urlsafe_token(nbytes=12)
+
+    class OrderedEvent(Model, table="utility_ordered_events"):
+        id: UUID = uuid_pk(version=7)
+        name: str
+
+    class CustomUuidRow(Model, table="utility_custom_uuids"):
+        id: UUID = uuid_pk(default_factory=uuid1)
+
+    generated_v7 = uuid7()
+    assert generated_v7.version == 7
+    assert generated_v7 != uuid7()
+
+    link = ShareLink()
+    assert isinstance(link.id, UUID)
+    assert link.id.version == 4
+    assert len(link.token) == 43
+    assert len(link.short_code) == 16
+
+    event = OrderedEvent(name="created")
+    assert event.id.version == 7
+    assert CustomUuidRow().id.version == 1
+
+    state = table_state(ShareLink)
+    assert state["columns"]["id"]["primary_key"] is True
+    assert state["columns"]["token"]["unique"] is True
+    assert state["columns"]["token"]["type"] == "varchar(43)"
+    assert state["columns"]["short_code"]["type"] == "varchar(16)"
+
+    database = await Database.connect(f"sqlite://{tmp_path / 'tokens.sqlite3'}")
+    try:
+        await database.execute(
+            "CREATE TABLE utility_share_links ("
+            "id TEXT PRIMARY KEY, "
+            "created_at TEXT NOT NULL, "
+            "updated_at TEXT NOT NULL, "
+            "token TEXT NOT NULL UNIQUE, "
+            "short_code TEXT NOT NULL UNIQUE)"
+        )
+        with use_database(database):
+            saved = await ShareLink().insert()
+            fetched = await ShareLink.aget(id=saved.id)
+            assert fetched.token == saved.token
+            assert fetched.short_code == saved.short_code
+            with pytest.raises(ModelValidationError):
+                await ShareLink(short_code="not url safe!").insert()
+    finally:
+        database.close()
+
+
+def test_uuid_pk_and_urlsafe_token_reject_invalid_options() -> None:
+    with pytest.raises(RegistrationError, match="not both"):
+        uuid_pk(version=7, default_factory=uuid1)
+    with pytest.raises(RegistrationError, match="callable"):
+        uuid_pk(default_factory="not-callable")  # type: ignore[arg-type]
+    with pytest.raises(RegistrationError, match="4 or 7"):
+        uuid_pk(version=3)  # type: ignore[arg-type]
+
+    with pytest.raises(RegistrationError, match="between 1 and 1024"):
+        urlsafe_token(nbytes=0)
+    with pytest.raises(RegistrationError, match="between 1 and 1024"):
+        urlsafe_token(nbytes=1025)
+    with pytest.raises(RegistrationError, match="at least 43"):
+        urlsafe_token(nbytes=32, max_length=16)
+    with pytest.raises(RegistrationError, match="URL-safe character pattern"):
+        urlsafe_token(constraints=Field(pattern="^[0-9]+$"))
+
+    # Explicit constraints.max_length larger than generated length is accepted.
+    class WideToken(Model, table="utility_wide_tokens"):
+        id: int = pk()
+        code: str = urlsafe_token(nbytes=16, constraints=Field(max_length=64))
+
+    assert table_state(WideToken)["columns"]["code"]["type"] == "varchar(64)"
