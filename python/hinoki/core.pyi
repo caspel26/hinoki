@@ -24,6 +24,12 @@ type Row = dict[str, Any]
 
 def core_version() -> str: ...
 
+class _ResponseObjectList:
+    def __init__(
+        self, fallback: Callable[[object], bool], item: Callable[[object], bool]
+    ) -> None: ...
+    def __call__(self, value: object) -> bool: ...
+
 CURSOR_MAX_TOKEN: int
 """Longest cursor token, in characters, that the native codec issues or accepts."""
 
@@ -517,6 +523,9 @@ class PreparedRequest:
     ) -> bool: ...
     def respond_final(
         self, status: int, headers: list[tuple[bytes, bytes]], body: bytes
+    ) -> bool: ...
+    def respond_final_json(
+        self, status: int, headers: list[tuple[bytes, bytes]], value: object
     ) -> bool: ...
     def respond_routed(
         self,

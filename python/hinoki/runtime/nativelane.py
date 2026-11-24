@@ -32,7 +32,7 @@ from hinoki.events import AuthRejected, RateLimited
 from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.nativeproof import native_refusal
 from hinoki.runtime.pipeline import NativeBody
-from hinoki.runtime.responses import HTTPError, Response
+from hinoki.runtime.responses import NO_PAYLOAD, HTTPError, Response
 from hinoki.runtime.servercore import native_handler_eligible, route_guarded
 
 if TYPE_CHECKING:
@@ -271,7 +271,9 @@ class NativeLane:
         except Exception:
             self._broken(run)
             return
-        self._respond(run, response)
+        error = self._send(run, response)
+        if error is not None:
+            await self._answer(run, self.pipeline.native_failure(error, run.rid))
 
     def _translate_now(self, run: Run, error: Exception) -> None:
         """Answer in place when no application error handler can match, else
@@ -299,13 +301,27 @@ class NativeLane:
         task.add_done_callback(self.tasks.discard)
         return task
 
-    def _respond(self, run: Run, response: Response) -> None:
+    def _send(self, run: Run, response: Response) -> Exception | None:
         headers = response.headers
         extra = run.ctx.get(context.rate_limit_headers, ())
         if extra:
             headers = [*headers, *((n.encode(), v.encode()) for n, v in extra)]
+        if response.payload is not NO_PAYLOAD:
+            try:
+                run.request.respond_final_json(
+                    response.status, headers, response.payload
+                )
+            except Exception as error:
+                return error
+            return None
         try:
             run.request.respond_final(response.status, headers, response.body)
         except Exception:
             log.exception("request %s could not be answered", run.rid)
             self.fail(run.request)
+        return None
+
+    def _respond(self, run: Run, response: Response) -> None:
+        error = run.ctx.run(self._send, run, response)
+        if error is not None:
+            self._translate_now(run, error)

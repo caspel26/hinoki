@@ -33,6 +33,7 @@ mod pytypes;
 mod query;
 mod ratelimit;
 mod request;
+mod responsecheck;
 mod router;
 mod rows;
 mod schema;
@@ -118,6 +119,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add("CURSOR_MAX_TOKEN", cursor::MAX_TOKEN_CHARS)?;
     m.add_class::<PyRouter>()?;
+    m.add_class::<responsecheck::ResponseObjectList>()?;
     m.add_class::<crudplan::PyCrudPlan>()?;
     m.add_class::<filters::PyFilterPlan>()?;
     db::register(m)?;

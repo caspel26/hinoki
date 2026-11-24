@@ -696,7 +696,9 @@ class Pipeline:
         does."""
         if native is not None:
             args = await self._native_arguments(binding, args, None, native)
-        return await self._call_native(binding, args, native)
+        return await self._call_native(
+            binding, args, native, defer=not binding.route.atomic
+        )
 
     async def native_continue(
         self,
@@ -1639,19 +1641,21 @@ class Pipeline:
         binding: Binding,
         args: dict[str, object],
         native: NativeBody | None = None,
+        defer: bool = False,
     ) -> Response:
         """Run a selected no-Request JSON handler and encode through Rust; with
         ``atomic=True`` the commit follows the encoding, as in ``_invoke``."""
         if not binding.route.atomic:
-            return await self._native_result(binding, args, native)
+            return await self._native_result(binding, args, native, defer=defer)
         async with self.ctx.get(Database).atomic():
-            return await self._native_result(binding, args, native)
+            return await self._native_result(binding, args, native, defer=defer)
 
     async def _native_result(
         self,
         binding: Binding,
         args: dict[str, object],
         native: NativeBody | None = None,
+        defer: bool = False,
     ) -> Response:
         route = binding.route
         result = await self._handler_result(
@@ -1662,7 +1666,7 @@ class Pipeline:
         enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
-            return self._native_rendered(binding, result, native)
+            return self._native_rendered(binding, result, native, defer=defer)
         if route.status == HTTPStatus.OK:
             return Response(HTTPStatus.NO_CONTENT)
         return Response(route.status)
@@ -1675,12 +1679,23 @@ class Pipeline:
         return Response(result.status, result.body, result.headers)
 
     def _native_rendered(
-        self, binding: Binding, result: object, native: NativeBody | None
+        self,
+        binding: Binding,
+        result: object,
+        native: NativeBody | None,
+        defer: bool = False,
     ) -> Response:
         """Render with the renderer ``Accept`` selects among the route's
         built-in renderers, which never read the ``Request``."""
         route = binding.route
         if binding.default_json:
+            if defer:
+                return Response(
+                    route.status,
+                    b"",
+                    [(b"content-type", b"application/json")],
+                    payload=result,
+                )
             body = core.encode_json(result, None, False, None)
             return Response.rendered(route.status, body, "application/json", False)
         if len(route.renderers) == 1:

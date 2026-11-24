@@ -6,7 +6,7 @@ import logging
 import traceback
 from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from hinoki import core
 from hinoki.context import request_id
@@ -44,12 +44,16 @@ class StreamHandle:
             self.lease.release()
 
 
+NO_PAYLOAD: Final = object()
+
+
 @dataclass(slots=True)
 class Response:
     status: int
     body: bytes = b""
     headers: Headers = field(default_factory=list)
     stream: StreamHandle | None = None
+    payload: object = NO_PAYLOAD
 
     @classmethod
     def rendered(

@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::intern;
@@ -881,7 +882,7 @@ struct Encoder<'py> {
     /// decides first, and without one they take it too.
     schemas: usize,
     /// Dict entries being written, one slice per open dict.
-    pairs: Vec<(Bound<'py, PyAny>, Bound<'py, PyAny>)>,
+    pairs: Vec<Option<(Bound<'py, PyAny>, Bound<'py, PyAny>)>>,
 }
 
 impl<'py> Encoder<'py> {
@@ -1004,11 +1005,21 @@ impl<'py> Encoder<'py> {
         // Entries go on a shared stack first: writing a value may run Python
         // code (`default`, `dump()`) that mutates the dict being walked.
         let start = self.pairs.len();
-        self.pairs.extend(dict.iter());
+        self.pairs.extend(dict.iter().map(Some));
         let end = self.pairs.len();
         self.open(b'{');
+        let result = self.mapping_entries(start, end, depth);
+        self.pairs.truncate(start);
+        result?;
+        self.close(b'}', depth, start == end);
+        Ok(())
+    }
+
+    fn mapping_entries(&mut self, start: usize, end: usize, depth: usize) -> PyResult<()> {
         for at in start..end {
-            let (key, item) = self.pairs[at].clone();
+            let Some((key, item)) = self.pairs[at].take() else {
+                continue;
+            };
             if at > start {
                 self.out.push(b',');
             }
@@ -1017,8 +1028,6 @@ impl<'py> Encoder<'py> {
             self.colon();
             self.write(&item, depth + 1)?;
         }
-        self.pairs.truncate(start);
-        self.close(b'}', depth, start == end);
         Ok(())
     }
 
@@ -1112,10 +1121,12 @@ impl<'py> Encoder<'py> {
             .get_type()
             .is(crate::pytypes::datetime_class(value.py())?)
         {
-            return write_string(
-                &mut self.out,
-                &value.call_method0("isoformat")?.str()?.to_string(),
-            );
+            let py = value.py();
+            let iso = value.call_method0(intern!(py, "isoformat"))?;
+            return match iso.cast::<PyString>() {
+                Ok(text) => write_pystring(&mut self.out, text),
+                Err(_) => write_string(&mut self.out, &iso.str()?.to_string()),
+            };
         }
         if let Some((names, unset, _)) = crate::schema::instance_fields(value, true, true, true)? {
             self.schema_object(value, names, &unset, depth)?;
@@ -1124,7 +1135,10 @@ impl<'py> Encoder<'py> {
         } else if value.is_instance(crate::pytypes::datetime_class(value.py())?)? {
             write_string(
                 &mut self.out,
-                &value.call_method0("isoformat")?.str()?.to_string(),
+                &value
+                    .call_method0(intern!(value.py(), "isoformat"))?
+                    .str()?
+                    .to_string(),
             )?;
         } else if let Some(text) = self.wire_text(value)? {
             write_string(&mut self.out, &text)?;
@@ -1274,6 +1288,32 @@ pub(crate) fn is_instance_of_named(
     value.is_instance(&wanted)
 }
 
+fn encode_into<'py>(
+    value: &Bound<'py, PyAny>,
+    indent: Option<usize>,
+    sort_keys: bool,
+    default: Option<Bound<'py, PyAny>>,
+) -> PyResult<Vec<u8>> {
+    static LAST_LEN: AtomicUsize = AtomicUsize::new(512);
+    let capacity = LAST_LEN.load(Ordering::Relaxed).clamp(512, 64 * 1024);
+    let mut encoder = Encoder {
+        out: Vec::with_capacity(capacity),
+        indent,
+        sort_keys,
+        default,
+        hops: 0,
+        schemas: 0,
+        pairs: Vec::new(),
+    };
+    encoder.write(value, 0)?;
+    LAST_LEN.store(encoder.out.len(), Ordering::Relaxed);
+    Ok(encoder.out)
+}
+
+pub(crate) fn encode_json_vec(value: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    encode_into(value, None, false, None)
+}
+
 /// Serialise plain Python values (`dict`, `list`, `tuple`, `str`, `int`,
 /// `float`, `bool`, `None`), schema instances, UUIDs and datetimes to UTF-8 JSON:
 /// compact by default, `indent` spaces when given, `sort_keys` to order object
@@ -1295,20 +1335,11 @@ pub fn encode_json<'py>(
             "indent must be at most {MAX_INDENT}"
         )));
     }
-    let mut encoder = Encoder {
-        out: Vec::with_capacity(512),
-        indent,
-        sort_keys,
-        default,
-        hops: 0,
-        schemas: 0,
-        pairs: Vec::new(),
-    };
-    encoder.write(value, 0)?;
+    let out = encode_into(value, indent, sort_keys, default)?;
     if ensure_ascii {
-        return Ok(PyBytes::new(py, &escape_non_ascii(&encoder.out)));
+        return Ok(PyBytes::new(py, &escape_non_ascii(&out)));
     }
-    Ok(PyBytes::new(py, &encoder.out))
+    Ok(PyBytes::new(py, &out))
 }
 
 #[cfg(test)]
@@ -1465,5 +1496,27 @@ mod tests {
                 Json::BigInt("99999999999999999999".into())
             ])
         );
+    }
+
+    #[test]
+    fn encode_json_vec_matches_encode_json_and_recovers_from_errors() {
+        Python::initialize();
+        Python::attach(|py| {
+            let nested = PyDict::new(py);
+            nested.set_item("k", "v").unwrap();
+            let plain = PyDict::new(py);
+            plain.set_item("a", 1).unwrap();
+            plain.set_item("b", "text").unwrap();
+            plain.set_item("nested", nested).unwrap();
+            let via_vec = encode_json_vec(plain.as_any()).unwrap();
+            let via_py = encode_json(py, plain.as_any(), None, false, None, false).unwrap();
+            assert_eq!(via_vec.as_slice(), via_py.as_bytes());
+
+            let failing = PyDict::new(py);
+            failing.set_item("ok", 1).unwrap();
+            failing.set_item("bad", f64::NAN).unwrap();
+            assert!(encode_json_vec(failing.as_any()).is_err());
+            assert_eq!(encode_json_vec(plain.as_any()).unwrap(), via_vec);
+        });
     }
 }
