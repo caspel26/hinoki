@@ -184,7 +184,9 @@ class OpenAPIBuilder:
         self.version = version
         self.spec_version = spec_version
         self.components: dict[str, dict[str, Any]] = {}
-        self.owners: dict[str, type[Schema]] = {}
+        # A component name's owner: a ``Schema`` class or a page envelope.
+        self.owners: dict[str, object] = {}
+        self.schema_names: dict[type[Schema], str] = {}
         self.operation_ids: set[str] = {
             route.operation_id
             for route in app.routes
@@ -298,10 +300,14 @@ class OpenAPIBuilder:
         }
         required = [p.name for p in file_params if p.file_mode != "optional"]
         schema: dict[str, Any] = {"type": "object", "properties": properties}
+        if body is not None and body.schema is not None:
+            # One object, not ``allOf``: a closed form schema would refuse the
+            # file properties that the other branch declares.
+            schema = self.object_schema(body.schema)
+            schema["properties"] = {**schema["properties"], **properties}
+            required = [*schema.get("required", ()), *required]
         if required:
             schema["required"] = required
-        if body is not None and body.schema is not None:
-            schema = {"allOf": [self.component(body.schema), schema]}
         return {
             "required": bool(required) or body is not None,
             "content": {"multipart/form-data": {"schema": schema}},
@@ -523,17 +529,25 @@ class OpenAPIBuilder:
     ) -> dict[str, str]:
         """A page envelope named after its items (``Page_Book``, ``Page_integer``,
         ``Page_date``), suffixed when another item type took that name."""
-        name = unique_name(self.components, prefix + item_label(items), page)
+        name = self.claim(prefix + item_label(items), page)
         self.components[name] = page
         return ref(name)
 
-    def component(self, schema: type[Schema]) -> dict[str, str]:
-        name = component_name(schema)
+    def claim(self, name: str, owner: object) -> str:
+        """A component name for ``owner``: ``name`` unless something else holds
+        it, then ``name_2``... Two schemas with one name are an error."""
         known = self.owners.get(name)
-        if known is not None and known is not schema:
+        if isinstance(known, type) and isinstance(owner, type) and known is not owner:
             raise RegistrationError(f"two different schemas are both named {name!r}")
-        if known is None:
-            self.owners[name] = schema
+        name = unique_name(self.owners, name, owner)
+        self.owners[name] = owner
+        return name
+
+    def component(self, schema: type[Schema]) -> dict[str, str]:
+        name = self.schema_names.get(schema)
+        if name is None:
+            name = self.claim(component_name(schema), schema)
+            self.schema_names[schema] = name
             self.components[name] = {}  # placeholder: breaks recursion
             # Replaces the placeholder.
             self.components[name] = self.object_schema(schema)  # NOSONAR
@@ -610,15 +624,12 @@ class OpenAPIBuilder:
         return array
 
     def union(self, ftype: FieldType) -> dict[str, Any]:
-        variants = [(tag, schema) for tag, schema in ftype.variants]
+        variants = [(tag, self.component(schema)) for tag, schema in ftype.variants]
         return {
-            "oneOf": [self.component(schema) for _, schema in variants],
+            "oneOf": [reference for _, reference in variants],
             "discriminator": {
                 "propertyName": ftype.discriminator_wire_name,
-                "mapping": {
-                    tag: f"#/components/schemas/{component_name(schema)}"
-                    for tag, schema in variants
-                },
+                "mapping": {tag: reference["$ref"] for tag, reference in variants},
             },
         }
 
