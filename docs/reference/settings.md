@@ -37,7 +37,7 @@ description: "API reference for `Settings`: loading, explaining and validating a
 
 ::: hinoki.settings.DocsSettings
     options:
-      members: [title, version, openapi_url, docs_url, redoc_url, openapi_version]
+      members: [title, version, openapi_url, docs_url, redoc_url, llms_url, openapi_version]
       show_if_no_docstring: true
 
 ::: hinoki.settings.ServerSettings

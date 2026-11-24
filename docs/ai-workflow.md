@@ -67,7 +67,7 @@ A test runs this block against the installed package, so the names and syntax ab
 
 | File | Purpose |
 | --- | --- |
-| `AGENTS.md` | Commands, conventions and where the agent's authority ends; `CLAUDE.md` points to it |
+| `AGENTS.md` | Commands, conventions, a pointer to [Hinoki's docs for agents](#docs-for-agents) and where the agent's authority ends; `CLAUDE.md` points to it |
 | `rules.py` | Eight rules on from the start (below), listed in `hinoki.toml` as `[project] rules = ["<package>.rules:project_rules"]` so the application loads them without a `rules=` argument; the model rules `HNK-DB-001` and `HNK-DB-002` commented out until the first model exists, because a model rule that matches no model fails |
 | `.mcp.json` | Starts the [development MCP](dev-mcp.md) |
 | `hinoki-rules.toml` | The owner's waivers |
@@ -107,6 +107,8 @@ hinoki openapi --breaking-against openapi-baseline.json
 
 Take the baseline from the released version. The second command exits `1` and lists each change that breaks an existing client: removed operations or response fields, new required input, narrowed enums, changed types. See [`hinoki openapi`](inspect.md#openapi).
 
+`hinoki llms` renders the same document as an [llms.txt](openapi.md#llms) text of your application's own operations, for an agent that works on a client of it; `Hinoki(llms_url="/llms.txt")` serves it. Neither is on by default.
+
 ## Generate request bodies
 
 `request_cases` reads an OpenAPI document and returns one `RequestCase` per operation with a JSON body: `method`, `path`, a valid `body`, and `invalid`, a list of `(description, body)` pairs that each break one constraint.
@@ -133,6 +135,8 @@ Every build of this site also publishes the documentation as plain Markdown, in 
 | `llms.txt` | An index: the block above, then one link and description per page, grouped like the guides. Reference, project pages, the changelog and benchmarks are under `Optional` |
 | `llms-full.txt` | Every page except the `Optional` ones, concatenated in navigation order |
 | `<page>.md` | One page as Markdown, for example `crud.md` or `tutorial/1-models.md`; links inside it are absolute, and a `reference/` page lists each documented name with its signature and a link to the rendered page |
+
+The generated `AGENTS.md` points an agent at `llms.txt` and tells it to prefer these files and the development MCP over guessing from other frameworks.
 
 Each documentation version has its own copy, for example `https://hinoki.caspel.dev/dev/llms.txt` and `https://hinoki.caspel.dev/dev/crud.md`; the root `https://hinoki.caspel.dev/llms.txt` follows the default version (see [documentation versions](documentation-versions.md)). The files come from the same pages as the site, and the build fails when a link or a description is missing.
 

@@ -143,6 +143,16 @@ Run `--check` in CI to catch an OpenAPI document that drifted from the code, and
 `--breaking-against` with the last released document before a release. See
 [OpenAPI](openapi.md) for what the document contains.
 
+## Render llms.txt with `llms` {#llms}
+
+```sh
+uv run hinoki llms
+uv run hinoki llms --output llms.txt
+uv run hinoki llms --check llms.txt
+```
+
+Renders the application's OpenAPI document as an [llms.txt](openapi.md#llms) Markdown text: a title, the version, then the operations grouped by first tag with their summary, deprecation, security scheme names and request and response components. Like `openapi`, it builds the app without serving it or opening a database and works when `openapi_url` is disabled; an action with `include_in_schema=False` is not listed. With no file option it prints the text; `--output FILE` writes the same text as UTF-8 with LF line endings on every platform, and `--check FILE` compares it exactly, except that a CRLF line ending in the file (a Windows checkout with `autocrlf`) counts as LF. Exit status is `0` when the file matches or is written, `1` when it differs, and `2` when the target cannot load or the check file is missing or unreadable, or the output cannot be written. `--output` and `--check` cannot be used together.
+
 ## Show settings with `settings` {#settings}
 
 ```sh
