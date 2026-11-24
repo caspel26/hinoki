@@ -1873,7 +1873,9 @@ admin, so generated links, assets and the CSRF cookie path match the routes.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Rows available in the deleted view; override to preserve tenant scope.</p>
+        <p>Soft-deleted rows within <code>queryset</code>'s scope.</p>
+<p>The implicit live-row filter is dropped and every other filter kept, so
+tenant and ownership scoping carries over. Override to customise.</p>
 
 
     </div>
