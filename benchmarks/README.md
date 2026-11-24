@@ -207,7 +207,7 @@ Raw samples and environment metadata are retained in `results/orm-compile-postgr
 
 ## `comparative/` — Django Bolt's seven routes on every stack
 
-Hinoki (on Granian and on Kiso), Django Bolt, Litestar, FastAPI, Django Ninja, Fastify, Hono and Bun.serve serving the seven routes of Django Bolt's published comparison against the same PostgreSQL data, with Bolt's method (one process, a pool of 8, `bombardier -c 100 -d 10s`, two starts) and a verifier for behaviour and statement counts. See `comparative/README.md` for the method and limits and the [benchmarks page](../docs/benchmarks.md) for the published run. `schema.sql`, `seed.py`, `hinoki_app.py`, `ninja_app.py` and `benchapp/` are the earlier posts service, kept for the experiments below.
+Hinoki (on Granian and on Kiso), Django Bolt, Litestar, FastAPI, Django Ninja, and the JavaScript servers of Bolt's own comparison (Elysia on Bun, Hono on Bun, Hono on Node.js) serving the seven routes of Django Bolt's published comparison against the same PostgreSQL data, with Bolt's method (one process, a pool of 8, `bombardier -c 100 -d 10s`, two starts) and a verifier for behaviour and statement counts. See `comparative/README.md` for the method and limits and the [benchmarks page](../docs/benchmarks.md) for the published run. `schema.sql`, `seed.py`, `hinoki_app.py`, `ninja_app.py` and `benchapp/` are the earlier posts service, kept for the experiments below.
 
 ## `comparative/phase1_orientation.py` — generated CRUD, end to end
 

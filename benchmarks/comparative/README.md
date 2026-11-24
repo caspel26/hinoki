@@ -1,6 +1,6 @@
 # Comparative benchmark: Django Bolt's seven routes on every stack
 
-A bounded benchmark of one small API served by Hinoki, Django Bolt, Litestar, FastAPI and Django Ninja, with a separate run of the same API on JavaScript runtimes (Fastify and Hono on Node.js, `Bun.serve` on Bun). The routes, data shapes and settings follow Django Bolt's published comparison ([bolt.farhana.li/benchmarks](https://bolt.farhana.li/benchmarks/), [python-api-frameworks-benchmark](https://github.com/FarhanAliRaza/python-api-frameworks-benchmark)), so the results can be read next to Bolt's. The code is written for this repository (the reference repository has no licence, so nothing is copied); only the routes, shapes, sizes and settings follow it. It measures what these implementations did on one machine on one day, nothing more. Hinoki is pre-alpha; this is not evidence of production readiness for any of them.
+A bounded benchmark of one small API served by Hinoki, Django Bolt, Litestar, FastAPI and Django Ninja, with a separate run of the same API on the JavaScript servers of Bolt's own comparison (Elysia on Bun, Hono on Bun, Hono on Node.js). The routes, data shapes and settings follow Django Bolt's published comparison ([bolt.farhana.li/benchmarks](https://bolt.farhana.li/benchmarks/), [python-api-frameworks-benchmark](https://github.com/FarhanAliRaza/python-api-frameworks-benchmark)), so the results can be read next to Bolt's. The code is written for this repository (the reference repository has no licence, so nothing is copied); only the routes, shapes, sizes and settings follow it. It measures what these implementations did on one machine on one day, nothing more. Hinoki is pre-alpha; this is not evidence of production readiness for any of them.
 
 ## The service
 
@@ -36,17 +36,27 @@ Hinoki's ORM loads a many-to-many relation in two statements (link table, then t
 
 ### Other runtimes (JavaScript)
 
-The `javascript` server mode serves the same routes from `js/` with exactly pinned npm packages (`js/package-lock.json`, installed with `npm ci`):
+The `javascript` server mode serves the same routes from `js/` on the three servers of Django Bolt's [comparison with JavaScript servers](https://bolt.farhana.li/benchmarks/#against-javascript-servers), in its order, with exactly pinned npm packages (`js/package-lock.json`, installed with `npm ci`):
 
 | | Code | Runtime | Framework | Driver | More than one process |
 | --- | --- | --- | --- | --- | --- |
-| Fastify | `js/fastify_app.js` | Node.js 26 | Fastify 5.12.8 | node-postgres (`pg` 8.23.1), named prepared statements | `node:cluster`, a primary that hands out connections |
-| Hono | `js/hono_app.js` | Node.js 26 | Hono 4.13.21, `@hono/node-server` 2.1.11 | node-postgres (`pg` 8.23.1), named prepared statements | `node:cluster`, a primary that hands out connections |
-| Bun.serve | `js/bun_app.js` | Bun 1.4.5 | none (`Bun.serve` routes) | `Bun.SQL` (built in), prepared statements | processes on one port (`reusePort`) and an idle launcher |
+| Elysia on Bun | `js/elysia_app.js` | Bun 1.4.5 | Elysia 1.4.32 | `Bun.SQL` (built in), prepared statements | processes on one port (`reusePort`) and an idle launcher |
+| Hono on Bun | `js/hono_bun.js` | Bun 1.4.5 | Hono 4.13.21 on `Bun.serve` | `Bun.SQL` (built in), prepared statements | processes on one port (`reusePort`) and an idle launcher |
+| Hono on Node.js | `js/hono_node.js` | Node.js 26 | Hono 4.13.21, `@hono/node-server` 2.1.11 | node-postgres (`pg` 8.23.1), named prepared statements | `node:cluster`, a primary that hands out connections |
 
-With one worker (the default) each serves in a single process with no cluster primary or launcher. The SQL texts and response shapes are in `js/common.js`. The JWT is checked with `node:crypto` (HS256 signature compared in constant time, `exp` required, numeric `sub`); `test_run.py` checks that it accepts the runner's token and rejects a forged, an expired and a malformed one, and that Node.js encodes the two `json-*` values to the bytes of `parity_data.py` (the values reach the applications through `payloads.json`, written by `run.py` and passed as `BENCH_PAYLOADS`). Fastify uses no response schemas. `run.py` passes the database URL, pool, worker count and port as `BENCH_DATABASE_URL`, `BENCH_POOL`, `BENCH_WORKERS` and `BENCH_PORT`, sets `NODE_ENV=production` and strips every other inherited `BENCH_*` variable. The Node.js, Bun and package versions are recorded under `javascript` in `environment.json`.
+The two Hono stacks share one application (`js/hono_routes.js`) and differ only in runtime, server adapter and driver; the two Bun stacks share the process model and client (`js/bun_runtime.js`). With one worker (the default) each serves in a single process with no cluster primary or launcher. The SQL texts and response shapes are in `js/common.js`. Each framework reads the cookie itself (Hono's `getCookie`, Elysia's `cookie`), and the JWT is checked with `node:crypto` (HS256 signature compared in constant time, `exp` required, numeric `sub`); `test_run.py` checks that it accepts the runner's token and rejects a forged, an expired and a malformed one, and that Node.js encodes the two `json-*` values to the bytes of `parity_data.py` (the values reach the applications through `payloads.json`, written by `run.py` and passed as `BENCH_PAYLOADS`). Elysia and Hono run without validation schemas (no Elysia `t` models). `run.py` passes the database URL, pool, worker count and port as `BENCH_DATABASE_URL`, `BENCH_POOL`, `BENCH_WORKERS` and `BENCH_PORT`, sets `NODE_ENV=production` and strips every other inherited `BENCH_*` variable. The Node.js, Bun and package versions are recorded under `javascript` in `environment.json`.
 
-Known differences, disclosed rather than hidden: a different language, runtime and driver (the comparison is of whole stacks, not of Hinoki's Rust core with a JavaScript engine), and with several processes the Node.js cluster primary passes connections to the workers round-robin while Bun's processes share the port through `SO_REUSEPORT`. Bolt's own JavaScript comparison (Elysia and Hono on Bun, Hono on Node.js) publishes no code, so its stacks are not reproduced here. The report shows these stacks in a separate **Other runtimes** group after the Python stacks.
+What Bolt publishes about its JavaScript comparison, and what is chosen here because it does not:
+
+| | Bolt's comparison | This harness |
+| --- | --- | --- |
+| Servers | Elysia on Bun, Hono on Bun, Hono on Node.js | the same |
+| Routes | 26 B, 1 KB and 10 KB JSON only | the seven routes of the Python comparison, database and JWT included; no 26 B route |
+| Processes | 1, and 8 (Node `node:cluster`, Bun 8 processes with `reusePort`) | `--workers 1`, and `--workers 8` with the same process models |
+| Load | 100 connections, 100 000 requests | the Python comparison's `-c 100 -d 10s` (`--requests 100000` reproduces the request count) |
+| Versions, code, driver, JWT | not published (Bolt 0.10, July 2026) | the latest releases when written, pinned above; `Bun.SQL` on Bun (its built-in client) and `pg` on Node.js; the shared `node:crypto` check |
+
+Known differences, disclosed rather than hidden: a different language, runtime and driver (the comparison is of whole stacks, not of Hinoki's Rust core with a JavaScript engine), and with several processes the Node.js cluster primary passes connections to the workers round-robin while Bun's processes share the port through `SO_REUSEPORT`. Bun 1.3.14 broke its PostgreSQL connections under 64 concurrent requests (`ERR_POSTGRES_INVALID_MESSAGE`, after which the database routes stopped answering); Bun 1.4.5 does not, so use the pinned version. The report shows these stacks in a separate **Other runtimes** group after the Python stacks.
 
 ## Procedure
 
@@ -66,9 +76,9 @@ Known differences, disclosed rather than hidden: a different language, runtime a
 | Isolation | Docker, `--memory=750m`, no CPU pinning | no container or memory limit; `taskset` CPU pinning |
 | Login | each framework's login route sets the cookie | the runner mints the token and sends the cookie |
 
-There are four independent runs. `documented` serves each framework on the server of Bolt's comparison: Hinoki on Granian, Litestar, FastAPI and Django Ninja on Uvicorn, Django Bolt on its own Actix server. `same-granian` uses one Granian configuration for the four ASGI applications; it excludes Bolt because Bolt does not expose ASGI. `kiso` serves only Hinoki, on its own Rust server (`hinoki serve --server kiso`); Kiso is not an ASGI server, so the other stacks have no counterpart in it. `javascript` serves Fastify, Hono and Bun.serve. These slices answer different questions and must not be combined into a single ranking.
+There are four independent runs. `documented` serves each framework on the server of Bolt's comparison: Hinoki on Granian, Litestar, FastAPI and Django Ninja on Uvicorn, Django Bolt on its own Actix server. `same-granian` uses one Granian configuration for the four ASGI applications; it excludes Bolt because Bolt does not expose ASGI. `kiso` serves only Hinoki, on its own Rust server (`hinoki serve --server kiso`); Kiso is not an ASGI server, so the other stacks have no counterpart in it. `javascript` serves Elysia on Bun, Hono on Bun and Hono on Node.js. These slices answer different questions and must not be combined into a single ranking.
 
-**Nothing is measured unless verification passes.** `parity_verify.py` compares each service with an oracle that reads the rows straight from PostgreSQL: the same status and data for every route (datetimes compared after parsing, so `Z` and `+00:00` or trailing zeros do not count as differences), the exact `json-*` bytes, `404`, `401` for a missing, bad or expired token, clamping, and the number of SQL statements per route, counted with `pg_stat_statements` after every worker has been warmed. That is what prevents one framework from looking faster because it loads less, or slower because it issues an N+1. The database routes are not byte-identical across stacks: each encoder writes datetimes its own way, so for example the `articles` page is 50 856 bytes on Ninja and the JavaScript stacks, 51 036 on Bolt, Litestar and FastAPI and 51 336 on Hinoki in the smoke checks.
+**Nothing is measured unless verification passes.** `parity_verify.py` compares each service with an oracle that reads the rows straight from PostgreSQL: the same status and data for every route (datetimes compared after parsing, so `Z` and `+00:00` or trailing zeros do not count as differences), the exact `json-*` bytes, `404`, `401` for a missing, bad or expired token, clamping, and the number of SQL statements per route, counted with `pg_stat_statements` after every worker has been warmed. That is what prevents one framework from looking faster because it loads less, or slower because it issues an N+1. The database routes are not byte-identical across stacks: each encoder writes datetimes its own way, so for example the `articles` page is 50 856 bytes on Ninja and the three JavaScript stacks, 51 036 on Bolt, Litestar and FastAPI and 51 336 on Hinoki in the smoke checks.
 
 ## Reproduce
 
@@ -83,8 +93,9 @@ uv sync --locked
 VIRTUAL_ENV=$PWD/.venv uvx maturin develop --release --uv --manifest-path ../../crates/bindings/Cargo.toml
 (cd js && npm ci)   # Node.js 26 and Bun on PATH, see below
 export BENCH_DATABASE_URL=postgres://postgres:bench-only@127.0.0.1:54402/bench BENCH_POSTGRES_CONTAINER=hinoki-bench-pg
+export BENCH_SERVER_CPUS=0,1,4,5 BENCH_LOAD_CPUS=2,3,6,7   # the defaults; check `lscpu -e` for the core pairs
 for mode in documented same-granian kiso javascript; do
-  uv run --locked python run.py --server-mode $mode --out results/YYYY-MM-DD/$mode
+  uv run --locked python run.py --server-mode $mode --max-load 2 --out results/YYYY-MM-DD/$mode
 done
 uv run --locked python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/same-granian \
   results/YYYY-MM-DD/kiso results/YYYY-MM-DD/javascript > ../../docs/benchmarks.md
