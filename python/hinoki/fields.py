@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -172,34 +173,49 @@ Slug = Annotated[str, Field(format="slug")]
 
 
 MASK = "**********"
-"""What a ``SecretStr`` shows instead of its value."""
+"""What a ``Secret`` shows instead of its value."""
 
 
-class SecretStr:
-    """A string that never shows itself: ``repr``, ``str``, ``dump()`` and JSON
-    responses give ``**********``; ``get_secret_value()`` returns the text."""
+class Secret:
+    """Text that never shows itself: ``repr``, ``str``, ``dump()`` and JSON
+    responses give ``**********``; ``reveal()`` returns the text.
+
+    The one secret type of Hinoki: a ``Schema`` field, a ``Settings`` field, a
+    ``JWTKey`` and ``SessionSettings(csrf_secret=...)`` all take it."""
 
     __slots__ = ("_value",)
 
     def __init__(self, value: str) -> None:
         if not isinstance(value, str):
-            raise TypeError("SecretStr takes a str")
+            raise TypeError("Secret takes a str")
         self._value = value
 
-    def get_secret_value(self) -> str:
+    def reveal(self) -> str:
         return self._value
 
     def __repr__(self) -> str:
-        return f"SecretStr({MASK!r})"
+        return f"Secret({MASK!r})"
 
     def __str__(self) -> str:
         return MASK
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, SecretStr) and self._value == other._value
+        return isinstance(other, Secret) and hmac.compare_digest(
+            self._value.encode(), other._value.encode()
+        )
 
     def __hash__(self) -> int:
-        return hash((SecretStr, self._value))
+        return hash((Secret, self._value))
 
     def __len__(self) -> int:
         return len(self._value)
+
+    def __bool__(self) -> bool:
+        return bool(self._value)
+
+
+def secret_bytes(value: bytes | str | Secret) -> bytes:
+    """The bytes of key material given as bytes, text (UTF-8) or a ``Secret``."""
+    if isinstance(value, Secret):
+        return value.reveal().encode()
+    return value.encode() if isinstance(value, str) else bytes(value)

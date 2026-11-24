@@ -60,7 +60,7 @@ pub fn pure_path_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>>
 }
 
 pub fn secret_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
-    SECRET.import(py, "hinoki.fields", "SecretStr")
+    SECRET.import(py, "hinoki.fields", "Secret")
 }
 
 /// Whether `value` is any `ipaddress` address or network; the four concrete

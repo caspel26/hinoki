@@ -498,7 +498,7 @@ pub(crate) fn wire_text(value: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
     Ok(None)
 }
 
-/// What a `SecretStr` is written as: its value is never put on the wire.
+/// What a `Secret` is written as: its value is never put on the wire.
 const SECRET_MASK: &str = "**********";
 
 /// `core.wire_text(value)`: the JSON string of a `date`, `time`, `timedelta`,

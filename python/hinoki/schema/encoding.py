@@ -13,7 +13,7 @@ from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from hinoki import core
-from hinoki.fields import MASK, SecretStr
+from hinoki.fields import MASK, Secret
 
 ENCODERS: dict[type, Callable[[Any], Any]] = {
     UUID: str,
@@ -27,7 +27,7 @@ ENCODERS: dict[type, Callable[[Any], Any]] = {
     IPv6Address: str,
     IPv4Network: str,
     IPv6Network: str,
-    SecretStr: lambda _secret: MASK,
+    Secret: lambda _secret: MASK,
 }
 
 

@@ -144,7 +144,7 @@ pub(super) enum Kind<R: Rules> {
     Net(NetKind),
     /// A `pathlib.Path`, read from text.
     Path,
-    /// A `SecretStr`: text with the string rules, wrapped to stay masked.
+    /// A `Secret`: text with the string rules, wrapped to stay masked.
     Secret,
     /// `Any` / `object`: every value is accepted as it is.
     Any,

@@ -17,7 +17,6 @@ use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 use crate::pytypes::secret_class;
 
 static TEMPLATE_ERROR: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
-static SETTINGS_SECRET: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
 /// The longest variable path an error shows, in characters.
 const MAX_SHOWN_PATH: usize = 8 * MAX_IDENT_BYTES;
@@ -68,9 +67,7 @@ impl Walk {
 }
 
 fn is_secret(value: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = value.py();
-    let settings = SETTINGS_SECRET.import(py, "hinoki.settings", "Secret")?;
-    Ok(value.is_instance(secret_class(py)?)? || value.is_instance(settings)?)
+    value.is_instance(secret_class(value.py())?)
 }
 
 /// An `int`: a number when it fits 64 bits, else its decimal digits as text

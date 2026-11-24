@@ -22,6 +22,7 @@ from hinoki.auth import BaseAuth, Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import APIError, Unauthorized
+from hinoki.fields import Secret, secret_bytes
 from hinoki.http.response import set_cookie
 from hinoki.modules import Module, ModuleContext, Resource
 from hinoki.utils import utc_now
@@ -129,7 +130,7 @@ class SessionSettings(Resource):
     absolute_timeout: timedelta = timedelta(days=14)
     idle_timeout: timedelta = timedelta(days=1)
     touch_seconds: int = 60
-    csrf_secret: bytes = field(default=b"", repr=False, compare=False)
+    csrf_secret: bytes | str | Secret = field(default=b"", repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -140,11 +141,15 @@ class SessionSettings(Resource):
             raise ValueError("session limits and idle timeout must be positive")
         if (
             self.absolute_timeout <= timedelta(0)
-            or len(self.csrf_secret) < MIN_CSRF_SECRET_BYTES
+            or len(self.csrf_key()) < MIN_CSRF_SECRET_BYTES
         ):
             raise ValueError(
                 "sessions require an absolute timeout and 32-byte CSRF secret"
             )
+
+    def csrf_key(self) -> bytes:
+        """``csrf_secret`` as bytes: text and a ``Secret`` are UTF-8 encoded."""
+        return secret_bytes(self.csrf_secret)
 
 
 class MemorySessionStore(SessionStore):
@@ -375,7 +380,7 @@ class Session:
         self.max_bytes = settings.max_bytes
         self.cookie_name = settings.cookie_name
         self.cookie_secure = settings.cookie_secure
-        self.csrf_secret = settings.csrf_secret
+        self.csrf_secret = settings.csrf_key()
         self.modified = False
         self.invalidated = False
         self.rotated = False
