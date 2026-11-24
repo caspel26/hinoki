@@ -245,3 +245,17 @@ def test_ctrl_d_and_ctrl_c_at_the_prompt_exit_cleanly(
         "cancelled" in capsys.readouterr().err
         and "Traceback" not in capsys.readouterr().err
     )
+
+
+def test_the_cli_follows_the_project_admin_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = create("adminrules", tmp_path, database="sqlite")
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("HINOKI_DATABASE_URL", raising=False)
+    monkeypatch.setenv("ADMINRULES_ADMIN__MIN_PASSWORD_LENGTH", "40")
+    stdin(monkeypatch, PASSWORD + "\n")
+
+    code = main(["admin", "create-superuser", "ada", "--password-stdin"])
+
+    assert code == 2 and "at least 40" in capsys.readouterr().err
