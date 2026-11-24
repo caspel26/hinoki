@@ -1,0 +1,44 @@
+# start 1
+== hinoki-granian
+json-1k: 1171 bytes, 0 statements
+json-10k: 10864 bytes, 0 statements
+db: 1172 bytes, 1 statements
+  1x SELECT "id", "username", "email", "first_name", "last_name", "is_active" FROM "benchmark_users" LIMIT $1
+articles: 51336 bytes, 3 statements
+  1x SELECT "articles_article"."id", "articles_article"."title", "articles_article"."content", "articles_article"."published", "articles_article"."author_i
+  1x SELECT "articles_tag"."id", "articles_tag"."name", "articles_tag"."slug", "hinoki_link"."article_id" AS "hinoki_link__0" FROM "articles_tag" INNER JOI
+  1x SELECT count(*) FROM "articles_article"
+article: 4816 bytes, 3 statements
+  1x SELECT "articles_article"."id", "articles_article"."title", "articles_article"."content", "articles_article"."published", "articles_article"."author_i
+  1x SELECT "articles_tag"."id", "articles_tag"."name", "articles_tag"."slug", "hinoki_link"."article_id" AS "hinoki_link__0" FROM "articles_tag" INNER JOI
+  1x SELECT "id", "article_id", "author_name", "content", "created_at" FROM "articles_comment" WHERE "article_id" IN ($1) ORDER BY "created_at" DESC
+auth-me: 120 bytes, 1 statements
+  1x SELECT "id", "username", "email", "first_name", "last_name", "is_active" FROM "auth_user" WHERE "id" = $1 LIMIT $2
+auth-articles: 51336 bytes, 4 statements
+  1x SELECT "articles_article"."id", "articles_article"."title", "articles_article"."content", "articles_article"."published", "articles_article"."author_i
+  1x SELECT "articles_tag"."id", "articles_tag"."name", "articles_tag"."slug", "hinoki_link"."article_id" AS "hinoki_link__0" FROM "articles_tag" INNER JOI
+  1x SELECT "id", "username", "email", "first_name", "last_name", "is_active" FROM "auth_user" WHERE "id" = $1 LIMIT $2
+  1x SELECT count(*) FROM "articles_article"
+OK: behaviour, bodies and statement counts match the oracle
+# start 2
+== hinoki-granian
+json-1k: 1171 bytes, 0 statements
+json-10k: 10864 bytes, 0 statements
+db: 1172 bytes, 1 statements
+  1x SELECT "id", "username", "email", "first_name", "last_name", "is_active" FROM "benchmark_users" LIMIT $1
+articles: 51336 bytes, 3 statements
+  1x SELECT "articles_article"."id", "articles_article"."title", "articles_article"."content", "articles_article"."published", "articles_article"."author_i
+  1x SELECT "articles_tag"."id", "articles_tag"."name", "articles_tag"."slug", "hinoki_link"."article_id" AS "hinoki_link__0" FROM "articles_tag" INNER JOI
+  1x SELECT count(*) FROM "articles_article"
+article: 4816 bytes, 3 statements
+  1x SELECT "articles_article"."id", "articles_article"."title", "articles_article"."content", "articles_article"."published", "articles_article"."author_i
+  1x SELECT "articles_tag"."id", "articles_tag"."name", "articles_tag"."slug", "hinoki_link"."article_id" AS "hinoki_link__0" FROM "articles_tag" INNER JOI
+  1x SELECT "id", "article_id", "author_name", "content", "created_at" FROM "articles_comment" WHERE "article_id" IN ($1) ORDER BY "created_at" DESC
+auth-me: 120 bytes, 1 statements
+  1x SELECT "id", "username", "email", "first_name", "last_name", "is_active" FROM "auth_user" WHERE "id" = $1 LIMIT $2
+auth-articles: 51336 bytes, 4 statements
+  1x SELECT "articles_article"."id", "articles_article"."title", "articles_article"."content", "articles_article"."published", "articles_article"."author_i
+  1x SELECT "articles_tag"."id", "articles_tag"."name", "articles_tag"."slug", "hinoki_link"."article_id" AS "hinoki_link__0" FROM "articles_tag" INNER JOI
+  1x SELECT "id", "username", "email", "first_name", "last_name", "is_active" FROM "auth_user" WHERE "id" = $1 LIMIT $2
+  1x SELECT count(*) FROM "articles_article"
+OK: behaviour, bodies and statement counts match the oracle

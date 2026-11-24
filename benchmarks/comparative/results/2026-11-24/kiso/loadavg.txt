@@ -1,0 +1,14 @@
+hinoki-kiso-json-1k-r1-1 load1=1.38
+hinoki-kiso-json-10k-r1-1 load1=1.63
+hinoki-kiso-db-r1-1 load1=1.77
+hinoki-kiso-articles-r1-1 load1=1.83
+hinoki-kiso-article-r1-1 load1=1.87
+hinoki-kiso-auth-me-r1-1 load1=1.81
+hinoki-kiso-auth-articles-r1-1 load1=1.98
+hinoki-kiso-json-1k-r2-1 load1=1.99
+hinoki-kiso-json-10k-r2-1 load1=1.88
+hinoki-kiso-db-r2-1 load1=1.82
+hinoki-kiso-articles-r2-1 load1=1.77
+hinoki-kiso-article-r2-1 load1=1.75
+hinoki-kiso-auth-me-r2-1 load1=1.80
+hinoki-kiso-auth-articles-r2-1 load1=1.90
