@@ -24,6 +24,11 @@ pub const PONG: u8 = 0xA;
 /// Longest payload a control frame may carry (RFC 6455 5.5).
 pub const MAX_CONTROL: usize = 125;
 
+/// Most frames one fragmented message may span, its first frame included. A
+/// stream of tiny (or empty) continuation frames is refused at the frame that
+/// passes it, whatever the message size limit.
+pub const MAX_FRAGMENTS: usize = 4096;
+
 pub const NORMAL: u16 = 1000;
 pub const GOING_AWAY: u16 = 1001;
 pub const PROTOCOL: u16 = 1002;
@@ -197,6 +202,8 @@ struct Head {
 struct Partial {
     text: bool,
     data: Vec<u8>,
+    /// Frames received so far, the first one included.
+    frames: usize,
 }
 
 /// Turns the bytes a client sends into events. Feed it with [`Decoder::push`]
@@ -204,6 +211,9 @@ struct Partial {
 pub struct Decoder {
     max_message: usize,
     buffer: Vec<u8>,
+    /// Where the next frame starts in `buffer`: decoded frames are skipped, not
+    /// moved, and the rest is shifted to the front once per [`Decoder::push`].
+    start: usize,
     partial: Option<Partial>,
 }
 
@@ -213,12 +223,31 @@ impl Decoder {
         Self {
             max_message,
             buffer: Vec::new(),
+            start: 0,
             partial: None,
         }
     }
 
     pub fn push(&mut self, bytes: &[u8]) {
+        if self.start > 0 {
+            self.buffer.drain(..self.start);
+            self.start = 0;
+        }
         self.buffer.extend_from_slice(bytes);
+    }
+
+    /// The bytes not yet decoded.
+    fn pending(&self) -> &[u8] {
+        &self.buffer[self.start..]
+    }
+
+    /// Skip `size` decoded bytes; an emptied buffer starts over at the front.
+    fn consume(&mut self, size: usize) {
+        self.start += size;
+        if self.start == self.buffer.len() {
+            self.buffer.clear();
+            self.start = 0;
+        }
     }
 
     /// The next event, `None` when more bytes are needed.
@@ -232,11 +261,11 @@ impl Decoder {
                 return Ok(None);
             };
             let end = head.size + head.length;
-            if self.buffer.len() < end {
+            let Some(frame) = self.pending().get(head.size..end) else {
                 return Ok(None);
-            }
-            let mut payload = self.buffer[head.size..end].to_vec();
-            self.buffer.drain(..end);
+            };
+            let mut payload = frame.to_vec();
+            self.consume(end);
             unmask(&mut payload, head.mask);
             if let Some(event) = self.accept(head.fin, head.opcode, payload)? {
                 return Ok(Some(event));
@@ -246,7 +275,8 @@ impl Decoder {
 
     /// The header of the frame at the front, checked before its payload is awaited.
     fn head(&self) -> Result<Option<Head>, Fault> {
-        let [first, second, ..] = self.buffer[..] else {
+        let bytes = self.pending();
+        let [first, second, ..] = bytes[..] else {
             return Ok(None);
         };
         let (fin, opcode) = (first & 0x80 != 0, first & 0x0F);
@@ -259,11 +289,8 @@ impl Decoder {
         let control = opcode >= CLOSE;
         self.check_opcode(fin, opcode)?;
         let (length, offset) = match second & 0x7F {
-            126 if self.buffer.len() >= 4 => (
-                usize::from(u16::from_be_bytes([self.buffer[2], self.buffer[3]])),
-                4,
-            ),
-            127 if self.buffer.len() >= 10 => (self.wide_length()?, 10),
+            126 if bytes.len() >= 4 => (usize::from(u16::from_be_bytes([bytes[2], bytes[3]])), 4),
+            127 if bytes.len() >= 10 => (wide_length(bytes)?, 10),
             126 | 127 => return Ok(None),
             short => (usize::from(short), 2),
         };
@@ -277,7 +304,7 @@ impl Decoder {
         if !control && held.saturating_add(length) > self.max_message {
             return Err(Fault::TooBig);
         }
-        let Some(key) = self.buffer.get(offset..offset + 4) else {
+        let Some(key) = bytes.get(offset..offset + 4) else {
             return Ok(None);
         };
         Ok(Some(Head {
@@ -289,20 +316,14 @@ impl Decoder {
         }))
     }
 
-    fn wide_length(&self) -> Result<usize, Fault> {
-        let mut raw = [0; 8];
-        raw.copy_from_slice(&self.buffer[2..10]);
-        let length = u64::from_be_bytes(raw);
-        if length >> 63 != 0 {
-            return Err(Fault::Protocol("invalid frame length"));
-        }
-        usize::try_from(length).map_err(|_| Fault::TooBig)
-    }
-
     fn check_opcode(&self, fin: bool, opcode: u8) -> Result<(), Fault> {
+        let frames = self.partial.as_ref().map(|partial| partial.frames);
         match opcode {
-            CONTINUATION if self.partial.is_none() => {
+            CONTINUATION if frames.is_none() => {
                 Err(Fault::Protocol("continuation without a message"))
+            }
+            CONTINUATION if frames >= Some(MAX_FRAGMENTS) => {
+                Err(Fault::Protocol("too many fragments"))
             }
             TEXT | BINARY if self.partial.is_some() => {
                 Err(Fault::Protocol("new message inside a fragmented one"))
@@ -331,11 +352,13 @@ impl Decoder {
         let mut message = match self.partial.take() {
             Some(mut partial) => {
                 partial.data.extend_from_slice(&payload);
+                partial.frames += 1;
                 partial
             }
             None => Partial {
                 text,
                 data: payload,
+                frames: 1,
             },
         };
         if !fin {
@@ -351,6 +374,16 @@ impl Decoder {
             Ok(Some(Event::Binary(data)))
         }
     }
+}
+
+fn wide_length(bytes: &[u8]) -> Result<usize, Fault> {
+    let mut raw = [0; 8];
+    raw.copy_from_slice(&bytes[2..10]);
+    let length = u64::from_be_bytes(raw);
+    if length >> 63 != 0 {
+        return Err(Fault::Protocol("invalid frame length"));
+    }
+    usize::try_from(length).map_err(|_| Fault::TooBig)
 }
 
 fn closing(payload: &[u8]) -> Result<Option<(u16, String)>, Fault> {
