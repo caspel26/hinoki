@@ -876,8 +876,9 @@ struct Encoder<'py> {
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
     hops: usize,
-    /// Schema instances being written: only inside one do `date`, `time`,
-    /// `timedelta`, `Decimal` and `bytes` values have a wire form.
+    /// Schema instances being written. Inside one, `date`, `Decimal`, sets,
+    /// enum members... always take their wire form; outside, a `default` hook
+    /// decides first, and without one they take it too.
     schemas: usize,
     /// Dict entries being written, one slice per open dict.
     pairs: Vec<(Bound<'py, PyAny>, Bound<'py, PyAny>)>,
@@ -1152,27 +1153,33 @@ impl<'py> Encoder<'py> {
         Ok(())
     }
 
+    fn wire_forms(&self) -> bool {
+        self.schemas > 0 || self.default.is_none()
+    }
+
+    /// The wire text of a `date`, `time`, `timedelta`, `Decimal`, `bytes` and
+    /// the other text scalars, at any depth, the top level included.
     fn wire_text(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<String>> {
-        if self.schemas == 0 {
+        if !self.wire_forms() {
             return Ok(None);
         }
         crate::schema::wire_text(value)
     }
 
-    /// The members of a set or frozenset as a list, inside a schema instance.
+    /// The members of a set or frozenset as a sorted list.
     fn set_members(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
         let is_set = value.is_instance_of::<pyo3::types::PySet>()
             || value.is_instance_of::<pyo3::types::PyFrozenSet>();
-        if self.schemas == 0 || !is_set {
+        if !is_set || !self.wire_forms() {
             return Ok(None);
         }
         let members = crate::pytypes::sorted_members(value)?;
         Ok(Some(PyList::new(value.py(), members)?.into_any()))
     }
 
-    /// The value an `Enum` member is written as, inside a schema instance.
+    /// The value an `Enum` member is written as.
     fn member_value(&self, value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        if self.schemas == 0 {
+        if !self.wire_forms() {
             return Ok(None);
         }
         crate::pytypes::enum_value(value)
