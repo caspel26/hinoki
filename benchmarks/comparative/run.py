@@ -73,8 +73,8 @@ RUNTIMES = {
     "node": os.environ.get("BENCH_NODE") or shutil.which("node"),
     "bun": os.environ.get("BENCH_BUN") or shutil.which("bun"),
 }
-JS_PACKAGES = ("fastify", "hono", "@hono/node-server", "pg")
-JS_STACKS = frozenset({"fastify", "hono", "bun"})
+JS_PACKAGES = ("elysia", "hono", "@hono/node-server", "pg")
+JS_STACKS = frozenset({"elysia-bun", "hono-bun", "hono-node"})
 # Django Bolt's seven routes, in its order; the auth ones carry the cookie.
 SCENARIOS = {
     "json-1k": ("GET", "/json-1k"),
@@ -135,10 +135,11 @@ def server_modes(workers: int = WORKERS, pool: int = POOL) -> dict[str, dict]:
                 hinoki,
             ),
         },
+        # The three JavaScript servers of Django Bolt's comparison, in its order.
         "javascript": {
-            "fastify": (["node", "js/fastify_app.js"], js),
-            "hono": (["node", "js/hono_app.js"], js),
-            "bun": (["bun", "js/bun_app.js"], js),
+            "elysia-bun": (["bun", "js/elysia_app.js"], js),
+            "hono-bun": (["bun", "js/hono_bun.js"], js),
+            "hono-node": (["node", "js/hono_node.js"], js),
         },
     }  # fmt: skip
 
@@ -155,9 +156,9 @@ LABELS = {
     "fastapi-granian": "FastAPI · Granian",
     "ninja-granian": "Django Ninja · Granian",
     "hinoki-kiso": "Hinoki · Kiso",
-    "fastify": "Fastify · Node.js",
-    "hono": "Hono · Node.js",
-    "bun": "Bun.serve · Bun",
+    "elysia-bun": "Elysia · Bun",
+    "hono-bun": "Hono · Bun",
+    "hono-node": "Hono · Node.js",
 }
 
 

@@ -1,28 +1,12 @@
-// The benchmark service on Hono with @hono/node-server (Node.js, node:cluster) and node-postgres (`pg`).
-// Handlers are async; values are encoded by Hono's `c.json`.
-import { serve } from "@hono/node-server";
+// The Hono application, shared by Hono on Node.js and Hono on Bun so the two differ only in
+// runtime, server adapter and database client. Handlers are async; values are encoded by `c.json`.
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
-import pg from "pg";
-import { onTerminate, runCluster } from "./cluster.js";
-import {
-  COOKIE,
-  INVALID,
-  NOT_FOUND,
-  SQL,
-  UNAUTHORIZED,
-  articleId,
-  loadPayloads,
-  pageParams,
-  queries,
-  settings,
-} from "./common.js";
+import { COOKIE, INVALID, NOT_FOUND, UNAUTHORIZED, articleId, pageParams } from "./common.js";
 
-// Named queries make `pg` prepare each statement once per connection.
-const runner = (pool) => async (name, values) => (await pool.query({ name, text: SQL[name], values })).rows;
-
-function routes(app, db, payloads) {
+export function honoApp(db, payloads) {
+  const app = new Hono();
   app.get("/health", (c) => c.json({ status: "ok" }));
   for (const name of Object.keys(payloads)) app.get(`/${name}`, async (c) => c.json(payloads[name]));
   app.get("/db", async (c) => c.json(await db.users()));
@@ -46,17 +30,5 @@ function routes(app, db, payloads) {
   });
   app.get("/auth/me", authenticated, async (c) => c.json(c.get("user")));
   app.get("/auth/articles", authenticated, listing);
+  return app;
 }
-
-async function worker(config) {
-  const pool = new pg.Pool({ connectionString: config.databaseUrl, max: config.pool });
-  const app = new Hono();
-  routes(app, queries(runner(pool)), loadPayloads(config.payloads));
-  const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: config.port });
-  onTerminate(async () => {
-    await new Promise((resolve) => server.close(resolve));
-    await pool.end();
-  });
-}
-
-runCluster(settings(process.env), worker);

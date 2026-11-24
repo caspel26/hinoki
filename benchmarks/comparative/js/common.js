@@ -72,6 +72,7 @@ export const articleId = (raw) => (INTEGER.test(raw) ? Number(raw) : null);
 const decode = (part) => JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
 
 // The user id of a valid HS256 access token (signature, `exp` and `sub` required), else null.
+// Each framework reads the cookie itself (Hono's `getCookie`, Elysia's `cookie`).
 export function tokenSubject(token, now = Date.now() / 1000) {
   const parts = typeof token === "string" ? token.split(".") : [];
   if (parts.length !== 3) return null;
@@ -86,15 +87,6 @@ export function tokenSubject(token, now = Date.now() / 1000) {
   } catch {
     return null;
   }
-}
-
-// The value of one cookie in a `Cookie` header.
-export function cookie(header, name = COOKIE) {
-  for (const pair of (header ?? "").split(";")) {
-    const index = pair.indexOf("=");
-    if (index > 0 && pair.slice(0, index).trim() === name) return pair.slice(index + 1).trim();
-  }
-  return undefined;
 }
 
 export const userOut = (row) => ({

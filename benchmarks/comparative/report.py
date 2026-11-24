@@ -51,9 +51,9 @@ STACKS = {
     "ninja": StackInfo("ninja", "Django Ninja", "Uvicorn"),
     "ninja-granian": StackInfo("ninja", "Django Ninja", "Granian"),
     "bolt": StackInfo("bolt", "Django Bolt", "Actix, native server"),
-    "fastify": StackInfo("fastify", "Fastify", "Node.js", OTHER_RUNTIMES),
-    "hono": StackInfo("hono", "Hono", "Node.js", OTHER_RUNTIMES),
-    "bun": StackInfo("bun", "Bun.serve", "Bun", OTHER_RUNTIMES),
+    "elysia-bun": StackInfo("elysia-bun", "Elysia", "Bun", OTHER_RUNTIMES),
+    "hono-bun": StackInfo("hono-bun", "Hono", "Bun", OTHER_RUNTIMES),
+    "hono-node": StackInfo("hono-node", "Hono", "Node.js", OTHER_RUNTIMES),
 }
 STACK_ORDER = list(STACKS)
 GRANIAN_KEYS = ("hinoki", "hinoki-granian")
@@ -563,30 +563,31 @@ STACK_ROWS = (
         ("django-ninja", "django", "psycopg", "django-ninja-jwt"),
     ),
     (
-        "fastify",
-        "Fastify",
-        "node-postgres (pg), named prepared statements",
-        "Node.js HTTP, node:cluster above one process",
-        ("fastify", "pg", "Node.js"),
+        "elysia-bun",
+        "Elysia on Bun",
+        "Bun.SQL (built in), prepared statements",
+        "Bun.serve, processes sharing the port (SO_REUSEPORT) above one process",
+        ("elysia", "Bun"),
     ),
     (
-        "hono",
-        "Hono",
+        "hono-bun",
+        "Hono on Bun",
+        "Bun.SQL (built in), prepared statements",
+        "Bun.serve, processes sharing the port (SO_REUSEPORT) above one process",
+        ("hono", "Bun"),
+    ),
+    (
+        "hono-node",
+        "Hono on Node.js",
         "node-postgres (pg), named prepared statements",
         "@hono/node-server on Node.js, node:cluster above one process",
         ("hono", "@hono/node-server", "pg", "Node.js"),
     ),
-    (
-        "bun",
-        "Bun.serve",
-        "Bun.SQL (built in), prepared statements",
-        "Bun.serve, processes sharing the port (SO_REUSEPORT) above one process",
-        ("Bun",),
-    ),
 )
 RUNTIME_NAMES = {"node": "Node.js", "bun": "Bun"}
 OTHER_RUNTIMES_NOTE = (
-    "Fastify, Hono and Bun.serve run on JavaScript runtimes (Node.js, Bun) instead of Python. "
+    "Elysia on Bun, Hono on Bun and Hono on Node.js are the JavaScript servers of Django Bolt's comparison; "
+    "they run on JavaScript runtimes instead of Python. "
     "They serve the same routes, pass the same verifier and use the same number of processes, "
     "connections per process and CPU placement; their language, runtime and database driver differ."
 )
