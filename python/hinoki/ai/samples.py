@@ -21,7 +21,7 @@ METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace", 
 FORMATS = {
     "date-time": "2026-01-02T03:04:05Z",
     "date": "2026-01-02",
-    "time": "03:04:05",
+    "time": "03:04:05Z",
     "duration": "PT1S",
     "uuid": "123e4567-e89b-42d3-a456-426614174000",
     "email": "user@example.com",

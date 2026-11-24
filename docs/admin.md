@@ -161,7 +161,7 @@ An IPv6 address counts by its /64. Requests without a known address share one wi
 
 ## Serve it under another path
 
-The `Mount` prefix decides where the admin lives; links, assets and the cookie path follow it. `Mount("/ops", site)` serves it at `/ops`. `Admin(prefix="/staff")` adds a path of its own after the mount (`/ops/staff`). An admin included without a `Mount` is served at `/admin`.
+The `Mount` prefix decides where the admin lives; links, assets and the cookie path follow it. `Mount("/ops", site)` serves it at `/ops`. `Admin(prefix="/staff")` adds a path of its own after the mount (`/ops/staff`). An admin included without a `Mount` is served at `/admin`; `Admin(prefix="")` serves it at the root of its mount.
 
 ## Errors and edge cases
 

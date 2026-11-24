@@ -480,3 +480,42 @@ def test_search_cannot_name_an_excluded_column() -> None:
 
     with pytest.raises(RegistrationError, match="search names excluded columns"):
         Admin(secret="s" * 40).register(Notes)
+
+
+async def test_changing_the_password_of_a_root_mounted_admin_returns_to_the_root(
+    tmp_path: Path,
+) -> None:
+    url = f"sqlite://{tmp_path / 'root.sqlite3'}"
+    database = await Database.connect(url, max_size=2)
+    await migrator.apply(database, migrations_path(), namespace="admin")
+    site = Admin(users=accounts(), prefix="")
+    app = Hinoki(
+        settings=AppSettings(admin=AdminSettings(secret=SECRET)),
+        include=[site],
+        modules=[DatabaseModule(url, max_size=2)],
+    )
+    with use_database(database):
+        await accounts().create_user("ada", PASSWORD, superuser=True)
+        async with ASGIClient(app) as client:
+            page = await client.get("/login")
+            csrf = token_of(page)
+            signed = await client.post(
+                "/login",
+                body=form(username="ada", password=PASSWORD, csrf=csrf),
+                headers={**FORM, "cookie": f"hinoki_csrf={csrf}"},
+            )
+            headers = session_header(signed)
+            csrf = token_of(await client.get("/password", headers=headers))
+            done = await client.post(
+                "/password",
+                body=form(
+                    csrf=csrf,
+                    current=PASSWORD,
+                    new="a brand new password",
+                    again="a brand new password",
+                ),
+                headers={**FORM, "cookie": f"{headers['cookie']}; hinoki_csrf={csrf}"},
+            )
+    database.close()
+
+    assert (done.status, done.headers["location"]) == (303, "/?done=password")

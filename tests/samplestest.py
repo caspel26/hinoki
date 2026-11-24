@@ -193,3 +193,7 @@ def test_a_list_with_a_maximum_is_invalid_one_item_past_it() -> None:
     }
     cases = dict(invalid_values(schema, {}))
     assert cases["tags has too many items"] == {"tags": ["a", "a", "a"]}
+
+
+def test_a_sampled_time_carries_the_offset_the_validator_requires() -> None:
+    assert sample_value({"type": "string", "format": "time"}, {}) == "03:04:05Z"

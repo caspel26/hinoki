@@ -349,6 +349,14 @@ def is_open(annotation: object) -> bool:
     return any(is_open(argument) for argument in typing.get_args(annotation))
 
 
+def is_opaque(annotation: object) -> bool:
+    """A return that exposure cannot be traced through: an open annotation or a
+    ``dict``, whose keys no annotation describes."""
+    if is_open(annotation) or (typing.get_origin(annotation) or annotation) is dict:
+        return True
+    return any(is_opaque(argument) for argument in typing.get_args(annotation))
+
+
 def schemas_in(annotation: object) -> Iterator[type[Schema]]:
     """Schema classes named by an annotation (through ``list``, ``Page``, unions)."""
     if isinstance(annotation, type) and issubclass(annotation, Schema):
@@ -419,7 +427,7 @@ class ForbidExposure(Rule):
         for route in project.app.routes:
             hints = hints_of(route.handler)
             annotation = hints.get("return", None)
-            if "return" not in hints or is_open(annotation):
+            if "return" not in hints or is_opaque(annotation):
                 yield self.diagnostic(
                     f"{route.method} {route.path}: the return type does not name "
                     "its schema, so exposure cannot be checked",

@@ -340,15 +340,11 @@ async def test_non_json_action_output_is_kept_as_text() -> None:
     assert "structuredContent" not in result
 
 
-async def test_tool_table_must_select_at_least_one_allowed_action() -> None:
+def test_an_exposure_that_selects_no_allowed_action_fails_when_built() -> None:
     app = Hinoki()
     app.include(add_note)
-    app.include(
-        *expose_as_mcp(app, tools=["*.add_note"], access=writer, allow_writes=False)
-    )
-    async with ASGIClient(app) as client:
-        response = await call(client, rpc("tools/list"))
-    assert response.status == 500
+    with pytest.raises(ExposureError, match="no action matches"):
+        expose_as_mcp(app, tools=["*.add_note"], access=writer, allow_writes=False)
 
 
 async def test_the_nested_request_sees_the_client_and_a_second_mount_is_hidden() -> (

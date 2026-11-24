@@ -66,7 +66,7 @@ hinoki check
 | `HNK-API-002` | `Actions.require_return_type(match="*", except_=())` | startup | every action annotates a concrete return type (not missing, `Any` or `object`; `None` is fine for a `204`) |
 | `HNK-API-003` | `Actions.require_pagination(match="*", except_=())` | startup | a `GET` action never returns a plain `list[...]` (alone or in a union): it returns a `Page` |
 | `HNK-TXN-001` | `Transactions.require_atomic(methods=("POST", "PUT", "PATCH", "DELETE"), match="*", except_=())` | startup | state-changing actions declare `atomic=True`, on the action or its `RouteGroup` |
-| `HNK-SCH-001` | `Schemas.forbid_exposure(*fields)` | startup | the named fields never appear in a response `Schema`: nested, in a subclass, in a union variant, as a field, an alias or a computed field |
+| `HNK-SCH-001` | `Schemas.forbid_exposure(*fields)` | startup | the named fields never appear in a response `Schema`: nested, in a subclass, in a union variant, as a field, an alias or a computed field; an action returning a `dict` is reported as unverifiable |
 | `HNK-SCH-002` | `Schemas.require_string_limits()` | startup | every text field a client sends (nested, in containers, `dict` values and union variants included) has `max_length` or `one_of`; `Enum` and `Literal` fields pass |
 | `HNK-DB-001` | `Models.require_explicit_table(match="*")` | startup | matching models pin their table with `@db.table(...)` or `table=`, so renaming the class cannot rename the table |
 | `HNK-DB-002` | `Models.require_foreign_key_index(match="*")` | startup | every foreign-key column leads an index, a primary key or a unique constraint |

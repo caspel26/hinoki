@@ -17,12 +17,13 @@ from hinoki.admin.users import AdminAccounts, AdminUser, AdminUserError
 from hinoki.cli.migrations import (
     URL_VARIABLE,
     MigrationDatabase,
-    migration_database,
+    migration_database_and_admin,
 )
 from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
 from hinoki.orm import use_database
 from hinoki.project import ProjectError, find_manifest_or_none, load_manifest
+from hinoki.settings import AdminSettings
 
 MAX_LINE = 1100  # characters read as a password; more is refused, not buffered
 APPLY_HINT = (
@@ -87,14 +88,18 @@ async def set_password(accounts: AdminAccounts, args: Namespace) -> str:
 ACTIONS = {"create-superuser": create_superuser, "set-password": set_password}
 
 
-async def run_action(args: Namespace, target: MigrationDatabase) -> str:
+async def run_action(
+    args: Namespace,
+    target: MigrationDatabase,
+    settings: AdminSettings | None = None,
+) -> str:
     try:
         database = await Database.connect(target.url, max_size=2)
     except DatabaseError:
         raise CannotConnectError(target.display()) from None
     try:
         with use_database(database):
-            return await ACTIONS[args.admin_action](AdminAccounts(), args)
+            return await ACTIONS[args.admin_action](AdminAccounts(settings), args)
     finally:
         database.close()
 
@@ -119,9 +124,10 @@ def run(args: Namespace) -> int:
     """Run one admin command with user-friendly errors."""
     try:
         path = find_manifest_or_none()
-        target = migration_database(args, load_manifest(path) if path else None)
+        manifest = load_manifest(path) if path else None
+        target, settings = migration_database_and_admin(args, manifest)
         print(target.describe(), file=sys.stderr)
-        message = asyncio.run(run_action(args, target))
+        message = asyncio.run(run_action(args, target, settings))
     except (
         AdminUserError,
         ProjectError,

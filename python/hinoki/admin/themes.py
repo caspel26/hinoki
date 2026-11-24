@@ -273,7 +273,7 @@ BENTO = Theme(
         ".hn-stat{background:var(--hn-tone-bg);color:var(--hn-tone-ink)}\n"
         ".hn-stat-value{font-size:2.4rem;font-weight:900;letter-spacing:-.03em}\n"
         ".hn-tab{border:2px solid transparent;border-radius:999px;font-weight:700}\n"
-        ".hn-tab[aria-selected=true]{border-color:var(--hn-line-strong);background:var(--hn-accent);color:var(--hn-accent-ink)}\n"
+        ".hn-tab[aria-current=page]{border-color:var(--hn-line-strong);background:var(--hn-accent);color:var(--hn-accent-ink)}\n"
         ".hn-badge{border:2px solid currentColor;font-weight:700}\n"
         ".hn-list-cards .hn-table tr:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--hn-line-strong)}\n"
         ".hn-list-cards .hn-table tr.is-selected{background:var(--hn-accent-soft)}\n"

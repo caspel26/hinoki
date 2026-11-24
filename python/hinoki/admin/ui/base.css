@@ -90,7 +90,7 @@ svg[hidden] { display: none; position: absolute; }
 .hn-tabs { display: flex; gap: .25rem; padding: .2rem; border-radius: var(--hn-radius); }
 .hn-tab { padding: .4rem .8rem; border-radius: var(--hn-radius-sm); color: var(--hn-text); text-decoration: none; }
 .hn-tab:hover { background: var(--hn-hover); }
-.hn-tab[aria-selected="true"] { background: var(--hn-accent-soft); color: var(--hn-accent-soft-ink); font-weight: 600; }
+.hn-tab[aria-current="page"] { background: var(--hn-accent-soft); color: var(--hn-accent-soft-ink); font-weight: 600; }
 .hn-search { display: flex; align-items: center; gap: .5rem; margin-left: auto; padding: 0 .5rem 0 .75rem; background: var(--hn-surface); border: 1px solid var(--hn-field); border-radius: var(--hn-radius); flex: 1 1 12rem; min-width: 0; max-width: 24rem; }
 .hn-search input { flex: 1; min-width: 0; border: 0; background: none; padding: .5rem 0; }
 .hn-search input:focus-visible { outline: none; }
@@ -112,7 +112,7 @@ svg[hidden] { display: none; position: absolute; }
 .hn-table td a.hn-rowlink:hover { text-decoration: underline; }
 .hn-empty { padding: 2rem 1rem; text-align: center; color: var(--hn-muted); }
 .hn-bulkbar { display: none; align-items: center; flex-wrap: wrap; gap: .75rem; padding: .5rem .75rem; margin-bottom: .5rem; background: var(--hn-accent-soft); color: var(--hn-accent-soft-ink); border-radius: var(--hn-radius); }
-.hn-bulkbar.is-active { display: flex; }
+.hn-bulkbar.is-active, .hn-bulk:has([data-hn-select-row]:checked) .hn-bulkbar { display: flex; }
 .hn-pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; margin-top: .75rem; color: var(--hn-muted); }
 .hn-pages { display: flex; gap: .25rem; align-items: center; }
 .hn-page { min-width: 2.2rem; height: 2.2rem; display: inline-grid; place-items: center; padding: 0 .5rem; border: 1px solid var(--hn-line); border-radius: var(--hn-radius-sm); background: var(--hn-surface); color: var(--hn-text); text-decoration: none; }
@@ -191,7 +191,10 @@ input[type="checkbox"] { width: 1.15rem; height: 1.15rem; padding: 0; accent-col
 
 /* List "rows" (paper): a document index instead of a table. */
 .hn-list-rows .hn-table, .hn-list-rows .hn-table tbody { display: block; min-width: 0; }
-.hn-list-rows .hn-table thead { display: none; }
+.hn-list-rows .hn-table thead, .hn-list-cards .hn-table thead { display: block; }
+.hn-list-rows .hn-table thead tr, .hn-list-cards .hn-table thead tr { position: static; display: flex; flex-flow: row wrap; align-items: center; gap: .3rem 1rem; padding: .5rem .25rem; border: 0; border-bottom: 1px solid var(--hn-line); border-radius: 0; background: none; }
+.hn-list-rows .hn-table thead th, .hn-list-cards .hn-table thead th { padding: 0; border: 0; font-size: .85em; }
+.hn-list-rows .hn-table thead th.hn-check, .hn-list-cards .hn-table thead th.hn-check { width: auto; }
 .hn-list-rows .hn-table tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1.1rem; padding: 1rem .25rem; border-bottom: 1px solid var(--hn-line); }
 .hn-list-rows .hn-table td { display: block; padding: 0; border: 0; }
 .hn-list-rows .hn-table td:has(input[type=checkbox]) { align-self: center; }
@@ -213,7 +216,6 @@ input[type="checkbox"] { width: 1.15rem; height: 1.15rem; padding: 0; accent-col
 /* List "cards" (bento): every record is a card in a grid. */
 .hn-list-cards .hn-scroll { overflow: visible; }
 .hn-list-cards .hn-table, .hn-list-cards .hn-table tbody { display: block; min-width: 0; border: 0; }
-.hn-list-cards .hn-table thead { display: none; }
 .hn-list-cards .hn-table tbody { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.1rem; padding: .35rem .45rem .6rem 0; }
 .hn-list-cards .hn-table tr { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .45rem; padding: 1.1rem; border: 1px solid var(--hn-line); border-radius: var(--hn-radius-lg); background: var(--hn-surface); }
 .hn-list-cards .hn-table td { display: block; padding: 0; border: 0; overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
@@ -247,7 +249,8 @@ input[type="checkbox"] { width: 1.15rem; height: 1.15rem; padding: 0; accent-col
 @media (max-width: 860px) {
   /* The rail becomes a bottom tab bar on phones. */
   .hn-layout-rail .hn-sidebar { position: fixed; inset: auto 0 0 0; z-index: 20; height: auto; flex-direction: row; flex-wrap: nowrap; justify-content: flex-start; gap: .3rem; padding: .35rem .5rem calc(.35rem + env(safe-area-inset-bottom)); border: 0; border-top: 2px solid var(--hn-line-strong); overflow-x: auto; }
-  .hn-layout-rail .hn-brand, .hn-layout-rail .hn-user { display: none; }
+  .hn-layout-rail .hn-brand { display: none; }
+  .hn-layout-rail .hn-user { flex: none; flex-direction: row; order: 2; margin: 0 0 0 auto; padding: 0; }
   .hn-layout-rail .hn-nav { display: flex; gap: .3rem; width: auto; order: 0; }
   .hn-layout-rail .hn-nav-secondary { margin: 0; order: 1; }
   .hn-layout-rail .hn-nav-item { min-width: 4.4rem; flex: none; }
