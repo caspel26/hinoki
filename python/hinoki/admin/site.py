@@ -122,7 +122,7 @@ class Site:
     # -- urls ---------------------------------------------------------------
 
     def url(self, *parts: str, **query: str) -> str:
-        path = "/".join([self.admin.base, *[quote(p, safe="") for p in parts]])
+        path = "/".join([self.admin.base, *[quote(p, safe="") for p in parts]]) or "/"
         found = {k: v for k, v in query.items() if v}
         return path + ("?" + urlencode(found) if found else "")
 

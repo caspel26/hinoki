@@ -9,6 +9,7 @@ lists so they can never carry markup.
 from __future__ import annotations
 
 import datetime
+import functools
 import re
 from collections.abc import Sequence
 from datetime import tzinfo
@@ -17,14 +18,20 @@ from typing import Any
 from hinoki.admin.parts import TONES, Avatar, Badge, Stat
 from hinoki.admin.templates import UI, Raw, Templates, escape
 
-ICONS = frozenset(re.findall(r'id="i-([a-z0-9-]+)"', (UI / "icons.svg").read_text()))
 CELL_LIMIT = 80
 WINDOW = 2
 UTC_ZONE = datetime.UTC
 
 
+@functools.cache
+def icon_names() -> frozenset[str]:
+    """The built-in icon names, read from the sprite on first use."""
+    sprite = (UI / "icons.svg").read_text(encoding="utf-8")
+    return frozenset(re.findall(r'id="i-([a-z0-9-]+)"', sprite))
+
+
 def icon_name(name: str, fallback: str = "file-text") -> str:
-    return name if name in ICONS else fallback
+    return name if name in icon_names() else fallback
 
 
 LOGO_PATH = re.compile(r"/(?!/)[^\s\"'\\]*")
@@ -34,7 +41,7 @@ def logo_fragment(logo: str) -> Raw:
     """The brand mark: a built-in icon name or a same-origin image path."""
     if not logo:
         logo = "bookmark"
-    if logo in ICONS:
+    if logo in icon_names():
         return Raw(
             f'<svg class="hn-icon" aria-hidden="true"><use href="#i-{logo}"/></svg>'
         )

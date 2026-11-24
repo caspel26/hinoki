@@ -133,10 +133,9 @@ async def form_response(site: Site, view: FormView) -> Response:
     elif view.errors:
         summary = site.parts.notice("error", "Please correct the highlighted fields.")
     meta = Raw("")
-    if row is not None and entry.modified_field:
-        when = input_text(
-            getattr(row, entry.modified_field), site.admin.timezone
-        ).replace("T", " ")
+    stamp = getattr(row, entry.modified_field, None) if entry.modified_field else None
+    if row is not None and stamp is not None:
+        when = input_text(stamp, site.admin.timezone).replace("T", " ")
         meta = Raw(
             f'<p class="hn-meta"><svg class="hn-icon" aria-hidden="true"><use href="#i-clock"/></svg><span>{escape(entry.modified_label)}: {escape(when)} {escape(str(site.admin.timezone))}</span></p>'
         )
