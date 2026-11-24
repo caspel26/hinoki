@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### ⚡ Concurrent pagination and guarded Rust row-to-JSON projection
+> `crates/orm/src/database.rs`, `crates/bindings/src/db.rs`, `crates/bindings/src/rows.rs`, `crates/bindings/src/request/json.rs`, `python/hinoki/orm/projection.py`, `python/hinoki/orm/queryset.py`, `docs/pagination.md`, `docs/queries.md`
+
+`QuerySet.apaginate(..., concurrent=True)` runs the page rows query and the `COUNT(*)` query concurrently on connection pools with at least two connections outside transactions, falling back to sequential execution inside transactions and on SQLite. `QuerySet.aproject` / `project` and `QuerySet.apaginate_as` / `paginate_as` project rows directly to UTF-8 JSON bytes in Rust off-GIL with lazy Python materialization on element/item access, preserving exact JSON parity and `validate_response=True` checks.
+
 #### 🤖 `hinoki llms` and an opt-in `llms_url`
 > `python/hinoki/ai/llms.py`, `python/hinoki/cli/llms.py`, `python/hinoki/app.py`, `python/hinoki/settings.py`, `python/hinoki/docsui/__init__.py`, `python/hinoki/runtime/pipeline.py`, `docs/openapi.md`, `docs/inspect.md`
 
