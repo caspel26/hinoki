@@ -22,7 +22,6 @@ hooks:
 
 extra:
   generator: false
-  hn_version: "0.0.1"
 
 repo_url: https://github.com/caspel26/hinoki
 repo_name: caspel26/hinoki
