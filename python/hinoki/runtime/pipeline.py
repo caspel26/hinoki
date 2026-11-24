@@ -23,10 +23,11 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 from hinoki import context, core
+from hinoki.ai.llms import render_llms
 from hinoki.auth import Caller
 from hinoki.context import request_id
 from hinoki.db import Database
-from hinoki.docsui import CSP, Page
+from hinoki.docsui import CSP, Page, llms_pages
 from hinoki.docsui import pages as docs_pages
 from hinoki.errors import (
     MAX_RETRY_AFTER,
@@ -207,6 +208,7 @@ class Pipeline:
         self.startup_url = app.startup_url
         self.document = self._document(app)
         self.docs = docs_pages(app.openapi_url, app.docs_url, app.redoc_url)
+        self._add_llms(app)
         self.startup_response = (
             Response.json(HTTPStatus.OK, {"status": "ok"})
             if self.startup_url is not None
@@ -291,6 +293,19 @@ class Pipeline:
             on_shutdown=(*app.on_shutdown, self._release_rate_limits),
             events=app.events,
         )
+
+    def _add_llms(self, app: Hinoki) -> None:
+        """Render the llms.txt page once, at startup, from the OpenAPI document the
+        worker already holds (or builds for it when the JSON is not served)."""
+        if not app.llms_url:
+            return
+        if app.llms_url in self.docs:
+            raise RegistrationError(
+                f"{app.llms_url} is already used by the documentation viewer"
+            )
+        document = self.document if self.document is not None else app.openapi()
+        text = render_llms(document, openapi_url=app.openapi_url)
+        self.docs.update(llms_pages(app.llms_url, text))
 
     @staticmethod
     def _document(app: Hinoki) -> dict[str, Any] | None:

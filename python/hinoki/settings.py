@@ -998,6 +998,7 @@ class DocsSettings(Settings):
     openapi_url: str | None = None
     docs_url: str | None = None
     redoc_url: str | None = None
+    llms_url: str | None = None
     openapi_version: Literal["3.1", "3.2"] = "3.2"
 
 
