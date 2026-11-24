@@ -168,6 +168,14 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### 🔗 One query per many-to-many prefetch chunk
+> `python/hinoki/orm/links.py`, `python/hinoki/orm/queryset.py`, `crates/bindings/src/modelrows.rs`, `crates/orm/src/query.rs`, `docs/relations.md`
+
+Many-to-many prefetch reads targets and their bridge in one bounded query per
+owner chunk. On PostgreSQL, NULL now sorts before non-NULL values in ascending
+order and after them in descending order even when targets fit in one chunk,
+matching the order previously used when target reads spanned multiple chunks.
+
 #### 🔐 One `Secret` type (breaking)
 > `python/hinoki/fields.py`, `python/hinoki/settings.py`, `python/hinoki/crypto.py`, `python/hinoki/sessions.py`, `crates/bindings/src/pytypes.rs`, `docs/schema-types.md`, `docs/settings.md`
 

@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import context, events
+from hinoki import context, core, events
 from hinoki.db import Database
 from hinoki.errors import (
     FieldError,
@@ -30,6 +30,7 @@ from hinoki.orm import (
     migrator,
     use_database,
 )
+from hinoki.orm.links import LinkSide
 from hinoki.orm.migrations import models_of, plan, state_of
 from hinoki.settings import EventsSettings
 
@@ -309,7 +310,7 @@ async def test_a_label_that_looks_like_sql_is_only_a_value(db: Database) -> None
     assert await Tag.all().acount() == 1
 
 
-async def test_prefetch_loads_every_owner_with_two_queries(
+async def test_prefetch_loads_every_owner_with_one_extra_query(
     db: Database, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     first, (red, blue) = await make_post("red", "blue")
@@ -330,10 +331,14 @@ async def test_prefetch_loads_every_owner_with_two_queries(
 
         monkeypatch.setattr(Database, name, counted)
     posts = await Post.all().prefetch_related("tags")
-    assert calls == 3  # the posts, the bridge rows, the tags
+    assert calls == 2  # the posts, then their joined tags
     by_id = {p.id: p for p in posts}
     assert {t.label for t in by_id[first.id].tags.loaded} == {"red", "blue"}
     assert by_id[second.id].tag_ids == (blue.id,)
+    assert (
+        next(t for t in by_id[first.id].tags.loaded if t.id == blue.id)
+        is (by_id[second.id].tags.loaded[0])
+    )
     assert by_id[third.id].tags.loaded == ()
     with pytest.raises(RelationNotLoaded):
         _ = (await Post.aget(id=first.id)).tags.loaded
@@ -346,6 +351,59 @@ async def test_prefetch_can_be_narrowed_to_a_scope(db: Database) -> None:
     assert [t.label for t in posts[0].tags.loaded] == ["red"]
 
 
+async def test_prefetch_fallback_matches_native_and_subfilter_scope(
+    db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first, (red, blue) = await make_post("red", "blue")
+    second = await Post.acreate(title="selected")
+    await first.tags.aadd(red, blue)
+    await second.tags.aadd(red)
+    scope = Tag.filter(posts__title="selected")
+    native = await Post.all().prefetch_related(tags=scope)
+    expected = {post.id: post.tag_ids for post in native}
+    assert expected[first.id] == (red.id,)
+    monkeypatch.setattr(Tag, "row_plan", classmethod(lambda _cls: None))
+    fallback = await Post.all().prefetch_related(tags=scope)
+    assert {post.id: post.tag_ids for post in fallback} == expected
+
+
+async def test_prefetch_matches_two_query_oracle_for_scoped_targets(
+    db: Database,
+) -> None:
+    first, (red, blue, green) = await make_post("red", "blue", "green")
+    second = await Post.acreate(title="selected")
+    empty = await Post.acreate(title="empty")
+    await first.tags.aadd(red, blue, green)
+    await second.tags.aadd(red, green)
+    await deactivate(green)
+    side = cast(LinkSide, Post.__links__["tags"])
+    sql, params = core.compile_query(
+        "select",
+        side.bridge.__table__,
+        columns=[side.near, side.far],
+        filters=[(side.near, "in", [first.id, second.id, empty.id])],
+        dialect=db.dialect,
+    )
+    pairs = await db.fetch(sql, *params)
+    scope = Tag.filter(active=True, posts__title="selected")
+    target_ids = [row[side.far] for row in pairs]
+    targets = await scope.filter(id__in=target_ids).order_by("id")
+    order = [str(tag.id) for tag in targets]
+    expected = {
+        str(post.id): tuple(
+            tag_id
+            for tag_id in order
+            if any(
+                str(row[side.near]) == str(post.id) and str(row[side.far]) == tag_id
+                for row in pairs
+            )
+        )
+        for post in (first, second, empty)
+    }
+    loaded = await Post.all().prefetch_related(tags=scope)
+    assert {str(post.id): tuple(map(str, post.tag_ids)) for post in loaded} == expected
+
+
 async def test_a_self_relation_has_two_distinct_directions(db: Database) -> None:
     ann, bob = await Person.acreate(name="ann"), await Person.acreate(name="bob")
     await ann.friends.aadd(bob)
@@ -353,6 +411,10 @@ async def test_a_self_relation_has_two_distinct_directions(db: Database) -> None
     assert await bob.friends.acount() == 0
     assert [p.name for p in await bob.friend_of.alist()] == ["ann"]
     assert {p.name for p in await Person.filter(friends__name="bob")} == {"ann"}
+    people = await Person.all().prefetch_related("friends", "friend_of")
+    by_name = {person.name: person for person in people}
+    assert [p.name for p in by_name["ann"].friends.loaded] == ["bob"]
+    assert [p.name for p in by_name["bob"].friend_of.loaded] == ["ann"]
 
 
 async def test_the_reverse_side_writes_the_same_links(db: Database) -> None:
@@ -629,3 +691,55 @@ async def test_both_ends_lock_the_declaring_row_first(db: Database) -> None:
     finally:
         other.close()
     assert await post.tags.acount() == 1
+
+
+class LinkTable(Model, table="hinoki_link"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    label: str
+
+
+class LinkColumn(Model, table="m2mf_link_columns"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    hinoki_link__0: str
+
+
+class Holder(Model, table="m2mf_holders"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    tables: ClassVar[ManyToMany[LinkTable]] = many_to_many(LinkTable)
+    columns: ClassVar[ManyToMany[LinkColumn]] = many_to_many(LinkColumn)
+
+
+@pytest.fixture
+async def alias_db(tmp_path: Path) -> AsyncIterator[Database]:
+    database = await Database.connect(
+        f"sqlite://{tmp_path / 'alias.sqlite3'}", max_size=1, wait=0.5
+    )
+    models = [LinkTable, LinkColumn, Holder, *Holder.__bridges__]
+    plan(models, tmp_path, "initial", dialect=database.dialect)
+    await migrator.apply(database, tmp_path)
+    with use_database(database):
+        yield database
+    database.close()
+
+
+async def test_prefetch_survives_a_target_table_named_like_the_bridge_alias(
+    alias_db: Database,
+) -> None:
+    holder = await Holder.acreate()
+    item = await LinkTable.acreate(label="x")
+    await holder.tables.aadd(item)
+    loaded = await Holder.all().prefetch_related("tables")
+    assert [t.label for t in loaded[0].tables.loaded] == ["x"]
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+async def test_prefetch_keeps_a_target_column_named_like_the_projection(
+    alias_db: Database, monkeypatch: pytest.MonkeyPatch, fallback: bool
+) -> None:
+    holder = await Holder.acreate()
+    item = await LinkColumn.acreate(hinoki_link__0="mine")
+    await holder.columns.aadd(item)
+    if fallback:
+        monkeypatch.setattr(LinkColumn, "row_plan", classmethod(lambda _cls: None))
+    loaded = await Holder.all().prefetch_related("columns")
+    assert [c.hinoki_link__0 for c in loaded[0].columns.loaded] == ["mine"]

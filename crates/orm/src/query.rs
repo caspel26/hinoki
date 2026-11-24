@@ -734,7 +734,16 @@ pub fn compile_select_bound<V: Clone>(
     dialect: Dialect,
     count: &mut impl FnMut(i64) -> V,
 ) -> Compiled<V> {
-    compile_select_counted(q, dialect, &mut |n| Some(count(n)))
+    compile_select_counted(q, dialect, &mut |n| Some(count(n)), false)
+}
+
+/// Compile a linked prefetch with NULL ordered before non-NULL values.
+pub fn compile_select_linked<V: Clone>(
+    q: &Select<V>,
+    dialect: Dialect,
+    count: &mut impl FnMut(i64) -> V,
+) -> Compiled<V> {
+    compile_select_counted(q, dialect, &mut |n| Some(count(n)), true)
 }
 
 /// The statement with `LIMIT` and `OFFSET` written as literals. Only for
@@ -742,13 +751,14 @@ pub fn compile_select_bound<V: Clone>(
 /// from a request must go through [`compile_select_with`], or each distinct
 /// value becomes a new statement text.
 pub fn compile_select_fixed<V: Clone>(q: &Select<V>, dialect: Dialect) -> Compiled<V> {
-    compile_select_counted(q, dialect, &mut |_| None)
+    compile_select_counted(q, dialect, &mut |_| None, false)
 }
 
 fn compile_select_counted<V: Clone>(
     q: &Select<V>,
     dialect: Dialect,
     count: &mut dyn FnMut(i64) -> Option<V>,
+    linked: bool,
 ) -> Compiled<V> {
     let table = quote_with(&q.table, dialect)?;
     let joined = !q.joins.is_empty();
@@ -765,7 +775,7 @@ fn compile_select_counted<V: Clone>(
     }
     b.conditions(&q.filters, q.keyset.as_ref(), &q.subfilters)?;
     if !q.order.is_empty() {
-        let order = order_clause(&q.order, b.base.as_deref(), dialect)?;
+        let order = order_clause(&q.order, b.base.as_deref(), dialect, linked)?;
         b.sql.push_str(&order);
     }
     b.limit_clause(q.limit, q.offset, count);
@@ -776,15 +786,21 @@ fn order_clause(
     order: &[(String, bool)],
     base: Option<&str>,
     dialect: Dialect,
+    linked: bool,
 ) -> Result<String, QueryError> {
     let parts = order
         .iter()
         .map(|(c, desc)| {
             column_ref(c, base, dialect).map(|c| {
-                if *desc {
+                let direction = if *desc {
                     format!("{c} DESC")
                 } else {
                     format!("{c} ASC")
+                };
+                if linked && dialect == Dialect::Postgres {
+                    format!("{direction} NULLS {}", if *desc { "LAST" } else { "FIRST" })
+                } else {
+                    direction
                 }
             })
         })
@@ -942,6 +958,20 @@ mod tests {
             offset: None,
             count: false,
         }
+    }
+
+    #[test]
+    fn linked_order_uses_explicit_postgres_null_order_only() {
+        let mut q = select(vec![]);
+        q.order = vec![("title".into(), false), ("id".into(), true)];
+        let (pg, _) = compile_select_linked(&q, Dialect::Postgres, &mut |n| n as i32).unwrap();
+        assert!(pg.ends_with("ORDER BY \"title\" ASC NULLS FIRST, \"id\" DESC NULLS LAST"));
+        for dialect in [Dialect::Sqlite, Dialect::Mysql] {
+            let (sql, _) = compile_select_linked(&q, dialect, &mut |n| n as i32).unwrap();
+            assert!(!sql.contains("NULLS"));
+        }
+        let (ordinary, _) = compile_select_with(&q, Dialect::Postgres).unwrap();
+        assert!(!ordinary.contains("NULLS"));
     }
 
     #[test]

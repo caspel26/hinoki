@@ -284,7 +284,7 @@ class Posts(API): ...
 * `links=` is required for every relation whose ids field appears in a schema; the callable receives `Caller.user` (`None` on public routes) and returns the targets a caller may link and see. The class form can override `link_queryset(relation, principal)` instead.
 * A write replaces the whole set; an omitted field keeps it and `[]` clears it. Only the links inside the scope are replaced, so links to targets the caller cannot see are neither shown nor removed.
 * An id that does not exist and an id outside the scope give the same `422` (type `unknown_reference`) without echoing the id; more ids than the field's `max_length` is a `422` too. The owner row is checked against `get_queryset` and the owner policy first, and the row and its links are written in one transaction.
-* A read schema includes the ids through a prefetch bounded by the field's limit: one more query per page and relation, not one per row.
+* A read schema includes the ids through a prefetch bounded by the field's limit: one joined target-and-bridge query per owner chunk and relation. Each statement reads that chunk under the database's transaction isolation, and shared targets appear once per link in its rows. Rust builds eligible models; Python orchestrates the prefetch and handles custom row builders. See [many-to-many prefetch](relations.md#many-to-many).
 * The `max_length` of every ids field in a create or update schema is required.
 * `own_rows(Tag, "owner")` scopes the targets to those whose text `owner` column equals the caller's id (`Caller.id`); `all_rows(Tag)` allows every row. The owner value is checked again inside the write's transaction, after the owner row is locked.
 

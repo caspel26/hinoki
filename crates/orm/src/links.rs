@@ -592,12 +592,25 @@ impl Ctx<'_> {
         Ok(found)
     }
 
+    fn bridge_alias(&self) -> String {
+        let mut alias = "hinoki_link".to_owned();
+        let mut number = 0usize;
+        while alias == self.table.target_table
+            || self.scope.joins.iter().any(|join| join.alias == alias)
+        {
+            number += 1;
+            alias = format!("hinoki_link_{number}");
+        }
+        alias
+    }
+
     fn resolve_sql(&self, chunk: &[Canon], lock: bool) -> Result<(String, Vec<Value>), DbError> {
         let t = self.table;
         let mut b = Builder::<Value>::new(String::new(), self.dialect);
         let target_pk = format!("{}.{}", self.q(&t.target_table)?, self.q(&t.target_pk)?);
-        let link_t = format!("hinoki_link.{}", t.target_column);
-        let link_o = format!("hinoki_link.{}", t.owner_column);
+        let bridge_alias = self.bridge_alias();
+        let link_t = format!("{bridge_alias}.{}", t.target_column);
+        let link_o = format!("{bridge_alias}.{}", t.owner_column);
         let owner = b.placeholder(self.owner_value());
         let mut sql = format!(
             "SELECT {target_pk} AS {k}, ({link} IS NOT NULL) AS {f} FROM {target} \
@@ -609,7 +622,7 @@ impl Ctx<'_> {
                 crate::query::column_ref(&link_o, None, self.dialect).map_err(compile_error)?,
             target = self.q(&t.target_table)?,
             bridge = self.q(&t.bridge)?,
-            alias = self.q("hinoki_link")?,
+            alias = self.q(&bridge_alias)?,
         );
         sql.push_str(
             &render_joins(&self.scope.joins, &t.target_table, self.dialect)

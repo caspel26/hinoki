@@ -150,6 +150,7 @@ class _ModelRows:
         joins: list[tuple[str, _ModelRows, str, int]],
         store_key: str,
     ) -> _ModelRows: ...
+    def linked(self, alias: str, max_items: int) -> _ModelRows: ...
 
 class _NativeWait:
     def __await__(self) -> Any: ...
@@ -417,6 +418,7 @@ def compile_query(
     keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
     subfilters: list[_RawSub] | None = None,
     dialect: str = "postgres",
+    linked: bool = False,
 ) -> tuple[str, list[Any]]: ...
 
 _RawJoin = tuple[str, str, str, str, bool, list[str], str | None]

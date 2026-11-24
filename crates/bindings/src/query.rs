@@ -3,9 +3,9 @@
 //! are mapped back afterwards, so nothing is converted or interpolated here.
 
 use hinoki_orm::query::{
-    compile_delete_with, compile_insert_with, compile_select_bound, compile_update_with,
-    like_pattern, Delete, Dialect, Filter, Insert, Join, Keyset, Op, QueryError, Select, SubFilter,
-    Update,
+    compile_delete_with, compile_insert_with, compile_select_bound, compile_select_linked,
+    compile_update_with, like_pattern, Delete, Dialect, Filter, Insert, Join, Keyset, Op,
+    QueryError, Select, SubFilter, Update,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -173,7 +173,7 @@ pub(crate) fn parse_dialect(name: &str) -> PyResult<Dialect> {
 /// `delete`; unused arguments are ignored. Returns `(sql, params)` with
 /// placeholders for the requested dialect in the order of `params`.
 #[pyfunction]
-#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None, keyset=None, subfilters=None, dialect="postgres"))]
+#[pyo3(signature = (kind, table, *, columns=None, filters=None, assignments=None, returning=None, order=None, limit=None, offset=None, joins=None, keyset=None, subfilters=None, dialect="postgres", linked=false))]
 #[allow(clippy::too_many_arguments)]
 pub fn compile_query(
     py: Python<'_>,
@@ -190,6 +190,7 @@ pub fn compile_query(
     keyset: Option<RawKeyset>,
     subfilters: Option<Vec<RawSub>>,
     dialect: &str,
+    linked: bool,
 ) -> PyResult<(String, Vec<Py<PyAny>>)> {
     let dialect = parse_dialect(dialect)?;
     let mut store = Store::default();
@@ -205,8 +206,8 @@ pub fn compile_query(
     let assignments = store.assignments(assignments.unwrap_or_default());
     let returning = returning.unwrap_or_default();
     let compiled = match kind {
-        "select" | "count" => compile_select_bound(
-            &Select {
+        "select" | "count" => {
+            let select = Select {
                 table,
                 columns: columns.unwrap_or_default(),
                 joins: joins.unwrap_or_default().into_iter().map(join_of).collect(),
@@ -217,10 +218,14 @@ pub fn compile_query(
                 limit,
                 offset,
                 count: kind == "count",
-            },
-            dialect,
-            &mut |count| store.add(PyInt::new(py, count).into_any().unbind()),
-        ),
+            };
+            let mut count = |n| store.add(PyInt::new(py, n).into_any().unbind());
+            if linked {
+                compile_select_linked(&select, dialect, &mut count)
+            } else {
+                compile_select_bound(&select, dialect, &mut count)
+            }
+        }
         "insert" => compile_insert_with(
             &Insert {
                 table,
