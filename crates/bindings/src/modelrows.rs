@@ -312,15 +312,16 @@ fn linked_models(
         if owner.0 != linked.alias || matches!(owner.1, Value::Null) {
             return Err(mismatch(py, plan));
         }
+        validate_linked_row(py, plan, cells)?;
         let owner_key = from_value(py, &owner.1)?.into_bound(py).str()?.to_string();
-        let target = build_row(py, plan, cells, new, deepcopy)?;
-        let key = target
-            .getattr(&plan.columns[linked.key])?
+        let key = from_value(py, &cells[linked.key].1)?
+            .into_bound(py)
             .str()?
             .to_string();
         let target = if let Some(existing) = targets.get_item(&key)? {
             existing
         } else {
+            let target = build_row(py, plan, cells, new, deepcopy)?;
             targets.set_item(key, &target)?;
             target
         };
@@ -340,6 +341,27 @@ fn linked_models(
     Ok(owners.into_any().unbind())
 }
 
+fn validate_linked_row(
+    py: Python<'_>,
+    plan: &ModelRows,
+    cells: &[(String, Value)],
+) -> PyResult<()> {
+    let names = plan
+        .columns
+        .iter()
+        .chain(plan.joins.iter().flat_map(|join| &join.aliases));
+    let expected = plan.columns.len()
+        + plan
+            .joins
+            .iter()
+            .map(|join| join.aliases.len())
+            .sum::<usize>();
+    if cells.len() != expected || cells.iter().zip(names).any(|(cell, name)| &cell.0 != name) {
+        return Err(mismatch(py, plan));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,6 +369,44 @@ mod tests {
 
     fn row(id: Value, owner: Value) -> Vec<(String, Value)> {
         vec![("id".into(), id), ("link__0".into(), owner)]
+    }
+
+    #[test]
+    fn linked_constructs_each_distinct_target_only_once() {
+        Python::initialize();
+        Python::attach(|py| {
+            let module = PyModule::from_code(
+                py,
+                c"count = 0\nclass Target:\n    __primary_key__ = 'id'\ndef make(cls):\n    global count\n    count += 1\n    return object.__new__(cls)\n",
+                c"linked_count.py",
+                c"linked_count",
+            ).unwrap();
+            let cls = module.getattr("Target").unwrap();
+            let plan = PyModelRows::new(&cls, vec!["id".into()], vec![], "snapshot".into())
+                .unwrap()
+                .linked(py, "link__0".into(), 3)
+                .unwrap();
+            let rows = vec![
+                row(Value::Int(1), Value::Int(1)),
+                row(Value::Int(2), Value::Int(1)),
+                row(Value::Int(1), Value::Int(2)),
+            ];
+            let new = module.getattr("make").unwrap();
+            let deepcopy = py.import("copy").unwrap().getattr("deepcopy").unwrap();
+            linked_models(
+                py,
+                &rows,
+                &plan.inner,
+                plan.inner.linked.as_ref().unwrap(),
+                &new,
+                &deepcopy,
+            )
+            .unwrap();
+            assert_eq!(
+                module.getattr("count").unwrap().extract::<usize>().unwrap(),
+                2
+            );
+        });
     }
 
     #[test]
