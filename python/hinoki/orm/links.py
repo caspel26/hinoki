@@ -11,14 +11,13 @@ subqueries.
 from __future__ import annotations
 
 import builtins
-import collections
 import dataclasses
 import re
 import types
 import typing
 import weakref
-from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, overload
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, overload
 from uuid import UUID, uuid4
 
 from hinoki import core, events
@@ -57,6 +56,7 @@ MAX_LINK_ITEMS = 10_000
 DEFAULT_MAX_ITEMS = 1000
 MAX_IDENTIFIER = 63
 ALIAS = "rel_far"
+LINK_ALIAS = "hinoki_link"
 IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*\Z")
 KEY_KINDS = {"uuid": "uuid", "int": "int", "str": "text"}
 RULES = (OnDelete.CASCADE, OnDelete.RESTRICT)
@@ -232,91 +232,66 @@ class LinkSide:
         owners: the bridge rows, then the targets."""
         key = self.source.__primary_key__
         owners = [getattr(item, key) for item in instances]
-        pairs: dict[str, list[str]] = {}
-        raw: dict[str, Any] = {}
+        query = self.base_query(within)
+        if within is not None and self.target.__ordering__:
+            query.order = within.order
+        groups: dict[str, list[Any]] = {}
+        targets: dict[str, Any] = {}
         for start in range(0, len(owners), IN_CHUNK):
             chunk = owners[start : start + IN_CHUNK]
-            for near, far in await self.bridge_pairs(chunk, within):
-                pairs.setdefault(str(near), []).append(str(far))
-                raw[str(far)] = far
-        targets = await self.fetch_targets(list(raw.values()), within)
-        position = {str(getattr(t, self.target.__primary_key__)): t for t in targets}
-        order = {name: index for index, name in enumerate(position)}
+            chunk_groups = await self.prefetch_chunk(query, chunk)
+            for owner, items in chunk_groups.items():
+                for item in items:
+                    target_key = str(getattr(item, self.target.__primary_key__))
+                    existing = targets.setdefault(target_key, item)
+                    groups.setdefault(owner, []).append(existing)
         for item in instances:
-            # a target deleted or moved out of scope since the bridge read is skipped
-            ids = sorted(
-                (n for n in pairs.get(str(getattr(item, key)), []) if n in order),
-                key=order.__getitem__,
-            )
-            found = tuple(position[name] for name in ids)
+            found = tuple(groups.get(str(getattr(item, key)), ()))
             store(item, self.name, (found, tuple(ids_of(found, self.target))))
 
-    async def bridge_pairs(
-        self, owners: list[Any], within: QuerySet[Any] | None
-    ) -> list[tuple[Any, Any]]:
+    async def prefetch_chunk(
+        self, query: QuerySet[Any], owners: list[Any]
+    ) -> dict[str, list[Any]]:
         database = current_database()
-        subfilters = []
-        if within is None and self.target.__soft_delete__ is not None:
-            within = self.target.all()
-        if within is not None:
-            subfilters = [self.in_scope(within).raw()]
-        sql, params = core.compile_query(
-            "select",
+        alias = f"{LINK_ALIAS}__0"
+        join: core._RawJoin = (
             self.bridge.__table__,
-            columns=[self.near, self.far],
-            filters=[(self.near, "in", owners)],
-            limit=len(owners) * self.max_items + 1,
-            subfilters=subfilters,
-            dialect=database.dialect,
-        )
-        rows = await database.fetch(sql, *params)
-        counts = collections.Counter(row[self.near] for row in rows)
-        if any(count > self.max_items for count in counts.values()):
-            raise StoredLinksOverLimit(self.name, self.max_items)
-        return [(row[self.near], row[self.far]) for row in rows]
-
-    def in_scope(self, within: QuerySet[Any]) -> SubQuery:
-        """``far IN (SELECT pk FROM target WHERE <scope>)`` on the bridge."""
-        joins, filters, _ = self.scope(within)
-        return SubQuery(
+            LINK_ALIAS,
+            self.target.__primary_key__,
             self.far,
             False,
-            self.target.__table__,
-            self.target.__primary_key__,
-            self.target,
-            tuple(joins),
-            tuple(filters),
-            (),
-            within.subfilters,
+            [self.near],
+            None,
         )
-
-    async def fetch_targets(
-        self, wanted: list[Any], within: QuerySet[Any] | None = None
-    ) -> list[Any]:
-        if not wanted:
-            return []
-        key = self.target.__primary_key__
-        base = self.target.all() if within is None else within
-        found: list[Any] = []
-        chunks = range(0, len(wanted), IN_CHUNK)
-        for start in chunks:
-            query = base.filter(**{f"{key}__in": wanted[start : start + IN_CHUNK]})
-            if not self.target.__ordering__:
-                query = query.order_by(key)
-            found.extend(await query)
-        if len(chunks) > 1:
-            self.merge_order(found)
-        return found
-
-    def merge_order(self, found: list[Any]) -> None:
-        """Order the targets of several chunks as one list: the model's default
-        ordering (else the key), compared in Python, so the order does not
-        depend on how the targets were split into queries."""
-        ordering = self.target.__ordering__ or (self.target.__primary_key__,)
-        for name in reversed(ordering):
-            found.sort(
-                key=null_first(name.removeprefix("-")), reverse=name.startswith("-")
+        sql, params = query.compile_through(
+            join,
+            (f"{LINK_ALIAS}.{self.near}", "in", owners),
+            len(owners) * self.max_items + 1,
+            database.dialect,
+        )
+        plan = query.model.row_plan() if query.uses_stock_builders() else None
+        fetch_models = getattr(database, "fetch_models", None)
+        if plan is not None and fetch_models is not None:
+            result: Any = await fetch_models(
+                sql, params, plan.linked(alias, self.max_items)
             )
+        else:
+            rows = await database.fetch(sql, *params)
+            result = self.prefetch_fallback(query, rows, alias)
+        if result is None:
+            raise StoredLinksOverLimit(self.name, self.max_items)
+        return cast(dict[str, list[Any]], result)
+
+    def prefetch_fallback(
+        self, query: QuerySet[Any], rows: list[dict[str, Any]], alias: str
+    ) -> dict[str, list[Any]] | None:
+        groups: dict[str, list[Any]] = {}
+        for row in rows:
+            group = groups.setdefault(str(row[alias]), [])
+            group.append(query.build(row))
+            if len(group) > self.max_items:
+                return None
+        return groups
 
 
 def raw_scope(
@@ -328,16 +303,6 @@ def raw_scope(
         list(query.filters),
         [sub.raw() for sub in query.subfilters],
     )
-
-
-def null_first(column: str) -> Callable[[Any], tuple[bool, Any]]:
-    """A sort key on ``column`` that places a NULL before every value."""
-
-    def key(item: Any) -> tuple[bool, Any]:
-        value = getattr(item, column)
-        return (value is not None, value)
-
-    return key
 
 
 def ids_of(targets: Iterable[Any], model: type[Model]) -> list[Any]:

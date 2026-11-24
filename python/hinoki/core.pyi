@@ -418,6 +418,7 @@ def compile_query(
     keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
     subfilters: list[_RawSub] | None = None,
     dialect: str = "postgres",
+    linked: bool = False,
 ) -> tuple[str, list[Any]]: ...
 
 _RawJoin = tuple[str, str, str, str, bool, list[str], str | None]

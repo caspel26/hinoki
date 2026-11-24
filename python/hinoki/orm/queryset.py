@@ -300,6 +300,33 @@ class QuerySet[M: Model]:
             dialect=dialect,
         )
 
+    def compile_through(
+        self,
+        join: core._RawJoin,
+        bridge_filter: core._RawFilter,
+        limit: int,
+        dialect: str,
+    ) -> tuple[str, list[Any]]:
+        order = list(self.order)
+        key = self.model.__primary_key__
+        if not any(column == key for column, _ in order):
+            order.append((key, False))
+        refuse_sqlite_decimal(self.model, self.filters, tuple(order), dialect)
+        for sub in self.subfilters:
+            refuse_sqlite_decimal(sub.model, sub.checks, (), dialect)
+        return core.compile_query(
+            "select",
+            self.model.__table__,
+            columns=list(self.model.__columns__),
+            filters=[*self.filters, bridge_filter],
+            order=order,
+            limit=limit,
+            joins=[*self.joins(), join],
+            subfilters=[sub.raw() for sub in self.subfilters],
+            dialect=dialect,
+            linked=True,
+        )
+
     def build(self, row: dict[str, Any]) -> M:
         own = {column: row[column] for column in self.model.__columns__}
         instance = self.model.from_row(own)
