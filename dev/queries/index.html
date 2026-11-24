@@ -494,7 +494,7 @@
           <h1 id="query-and-write-rows">Query and write rows<a class="headerlink" href="#query-and-write-rows" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 00:47:16 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -653,9 +653,11 @@ permissions in <code>access=</code>, <code>owner=</code> and <code>ModelAdmin.ca
 delete timestamp with a scoped <code>UPDATE</code>; use <code>arestore()</code> / <code>restore()</code> to clear
 it, and <code>ahard_delete()</code> / <code>hard_delete()</code> for a physical <code>DELETE</code>. Model
 queries are live-only by default; <code>Model.with_deleted()</code> and
-<code>Model.only_deleted()</code> are explicit class-level scopes. Reverse relations and
-many-to-many target prefetches use the live scope. A forward <code>select_related</code>
-still loads a referenced soft-deleted row.</p>
+<code>Model.only_deleted()</code> are explicit class-level scopes. Relations use the live
+scope too: reverse relations, many-to-many links, and forward
+<code>select_related</code>/<code>prefetch_related</code>, where a referenced soft-deleted row reads
+as <code>None</code>. A filter across a relation (<code>parent__name=...</code>) joins live rows
+only.</p>
 <p>For <code>@db.track_status()</code>, instance saves bump <code>changed_at</code> only when the value
 actually changes. Bulk <code>QuerySet.aupdate()</code> cannot compare stored values and
 bumps the timestamp whenever the tracked field appears in <code>values</code>, including
@@ -764,7 +766,7 @@ declare a field named <code>returning</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 00:47:16 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

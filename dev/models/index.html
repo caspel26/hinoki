@@ -494,7 +494,7 @@
           <h1 id="define-models">Define models<a class="headerlink" href="#define-models" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 01:04:03 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></span>
             <span>10 min read</span>
           </p>
           
@@ -644,9 +644,11 @@ never changes the database: create the tables with
 </tbody>
 </table>
 <p>A stored value that does not read back as its annotation raises <code>FieldError</code>.
-<code>date</code> and <code>timedelta</code> compare and order by value. A set, tuple, <code>Literal</code>,
-plain union or <code>Any</code> column has no SQL type: the migration planner reports
-<code>no SQL type</code>. SQLite's <code>contains</code> folds ASCII case only.</p>
+<code>date</code> and <code>timedelta</code> compare and order by value. A column type without a
+SQL type (a set, tuple, <code>Literal</code>, <code>Path</code>, <code>SecretStr</code>, <code>Any</code>, <code>object</code>, or a
+union of several types such as <code>int | str</code>) raises <code>RegistrationError</code> when the
+class is defined. <code>Annotated[str, Field(max_length=32)]</code> sizes the column like
+<code>field(max_length=32)</code>. SQLite's <code>contains</code> folds ASCII case only.</p>
 <h3 id="decimal-columns"><code>Decimal</code> columns<a class="headerlink" href="#decimal-columns" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -797,9 +799,13 @@ synchronous application rules:</p>
 <li><strong>When.</strong> Immediately before inserts and ORM updates, filtered bulk updates
   included; never on construction, assignment or reads. Invalid declarations
   fail when the class is created.</li>
-<li><strong>Checks.</strong> String and list lengths, patterns, membership and numeric bounds.
-  A JSON column (<code>dict[...]</code>, <code>list[dict[...]]</code>) takes no built-in checks;
-  validators still run on it.</li>
+<li><strong>Checks.</strong> String and list lengths, patterns, membership, numeric bounds
+  on <code>int</code>, <code>float</code> and <code>Decimal</code> (a <code>NaN</code> or infinite <code>Decimal</code> is refused),
+  and <code>multiple_of</code> on <code>int</code> and <code>Decimal</code>. <code>strip</code>, <code>lower</code> and <code>upper</code>
+  normalize a <code>str</code> before the other checks, and the normalized text is what
+  is written (an instance being saved gets it too). A JSON column
+  (<code>dict[...]</code>, <code>list[dict[...]]</code>) takes no built-in checks; validators still
+  run on it.</li>
 <li><strong>Failure.</strong> <code>ModelValidationError</code>, before any SQL, with <code>details</code> holding
   each field's <code>path</code>, <code>code</code> and <code>message</code>. In a request it becomes the
   standard 422 response; the admin shows the messages.</li>
@@ -967,7 +973,7 @@ partial unique index for live rows needs a custom SQL migration.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 01:04:03 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/models.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

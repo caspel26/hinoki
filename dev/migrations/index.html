@@ -494,7 +494,7 @@
           <h1 id="migrations">Migrations<a class="headerlink" href="#migrations" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -559,7 +559,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class
 <tbody>
 <tr>
 <td><code>status [APP]</code></td>
-<td>lists applied and pending migrations (nothing when there are none); creates the ledger, and a SQLite file, if missing</td>
+<td>lists applied and pending migrations (nothing when there are none); writes nothing (connecting still creates a missing SQLite file): a database without the ledger has none applied, and <code>apply</code> creates it</td>
 </tr>
 <tr>
 <td><code>sql NAME</code></td>
@@ -777,7 +777,7 @@ app keeps its ledger keys, so existing history is not replayed.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:07:44 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/migrations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
