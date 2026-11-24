@@ -17,8 +17,7 @@ from hinoki.admin.users import AdminAccounts, AdminUser, AdminUserError
 from hinoki.cli.migrations import (
     URL_VARIABLE,
     MigrationDatabase,
-    application_admin_settings,
-    migration_database,
+    migration_database_and_admin,
 )
 from hinoki.db import Database, DatabaseError
 from hinoki.errors import MigrationError
@@ -126,9 +125,8 @@ def run(args: Namespace) -> int:
     try:
         path = find_manifest_or_none()
         manifest = load_manifest(path) if path else None
-        target = migration_database(args, manifest)
+        target, settings = migration_database_and_admin(args, manifest)
         print(target.describe(), file=sys.stderr)
-        settings = application_admin_settings(manifest) if manifest else None
         message = asyncio.run(run_action(args, target, settings))
     except (
         AdminUserError,
