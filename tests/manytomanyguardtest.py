@@ -205,10 +205,20 @@ async def test_keys_of_every_supported_kind_link_and_unknown_shapes_are_refused(
         with pytest.raises(ModelValidationError):
             await reverse.slots.aadd(bad)  # type: ignore[arg-type]
     assert [s.id for s in await reverse.slots.alist()] == [7]
+    slot_side = cast(engine.LinkSide, Slot.__links__["codes"])
+    code_side = cast(engine.LinkSide, Code.__links__["slots"])
+    expected_codes = await two_step_oracle(slot_side, [slot])
+    expected_slots = await two_step_oracle(code_side, [reverse])
     (loaded_slot,) = await Slot.all().prefetch_related("codes")
     assert [code.id for code in loaded_slot.codes.loaded] == ["cd"]
+    assert (
+        tuple(str(code.id) for code in loaded_slot.codes.loaded) == expected_codes["7"]
+    )
     (loaded_code,) = await Code.filter(id="cd").prefetch_related("slots")
     assert [item.id for item in loaded_code.slots.loaded] == [7]
+    assert (
+        tuple(str(item.id) for item in loaded_code.slots.loaded) == expected_slots["cd"]
+    )
 
 
 @pytest.mark.usefixtures("database")
@@ -398,6 +408,9 @@ async def test_prefetch_uses_one_query_per_owner_chunk(
     item = await Item.acreate(name="shared", payload={"count": 1})
     await first.items.aadd(item)
     await second.items.aadd(item)
+    side = cast(engine.LinkSide, Holder.__links__["items"])
+    expected = await two_step_oracle(side, [first, second, empty])
+    (oracle_item,) = await Item.filter(id=item.id)
     database = current_database()
     calls = 0
     original_fetch = database.fetch
@@ -419,6 +432,10 @@ async def test_prefetch_uses_one_query_per_owner_chunk(
     assert calls == 3
     assert first.items.loaded[0] is second.items.loaded[0]
     assert first.items.loaded[0].payload == {"count": 1}
+    assert first.items.loaded[0].payload == oracle_item.payload
+    assert (
+        tuple(str(found.id) for found in first.items.loaded) == expected[str(first.id)]
+    )
     assert empty.items.loaded == ()
 
 
