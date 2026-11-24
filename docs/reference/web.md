@@ -122,8 +122,36 @@ or pass `middleware=[...]` to `Hinoki`.
     options:
       show_if_no_docstring: true
 
+::: hinoki.http.Next
+
+::: hinoki.http.cors.Cors
+    options:
+      show_if_no_docstring: true
+
+## WebSockets
+
+The [WebSockets guide](../websockets.md) explains the handler, access policies, origins and limits.
+
+::: hinoki.http.websocket
+
+::: hinoki.http.WebSocket
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.http.WebSocketClosed
+
+::: hinoki.http.CloseCode
+
 ## Rate limits
 
 ::: hinoki.ratelimit.RateLimitPolicy
 
 ::: hinoki.ratelimit.RateLimitContext
+
+::: hinoki.ratelimit.RateLimit
+    options:
+      show_if_no_docstring: true
+
+::: hinoki.ratelimit.DatabaseLimits
+
+::: hinoki.ratelimit.MemoryLimits

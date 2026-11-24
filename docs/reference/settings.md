@@ -13,7 +13,7 @@
 
 ::: hinoki.settings.AppSettings
     options:
-      members: [execution, lifecycle, logging, docs, server, pagination, cors, security, admin, timezone, debug, allowed_hosts, runtime_config]
+      members: [execution, lifecycle, logging, docs, server, pagination, cors, compression, metrics, events, security, admin, timezone, debug, allowed_hosts, runtime_config]
       show_if_no_docstring: true
 
 ::: hinoki.settings.ExecutionSettings
@@ -33,22 +33,37 @@
 
 ::: hinoki.settings.DocsSettings
     options:
-      members: [title, version, openapi_url, docs_url, redoc_url]
+      members: [title, version, openapi_url, docs_url, redoc_url, openapi_version]
       show_if_no_docstring: true
 
 ::: hinoki.settings.ServerSettings
     options:
-      members: [server, host, port, workers, runtime_threads, backlog, access_log, access_log_format, access_log_skip, access_log_slow_ms, recent_requests, server_timing, max_connections, header_read_timeout, body_read_timeout, write_timeout, tls_cert_file, tls_key_file, http2, native_dispatch, trusted_proxies, request_id_header, trust_request_id]
+      members: [server, host, port, workers, runtime_threads, backlog, access_log, access_log_format, access_log_skip, access_log_slow_ms, recent_requests, server_timing, sighup, max_connections, header_read_timeout, body_read_timeout, write_timeout, tls_cert_file, tls_key_file, http2, native_dispatch, trusted_proxies, request_id_header, trust_request_id]
       show_if_no_docstring: true
 
 ::: hinoki.settings.PaginationSettings
     options:
-      members: [page_size, max_page_size]
+      members: [page_size, max_page_size, cursor_secret, cursor_ttl_seconds]
       show_if_no_docstring: true
 
 ::: hinoki.settings.CorsSettings
     options:
       members: [origins, methods, headers, expose_headers, credentials, max_age]
+      show_if_no_docstring: true
+
+::: hinoki.settings.CompressionSettings
+    options:
+      members: [enabled, encodings, min_size, types, event_streams, files, gzip_level, brotli_quality, max_concurrent]
+      show_if_no_docstring: true
+
+::: hinoki.settings.MetricsSettings
+    options:
+      members: [listen, path, allow, token, buckets, snapshot_interval]
+      show_if_no_docstring: true
+
+::: hinoki.settings.EventsSettings
+    options:
+      members: [handler_timeout, max_handlers, max_depth]
       show_if_no_docstring: true
 
 ::: hinoki.settings.SecuritySettings
@@ -58,7 +73,7 @@
 
 ::: hinoki.settings.AdminSettings
     options:
-      members: [secret, session_hours, idle_minutes, min_password_length]
+      members: [secret, session_hours, idle_minutes, min_password_length, theme]
       show_if_no_docstring: true
 
 ::: hinoki.settings.FrameOptions

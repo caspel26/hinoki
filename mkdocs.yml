@@ -163,6 +163,9 @@ nav:
       - Database: reference/database.md
       - Settings: reference/settings.md
       - Email: reference/email.md
+      - Sessions: reference/sessions.md
+      - Cache: reference/cache.md
+      - File storage: reference/storage.md
       - Rules: reference/rules.md
       - Modules and runtime: reference/runtime.md
       - MCP and scaffold: reference/tools.md
