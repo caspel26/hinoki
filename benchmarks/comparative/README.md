@@ -32,8 +32,6 @@ Every handler is async on every stack.
 
 SQLAlchemy's engines use `pool_pre_ping=True`, as Bolt's comparison does; asyncpg's ping (`;`) is not counted as a statement. Django Ninja runs the sync ORM through `sync_to_async(thread_sensitive=False)` on an executor of as many threads as pool connections and releases the connection after each call; the user lookup of django-ninja-jwt runs there too, because its own path keeps the connection on the request's thread until the request ends, and with 100 connections and 8 pooled database connections every connection is then held by a request waiting for another one (the service stalls until the pool times out). Ninja's renderer writes compact JSON (no spaces after `,` and `:`) so that `json-1k` and `json-10k` have the bytes every other stack sends.
 
-Hinoki's ORM loads a many-to-many relation in two statements (link table, then tags), so its three tag routes are verified at one statement more; that costs Hinoki a round trip and is the only allowed difference.
-
 ### Other runtimes (JavaScript)
 
 The `javascript` server mode serves the same routes from `js/` on the three servers of Django Bolt's [comparison with JavaScript servers](https://bolt.farhana.li/benchmarks/#against-javascript-servers), in its order, with exactly pinned npm packages (`js/package-lock.json`, installed with `npm ci`):
