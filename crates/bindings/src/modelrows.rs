@@ -22,10 +22,18 @@ pub(crate) struct ModelRows {
     /// the instance `__dict__` key their instances are stored under.
     joins: Vec<Join>,
     store_key: Option<String>,
+    linked: Option<Linked>,
+}
+
+struct Linked {
+    alias: String,
+    key: usize,
+    max_items: usize,
 }
 
 /// One joined relation: its model's plan, the aliased column names it is read
 /// from and the position of its primary key (a NULL key means no related row).
+#[derive(Clone)]
 struct Join {
     name: String,
     plan: Arc<ModelRows>,
@@ -58,6 +66,7 @@ impl PyModelRows {
                 snapshot_key,
                 joins: Vec::new(),
                 store_key: None,
+                linked: None,
             }),
         })
     }
@@ -99,6 +108,34 @@ impl PyModelRows {
                 snapshot_key: base.snapshot_key.clone(),
                 joins,
                 store_key: Some(store_key),
+                linked: None,
+            }),
+        })
+    }
+
+    /// Construct a plan for rows with a trailing bridge owner column.
+    fn linked(&self, py: Python<'_>, alias: String, max_items: usize) -> PyResult<Self> {
+        let base = &self.inner;
+        let primary_key: String = base.cls.bind(py).getattr("__primary_key__")?.extract()?;
+        let key = base
+            .columns
+            .iter()
+            .position(|column| column == &primary_key)
+            .ok_or_else(|| PyValueError::new_err("primary key is not in the model columns"))?;
+        Ok(Self {
+            inner: Arc::new(ModelRows {
+                cls: base.cls.clone_ref(py),
+                name: base.name.clone(),
+                columns: base.columns.clone(),
+                json: base.json.clone(),
+                snapshot_key: base.snapshot_key.clone(),
+                joins: base.joins.clone(),
+                store_key: base.store_key.clone(),
+                linked: Some(Linked {
+                    alias,
+                    key,
+                    max_items,
+                }),
             }),
         })
     }
@@ -249,9 +286,147 @@ pub(crate) fn models_to_py(
         .getattr("object")?
         .getattr("__new__")?;
     let deepcopy = py.import("copy")?.getattr("deepcopy")?;
+    if let Some(linked) = &plan.linked {
+        return linked_models(py, rows, plan, linked, &new, &deepcopy);
+    }
     let out = PyList::empty(py);
     for row in rows {
         out.append(build_row(py, plan, row, &new, &deepcopy)?)?;
     }
     Ok(out.into_any().unbind())
+}
+
+/// Return owner-keyed lists, or None when any owner's link limit is exceeded.
+fn linked_models(
+    py: Python<'_>,
+    rows: &[Vec<(String, Value)>],
+    plan: &ModelRows,
+    linked: &Linked,
+    new: &Bound<'_, PyAny>,
+    deepcopy: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let owners = PyDict::new(py);
+    let targets = PyDict::new(py);
+    for row in rows {
+        let (owner, cells) = row.split_last().ok_or_else(|| mismatch(py, plan))?;
+        if owner.0 != linked.alias || matches!(owner.1, Value::Null) {
+            return Err(mismatch(py, plan));
+        }
+        let owner_key = from_value(py, &owner.1)?.into_bound(py).str()?.to_string();
+        let target = build_row(py, plan, cells, new, deepcopy)?;
+        let key = target
+            .getattr(&plan.columns[linked.key])?
+            .str()?
+            .to_string();
+        let target = if let Some(existing) = targets.get_item(&key)? {
+            existing
+        } else {
+            targets.set_item(key, &target)?;
+            target
+        };
+        let group = match owners.get_item(&owner_key)? {
+            Some(group) => group.cast_into::<PyList>()?,
+            None => {
+                let group = PyList::empty(py);
+                owners.set_item(owner_key, &group)?;
+                group
+            }
+        };
+        group.append(target)?;
+        if group.len() > linked.max_items {
+            return Ok(py.None());
+        }
+    }
+    Ok(owners.into_any().unbind())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pyo3::types::PyModule;
+
+    fn row(id: Value, owner: Value) -> Vec<(String, Value)> {
+        vec![("id".into(), id), ("link__0".into(), owner)]
+    }
+
+    #[test]
+    fn linked_rows_group_in_arrival_order_and_share_instances() {
+        Python::initialize();
+        Python::attach(|py| {
+            let module = PyModule::from_code(
+                py,
+                c"class Target:\n    __primary_key__ = 'id'\n",
+                c"test.py",
+                c"test",
+            )
+            .unwrap();
+            let cls = module.getattr("Target").unwrap();
+            let plan = PyModelRows::new(&cls, vec!["id".into()], vec![], "snapshot".into())
+                .unwrap()
+                .linked(py, "link__0".into(), 2)
+                .unwrap();
+            let rows = vec![
+                row(Value::Int(2), Value::Text("a".into())),
+                row(Value::Int(1), Value::Text("a".into())),
+                row(Value::Int(2), Value::Text("b".into())),
+            ];
+            let out = models_to_py(py, &rows, &plan.inner)
+                .unwrap()
+                .into_bound(py)
+                .cast_into::<PyDict>()
+                .unwrap();
+            let a = out
+                .get_item("a")
+                .unwrap()
+                .unwrap()
+                .cast_into::<PyList>()
+                .unwrap();
+            let b = out
+                .get_item("b")
+                .unwrap()
+                .unwrap()
+                .cast_into::<PyList>()
+                .unwrap();
+            assert_eq!(
+                a.get_item(0)
+                    .unwrap()
+                    .getattr("id")
+                    .unwrap()
+                    .extract::<i64>()
+                    .unwrap(),
+                2
+            );
+            assert_eq!(
+                a.get_item(1)
+                    .unwrap()
+                    .getattr("id")
+                    .unwrap()
+                    .extract::<i64>()
+                    .unwrap(),
+                1
+            );
+            assert!(a.get_item(0).unwrap().is(b.get_item(0).unwrap()));
+            let too_many = vec![
+                row(Value::Int(1), Value::Int(4)),
+                row(Value::Int(2), Value::Int(4)),
+                row(Value::Int(3), Value::Int(4)),
+            ];
+            assert!(models_to_py(py, &too_many, &plan.inner)
+                .unwrap()
+                .is_none(py));
+            assert!(models_to_py(py, &[row(Value::Int(1), Value::Null)], &plan.inner).is_err());
+            assert!(models_to_py(py, &[vec![("id".into(), Value::Int(1))]], &plan.inner).is_err());
+            let empty = models_to_py(py, &[], &plan.inner).unwrap();
+            assert_eq!(empty.bind(py).cast::<PyDict>().unwrap().len(), 0);
+            let id = uuid::Uuid::parse_str("12345678-1234-4234-8234-123456789abc").unwrap();
+            let varied = vec![
+                row(Value::Text("target".into()), Value::Uuid(id)),
+                row(Value::Uuid(id), Value::Int(7)),
+            ];
+            let found = models_to_py(py, &varied, &plan.inner).unwrap();
+            let found = found.bind(py).cast::<PyDict>().unwrap();
+            assert!(found.contains(id.to_string()).unwrap());
+            assert!(found.contains("7").unwrap());
+        });
+    }
 }
