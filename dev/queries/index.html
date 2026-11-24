@@ -494,7 +494,7 @@
           <h1 id="query-and-write-rows">Query and write rows<a class="headerlink" href="#query-and-write-rows" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 00:47:16 UTC">November 24, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -552,7 +552,8 @@ the supported comparison and membership operators (<code>ne</code>, <code>in</co
 </ul>
 <h2 id="reusable-queries">Reusable queries<a class="headerlink" href="#reusable-queries" title="Permanent link">&para;</a></h2>
 <p>A reusable query is a typed class method returning a <code>QuerySet</code>. There is no
-hidden default manager: <code>Model.all()</code> always means every row.</p>
+hidden manager: <code>Model.all()</code> means every live row on a soft-delete model and
+every row on an ordinary model.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/models.py (continued)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Self</span>
 
@@ -648,6 +649,17 @@ permissions in <code>access=</code>, <code>owner=</code> and <code>ModelAdmin.ca
   ordering and refuse a query with <code>limit</code> or <code>offset</code>; select the keys first
   and filter on <code>id__in=[...]</code>.</li>
 </ul>
+<p>On a model decorated with <code>@db.soft_delete()</code>, <code>adelete()</code> / <code>delete()</code> sets the
+delete timestamp with a scoped <code>UPDATE</code>; use <code>arestore()</code> / <code>restore()</code> to clear
+it, and <code>ahard_delete()</code> / <code>hard_delete()</code> for a physical <code>DELETE</code>. Model
+queries are live-only by default; <code>Model.with_deleted()</code> and
+<code>Model.only_deleted()</code> are explicit class-level scopes. Reverse relations and
+many-to-many target prefetches use the live scope. A forward <code>select_related</code>
+still loads a referenced soft-deleted row.</p>
+<p>For <code>@db.track_status()</code>, instance saves bump <code>changed_at</code> only when the value
+actually changes. Bulk <code>QuerySet.aupdate()</code> cannot compare stored values and
+bumps the timestamp whenever the tracked field appears in <code>values</code>, including
+when it equals the stored value.</p>
 <h2 id="writing-many-rows-at-once">Writing many rows at once<a class="headerlink" href="#writing-many-rows-at-once" title="Permanent link">&para;</a></h2>
 <p><code>abulk_create</code>, <code>abulk_update</code> and <code>abulk_delete</code> (sync <code>bulk_*</code>) each run in
 one transaction, or a savepoint inside an open one:</p>
@@ -752,7 +764,7 @@ declare a field named <code>returning</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 00:47:16 UTC">November 24, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
