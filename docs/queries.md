@@ -66,7 +66,8 @@ the supported comparison and membership operators (`ne`, `in`, `isnull`, `gt`,
 ## Reusable queries
 
 A reusable query is a typed class method returning a `QuerySet`. There is no
-hidden default manager: `Model.all()` always means every row.
+hidden manager: `Model.all()` means every live row on a soft-delete model and
+every row on an ordinary model.
 
 ```python
 # notes/apps/billing/models.py (continued)
@@ -152,6 +153,19 @@ changed = await Invoice.aupdate_where({"id": invoice.id, "paid": False}, {"paid"
 * `QuerySet.aupdate(values)` and `adelete()` act on every matching row, ignore
   ordering and refuse a query with `limit` or `offset`; select the keys first
   and filter on `id__in=[...]`.
+
+On a model decorated with `@db.soft_delete()`, `adelete()` / `delete()` sets the
+delete timestamp with a scoped `UPDATE`; use `arestore()` / `restore()` to clear
+it, and `ahard_delete()` / `hard_delete()` for a physical `DELETE`. Model
+queries are live-only by default; `Model.with_deleted()` and
+`Model.only_deleted()` are explicit class-level scopes. Reverse relations and
+many-to-many target prefetches use the live scope. A forward `select_related`
+still loads a referenced soft-deleted row.
+
+For `@db.track_status()`, instance saves bump `changed_at` only when the value
+actually changes. Bulk `QuerySet.aupdate()` cannot compare stored values and
+bumps the timestamp whenever the tracked field appears in `values`, including
+when it equals the stored value.
 
 ## Writing many rows at once
 

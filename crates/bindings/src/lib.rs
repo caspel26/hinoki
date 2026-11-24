@@ -190,6 +190,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(crypto::verify_password, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::password_needs_rehash, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::make_token, m)?)?;
+    m.add_function(wrap_pyfunction!(crypto::make_uuid7, m)?)?;
     m.add_function(wrap_pyfunction!(crypto::constant_time_equal, m)?)?;
     m.add_function(wrap_pyfunction!(request::encode_json, m)?)?;
     Ok(())

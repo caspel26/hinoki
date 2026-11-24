@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🧩 Model lifecycle utilities
+> `crates/bindings/src/crypto.rs`, `python/hinoki/utils.py`, `python/hinoki/orm/model.py`, `python/hinoki/orm/mixins.py`, `python/hinoki/orm/options.py`, `python/hinoki/orm/queryset.py`, `python/hinoki/admin/`, `docs/models.md`, `docs/queries.md`
+
+Models can compose `UUIDModel`, `TimestampedModel` and `SoftDeleteModel`, declare configurable UUID primary keys with `uuid_pk()` (UUIDv4 by default, Rust-generated RFC 9562 `version=7` / `uuid7()`, or any custom `default_factory`), declare Rust CSPRNG URL-safe token columns with `urlsafe_token()`, mark a nullable datetime with `@db.soft_delete()`, and stack `@db.track_status()` decorators to record status changes. Soft-deleted rows leave default model and reverse-relation queries; `with_deleted()` and `only_deleted()` provide explicit scopes, while restore and hard-delete APIs make physical deletion opt-in in the admin. Instance snapshots expose `previous()` and `changed_fields`. Ordinary unique constraints still include deleted rows; `ON DELETE` actions run only for hard deletes. Bulk `QuerySet.aupdate()` timestamps any included tracked field because it does not preload old values. See [model lifecycle utilities](docs/models.md#lifecycle-utilities), [queries](docs/queries.md) and [admin customization](docs/admin-customize.md#soft-deleted-models).
+
 #### 🧩 Typed handler resources, storage, sessions and cache
 > `python/hinoki/modules.py`, `python/hinoki/runtime/binding.py`, `python/hinoki/storage.py`, `python/hinoki/sessions.py`, `python/hinoki/cache.py`, `docs/modules.md`, `docs/storage.md`, `docs/sessions.md`, `docs/cache.md`
 

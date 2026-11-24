@@ -51,12 +51,30 @@ class PostAdmin(ModelAdmin[Post]):
 | `fieldsets` | `Fieldset`s, or a dict of title → field names | One group |
 | `per_page`, `show_count` | Page size; row count in the sidebar | The site's `Admin(per_page=20, show_count=False)` |
 | `bulk_delete` | Offer bulk delete where `can(principal, "delete")` allows | `True` |
+| `allow_hard_delete` | Offer physical deletion in the Deleted view | `False` |
 
 `Tone` (`NEUTRAL`, `ACCENT`, `OK`, `WARN`, `DANGER`, `INFO`) is the color role of badges, stats and events. Without configuration the label and plural come from the model, the order from `@db.ordered_by` and the "last modified" line from its `@db.timestamps()` column.
 
 Search matches a row when any `search` column contains the typed text, compared case-insensitively as text (a number or date matches its printed form). Naming an `exclude`d column in `search` is refused at registration, because which rows match would reveal its value.
 
 Datetime fields use the app's `settings.timezone` (UTC without built-in settings): stored instants are shown there and edited `datetime-local` values are read there, then saved as UTC-aware datetimes. A time that does not exist or occurs twice during a daylight-saving change is refused for correction.
+
+### Soft-deleted models
+
+For a model using `@db.soft_delete()` or `SoftDeleteModel`, the admin's Active
+list and default `queryset(principal)` contain live rows. When `tabs` is unset,
+the list shows Active and Deleted views; `?deleted=1` selects the latter. The
+default `deleted_queryset(principal)` is `self.model.only_deleted()`. Override
+it to add tenant or ownership filters; the admin always narrows it to rows with
+a delete timestamp, and uses that same scope for restore and hard-delete.
+
+The `deleted_at` and every tracked `changed_at` column are automatically
+readonly unless excluded. Deleting a row uses soft deletion. Deleted rows
+cannot be edited or deleted through the regular row form before restoration.
+The Deleted view offers restore to users allowed to `change` each row. Physical
+purging is hidden and refused unless the model admin opts in with
+`allow_hard_delete = True`; each selected row must also pass `can(principal,
+"delete", row)`.
 
 ## Override behaviour
 

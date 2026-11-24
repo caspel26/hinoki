@@ -45,7 +45,15 @@ from hinoki.modules import Module, ModuleContext, Resource
 
 if TYPE_CHECKING:
     from hinoki.core import Param, Row, _CursorCodec, _ModelRows, _RowPlan
-    from hinoki.orm.options import indexed, ordered_by, table, timestamps, unique
+    from hinoki.orm.options import (
+        indexed,
+        ordered_by,
+        soft_delete,
+        table,
+        timestamps,
+        track_status,
+        unique,
+    )
 
 __all__ = [
     "Atomic",
@@ -58,8 +66,10 @@ __all__ = [
     "atomic",
     "indexed",
     "ordered_by",
+    "soft_delete",
     "table",
     "timestamps",
+    "track_status",
     "unique",
 ]
 
@@ -69,7 +79,17 @@ log = logging.getLogger("hinoki.db")
 # The model decorators are those of hinoki.orm.options, re-exported lazily:
 # hinoki.orm imports this module (hinoki.orm.context), so a module-level import
 # here would be circular, and importing hinoki.db should not load the ORM.
-MODEL_DECORATORS = frozenset({"indexed", "ordered_by", "table", "timestamps", "unique"})
+MODEL_DECORATORS = frozenset(
+    {
+        "indexed",
+        "ordered_by",
+        "soft_delete",
+        "table",
+        "timestamps",
+        "track_status",
+        "unique",
+    }
+)
 
 if not TYPE_CHECKING:
 

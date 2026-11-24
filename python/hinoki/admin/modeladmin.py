@@ -16,7 +16,9 @@ from hinoki.orm import Model, QuerySet
 
 _ACTION_NAME = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
 # The names the permission model uses; a bulk action cannot take one.
-RESERVED_ACTIONS = frozenset({"view", "add", "change", "delete"})
+RESERVED_ACTIONS = frozenset(
+    {"view", "add", "change", "delete", "restore", "hard-delete"}
+)
 _MAX_ACTION_LABEL = 80
 _MAX_ACTION_CONFIRMATION = 240
 
@@ -90,6 +92,7 @@ class ModelAdmin[M: Model]:
     per_page: ClassVar[int | None] = None  # the site's ``per_page`` when unset
     show_count: ClassVar[bool | None] = None  # the site's ``show_count`` when unset
     bulk_delete: ClassVar[bool] = True  # offered where ``can(principal, "delete")``
+    allow_hard_delete: ClassVar[bool] = False
     bulk_actions: ClassVar[tuple[BulkAction[Any], ...]] = ()
     extra_fields: ClassVar[tuple[Extra, ...]] = ()
     site: Any = None  # the Admin this model admin is registered in
@@ -133,6 +136,25 @@ class ModelAdmin[M: Model]:
     def queryset(self, principal: Caller[Any]) -> QuerySet[M]:
         return self.model.all()
 
+    def active_scope(self, principal: Caller[Any]) -> QuerySet[M]:
+        """The override's active scope, narrowed to rows not soft-deleted."""
+        query = self.queryset(principal)
+        column = self.model.__soft_delete__
+        if column is not None:
+            query = query.filter(**{f"{column}__isnull": True})
+        return query
+
+    def deleted_queryset(self, principal: Caller[Any]) -> QuerySet[M]:
+        """Rows available in the deleted view; override to preserve tenant scope."""
+        return self.model.only_deleted()
+
+    def deleted_scope(self, principal: Caller[Any]) -> QuerySet[M]:
+        """The override's scope, narrowed to soft-deleted rows unconditionally."""
+        column = self.model.__soft_delete__
+        if column is None:
+            raise RegistrationError("deleted_scope requires a soft-delete model")
+        return self.deleted_queryset(principal).filter(**{f"{column}__isnull": False})
+
     def can(self, principal: Caller[Any], action: str, row: M | None = None) -> bool:
         return True
 
@@ -154,7 +176,7 @@ class ModelAdmin[M: Model]:
         return value
 
     async def stats(self, principal: Caller[Any]) -> list[Stat]:
-        total = await self.queryset(principal).acount()
+        total = await self.active_scope(principal).acount()
         return [Stat(self.plural(), total, self.icon)]
 
     async def check(
@@ -181,7 +203,7 @@ class ModelAdmin[M: Model]:
             await self.ensure_visible(saved, principal)
             return saved
         found = (
-            await self.queryset(principal)
+            await self.active_scope(principal)
             .filter(**{key: getattr(row, key)})
             .aupdate(values)
         )
@@ -193,14 +215,16 @@ class ModelAdmin[M: Model]:
     async def remove(self, row: M, principal: Caller[Any]) -> None:
         key = self.model.__primary_key__
         gone = (
-            await self.queryset(principal).filter(**{key: getattr(row, key)}).adelete()
+            await self.active_scope(principal)
+            .filter(**{key: getattr(row, key)})
+            .adelete()
         )
         if not gone:
             raise self.model.NotFound(f"{self.model.__name__} not found")
 
     async def ensure_visible(self, row: M, principal: Caller[Any]) -> None:
         key = self.model.__primary_key__
-        query = self.queryset(principal).filter(**{key: getattr(row, key)})
+        query = self.active_scope(principal).filter(**{key: getattr(row, key)})
         if not await query.aexists():
             raise OutOfScope
 
@@ -235,6 +259,15 @@ class ModelAdmin[M: Model]:
             self.search = self.default_search()  # type: ignore[misc]
         if not self.modified_field and self.model.__updated_at__:
             self.modified_field = self.model.__updated_at__  # type: ignore[misc]
+        managed = tuple(
+            column
+            for column in (
+                self.model.__soft_delete__,
+                *(track.changed_at for track in self.model.__status_tracks__),
+            )
+            if column is not None and column not in self.exclude
+        )
+        self.readonly = tuple(dict.fromkeys((*self.readonly, *managed)))  # type: ignore[misc]
         badges = {
             column: {
                 value: item if isinstance(item, Badge) else Badge(*item)

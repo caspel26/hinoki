@@ -42,6 +42,8 @@ NOTICES = {
     "created": "Created.",
     "saved": "Saved.",
     "deleted": "Deleted.",
+    "restored": "Restored.",
+    "hard-deleted": "Permanently deleted.",
     "password": "Password changed.",
 }
 MAX_PAGE = 1_000_000
@@ -64,6 +66,7 @@ class ListState:
     sort: str = ""
     direction: str = "asc"
     done: str = ""
+    deleted: bool = False
 
     @classmethod
     def from_request(cls, request: Request) -> ListState:
@@ -75,6 +78,7 @@ class ListState:
             sort=get.get("sort", "")[:64],
             direction="desc" if get.get("dir") == "desc" else "asc",
             done=get.get("done", ""),
+            deleted=get.get("deleted") == "1",
         )
 
     def query(self, **changes: Any) -> dict[str, str]:
@@ -87,6 +91,7 @@ class ListState:
             "sort": state.sort,
             "dir": state.direction if state.sort and state.direction == "desc" else "",
             "done": state.done,
+            "deleted": "1" if state.deleted else "",
         }
         return {k: v for k, v in found.items() if v}
 
@@ -287,27 +292,37 @@ class Site:
     def done_notice(self) -> Raw:
         text = NOTICES.get(self.state.done)
         if text is None:
-            parts = self.state.done.split(":")
-            if len(parts) == ACTION_NOTICE_PARTS and parts[0] == "action":
-                entry = self.admin.models.get(parts[1])
-                action = None
-                if entry is not None:
-                    action = next(
-                        (
-                            candidate
-                            for candidate in entry.bulk_actions
-                            if candidate.name == parts[2]
-                        ),
-                        None,
-                    )
-                if (
-                    entry is not None
-                    and action is not None
-                    and entry.can(self.principal, "view")
-                    and entry.can(self.principal, action.name)
-                ):
-                    text = f"{action.label} completed."
+            text = self.action_done_notice()
         return self.parts.notice("ok", text) if text else Raw("")
+
+    def action_done_notice(self) -> str:
+        """The confirmed bulk action message, after checking model visibility."""
+        parts = self.state.done.split(":")
+        if len(parts) != ACTION_NOTICE_PARTS or parts[0] != "action":
+            return ""
+        entry = self.admin.models.get(parts[1])
+        if entry is None or not entry.can(self.principal, "view"):
+            return ""
+        special = {
+            "restore": ("restored", "change"),
+            "hard-delete": ("hard-deleted", "delete"),
+        }
+        if parts[2] in special:
+            notice, permission = special[parts[2]]
+            if not entry.can(self.principal, permission):
+                return ""
+            return NOTICES[notice]
+        action = next(
+            (
+                candidate
+                for candidate in entry.bulk_actions
+                if candidate.name == parts[2]
+            ),
+            None,
+        )
+        if action is None or not entry.can(self.principal, action.name):
+            return ""
+        return f"{action.label} completed."
 
 
 # -- list pages --------------------------------------------------------------

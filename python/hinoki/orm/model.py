@@ -11,6 +11,7 @@ import asyncio
 import copy
 import dataclasses
 import datetime
+import functools
 import inspect
 import re
 import sys
@@ -32,7 +33,7 @@ from typing import (
     get_origin,
     overload,
 )
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from hinoki import core, events
 from hinoki.blocking import refuse_event_loop, run_sync
@@ -62,7 +63,7 @@ from hinoki.orm.queryset import (
     written_rows,
 )
 from hinoki.orm.relations import LinkEnd, OnDelete, Related, Relation
-from hinoki.utils import Clock, utc_now
+from hinoki.utils import Clock, _read_utc, utc_now, uuid7
 
 if sys.version_info >= (3, 14):
     import annotationlib
@@ -98,6 +99,15 @@ _IMMUTABLE = frozenset(
 )
 PLACEHOLDER = "{model}"
 DICT_GENERIC_ARGS = 2
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class StatusTrack:
+    """A status column and the datetime column recording its last change."""
+
+    field: str
+    changed_at: str
+    clock: Clock | None = None
 
 
 def own_annotations(cls: type) -> dict[str, Any]:
@@ -603,6 +613,98 @@ def pk(
     )
 
 
+URLSAFE_PATTERN = r"^[A-Za-z0-9_-]+$"
+MAX_URLSAFE_BYTES = 1024
+UUID_FACTORIES: dict[int, Callable[[], UUID]] = {4: uuid4, 7: uuid7}
+
+
+def uuid_pk(
+    *,
+    version: Literal[4, 7] | None = None,
+    default_factory: Callable[[], UUID] | None = None,
+    constraints: FieldInfo | None = None,
+    validators: Sequence[Callable[..., None]] = (),
+) -> Any:
+    """Declare a UUID primary key.
+
+    Defaults to ``uuid4``. Pass ``version=7`` for time-ordered RFC 9562 UUIDv7,
+    or ``default_factory=...`` for any custom UUID generator.
+    """
+    if version is not None and default_factory is not None:
+        raise RegistrationError(
+            "uuid_pk() accepts either version or default_factory, not both"
+        )
+    if default_factory is not None:
+        if not callable(default_factory):
+            raise RegistrationError("uuid_pk(default_factory=...) must be callable")
+        factory: Callable[[], UUID] = default_factory
+    else:
+        selected = 4 if version is None else version
+        if type(selected) is not int or selected not in UUID_FACTORIES:
+            raise RegistrationError(
+                f"uuid_pk(version=...) must be 4 or 7, got {version!r}"
+            )
+        factory = UUID_FACTORIES[selected]
+    return pk(
+        constraints=constraints,
+        validators=validators,
+        default_factory=factory,
+    )
+
+
+def urlsafe_token(
+    *,
+    nbytes: int = 32,
+    unique: bool = True,
+    index: bool = False,
+    max_length: int | None = None,
+    constraints: FieldInfo | None = None,
+    validators: Sequence[Callable[..., None]] = (),
+) -> Any:
+    """Declare a URL-safe random token column backed by Rust's CSPRNG
+    (``hinoki.core.make_token``).
+
+    Suitable for opaque public identifiers or share codes. For authentication
+    secrets, store a hash instead of the raw token.
+    """
+    if type(nbytes) is not int or not (1 <= nbytes <= MAX_URLSAFE_BYTES):
+        raise RegistrationError(
+            f"urlsafe_token(nbytes=...) must be an int between 1 and "
+            f"{MAX_URLSAFE_BYTES}"
+        )
+    generated_length = (nbytes * 4 + 2) // 3
+    declared = constraints or FieldInfo()
+    effective_max = (
+        max_length
+        if max_length is not None
+        else (
+            declared.max_length if declared.max_length is not None else generated_length
+        )
+    )
+    if type(effective_max) is not int or effective_max < generated_length:
+        raise RegistrationError(
+            f"urlsafe_token(max_length=...) must be at least {generated_length} "
+            f"for nbytes={nbytes}"
+        )
+    if declared.pattern is not None and declared.pattern != URLSAFE_PATTERN:
+        raise RegistrationError(
+            "urlsafe_token() cannot override the URL-safe character pattern"
+        )
+    merged = dataclasses.replace(
+        declared,
+        min_length=1 if declared.min_length is None else declared.min_length,
+        pattern=URLSAFE_PATTERN,
+    )
+    return field(
+        unique=unique,
+        index=index,
+        max_length=effective_max if declared.max_length is None else max_length,
+        constraints=merged,
+        validators=validators,
+        default_factory=functools.partial(core.make_token, nbytes),
+    )
+
+
 def foreign_key(
     model: type[Model],
     *,
@@ -703,6 +805,9 @@ class Model:
     __plural__: ClassVar[str] = ""
     __updated_at__: ClassVar[str | None] = None
     __clock__: ClassVar[Clock] = utc_now
+    __soft_delete__: ClassVar[str | None] = None
+    __soft_delete_clock__: ClassVar[Clock | None] = None
+    __status_tracks__: ClassVar[tuple[StatusTrack, ...]] = ()
     __abstract__: ClassVar[bool] = False
     __inherited_options__: ClassVar[frozenset[str]] = frozenset()
     NotFound: ClassVar[type[ObjectNotFound]] = ObjectNotFound
@@ -928,16 +1033,67 @@ class Model:
         timed = next((b for b in bases if b.__updated_at__ is not None), None)
         cls.__updated_at__ = timed.__updated_at__ if timed else None
         cls.__clock__ = timed.__clock__ if timed else utc_now
+        deleted = next((b for b in bases if b.__soft_delete__ is not None), None)
+        cls.__soft_delete__ = deleted.__soft_delete__ if deleted else None
+        cls.__soft_delete_clock__ = deleted.__soft_delete_clock__ if deleted else None
+        cls.__status_tracks__ = cls.inherited_status_tracks(bases)
+        cls.validate_inherited_managed_columns()
         inherited = {
             "unique": bool(cls.__unique__),
             "indexes": bool(inherited_indexes),
             "ordering": bool(cls.__ordering__),
             "timestamps": timed is not None,
+            "soft_delete": deleted is not None,
+            "status_tracks": bool(cls.__status_tracks__),
         }
         if unique:
             cls.__unique__ = cls.check_unique(unique)
             inherited["unique"] = False
         cls.__inherited_options__ = frozenset(k for k, v in inherited.items() if v)
+
+    @classmethod
+    def validate_inherited_managed_columns(cls) -> None:
+        """Reject independently inherited lifecycle options sharing a column."""
+        columns = [
+            column
+            for column in (
+                cls.__updated_at__,
+                cls.__soft_delete__,
+                *(track.changed_at for track in cls.__status_tracks__),
+            )
+            if column is not None
+        ]
+        if len(columns) != len(set(columns)):
+            raise RegistrationError(
+                f"{cls.__name__}: inherited managed datetime columns must be distinct"
+            )
+
+    @classmethod
+    def inherited_status_tracks(
+        cls, bases: Sequence[type[Model]]
+    ) -> tuple[StatusTrack, ...]:
+        """Merge independent abstract-base status tracks, rejecting collisions."""
+        tracks: list[StatusTrack] = []
+        for base in bases:
+            for track in base.__status_tracks__:
+                cls.add_inherited_track(tracks, track)
+        return tuple(tracks)
+
+    @classmethod
+    def add_inherited_track(cls, tracks: list[StatusTrack], track: StatusTrack) -> None:
+        """Add one track once, and reject overlapping inherited declarations."""
+        collisions = [
+            current
+            for current in tracks
+            if current.field == track.field or current.changed_at == track.changed_at
+        ]
+        if not collisions:
+            tracks.append(track)
+            return
+        if collisions[0] != track:
+            raise RegistrationError(
+                f"{cls.__name__}: conflicting inherited status tracks"
+            )
 
     @classmethod
     def keeps_index(cls, base: type[Model], columns: tuple[str, ...]) -> bool:
@@ -1227,6 +1383,24 @@ class Model:
             if (current := getattr(self, c)) != stored[c]
         }
 
+    @property
+    def changed_fields(self) -> tuple[str, ...]:
+        """Names of columns that differ from the stored snapshot."""
+        return tuple(self.changes)
+
+    def previous(self, name: str) -> Any:
+        """Return a column's stored value, or ``UNSET`` before its first save."""
+        type(self).check_field(name)
+        if self.is_new:
+            return UNSET
+        return self.__dict__[SNAPSHOT][name]
+
+    @property
+    def is_deleted(self) -> bool:
+        """Whether this row has a soft-delete timestamp."""
+        column = type(self).__soft_delete__
+        return column is not None and getattr(self, column) is not None
+
     def was_changed(self, name: str) -> bool:
         """Whether column ``name`` differs from the stored row (always ``True``
         for a new instance)."""
@@ -1309,6 +1483,68 @@ class Model:
             self.remember()
         return self
 
+    async def asoft_delete(self) -> Self:
+        """Soft-delete this saved row, running its normal save hooks."""
+        cls = type(self)
+        column = cls.__soft_delete__
+        if column is None:
+            raise ModelError(f"{cls.__name__} does not support soft deletion")
+        if self.is_new:
+            raise FieldError(f"{cls.__name__}: cannot soft-delete an unsaved instance")
+        if self.is_deleted:
+            return self
+        previous = getattr(self, column)
+        setattr(self, column, _read_utc(cls.__soft_delete_clock__ or cls.__clock__))
+        try:
+            return await self.asave()
+        except BaseException:
+            setattr(self, column, previous)
+            raise
+
+    async def arestore(self) -> Self:
+        """Restore this saved row, retaining normal hooks and timestamp behavior."""
+        cls = type(self)
+        column = cls.__soft_delete__
+        if column is None:
+            raise ModelError(f"{cls.__name__} does not support soft deletion")
+        if self.is_new:
+            raise FieldError(f"{cls.__name__}: cannot restore an unsaved instance")
+        if not self.is_deleted:
+            return self
+        previous = getattr(self, column)
+        setattr(self, column, None)
+        key = cls.__primary_key__
+        try:
+            return await self.save_with(
+                cls.with_deleted().filter(**{key: getattr(self, key)})
+            )
+        except BaseException:
+            setattr(self, column, previous)
+            raise
+
+    async def ahard_delete(self) -> int:
+        """Physically delete this saved row."""
+        if self.is_new:
+            raise FieldError(
+                f"{type(self).__name__}: cannot delete an unsaved instance"
+            )
+        cls = type(self)
+        key = cls.__primary_key__
+        query = cls.with_deleted() if cls.__soft_delete__ is not None else cls.filter()
+        return await query.filter(**{key: getattr(self, key)}).ahard_delete()
+
+    def soft_delete(self) -> Self:
+        """Sync ``asoft_delete`` for sync handlers."""
+        return run_sync(self.asoft_delete())
+
+    def restore(self) -> Self:
+        """Sync ``arestore`` for sync handlers."""
+        return run_sync(self.arestore())
+
+    def hard_delete(self) -> int:
+        """Sync ``ahard_delete`` for sync handlers."""
+        return run_sync(self.ahard_delete())
+
     async def save_observed(self, scope: QuerySet[Any] | None, bus: EventBus) -> Self:
         """``save_with`` for a write that emits ``Updated``: inside a
         transaction when a hook or an ``in_transaction`` handler may fail it."""
@@ -1360,6 +1596,11 @@ class Model:
             for c in cls.__columns__
             if c != key and getattr(self, c) != stored[c]
         }
+        for track in cls.__status_tracks__:
+            if track.field in changed and track.changed_at not in changed:
+                value = _read_utc(track.clock or cls.__clock__)
+                setattr(self, track.changed_at, value)
+                changed[track.changed_at] = value
         if not changed:
             return False
         if scope is None:
@@ -1438,11 +1679,32 @@ class Model:
 
     @classmethod
     def filter(cls, **conditions: Any) -> QuerySet[Self]:
-        return QuerySet(cls.concrete()).filter(**conditions)
+        return cls.all().filter(**conditions)
 
     @classmethod
     def all(cls) -> QuerySet[Self]:
+        query = QuerySet(cls.concrete())
+        if cls.__soft_delete__ is not None:
+            query = query.filter(**{f"{cls.__soft_delete__}__isnull": True})
+            query = query.derive(implicit_filter_count=1)
+        return query
+
+    @classmethod
+    def with_deleted(cls) -> QuerySet[Self]:
+        """Query every row, including rows marked as deleted."""
+        if cls.__soft_delete__ is None:
+            raise ModelError(f"{cls.__name__} does not support soft deletion")
         return QuerySet(cls.concrete())
+
+    @classmethod
+    def only_deleted(cls) -> QuerySet[Self]:
+        """Query only rows marked as deleted."""
+        if cls.__soft_delete__ is None:
+            raise ModelError(f"{cls.__name__} does not support soft deletion")
+        query = QuerySet(cls.concrete()).filter(
+            **{f"{cls.__soft_delete__}__isnull": False}
+        )
+        return query.derive(implicit_filter_count=1)
 
     @classmethod
     def from_schema(cls, data: Schema | None = None, /, **values: Any) -> Self:
@@ -1559,7 +1821,7 @@ class Model:
         (for example after a concurrent owner change) is not touched."""
         if not conditions:
             raise FieldError("aupdate_where needs conditions and values")
-        query = QuerySet(cls.concrete()).filter(**conditions)
+        query = cls.filter(**conditions)
         if not returning:
             return await query.aupdate(values, returning=False)
         return await query.aupdate(values)
@@ -1570,7 +1832,7 @@ class Model:
         refused so a missing filter cannot wipe the table."""
         if not conditions:
             raise FieldError("adelete needs at least one condition")
-        return await QuerySet(cls.concrete()).filter(**conditions).adelete()
+        return await cls.filter(**conditions).adelete()
 
     @classmethod
     async def abulk_create(

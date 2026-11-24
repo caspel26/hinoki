@@ -236,6 +236,7 @@ async def open_row(
     allowed = (
         entry is not None
         and row is not None
+        and not row.is_deleted
         and entry.can(site.principal, "view", row)
         and entry.can(site.principal, action, row)
     )
@@ -374,8 +375,12 @@ def authorize_bulk_rows(
             if action is not None:
                 return None
             continue
+        permission = action or "delete"
+        permission = {"restore": "change", "hard-delete": "delete"}.get(
+            permission, permission
+        )
         allowed = entry.can(principal, "view", row) and entry.can(
-            principal, action or "delete", row
+            principal, permission, row
         )
         if not allowed:
             if action is not None:
@@ -407,7 +412,15 @@ async def bulk_rows(
     if not keys:
         return []
     key_name = entry.model.__primary_key__
-    query = entry.queryset(site.principal).filter(**{f"{key_name}__in": keys})
+    state = getattr(site, "state", None)
+    deleted_view = bool(getattr(state, "deleted", False))
+    base = (
+        entry.deleted_scope(site.principal)
+        if action in {"restore", "hard-delete"}
+        or (deleted_view and entry.model.__soft_delete__ is not None)
+        else entry.active_scope(site.principal)
+    )
+    query = base.filter(**{f"{key_name}__in": keys})
     database = current_database()
     sql, params = query.compile(dialect=database.dialect)
     # Custom callbacks can write by ID. Lock the scoped rows through the
@@ -428,6 +441,18 @@ def authorized_bulk_action(
         return (
             (True, None) if entry.bulk_delete and entry.can(principal, name) else None
         )
+    if name == "restore":
+        if entry.model.__soft_delete__ is None or not entry.can(principal, "change"):
+            return None
+        return False, None
+    if name == "hard-delete":
+        if (
+            entry.model.__soft_delete__ is None
+            or not entry.allow_hard_delete
+            or not entry.can(principal, "delete")
+        ):
+            return None
+        return False, None
     action = next((item for item in entry.bulk_actions if item.name == name), None)
     if action is None or not entry.can(principal, action.name):
         return None
@@ -450,24 +475,52 @@ async def bulk_confirmation(
             for row in rows
         )
     )
+    builtin = {
+        "restore": ("Restore selected rows?", "Restore selected", "hn-btn hn-primary"),
+        "hard-delete": (
+            "Permanently delete selected rows?",
+            "Hard-delete selected",
+            "hn-btn hn-danger",
+        ),
+    }.get(selected_action)
     message = (
-        f"Delete {len(rows)} selected {entry.plural().lower()}? This cannot be undone."
+        f"{builtin[0]} ({len(rows)} selected)"
+        if builtin is not None
+        else f"Delete {len(rows)} selected {entry.plural().lower()}? This cannot be undone."
         if action is None
         else f"{action.confirm} ({len(rows)} selected)"
     )
-    button_label = "Delete" if action is None else action.label
-    button_class = "hn-btn hn-danger" if action is None else "hn-btn hn-primary"
+    button_label = (
+        builtin[1]
+        if builtin is not None
+        else "Delete"
+        if action is None
+        else action.label
+    )
+    button_class = (
+        builtin[2]
+        if builtin is not None
+        else "hn-btn hn-danger"
+        if action is None
+        else "hn-btn hn-primary"
+    )
     content = site.admin.templates.render(
         "confirm",
-        action=site.url(model, "bulk"),
+        action=site.url(model, "bulk", **site.state.query(done="")),
         csrf=site.token,
         hidden=hidden,
         message=message,
         button_class=button_class,
         button_label=button_label,
-        cancel=site.url(model),
+        cancel=site.url(model, **site.state.query(done="")),
     )
-    title = "Delete selected" if action is None else action.label
+    title = (
+        builtin[1]
+        if builtin is not None
+        else "Delete selected"
+        if action is None
+        else action.label
+    )
     return await site.page(title, content, active=model)
 
 
@@ -476,10 +529,32 @@ async def run_bulk_action(
     rows: list[Any],
     principal: Caller[Any],
     action: BulkAction[Any] | None,
+    selected_action: str,
 ) -> str:
+    if selected_action in {"restore", "hard-delete"}:
+        return await guarded(
+            lifecycle_bulk_write(entry, rows, principal, selected_action)
+        )
     if action is None:
         return await guarded(remove_all(entry, rows, principal))
     return await guarded(action.handler(tuple(rows), principal))
+
+
+async def lifecycle_bulk_write(
+    entry: ModelAdmin[Any],
+    rows: list[Any],
+    principal: Caller[Any],
+    selected_action: str,
+) -> None:
+    """Apply one built-in action to deleted rows within the caller's scope."""
+    key = entry.model.__primary_key__
+    scope = entry.deleted_scope(principal)
+    for row in rows:
+        query = scope.filter(**{key: getattr(row, key)})
+        if selected_action == "restore":
+            await query.arestore()
+        else:
+            await query.ahard_delete()
 
 
 async def bulk(
@@ -501,20 +576,42 @@ async def bulk(
     chosen = request.POST.getlist("ids")
     if len(chosen) > OPTION_LIMIT or len(set(chosen)) != len(chosen):
         return await site.problem(400, "Select up to 200 distinct rows.")
+    return await finish_bulk(
+        site, entry, model, chosen, selected_action, action, is_delete
+    )
+
+
+async def finish_bulk(
+    site: Site,
+    entry: ModelAdmin[Any],
+    model: str,
+    chosen: list[str],
+    selected_action: str,
+    action: BulkAction[Any] | None,
+    is_delete: bool,
+) -> Response:
+    """Resolve, confirm and run one permission-checked bulk action."""
     rows = await bulk_rows(site, entry, chosen, None if is_delete else selected_action)
     if rows is None:
         return await site.problem(404, "One or more selected rows are unavailable.")
     if not rows:
-        return Response(303, headers=[("location", site.url(model))])
-    if request.POST.get("confirmed") != "1":
+        return Response(
+            303, headers=[("location", site.url(model, **site.state.query()))]
+        )
+    if site.request.POST.get("confirmed") != "1":
         return await bulk_confirmation(
             site, model, entry, rows, selected_action, action
         )
-    failed = await run_bulk_action(entry, rows, principal, action)
+    failed = await run_bulk_action(entry, rows, site.principal, action, selected_action)
     if failed:
         return await site.problem(409, failed)
     done = "deleted" if action is None else f"action:{model}:{action.name}"
-    return Response(303, headers=[("location", site.url(model, done=done))])
+    if selected_action in {"restore", "hard-delete"}:
+        done = f"action:{model}:{selected_action}"
+    return Response(
+        303,
+        headers=[("location", site.url(model, **site.state.query(done=done)))],
+    )
 
 
 VIEWS: dict[str, Callable[..., Any]] = {
