@@ -1462,6 +1462,8 @@ def value_state(
         model.__primary_key__,
         model.__updated_at__,
         model.__clock__,
+        model.__soft_delete__,
+        model.__soft_delete_clock__,
         tuple(
             (
                 schema,

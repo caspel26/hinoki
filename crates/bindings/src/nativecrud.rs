@@ -882,9 +882,7 @@ async fn update_in_transaction(
             return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
         }
     }
-    let owner_scope = owner.map_or_else(hinoki_orm::links::Scope::default, |scope| {
-        hinoki_orm::links::Scope::column_equals(&scope.column, Value::Text(scope.value.clone()))
-    });
+    let owner_scope = link_owner_scope(plan, owner);
     if let Some(refused) =
         nativelinks::write_links(plan, dialect, transaction, &id, (links, owner_scope)).await?
     {
@@ -953,6 +951,23 @@ fn update_parameters(
         parameters.push(Value::Text(scope.value.clone()));
     }
     parameters
+}
+
+/// The rows whose links an update may lock and change: the caller's own rows
+/// when the action is owned, and only live rows of a soft-delete model, as
+/// Python's `update_row` scopes them with `model.all()`.
+fn link_owner_scope(plan: &CrudPlan, owner: Option<&OwnerScope>) -> hinoki_orm::links::Scope {
+    let mut scope = owner.map_or_else(hinoki_orm::links::Scope::default, |scope| {
+        hinoki_orm::links::Scope::column_equals(&scope.column, Value::Text(scope.value.clone()))
+    });
+    if let Some(column) = &plan.soft_delete {
+        scope.filters.push(Filter {
+            column: column.clone(),
+            op: Op::IsNull,
+            values: Vec::new(),
+        });
+    }
+    scope
 }
 
 fn scope_parameters(id: &Value, owner: Option<&OwnerScope>) -> Vec<Value> {
