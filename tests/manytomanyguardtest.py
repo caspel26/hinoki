@@ -5,12 +5,12 @@ import os
 from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import events
+from hinoki import core, events
 from hinoki.db import Database
 from hinoki.errors import (
     FieldError,
@@ -35,6 +35,7 @@ from hinoki.orm import links as engine
 from hinoki.orm.context import current_database
 from hinoki.orm.migrations import plan
 from hinoki.orm.options import ordered_by, soft_delete
+from hinoki.orm.queryset import QuerySet
 from hinoki.settings import EventsSettings
 
 URLS = {
@@ -44,9 +45,18 @@ URLS = {
 }
 
 
+class Tenant(Model, table="m2mg_tenants"):
+    id: UUID = field(primary_key=True, default_factory=uuid4)
+    name: str
+
+
 class Item(Model, table="m2mg_items"):
     id: UUID = field(primary_key=True, default_factory=uuid4)
     name: str | None = None
+    payload: dict[str, int] = field(default_factory=dict)
+    tenant_id: UUID | None = foreign_key(
+        Tenant, on_delete=OnDelete.CASCADE, default=None
+    )
     holders: ClassVar["ManyToMany[Holder]"]
 
 
@@ -93,6 +103,7 @@ class Shelf(Model, table="m2mg_shelves"):
 
 
 MODELS: list[type[Model]] = [
+    Tenant,
     Item,
     Ranked,
     Code,
@@ -134,6 +145,46 @@ async def drop(connection: Database) -> None:
         await connection.execute(f"DROP TABLE IF EXISTS {quote}{table}{quote}")
 
 
+async def two_step_oracle(
+    side: engine.LinkSide,
+    owners: list[Model],
+    scope: QuerySet[Any] | None = None,
+) -> dict[str, tuple[str, ...]]:
+    database = current_database()
+    owner_key = side.source.__primary_key__
+    ids = [getattr(owner, owner_key) for owner in owners]
+    sql, params = core.compile_query(
+        "select",
+        side.bridge.__table__,
+        columns=[side.near, side.far],
+        filters=[(side.near, "in", ids)],
+        dialect=database.dialect,
+    )
+    pairs = await database.fetch(sql, *params)
+    query = side.target.all() if scope is None else scope
+    key = side.target.__primary_key__
+    order = list(query.order)
+    if not any(name == key for name, _ in order):
+        order.append((key, False))
+    names = [f"{'-' if desc else ''}{name}" for name, desc in order]
+    targets = await query.filter(
+        **{f"{key}__in": [pair[side.far] for pair in pairs]}
+    ).order_by(*names)
+    ordered = [str(getattr(target, key)) for target in targets]
+    return {
+        str(owner_id): tuple(
+            target_id
+            for target_id in ordered
+            if any(
+                str(pair[side.near]) == str(owner_id)
+                and str(pair[side.far]) == target_id
+                for pair in pairs
+            )
+        )
+        for owner_id in ids
+    }
+
+
 @pytest.mark.usefixtures("database")
 async def test_keys_of_every_supported_kind_link_and_unknown_shapes_are_refused() -> (
     None
@@ -154,6 +205,10 @@ async def test_keys_of_every_supported_kind_link_and_unknown_shapes_are_refused(
         with pytest.raises(ModelValidationError):
             await reverse.slots.aadd(bad)  # type: ignore[arg-type]
     assert [s.id for s in await reverse.slots.alist()] == [7]
+    (loaded_slot,) = await Slot.all().prefetch_related("codes")
+    assert [code.id for code in loaded_slot.codes.loaded] == ["cd"]
+    (loaded_code,) = await Code.filter(id="cd").prefetch_related("slots")
+    assert [item.id for item in loaded_code.slots.loaded] == [7]
 
 
 @pytest.mark.usefixtures("database")
@@ -172,7 +227,10 @@ async def test_the_reverse_side_enforces_the_declared_max_items() -> None:
 
 
 @pytest.mark.usefixtures("database")
-async def test_a_bridge_over_the_limit_is_a_server_fault_when_read() -> None:
+@pytest.mark.parametrize("single", [False, True])
+async def test_a_bridge_over_the_limit_is_a_server_fault_when_read(
+    single: bool,
+) -> None:
     items = await Item.abulk_create([{"name": str(n)} for n in range(5)])
     holder = await Holder.acreate()
     quiet = await Holder.acreate()
@@ -188,8 +246,9 @@ async def test_a_bridge_over_the_limit_is_a_server_fault_when_read() -> None:
         [{near: holder.id, far: item.id} for item in items[2:]], returning=False
     )
     assert not isinstance(StoredLinksOverLimit("x", 1), ModelValidationError)
+    query = Holder.filter(id=holder.id) if single else Holder.all()
     with pytest.raises(StoredLinksOverLimit):
-        await Holder.all().prefetch_related("items")
+        await query.prefetch_related("items")
 
 
 @pytest.mark.usefixtures("database")
@@ -268,10 +327,10 @@ async def test_the_reverse_side_emits_one_event_per_declaring_row() -> None:
 
 
 @pytest.mark.usefixtures("database")
-async def test_prefetched_targets_keep_one_global_order_across_chunks(
+async def test_prefetched_targets_keep_order_across_owner_chunks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(engine, "IN_CHUNK", 3)
+    monkeypatch.setattr(engine, "IN_CHUNK", 1)
     names = ["m", "c", "x", "a", "q", "b", "z", "k", "d", "f"]
     scores = [None, 2, 1, 2, None, 0, 1, 2, 0, None]
     rows = await Ranked.abulk_create(
@@ -280,15 +339,104 @@ async def test_prefetched_targets_keep_one_global_order_across_chunks(
             for score, name in zip(scores, names, strict=True)
         ]
     )
-    holder = await Holder.acreate()
-    await holder.ranked.aset(rows)
-    (loaded,) = await Holder.all().prefetch_related("ranked")
-    shown = [(r.score, r.name) for r in loaded.ranked.loaded]
+    rows.extend(
+        [
+            await Ranked.acreate(id=UUID(int=2), score=1, name="tie"),
+            await Ranked.acreate(id=UUID(int=1), score=1, name="tie"),
+        ]
+    )
+    names.extend(["tie", "tie"])
+    scores.extend([1, 1])
+    holders = [await Holder.acreate() for _ in range(2)]
+    for holder in holders:
+        await holder.ranked.aset(rows)
+    statements: list[str] = []
+    fetch_models = Database.fetch_models
+
+    async def capture(
+        self: Database, sql: str, params: list[Any], plan: Any
+    ) -> list[Any]:
+        statements.append(sql)
+        return await fetch_models(self, sql, params, plan)
+
+    monkeypatch.setattr(Database, "fetch_models", capture)
+    loaded = await Holder.all().prefetch_related("ranked")
+    shown = [(r.score, r.name) for r in loaded[0].ranked.loaded]
     # Highest score first, a missing score last, ties by name: whatever the
     # chunks and the database's own NULL placement.
     assert shown == sorted(
         zip(scores, names, strict=True),
         key=lambda pair: (-(pair[0] if pair[0] is not None else -1), pair[1]),
+    )
+    assert all(
+        first is second
+        for first, second in zip(
+            loaded[0].ranked.loaded, loaded[1].ranked.loaded, strict=True
+        )
+    )
+    ties = [str(item.id) for item in loaded[0].ranked.loaded if item.name == "tie"]
+    assert ties == sorted(ties)
+    quote = "`" if current_database().dialect in {"mysql", "mariadb"} else '"'
+    key_order = f"{quote}m2mg_ranked{quote}.{quote}id{quote} ASC"
+    linked_sql = [sql for sql in statements if "hinoki_link" in sql]
+    assert linked_sql and all(key_order in sql for sql in linked_sql)
+    ascending = await Holder.all().prefetch_related(
+        ranked=Ranked.all().order_by("score", "name")
+    )
+    assert [(r.score, r.name) for r in ascending[0].ranked.loaded] == sorted(
+        zip(scores, names, strict=True),
+        key=lambda pair: (pair[0] is not None, pair[0] or 0, pair[1]),
+    )
+
+
+@pytest.mark.usefixtures("database")
+async def test_prefetch_uses_one_query_per_owner_chunk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(engine, "IN_CHUNK", 1)
+    first, second, empty = [await Holder.acreate() for _ in range(3)]
+    item = await Item.acreate(name="shared", payload={"count": 1})
+    await first.items.aadd(item)
+    await second.items.aadd(item)
+    database = current_database()
+    calls = 0
+    original_fetch = database.fetch
+    original_models = database.fetch_models
+
+    async def fetch(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        return await original_fetch(*args, **kwargs)  # type: ignore[arg-type]
+
+    async def fetch_models(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        return await original_models(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(database, "fetch", fetch)
+    monkeypatch.setattr(database, "fetch_models", fetch_models)
+    await Holder.__links__["items"].prefetch([first, second, empty], None)
+    assert calls == 3
+    assert first.items.loaded[0] is second.items.loaded[0]
+    assert first.items.loaded[0].payload == {"count": 1}
+    assert empty.items.loaded == ()
+
+
+@pytest.mark.usefixtures("database")
+async def test_prefetch_respects_tenant_scope_with_a_join() -> None:
+    visible = await Tenant.acreate(name="visible")
+    hidden = await Tenant.acreate(name="hidden")
+    keep = await Item.acreate(name="keep", tenant_id=visible.id)
+    omit = await Item.acreate(name="omit", tenant_id=hidden.id)
+    holder = await Holder.acreate()
+    await holder.items.aadd(keep, omit)
+    scope = Item.filter(tenant__name="visible")
+    side = cast(engine.LinkSide, Holder.__links__["items"])
+    expected = await two_step_oracle(side, [holder], scope)
+    (loaded,) = await Holder.all().prefetch_related(items=scope)
+    assert [item.id for item in loaded.items.loaded] == [keep.id]
+    assert (
+        tuple(str(item.id) for item in loaded.items.loaded) == expected[str(holder.id)]
     )
 
 
@@ -410,10 +558,23 @@ async def test_a_soft_deleted_target_is_no_link() -> None:
     await other.docs.aadd(gone)
     await gone.asoft_delete()
 
+    side = cast(engine.LinkSide, Shelf.__links__["docs"])
+    expected_live = await two_step_oracle(side, [shelf])
+    expected_all = await two_step_oracle(side, [shelf], Doc.with_deleted())
+
     assert [d.name for d in await shelf.docs.alist()] == ["kept"]
     assert await shelf.docs.acount() == 1
     (loaded,) = await Shelf.all().filter(id=shelf.id).prefetch_related("docs")
     assert [d.name for d in loaded.docs.loaded] == ["kept"]
+    assert tuple(str(d.id) for d in loaded.docs.loaded) == expected_live[str(shelf.id)]
+    (with_deleted,) = (
+        await Shelf.all().filter(id=shelf.id).prefetch_related(docs=Doc.with_deleted())
+    )
+    assert {d.name for d in with_deleted.docs.loaded} == {"gone", "kept"}
+    assert (
+        tuple(str(d.id) for d in with_deleted.docs.loaded)
+        == expected_all[str(shelf.id)]
+    )
     assert not await Shelf.all().filter(docs__name="gone").aexists()
     assert [s.id for s in await Shelf.all().filter(docs__isnull=True)] == [other.id]
 
