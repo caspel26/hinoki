@@ -41,7 +41,7 @@ def document(target: str) -> dict[str, Any]:
 
 def write_document(path: Path, rendered: str) -> int:
     try:
-        path.write_text(rendered, encoding="utf-8")
+        path.write_bytes(rendered.encode("utf-8"))  # LF on every platform
     except OSError as exc:
         print(f"error: cannot write {path}: {exc}", file=sys.stderr)
         return 2
