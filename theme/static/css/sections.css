@@ -1,0 +1,96 @@
+/* Static section accents for the documentation pages.
+
+   <body data-section="..."> names the active top-level section (theme/macros.html). Each
+   section reuses one of the theme's own colour tokens, so the accent follows the light and
+   dark palettes and keeps the contrast those tokens already have. Nothing here animates:
+   the accent only orients the reader (kicker, icon tile, a short hairline under the page
+   head, the active sidebar entry and the table of contents marker). */
+
+body {
+  --sec: var(--hn-brand);
+}
+
+body[data-section="get-started"] { --sec: var(--hn-green); }
+body[data-section="tutorial"] { --sec: var(--hn-amber); }
+body[data-section="guides"] { --sec: var(--hn-brand); }
+body[data-section="concepts"] { --sec: var(--hn-info); }
+body[data-section="reference"] { --sec: var(--hn-wood); }
+body[data-section="project"] { --sec: var(--hn-text-2); }
+
+body[data-section] {
+  --sec-tint: color-mix(in srgb, var(--sec) 13%, var(--hn-surface-1));
+  --sec-wash: color-mix(in srgb, var(--sec) 10%, transparent);
+}
+
+/* Page head: section kicker, icon tile and a hairline with a short accent segment. */
+[data-section] .kicker {
+  color: var(--sec);
+}
+
+[data-section] .kicker .i-tile {
+  background: var(--sec-tint);
+  color: var(--sec);
+}
+
+[data-section] .page-head {
+  position: relative;
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--hn-edge);
+}
+
+[data-section] .page-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  inline-size: 48px;
+  block-size: 2px;
+  border-radius: 2px;
+  background: var(--sec);
+}
+
+/* Sidebar: section label, hovered and active entries. */
+[data-section] .side__sec {
+  color: var(--sec);
+}
+
+[data-section] .side__link:hover .i,
+[data-section] .side__link.is-active .i {
+  color: var(--sec);
+}
+
+[data-section] .side__link.is-active::before {
+  background: var(--sec-wash);
+  box-shadow: inset 2px 0 0 var(--sec);
+}
+
+/* Table of contents: marker and current entry. */
+[data-section] .toc__marker {
+  background: var(--sec);
+}
+
+[data-section] .toc a.is-active {
+  color: var(--sec);
+}
+
+/* Guide cards and group tiles. */
+[data-section] .hn-guides .prose > h2::before {
+  background: var(--sec-tint);
+}
+
+[data-section] .hn-guides .prose > h2::after {
+  background: var(--sec);
+}
+
+@media (forced-colors: active) {
+  [data-section] .page-head::after {
+    background: Highlight;
+  }
+}
+
+/* Reduced motion: no press or lift movement, only colour changes. */
+@media (prefers-reduced-motion: reduce) {
+  .tabbed-labels > label:active {
+    transform: none;
+  }
+}

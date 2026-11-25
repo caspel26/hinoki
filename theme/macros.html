@@ -23,6 +23,18 @@
   }.get(title, "") -}}
 {%- endmacro %}
 
+{#- Section slug for the accent colour (body[data-section], see prose.css); empty when unmapped. -#}
+{% macro section_slug(title) -%}
+  {{- {
+    "Get started": "get-started",
+    "Tutorial": "tutorial",
+    "Guides": "guides",
+    "Concepts": "concepts",
+    "Reference": "reference",
+    "Project": "project",
+  }.get(title, "") -}}
+{%- endmacro %}
+
 {#- Page icon: front matter `icon:`, then a few page-specific icons, then the group or section icon. -#}
 {% macro page_icon(page, section_title) -%}
   {{- (page.meta.icon if page and page.meta and page.meta.icon else none)
