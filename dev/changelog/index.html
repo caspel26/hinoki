@@ -500,7 +500,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>30 min read</span>
+            <span>31 min read</span>
           </p>
           
         </header>
@@ -669,7 +669,12 @@ async def reindex() -&gt; dict[str, str]: ...
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>🔗 One query per many-to-many prefetch chunk</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>⚡ Fewer allocations per native-lane response, and a one-pass response check</h4>
+<blockquote>
+<p><code>crates/kiso/src/headers.rs</code>, <code>crates/bindings/src/server/core.rs</code>, <code>crates/bindings/src/server/routes.rs</code>, <code>crates/bindings/src/server/prepared.rs</code>, <code>crates/bindings/src/request/pyapi.rs</code>, <code>crates/bindings/src/request/json.rs</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/nativelane.py</code></p>
+</blockquote>
+<p>Response heads share the server's policy headers and move the answer's own headers instead of copying them, <code>header_dict</code> is filled directly for plain ASCII headers, and a route without a rate limit no longer hands its peer address to the request data. A route that returns <code>list[dict[str, object]]</code> with <code>validate_response=True</code> on the native lane is checked while Rust encodes it, so the list is walked once; any value the one-pass check cannot vouch for (subclasses, non-<code>str</code> keys, objects that could run Python code, encode errors) takes the previous two-step path, so the same <code>ResponseContractError</code> or encode error is raised and the bytes are identical. A route whose rows the one-pass check cannot vouch for (for example rows holding datetimes) stops using it after the first such response and keeps the previous behaviour. No API changes. On a loopback run on one machine, <code>/json-10k</code> served about 9% more requests per second; the other routes measured within noise. These are relative figures, not benchmark claims.</p>
+<h4>🔗 One query per many-to-many prefetch chunk</h4>
 <blockquote>
 <p><code>python/hinoki/orm/links.py</code>, <code>python/hinoki/orm/queryset.py</code>, <code>crates/bindings/src/modelrows.rs</code>, <code>crates/orm/src/query.rs</code>, <code>docs/relations.md</code></p>
 </blockquote>
