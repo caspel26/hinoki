@@ -2698,6 +2698,8 @@ models from [Define models](https://hinoki.caspel.dev/dev/models.md).
     count = await Invoice.filter(paid=False).acount()
     page = await Invoice.all().apaginate(PageParams(page=1, page_size=20))
     projected = await Invoice.filter(paid=False).order_by("reference").aproject(InvoiceOut)
+    one_projected = await Invoice.aget_as(InvoiceOut, id=invoice_id)
+    maybe_projected = await Invoice.aget_or_none_as(InvoiceOut, reference="INV-7")
     ```
 
 === "Sync"
@@ -2713,16 +2715,20 @@ models from [Define models](https://hinoki.caspel.dev/dev/models.md).
     count = Invoice.filter(paid=False).count()
     page = Invoice.all().paginate(PageParams(page=1, page_size=20))
     projected = Invoice.filter(paid=False).order_by("reference").project(InvoiceOut)
+    one_projected = Invoice.get_as(InvoiceOut, id=invoice_id)
+    maybe_projected = Invoice.get_or_none_as(InvoiceOut, reference="INV-7")
     ```
 
-`PageParams` comes from `hinoki.pagination`. `aget` raises `Invoice.NotFound`
-(a 404 in a request) or `MultipleObjectsReturned`. Building a query
-(`filter`, `order_by`, `limit`, `offset`, `select_related`, `prefetch_related`)
-issues no SQL; awaiting it or calling an evaluation method does. `aproject` /
-`project` (and `apaginate_as` / `paginate_as` for pages) encode eligible scalar
-and `select_related` schemas directly from Rust rows, materializing Python
-`Schema` instances lazily from the owned rows if inspected and falling back
-transparently when hooks, computed fields, or `prefetch_related` are present.
+`PageParams` comes from `hinoki.pagination`. `aget` and `aget_as` raise
+`Invoice.NotFound` (a 404 in a request) or `MultipleObjectsReturned`. Building a
+query (`filter`, `order_by`, `limit`, `offset`, `select_related`,
+`prefetch_related`) issues no SQL; awaiting it or calling an evaluation method
+does. `aproject` / `project`, `apaginate_as` / `paginate_as`, `aget_as` /
+`get_as`, and `aget_or_none_as` / `get_or_none_as` encode eligible scalar,
+`select_related`, and 1-level `prefetch_related` (reverse foreign keys and
+many-to-many) schemas directly from Rust rows, materializing Python `Schema`
+instances lazily from the owned rows if inspected and falling back transparently
+when hooks, computed fields, validators, or scoped prefetches are present.
 
 ## Query methods
 
@@ -7703,7 +7709,7 @@ async def list_invoices_projected(page: PageParams) -> Page[InvoiceOut]:
     return await Invoice.all().apaginate_as(InvoiceOut, page, concurrent=True)
 ```
 
-The returned `Page[InvoiceOut]` carries the pre-encoded JSON bytes and owned rows. Returning it from a handler emits the exact same JSON as `(await Invoice.all().apaginate(page)).map(InvoiceOut.from_model)` and passes `validate_response=True` checks. Accessing `.items`, calling `.map()`, or inspecting elements materializes the `InvoiceOut` instances from the owned rows without issuing a second database query. Schemas with computed fields, hooks, validators, custom `dump()`, or `prefetch_related` fall back to normal Python hydration transparently.
+The returned `Page[InvoiceOut]` carries the pre-encoded JSON bytes and owned rows. Returning it from a handler emits the exact same JSON as `(await Invoice.all().apaginate(page)).map(InvoiceOut.from_model)` and passes `validate_response=True` checks. Accessing `.items`, calling `.map()`, or inspecting elements materializes the `InvoiceOut` instances from the owned rows without issuing a second database query. Scalar fields, `select_related`, and 1-level `prefetch_related` (reverse foreign keys and many-to-many) are encoded directly in Rust; schemas with computed fields, hooks, validators, custom `dump()`, or scoped prefetches fall back to normal Python hydration transparently.
 
 ## Cursor (keyset) pagination
 
@@ -10180,7 +10186,7 @@ An `async def` handler that only talks to the database through the ORM can run w
 * it is a `GET`, `DELETE`, `POST`, `PUT`, `PATCH` or `QUERY` that is eligible for the native path above (a body method takes one `Schema` body and built-in parsers);
 * the function is a plain `async def`, not wrapped by a decorator;
 * every `await` in it is an ORM call on a `Model` class:
-    * a read: `Model.aget(...)`, `Model.aget_or_none(...)`, or `Model.filter(...)` / `Model.all()` with `filter`, `select_related`, `order_by`, `limit` and `offset`, ending in `aget`, `afirst`, `acount` or `aexists`, or awaited directly (`prefetch_related` issues further queries and stays on asyncio);
+    * a read: `Model.aget(...)`, `Model.aget_or_none(...)`, `Model.aget_as(...)`, `Model.aget_or_none_as(...)`, or `Model.filter(...)` / `Model.all()` with `filter`, `select_related`, `prefetch_related`, `order_by`, `limit` and `offset`, ending in `aget`, `aget_as`, `aget_or_none_as`, `afirst`, `acount`, `aexists`, `aproject`, or `apaginate_as`, or awaited directly;
     * a write: `acreate`, `aupdate`, `aupdate_where`, `adelete`, `abulk_create`, `abulk_update`, `abulk_delete`, or `aupdate` / `adelete` ending a `filter(...)` chain. A write counts only on a model that overrides none of the write hooks (`before_save`, `before_create`, `after_create`, `after_save`) or the methods the write calls (`insert`, `asave`, `from_schema` and the like); `asave`, `aupdate_from` and `aupdate_within` on an instance stay on asyncio.
 
 These keep a route in an asyncio task: `async with`, `async for`, `yield`, async comprehensions, local names that shadow a model, and any other `await` (`asyncio.sleep`, an HTTP client, another coroutine).
@@ -12449,8 +12455,8 @@ A name with the `a` prefix awaits the database (`aget`, `acreate`, `acount`); th
 | Action handlers | `async def` | `def` | Sync runs on the executor |
 | CRUD hooks (`get_queryset`, `written_queryset`, `to_schema`, `store`, `change`, `remove`) | `async def` | `def` | Same executor as handlers |
 | Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor |
-| Model writes and lookups | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from`, `abulk_create`, `abulk_update`, `abulk_delete` | The same names without `a` | Sync calls work only inside a sync handler or hook served by Hinoki; both take `returning=False` ([queries](https://hinoki.caspel.dev/dev/queries.md#writes-that-do-not-read-the-row-back)) |
-| QuerySet reads | `await qs`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
+| Model writes and lookups | `acreate`, `aget`, `aget_or_none`, `aget_as`, `aget_or_none_as`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from`, `abulk_create`, `abulk_update`, `abulk_delete` | The same names without `a` | Sync calls work only inside a sync handler or hook served by Hinoki; both take `returning=False` ([queries](https://hinoki.caspel.dev/dev/queries.md#writes-that-do-not-read-the-row-back)) |
+| QuerySet reads | `await qs`, `afirst`, `aget`, `aget_as`, `aget_or_none_as`, `acount`, `aexists`, `aproject`, `apaginate`, `apaginate_as` | `list`, `first`, `get`, `get_as`, `get_or_none_as`, `count`, `exists`, `project`, `paginate`, `paginate_as` | |
 | QuerySet writes | `aupdate`, `adelete` | `update`, `delete` | |
 | Relations | `select_related`, `prefetch_related` | same | Never lazy in either style |
 | Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Async-only escape hatch |
