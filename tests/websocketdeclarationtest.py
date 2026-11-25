@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 import pytest
 
@@ -134,6 +134,24 @@ def test_field_on_a_websocket_scalar_parameter_is_refused(where: str) -> None:
 
     with pytest.raises(RegistrationError, match=r"handler.*'room'.*not enforced"):
         Hinoki().include(http.websocket(where)(handler))
+
+
+@pytest.mark.parametrize(
+    "hint",
+    [
+        Annotated[int, Field(ge=1)] | None,
+        Optional[Annotated[int, Field(ge=1)]],  # noqa: UP045
+        Annotated[Annotated[int, Field(ge=1)], "doc"],
+        Annotated[int, Field(description="a number")],
+    ],
+)
+def test_field_in_any_websocket_annotation_shape_is_refused(hint: Any) -> None:
+    async def handler(socket: http.WebSocket, n: Any = None) -> None:
+        return None
+
+    handler.__annotations__["n"] = hint
+    with pytest.raises(RegistrationError, match=r"'n'.*not enforced"):
+        Hinoki().include(http.websocket("/ws")(handler))
 
 
 def test_a_plain_annotated_websocket_parameter_still_registers() -> None:

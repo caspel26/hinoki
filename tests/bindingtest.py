@@ -224,6 +224,22 @@ def test_field_on_a_scalar_path_parameter_is_refused() -> None:
         Hinoki().include(http.get("/b/{slug}", validate_response=False)(route))
 
 
+@pytest.mark.parametrize(
+    "hint",
+    [
+        Annotated[int, Field(ge=1)] | None,
+        Annotated[Annotated[int, Field(ge=1)], "doc"],
+        Annotated[int, Field(description="a number")],
+    ],
+)
+def test_field_in_any_http_annotation_shape_is_refused(hint: object) -> None:
+    async def route(n: int = 1) -> None: ...
+
+    route.__annotations__["n"] = hint
+    with pytest.raises(RegistrationError):
+        Hinoki().include(http.get("/b", validate_response=False)(route))
+
+
 def test_field_inside_query_schema_and_plain_annotations_still_register() -> None:
     async def schema_route(filters: Query[Limits]) -> None: ...
     async def plain_route(n: Annotated[int, "doc"] = 1) -> None: ...
