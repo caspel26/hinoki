@@ -120,7 +120,7 @@ async def recent_invoices(filters: Query[InvoiceFilter]) -> InvoiceRecent:
 
 Text is converted to the `int`, `float` and `bool` the `Schema` declares before the strict validation (a repeated key fills a `list` field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are `422` errors, reported with the parameter name as prefix. The `Schema` owns the whole query string, so the action takes no other query or page parameters, at most one `Query[...]`, and it cannot be a path parameter. OpenAPI lists one query parameter per field.
 
-A plain path or query parameter (`n: int`, `slug: str`) takes no constraints: `Annotated[int, Field(ge=1)]` on one is refused with a `RegistrationError` when the routes are declared, because nothing would enforce it. The same holds for the path and query parameters of a WebSocket route. Put the constraints in a `Schema` and take it as `Query[...]` (above) or as the body; on a WebSocket, validate inside the handler.
+A plain path or query parameter (`n: int`, `slug: str`) takes no constraints: `Annotated[int, Field(ge=1)]` on one is refused with a `RegistrationError` when the routes are declared, because nothing would enforce it. Any `Field(...)` is refused, even one with only `description` or `examples`: scalar parameters read none of its attributes, and refusing every form is simpler and more explicit than allowing a subset. The same holds for the path and query parameters of a WebSocket route. Put the constraints in a `Schema` and take it as `Query[...]` (above) or as the body; on a WebSocket, validate inside the handler.
 
 ## Form bodies
 
