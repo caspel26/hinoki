@@ -180,6 +180,12 @@ document cannot drift from what the action really does.
 `query=` option of every call is the query string), plus
 `request(method, path, ...)` for any other method.
 
+The path is only the path: a `?` or `#` in it raises `ValueError` instead of being routed as part of the path (which would answer a 404 for the wrong reason). Send the query string with `query=`:
+
+```python
+reply = await client.get("/items", query="limit=10&offset=20")
+```
+
 ## Test file uploads
 
 `ASGIClient` and `SyncClient` accept `data=` and `files=` and build the multipart boundary and `Content-Type` header for you. Use a sequence of file tuples to send repeated field names in order:
