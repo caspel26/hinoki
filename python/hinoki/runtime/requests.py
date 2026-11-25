@@ -151,7 +151,7 @@ def build_request(
         scheme=scope.get("scheme", "http"),
         host=host,
         client=tuple(client) if client else None,
-        headers=Headers.lowered(headers),
+        headers=Headers._wrap(headers),
         query=query,
         body=raw_body,
         path_params=path,

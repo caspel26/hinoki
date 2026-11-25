@@ -137,6 +137,15 @@ class NativeBody(NamedTuple):
     client: tuple[str, int] | None
     # The caller Rust already authenticated: the `sub` and every string scope.
     principal: tuple[str, list[str]] | None = None
+    # Lower-cased header dict built directly from Rust's native header vector
+    # when available, avoiding the intermediate list[tuple[bytes, bytes]].
+    header_dict: dict[str, str] | None = None
+
+
+def _native_headers(native: NativeBody) -> dict[str, str]:
+    if native.header_dict is not None:
+        return native.header_dict
+    return core.header_dict(native.headers)
 
 
 class BodySource(Protocol):
@@ -258,6 +267,8 @@ class Pipeline:
             for secure in (True, False)
         }
         self.executor = SyncExecutor(app.runtime.sync_workers, app.runtime.sync_queue)
+        self._base_context: tuple[int, contextvars.Context] | None = None
+        self._cached_services: tuple[int, Database | None, Mailer | None] | None = None
         self.streams = Streams(app.runtime.max_streams)
         needs_database = any(b.route.atomic for b in self.bindings)
         required_resources = tuple(
@@ -585,15 +596,26 @@ class Pipeline:
             exception.sqlstate = sqlstate
         return exception
 
+    def _services(self) -> tuple[Database | None, Mailer | None]:
+        version = self.ctx._version
+        cached = self._cached_services
+        if cached is not None and cached[0] == version:
+            return cached[1], cached[2]
+        db = self.ctx.find(Database)
+        mailer = self.ctx.find(Mailer)
+        self._cached_services = (version, db, mailer)
+        return db, mailer
+
     async def _in_request_context[T](self, rid: str, response: Awaitable[T]) -> T:
+        db, mailer = self._services()
         token = request_id.set(rid)
         context.route_headers.set(())
         context.rate_limit_headers.set(())
         context.route_cors.set(None)
         runner_token = context.sync_runner.set(self.executor.run)
-        db_token = database_var.set(self.ctx.find(Database))
+        db_token = database_var.set(db)
         events_token = events_var.set(self.events)
-        mailer_token = mailer_var.set(self.ctx.find(Mailer))
+        mailer_token = mailer_var.set(mailer)
         try:
             return await response
         finally:
@@ -663,22 +685,32 @@ class Pipeline:
             ).response
         return await error_response(exc, rid, self.app.errors, self.debug)
 
+    def _ensure_base_context(self) -> contextvars.Context:
+        version = self.ctx._version
+        cached = self._base_context
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        base = contextvars.Context()
+        base.run(self._set_static_context)
+        self._base_context = (version, base)
+        return base
+
     def native_context(self, rid: str) -> contextvars.Context:
         """A fresh context holding what ``_in_request_context`` sets, for a
         handler Rust drives outside any task."""
-        ctx = contextvars.copy_context()
-        ctx.run(self._set_request_context, rid)
+        ctx = self._ensure_base_context().copy()
+        ctx.run(request_id.set, rid)
         return ctx
 
-    def _set_request_context(self, rid: str) -> None:
-        request_id.set(rid)
+    def _set_static_context(self) -> None:
+        db, mailer = self._services()
         context.route_headers.set(())
         context.rate_limit_headers.set(())
         context.route_cors.set(None)
         context.sync_runner.set(self.executor.run)
-        database_var.set(self.ctx.find(Database))
+        database_var.set(db)
         events_var.set(self.events)
-        mailer_var.set(self.ctx.find(Mailer))
+        mailer_var.set(mailer)
 
     async def drive_native(
         self,
@@ -1505,7 +1537,7 @@ class Pipeline:
             query = parse_query(native.query)
             principal = await authorize(
                 access,
-                core.header_dict(native.headers),
+                _native_headers(native),
                 query,
                 route=binding.route.path,
                 method=binding.route.method,
@@ -1597,7 +1629,7 @@ class Pipeline:
             raise RuntimeError(  # pragma: no cover - routing excludes this state
                 "native body route without its request data"
             )
-        headers = core.header_dict(body.headers)
+        headers = _native_headers(body)
         raw = await self._body(body.source, headers.get("content-length", ""))
         if input_error is not None and not invalid:
             raise native_input_exception(input_error)
@@ -1705,7 +1737,7 @@ class Pipeline:
                 raise RuntimeError(  # pragma: no cover - routing excludes this state
                     "native multi-renderer route without its headers"
                 )
-            accept = core.header_dict(native.headers).get("accept", "")
+            accept = _native_headers(native).get("accept", "")
             chosen = negotiate(accept, route.renderers)
             if chosen is None:
                 raise RuntimeError(  # pragma: no cover - routing excludes this state

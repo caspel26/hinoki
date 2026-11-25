@@ -388,6 +388,17 @@ impl PreparedRequest {
         Ok(out)
     }
 
+    /// Lower-cased, comma-joined header dict built directly from the native
+    /// header vector without first materializing a Python list of byte pairs.
+    #[getter]
+    fn header_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (name, value) in crate::request::join_headers(&self.headers) {
+            out.set_item(name, value)?;
+        }
+        Ok(out)
+    }
+
     /// Read the request body (empty bytes when there is none), refusing more
     /// than `limit` bytes. The bytes are read on the runtime and the Python
     /// object is built on the loop thread. Nothing is read, and no `100
