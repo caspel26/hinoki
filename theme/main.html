@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if page and page.title and not page.is_homepage %}{{ page.title }} · {% endif %}{{ config.site_name }}</title>
+  <title>{% if page and page.title and not page.is_homepage %}{{ page.title }} · {{ config.site_name }}{% else %}{{ config.site_name }}: {{ config.extra.hn_tagline }}{% endif %}</title>
   <meta name="description" content="{{ config.site_description }}">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="{{ 'static/apple-touch-icon.png' | url }}">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{ config.site_name }}">
-  <meta property="og:title" content="{% if page and page.title and not page.is_homepage %}{{ page.title }} · {% endif %}{{ config.site_name }}">
+  <meta property="og:title" content="{% if page and page.title and not page.is_homepage %}{{ page.title }} · {{ config.site_name }}{% else %}{{ config.site_name }}: {{ config.extra.hn_tagline }}{% endif %}">
   <meta property="og:description" content="{{ config.site_description }}">
   <meta property="og:image" content="{{ config.site_url }}static/og.png">
   <meta property="og:image:alt" content="{{ config.site_name }}: {{ config.site_description }}">
@@ -43,12 +43,16 @@
   <link rel="stylesheet" href="{{ 'static/css/base.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/prose.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/icons.css' | url }}">
+  <link rel="stylesheet" href="{{ 'static/css/sections.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/benchmarks.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/changelog.css' | url }}">
   {% block styles %}{% endblock %}
 </head>
 {% import "macros.html" as m %}
-<body class="{% block bodyclass %}is-doc{% endblock %}" data-base="{{ base_url }}">
+{#- The active top-level section picks the page accent (static, see prose.css). -#}
+{% set accent = namespace(slug="") %}
+{% for item in nav %}{% if item.active and not item.is_homepage %}{% set accent.slug = m.section_slug(item.title) | trim %}{% endif %}{% endfor %}
+<body class="{% block bodyclass %}is-doc{% endblock %}" data-base="{{ base_url }}"{% if accent.slug and not (page and page.is_homepage) %} data-section="{{ accent.slug }}"{% endif %}>
   <a class="skip" href="#main">Skip to content</a>
   <div class="meter" aria-hidden="true"><i></i></div>
 
@@ -253,7 +257,7 @@
         <ul>
           <li><a class="foot__ext" href="{{ config.repo_url }}/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" aria-label="Licence, MIT (opens in a new tab)"><span>Licence (MIT)</span>{{ m.icon("external-link") }}</a></li>
           <li><a href="{{ 'static/icons/lucide/LICENSE.txt' | url }}">Lucide icons (ISC)</a></li>
-        </ul>
+          <li><a class="foot__ext" href="https://www.mkdocs.org/" target="_blank" rel="noopener noreferrer" aria-label="Built with MkDocs (opens in a new tab)"><span>Built with MkDocs</span>{{ m.icon("external-link") }}</a></li>        </ul>
       </nav>
       <div class="foot__bottom">
         <span class="foot__version">hinoki <span data-docs-version-footer>v{{ config.extra.hn_version }}</span> <span class="chip">pre-alpha</span></span>

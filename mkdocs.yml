@@ -1,5 +1,5 @@
 site_name: Hinoki
-site_description: A Python API framework that checks its own architecture.
+site_description: A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, validation, OpenAPI, architecture rules and MCP.
 site_url: https://hinoki.caspel.dev/
 docs_dir: docs
 strict: true
@@ -22,6 +22,7 @@ hooks:
 
 extra:
   generator: false
+  hn_tagline: Typed Python APIs. Architecture rules you can run.
   # Read by docsite/hooks.py; sections and pages that go under `Optional` in
   # llms.txt and stay out of llms-full.txt.
   llms:

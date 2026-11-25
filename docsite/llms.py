@@ -25,7 +25,7 @@ CHANGELOG = "changelog.md"
 BLOCK_TITLE = "Write Hinoki, not FastAPI"
 OPTIONAL_TITLE = "Optional"
 INTRO_TAIL = (
-    " Typed `Schema`, ORM and settings of its own, a Rust core and the Kiso server."
+    " Typed `Schema`, ORM and settings of its own."
     " Not built on FastAPI, Starlette, Pydantic or Django: their APIs do not"
     " exist here."
 )
