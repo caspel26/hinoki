@@ -1,16 +1,8 @@
 """Authentication: an opaque bearer token resolved to a ``Member``."""
 
-from typing import Any, cast
-from uuid import UUID
-
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import Member
-
-
-def member_id(principal: Caller[Any] | None) -> UUID:
-    """The caller's member id, for a hook of an API whose actions are member_only."""
-    return cast("Caller[Member]", principal).user.id
 
 
 class MemberPermission(Permission):
