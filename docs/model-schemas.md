@@ -122,7 +122,11 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
     it. Lists or pages of models, models of another class, and plain `dict`
     values are `500 internal_error` unless the action sets
     `validate_response=False`. A subclass instance is sent with the declared
-    fields only. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
+    fields only, whether the action returns it alone, as `Schema | None`, in a
+    `list[Schema]`, or in a `Page[Schema]` or `CursorPage[Schema]`; a list or page
+    of exact `Schema` instances is sent as it is. A `Schema` nested in a field of
+    another `Schema` is encoded as the instance it holds: declare the field's
+    own type with the instance you mean to send. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
 
 ## See also
 
