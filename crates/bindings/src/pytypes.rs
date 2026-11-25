@@ -20,6 +20,8 @@ static PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PROJECTED_LIST: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PROJECTED_PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PROJECTED_ITEM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static RELATION_NOT_LOADED: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static SORTED_ITEMS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static OBJECT_NEW: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static COPY_DEEPCOPY: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
@@ -44,6 +46,14 @@ pub fn projected_page_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, Py
 
 pub fn projected_item_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     PROJECTED_ITEM.import(py, "hinoki.orm.projection", "_ProjectedItem")
+}
+
+pub fn relation_not_loaded_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    RELATION_NOT_LOADED.import(py, "hinoki.errors", "RelationNotLoaded")
+}
+
+fn sorted_items_fn<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    SORTED_ITEMS.import(py, "hinoki.schema", "sorted_items")
 }
 
 pub fn object_new<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
@@ -143,13 +153,57 @@ pub fn enum_value<'py>(value: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, 
 }
 
 /// The members of a set in the fixed order `hinoki.schema.sorted_items` gives.
+/// Homogeneous exact `str` or `int` (non-`bool`) sets are sorted directly in
+/// Rust, avoiding Python's `sorted(..., key=member_key)` overhead.
 pub fn sorted_members<'py>(set: &Bound<'py, PyAny>) -> PyResult<Vec<Bound<'py, PyAny>>> {
-    let ordered = set
-        .py()
-        .import("hinoki.schema")?
-        .getattr("sorted_items")?
-        .call1((set,))?;
+    let items: Vec<Bound<'py, PyAny>> = set.try_iter()?.collect::<PyResult<_>>()?;
+    if items.len() <= 1 {
+        return Ok(items);
+    }
+    if let Some(sorted) = try_sort_strings(&items) {
+        return Ok(sorted);
+    }
+    if let Some(sorted) = try_sort_ints(&items) {
+        return Ok(sorted);
+    }
+    let ordered = sorted_items_fn(set.py())?.call1((set,))?;
     ordered.try_iter()?.collect()
+}
+
+fn try_sort_strings<'py>(items: &[Bound<'py, PyAny>]) -> Option<Vec<Bound<'py, PyAny>>> {
+    let mut keyed: Vec<(String, usize)> = Vec::with_capacity(items.len());
+    for (idx, item) in items.iter().enumerate() {
+        if !item.is_exact_instance_of::<PyString>() {
+            return None;
+        }
+        let text = item.cast::<PyString>().ok()?.to_str().ok()?.to_owned();
+        keyed.push((text, idx));
+    }
+    keyed.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    Some(
+        keyed
+            .into_iter()
+            .map(|(_, idx)| items[idx].clone())
+            .collect(),
+    )
+}
+
+fn try_sort_ints<'py>(items: &[Bound<'py, PyAny>]) -> Option<Vec<Bound<'py, PyAny>>> {
+    let mut keyed: Vec<(i64, usize)> = Vec::with_capacity(items.len());
+    for (idx, item) in items.iter().enumerate() {
+        if !item.is_exact_instance_of::<PyInt>() {
+            return None;
+        }
+        let number = item.extract::<i64>().ok()?;
+        keyed.push((number, idx));
+    }
+    keyed.sort_unstable_by_key(|(n, _)| *n);
+    Some(
+        keyed
+            .into_iter()
+            .map(|(_, idx)| items[idx].clone())
+            .collect(),
+    )
 }
 
 /// `None`, `bool`, `int`, `float` and `str` of exactly these types: values that
@@ -162,14 +216,20 @@ pub fn is_plain_scalar(value: &Bound<'_, PyAny>) -> bool {
         || value.is_exact_instance_of::<PyString>()
 }
 
-/// The canonical text of an exact `uuid.UUID`, read from its integer value.
-/// `None` for anything else, so callers keep their general path.
-pub fn exact_uuid_text(value: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
+/// An exact `uuid.UUID` decoded directly from its 128-bit integer value,
+/// without formatting or parsing text.
+pub fn exact_uuid(value: &Bound<'_, PyAny>) -> PyResult<Option<uuid::Uuid>> {
     if !value.get_type().is(uuid_class(value.py())?) {
         return Ok(None);
     }
-    let number: u128 = value.getattr("int")?.extract()?;
-    Ok(Some(uuid::Uuid::from_u128(number).hyphenated().to_string()))
+    let number: u128 = value.getattr(pyo3::intern!(value.py(), "int"))?.extract()?;
+    Ok(Some(uuid::Uuid::from_u128(number)))
+}
+
+/// The canonical text of an exact `uuid.UUID`, read from its integer value.
+/// `None` for anything else, so callers keep their general path.
+pub fn exact_uuid_text(value: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
+    Ok(exact_uuid(value)?.map(|id| id.hyphenated().to_string()))
 }
 
 /// What is needed to build a `UUID` without running `UUID.__init__`: a blank

@@ -147,10 +147,8 @@ pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if obj.is_instance_of::<PyBytes>() {
         return Ok(Value::Bytes(obj.extract()?));
     }
-    if let Some(text) = crate::pytypes::exact_uuid_text(obj)? {
-        return uuid::Uuid::parse_str(&text)
-            .map(Value::Uuid)
-            .map_err(|e| PyValueError::new_err(e.to_string()));
+    if let Some(id) = crate::pytypes::exact_uuid(obj)? {
+        return Ok(Value::Uuid(id));
     }
     if obj.is_instance(crate::pytypes::uuid_class(py)?)? {
         let text: String = obj.str()?.extract()?;
@@ -161,13 +159,15 @@ pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if crate::pytypes::is_ip_object(obj)? {
         return Ok(Value::Text(obj.str()?.extract()?));
     }
-    if obj.is_instance(&py.import("datetime")?.getattr("datetime")?)? {
-        if obj.getattr("tzinfo")?.is_none() {
+    if obj.is_instance(crate::pytypes::datetime_class(py)?)? {
+        if obj.getattr(pyo3::intern!(py, "tzinfo"))?.is_none() {
             return Err(PyValueError::new_err(
                 "datetime parameters must be timezone-aware",
             ));
         }
-        let text: String = obj.call_method0("isoformat")?.extract()?;
+        let text: String = obj
+            .call_method0(pyo3::intern!(py, "isoformat"))?
+            .extract()?;
         return hinoki_orm::parse_timestamp(&text)
             .map(Value::Timestamp)
             .ok_or_else(|| PyValueError::new_err("invalid datetime parameter"));
@@ -206,8 +206,48 @@ pub(crate) fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
                 db_error(py, &DbError::new(ErrorKind::Type, message))
             })?
             .unbind(),
-        Value::Json(v) => crate::request::decode_json(py, v.to_string().as_bytes())?.unbind(),
+        Value::Json(v) => json_value_to_py(py, v)?,
     })
+}
+
+fn json_value_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
+    match value {
+        serde_json::Value::Null => Ok(py.None()),
+        serde_json::Value::Bool(b) => Ok(b.into_pyobject(py)?.to_owned().into_any().unbind()),
+        serde_json::Value::Number(n) => json_number_to_py(py, n),
+        serde_json::Value::String(s) => Ok(s.into_pyobject(py)?.into_any().unbind()),
+        serde_json::Value::Array(items) => {
+            let list = PyList::empty(py);
+            for item in items {
+                list.append(json_value_to_py(py, item)?)?;
+            }
+            Ok(list.into_any().unbind())
+        }
+        serde_json::Value::Object(entries) => {
+            let dict = PyDict::new(py);
+            for (k, v) in entries {
+                dict.set_item(k, json_value_to_py(py, v)?)?;
+            }
+            Ok(dict.into_any().unbind())
+        }
+    }
+}
+
+fn json_number_to_py(py: Python<'_>, n: &serde_json::Number) -> PyResult<Py<PyAny>> {
+    if let Some(i) = n.as_i64() {
+        return Ok(i.into_pyobject(py)?.into_any().unbind());
+    }
+    if let Some(u) = n.as_u64() {
+        return Ok(u.into_pyobject(py)?.into_any().unbind());
+    }
+    let raw = n.as_str();
+    if !raw.contains(['.', 'e', 'E']) {
+        return Ok(py.get_type::<PyInt>().call1((raw,))?.unbind());
+    }
+    let f = n
+        .as_f64()
+        .ok_or_else(|| PyValueError::new_err("JSON number out of range"))?;
+    Ok(f.into_pyobject(py)?.into_any().unbind())
 }
 
 pub(crate) fn rows_to_py(py: Python<'_>, rows: &[Vec<(String, Value)>]) -> PyResult<Py<PyAny>> {

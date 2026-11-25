@@ -891,6 +891,12 @@ struct Encoder<'py> {
     schemas: usize,
     /// Dict entries being written, one slice per open dict.
     pairs: Vec<Option<(Bound<'py, PyAny>, Bound<'py, PyAny>)>>,
+    /// One-entry cache of the last schema class encoded, avoiding repeated
+    /// plan lookups when encoding homogeneous lists of `Schema` instances.
+    last_schema: Option<(
+        Bound<'py, pyo3::types::PyType>,
+        std::sync::Arc<crate::schema::JsonFieldPlan>,
+    )>,
 }
 
 impl<'py> Encoder<'py> {
@@ -917,14 +923,22 @@ impl<'py> Encoder<'py> {
         self.out.push(bracket);
     }
 
+    /// An exact `int` that fits `i64` is formatted here; big ints take the
+    /// `int.__repr__` path.
+    fn int_exact(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
+        if let Ok(number) = value.extract::<i64>() {
+            push_i64(&mut self.out, number);
+            return Ok(());
+        }
+        self.out.extend_from_slice(int_text(value)?.as_bytes());
+        Ok(())
+    }
+
     /// An exact `int` that fits `i64` is formatted here; big ints and subclasses
     /// (which may override `__str__`) take the `int.__repr__` path.
     fn int(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
         if value.is_exact_instance_of::<PyInt>() {
-            if let Ok(number) = value.extract::<i64>() {
-                push_i64(&mut self.out, number);
-                return Ok(());
-            }
+            return self.int_exact(value);
         }
         self.out.extend_from_slice(int_text(value)?.as_bytes());
         Ok(())
@@ -942,7 +956,7 @@ impl<'py> Encoder<'py> {
         if let Ok(text) = value.cast::<PyString>() {
             write_pystring(&mut self.out, text)
         } else if value.is_exact_instance_of::<PyInt>() {
-            self.int(value)
+            self.int_exact(value)
         } else if value.is_exact_instance_of::<PyFloat>() {
             push_float(&mut self.out, value.cast::<PyFloat>()?.value())
         } else if let Ok(dict) = value.cast::<PyDict>() {
@@ -1075,15 +1089,20 @@ impl<'py> Encoder<'py> {
         self.open(b'[');
         let mut count = 0;
         if value.is_exact_instance_of::<PyList>() {
-            // Read by position: a hook that mutates the list cannot invalidate it.
+            // Read by position with an explicit length check: avoids raising
+            // and discarding a Python IndexError at the end of every list while
+            // staying safe if a hook mutates the list mid-walk.
             let list = value.cast::<PyList>()?;
-            while let Ok(item) = list.get_item(count) {
+            while count < list.len() {
+                let item = list.get_item(count)?;
                 self.element(&item, count, depth)?;
                 count += 1;
             }
         } else if value.is_exact_instance_of::<PyTuple>() {
             let tuple = value.cast::<PyTuple>()?;
-            while let Ok(item) = tuple.get_item(count) {
+            let len = tuple.len();
+            while count < len {
+                let item = tuple.get_item(count)?;
                 self.element(&item, count, depth)?;
                 count += 1;
             }
@@ -1144,6 +1163,13 @@ impl<'py> Encoder<'py> {
         if self.try_preencoded(value)? {
             return Ok(());
         }
+        let value_type = value.get_type();
+        if let Some((cached_type, plan)) = &self.last_schema {
+            if value_type.is(cached_type) {
+                let plan = std::sync::Arc::clone(plan);
+                return self.schema_object(value, &plan, depth);
+            }
+        }
         if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
             return self.sequence(value, depth);
         }
@@ -1151,13 +1177,11 @@ impl<'py> Encoder<'py> {
         if let Some(text) = crate::pytypes::exact_uuid_text(value)? {
             return write_string(&mut self.out, &text);
         }
-        if value
-            .get_type()
-            .is(crate::pytypes::datetime_class(value.py())?)
-        {
+        if value_type.is(crate::pytypes::datetime_class(value.py())?) {
             return self.write_isoformat(value);
         }
         if let Some(plan) = crate::schema::json_field_plan(value, quoted_json_key)? {
+            self.last_schema = Some((value_type, std::sync::Arc::clone(&plan)));
             return self.schema_object(value, &plan, depth);
         }
         self.fallback_object(value, depth)
@@ -1422,6 +1446,7 @@ fn encode_into<'py>(
         hops: 0,
         schemas: 0,
         pairs: Vec::new(),
+        last_schema: None,
     };
     encoder.write(value, 0)?;
     LAST_LEN.store(encoder.out.len(), Ordering::Relaxed);

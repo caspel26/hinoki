@@ -81,39 +81,41 @@ impl ModelPlan {
         extra: Option<&Bound<'py, PyDict>>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let class = self.class.bind(py);
-        let values = PyDict::new(py);
+        let mut pairs: Vec<(&Bound<'py, PyString>, Bound<'py, PyAny>)> =
+            Vec::with_capacity(self.fields.len());
         for field in &self.fields {
             let key = field.key.bind(py);
-            if let Some(given) = extra {
-                if let Some(found) = given.get_item(key)? {
-                    values.set_item(key, found)?;
-                    continue;
-                }
+            if let Some(found) = extra.and_then(|g| g.get_item(key).transpose()) {
+                pairs.push((key, found?));
+                continue;
             }
             match row.getattr(key) {
-                Ok(value) => values.set_item(key, convert_attribute(&value, &field.conversion)?)?,
+                Ok(value) => pairs.push((key, convert_attribute(&value, &field.conversion)?)),
                 Err(error) => self.missing(py, row, field, error)?,
             }
         }
-        if self.direct && values.len() == self.fields.len() {
-            // Every field is present: build the instance directly, skipping the
-            // dataclass constructor (the dominant cost of constructing a schema).
-            let object_new = py
-                .import("builtins")?
-                .getattr("object")?
-                .getattr("__new__")?;
-            let instance = object_new.call1((class,))?;
-            for (key, value) in values.iter() {
-                typeddecode::assign(&instance, key.cast::<PyString>()?, &value)?;
+        if self.direct && pairs.len() == self.fields.len() {
+            // Every field is present: build the instance directly, skipping both
+            // the intermediate dict and the dataclass constructor.
+            let instance = crate::pytypes::object_new(py)?.call1((class,))?;
+            for (key, value) in &pairs {
+                typeddecode::assign(&instance, key, value)?;
             }
             typeddecode::assign(
                 &instance,
-                &PyString::intern(py, "__hinoki_supplied_fields__"),
+                pyo3::intern!(py, "__hinoki_supplied_fields__"),
                 &PyBool::new(py, true).to_owned().into_any(),
             )?;
             return Ok(instance);
         }
-        class.call_method1("__hinoki_construct_from_model__", (values,))
+        let values = PyDict::new(py);
+        for (key, value) in pairs {
+            values.set_item(key, value)?;
+        }
+        class.call_method1(
+            pyo3::intern!(py, "__hinoki_construct_from_model__"),
+            (values,),
+        )
     }
 }
 
@@ -127,8 +129,8 @@ impl ModelPlan {
         field: &PlanField,
         error: PyErr,
     ) -> PyResult<()> {
-        let unloaded = py.import("hinoki.errors")?.getattr("RelationNotLoaded")?;
-        if error.value(py).is_instance(&unloaded)?
+        let unloaded = crate::pytypes::relation_not_loaded_class(py)?;
+        if error.value(py).is_instance(unloaded)?
             || !error.is_instance_of::<pyo3::exceptions::PyAttributeError>(py)
         {
             return Err(error); // a loading mistake or an unrelated failure
