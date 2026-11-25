@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from hinoki import Hinoki, ModuleContext, __main__
+from hinoki.errors import RegistrationError
 from hinoki.settings import AppSettings
 
 
@@ -89,6 +90,56 @@ def test_doctor_explicit_target_reports_load_error_without_exception_details(
     assert code == 2
     assert check["status"] == "failed"
     assert "secret setting value" not in output
+    assert "inspect it with `hinoki routes TARGET`" in check["remediation"]
+
+
+def test_doctor_load_error_shows_hinoki_declaration_message(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "hinoki.cli.doctor.build_app",
+        lambda _target: (_ for _ in ()).throw(
+            RegistrationError("admin: no secret\nset <PREFIX>_ADMIN__SECRET")
+        ),
+    )
+
+    code = __main__.main(["doctor", "missing:app", "--format", "json"])
+    output = capsys.readouterr().out
+    result = json.loads(output)
+    check = next(item for item in result["checks"] if item["id"] == "application.load")
+
+    assert code == 2
+    assert "RegistrationError: admin: no secret set <PREFIX>_ADMIN__SECRET" in output
+    assert "message above gives the cause" in check["remediation"]
+    assert "inspect it with" not in check["remediation"]
+
+
+def test_doctor_hides_the_message_of_a_chained_declaration_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def build(_target: str) -> None:
+        try:
+            raise ValueError("secret setting value")
+        except ValueError as cause:
+            raise RegistrationError("bad declaration") from cause
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("hinoki.cli.doctor.build_app", build)
+
+    code = __main__.main(["doctor", "missing:app", "--format", "json"])
+    output = capsys.readouterr().out
+    checks = json.loads(output)["checks"]
+    check = next(item for item in checks if item["id"] == "application.load")
+
+    assert code == 2
+    assert "secret setting value" not in output
+    assert "bad declaration" not in output
+    assert "inspect it with `hinoki routes TARGET`" in check["remediation"]
 
 
 def test_doctor_does_not_connect_or_write(
