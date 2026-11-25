@@ -133,6 +133,8 @@ invoices = crud(
 
 Each attribute name is the column it filters. Types are `bool`, `int`, `float`, `str`, `UUID`, `date`, `datetime` (an RFC 3339 instant, read as UTC), `Decimal` and `Literal[...]` of strings; an `Eq`, `In` or `Range` is also what the typed OpenAPI parameter documents. A bool, UUID or `Literal` has no `Range`. An empty value (`?paid=`) is ignored.
 
+Without `filters=` a generated list ignores query parameters it does not know (`?name=x` returns the unfiltered page); with `filters=` an unknown one is a `422`, as described below.
+
 A name that is not declared, an operator that the field does not have (`?paid.from=1`), a value of the wrong type or outside the `Literal`, a repeated parameter, an ordering key outside `ordering`, or a value that is too long is a `422` listing every problem with its `path` and a `code` (`type`, `choice`, `unknown`, `operator`, `duplicate`, `too_long`, `too_many`); the message never repeats the client's value. Values are parsed and coerced in Rust, bound as parameters and never become SQL text, and column names come only from the declaration, checked against the model when the routes are declared.
 
 SQLite keeps a `Decimal` column as text, which compares by spelling and orders alphabetically, not numerically. A `Range[Decimal]` filter (`?amount.from=...`/`?amount.to=...`) or an `ordering` entry naming a `Decimal` column is a `422` there, with `code` `unsupported` and `path` naming the field (or `ordering`); only equality (`Eq`, `In`, `.null`) is checked against a `Decimal` column on SQLite. PostgreSQL and MySQL compare and order a `Decimal` numerically and accept the full `Range`.
