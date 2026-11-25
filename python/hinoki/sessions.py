@@ -5,13 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-import threading
-from collections import OrderedDict
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
 from typing import TypeVar, cast
@@ -151,6 +149,19 @@ class SessionSettings(Resource):
         return secret_bytes(self.csrf_secret)
 
 
+_EPOCH_UTC = datetime(1970, 1, 1, tzinfo=UTC)
+_ONE_US = timedelta(microseconds=1)
+
+
+def _to_us(moment: datetime) -> int:
+    aware = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+    return (aware - _EPOCH_UTC) // _ONE_US
+
+
+def _from_us(micros: int) -> datetime:
+    return _EPOCH_UTC + timedelta(microseconds=micros)
+
+
 class MemorySessionStore(SessionStore):
     """Bounded, process-local store for tests and single-worker deployments.
 
@@ -165,65 +176,61 @@ class MemorySessionStore(SessionStore):
         if isinstance(max_sessions, bool) or max_sessions < 1:
             raise ValueError("max_sessions must be positive")
         self.max_sessions = max_sessions
-        self._records: OrderedDict[str, SessionRecord] = OrderedDict()
-        self._revoked: OrderedDict[str, datetime] = OrderedDict()
-        self._lock = threading.RLock()
+        self._native = core.NativeMemorySessionStore(max_sessions)
+
+    @property
+    def _records(self) -> list[str]:
+        return self._native.record_keys()
+
+    @property
+    def _revoked(self) -> list[str]:
+        return self._native.revoked_keys()
 
     async def load(self, token_hash: str) -> SessionRecord | None:
-        with self._lock:
-            record = self._records.get(token_hash)
-            return _copy_record(record) if record is not None else None
+        found = self._native.load(token_hash)
+        if found is None:
+            return None
+        raw, created, expires, idle, last_seen, subject = found
+        return SessionRecord(
+            core.decode_json(raw),
+            _from_us(created),
+            _from_us(expires),
+            _from_us(idle),
+            _from_us(last_seen),
+            subject,
+        )
 
     async def save(self, token_hash: str, record: SessionRecord) -> None:
-        with self._lock:
-            self._prune(utc_now())
-            if token_hash in self._revoked:
-                raise SessionUnavailable("a revoked session cannot be restored")
-            if (
-                token_hash not in self._records
-                and len(self._records) >= self.max_sessions
-            ):
-                raise SessionCapacityExceeded
-            self._records[token_hash] = _copy_record(record)
-            self._records.move_to_end(token_hash)
+        payload = core.encode_json(record.data)
+        try:
+            self._native.save(
+                token_hash,
+                payload,
+                _to_us(record.created_at),
+                _to_us(record.expires_at),
+                _to_us(record.idle_expires_at),
+                _to_us(record.last_seen_at),
+                record.subject,
+                _to_us(utc_now()),
+            )
+        except ValueError as exc:
+            code = str(exc)
+            if code == "revoked":
+                raise SessionUnavailable(
+                    "a revoked session cannot be restored"
+                ) from None
+            if code == "capacity":
+                raise SessionCapacityExceeded from None
+            raise
 
     async def delete(self, token_hash: str) -> None:
-        with self._lock:
-            self._revoke(token_hash)
+        self._native.delete(token_hash)
 
     async def delete_by_subject(self, subject: str) -> int:
-        with self._lock:
-            keys = [k for k, v in self._records.items() if v.subject == subject]
-            for key in keys:
-                self._revoke(key)
-            return len(keys)
+        return self._native.delete_by_subject(subject)
 
     async def purge_expired(self, now: datetime | None = None) -> int:
-        with self._lock:
-            return self._prune(now or utc_now())
-
-    def _revoke(self, token_hash: str) -> None:
-        record = self._records.pop(token_hash, None)
-        if record is None:
-            return
-        self._revoked[token_hash] = record.expires_at
-        self._revoked.move_to_end(token_hash)
-        while len(self._revoked) > self.max_sessions:
-            self._revoked.popitem(last=False)
-
-    def _prune(self, now: datetime) -> int:
-        """Drop expired sessions and revocations; revoke idle-expired ones.
-        Returns the number of sessions past their absolute expiry."""
-        expired = [k for k, v in self._records.items() if v.expires_at <= now]
-        for key in expired:
-            del self._records[key]
-        idle = [k for k, v in self._records.items() if v.idle_expires_at <= now]
-        for key in idle:
-            self._revoke(key)
-        stale = [k for k, until in self._revoked.items() if until <= now]
-        for key in stale:
-            del self._revoked[key]
-        return len(expired)
+        return self._native.purge_expired(_to_us(now or utc_now()))
 
 
 class DatabaseSessionStore(SessionStore):

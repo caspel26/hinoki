@@ -30,6 +30,7 @@ mod naming;
 mod nativecrud;
 mod nativelinks;
 mod nativerun;
+mod openapidiff;
 mod policy;
 mod pytypes;
 mod query;
@@ -41,10 +42,12 @@ mod router;
 mod rows;
 mod schema;
 mod server;
+mod sessions;
 mod sink;
 mod storage;
 mod streamlimit;
 mod tally;
+mod waivers;
 mod web;
 mod websocket;
 mod wsgi;
@@ -241,6 +244,10 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(recent::read_recent, m)?)?;
     m.add_function(wrap_pyfunction!(cache::validate_cache_key, m)?)?;
     m.add_function(wrap_pyfunction!(cache::validate_cache_ttl, m)?)?;
+    m.add_class::<sessions::NativeMemorySessionStore>()?;
+    m.add_function(wrap_pyfunction!(waivers::fnmatch_case, m)?)?;
+    m.add_function(wrap_pyfunction!(waivers::validate_waiver, m)?)?;
+    m.add_function(wrap_pyfunction!(openapidiff::openapi_breaking_changes, m)?)?;
     m.add_function(wrap_pyfunction!(request::encode_json, m)?)?;
     Ok(())
 }

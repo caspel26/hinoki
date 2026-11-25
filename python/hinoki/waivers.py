@@ -17,13 +17,12 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
-import fnmatch
 import os
-import re
 import tomllib
 from pathlib import Path
 from typing import Any
 
+from hinoki import core
 from hinoki.project import find_manifest_or_none
 from hinoki.rules import Diagnostic, Phase, Severity, Status
 
@@ -56,45 +55,16 @@ class Waiver:
         return (
             bool(diagnostic.subject)
             and self.rule == diagnostic.rule_id
-            and fnmatch.fnmatchcase(diagnostic.subject, self.target)
+            and core.fnmatch_case(diagnostic.subject, self.target)
         )
 
 
 def parse_waiver(index: int, raw: dict[str, Any]) -> Waiver:
-    wrong = [
-        key
-        for key in (*REQUIRED, "expires")
-        if key in raw and key != "expires" and not isinstance(raw[key], str)
-    ]
-    if wrong:
-        raise WaiverError(f"waiver #{index}: {', '.join(wrong)} must be text")
-    missing = [key for key in REQUIRED if not str(raw.get(key, "")).strip()]
-    if missing:
-        raise WaiverError(f"waiver #{index}: missing {', '.join(missing)}")
-    unknown = set(raw) - {*REQUIRED, "expires"}
-    if unknown:
-        raise WaiverError(f"waiver #{index}: unknown keys {sorted(unknown)}")
-    target = str(raw["target"]).strip()
-    prefix = re.split(r"[*?\[]", target, maxsplit=1)[0]
-    bounded = prefix == target or ("." in prefix and len(prefix) >= MIN_PREFIX)
-    if not bounded:
-        raise WaiverError(
-            f"waiver #{index}: the target {target!r} is not bounded; start it "
-            f"with a literal module or action prefix of at least {MIN_PREFIX} "
-            "characters that contains a '.' (for example 'shop.api.*')"
-        )
-    expires = raw.get("expires")
-    if expires is not None and not isinstance(expires, datetime.date):
-        raise WaiverError(f"waiver #{index}: expires must be a date such as 2027-01-31")
-    if isinstance(expires, datetime.datetime):
-        raise WaiverError(f"waiver #{index}: expires must be a date, not a time")
-    return Waiver(
-        str(raw["rule"]).strip(),
-        target,
-        str(raw["reason"]).strip(),
-        str(raw["owner"]).strip(),
-        expires,
-    )
+    try:
+        rule, target, reason, owner, expires = core.validate_waiver(index, raw)
+    except ValueError as exc:
+        raise WaiverError(str(exc)) from None
+    return Waiver(rule, target, reason, owner, expires)
 
 
 def load_waivers(path: Path) -> list[Waiver]:
