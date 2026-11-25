@@ -1,6 +1,19 @@
+from typing import Annotated
+
 import pytest
 
-from hinoki import API, Hinoki, MultiPartParser, Request, UploadedFile, core, http
+from hinoki import (
+    API,
+    Field,
+    Hinoki,
+    MultiPartParser,
+    Query,
+    Request,
+    Schema,
+    UploadedFile,
+    core,
+    http,
+)
 from hinoki.errors import RegistrationError, ValidationError
 from hinoki.runtime.binding import (
     Param,
@@ -189,3 +202,32 @@ def test_file_parameters_reject_defaults_before_registration() -> None:
     ):
         with pytest.raises(RegistrationError, match=message):
             Hinoki().include(handler)
+
+
+class Limits(Schema):
+    n: Annotated[int, Field(ge=1, le=5)] = 1
+
+
+def test_field_on_a_scalar_query_parameter_is_refused() -> None:
+    async def route(n: Annotated[int, Field(ge=1, le=5)] = 1) -> None: ...
+
+    with pytest.raises(
+        RegistrationError, match=r"route.*scalar parameter 'n'.*Query\[Schema\]"
+    ):
+        Hinoki().include(http.get("/b", validate_response=False)(route))
+
+
+def test_field_on_a_scalar_path_parameter_is_refused() -> None:
+    async def route(slug: Annotated[str, Field(max_length=3)]) -> None: ...
+
+    with pytest.raises(RegistrationError, match="scalar parameter 'slug'"):
+        Hinoki().include(http.get("/b/{slug}", validate_response=False)(route))
+
+
+def test_field_inside_query_schema_and_plain_annotations_still_register() -> None:
+    async def schema_route(filters: Query[Limits]) -> None: ...
+    async def plain_route(n: Annotated[int, "doc"] = 1) -> None: ...
+
+    app = Hinoki()
+    app.include(http.get("/a", validate_response=False)(schema_route))
+    app.include(http.get("/b", validate_response=False)(plain_route))
