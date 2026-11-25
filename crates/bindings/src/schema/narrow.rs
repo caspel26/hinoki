@@ -177,9 +177,16 @@ fn narrow_sequence<'py>(
     value: &Bound<'py, PyAny>,
     inner: &Guide,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
-    if let (Guide::Schema(classes), Ok(list)) = (inner, value.cast::<PyList>()) {
+    if let Guide::Schema(classes) = inner {
         // The usual case, every item exactly a declared class: a pointer compare each.
-        if list.iter().all(|item| is_declared(&item, classes)) {
+        let exact = if let Ok(list) = value.cast::<PyList>() {
+            list.iter().all(|item| is_declared(&item, classes))
+        } else if let Ok(tuple) = value.cast::<PyTuple>() {
+            tuple.iter().all(|item| is_declared(&item, classes))
+        } else {
+            false
+        };
+        if exact {
             return Ok(None);
         }
     }
@@ -264,19 +271,29 @@ fn narrow_map<'py>(
     let Ok(map) = value.cast::<PyDict>() else {
         return Ok(None);
     };
-    let mut changed = false;
-    let mut pairs = Vec::with_capacity(map.len());
+    if let Guide::Schema(classes) = inner {
+        if map.iter().all(|(_, item)| is_declared(&item, classes)) {
+            return Ok(None);
+        }
+    }
+    // Nothing is allocated until a value changes.
+    let mut first = None;
     for (key, item) in map.iter() {
-        let narrowed = narrow(&item, inner)?;
-        changed |= narrowed.is_some();
-        pairs.push((key, narrowed.unwrap_or(item)));
+        if let Some(new) = narrow(&item, inner)? {
+            first = Some((key, new));
+            break;
+        }
     }
-    if !changed {
+    let Some((changed, new)) = first else {
         return Ok(None);
-    }
+    };
     let out = PyDict::new(value.py());
-    for (key, item) in pairs {
-        out.set_item(key, item)?;
+    for (key, item) in map.iter() {
+        if key.is(&changed) {
+            out.set_item(key, &new)?;
+        } else {
+            out.set_item(key, narrow(&item, inner)?.unwrap_or(item))?;
+        }
     }
     Ok(Some(out.into_any()))
 }
