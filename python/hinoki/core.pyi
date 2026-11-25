@@ -34,6 +34,9 @@ class _ResponseTypeList:
     def __init__(self, target: type, fallback: Callable[[object], bool]) -> None: ...
     def __call__(self, value: object) -> bool: ...
 
+def all_exact(value: object, target: type) -> bool:
+    """Whether ``value`` is a list whose items are all exactly of ``target``."""
+
 CURSOR_MAX_TOKEN: int
 """Longest cursor token, in characters, that the native codec issues or accepts."""
 

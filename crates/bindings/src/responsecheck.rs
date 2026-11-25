@@ -1,3 +1,4 @@
+use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString};
 
@@ -71,4 +72,16 @@ impl ResponseTypeList {
         }
         Ok(true)
     }
+}
+
+/// Whether `value` is an exact `list` (not a subclass, whose items may be lazy)
+/// whose every item is exactly of the type `target`, so a response needs no
+/// narrowing to the declared Schema.
+#[pyfunction]
+pub(crate) fn all_exact(value: &Bound<'_, PyAny>, target: &Bound<'_, PyAny>) -> bool {
+    let target = target.as_ptr();
+    value.cast_exact::<PyList>().is_ok_and(|list| {
+        list.iter()
+            .all(|item| item.get_type_ptr().cast::<ffi::PyObject>() == target)
+    })
 }

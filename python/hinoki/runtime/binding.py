@@ -37,8 +37,10 @@ from hinoki.http.response import Response
 from hinoki.http.stream import Streamed
 from hinoki.modules import Resource
 from hinoki.pagination import (
+    CursorPage,
     CursorPagination,
     CursorParams,
+    Page,
     PageNumberPagination,
     PageParams,
     Pagination,
@@ -52,6 +54,7 @@ from hinoki.runtime.responsecheck import (
     Check,
     compile_response_check,
     union_arms,
+    unwrap,
 )
 from hinoki.runtime.responses import BODYLESS
 from hinoki.schema import Schema
@@ -243,6 +246,8 @@ class Binding:
     response_annotation: str = field(default="", repr=False, compare=False)
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     streams: bool = False  # the return annotation names Stream, EventStream or File
+    # S when the return type is `list[S]`, `Page[S]`, `CursorPage[S]` or `S | None`
+    narrow_schema: type[Schema] | None = None
     stream_capable: bool = False  # Response may be a stream, including FileStorage
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
@@ -889,6 +894,30 @@ def bind(route: Route) -> Binding:
         describe_annotation(hints.get("return", NO_ANNOTATION)),
         streams=streams,
         stream_capable=stream_capable,
+        narrow_schema=collection_narrow_schema(response),
+    )
+
+
+def collection_narrow_schema(annotation: object) -> type[Schema] | None:
+    """The Schema ``S`` that a result is narrowed to when the return annotation is
+    ``list[S]``, ``Page[S]``, ``CursorPage[S]`` or ``S | None``; ``None`` for any
+    other annotation (a bare ``S`` is ``response_schema``)."""
+    arms = [arm for arm in union_arms(annotation) if arm is not NoneType]
+    if len(arms) != 1:
+        return None
+    arm = arms[0]
+    if typing.get_origin(arm) not in {list, Page, CursorPage}:
+        return arm if arm is not unwrap(annotation) and is_schema(arm) else None
+    args = typing.get_args(arm)
+    item = unwrap(args[0]) if len(args) == 1 else None
+    return item if is_schema(item) else None
+
+
+def is_schema(candidate: object) -> typing.TypeGuard[type[Schema]]:
+    return (
+        isinstance(candidate, type)
+        and issubclass(candidate, Schema)
+        and candidate is not Schema
     )
 
 

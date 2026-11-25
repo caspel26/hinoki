@@ -133,6 +133,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRouter>()?;
     m.add_class::<responsecheck::ResponseObjectList>()?;
     m.add_class::<responsecheck::ResponseTypeList>()?;
+    m.add_function(wrap_pyfunction!(responsecheck::all_exact, m)?)?;
     m.add_class::<crudplan::PyCrudPlan>()?;
     m.add_class::<filters::PyFilterPlan>()?;
     db::register(m)?;
