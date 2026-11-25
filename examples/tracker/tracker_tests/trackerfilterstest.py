@@ -4,7 +4,7 @@ from trackerworld import World
 
 
 async def seed(world: World) -> None:
-    token = world.ann.token
+    token = "ann-token"
     for title, priority in (("Write docs", 1), ("Fix bug", 5), ("Write tests", 3)):
         made = await world.client.post(
             "/tasks", json={"title": title, "priority": priority}, token=token
@@ -17,7 +17,7 @@ async def seed(world: World) -> None:
 
 
 async def titles(world: World, query: str) -> list[str]:
-    reply = await world.client.get("/tasks", query=query, token=world.ann.token)
+    reply = await world.client.get("/tasks", query=query, token="ann-token")
     assert reply.status == 200
     return [task["title"] for task in reply.body["items"]]
 

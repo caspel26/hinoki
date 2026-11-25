@@ -2,7 +2,8 @@
 
 ``POST /auth/login`` checks a username and password and answers with a short
 lived JWT; ``GET /auth/me`` shows who a token belongs to. The opaque
-``blog_token`` of the demo data keeps working for the posts API and the admin.
+token of the demo data (stored as a digest) keeps working for the posts API
+and the admin.
 
 ``build_accounts`` runs only when a JWT secret is configured, so nothing (hash
 pool, keys) exists otherwise.

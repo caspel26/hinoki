@@ -3,22 +3,23 @@
 BLOG_DATABASE__URL=postgres://... uv run python -m blog.apps.blog.seed
 
 Applies the blog's migrations and inserts two publications, three users and twelve
-posts (the first publication's). The editor's
-token is ``demo-editor-token`` (users ``ada`` and ``rae`` can also log in with
-``demo-password-change-me`` when the app has ``BLOG_JWT_SECRET``); use it as
-a bearer token for the API. The admin has its own sign-in: create a superuser with
+posts (the first publication's). Each user gets a random bearer token, printed
+once (only its SHA-256 digest is stored); users ``ada`` and ``rae`` can also log
+in with ``demo-password-change-me`` when the app has ``BLOG_JWT_SECRET``.
+The admin has its own sign-in: create a superuser with
 ``hinoki admin create-superuser`` (see the README).
 """
 
 import asyncio
 from pathlib import Path
 
-from hinoki.crypto import PasswordHasher
+from hinoki.crypto import PasswordHasher, random_token
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
 from hinoki.settings import DatabaseSettings
 
 from .models import Post, Publication, User
+from .security import hash_token
 
 MIGRATIONS = Path(__file__).parent / "migrations"
 DEMO_PASSWORD = "demo-password-change-me"  # noqa: S105 - synthetic; the demo users are fake
@@ -38,7 +39,9 @@ TITLES = [
 ]
 
 
-async def seed(url: str) -> None:
+async def seed(url: str) -> dict[str, str]:
+    """Seed the database and return each demo user's name and bearer token."""
+    tokens = {name: random_token() for name in ("ada", "rae", "bob")}
     database = await Database.connect(url, max_size=2)
     hasher = PasswordHasher()
     try:
@@ -50,7 +53,7 @@ async def seed(url: str) -> None:
             ada = await User.acreate(
                 publication_id=press.id,
                 name="Ada Editor",
-                token="demo-editor-token",
+                token_hash=hash_token(tokens["ada"]),
                 is_editor=True,
                 username="ada",
                 password_hash=hashed,
@@ -58,14 +61,14 @@ async def seed(url: str) -> None:
             await User.acreate(
                 publication_id=press.id,
                 name="Rae Reader",
-                token="demo-reader-token",
+                token_hash=hash_token(tokens["rae"]),
                 username="rae",
                 password_hash=hashed,
             )
             await User.acreate(
                 publication_id=other.id,
                 name="Bob Editor",
-                token="demo-other-token",
+                token_hash=hash_token(tokens["bob"]),
                 is_editor=True,
             )
             for index, title in enumerate(TITLES):
@@ -80,8 +83,10 @@ async def seed(url: str) -> None:
     finally:
         hasher.close()
         database.close()
+    return tokens
 
 
 if __name__ == "__main__":
     database_settings = DatabaseSettings.load(prefix="BLOG_DATABASE__")
-    asyncio.run(seed(database_settings.url.reveal()))
+    for user, token in asyncio.run(seed(database_settings.url.reveal())).items():
+        print(f"{user}: {token}")

@@ -129,13 +129,13 @@ class PostAdmin(ModelAdmin[Post]):
 @site.admin(User)
 class UserAdmin(ModelAdmin[User]):
     """Authors can be listed and renamed, never created or deleted here; their
-    tokens are neither shown nor editable, and editor rights are read-only."""
+    token digests are neither shown nor editable, and editor rights are read-only."""
 
     slug = "authors"
     label = "Authors"
     icon = "users"
     columns = ("name", "is_editor")
-    exclude = ("token", "password_hash")
+    exclude = ("token_hash", "password_hash")
     readonly = ("is_editor",)
     badges: ClassVar[dict[str, Any]] = {
         "is_editor": {

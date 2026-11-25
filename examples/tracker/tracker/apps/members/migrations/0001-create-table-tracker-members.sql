@@ -5,5 +5,5 @@
 CREATE TABLE "tracker_members" (
     "id" UUID PRIMARY KEY,
     "name" varchar(80) NOT NULL,
-    "token" text NOT NULL UNIQUE
+    "token_hash" text NOT NULL UNIQUE
 );

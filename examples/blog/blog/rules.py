@@ -29,7 +29,7 @@ blog_rules = RuleSet(
     # The MCP endpoint only dispatches to actions that have their own.
     Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
     # These columns never reach a client, even through nested schemas.
-    Schemas.forbid_exposure("token", "password_hash"),
+    Schemas.forbid_exposure("token_hash", "password_hash"),
     # Request text is bounded, so no client can send an unbounded string.
     Schemas.require_string_limits(),
     # Tables are pinned and foreign keys are indexed.

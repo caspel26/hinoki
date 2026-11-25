@@ -37,7 +37,7 @@ class User(Model):
         Publication, on_delete=OnDelete.RESTRICT, related_name="users"
     )
     name: str = field(max_length=80)
-    token: str = field(unique=True)
+    token_hash: str = field(unique=True)  # SHA-256 hex digest, never the token
     is_editor: bool = False
     username: str | None = field(unique=True, max_length=40, default=None)
     password_hash: str | None = None  # Argon2id PHC string, never a password
