@@ -192,7 +192,13 @@ class ASGIClient:
         headers: HeaderInput | None = None,
         token: str | None = None,
     ) -> tuple[dict[str, Any], bytes]:
-        """The ASGI scope and the body of one test request."""
+        """The ASGI scope and the body of one test request. ``ASGIClient`` and
+        ``SyncClient`` (``request`` and ``stream``) all build their scope here."""
+        if "?" in path or "#" in path:
+            raise ValueError(
+                f"{method} {path!r}: put the query string in `query=`, "
+                "not in the path (and leave out any #fragment)"
+            )
         sent = _header_items(headers)
         if token is not None:
             sent = [(name, value) for name, value in sent if name != "authorization"]
