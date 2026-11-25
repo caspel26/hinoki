@@ -890,7 +890,9 @@ struct Encoder<'py> {
     /// decides first, and without one they take it too.
     schemas: usize,
     /// Fused validate-and-encode of a `list[dict[str, object]]` (see
-    /// [`encode_json_vec_strict`]): anything but exact builtins is a miss.
+    /// [`encode_json_vec_strict`]): the items, every dict and every key must be
+    /// exact builtins; `str`/`int`/`float` subclass values are accepted (no user
+    /// code runs), anything else is a miss.
     strict: bool,
     /// Dict entries being written, one slice per open dict.
     pairs: Vec<Option<(Bound<'py, PyAny>, Bound<'py, PyAny>)>>,

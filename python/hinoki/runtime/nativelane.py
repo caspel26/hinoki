@@ -349,12 +349,16 @@ class NativeLane:
         run: Run, status: int, headers: list[tuple[bytes, bytes]], payload: object
     ) -> None:
         """Check and encode in one pass; any miss or error sends nothing and
-        runs the checked path, so its contract error and encode errors stand."""
+        runs the checked path, so its contract error and encode errors stand.
+        The first miss turns the fused path off for the binding: rows the strict
+        mode cannot vouch for would otherwise pay it on every request."""
         try:
             run.request.respond_final_json(status, headers, payload, True)
             return
         except Exception:  # noqa: S110 - the checked path below answers it
             pass
+        # Before the check, so an error raised there still disables it.
+        object.__setattr__(run.binding, "fused_check", False)
         enforce_response(run.binding, payload)
         run.request.respond_final_json(status, headers, payload)
 
