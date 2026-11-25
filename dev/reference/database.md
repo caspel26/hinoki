@@ -38,7 +38,7 @@ as a distinct backend even though it uses the MySQL wire driver and SQL dialect.
 | --- | --- | --- |
 | SQLite | Supported | Default for local development. SQLite permits one writer at a time. Schema changes that SQLite cannot express directly use a table rebuild. |
 | PostgreSQL | Supported | Uses PostgreSQL-native UUID, timestamp, JSON and byte types. |
-| MySQL | Supported | Uses InnoDB tables, binary UUIDs and MySQL-native JSON. MySQL DDL implicitly commits, so a failed migration can leave earlier DDL applied; inspect migration status and database schema before retrying. `RETURNING` is not supported by the compiler; ORM create/update operations use follow-up reads. TLS is required by default. |
+| MySQL | Supported | Uses InnoDB tables, binary UUIDs and MySQL-native JSON. MySQL DDL implicitly commits, so a failed migration can leave earlier DDL applied; inspect migration status and table state before retrying. `RETURNING` is not supported by the compiler; ORM create/update operations use follow-up reads. TLS is required by default. |
 | MariaDB | Supported | Tested independently on MariaDB 11.4. Its `JSON` alias is text, so typed ORM `dict`/`list` fields are decoded from the model declaration. Low-level `Database.fetch()` returns JSON values as bytes because arbitrary text columns cannot be safely inferred as JSON. DDL can implicitly commit; TLS is required by default. |
 
 SQL Server and Oracle are not currently supported. Do not assume that MySQL

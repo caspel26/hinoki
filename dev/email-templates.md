@@ -80,7 +80,7 @@ A route builds the context, renders it with `Template.message(context, to=...)` 
 
 ```python
 # mailroom/routes.py
-    @http.post("/signup", status=202, access=access)
+    @group.post("/signup", status=202)
     async def sign_up(data: SignUp) -> Sent:
         """Send the welcome message of a new account."""
         welcome = Welcome(

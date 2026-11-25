@@ -34,7 +34,7 @@ The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/bl
 
 ## Create the admin's tables
 
-The admin keeps its users in four tables of your database. Register them as an app, apply the migrations, then create the first user:
+The admin keeps its users in five tables of your database (four active plus the legacy login-window table). Register them as an app, apply the migrations, then create the first user:
 
 ```sh
 hinoki app add admin --models hinoki.admin.users.models --migrations hinoki.admin.users.migrations

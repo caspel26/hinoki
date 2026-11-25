@@ -499,7 +499,7 @@
           <h1 id="email-templates">Email templates<a class="headerlink" href="#email-templates" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:12:33 UTC">November 25, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -566,7 +566,7 @@
 <p>The auto-installed <code>EmailModule</code> receives the list. If you declare the module yourself, pass <code>EmailModule(settings, templates=[...])</code>. Every worker reads and checks the files in its lifespan, and the worker does not start when one fails. At most 256 templates are registered, with distinct names.</p>
 <p>A route builds the context, renders it with <code>Template.message(context, to=...)</code> and sends the message:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># mailroom/routes.py</span>
-    <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/signup"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">access</span><span class="p">)</span>
+    <span class="nd">@group</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/signup"</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="mi">202</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">sign_up</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">SignUp</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sent</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Send the welcome message of a new account."""</span>
         <span class="n">welcome</span> <span class="o">=</span> <span class="n">Welcome</span><span class="p">(</span>
@@ -891,7 +891,7 @@ Your trial lasts 14 days.
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:12:33 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/email-templates.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

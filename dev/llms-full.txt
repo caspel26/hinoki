@@ -110,8 +110,7 @@ every change, as `AGENTS.md` tells an agent to.
 uv run hinoki dev
 ```
 
-The test calls `/health` in process and needs no database. `hinoki dev` serves
-on `http://127.0.0.1:8000` and reloads when a file changes. In another terminal:
+`hinoki dev` serves on `http://127.0.0.1:8000` and reloads when a file changes. In another terminal:
 
 ```sh
 curl http://127.0.0.1:8000/health
@@ -2106,7 +2105,7 @@ class Product(Model):
     sku: str = field(
         max_length=32, constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+")
     )
-    price: float = field(constraints=Field(gt=0))
+    weight_kg: float = field(constraints=Field(gt=0))
     name: str = field(max_length=120, validators=(no_padding,))
 ```
 
@@ -2718,29 +2717,152 @@ models from [Define models](https://hinoki.caspel.dev/dev/models.md).
 
 `PageParams` comes from `hinoki.pagination`. `aget` raises `Invoice.NotFound`
 (a 404 in a request) or `MultipleObjectsReturned`. Building a query
-(`filter`, `order_by`, `limit`, `offset`, `select_related`) issues no SQL;
-awaiting it or calling an evaluation method does. `aproject` / `project` (and
-`apaginate_as` / `paginate_as` for pages) encode eligible scalar and
-`select_related` schemas directly from Rust rows, materializing Python `Schema`
-instances lazily from the owned rows if inspected and falling back transparently
-when hooks, computed fields, or `prefetch_related` are present.
+(`filter`, `order_by`, `limit`, `offset`, `select_related`, `prefetch_related`)
+issues no SQL; awaiting it or calling an evaluation method does. `aproject` /
+`project` (and `apaginate_as` / `paginate_as` for pages) encode eligible scalar
+and `select_related` schemas directly from Rust rows, materializing Python
+`Schema` instances lazily from the owned rows if inspected and falling back
+transparently when hooks, computed fields, or `prefetch_related` are present.
 
-### Filters
+## Query methods
+
+Every read and write entry point has an async form (`a*`) for `async def`
+handlers and a matching sync form for `def` handlers.
+
+### Starting a query on `Model`
+
+| Method | Returns | Behavior |
+| --- | --- | --- |
+| `Model.all()` | `QuerySet[M]` | All rows (live rows only on `@db.soft_delete()` models). |
+| `Model.filter(**conditions)` | `QuerySet[M]` | Shortcut for `Model.all().filter(**conditions)`. |
+| `Model.with_deleted()` | `QuerySet[M]` | Includes soft-deleted rows on `@db.soft_delete()` models. |
+| `Model.only_deleted()` | `QuerySet[M]` | Only soft-deleted rows on `@db.soft_delete()` models. |
+| `Model.aget(**conditions)` / `Model.get(...)` | `M` | Fetch exactly one row; raises `Model.NotFound` or `MultipleObjectsReturned`. |
+| `Model.aget_or_none(**conditions)` / `Model.get_or_none(...)` | `M \| None` | Fetch one row or `None`; still raises `MultipleObjectsReturned` if more than one matches. |
+
+### Chainable `QuerySet` methods
+
+These methods return a new `QuerySet` without touching the database.
+
+| Method | Behavior |
+| --- | --- |
+| `.filter(**conditions)` | Add one or more `AND` conditions (`field=value` or `field__op=value`). |
+| `.order_by(*names)` | Sort ascending (`"issued_at"`) or descending (`"-issued_at"`). Overrides `@db.ordered_by`. |
+| `.limit(count)` | Cap the number of returned rows. |
+| `.offset(count)` | Skip the first `count` rows. |
+| `.select_related(*names)` | Load forward foreign-key relations in the same query (`JOIN`). See [Relations](https://hinoki.caspel.dev/dev/relations.md). |
+| `.prefetch_related(*names, **scoped)` | Load forward, reverse, or many-to-many relations in bounded follow-up queries. Many-to-many links accept scoped querysets (`prefetch_related(tags=Tag.filter(...))`). |
+
+### Evaluating a `QuerySet` (reads)
+
+| Async | Sync | Returns | Behavior |
+| --- | --- | --- | --- |
+| `await qs` | `qs.list()` | `list[M]` | Fetch all matching model instances. |
+| `await qs.afirst()` | `qs.first()` | `M \| None` | First matching row, or `None`. |
+| `await qs.aget()` | `qs.get()` | `M` | Exactly one matching row; raises `Model.NotFound` or `MultipleObjectsReturned`. |
+| `await qs.acount()` | `qs.count()` | `int` | Count matching rows (ignores `order_by`). |
+| `await qs.aexists()` | `qs.exists()` | `bool` | `True` if at least one row matches. |
+| `await qs.aproject(Schema)` | `qs.project(Schema)` | `list[S]` | Project matching rows to a `Schema` via the lazy Rust row path when eligible. |
+| `await qs.apaginate(params=None, *, concurrent=False)` | `qs.paginate(...)` | `Page[M]` | Offset page plus `total`. `concurrent=True` runs rows and count concurrently outside a transaction. |
+| `await qs.apaginate_as(Schema, params=None, *, concurrent=False)` | `qs.paginate_as(...)` | `Page[S]` | Offset page projected to `Schema` via the lazy Rust row path. |
+| `await qs.apaginate_cursor(params)` | `qs.paginate_cursor(params)` | `CursorPage[M]` | Keyset page using a signed cursor, with no `COUNT` query. |
+
+* `apaginate` runs the count and the page as two statements; concurrent writes
+  can make `total` and `items` disagree slightly. `apaginate_cursor` runs one
+  statement and no count; see [cursor pagination](https://hinoki.caspel.dev/dev/pagination.md#cursor-keyset-pagination).
+* `@db.ordered_by` applies only when a query has no `order_by`. Counts and bulk
+  updates ignore it.
+
+### Write and soft-delete methods
+
+| Async | Sync | Target | Behavior |
+| --- | --- | --- | --- |
+| `Model.acreate(data=None, /, *, returning=True, **values)` | `Model.create(...)` | `Model` | Insert one row from a `Schema` and/or server keywords. |
+| `row.asave()` | `row.save()` | instance | Persist changed columns on an existing instance. |
+| `row.aupdate_from(data=None, /, **values)` | `row.update_from(...)` | instance | Apply a `Schema` / keywords and save changed columns. |
+| `Model.aupdate(*, returning=True, **values)` | `Model.update(...)` | `Model` | Update one row by primary key; raises `NotFound` if missing (`returning=True`). |
+| `Model.aupdate_where(conditions, values, *, returning=True)` | `Model.update_where(...)` | `Model` | Conditional `UPDATE` matching `conditions` (supports `field__op`). |
+| `qs.aupdate(values, *, returning=True)` | `qs.update(...)` | `QuerySet` | Update all matching rows (refuses `limit`/`offset`). |
+| `Model.adelete(**conditions)` / `qs.adelete()` | `delete(...)` | `Model` / `QuerySet` | Delete matching rows (sets delete timestamp on `@db.soft_delete()` models). |
+| `row.asoft_delete()` | `row.soft_delete()` | instance | Soft-delete one `@db.soft_delete()` instance. |
+| `row.arestore()` / `qs.arestore()` | `restore()` | instance / `QuerySet` | Clear the soft-delete timestamp (`Model.only_deleted().filter(...).arestore()`). |
+| `row.ahard_delete()` / `qs.ahard_delete()` | `hard_delete()` | instance / `QuerySet` | Physical SQL `DELETE` on a `@db.soft_delete()` model. |
+| `Model.abulk_create(items, *, returning=True)` | `Model.bulk_create(...)` | `Model` | Insert many `Schema` objects or dicts in one transaction/savepoint. |
+| `Model.abulk_update(instances)` | `Model.bulk_update(...)` | `Model` | Save changed instances in one transaction/savepoint. |
+| `Model.abulk_delete(items)` | `Model.bulk_delete(...)` | `Model` | Delete instances or primary keys in chunks of up to 10 000. |
+
+## Filter operators
 
 `filter(field=value)` and `filter(field__op=value)` accept model field names and
-the supported comparison and membership operators (`ne`, `in`, `isnull`, `gt`,
-`gte`, `lt`, `lte`, `contains`). SQL identifiers come from model metadata.
+a fixed set of lookup operators compiled in Rust. Every condition in a
+`filter(...)` call (or chained `.filter(...).filter(...)`) is combined with
+`AND`, values are bound parameters, and SQL identifiers come from model
+metadata.
+
+| Lookup | Example | Compiled SQL | Notes |
+| --- | --- | --- | --- |
+| *(exact)* | `paid=False` | `paid = $1` | Passing `None` (`voided_at=None`) compiles to `IS NULL`. |
+| `ne` | `status__ne="draft"` | `status <> $1` | Passing `None` compiles to `IS NOT NULL`. For non-`None` values, `NULL` rows do not match. |
+| `gt` | `total__gt=100` | `total > $1` | Rejects `None` (`FieldError`). |
+| `gte` | `total__gte=100` | `total >= $1` | Rejects `None` (`FieldError`). |
+| `lt` | `total__lt=500` | `total < $1` | Rejects `None` (`FieldError`). |
+| `lte` | `total__lte=500` | `total <= $1` | Rejects `None` (`FieldError`). |
+| `in` | `status__in=["open", "overdue"]` | `status IN ($1, $2)` | Takes a sequence/set; rejects `str` and `bytes` (`FieldError`) so strings are never split by character. |
+| `isnull` | `voided_at__isnull=True` | `voided_at IS NULL` | `False` compiles to `IS NOT NULL`. |
+| `contains` | `reference__contains="inv-"` | case-insensitive `LIKE` | Escapes `%`, `_` and `\` literally. Rejected on `Decimal` columns (`FieldError`). |
 
 * `field__ne=value` compiles to `<>`: rows where the column is `NULL` are not
   returned. Add an `isnull` filter when they matter.
 * `contains` matches text case-insensitively and treats `%`, `_` and `\`
   literally. SQLite folds ASCII case only; MySQL and MariaDB assume the
   `NO_BACKSLASH_ESCAPES` mode is off (the default).
-* `apaginate` runs the count and the page as two statements; concurrent writes
-  can make `total` and `items` disagree slightly. `apaginate_cursor` runs one
-  statement and no count; see [cursor pagination](https://hinoki.caspel.dev/dev/pagination.md#cursor-keyset-pagination).
-* `@db.ordered_by` applies only when a query has no `order_by`. Counts and bulk
-  updates ignore it.
+* Passing `None` with any operator other than exact equality or `ne` raises
+  `FieldError`.
+
+### Filtering across relations
+
+* **Forward foreign keys**: traverse a foreign-key relation with `__` and any
+  operator above:
+
+  ```python
+  invoices = await Invoice.filter(customer__name__contains="acme", paid=False)
+  ```
+
+  Hinoki adds the required `JOIN` automatically and matches only live rows when
+  the target model uses `@db.soft_delete()`.
+* **Many-to-many links**: filter on a target field (`tags__slug="rust"`) or
+  test whether any live link exists (`tags__isnull=True` / `False`):
+
+  ```python
+  rust_posts = await Post.filter(tags__slug="rust")
+  untagged = await Post.filter(tags__isnull=True)
+  ```
+
+  Many-to-many filters compile to a subquery against the bridge table and ignore
+  soft-deleted targets. `<link>__isnull` cannot be combined with other
+  conditions on the same link.
+* **Reverse foreign keys**: filtering from the parent across a reverse relation
+  raises `FieldError`; query the child model directly instead.
+
+### Client query filters (`FilterSet`)
+
+For generated CRUD list endpoints, declare accepted HTTP query parameters with
+`FilterSet` from `hinoki.filters` instead of passing raw query parameters to
+`filter()`. Only declared fields and shapes are accepted; validation and query
+compilation run in Rust.
+
+| Declaration | Query string | Behavior |
+| --- | --- | --- |
+| `paid: Eq[bool]` | `?paid=false` | Exact match (`=`). |
+| `status: In[Literal["open", "paid"]]` | `?status=open,paid` | Membership (`IN`, up to 50 comma-separated values). |
+| `issued: Range[date]` | `?issued.from=2026-01-01&issued.to=2026-01-31` | Inclusive bounds (`>=` / `<=`); either end is optional (`Bounds[T]`). |
+| `search = Search("reference", "notes")` | `?search=inv` | Case-insensitive `contains` matching any listed text column. |
+| `ordering = ("issued", "reference")` | `?ordering=-issued` | Allowed sort columns; prefix `-` for descending. |
+
+Supported scalar types for `Eq`, `In`, and `Range` are `bool`, `int`, `float`,
+`str`, `Literal["..."]`, `UUID`, `date`, `datetime`, and `Decimal` (optionally
+nullable with `| None`). See [Generate CRUD routes](https://hinoki.caspel.dev/dev/crud.md) for full `FilterSet`
+usage.
 
 ## Reusable queries
 
@@ -2906,6 +3028,8 @@ declare a field named `returning`.
 ## See also
 
 - [Relations](https://hinoki.caspel.dev/dev/relations.md): `select_related` and `prefetch_related`
+- [Generate CRUD routes](https://hinoki.caspel.dev/dev/crud.md): `FilterSet` client query parameters
+- [Model options](https://hinoki.caspel.dev/dev/model-options.md): `@db.soft_delete()`, `@db.ordered_by()`, `@db.timestamps()`
 - [Lifecycle hooks](https://hinoki.caspel.dev/dev/model-hooks.md)
 - [Transactions](https://hinoki.caspel.dev/dev/transactions.md)
 - [Typing](https://hinoki.caspel.dev/dev/typing.md): what type checkers see for keyword-based methods
@@ -3171,17 +3295,19 @@ def log_limit(event: RateLimited) -> None:
 | `Deleted[M]` | `subject`, `count` (rows one DELETE statement removed) | `Model.adelete`, `QuerySet.adelete`, `abulk_delete` (one per chunk of keys), generated CRUD delete, admin delete. No key or row is loaded, so there is no instance; nothing is emitted when no row was deleted. |
 
 ```python
-from hinoki import Hinoki, events
+from hinoki import Hinoki, db, events
 from hinoki.events import Created, Updated
 from hinoki.orm import Model, pk
 
 
-class Note(Model, table="notes"):
+@db.table("notes")
+class Note(Model):
     id: int = pk()
     title: str
 
 
-class Audit(Model, table="audit_lines"):
+@db.table("audit_lines")
+class Audit(Model):
     id: int = pk()
     note_id: int
 
@@ -3648,7 +3774,7 @@ to the property and change nothing about validation.
 
 ## Many-to-many ids fields
 
-`derive(Post, only=("title", "tag_ids"))` adds the ids field of a `many_to_many` relation when `only=` names it (`tag_ids` here comes from `ids_name="tag_ids"`; the default is `tags_ids`: a `set` of the target's keys with `Field(max_length=max_items)`); `derive(Post)` and `exclude=` take columns only, so a derived schema never carries the field unless it is asked for. The field holds keys only: Hinoki never loads related rows while a schema is serialized, so a read needs `prefetch_related` first (generated CRUD does it, and `from_model` reads the loaded keys). See [many-to-many fields](https://hinoki.caspel.dev/dev/crud.md#many-to-many-fields).
+`derive(Post, only=("title", "tag_ids"))` adds the ids field of a `many_to_many` relation when `only=` names it (`tag_ids` here comes from `ids_name="tag_ids"`; the default is `tags_ids`: a `set` of the target's keys with `Field(max_length=max_items)`); `derive(Post)` and `exclude=` take columns only, so a derived `Schema` never carries the field unless it is asked for. The field holds keys only: Hinoki never loads related rows while a `Schema` is serialized, so a read needs `prefetch_related` first (generated CRUD does it, and `from_model` reads the loaded keys). See [many-to-many fields](https://hinoki.caspel.dev/dev/crud.md#many-to-many-fields).
 
 ## Computed fields
 
@@ -4878,7 +5004,7 @@ Include only the classes you serve. A base and a subclass with the same prefix a
 
 ## Generated CRUD with hooks
 
-`@crud(...)` generates list and retrieve, plus the writes you give a schema for, on a class whose only base is `API`. Hooks change what the generated actions do; any other decorated method is a handwritten action:
+`@crud(...)` generates list and retrieve, plus the writes you give a `Schema` for, on a class whose only base is `API`. Hooks change what the generated actions do; any other decorated method is a handwritten action:
 
 ```python
 # notes/apps/billing/api.py
@@ -5652,7 +5778,13 @@ from hinoki import crud
 
 from notes.apps.billing.filters import InvoiceFilters
 
-invoices = crud(Invoice, path="/invoices", read=InvoiceOut, filters=InvoiceFilters)
+invoices = crud(
+    Invoice,
+    path="/invoices",
+    read=InvoiceOut,
+    access=billing_staff,
+    filters=InvoiceFilters,
+)
 ```
 
 | Declaration | Request | Meaning |
@@ -5684,7 +5816,13 @@ from hinoki import API, Caller, crud
 from hinoki.orm import QuerySet
 
 
-@crud(Invoice, path="/invoices", read=InvoiceOut, filters=InvoiceFilters)
+@crud(
+    Invoice,
+    path="/invoices",
+    read=InvoiceOut,
+    access=billing_staff,
+    filters=InvoiceFilters,
+)
 class Invoices(API):
     def filter_queryset(
         self,
@@ -7091,7 +7229,7 @@ A route builds the context, renders it with `Template.message(context, to=...)` 
 
 ```python
 # mailroom/routes.py
-    @http.post("/signup", status=202, access=access)
+    @group.post("/signup", status=202)
     async def sign_up(data: SignUp) -> Sent:
         """Send the welcome message of a new account."""
         welcome = Welcome(
@@ -7493,7 +7631,7 @@ Source: https://hinoki.caspel.dev/dev/pagination.md
 
 An action opts into page-number pagination with `pagination=PageNumberPagination()`, or into [cursor pagination](https://hinoki.caspel.dev/dev/pagination.md#cursor-keyset-pagination) with `pagination=CursorPagination()`. A size you leave out comes from the application's `pagination` settings group; without settings the defaults are `page_size=20` and `max_page_size=100`. The framework parses and validates `page` and `page_size`, injects a `PageParams` value, and documents both query parameters in OpenAPI.
 
-The Billing app lists invoices a page at a time. The handler asks the model for one page, and `Page.map()` turns its rows into schemas:
+The Billing app lists invoices a page at a time. The handler asks the model for one page, and `Page.map()` turns its rows into `Schema` instances:
 
 ```python
 # notes/apps/billing/api.py
@@ -7589,7 +7727,7 @@ export NOTES_PAGINATION__CURSOR_SECRET="$(openssl rand -hex 32)"
 
 * **Ordering.** The page follows the query's `order_by` (or the model's `ordered_by`), with the primary key appended as the final tie-break, so rows with equal sort values are never skipped or repeated. Sort columns must be non-null `int`, `str`, `uuid`, `datetime` or `float` columns; anything else raises a `FieldError`, and a `crud(...)` whose model ordering is invalid fails at registration with a `RegistrationError` naming the model and column (an ordering added by a custom `get_queryset` is checked on each request). A `str` sort value is bounded: at most 1024 bytes per value, and a whole cursor at most 4096 characters, the same limit for issuing and reading. A page whose boundary row exceeds it, and whose link is needed, answers `422` with the field `cursor` and the code `unencodable` (it never answers `500`); order by a shorter column when values can be long. The queryset's own `limit` and `offset` are ignored.
 * **Filters and scope.** The cursor holds a position. `get_queryset`, ownership and tenant policies are applied to every page exactly as for the first one, so a cursor cannot reach rows its holder could not list. On a generated list with [client filters](https://hinoki.caspel.dev/dev/crud.md#filter-order-and-search-the-list), the cursor is also bound to the filters and the `ordering` that the client sent: a cursor used with different ones answers `422` with the code `invalid`. A list without client filters keeps its cursors valid as before. The `ordering` columns of the `FilterSet` must be non-null `int`, `str`, `uuid`, `datetime` or `float` columns, checked when the routes are declared.
-* **Signing.** Cursors are signed with HMAC-SHA256 in Rust and bound to the table and the ordering they were issued for, so they are tamper-proof. They are not encrypted: a cursor is base64 and readable, and it contains the sort-key values of the boundary row. Do not order a cursor list by a column whose value must stay private, even when the read schema hides it. The secret comes from `CursorPagination(secret=...)` or `pagination.cursor_secret` and must have at least 32 bytes; without one, including the action fails with a `RegistrationError`. Changing the secret invalidates outstanding cursors.
+* **Signing.** Cursors are signed with HMAC-SHA256 in Rust and bound to the table and the ordering they were issued for, so they are tamper-proof. They are not encrypted: a cursor is base64 and readable, and it contains the sort-key values of the boundary row. Do not order a cursor list by a column whose value must stay private, even when the read `Schema` hides it. The secret comes from `CursorPagination(secret=...)` or `pagination.cursor_secret` and must have at least 32 bytes; without one, including the action fails with a `RegistrationError`. Changing the secret invalidates outstanding cursors.
 * **Expiry.** `cursor_ttl_seconds` (setting) or `CursorPagination(ttl=...)` makes a cursor expire; the default never does.
 * **Errors.** A tampered, malformed, foreign or differently ordered cursor answers `422` with the field `cursor` and the code `invalid`; an expired one answers `422` with `expired`; an unencodable boundary value answers `422` with `unencodable`. `limit` follows the same bounds as `page_size`.
 * **Rust path.** The keyset `WHERE`, the signature, the direction handling and, for a generated plain list, the JSON page are produced in Rust.
@@ -8057,17 +8195,44 @@ is used, and a hasher that is garbage-collected shuts them down.
 
 ```python
 # blog/apps/blog/passwords.py
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+
+from hinoki import Module, Resource
 from hinoki.crypto import PasswordHasher
-
-hasher = PasswordHasher()
-
-
-async def change_password(new_password: str) -> str:
-    return await hasher.hash(new_password)
+from hinoki.modules import ModuleContext
 
 
-async def password_matches(password: str, stored: str) -> bool:
-    return await hasher.verify(password, stored)
+@dataclass(frozen=True, slots=True)
+class PasswordService(Resource):
+    hasher: PasswordHasher
+
+
+class Passwords(Module):
+    name = "passwords"
+
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        hasher = PasswordHasher()
+        ctx.provide(PasswordService, PasswordService(hasher))
+        try:
+            yield
+        finally:
+            hasher.close()
+```
+
+Inject `PasswordService` into handlers (see [Application modules](https://hinoki.caspel.dev/dev/modules.md)):
+
+```python
+async def change_password(new_password: str, passwords: PasswordService) -> str:
+    return await passwords.hasher.hash(new_password)
+
+
+async def password_matches(
+    password: str, stored: str, passwords: PasswordService
+) -> bool:
+    return await passwords.hasher.verify(password, stored)
 ```
 
 `hash_sync` and `verify_sync` exist for scripts and seeds; `needs_rehash(stored)`
@@ -9332,7 +9497,7 @@ In a sync handler, hook or helper, use the same API without `await`: `with db.at
 # notes/apps/billing/operations.py
 @db.atomic
 def settle_all_sync() -> int:
-    return Invoice.update_where({"paid": False}, {"paid": True})
+    return Invoice.update_where({"paid": False}, {"paid": True}, returning=False)
 
 
 def mark_paid_sync(invoice: Invoice) -> None:
@@ -11234,7 +11399,7 @@ The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/bl
 
 ## Create the admin's tables
 
-The admin keeps its users in four tables of your database. Register them as an app, apply the migrations, then create the first user:
+The admin keeps its users in five tables of your database (four active plus the legacy login-window table). Register them as an app, apply the migrations, then create the first user:
 
 ```sh
 hinoki app add admin --models hinoki.admin.users.models --migrations hinoki.admin.users.migrations
@@ -11657,7 +11822,7 @@ mcp = expose_as_mcp(
 app.include(*mcp)  # POST /mcp
 ```
 
-`Hinoki(...)` has already included the routes listed in `hinoki.toml`; `expose_as_mcp` selects among those, so call it after the app exists. It raises `ExposureError` right away when the patterns select no allowed action (for example only writes with `allow_writes=False`), a streaming action or one left out of the schema. The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py) does the same for one read-only action of an `API` class (`blog.apps.blog.api.Posts.drafts`, with the `editor` policy).
+`Hinoki(...)` has already included the routes listed in `hinoki.toml`; `expose_as_mcp` selects among those, so call it after the app exists. It raises `ExposureError` right away when the patterns select no allowed action (for example only writes with `allow_writes=False`), a streaming action or one left out of the OpenAPI document. The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py) does the same for one read-only action of an `API` class (`blog.apps.blog.api.Posts.drafts`, with the `editor` policy).
 
 ## Choose the tools
 

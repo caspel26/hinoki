@@ -113,17 +113,44 @@ is used, and a hasher that is garbage-collected shuts them down.
 
 ```python
 # blog/apps/blog/passwords.py
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+
+from hinoki import Module, Resource
 from hinoki.crypto import PasswordHasher
-
-hasher = PasswordHasher()
-
-
-async def change_password(new_password: str) -> str:
-    return await hasher.hash(new_password)
+from hinoki.modules import ModuleContext
 
 
-async def password_matches(password: str, stored: str) -> bool:
-    return await hasher.verify(password, stored)
+@dataclass(frozen=True, slots=True)
+class PasswordService(Resource):
+    hasher: PasswordHasher
+
+
+class Passwords(Module):
+    name = "passwords"
+
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        hasher = PasswordHasher()
+        ctx.provide(PasswordService, PasswordService(hasher))
+        try:
+            yield
+        finally:
+            hasher.close()
+```
+
+Inject `PasswordService` into handlers (see [Application modules](https://hinoki.caspel.dev/dev/modules.md)):
+
+```python
+async def change_password(new_password: str, passwords: PasswordService) -> str:
+    return await passwords.hasher.hash(new_password)
+
+
+async def password_matches(
+    password: str, stored: str, passwords: PasswordService
+) -> bool:
+    return await passwords.hasher.verify(password, stored)
 ```
 
 `hash_sync` and `verify_sync` exist for scripts and seeds; `needs_rehash(stored)`

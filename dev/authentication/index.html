@@ -499,8 +499,8 @@
           <h1 id="protect-endpoints-with-authentication-and-access">Protect endpoints with authentication and access<a class="headerlink" href="#protect-endpoints-with-authentication-and-access" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
-            <span>8 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>9 min read</span>
           </p>
           
         </header>
@@ -637,17 +637,41 @@ event loop. Create it where you own its lifetime (a factory or a module) and cal
 Its worker threads start on first use; a closed hasher starts them again if it
 is used, and a hasher that is garbage-collected shuts them down.</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># blog/apps/blog/passwords.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">asynccontextmanager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Module</span><span class="p">,</span> <span class="n">Resource</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.crypto</span><span class="w"> </span><span class="kn">import</span> <span class="n">PasswordHasher</span>
-
-<span class="n">hasher</span> <span class="o">=</span> <span class="n">PasswordHasher</span><span class="p">()</span>
-
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">change_password</span><span class="p">(</span><span class="n">new_password</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">hasher</span><span class="o">.</span><span class="n">hash</span><span class="p">(</span><span class="n">new_password</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.modules</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModuleContext</span>
 
 
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">password_matches</span><span class="p">(</span><span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stored</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-    <span class="k">return</span> <span class="k">await</span> <span class="n">hasher</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">password</span><span class="p">,</span> <span class="n">stored</span><span class="p">)</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PasswordService</span><span class="p">(</span><span class="n">Resource</span><span class="p">):</span>
+    <span class="n">hasher</span><span class="p">:</span> <span class="n">PasswordHasher</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Passwords</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="s2">"passwords"</span>
+
+    <span class="nd">@asynccontextmanager</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ModuleContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="kc">None</span><span class="p">]:</span>
+        <span class="n">hasher</span> <span class="o">=</span> <span class="n">PasswordHasher</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">provide</span><span class="p">(</span><span class="n">PasswordService</span><span class="p">,</span> <span class="n">PasswordService</span><span class="p">(</span><span class="n">hasher</span><span class="p">))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">yield</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">hasher</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</code></pre></div>
+<p>Inject <code>PasswordService</code> into handlers (see <a href="../modules/">Application modules</a>):</p>
+<div class="language-python highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">change_password</span><span class="p">(</span><span class="n">new_password</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">passwords</span><span class="p">:</span> <span class="n">PasswordService</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">passwords</span><span class="o">.</span><span class="n">hasher</span><span class="o">.</span><span class="n">hash</span><span class="p">(</span><span class="n">new_password</span><span class="p">)</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">password_matches</span><span class="p">(</span>
+    <span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stored</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">passwords</span><span class="p">:</span> <span class="n">PasswordService</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">passwords</span><span class="o">.</span><span class="n">hasher</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">password</span><span class="p">,</span> <span class="n">stored</span><span class="p">)</span>
 </code></pre></div>
 <p><code>hash_sync</code> and <code>verify_sync</code> exist for scripts and seeds; <code>needs_rehash(stored)</code>
 tells you when to rehash after a parameter change, and <code>random_token()</code> returns a
@@ -777,7 +801,7 @@ that lacks the permission it is <code>403</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/authentication.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -499,7 +499,7 @@
           <h1 id="add-an-admin">Add an admin<a class="headerlink" href="#add-an-admin" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -532,7 +532,7 @@
 </code></pre></div>
 <p>The <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/apps/blog/adminsite.py">Blog example</a> builds a fuller site the same way, with a theme, links, a dashboard and activity; its <a href="https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/routes.py"><code>routes.py</code></a> mounts it beside the API and its <code>hinoki.toml</code> registers the admin's tables as the <code>admin</code> app.</p>
 <h2 id="create-the-admins-tables">Create the admin's tables<a class="headerlink" href="#create-the-admins-tables" title="Permanent link">&para;</a></h2>
-<p>The admin keeps its users in four tables of your database. Register them as an app, apply the migrations, then create the first user:</p>
+<p>The admin keeps its users in five tables of your database (four active plus the legacy login-window table). Register them as an app, apply the migrations, then create the first user:</p>
 <div class="language-sh highlight"><pre><span></span><code>hinoki<span class="w"> </span>app<span class="w"> </span>add<span class="w"> </span>admin<span class="w"> </span>--models<span class="w"> </span>hinoki.admin.users.models<span class="w"> </span>--migrations<span class="w"> </span>hinoki.admin.users.migrations
 hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class="w"> </span>admin
 hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span class="w"> </span>alice<span class="w">    </span><span class="c1"># asks for the password twice</span>
@@ -796,7 +796,7 @@ hinoki<span class="w"> </span>admin<span class="w"> </span>create-superuser<span
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:34:03 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/admin.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

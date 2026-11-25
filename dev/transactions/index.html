@@ -499,7 +499,7 @@
           <h1 id="run-writes-in-transactions">Run writes in transactions<a class="headerlink" href="#run-writes-in-transactions" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -582,7 +582,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/operations.py</span>
 <span class="nd">@db</span><span class="o">.</span><span class="n">atomic</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">settle_all_sync</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-    <span class="k">return</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">update_where</span><span class="p">({</span><span class="s2">"paid"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span> <span class="p">{</span><span class="s2">"paid"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">update_where</span><span class="p">({</span><span class="s2">"paid"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span> <span class="p">{</span><span class="s2">"paid"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span> <span class="n">returning</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">mark_paid_sync</span><span class="p">(</span><span class="n">invoice</span><span class="p">:</span> <span class="n">Invoice</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -665,7 +665,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:45:13 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/transactions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

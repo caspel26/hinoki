@@ -499,7 +499,7 @@
           <h1 id="generate-crud-routes">Generate CRUD routes<a class="headerlink" href="#generate-crud-routes" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 12:57:52 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
             <span>16 min read</span>
           </p>
           
@@ -621,7 +621,13 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.apps.billing.filters</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceFilters</span>
 
-<span class="n">invoices</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">)</span>
+<span class="n">invoices</span> <span class="o">=</span> <span class="n">crud</span><span class="p">(</span>
+    <span class="n">Invoice</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span>
+    <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">,</span>
+<span class="p">)</span>
 </code></pre></div>
 <table>
 <thead>
@@ -677,7 +683,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
 
 
-<span class="nd">@crud</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">)</span>
+<span class="nd">@crud</span><span class="p">(</span>
+    <span class="n">Invoice</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span>
+    <span class="n">filters</span><span class="o">=</span><span class="n">InvoiceFilters</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Invoices</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">filter_queryset</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -912,7 +924,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 12:57:52 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

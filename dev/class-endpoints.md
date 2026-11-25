@@ -64,7 +64,7 @@ Include only the classes you serve. A base and a subclass with the same prefix a
 
 ## Generated CRUD with hooks
 
-`@crud(...)` generates list and retrieve, plus the writes you give a schema for, on a class whose only base is `API`. Hooks change what the generated actions do; any other decorated method is a handwritten action:
+`@crud(...)` generates list and retrieve, plus the writes you give a `Schema` for, on a class whose only base is `API`. Hooks change what the generated actions do; any other decorated method is a handwritten action:
 
 ```python
 # notes/apps/billing/api.py

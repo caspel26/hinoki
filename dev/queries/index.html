@@ -499,8 +499,8 @@
           <h1 id="query-and-write-rows">Query and write rows<a class="headerlink" href="#query-and-write-rows" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:22:11 UTC">November 24, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>11 min read</span>
           </p>
           
         </header>
@@ -539,28 +539,403 @@ models from <a href="../models/">Define models</a>.</p>
 </div>
 <p><code>PageParams</code> comes from <code>hinoki.pagination</code>. <code>aget</code> raises <code>Invoice.NotFound</code>
 (a 404 in a request) or <code>MultipleObjectsReturned</code>. Building a query
-(<code>filter</code>, <code>order_by</code>, <code>limit</code>, <code>offset</code>, <code>select_related</code>) issues no SQL;
-awaiting it or calling an evaluation method does. <code>aproject</code> / <code>project</code> (and
-<code>apaginate_as</code> / <code>paginate_as</code> for pages) encode eligible scalar and
-<code>select_related</code> schemas directly from Rust rows, materializing Python <code>Schema</code>
-instances lazily from the owned rows if inspected and falling back transparently
-when hooks, computed fields, or <code>prefetch_related</code> are present.</p>
-<h3 id="filters">Filters<a class="headerlink" href="#filters" title="Permanent link">&para;</a></h3>
-<p><code>filter(field=value)</code> and <code>filter(field__op=value)</code> accept model field names and
-the supported comparison and membership operators (<code>ne</code>, <code>in</code>, <code>isnull</code>, <code>gt</code>,
-<code>gte</code>, <code>lt</code>, <code>lte</code>, <code>contains</code>). SQL identifiers come from model metadata.</p>
+(<code>filter</code>, <code>order_by</code>, <code>limit</code>, <code>offset</code>, <code>select_related</code>, <code>prefetch_related</code>)
+issues no SQL; awaiting it or calling an evaluation method does. <code>aproject</code> /
+<code>project</code> (and <code>apaginate_as</code> / <code>paginate_as</code> for pages) encode eligible scalar
+and <code>select_related</code> schemas directly from Rust rows, materializing Python
+<code>Schema</code> instances lazily from the owned rows if inspected and falling back
+transparently when hooks, computed fields, or <code>prefetch_related</code> are present.</p>
+<h2 id="query-methods">Query methods<a class="headerlink" href="#query-methods" title="Permanent link">&para;</a></h2>
+<p>Every read and write entry point has an async form (<code>a*</code>) for <code>async def</code>
+handlers and a matching sync form for <code>def</code> handlers.</p>
+<h3 id="starting-a-query-on-model">Starting a query on <code>Model</code><a class="headerlink" href="#starting-a-query-on-model" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Model.all()</code></td>
+<td><code>QuerySet[M]</code></td>
+<td>All rows (live rows only on <code>@db.soft_delete()</code> models).</td>
+</tr>
+<tr>
+<td><code>Model.filter(**conditions)</code></td>
+<td><code>QuerySet[M]</code></td>
+<td>Shortcut for <code>Model.all().filter(**conditions)</code>.</td>
+</tr>
+<tr>
+<td><code>Model.with_deleted()</code></td>
+<td><code>QuerySet[M]</code></td>
+<td>Includes soft-deleted rows on <code>@db.soft_delete()</code> models.</td>
+</tr>
+<tr>
+<td><code>Model.only_deleted()</code></td>
+<td><code>QuerySet[M]</code></td>
+<td>Only soft-deleted rows on <code>@db.soft_delete()</code> models.</td>
+</tr>
+<tr>
+<td><code>Model.aget(**conditions)</code> / <code>Model.get(...)</code></td>
+<td><code>M</code></td>
+<td>Fetch exactly one row; raises <code>Model.NotFound</code> or <code>MultipleObjectsReturned</code>.</td>
+</tr>
+<tr>
+<td><code>Model.aget_or_none(**conditions)</code> / <code>Model.get_or_none(...)</code></td>
+<td><code>M \| None</code></td>
+<td>Fetch one row or <code>None</code>; still raises <code>MultipleObjectsReturned</code> if more than one matches.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="chainable-queryset-methods">Chainable <code>QuerySet</code> methods<a class="headerlink" href="#chainable-queryset-methods" title="Permanent link">&para;</a></h3>
+<p>These methods return a new <code>QuerySet</code> without touching the database.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.filter(**conditions)</code></td>
+<td>Add one or more <code>AND</code> conditions (<code>field=value</code> or <code>field__op=value</code>).</td>
+</tr>
+<tr>
+<td><code>.order_by(*names)</code></td>
+<td>Sort ascending (<code>"issued_at"</code>) or descending (<code>"-issued_at"</code>). Overrides <code>@db.ordered_by</code>.</td>
+</tr>
+<tr>
+<td><code>.limit(count)</code></td>
+<td>Cap the number of returned rows.</td>
+</tr>
+<tr>
+<td><code>.offset(count)</code></td>
+<td>Skip the first <code>count</code> rows.</td>
+</tr>
+<tr>
+<td><code>.select_related(*names)</code></td>
+<td>Load forward foreign-key relations in the same query (<code>JOIN</code>). See <a href="../relations/">Relations</a>.</td>
+</tr>
+<tr>
+<td><code>.prefetch_related(*names, **scoped)</code></td>
+<td>Load forward, reverse, or many-to-many relations in bounded follow-up queries. Many-to-many links accept scoped querysets (<code>prefetch_related(tags=Tag.filter(...))</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="evaluating-a-queryset-reads">Evaluating a <code>QuerySet</code> (reads)<a class="headerlink" href="#evaluating-a-queryset-reads" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Async</th>
+<th>Sync</th>
+<th>Returns</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>await qs</code></td>
+<td><code>qs.list()</code></td>
+<td><code>list[M]</code></td>
+<td>Fetch all matching model instances.</td>
+</tr>
+<tr>
+<td><code>await qs.afirst()</code></td>
+<td><code>qs.first()</code></td>
+<td><code>M \| None</code></td>
+<td>First matching row, or <code>None</code>.</td>
+</tr>
+<tr>
+<td><code>await qs.aget()</code></td>
+<td><code>qs.get()</code></td>
+<td><code>M</code></td>
+<td>Exactly one matching row; raises <code>Model.NotFound</code> or <code>MultipleObjectsReturned</code>.</td>
+</tr>
+<tr>
+<td><code>await qs.acount()</code></td>
+<td><code>qs.count()</code></td>
+<td><code>int</code></td>
+<td>Count matching rows (ignores <code>order_by</code>).</td>
+</tr>
+<tr>
+<td><code>await qs.aexists()</code></td>
+<td><code>qs.exists()</code></td>
+<td><code>bool</code></td>
+<td><code>True</code> if at least one row matches.</td>
+</tr>
+<tr>
+<td><code>await qs.aproject(Schema)</code></td>
+<td><code>qs.project(Schema)</code></td>
+<td><code>list[S]</code></td>
+<td>Project matching rows to a <code>Schema</code> via the lazy Rust row path when eligible.</td>
+</tr>
+<tr>
+<td><code>await qs.apaginate(params=None, *, concurrent=False)</code></td>
+<td><code>qs.paginate(...)</code></td>
+<td><code>Page[M]</code></td>
+<td>Offset page plus <code>total</code>. <code>concurrent=True</code> runs rows and count concurrently outside a transaction.</td>
+</tr>
+<tr>
+<td><code>await qs.apaginate_as(Schema, params=None, *, concurrent=False)</code></td>
+<td><code>qs.paginate_as(...)</code></td>
+<td><code>Page[S]</code></td>
+<td>Offset page projected to <code>Schema</code> via the lazy Rust row path.</td>
+</tr>
+<tr>
+<td><code>await qs.apaginate_cursor(params)</code></td>
+<td><code>qs.paginate_cursor(params)</code></td>
+<td><code>CursorPage[M]</code></td>
+<td>Keyset page using a signed cursor, with no <code>COUNT</code> query.</td>
+</tr>
+</tbody>
+</table>
 <ul>
-<li><code>field__ne=value</code> compiles to <code>&lt;&gt;</code>: rows where the column is <code>NULL</code> are not
-  returned. Add an <code>isnull</code> filter when they matter.</li>
-<li><code>contains</code> matches text case-insensitively and treats <code>%</code>, <code>_</code> and <code>\</code>
-  literally. SQLite folds ASCII case only; MySQL and MariaDB assume the
-  <code>NO_BACKSLASH_ESCAPES</code> mode is off (the default).</li>
 <li><code>apaginate</code> runs the count and the page as two statements; concurrent writes
   can make <code>total</code> and <code>items</code> disagree slightly. <code>apaginate_cursor</code> runs one
   statement and no count; see <a href="../pagination/#cursor-keyset-pagination">cursor pagination</a>.</li>
 <li><code>@db.ordered_by</code> applies only when a query has no <code>order_by</code>. Counts and bulk
   updates ignore it.</li>
 </ul>
+<h3 id="write-and-soft-delete-methods">Write and soft-delete methods<a class="headerlink" href="#write-and-soft-delete-methods" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Async</th>
+<th>Sync</th>
+<th>Target</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Model.acreate(data=None, /, *, returning=True, **values)</code></td>
+<td><code>Model.create(...)</code></td>
+<td><code>Model</code></td>
+<td>Insert one row from a <code>Schema</code> and/or server keywords.</td>
+</tr>
+<tr>
+<td><code>row.asave()</code></td>
+<td><code>row.save()</code></td>
+<td>instance</td>
+<td>Persist changed columns on an existing instance.</td>
+</tr>
+<tr>
+<td><code>row.aupdate_from(data=None, /, **values)</code></td>
+<td><code>row.update_from(...)</code></td>
+<td>instance</td>
+<td>Apply a <code>Schema</code> / keywords and save changed columns.</td>
+</tr>
+<tr>
+<td><code>Model.aupdate(*, returning=True, **values)</code></td>
+<td><code>Model.update(...)</code></td>
+<td><code>Model</code></td>
+<td>Update one row by primary key; raises <code>NotFound</code> if missing (<code>returning=True</code>).</td>
+</tr>
+<tr>
+<td><code>Model.aupdate_where(conditions, values, *, returning=True)</code></td>
+<td><code>Model.update_where(...)</code></td>
+<td><code>Model</code></td>
+<td>Conditional <code>UPDATE</code> matching <code>conditions</code> (supports <code>field__op</code>).</td>
+</tr>
+<tr>
+<td><code>qs.aupdate(values, *, returning=True)</code></td>
+<td><code>qs.update(...)</code></td>
+<td><code>QuerySet</code></td>
+<td>Update all matching rows (refuses <code>limit</code>/<code>offset</code>).</td>
+</tr>
+<tr>
+<td><code>Model.adelete(**conditions)</code> / <code>qs.adelete()</code></td>
+<td><code>delete(...)</code></td>
+<td><code>Model</code> / <code>QuerySet</code></td>
+<td>Delete matching rows (sets delete timestamp on <code>@db.soft_delete()</code> models).</td>
+</tr>
+<tr>
+<td><code>row.asoft_delete()</code></td>
+<td><code>row.soft_delete()</code></td>
+<td>instance</td>
+<td>Soft-delete one <code>@db.soft_delete()</code> instance.</td>
+</tr>
+<tr>
+<td><code>row.arestore()</code> / <code>qs.arestore()</code></td>
+<td><code>restore()</code></td>
+<td>instance / <code>QuerySet</code></td>
+<td>Clear the soft-delete timestamp (<code>Model.only_deleted().filter(...).arestore()</code>).</td>
+</tr>
+<tr>
+<td><code>row.ahard_delete()</code> / <code>qs.ahard_delete()</code></td>
+<td><code>hard_delete()</code></td>
+<td>instance / <code>QuerySet</code></td>
+<td>Physical SQL <code>DELETE</code> on a <code>@db.soft_delete()</code> model.</td>
+</tr>
+<tr>
+<td><code>Model.abulk_create(items, *, returning=True)</code></td>
+<td><code>Model.bulk_create(...)</code></td>
+<td><code>Model</code></td>
+<td>Insert many <code>Schema</code> objects or dicts in one transaction/savepoint.</td>
+</tr>
+<tr>
+<td><code>Model.abulk_update(instances)</code></td>
+<td><code>Model.bulk_update(...)</code></td>
+<td><code>Model</code></td>
+<td>Save changed instances in one transaction/savepoint.</td>
+</tr>
+<tr>
+<td><code>Model.abulk_delete(items)</code></td>
+<td><code>Model.bulk_delete(...)</code></td>
+<td><code>Model</code></td>
+<td>Delete instances or primary keys in chunks of up to 10 000.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="filter-operators">Filter operators<a class="headerlink" href="#filter-operators" title="Permanent link">&para;</a></h2>
+<p><code>filter(field=value)</code> and <code>filter(field__op=value)</code> accept model field names and
+a fixed set of lookup operators compiled in Rust. Every condition in a
+<code>filter(...)</code> call (or chained <code>.filter(...).filter(...)</code>) is combined with
+<code>AND</code>, values are bound parameters, and SQL identifiers come from model
+metadata.</p>
+<table>
+<thead>
+<tr>
+<th>Lookup</th>
+<th>Example</th>
+<th>Compiled SQL</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(exact)</em></td>
+<td><code>paid=False</code></td>
+<td><code>paid = $1</code></td>
+<td>Passing <code>None</code> (<code>voided_at=None</code>) compiles to <code>IS NULL</code>.</td>
+</tr>
+<tr>
+<td><code>ne</code></td>
+<td><code>status__ne="draft"</code></td>
+<td><code>status &lt;&gt; $1</code></td>
+<td>Passing <code>None</code> compiles to <code>IS NOT NULL</code>. For non-<code>None</code> values, <code>NULL</code> rows do not match.</td>
+</tr>
+<tr>
+<td><code>gt</code></td>
+<td><code>total__gt=100</code></td>
+<td><code>total &gt; $1</code></td>
+<td>Rejects <code>None</code> (<code>FieldError</code>).</td>
+</tr>
+<tr>
+<td><code>gte</code></td>
+<td><code>total__gte=100</code></td>
+<td><code>total &gt;= $1</code></td>
+<td>Rejects <code>None</code> (<code>FieldError</code>).</td>
+</tr>
+<tr>
+<td><code>lt</code></td>
+<td><code>total__lt=500</code></td>
+<td><code>total &lt; $1</code></td>
+<td>Rejects <code>None</code> (<code>FieldError</code>).</td>
+</tr>
+<tr>
+<td><code>lte</code></td>
+<td><code>total__lte=500</code></td>
+<td><code>total &lt;= $1</code></td>
+<td>Rejects <code>None</code> (<code>FieldError</code>).</td>
+</tr>
+<tr>
+<td><code>in</code></td>
+<td><code>status__in=["open", "overdue"]</code></td>
+<td><code>status IN ($1, $2)</code></td>
+<td>Takes a sequence/set; rejects <code>str</code> and <code>bytes</code> (<code>FieldError</code>) so strings are never split by character.</td>
+</tr>
+<tr>
+<td><code>isnull</code></td>
+<td><code>voided_at__isnull=True</code></td>
+<td><code>voided_at IS NULL</code></td>
+<td><code>False</code> compiles to <code>IS NOT NULL</code>.</td>
+</tr>
+<tr>
+<td><code>contains</code></td>
+<td><code>reference__contains="inv-"</code></td>
+<td>case-insensitive <code>LIKE</code></td>
+<td>Escapes <code>%</code>, <code>_</code> and <code>\</code> literally. Rejected on <code>Decimal</code> columns (<code>FieldError</code>).</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><code>field__ne=value</code> compiles to <code>&lt;&gt;</code>: rows where the column is <code>NULL</code> are not
+  returned. Add an <code>isnull</code> filter when they matter.</li>
+<li><code>contains</code> matches text case-insensitively and treats <code>%</code>, <code>_</code> and <code>\</code>
+  literally. SQLite folds ASCII case only; MySQL and MariaDB assume the
+  <code>NO_BACKSLASH_ESCAPES</code> mode is off (the default).</li>
+<li>Passing <code>None</code> with any operator other than exact equality or <code>ne</code> raises
+  <code>FieldError</code>.</li>
+</ul>
+<h3 id="filtering-across-relations">Filtering across relations<a class="headerlink" href="#filtering-across-relations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Forward foreign keys</strong>: traverse a foreign-key relation with <code>__</code> and any
+  operator above:</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span class="n">invoices</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">customer__name__contains</span><span class="o">=</span><span class="s2">"acme"</span><span class="p">,</span> <span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+<p>Hinoki adds the required <code>JOIN</code> automatically and matches only live rows when
+  the target model uses <code>@db.soft_delete()</code>.
+* <strong>Many-to-many links</strong>: filter on a target field (<code>tags__slug="rust"</code>) or
+  test whether any live link exists (<code>tags__isnull=True</code> / <code>False</code>):</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">rust_posts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">tags__slug</span><span class="o">=</span><span class="s2">"rust"</span><span class="p">)</span>
+<span class="n">untagged</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">tags__isnull</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>Many-to-many filters compile to a subquery against the bridge table and ignore
+  soft-deleted targets. <code>&lt;link&gt;__isnull</code> cannot be combined with other
+  conditions on the same link.
+* <strong>Reverse foreign keys</strong>: filtering from the parent across a reverse relation
+  raises <code>FieldError</code>; query the child model directly instead.</p>
+<h3 id="client-query-filters-filterset">Client query filters (<code>FilterSet</code>)<a class="headerlink" href="#client-query-filters-filterset" title="Permanent link">&para;</a></h3>
+<p>For generated CRUD list endpoints, declare accepted HTTP query parameters with
+<code>FilterSet</code> from <code>hinoki.filters</code> instead of passing raw query parameters to
+<code>filter()</code>. Only declared fields and shapes are accepted; validation and query
+compilation run in Rust.</p>
+<table>
+<thead>
+<tr>
+<th>Declaration</th>
+<th>Query string</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>paid: Eq[bool]</code></td>
+<td><code>?paid=false</code></td>
+<td>Exact match (<code>=</code>).</td>
+</tr>
+<tr>
+<td><code>status: In[Literal["open", "paid"]]</code></td>
+<td><code>?status=open,paid</code></td>
+<td>Membership (<code>IN</code>, up to 50 comma-separated values).</td>
+</tr>
+<tr>
+<td><code>issued: Range[date]</code></td>
+<td><code>?issued.from=2026-01-01&amp;issued.to=2026-01-31</code></td>
+<td>Inclusive bounds (<code>&gt;=</code> / <code>&lt;=</code>); either end is optional (<code>Bounds[T]</code>).</td>
+</tr>
+<tr>
+<td><code>search = Search("reference", "notes")</code></td>
+<td><code>?search=inv</code></td>
+<td>Case-insensitive <code>contains</code> matching any listed text column.</td>
+</tr>
+<tr>
+<td><code>ordering = ("issued", "reference")</code></td>
+<td><code>?ordering=-issued</code></td>
+<td>Allowed sort columns; prefix <code>-</code> for descending.</td>
+</tr>
+</tbody>
+</table>
+<p>Supported scalar types for <code>Eq</code>, <code>In</code>, and <code>Range</code> are <code>bool</code>, <code>int</code>, <code>float</code>,
+<code>str</code>, <code>Literal["..."]</code>, <code>UUID</code>, <code>date</code>, <code>datetime</code>, and <code>Decimal</code> (optionally
+nullable with <code>| None</code>). See <a href="../crud/">Generate CRUD routes</a> for full <code>FilterSet</code>
+usage.</p>
 <h2 id="reusable-queries">Reusable queries<a class="headerlink" href="#reusable-queries" title="Permanent link">&para;</a></h2>
 <p>A reusable query is a typed class method returning a <code>QuerySet</code>. There is no
 hidden manager: <code>Model.all()</code> means every live row on a soft-delete model and
@@ -743,6 +1118,8 @@ declare a field named <code>returning</code>.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../relations/">Relations</a>: <code>select_related</code> and <code>prefetch_related</code></li>
+<li><a href="../crud/">Generate CRUD routes</a>: <code>FilterSet</code> client query parameters</li>
+<li><a href="../model-options/">Model options</a>: <code>@db.soft_delete()</code>, <code>@db.ordered_by()</code>, <code>@db.timestamps()</code></li>
 <li><a href="../model-hooks/">Lifecycle hooks</a></li>
 <li><a href="../transactions/">Transactions</a></li>
 <li><a href="../typing/">Typing</a>: what type checkers see for keyword-based methods</li>
@@ -750,7 +1127,7 @@ declare a field named <code>returning</code>.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../models/">Define models</a></li><li><a href="../relations/">Relations</a></li><li><a href="../transactions/">Transactions</a></li><li><a href="../pagination/">Pagination</a></li></ul>
+          <ul><li><a href="../models/">Define models</a></li><li><a href="../relations/">Relations</a></li><li><a href="../crud/">Generate CRUD routes</a></li><li><a href="../transactions/">Transactions</a></li><li><a href="../pagination/">Pagination</a></li></ul>
         </aside>
         
       </article>
@@ -769,15 +1146,17 @@ declare a field named <code>returning</code>.</p>
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#query-rows">Query rows</a>
-            <ul><li><a href="#filters">Filters</a></li></ul>
+            <ul><li><a href="#query-rows">Query rows</a></li><li><a href="#query-methods">Query methods</a>
+            <ul><li><a href="#starting-a-query-on-model">Starting a query on Model</a></li><li><a href="#chainable-queryset-methods">Chainable QuerySet methods</a></li><li><a href="#evaluating-a-queryset-reads">Evaluating a QuerySet (reads)</a></li><li><a href="#write-and-soft-delete-methods">Write and soft-delete methods</a></li></ul>
+          </li><li><a href="#filter-operators">Filter operators</a>
+            <ul><li><a href="#filtering-across-relations">Filtering across relations</a></li><li><a href="#client-query-filters-filterset">Client query filters (FilterSet)</a></li></ul>
           </li><li><a href="#reusable-queries">Reusable queries</a></li><li><a href="#create-and-update">Create and update</a></li><li><a href="#writing-many-rows-at-once">Writing many rows at once</a></li><li><a href="#writes-that-do-not-read-the-row-back">Writes that do not read the row back</a></li><li><a href="#see-also">See also</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:22:11 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/queries.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

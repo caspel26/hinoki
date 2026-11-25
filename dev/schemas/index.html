@@ -499,7 +499,7 @@
           <h1 id="schemas">Schemas<a class="headerlink" href="#schemas" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:06:42 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -622,7 +622,7 @@ contain <code>.</code>, <code>[</code> or <code>]</code>. Models take no aliases
 <p><code>description</code>, <code>examples</code> and <code>deprecated</code> appear in the OpenAPI document next
 to the property and change nothing about validation.</p>
 <h2 id="many-to-many-ids-fields">Many-to-many ids fields<a class="headerlink" href="#many-to-many-ids-fields" title="Permanent link">&para;</a></h2>
-<p><code>derive(Post, only=("title", "tag_ids"))</code> adds the ids field of a <code>many_to_many</code> relation when <code>only=</code> names it (<code>tag_ids</code> here comes from <code>ids_name="tag_ids"</code>; the default is <code>tags_ids</code>: a <code>set</code> of the target's keys with <code>Field(max_length=max_items)</code>); <code>derive(Post)</code> and <code>exclude=</code> take columns only, so a derived schema never carries the field unless it is asked for. The field holds keys only: Hinoki never loads related rows while a schema is serialized, so a read needs <code>prefetch_related</code> first (generated CRUD does it, and <code>from_model</code> reads the loaded keys). See <a href="../crud/#many-to-many-fields">many-to-many fields</a>.</p>
+<p><code>derive(Post, only=("title", "tag_ids"))</code> adds the ids field of a <code>many_to_many</code> relation when <code>only=</code> names it (<code>tag_ids</code> here comes from <code>ids_name="tag_ids"</code>; the default is <code>tags_ids</code>: a <code>set</code> of the target's keys with <code>Field(max_length=max_items)</code>); <code>derive(Post)</code> and <code>exclude=</code> take columns only, so a derived <code>Schema</code> never carries the field unless it is asked for. The field holds keys only: Hinoki never loads related rows while a <code>Schema</code> is serialized, so a read needs <code>prefetch_related</code> first (generated CRUD does it, and <code>from_model</code> reads the loaded keys). See <a href="../crud/#many-to-many-fields">many-to-many fields</a>.</p>
 <h2 id="computed-fields">Computed fields<a class="headerlink" href="#computed-fields" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">computed_field</span>
 
@@ -729,7 +729,7 @@ following are intentionally out of scope:</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 22:06:42 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

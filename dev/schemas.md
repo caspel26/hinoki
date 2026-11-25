@@ -144,7 +144,7 @@ to the property and change nothing about validation.
 
 ## Many-to-many ids fields
 
-`derive(Post, only=("title", "tag_ids"))` adds the ids field of a `many_to_many` relation when `only=` names it (`tag_ids` here comes from `ids_name="tag_ids"`; the default is `tags_ids`: a `set` of the target's keys with `Field(max_length=max_items)`); `derive(Post)` and `exclude=` take columns only, so a derived schema never carries the field unless it is asked for. The field holds keys only: Hinoki never loads related rows while a schema is serialized, so a read needs `prefetch_related` first (generated CRUD does it, and `from_model` reads the loaded keys). See [many-to-many fields](https://hinoki.caspel.dev/dev/crud.md#many-to-many-fields).
+`derive(Post, only=("title", "tag_ids"))` adds the ids field of a `many_to_many` relation when `only=` names it (`tag_ids` here comes from `ids_name="tag_ids"`; the default is `tags_ids`: a `set` of the target's keys with `Field(max_length=max_items)`); `derive(Post)` and `exclude=` take columns only, so a derived `Schema` never carries the field unless it is asked for. The field holds keys only: Hinoki never loads related rows while a `Schema` is serialized, so a read needs `prefetch_related` first (generated CRUD does it, and `from_model` reads the loaded keys). See [many-to-many fields](https://hinoki.caspel.dev/dev/crud.md#many-to-many-fields).
 
 ## Computed fields
 

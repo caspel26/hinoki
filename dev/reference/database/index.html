@@ -295,7 +295,7 @@
           <h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -349,7 +349,7 @@ as a distinct backend even though it uses the MySQL wire driver and SQL dialect.
 <tr>
 <td>MySQL</td>
 <td>Supported</td>
-<td>Uses InnoDB tables, binary UUIDs and MySQL-native JSON. MySQL DDL implicitly commits, so a failed migration can leave earlier DDL applied; inspect migration status and database schema before retrying. <code>RETURNING</code> is not supported by the compiler; ORM create/update operations use follow-up reads. TLS is required by default.</td>
+<td>Uses InnoDB tables, binary UUIDs and MySQL-native JSON. MySQL DDL implicitly commits, so a failed migration can leave earlier DDL applied; inspect migration status and table state before retrying. <code>RETURNING</code> is not supported by the compiler; ORM create/update operations use follow-up reads. TLS is required by default.</td>
 </tr>
 <tr>
 <td>MariaDB</td>
@@ -1379,7 +1379,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:53:50 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

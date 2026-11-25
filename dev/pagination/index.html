@@ -499,14 +499,14 @@
           <h1 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:22:11 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
             <span>7 min read</span>
           </p>
           
         </header>
         
 <p>An action opts into page-number pagination with <code>pagination=PageNumberPagination()</code>, or into <a href="#cursor-keyset-pagination">cursor pagination</a> with <code>pagination=CursorPagination()</code>. A size you leave out comes from the application's <code>pagination</code> settings group; without settings the defaults are <code>page_size=20</code> and <code>max_page_size=100</code>. The framework parses and validates <code>page</code> and <code>page_size</code>, injects a <code>PageParams</code> value, and documents both query parameters in OpenAPI.</p>
-<p>The Billing app lists invoices a page at a time. The handler asks the model for one page, and <code>Page.map()</code> turns its rows into schemas:</p>
+<p>The Billing app lists invoices a page at a time. The handler asks the model for one page, and <code>Page.map()</code> turns its rows into <code>Schema</code> instances:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">RouteGroup</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.pagination</span><span class="w"> </span><span class="kn">import</span> <span class="n">Page</span><span class="p">,</span> <span class="n">PageNumberPagination</span><span class="p">,</span> <span class="n">PageParams</span>
@@ -572,7 +572,7 @@
 <ul>
 <li><strong>Ordering.</strong> The page follows the query's <code>order_by</code> (or the model's <code>ordered_by</code>), with the primary key appended as the final tie-break, so rows with equal sort values are never skipped or repeated. Sort columns must be non-null <code>int</code>, <code>str</code>, <code>uuid</code>, <code>datetime</code> or <code>float</code> columns; anything else raises a <code>FieldError</code>, and a <code>crud(...)</code> whose model ordering is invalid fails at registration with a <code>RegistrationError</code> naming the model and column (an ordering added by a custom <code>get_queryset</code> is checked on each request). A <code>str</code> sort value is bounded: at most 1024 bytes per value, and a whole cursor at most 4096 characters, the same limit for issuing and reading. A page whose boundary row exceeds it, and whose link is needed, answers <code>422</code> with the field <code>cursor</code> and the code <code>unencodable</code> (it never answers <code>500</code>); order by a shorter column when values can be long. The queryset's own <code>limit</code> and <code>offset</code> are ignored.</li>
 <li><strong>Filters and scope.</strong> The cursor holds a position. <code>get_queryset</code>, ownership and tenant policies are applied to every page exactly as for the first one, so a cursor cannot reach rows its holder could not list. On a generated list with <a href="../crud/#filter-order-and-search-the-list">client filters</a>, the cursor is also bound to the filters and the <code>ordering</code> that the client sent: a cursor used with different ones answers <code>422</code> with the code <code>invalid</code>. A list without client filters keeps its cursors valid as before. The <code>ordering</code> columns of the <code>FilterSet</code> must be non-null <code>int</code>, <code>str</code>, <code>uuid</code>, <code>datetime</code> or <code>float</code> columns, checked when the routes are declared.</li>
-<li><strong>Signing.</strong> Cursors are signed with HMAC-SHA256 in Rust and bound to the table and the ordering they were issued for, so they are tamper-proof. They are not encrypted: a cursor is base64 and readable, and it contains the sort-key values of the boundary row. Do not order a cursor list by a column whose value must stay private, even when the read schema hides it. The secret comes from <code>CursorPagination(secret=...)</code> or <code>pagination.cursor_secret</code> and must have at least 32 bytes; without one, including the action fails with a <code>RegistrationError</code>. Changing the secret invalidates outstanding cursors.</li>
+<li><strong>Signing.</strong> Cursors are signed with HMAC-SHA256 in Rust and bound to the table and the ordering they were issued for, so they are tamper-proof. They are not encrypted: a cursor is base64 and readable, and it contains the sort-key values of the boundary row. Do not order a cursor list by a column whose value must stay private, even when the read <code>Schema</code> hides it. The secret comes from <code>CursorPagination(secret=...)</code> or <code>pagination.cursor_secret</code> and must have at least 32 bytes; without one, including the action fails with a <code>RegistrationError</code>. Changing the secret invalidates outstanding cursors.</li>
 <li><strong>Expiry.</strong> <code>cursor_ttl_seconds</code> (setting) or <code>CursorPagination(ttl=...)</code> makes a cursor expire; the default never does.</li>
 <li><strong>Errors.</strong> A tampered, malformed, foreign or differently ordered cursor answers <code>422</code> with the field <code>cursor</code> and the code <code>invalid</code>; an expired one answers <code>422</code> with <code>expired</code>; an unencodable boundary value answers <code>422</code> with <code>unencodable</code>. <code>limit</code> follows the same bounds as <code>page_size</code>.</li>
 <li><strong>Rust path.</strong> The keyset <code>WHERE</code>, the signature, the direction handling and, for a generated plain list, the JSON page are produced in Rust.</li>
@@ -605,7 +605,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:22:11 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/pagination.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
