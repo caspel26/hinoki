@@ -217,8 +217,10 @@ invoices = RouteGroup("/invoices", access=billing_reader)
 
 @invoices.get("/", pagination=PageNumberPagination())
 async def list_invoices(page: PageParams) -> Page[InvoiceOut]:
-    return await Invoice.all().select_related("customer").apaginate_as(
-        InvoiceOut, page, concurrent=True
+    return (
+        await Invoice.all()
+        .select_related("customer")
+        .apaginate_as(InvoiceOut, page, concurrent=True)
     )
 ```
 
