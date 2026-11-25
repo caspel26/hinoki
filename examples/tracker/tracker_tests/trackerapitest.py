@@ -1,7 +1,19 @@
 """The tracker through HTTP: access, ownership, business rules, middleware."""
 
-from tracker.apps.members.security import hash_token
+import re
+from pathlib import Path
+
+from tracker.apps.members.models import Member
+from tracker.commands import create_member
+from tracker.main import create_app
+from tracker.settings import TrackerSettings
 from trackerworld import World
+
+from hinoki.db import Database
+from hinoki.orm import migrator, use_database
+from hinoki.testing import ASGIClient
+
+APPS = Path(__file__).parents[1] / "tracker" / "apps"
 
 
 async def create(world: World, title: str, **extra: object) -> dict[str, object]:
@@ -25,11 +37,24 @@ async def test_me_names_the_member_and_never_the_token(world: World) -> None:
     assert me.body == {"id": str(world.ann.id), "name": "Ann"}
 
 
-async def test_the_table_keeps_a_digest_of_the_token_never_the_token(
-    world: World,
+async def test_a_seeded_member_is_stored_as_a_digest_and_the_token_signs_in(
+    tmp_path: Path,
 ) -> None:
-    assert world.ann.token_hash == hash_token("ann-token") != "ann-token"
-    assert len(world.ann.token_hash) == 64
+    url = f"sqlite://{tmp_path / 'seeded.sqlite3'}"
+    database = await Database.connect(url, max_size=1)
+    for name in ("members", "tasks", "activity"):
+        await migrator.apply(database, APPS / name / "migrations", namespace=name)
+    await create_member(url, "Zoe", "seeded-token")
+    with use_database(database):
+        stored = await Member.aget(name="Zoe")
+    database.close()
+
+    assert re.fullmatch(r"[0-9a-f]{64}", stored.token_hash)
+    assert stored.token_hash != "seeded-token"
+    settings = TrackerSettings.load(overrides={"database": {"url": url}})
+    async with ASGIClient(create_app(settings)) as client:
+        me = await client.get("/members/me", token="seeded-token")
+    assert me.body == {"id": str(stored.id), "name": "Zoe"}
 
 
 async def test_a_member_only_sees_and_changes_their_own_tasks(world: World) -> None:
