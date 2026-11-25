@@ -784,7 +784,7 @@ async def test_single_record_projection_schema_contract_and_native_lane(
     assert isinstance(fresh, _ProjectedItem)
     assert isinstance(fresh, ArticleOut)
     assert isinstance(fresh, Schema)
-    assert fresh._projected_handle is not None
+    assert cast(Any, fresh)._projected_handle is not None
 
     # Embedding in another Schema, to_dict(), and hash() match a materialized Schema
     class WrapArticle(Schema):
@@ -1054,3 +1054,27 @@ async def test_model_aget_as_fast_path_avoids_queryset_and_preserves_parity(
         )
         assert with_pf.author is not None
         assert [t.label for t in with_pf.tags] == ["rust"]
+
+
+async def test_projected_item_behaves_as_a_dataclass_instance(db: Database) -> None:
+    with use_database(db):
+        item = await ProjArticle.filter(id=1).aget_as(ArticleOut)
+        assert type(cast(Any, item)) is _ProjectedItem
+        assert dataclasses.is_dataclass(item)
+        assert dataclasses.fields(item) == dataclasses.fields(ArticleOut)
+
+        expected = dataclasses.asdict(
+            ArticleOut.from_model(await ProjArticle.aget(id=1))
+        )
+        assert dataclasses.asdict(item) == expected
+
+        changed = dataclasses.replace(item, views=99)
+        assert type(changed) is ArticleOut
+        assert changed.views == 99
+        assert changed.title == "First"
+        assert changed.id == 1
+
+        # The lazy encoding survives the dataclass helpers on a fresh item.
+        fresh = await ProjArticle.filter(id=2).aget_as(ArticleOut)
+        assert dataclasses.is_dataclass(fresh)
+        assert cast(Any, fresh)._projected_handle is not None
