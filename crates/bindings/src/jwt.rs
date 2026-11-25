@@ -1114,15 +1114,10 @@ mod tests {
             decode_claims(&token, &[hs(Some("k1"))], &rules(2000)),
             Err(Fail::Expired)
         );
+        let mut wrong_key = hs(Some("k1"));
+        wrong_key.bytes[0] ^= 1;
         assert_eq!(
-            decode_claims(
-                &token,
-                &[Key {
-                    bytes: vec![9; 32],
-                    ..hs(Some("k1"))
-                }],
-                &rules(1000)
-            ),
+            decode_claims(&token, &[wrong_key], &rules(1000)),
             Err(Fail::Signature)
         );
     }
