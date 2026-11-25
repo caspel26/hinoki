@@ -14,7 +14,7 @@ use tokio_rusqlite::{rusqlite, Connection};
 
 use crate::error::{DbError, ErrorKind};
 use crate::value::Value;
-use crate::Row;
+use crate::{Row, RowSet};
 
 #[derive(Debug)]
 enum SqliteCallError {
@@ -205,6 +205,37 @@ impl SqliteLease {
             .map_err(call_error)
     }
 
+    pub(crate) async fn fetch_set(&self, sql: &str, values: &[Value]) -> Result<RowSet, DbError> {
+        let sql = sql.to_owned();
+        let values = values.iter().map(encode).collect::<Result<Vec<_>, _>>()?;
+        self.conn()?
+            .call(move |conn| {
+                let mut statement = conn.prepare_cached(&sql)?;
+                let col_count = statement.column_count();
+                let mut col_names = Vec::with_capacity(col_count);
+                let mut col_kinds = Vec::with_capacity(col_count);
+                for column in statement.columns() {
+                    col_names.push(column.name().to_owned());
+                    col_kinds.push(SqliteColKind::from_decl(column.decl_type()));
+                }
+                let columns: Arc<[String]> = col_names.into();
+                let mut cursor = statement.query(params_from_iter(values.iter()))?;
+                let mut rows = Vec::new();
+                while let Some(row) = cursor.next()? {
+                    let mut decoded = Vec::with_capacity(col_count);
+                    for (index, &kind) in col_kinds.iter().enumerate() {
+                        let value = decode_with_kind(row.get_ref(index)?, kind)
+                            .map_err(SqliteCallError::Hinoki)?;
+                        decoded.push(value);
+                    }
+                    rows.push(decoded);
+                }
+                Ok(RowSet { columns, rows })
+            })
+            .await
+            .map_err(call_error)
+    }
+
     pub(crate) async fn scalar(&self, sql: &str, values: &[Value]) -> Result<Option<i64>, DbError> {
         let sql = sql.to_owned();
         let values = values.iter().map(encode).collect::<Result<Vec<_>, _>>()?;
@@ -322,35 +353,67 @@ fn encode(value: &Value) -> Result<SqliteValue, DbError> {
     })
 }
 
-fn decode(value: ValueRef<'_>, declared: Option<&str>) -> Result<Value, DbError> {
-    let declared = declared.unwrap_or_default().to_ascii_uppercase();
+#[derive(Clone, Copy)]
+enum SqliteColKind {
+    Plain,
+    Bool,
+    Uuid,
+    Timestamp,
+    Json,
+}
+
+impl SqliteColKind {
+    fn from_decl(declared: Option<&str>) -> Self {
+        let Some(text) = declared else {
+            return Self::Plain;
+        };
+        let upper = text.to_ascii_uppercase();
+        if upper.contains("BOOL") {
+            Self::Bool
+        } else if upper.contains("UUID") {
+            Self::Uuid
+        } else if upper.contains("TIMESTAMP") || upper.contains("DATETIME") {
+            Self::Timestamp
+        } else if upper.contains("JSON") {
+            Self::Json
+        } else {
+            Self::Plain
+        }
+    }
+}
+
+fn decode_with_kind(value: ValueRef<'_>, kind: SqliteColKind) -> Result<Value, DbError> {
     match value {
         ValueRef::Null => Ok(Value::Null),
-        ValueRef::Integer(value) if declared.contains("BOOL") => Ok(Value::Bool(value != 0)),
+        ValueRef::Integer(value) if matches!(kind, SqliteColKind::Bool) => {
+            Ok(Value::Bool(value != 0))
+        }
         ValueRef::Integer(value) => Ok(Value::Int(value)),
         ValueRef::Real(value) => Ok(Value::Float(value)),
         ValueRef::Blob(value) => Ok(Value::Bytes(value.to_vec())),
-        ValueRef::Text(value) => {
-            let text = std::str::from_utf8(value)
-                .map_err(|_| DbError::new(ErrorKind::Type, "invalid UTF-8 in database text"))?;
-            if declared.contains("UUID") {
-                return uuid::Uuid::parse_str(text)
-                    .map(Value::Uuid)
-                    .map_err(|_| DbError::new(ErrorKind::Type, "invalid UUID in database"));
-            }
-            if declared.contains("TIMESTAMP") || declared.contains("DATETIME") {
-                return crate::value::parse_timestamp(text)
-                    .map(Value::Timestamp)
-                    .ok_or_else(|| DbError::new(ErrorKind::Type, "invalid timestamp in database"));
-            }
-            if declared.contains("JSON") {
-                return serde_json::from_str(text)
-                    .map(Value::Json)
-                    .map_err(|_| DbError::new(ErrorKind::Type, "invalid JSON in database"));
-            }
-            Ok(Value::Text(text.to_owned()))
-        }
+        ValueRef::Text(value) => decode_text(value, kind),
     }
+}
+
+fn decode_text(value: &[u8], kind: SqliteColKind) -> Result<Value, DbError> {
+    let text = std::str::from_utf8(value)
+        .map_err(|_| DbError::new(ErrorKind::Type, "invalid UTF-8 in database text"))?;
+    match kind {
+        SqliteColKind::Uuid => uuid::Uuid::parse_str(text)
+            .map(Value::Uuid)
+            .map_err(|_| DbError::new(ErrorKind::Type, "invalid UUID in database")),
+        SqliteColKind::Timestamp => crate::value::parse_timestamp(text)
+            .map(Value::Timestamp)
+            .ok_or_else(|| DbError::new(ErrorKind::Type, "invalid timestamp in database")),
+        SqliteColKind::Json => serde_json::from_str(text)
+            .map(Value::Json)
+            .map_err(|_| DbError::new(ErrorKind::Type, "invalid JSON in database")),
+        SqliteColKind::Plain | SqliteColKind::Bool => Ok(Value::Text(text.to_owned())),
+    }
+}
+
+fn decode(value: ValueRef<'_>, declared: Option<&str>) -> Result<Value, DbError> {
+    decode_with_kind(value, SqliteColKind::from_decl(declared))
 }
 
 pub(crate) fn connect_path(url: &str) -> Result<PathBuf, DbError> {

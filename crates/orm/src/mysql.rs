@@ -13,7 +13,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::error::{lease_released, DbError, ErrorKind};
 use crate::value::Value;
-use crate::Row;
+use crate::{Row, RowSet};
 
 struct Inner {
     pool: Mutex<Option<Pool>>,
@@ -206,6 +206,41 @@ impl MysqlLease {
         rows.iter().map(decode).collect()
     }
 
+    pub(crate) async fn fetch_set(
+        &mut self,
+        sql: &str,
+        values: &[Value],
+    ) -> Result<RowSet, DbError> {
+        if self.interrupted.load(Ordering::Acquire) {
+            return Err(DbError::new(
+                ErrorKind::Other,
+                "database request was interrupted",
+            ));
+        }
+        let params = params(values)?;
+        let conn = self.conn.as_mut().ok_or_else(lease_released)?;
+        let mut flight = Flight {
+            interrupted: self.interrupted.clone(),
+            armed: true,
+        };
+        let result: Result<Vec<mysql_async::Row>, _> = conn.exec(sql, params).await;
+        flight.settle(&result);
+        let raw_rows = result.map_err(|e| error(&e, ErrorKind::Other))?;
+        let columns: Arc<[String]> = match raw_rows.first() {
+            Some(first) => first
+                .columns_ref()
+                .iter()
+                .map(|c| c.name_str().into_owned())
+                .collect(),
+            None => Arc::from([]),
+        };
+        let rows = raw_rows
+            .iter()
+            .map(decode_values)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(RowSet { columns, rows })
+    }
+
     pub(crate) async fn execute(&mut self, sql: &str, values: &[Value]) -> Result<u64, DbError> {
         if self.interrupted.load(Ordering::Acquire) {
             return Err(DbError::new(
@@ -328,6 +363,26 @@ fn params(values: &[Value]) -> Result<Params, DbError> {
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Params::Positional)
+}
+
+fn decode_values(row: &mysql_async::Row) -> Result<Vec<Value>, DbError> {
+    row.columns_ref()
+        .iter()
+        .enumerate()
+        .map(|(index, column)| {
+            let value = row
+                .as_ref(index)
+                .ok_or_else(|| DbError::new(ErrorKind::Type, "could not decode a MySQL column"))?;
+            decode_cell(
+                value,
+                column.column_type(),
+                column
+                    .flags()
+                    .contains(mysql_async::consts::ColumnFlags::BINARY_FLAG),
+                column.column_length(),
+            )
+        })
+        .collect()
 }
 
 fn decode(row: &mysql_async::Row) -> Result<Row, DbError> {

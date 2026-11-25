@@ -114,25 +114,52 @@ pub fn parse_timestamp(text: &str) -> Option<OffsetDateTime> {
         .map(|value| value.to_offset(UtcOffset::UTC))
 }
 
+#[inline]
+fn push_2(out: &mut Vec<u8>, n: u8) {
+    out.push(b'0' + (n / 10));
+    out.push(b'0' + (n % 10));
+}
+
+/// Write ISO 8601 text with microseconds when nonzero and a `+00:00` offset
+/// directly into `out` without intermediate heap allocations.
+pub fn write_timestamp_iso(out: &mut Vec<u8>, value: &OffsetDateTime) {
+    let value = value.to_offset(UtcOffset::UTC);
+    let year = value.year();
+    out.reserve(32);
+    if (0..=9999).contains(&year) {
+        let y = year as u16;
+        push_2(out, (y / 100) as u8);
+        push_2(out, (y % 100) as u8);
+    } else {
+        use std::io::Write;
+        let _ = write!(out, "{year:04}");
+    }
+    out.push(b'-');
+    push_2(out, u8::from(value.month()));
+    out.push(b'-');
+    push_2(out, value.day());
+    out.push(b'T');
+    push_2(out, value.hour());
+    out.push(b':');
+    push_2(out, value.minute());
+    out.push(b':');
+    push_2(out, value.second());
+    let micros = value.microsecond();
+    if micros != 0 {
+        out.push(b'.');
+        push_2(out, (micros / 10_000) as u8);
+        push_2(out, ((micros / 100) % 100) as u8);
+        push_2(out, (micros % 100) as u8);
+    }
+    out.extend_from_slice(b"+00:00");
+}
+
 /// ISO 8601 text with microseconds when nonzero and a `+00:00` offset, the
 /// form Python's `datetime.fromisoformat` and Hinoki's JSON output use.
 pub fn timestamp_iso(value: &OffsetDateTime) -> String {
-    let value = value.to_offset(UtcOffset::UTC);
-    let mut text = format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
-        value.year(),
-        u8::from(value.month()),
-        value.day(),
-        value.hour(),
-        value.minute(),
-        value.second()
-    );
-    let micros = value.microsecond();
-    if micros != 0 {
-        text.push_str(&format!(".{micros:06}"));
-    }
-    text.push_str("+00:00");
-    text
+    let mut out = Vec::with_capacity(32);
+    write_timestamp_iso(&mut out, value);
+    String::from_utf8(out).expect("ISO 8601 timestamp is ASCII")
 }
 
 /// The fixed RFC 3339 text Hinoki stores in SQLite: six fractional digits, `Z`.
@@ -181,6 +208,60 @@ mod timestamp_tests {
         assert_eq!(timestamp_iso(&value), "2026-11-16T10:11:12.000500+00:00");
         let whole = datetime!(9999-12-31 23:59:59 UTC);
         assert_eq!(timestamp_iso(&whole), "9999-12-31T23:59:59+00:00");
+    }
+
+    #[test]
+    fn write_timestamp_iso_matches_reference_across_offsets_and_edge_dates() {
+        use super::write_timestamp_iso;
+        use time::UtcOffset;
+
+        fn reference_iso(value: &time::OffsetDateTime) -> String {
+            let v = value.to_offset(UtcOffset::UTC);
+            let mut s = format!(
+                "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
+                v.year(),
+                u8::from(v.month()),
+                v.day(),
+                v.hour(),
+                v.minute(),
+                v.second()
+            );
+            let micros = v.microsecond();
+            if micros != 0 {
+                s.push_str(&format!(".{micros:06}"));
+            }
+            s.push_str("+00:00");
+            s
+        }
+
+        let cases = [
+            datetime!(2026-11-16 10:11:12 UTC),
+            datetime!(2026-11-16 10:11:12.000_001 UTC),
+            datetime!(2026-11-16 10:11:12.999_999 UTC),
+            datetime!(2026-11-16 12:11:12.123_456 +05:30),
+            datetime!(2026-01-01 00:30:00 -04:00),
+            datetime!(2024-02-29 23:59:59.5 +02:00),
+            datetime!(2000-02-29 00:00:00 UTC),
+            datetime!(0001-01-01 00:00:00 UTC),
+            datetime!(0000-01-01 00:00:00 UTC),
+            datetime!(0042-07-04 03:04:05.007_008 UTC),
+            datetime!(9999-12-31 23:59:59.999_999 UTC),
+            datetime!(-0001-12-31 23:59:59 UTC),
+            datetime!(-0044-03-15 12:00:00.5 UTC),
+            datetime!(+10000-01-01 00:00:00 UTC),
+        ];
+
+        for dt in cases {
+            let mut buf = Vec::new();
+            write_timestamp_iso(&mut buf, &dt);
+            let actual = String::from_utf8(buf).unwrap();
+            assert_eq!(actual, reference_iso(&dt), "mismatch for {dt}");
+            assert_eq!(
+                timestamp_iso(&dt),
+                actual,
+                "timestamp_iso mismatch for {dt}"
+            );
+        }
     }
 
     #[test]

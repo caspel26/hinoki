@@ -8,7 +8,8 @@ import builtins
 import contextlib
 import dataclasses
 import weakref
-from collections.abc import Generator, Iterable
+from collections import OrderedDict
+from collections.abc import Callable, Generator, Iterable
 from contextlib import AbstractAsyncContextManager
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, Literal, overload
@@ -94,6 +95,158 @@ _JOINED_PLAN_CACHE: weakref.WeakKeyDictionary[
         tuple[core._ModelRows, tuple[core._ModelRows, ...], core._ModelRows],
     ],
 ] = weakref.WeakKeyDictionary()
+
+_SELECT_SQL_CACHE_MAX = 128
+_MAX_CACHED_IN_ARITY = 8
+_MAX_I64 = (1 << 63) - 1
+_SCALAR_CACHEABLE_OPS = frozenset({"eq", "ne", "gt", "gte", "lt", "lte"})
+
+type _FilterSig = tuple[tuple[str, str, int], ...]
+type _SelectSqlKey = tuple[
+    str,
+    str,
+    _FilterSig,
+    tuple[tuple[str, bool], ...],
+    bool,
+    bool,
+    tuple[str, ...],
+    tuple[str, ...],
+]
+_SELECT_SQL_CACHE: weakref.WeakKeyDictionary[
+    type[Model], OrderedDict[_SelectSqlKey, str]
+] = weakref.WeakKeyDictionary()
+
+_PROJECTION_HOOKS: list[Any] = []
+
+
+def _projection_hooks() -> tuple[
+    Callable[..., Any],
+    Callable[..., Any],
+    Callable[..., Any],
+    Callable[..., Any],
+    object,
+]:
+    if not _PROJECTION_HOOKS:
+        # local import avoids circular dependency with hinoki.orm.model
+        from hinoki.orm.projection import (  # noqa: PLC0415
+            _MODEL_GET_FALLBACK,
+            paginate_projected,
+            project_list,
+            project_model_one,
+            project_one,
+        )
+
+        _PROJECTION_HOOKS.extend(
+            (
+                project_list,
+                project_one,
+                paginate_projected,
+                project_model_one,
+                _MODEL_GET_FALLBACK,
+            )
+        )
+    return (
+        _PROJECTION_HOOKS[0],
+        _PROJECTION_HOOKS[1],
+        _PROJECTION_HOOKS[2],
+        _PROJECTION_HOOKS[3],
+        _PROJECTION_HOOKS[4],
+    )
+
+
+def _valid_bound_int(value: int | None) -> bool:
+    return value is None or (type(value) is int and 0 <= value <= _MAX_I64)
+
+
+def _filter_signature(
+    filters: tuple[tuple[str, str, list[Any]], ...],
+) -> _FilterSig | None:
+    sig: list[tuple[str, str, int]] = []
+    for col, op, values in filters:
+        arity = len(values)
+        if op in _SCALAR_CACHEABLE_OPS and arity == 1:
+            sig.append((col, op, 1))
+        elif op in ("isnull", "notnull") and arity == 0:
+            sig.append((col, op, 0))
+        elif op == "in" and arity <= _MAX_CACHED_IN_ARITY:
+            sig.append((col, op, arity))
+        else:
+            return None
+    return tuple(sig)
+
+
+def _select_cache_get(model: type[Model], key: _SelectSqlKey) -> str | None:
+    bucket = _SELECT_SQL_CACHE.get(model)
+    if bucket is None:
+        return None
+    sql = bucket.get(key)
+    if sql is not None:
+        bucket.move_to_end(key)
+    return sql
+
+
+def _select_cache_put(model: type[Model], key: _SelectSqlKey, sql: str) -> None:
+    bucket = _SELECT_SQL_CACHE.get(model)
+    if bucket is None:
+        bucket = OrderedDict()
+        _SELECT_SQL_CACHE[model] = bucket
+    bucket[key] = sql
+    bucket.move_to_end(key)
+    if len(bucket) > _SELECT_SQL_CACHE_MAX:
+        bucket.popitem(last=False)
+
+
+def _collect_select_params(
+    filters: tuple[tuple[str, str, list[Any]], ...],
+    limit_to: int | None,
+    offset_by: int | None,
+) -> list[Any]:
+    params: list[Any] = []
+    for _, _, values in filters:
+        params.extend(values)
+    if limit_to is not None:
+        params.append(limit_to)
+    if offset_by is not None:
+        params.append(offset_by)
+    return params
+
+
+def compile_simple_get_sql(
+    model: type[Model],
+    filter_columns: tuple[str, ...],
+    dialect: str,
+) -> str:
+    """Compile or return a cached ``SELECT ... WHERE ... LIMIT ?`` template for
+    simple equality lookups on ``model``."""
+    soft_col = model.__soft_delete__
+    sig_items: list[tuple[str, str, int]] = (
+        [(soft_col, "isnull", 0)] if soft_col is not None else []
+    )
+    sig_items.extend((col, "eq", 1) for col in filter_columns)
+    sig = tuple(sig_items)
+    order = tuple((n.removeprefix("-"), n.startswith("-")) for n in model.__ordering__)
+    key: _SelectSqlKey = ("select", dialect, sig, order, True, False, (), ())
+    cached = _select_cache_get(model, key)
+    if cached is not None:
+        return cached
+    filters: list[tuple[str, str, list[Any]]] = [
+        (col, op, [None] if arity else []) for col, op, arity in sig
+    ]
+    refuse_sqlite_decimal(model, filters, order, dialect)
+    sql, _ = core.compile_query(
+        "select",
+        model.__table__,
+        columns=list(model.__columns__),
+        filters=filters,
+        order=list(order),
+        limit=2,
+        offset=None,
+        joins=[],
+        keyset=None,
+        dialect=dialect,
+    )
+    _select_cache_put(model, key, sql)
+    return sql
 
 
 class QuerySet[M: Model]:
@@ -322,12 +475,62 @@ class QuerySet[M: Model]:
             )
         return result
 
+    def _compile_cached(
+        self,
+        kind: str,
+        dialect: str,
+        limit_to: int | None,
+        offset_by: int | None,
+    ) -> tuple[str, list[Any]] | None:
+        if (
+            kind not in ("select", "count")
+            or not _valid_bound_int(limit_to)
+            or not _valid_bound_int(offset_by)
+        ):
+            return None
+        sig = _filter_signature(self.filters)
+        if sig is None:
+            return None
+        selected = () if kind == "count" else self.loading.selected
+        key: _SelectSqlKey = (
+            kind,
+            dialect,
+            sig,
+            self.order,
+            limit_to is not None,
+            offset_by is not None,
+            selected,
+            self.loading.joined,
+        )
+        cached = _select_cache_get(self.model, key)
+        if cached is not None:
+            return cached, _collect_select_params(self.filters, limit_to, offset_by)
+        refuse_sqlite_decimal(self.model, self.filters, self.order, dialect)
+        sql, params = core.compile_query(
+            kind,
+            self.model.__table__,
+            columns=list(self.model.__columns__),
+            filters=list(self.filters),
+            order=list(self.order),
+            limit=limit_to,
+            offset=offset_by,
+            joins=self.joins(counting=kind == "count"),
+            keyset=None,
+            dialect=dialect,
+        )
+        _select_cache_put(self.model, key, sql)
+        return sql, params
+
     def compile(
         self,
         kind: str = "select",
         dialect: str = "postgres",
         keyset: tuple[list[tuple[str, bool]], list[Any]] | None = None,
     ) -> tuple[str, list[Any]]:
+        if keyset is None:
+            cached = self._compile_cached(kind, dialect, self.limit_to, self.offset_by)
+            if cached is not None:
+                return cached
         refuse_sqlite_decimal(self.model, self.filters, self.order, dialect)
         return core.compile_query(
             kind,
@@ -796,19 +999,18 @@ class QuerySet[M: Model]:
         returning a lazy ``list[S]`` that emits pre-encoded JSON with zero
         Python ``Model``/``Schema`` allocations and materializes transparently
         on Python access without a second database query."""
-        # local import avoids circular dependency with hinoki.orm.model
-        from hinoki.orm.projection import project_list  # noqa: PLC0415
-
-        return await project_list(self, schema, current_database())
+        project_list, _, _, _, _ = _projection_hooks()
+        result: builtins.list[S] = await project_list(self, schema, current_database())
+        return result
 
     async def aget_as[S: Schema](self, schema: type[S]) -> S:
         """Fetch exactly one row and project it directly to ``schema`` in Rust
         when eligible; raises ``Model.NotFound`` or ``MultipleObjectsReturned``
         otherwise."""
-        # local import avoids circular dependency with hinoki.orm.model
-        from hinoki.orm.projection import project_one  # noqa: PLC0415
-
-        found = await project_one(self, schema, current_database(), allow_none=False)
+        _, project_one, _, _, _ = _projection_hooks()
+        found: S | None = await project_one(
+            self, schema, current_database(), allow_none=False
+        )
         if found is None:
             msg = f"{self.model.__name__} matching query does not exist."
             raise self.model.NotFound(msg)
@@ -818,10 +1020,11 @@ class QuerySet[M: Model]:
         """Fetch at most one row and project it directly to ``schema`` in Rust
         when eligible; returns ``None`` if no row matches and raises
         ``MultipleObjectsReturned`` if several match."""
-        # local import avoids circular dependency with hinoki.orm.model
-        from hinoki.orm.projection import project_one  # noqa: PLC0415
-
-        return await project_one(self, schema, current_database(), allow_none=True)
+        _, project_one, _, _, _ = _projection_hooks()
+        found: S | None = await project_one(
+            self, schema, current_database(), allow_none=True
+        )
+        return found
 
     async def apaginate_as[S: Schema](
         self,
@@ -833,13 +1036,12 @@ class QuerySet[M: Model]:
         """Paginate and project matching rows directly to ``schema`` in Rust
         when eligible, returning a lazy ``Page[S]`` that emits pre-encoded JSON
         and materializes ``.items`` transparently without a second query."""
-        # local import avoids circular dependency with hinoki.orm.model
-        from hinoki.orm.projection import paginate_projected  # noqa: PLC0415
-
+        _, _, paginate_projected, _, _ = _projection_hooks()
         resolved = PageParams(1, DEFAULT_PAGE_SIZE) if params is None else params
-        return await paginate_projected(
+        page: Page[S] = await paginate_projected(
             self, schema, resolved, current_database(), concurrent=concurrent
         )
+        return page
 
     async def apaginate(
         self, params: PageParams | None = None, *, concurrent: bool = False

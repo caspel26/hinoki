@@ -8,18 +8,16 @@ import inspect
 import types
 import weakref
 from collections.abc import Callable, Iterable, Iterator
-from typing import TYPE_CHECKING, Any, SupportsIndex, cast, overload
+from typing import Any, SupportsIndex, cast, overload
 
 from hinoki import core
 from hinoki.errors import MultipleObjectsReturned
 from hinoki.orm.links import LinkSide
 from hinoki.orm.model import Model
+from hinoki.orm.queryset import QuerySet, compile_simple_get_sql
 from hinoki.orm.relations import ALIAS_PREFIX, store
 from hinoki.pagination import Page, PageParams
 from hinoki.schema import Schema, SchemaMeta, uses_generated_init
-
-if TYPE_CHECKING:
-    from hinoki.orm.queryset import QuerySet
 
 ROW_KINDS = frozenset(
     {"str", "int", "float", "bool", "uuid", "datetime", "bytes", "decimal", "date"}
@@ -914,6 +912,85 @@ async def project_list[S: Schema](
     return [schema.from_model(item) for item in models]
 
 
+_MODEL_GET_FALLBACK: Any = object()
+
+
+def compile_model_projection_plan(
+    model: type[Model], schema: type[Schema], dialect: str = "sqlite"
+) -> core._RowPlan | None:
+    """Build or fetch a cached Rust ``_RowPlan`` for a plain ``(model, schema)``
+    lookup without allocating an intermediate ``QuerySet`` on cache hits."""
+    if getattr(model.from_row, "__func__", None) is not _STOCK_FROM_ROW:
+        return None
+    cache_key: _PlanKey = ((), (), dialect)
+    per_schema = _PLAN_CACHE.get(schema)
+    per_model = None if per_schema is None else per_schema.get(model)
+    if per_model is not None and cache_key in per_model:
+        plan, guard_schemas, guard_models, was_stock = per_model[cache_key]
+        if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
+            return plan
+    return compile_projection_plan(QuerySet(model), schema, dialect)
+
+
+def _materialize_model_one[S: Schema](
+    model: type[Model], schema: type[S], handle: core._ProjectedRows
+) -> S:
+    return schema.from_model(model.from_row(handle.rows()[0]))
+
+
+def _finish_model_one[S: Schema](
+    model: type[Model],
+    schema: type[S],
+    result: Any,
+    *,
+    allow_none: bool,
+) -> S | None:
+    if result is None:
+        if allow_none:
+            return None
+        raise model.NotFound(f"{model.__name__} not found")
+    if result == "multiple":
+        raise MultipleObjectsReturned(f"{model.__name__}: several rows match")
+    if isinstance(result, core._ProjectedRows):
+        return cast(
+            "S",
+            _ProjectedItem(
+                result,
+                schema,
+                lambda handle: _materialize_model_one(model, schema, handle),
+            ),
+        )
+    return schema.from_model(model.from_row(result[0]))
+
+
+async def project_model_one[S: Schema](
+    model: type[Model],
+    schema: type[S],
+    conditions: dict[str, Any],
+    database: Any,
+    *,
+    allow_none: bool,
+) -> Any:
+    """Fast path for ``Model.aget_as`` / ``Model.aget_or_none_as`` on simple
+    column equality lookups without allocating intermediate ``QuerySet`` objects.
+
+    Returns ``_MODEL_GET_FALLBACK`` when the query must fall back to the
+    general ``QuerySet`` path.
+    """
+    fetch_one = getattr(database, "fetch_projected_one", None)
+    plan = (
+        compile_model_projection_plan(model, schema, database.dialect)
+        if fetch_one is not None
+        else None
+    )
+    if fetch_one is None or plan is None:
+        return _MODEL_GET_FALLBACK
+    sql = compile_simple_get_sql(model, tuple(conditions), database.dialect)
+    params = [*conditions.values(), 2]
+    result = await fetch_one(sql, params, plan)
+    return _finish_model_one(model, schema, result, allow_none=allow_none)
+
+
 async def project_one[S: Schema](
     query: QuerySet[Any],
     schema: type[S],
@@ -923,11 +1000,19 @@ async def project_one[S: Schema](
 ) -> S | None:
     """Execute ``query.limit(2)`` and project the single row directly to
     ``schema`` in Rust when eligible, returning a lazy ``_ProjectedItem``."""
-    window = query.limit(2)
-    plan = compile_projection_plan(window, schema, database.dialect)
+    plan = compile_projection_plan(query, schema, database.dialect)
     fetch_one = getattr(database, "fetch_projected_one", None)
     if plan is not None and fetch_one is not None:
-        sql, params = window.compile(dialect=database.dialect)
+        compiled = (
+            query._compile_cached("select", database.dialect, 2, query.offset_by)
+            if type(query) is QuerySet
+            else None
+        )
+        sql, params = (
+            compiled
+            if compiled is not None
+            else query.limit(2).compile(dialect=database.dialect)
+        )
         result = await fetch_one(sql, list(params), plan)
         if result is None:
             if allow_none:
@@ -941,10 +1026,10 @@ async def project_one[S: Schema](
                 _ProjectedItem(
                     result,
                     schema,
-                    lambda handle: _materialize_rows(window, schema, handle)[0],
+                    lambda handle: _materialize_rows(query, schema, handle)[0],
                 ),
             )
-        models = await window._hydrate(result)
+        models = await query._hydrate(result)
         return schema.from_model(models[0])
     return await _project_one_fallback(query, schema, allow_none=allow_none)
 
