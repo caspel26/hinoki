@@ -485,9 +485,21 @@ body.menu-open .menu-icon-close {
   transition: color var(--hn-dur-1) var(--hn-ease), background var(--hn-dur-1) var(--hn-ease);
 }
 
+.side__link > span {
+  transition: transform var(--hn-dur-1) var(--hn-ease);
+}
+
 .side__link:hover {
   color: var(--hn-text);
   background: var(--hn-surface-2);
+}
+
+.side__link:hover:not(.is-active) > span {
+  transform: translateX(2px);
+}
+
+.side__link:active:not(.is-active) > span {
+  transform: translateX(1px);
 }
 
 .side__link.is-active {
@@ -629,12 +641,16 @@ body.menu-open .menu-icon-close {
   font-size: var(--fs-s);
   line-height: 1.4;
   text-decoration: none;
-  transition: color var(--hn-dur-1) var(--hn-ease);
+  transition: color var(--hn-dur-1) var(--hn-ease), transform var(--hn-dur-1) var(--hn-ease);
 }
 
 .toc a:hover,
 .toc a.is-active {
   color: var(--hn-text);
+}
+
+.toc a:hover:not(.is-active) {
+  transform: translateX(2px);
 }
 
 .toc__marker {
@@ -1549,6 +1565,12 @@ body.menu-open .overlay {
     transition-duration: 0ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* No movement either: hover and press only change colour. */
+  .side__link:is(:hover, :active):not(.is-active) > span,
+  .toc a:hover:not(.is-active) {
+    transform: none;
+  }
 }
 
 /* ---------- Sliding thumb (segmented controls, tabs, filter pills) ---------- */
@@ -1606,6 +1628,11 @@ body.menu-open .overlay {
 @keyframes dot-pulse {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hn-brand) 55%, transparent); }
   60% { box-shadow: 0 0 0 6px transparent; }
+}
+
+/* Documentation pages stay still while you read: the pulse is for the home page only. */
+.is-doc .status-chip::before {
+  animation: none;
 }
 
 button:active,

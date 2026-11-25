@@ -605,6 +605,31 @@
     }
   });
 
+  /* ---------- Code tabs: fade the shown block only after the reader switches ---------- */
+  document.addEventListener("change", (e) => {
+    const input = e.target;
+    if (input instanceof HTMLInputElement && input.matches(".tabbed-set > input")) {
+      input.closest(".tabbed-set").classList.add("is-switched");
+    }
+  });
+
+  /* ---------- Heading anchors: copy the link and confirm it where the reader clicked ---------- */
+  let anchorTimer = 0;
+  document.addEventListener("click", async (e) => {
+    const link = e.target instanceof Element ? e.target.closest(".headerlink") : null;
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link.href);
+    } catch (err) {
+      return; /* the browser still jumps to the heading; nothing to confirm */
+    }
+    $$(".headerlink.is-copied").forEach((el) => el.classList.remove("is-copied"));
+    link.classList.add("is-copied");
+    toast("Link copied");
+    clearTimeout(anchorTimer);
+    anchorTimer = setTimeout(() => link.classList.remove("is-copied"), 1400);
+  });
+
   /* ---------- Diagnostics in rule output ---------- */
   const LINE = /^(\S+?:\d+:)(\s+)(HNK-[A-Z]+-\d+)(\s+)\[(violated|waived|unverifiable)\](\s+)(.*)$/;
   const structure = (code) => {
