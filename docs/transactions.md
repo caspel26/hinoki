@@ -106,7 +106,7 @@ In a sync handler, hook or helper, use the same API without `await`: `with db.at
 # notes/apps/billing/operations.py
 @db.atomic
 def settle_all_sync() -> int:
-    return Invoice.update_where({"paid": False}, {"paid": True})
+    return Invoice.update_where({"paid": False}, {"paid": True}, returning=False)
 
 
 def mark_paid_sync(invoice: Invoice) -> None:

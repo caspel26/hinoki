@@ -16,7 +16,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from hinoki import Hinoki, ModuleContext
+from hinoki import Hinoki, Module
 from hinoki.ai.mcpapp import expose_as_mcp
 
 from .apps.blog.accounts import build_accounts
@@ -31,17 +31,13 @@ WAIVERS = Path(__file__).parents[1] / "hinoki-rules.toml"
 
 
 def build_app(settings: BlogSettings) -> Hinoki:
-    """The blog; with a JWT secret it also owns a hasher, closed at shutdown."""
+    """The blog; with a JWT secret it also mounts the worker-owned Passwords module."""
     actions: list[Callable[..., Any]] = []
-    on_shutdown = []
+    modules: list[Module] = []
     if settings.jwt_secret:
-        accounts, hasher = build_accounts(settings.jwt_secret.reveal())
+        accounts, passwords = build_accounts(settings.jwt_secret)
         actions.extend(accounts)
-
-        def close_hasher(_ctx: ModuleContext) -> None:
-            hasher.close()
-
-        on_shutdown.append(close_hasher)
+        modules.append(passwords)
     app = Hinoki(
         settings=settings,
         title="Blog",
@@ -50,9 +46,9 @@ def build_app(settings: BlogSettings) -> Hinoki:
         docs_url="/docs",
         redoc_url="/redoc",
         include=[*routes, *actions],
+        modules=modules,
         rules=blog_rules,  # startup rules fail the app if a promise is broken
         waivers=WAIVERS,
-        on_shutdown=on_shutdown,
     )
     app.include(*expose_as_mcp(app, tools=MCP_TOOLS, access=editor))
     return app

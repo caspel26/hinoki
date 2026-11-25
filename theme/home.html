@@ -43,7 +43,7 @@
             <span class="hn-kpi__sub">3.5× FastAPI (3,642)</span>
           </a>
           <a class="hn-kpi__item" href="#ai-mcp">
-            <span class="hn-kpi__val">2<em> MCP</em> + 11<em> rules</em></span>
+            <span class="hn-kpi__val">2<em> MCP</em> + 12<em> rules</em></span>
             <span class="hn-kpi__label">Dev &amp; App MCP built in</span>
             <span class="hn-kpi__sub">AGENTS.md · skills · check</span>
           </a>
@@ -779,16 +779,16 @@ app.include(*mcp)  <span class="c"># mounts POST /mcp</span></pre>
         <div class="hn-sec__body">
           <div class="hn-sec__head">
             <p class="hn-kicker">Architecture checks</p>
-            <h2 id="hn-s4-title">Eleven optional rules. Turn promises into CI checks.</h2>
+            <h2 id="hn-s4-title">Twelve optional rules. Turn promises into CI checks.</h2>
             <p class="hn-lead">Adopt the rules your codebase cares about in a <code>RuleSet</code>. Every exception lives in <code>hinoki-rules.toml</code> with a reason, owner and expiry date — expired waivers fail CI with <code>HNK-WVR-002</code>.</p>
           </div>
 
           <div class="hn-explorer hn-surface" data-hn-explorer>
             <div class="hn-explorer__head">
               <div class="hn-switch" role="group" aria-label="Filter rules by scope" data-slider>
-                <button type="button" data-scope-filter="all" aria-pressed="true">all <span>11</span></button>
+                <button type="button" data-scope-filter="all" aria-pressed="true">all <span>12</span></button>
                 <button type="button" data-scope-filter="startup" aria-pressed="false">startup <span>10</span></button>
-                <button type="button" data-scope-filter="static" aria-pressed="false">static <span>1</span></button>
+                <button type="button" data-scope-filter="static" aria-pressed="false">static <span>2</span></button>
               </div>
               <a class="hn-link" href="{{ 'rules/' | url }}">Rules guide</a>
             </div>
@@ -806,6 +806,7 @@ app.include(*mcp)  <span class="c"># mounts POST /mcp</span></pre>
                 <li data-rule-item data-rule-id="HNK-DB-001" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-DB-001</code><span>Models pin their table name explicitly.</span></button></li>
                 <li data-rule-item data-rule-id="HNK-DB-002" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-DB-002</code><span>Every foreign-key column is indexed.</span></button></li>
                 <li data-rule-item data-rule-id="HNK-IMP-001" data-scope="static"><button type="button" aria-pressed="false"><code>HNK-IMP-001</code><span>Modules under a source never import a target.</span><i class="hn-rule-scope">static · AST</i></button></li>
+                <li data-rule-item data-rule-id="HNK-MAIL-001" data-scope="static"><button type="button" aria-pressed="false"><code>HNK-MAIL-001</code><span>Email templates match their typed context <code>Schema</code>.</span><i class="hn-rule-scope">static · template</i></button></li>
               </ul>
 
               <div class="hn-explorer__detail">
@@ -868,6 +869,11 @@ app.include(*mcp)  <span class="c"># mounts POST /mcp</span></pre>
                   <p class="hn-file">Declaration</p>
                   <pre class="hn-code">Imports.forbid(source=<span class="s">"apps.billing"</span>, target=<span class="s">"apps.shipping"</span>)</pre>
                   <p class="hn-detail-note">Static AST check. Parses source files without importing the application and rejects forbidden module boundaries.</p>
+                </div>
+                <div data-detail="HNK-MAIL-001" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">EmailTemplatesMatch()</pre>
+                  <p class="hn-detail-note">Static template check. Compiles registered email templates against their typed context <code>Schema</code> and flags unknown variables or invalid filters before deploy.</p>
                 </div>
               </div>
             </div>
