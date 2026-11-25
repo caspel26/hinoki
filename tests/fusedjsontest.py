@@ -165,3 +165,59 @@ def test_a_contract_violation_after_a_miss_outranks_the_encode_error() -> None:
     with pytest.raises(ResponseContractError, match="does not match"):
         NativeLane._send_strict(run, 200, [], payload)
     assert request.calls == [True]
+
+
+def binding_run(
+    payload: object, check: Callable[[object], bool]
+) -> tuple[Run, Recorder]:
+    run, request = run_of(payload, check)
+    object.__setattr__(run.binding, "fused_check", True)
+    return run, request
+
+
+def test_the_first_miss_turns_the_fused_path_off_for_the_binding() -> None:
+    payload = [{"a": 1}]
+    run, request = binding_run(payload, lambda _: True)
+    NativeLane._send_strict(run, 200, [], payload)
+    assert run.binding.fused_check is False
+    assert request.calls == [True, False]
+
+
+def test_a_contract_violation_also_turns_the_fused_path_off() -> None:
+    payload = [{"a": 1}]
+    run, _ = binding_run(payload, lambda _: False)
+    for _ in range(2):
+        with pytest.raises(ResponseContractError, match="does not match"):
+            NativeLane._send_strict(run, 200, [], payload)
+    assert run.binding.fused_check is False
+
+
+async def test_unvouched_rows_leave_the_fused_path_after_one_request() -> None:
+    app = Hinoki()
+    app.include(
+        http.get("/fused/dt")(make_handler("datetime-value")),
+        http.get("/fused/ok")(make_handler("good")),
+    )
+    worker = KisoWorker(app, "127.0.0.1", 0, native_dispatch=True)
+    port = await worker.start()
+    flags: list[bool] = []
+    assert worker.lane is not None
+    send = worker.lane._send
+
+    def spy(run: Run, response: Any) -> Exception | None:
+        flags.append(bool(response.strict))
+        return send(run, response)
+
+    worker.lane._send = spy  # type: ignore[method-assign]
+    try:
+        first = [await fetch(port, "GET", "/fused/dt") for _ in range(2)]
+        plain = [await fetch(port, "GET", "/fused/ok") for _ in range(20)]
+    finally:
+        await worker.stop()
+    assert flags[:2] == [True, False]
+    assert first[0].status == 200
+    assert first[0].body == first[1].body
+    assert all(r.body == core.encode_json(valid()) for r in plain)
+    assert flags[2:] == [True] * 20
+    # Both handlers share one qualified name, so read the bindings in order.
+    assert [b.fused_check for b in worker.pipeline.bindings] == [False, True]
