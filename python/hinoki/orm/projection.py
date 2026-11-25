@@ -344,6 +344,17 @@ class _ProjectedItem[S: Schema]:
     def __class__(self) -> type[S]:  # type: ignore[override]
         return self._schema
 
+    # `dataclasses` reads these from `type(item)`, which stays `_ProjectedItem` (the
+    # native encoder recognises that exact type), so they are forwarded to the
+    # projected Schema: `is_dataclass`, `asdict` and `replace` work as on the Schema.
+    @property
+    def __dataclass_fields__(self) -> dict[str, dataclasses.Field[Any]]:
+        return self._schema.__dataclass_fields__  # type: ignore[attr-defined, no-any-return]
+
+    @property
+    def __dataclass_params__(self) -> Any:
+        return self._schema.__dataclass_params__  # type: ignore[attr-defined]
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self._ensure(), name)
 
