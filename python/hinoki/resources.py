@@ -8,8 +8,11 @@ import dataclasses
 import enum
 import functools
 import inspect
+import os
+import sys
 import types
 import typing
+import warnings
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import date
 from operator import attrgetter
@@ -276,6 +279,43 @@ def check_hook_callers(cls: type[CrudBase], config: _CrudConfig) -> None:
     """Validate overridden hook ``Caller`` annotations against generated actions."""
     for hook_name, param_index in HOOK_CALLER_INDEX.items():
         _check_hook_caller(cls, config, hook_name, param_index)
+
+
+_PACKAGE_PREFIXES = (
+    os.path.dirname(os.path.abspath(__file__)) + os.sep,
+    types.__file__,
+)
+
+
+def _user_stacklevel() -> int:
+    """Stack level of the first frame outside the hinoki package.
+
+    Warnings are attributed to user code, so per-module filters and ``-W error``
+    tracebacks point at the declaration. ``types.new_class`` is skipped too: it
+    sits between ``crud(...)`` and the class creation. Computed by hand because
+    ``skip_file_prefixes`` mishandles several prefixes on Python 3.13.
+    """
+    level = 1
+    frame: types.FrameType | None = sys._getframe(1)
+    while frame is not None and frame.f_code.co_filename.startswith(_PACKAGE_PREFIXES):
+        frame = frame.f_back
+        level += 1
+    return level
+
+
+def warn_unscoped_owner_reads(cls: type[CrudBase], config: _CrudConfig) -> None:
+    """Warn when ``owner=`` guards writes but nothing scopes the generated reads."""
+    reads = {"list", "retrieve"} - config.omit
+    if not config.owner or not reads or cls.get_queryset is not CrudBase.get_queryset:
+        return
+    warnings.warn(
+        f"{config.model.__name__}: owner={config.owner!r} constrains writes only; "
+        f"{' and '.join(sorted(reads))} return every owner's rows. Scope reads in "
+        "a get_queryset override (class form), or omit=... the read actions; "
+        "overriding get_queryset also silences this warning",
+        UserWarning,
+        stacklevel=_user_stacklevel(),
+    )
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
@@ -980,6 +1020,7 @@ class CrudBase(API):
             custom_links=cls.link_queryset is not CrudBase.link_queryset,
         )
         check_hook_callers(cls, config)
+        warn_unscoped_owner_reads(cls, config)
         cls.resource = config
         cls.model = config.model
         generated = generate(config)
