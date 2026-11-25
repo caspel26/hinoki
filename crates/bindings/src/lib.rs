@@ -228,6 +228,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(web::parse_uuid, m)?)?;
     m.add_function(wrap_pyfunction!(web::extract_boundary, m)?)?;
     m.add_function(wrap_pyfunction!(web::same_site_origin, m)?)?;
+    m.add_function(wrap_pyfunction!(web::py_websocket_origin_allowed, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_page_params, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_cursor_params, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_dotenv, m)?)?;

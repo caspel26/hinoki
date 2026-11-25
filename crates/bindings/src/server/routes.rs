@@ -24,6 +24,7 @@ use crate::crudplan::CrudPlan;
 use crate::jwt::Admission;
 use crate::request;
 use crate::router::{Match, Router};
+use crate::web::websocket_origin_allowed;
 use crate::websocket::{WsHandshake, WsPlan};
 
 enum Resolved {
@@ -300,11 +301,7 @@ impl Core {
         )
     }
 
-    /// An absent `Origin` (not a browser) passes. Otherwise the origin must be the
-    /// host and scheme the request addressed, one of the route's, or one the application's
-    /// CORS policy lists. A CORS wildcard is not honoured: it is safe for HTTP
-    /// because a browser hides a credentialed answer from other sites, but a
-    /// WebSocket handshake carries cookies and has no such protection.
+    /// The rule is `web::websocket_origin_allowed`, which the Python lane calls too.
     fn origin_allowed(
         &self,
         headers: &[Header],
@@ -312,28 +309,9 @@ impl Core {
         https: bool,
         plan: &WsPlan,
     ) -> bool {
-        if origin.is_empty() {
-            return true;
-        }
-        let origin = origin.to_ascii_lowercase();
-        let listed = |allowed: &[Vec<u8>]| allowed.iter().any(|o| o == b"*" || *o == origin);
-        if listed(&plan.origins) {
-            return true;
-        }
-        if self
-            .cors
-            .as_ref()
-            .is_some_and(|cors| cors.origins.contains(&origin))
-        {
-            return true;
-        }
-        let host = joined_value(headers, b"host").map(|host| host.to_ascii_lowercase());
-        // Over TLS a page on plain http is another origin; where the scheme is
-        // not known to be https (a proxy that terminates TLS) either is accepted.
-        let authority = origin
-            .strip_prefix(b"https://")
-            .or_else(|| origin.strip_prefix(b"http://").filter(|_| !https));
-        matches!((host, authority), (Some(host), Some(authority)) if host == authority)
+        let host = joined_value(headers, b"host");
+        let cors: &[Vec<u8>] = self.cors.as_ref().map_or(&[], |cors| &cors.origins);
+        websocket_origin_allowed(origin, host.as_deref(), https, &plan.origins, cors)
     }
 
     /// Authenticate a native route that uses a claims-only provider, in the order

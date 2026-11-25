@@ -1256,6 +1256,13 @@ def extract_boundary(content_type: str) -> str: ...
 def same_site_origin(
     origin: str | None, fetch_site: str, host: str, scheme: str
 ) -> bool: ...
+def websocket_origin_allowed(
+    origin: str | None,
+    host: str | None,
+    https: bool,
+    route_origins: list[str],
+    cors_origins: list[str],
+) -> bool: ...
 def parse_page_params(
     query: dict[str, list[str]], default_size: int, upper: int
 ) -> tuple[int, int, list[tuple[str, str, str]]]: ...
