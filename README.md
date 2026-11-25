@@ -59,7 +59,7 @@ Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on *
 
 ## How it works
 
-You declare once. Routing, validation, the OpenAPI document, rules and the development tools read the same declaration; schema changes follow a separate, explicit lane.
+You declare once. Routing, validation, the OpenAPI document, rules and the development tools read the same declaration; table changes follow a separate, explicit lane.
 
 <p align="center">
   <picture>
