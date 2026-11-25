@@ -38,6 +38,7 @@
   <link rel="preload" href="static/fonts/plex-sans-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="static/fonts/ibm-plex-mono-latin-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="static/fonts/ibm-plex-mono-latin-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="static/fonts/space-grotesk-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="static/css/tokens.css">
   <link rel="stylesheet" href="static/css/base.css">
   <link rel="stylesheet" href="static/css/prose.css">
@@ -160,375 +161,1108 @@
 
   
 
-<main class="home" id="main">
+
+<div class="hn-stage" aria-hidden="true" data-hn-stage>
+  <i class="hn-stage__light hn-stage__light--key"></i>
+  <i class="hn-stage__light hn-stage__light--fill"></i>
+  <canvas class="hn-stage__canvas" data-hn-stage-canvas></canvas>
+</div>
+
+<main id="main" class="home" tabindex="-1">
   <div class="home__inner">
 
+    
     <section class="hn-hero" aria-labelledby="hn-hero-title" data-hn-state="before">
-      <div class="hn-hero__bg" aria-hidden="true"><b></b><i></i><span class="hn-dust"><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s></span></div>
-      <div class="hn-flow" aria-hidden="true"><ol><li style="--i:0"></li><li style="--i:1"></li><li style="--i:2"></li><li style="--i:3"></li><li style="--i:4"></li><li style="--i:5"></li><li style="--i:6"></li><li style="--i:7"></li></ol><b class="hn-flow__pulse"></b></div>
       <div class="hn-hero__copy">
-        <p class="hn-kicker"><span aria-hidden="true">$</span> hinoki check</p>
-        <h1 class="hn-hero__title" id="hn-hero-title" aria-label="A Python API framework that checks its own architecture."><span class="hn-w" style="--w:0">A</span> <span class="hn-w" style="--w:1">Python</span> <span class="hn-w" style="--w:2">API</span> <span class="hn-w" style="--w:3">framework</span> <span class="hn-w" style="--w:4">that</span> <span class="hn-w" style="--w:5">checks</span> <span class="hn-w" style="--w:6">its</span> <span class="hn-w" style="--w:7">own</span> <span class="hn-w hn-w--accent" style="--w:8">architecture.</span></h1>
-        <p class="hn-hero__lead">Typed Python declarations become one contract shared by routing, validation, access policies, transactions, OpenAPI, MCP and <code>llms.txt</code>. The hot path and Kiso server run in Rust, and optional rules check the architectural promises you make.</p>
+        <p class="hn-eyebrow">
+          <span class="hn-eyebrow__rule" aria-hidden="true"></span>
+          <span>python api framework · rust http &amp; orm · agent-ready</span>
+        </p>
+        <h1 id="hn-hero-title" class="hn-hero__title">Typed Python APIs. <span>Architecture rules you can run.</span></h1>
+        <p class="hn-hero__lead">High-throughput Python API framework powered by the Kiso Rust HTTP server and SQL ORM. One typed declaration drives routing, strict <code>Schema</code> validation, OpenAPI, architecture rules, and MCP.</p>
+
         <div class="hn-actions">
-          <a class="hn-btn hn-btn--primary" href="quick-start/">Run the quick start <span class="hn-btn__arrow" aria-hidden="true">→</span></a>
-          <a class="hn-btn hn-btn--ghost" href="#walkthrough">See a project end to end</a>
+          <a class="hn-btn hn-btn--primary" href="getting-started/">Quick start <span class="hn-btn__arrow" aria-hidden="true">→</span></a>
+          <a class="hn-btn hn-btn--ghost" href="#kiso">Kiso &amp; benchmarks</a>
+          <a class="hn-btn hn-btn--ghost" href="#ai-mcp">AI &amp; MCP</a>
         </div>
-        <a class="hn-bench-link" href="benchmarks/">Read the retained benchmark report <span aria-hidden="true">↗</span></a>
-        <ul class="hn-hero__meta" aria-label="Project facts"><li>pre-alpha</li><li>Python 3.12+</li><li>Rust server Kiso</li><li>MCP &amp; llms.txt</li><li>MIT</li></ul>
+
+        
+        <div class="hn-kpi" aria-label="Measured Kiso throughput and built-in architecture tooling">
+          <a class="hn-kpi__item" href="#kiso">
+            <span class="hn-kpi__val">91,675<em> req/s</em></span>
+            <span class="hn-kpi__label">JSON 1 KB · Kiso</span>
+            <span class="hn-kpi__sub">4.2× FastAPI (22,059)</span>
+          </a>
+          <a class="hn-kpi__item" href="#kiso">
+            <span class="hn-kpi__val">12,819<em> req/s</em></span>
+            <span class="hn-kpi__label">PostgreSQL detail · Kiso</span>
+            <span class="hn-kpi__sub">3.5× FastAPI (3,642)</span>
+          </a>
+          <a class="hn-kpi__item" href="#ai-mcp">
+            <span class="hn-kpi__val">2<em> MCP</em> + 11<em> rules</em></span>
+            <span class="hn-kpi__label">Dev &amp; App MCP built in</span>
+            <span class="hn-kpi__sub">AGENTS.md · skills · check</span>
+          </a>
+        </div>
+        <p class="hn-kpi__note">Pre-alpha, single Linux host, loopback, 100 concurrent connections, median of 10 samples (2026-11-21). <a href="benchmarks/">Read the retained benchmark report ↗</a></p>
+
+        <div class="hn-install" data-hn-tabs>
+          <div class="hn-install__head">
+            <div class="hn-install__tabs" role="tablist" aria-label="Start commands" data-slider>
+              <button type="button" role="tab" id="hn-it-0" aria-controls="hn-ip-0" aria-selected="true">Checkout</button>
+              <button type="button" role="tab" id="hn-it-1" aria-controls="hn-ip-1" aria-selected="false" tabindex="-1">Example</button>
+              <button type="button" role="tab" id="hn-it-2" aria-controls="hn-ip-2" aria-selected="false" tabindex="-1">Agent MCP</button>
+            </div>
+            <span class="hn-install__hint">uv · python 3.12+</span>
+          </div>
+          <div id="hn-ip-0" role="tabpanel" aria-labelledby="hn-it-0" class="hn-install__panel">
+            <pre class="hn-code"><span class="k">$</span> git clone https://github.com/caspel26/hinoki
+<span class="k">$</span> cd hinoki &amp;&amp; uv sync --locked</pre>
+            <button type="button" class="hn-copy" data-hn-copy data-copy-text="git clone https://github.com/caspel26/hinoki && cd hinoki && uv sync --locked">Copy</button>
+          </div>
+          <div id="hn-ip-1" role="tabpanel" aria-labelledby="hn-it-1" class="hn-install__panel" hidden>
+            <pre class="hn-code"><span class="k">$</span> cd examples/notes
+<span class="k">$</span> uv run --locked hinoki serve --server kiso</pre>
+            <button type="button" class="hn-copy" data-hn-copy data-copy-text="cd examples/notes && uv run --locked hinoki serve --server kiso">Copy</button>
+          </div>
+          <div id="hn-ip-2" role="tabpanel" aria-labelledby="hn-it-2" class="hn-install__panel" hidden>
+            <pre class="hn-code"><span class="k">$</span> uv run --locked hinoki new shop
+<span class="k">$</span> cd shop &amp;&amp; uv run hinoki mcp</pre>
+            <button type="button" class="hn-copy" data-hn-copy data-copy-text="uv run --locked hinoki new shop && cd shop && uv run hinoki mcp">Copy</button>
+          </div>
+        </div>
       </div>
 
-      <div class="hn-panel ide" data-hn-panel>
-        <div class="ide__bar">
-          <div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i><span data-hn-file>rulesapp.py</span></span></div>
-          <div class="hn-switch" data-slider role="group" aria-label="Scenario">
-            <button type="button" data-state="before" data-file="rulesapp.py" data-count="3" data-tone="bad" data-problems="✕ 3 problems" aria-pressed="true">violations</button>
-            <button type="button" data-state="after" data-file="rulesapp.py" data-count="0" data-tone="ok" data-problems="✓ no problems" aria-pressed="false">fixed</button>
-            <button type="button" data-state="waived" data-file="hinoki-rules.toml" data-count="2" data-tone="warn" data-problems="✕ 2 problems · 1 waived" aria-pressed="false">waived</button>
+      
+      <div class="hn-console" data-hn-console data-state="before">
+        <div class="hn-console__chrome">
+          <span class="hn-console__glyph" aria-hidden="true">›</span>
+          <p class="hn-console__cmd" data-cmd-text>$ uv run hinoki check</p>
+          <span class="hn-console__status is-bad" data-console-status>exit 1 · 3 violated</span>
+          <button type="button" class="hn-copy hn-copy--inline" data-hn-copy>Copy</button>
+        </div>
+        <div class="hn-console__toolbar">
+          <span class="hn-console__file">tests/projects/rulesapp.py</span>
+          <div class="hn-switch" role="group" aria-label="Check output state" data-slider>
+            <button type="button" data-state-btn="before" aria-pressed="true">violations</button>
+            <button type="button" data-state-btn="after" aria-pressed="false">fixed</button>
+            <button type="button" data-state-btn="waived" aria-pressed="false">waived</button>
+            <button type="button" data-state-btn="json" aria-pressed="false">--format json</button>
           </div>
         </div>
-        <div class="ide__crumbs"><span>tests</span><u>›</u><span>projects</span><u>›</u><span data-hn-file>rulesapp.py</span></div>
-        <div class="hn-panel__body">
-          <div class="hn-panel__src">
-            <pre data-state-view="before"><code><span class="hn-ln is-problem" data-line="7"><span class="nd">@http.get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span></span><span class="hn-ln" data-line="8"><span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span></span><span class="hn-ln" data-line="9">    <span class="k">return</span> <span class="p">{}</span></span><span class="hn-ln hn-ln--gap" data-line="…"></span><span class="hn-ln is-problem" data-line="12"><span class="nd">@http.post</span><span class="p">(</span><span class="s2">"/items"</span><span class="p">)</span></span><span class="hn-ln" data-line="13"><span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span></span><span class="hn-ln" data-line="14">    <span class="k">return</span> <span class="p">{}</span></span></code></pre>
-            <pre data-state-view="after" hidden><code><span class="hn-ln" data-line="5"><span class="k">from</span> <span class="nn">tests.projects.policies</span> <span class="k">import</span> <span class="n">staff</span></span><span class="hn-ln hn-ln--gap" data-line="…"></span><span class="hn-ln" data-line="8"><span class="nd">@http.get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">staff</span><span class="p">)</span></span><span class="hn-ln" data-line="9"><span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span></span><span class="hn-ln" data-line="10">    <span class="k">return</span> <span class="p">{}</span></span><span class="hn-ln hn-ln--gap" data-line="…"></span><span class="hn-ln" data-line="13"><span class="nd">@http.post</span><span class="p">(</span><span class="s2">"/items"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">staff</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></span><span class="hn-ln" data-line="14"><span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span></span><span class="hn-ln" data-line="15">    <span class="k">return</span> <span class="p">{}</span></span></code></pre>
-            <pre data-state-view="waived" hidden><code><span class="hn-ln" data-line="1"><span class="k">[[waiver]]</span></span><span class="hn-ln" data-line="2"><span class="n">rule</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"HNK-ACC-001"</span></span><span class="hn-ln" data-line="3"><span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tests.projects.rulesapp.health"</span></span><span class="hn-ln" data-line="4"><span class="n">reason</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"liveness probe is public by design"</span></span><span class="hn-ln" data-line="5"><span class="n">owner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"platform-team"</span></span><span class="hn-ln" data-line="6"><span class="n">expires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ld">2027-01-31</span></span></code></pre>
+
+        <div class="hn-console__src">
+          <pre class="hn-code"><span class="hn-ln is-problem" data-line="7"><span class="nd">@http.get</span>(<span class="s">"/health"</span>)</span>
+<span class="hn-ln" data-line="8"><span class="k">def</span> <span class="nf">health</span>(request: Request) -&gt; <span class="nb">dict</span>[<span class="nb">str</span>, <span class="nb">str</span>]:</span>
+<span class="hn-ln" data-line="9">    <span class="k">return</span> {}</span>
+<span class="hn-ln hn-ln--gap"></span>
+<span class="hn-ln is-problem" data-line="12"><span class="nd">@http.post</span>(<span class="s">"/items"</span>)</span>
+<span class="hn-ln" data-line="13"><span class="k">def</span> <span class="nf">create</span>(request: Request) -&gt; <span class="nb">dict</span>[<span class="nb">str</span>, <span class="nb">str</span>]:</span>
+<span class="hn-ln" data-line="14">    <span class="k">return</span> {}</span></pre>
+        </div>
+
+        <div class="hn-console__out" data-state-view="before">
+          <div class="hn-diag" tabindex="0" data-lines="7">
+            <p><span class="hn-loc">rulesapp.py:7:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> GET /health (health) declares no access policy</p>
+            <p class="hn-fix">fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)</p>
           </div>
-          <div class="hn-panel__out ide__term" aria-live="polite">
-            <div class="ide__termbar"><span class="is-on">TERMINAL</span><span>PROBLEMS <b data-hn-count>3</b></span></div>
-            <p class="hn-cmd"><span aria-hidden="true">$</span> hinoki check</p>
-            <div data-state-view="before">
-              <div class="hn-diag" tabindex="0" data-lines="7">
-                <p><span class="hn-loc">tests/projects/rulesapp.py:7:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> GET /health (health) declares no access policy</p>
-                <p class="hn-fix">fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)</p>
-              </div>
-              <div class="hn-diag" tabindex="0" data-lines="12">
-                <p><span class="hn-loc">tests/projects/rulesapp.py:12:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> POST /items (create) declares no access policy</p>
-                <p class="hn-fix">fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)</p>
-              </div>
-              <div class="hn-diag" tabindex="0" data-lines="12">
-                <p><span class="hn-loc">tests/projects/rulesapp.py:12:</span> <span class="hn-id">HNK-TXN-001</span> <span class="hn-bad">[violated]</span> POST /items (create) does not declare atomic=True</p>
-                <p class="hn-fix">fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)</p>
-              </div>
-              <p class="hn-sum hn-sum--bad">2 rule(s): 3 violated, 0 unverifiable, 0 waived <span>exit 1</span></p>
-            </div>
-            <div data-state-view="after" hidden>
-              <p class="hn-sum hn-sum--ok">2 rule(s): 0 violated, 0 unverifiable, 0 waived <span>exit 0</span></p>
-            </div>
-            <div data-state-view="waived" hidden>
-              <div class="hn-diag" tabindex="0">
-                <p><span class="hn-loc">tests/projects/rulesapp.py:7:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-wvd">[waived]</span> GET /health (health) declares no access policy</p>
-                <p class="hn-fix">fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)</p>
-              </div>
-              <div class="hn-diag" tabindex="0">
-                <p><span class="hn-loc">tests/projects/rulesapp.py:12:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> POST /items (create) declares no access policy</p>
-                <p class="hn-fix">fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)</p>
-              </div>
-              <div class="hn-diag" tabindex="0">
-                <p><span class="hn-loc">tests/projects/rulesapp.py:12:</span> <span class="hn-id">HNK-TXN-001</span> <span class="hn-bad">[violated]</span> POST /items (create) does not declare atomic=True</p>
-                <p class="hn-fix">fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)</p>
-              </div>
-              <p class="hn-fix hn-fix--waiver">&nbsp;&nbsp;&nbsp;&nbsp;waived: liveness probe is public by design (platform-team, until 2027-01-31)</p>
-              <p class="hn-sum hn-sum--bad">2 rule(s): 2 violated, 0 unverifiable, 1 waived <span>exit 1</span></p>
-            </div>
+          <div class="hn-diag" tabindex="0" data-lines="12">
+            <p><span class="hn-loc">rulesapp.py:12:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> POST /items (create) declares no access policy</p>
+            <p class="hn-fix">fix: add access=&lt;policy&gt; to the action (or list it in except_ when it is public on purpose)</p>
+          </div>
+          <div class="hn-diag" tabindex="0" data-lines="12">
+            <p><span class="hn-loc">rulesapp.py:12:</span> <span class="hn-id">HNK-TXN-001</span> <span class="hn-bad">[violated]</span> POST /items (create) does not declare atomic=True</p>
+            <p class="hn-fix">fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)</p>
+          </div>
+          <p class="hn-sum hn-sum--bad"><span>2 rule(s): 3 violated, 0 unverifiable, 0 waived</span><em>exit 1</em></p>
+        </div>
+
+        <div class="hn-console__out" data-state-view="after" hidden>
+          <p class="hn-sum hn-sum--ok"><span>2 rule(s): 0 violated, 0 unverifiable, 0 waived</span><em>exit 0</em></p>
+          <p class="hn-fix" style="margin-top:10px">After adding <code>access=</code> and <code>atomic=True</code> (or declaring <code>/health</code> in <code>except_</code>), every declared rule passes.</p>
+        </div>
+
+        <div class="hn-console__out" data-state-view="waived" hidden>
+          <div class="hn-diag" tabindex="0" data-lines="7">
+            <p><span class="hn-loc">rulesapp.py:7:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-wvd">[waived]</span> GET /health (health) declares no access policy</p>
+            <p class="hn-fix hn-fix--waiver">waived: liveness probe is public by design (platform-team, until 2027-01-31)</p>
+          </div>
+          <div class="hn-diag" tabindex="0" data-lines="12">
+            <p><span class="hn-loc">rulesapp.py:12:</span> <span class="hn-id">HNK-ACC-001</span> <span class="hn-wvd">[waived]</span> POST /items (create) declares no access policy</p>
+            <p class="hn-fix hn-fix--waiver">waived: temporary migration window (api-team, until 2026-09-01)</p>
+          </div>
+          <div class="hn-diag" tabindex="0" data-lines="12">
+            <p><span class="hn-loc">rulesapp.py:12:</span> <span class="hn-id">HNK-TXN-001</span> <span class="hn-wvd">[waived]</span> POST /items (create) does not declare atomic=True</p>
+            <p class="hn-fix hn-fix--waiver">waived: temporary migration window (api-team, until 2026-09-01)</p>
+          </div>
+          <p class="hn-sum hn-sum--ok"><span>2 rule(s): 0 violated, 0 unverifiable, 3 waived</span><em>exit 0</em></p>
+        </div>
+
+        <div class="hn-console__out hn-console__json" data-state-view="json" hidden>
+          <pre class="hn-code">{
+  <span class="s">"ok"</span>: <span class="k">false</span>,
+  <span class="s">"summary"</span>: {
+    <span class="s">"rules"</span>: <span class="mi">2</span>, <span class="s">"violated"</span>: <span class="mi">3</span>, <span class="s">"unverifiable"</span>: <span class="mi">0</span>, <span class="s">"waived"</span>: <span class="mi">0</span>
+  },
+  <span class="s">"diagnostics"</span>: [
+    {
+      <span class="s">"rule_id"</span>: <span class="s">"HNK-ACC-001"</span>,
+      <span class="s">"status"</span>: <span class="s">"violated"</span>,
+      <span class="s">"target"</span>: <span class="s">"tests.projects.rulesapp.health"</span>,
+      <span class="s">"location"</span>: { <span class="s">"file"</span>: <span class="s">"tests/projects/rulesapp.py"</span>, <span class="s">"line"</span>: <span class="mi">7</span> }
+    },
+    {
+      <span class="s">"rule_id"</span>: <span class="s">"HNK-TXN-001"</span>,
+      <span class="s">"status"</span>: <span class="s">"violated"</span>,
+      <span class="s">"target"</span>: <span class="s">"tests.projects.rulesapp.create"</span>,
+      <span class="s">"location"</span>: { <span class="s">"file"</span>: <span class="s">"tests/projects/rulesapp.py"</span>, <span class="s">"line"</span>: <span class="mi">12</span> }
+    }
+  ]
+}</pre>
+        </div>
+
+        
+        <div class="hn-flow" data-hn-flow>
+          <div class="hn-flow__head">
+            <span class="hn-flow__kicker">Request pipeline</span>
+            <span class="hn-flow__status" data-flow-status aria-live="polite">
+              <span data-flow-for="before">Stops at Access · HNK-ACC-001</span>
+              <span data-flow-for="after">Runs to Commit · all rules pass</span>
+              <span data-flow-for="waived">Passes Access on waiver · exit 0</span>
+              <span data-flow-for="json">Stops at Access · ok: false</span>
+            </span>
+          </div>
+          <div class="hn-flow__rail" aria-hidden="true">
+            <ol class="hn-flow__track">
+              <li style="--i:0"><i></i><b>Route</b></li>
+              <li style="--i:1" class="is-gate"><i></i><b>Access</b></li>
+              <li style="--i:2"><i></i><b>Parse</b></li>
+              <li style="--i:3"><i></i><b>Schema</b></li>
+              <li style="--i:4"><i></i><b>Atomic</b></li>
+              <li style="--i:5"><i></i><b>Handler</b></li>
+              <li style="--i:6"><i></i><b>Response</b></li>
+              <li style="--i:7" class="is-end"><i></i><b>Commit</b></li>
+            </ol>
+            <span class="hn-flow__run"><span class="hn-flow__pulse"></span></span>
           </div>
         </div>
-        <div class="ide__status"><span>⎇ main</span><span>Python 3.12</span><span>UTF-8</span><span class="ide__prob is-bad" data-hn-problems>✕ 3 problems</span></div>
+
+        <div class="hn-console__foot">
+          <span>captured from <code>tests/projects/rulesapp.py</code> · hinoki 0.0.1 (121084bf) · hover a diagnostic to highlight its line</span>
+        </div>
       </div>
     </section>
 
-    <div class="hn-ticker" aria-hidden="true">
-      <div class="hn-ticker__track">
-        <span class="hn-tick"><b>HNK-ACC-001</b><em>access policy declared</em></span><span class="hn-tick"><b>HNK-ACC-002</b><em>permissions named</em></span><span class="hn-tick"><b>HNK-TXN-001</b><em>writes are atomic</em></span><span class="hn-tick"><b>HNK-API-001</b><em>responses are Schemas</em></span><span class="hn-tick"><b>HNK-API-002</b><em>concrete return type</em></span><span class="hn-tick"><b>HNK-API-003</b><em>lists are paginated</em></span><span class="hn-tick"><b>HNK-SCH-001</b><em>no token in responses</em></span><span class="hn-tick"><b>HNK-SCH-002</b><em>bounded text fields</em></span><span class="hn-tick"><b>HNK-DB-001</b><em>explicit table names</em></span><span class="hn-tick"><b>HNK-DB-002</b><em>foreign keys indexed</em></span><span class="hn-tick"><b>HNK-IMP-001</b><em>layers stay apart</em></span><span class="hn-tick hn-tick--dup"><b>HNK-ACC-001</b><em>access policy declared</em></span><span class="hn-tick hn-tick--dup"><b>HNK-ACC-002</b><em>permissions named</em></span><span class="hn-tick hn-tick--dup"><b>HNK-TXN-001</b><em>writes are atomic</em></span><span class="hn-tick hn-tick--dup"><b>HNK-API-001</b><em>responses are Schemas</em></span><span class="hn-tick hn-tick--dup"><b>HNK-API-002</b><em>concrete return type</em></span><span class="hn-tick hn-tick--dup"><b>HNK-API-003</b><em>lists are paginated</em></span><span class="hn-tick hn-tick--dup"><b>HNK-SCH-001</b><em>no token in responses</em></span><span class="hn-tick hn-tick--dup"><b>HNK-SCH-002</b><em>bounded text fields</em></span><span class="hn-tick hn-tick--dup"><b>HNK-DB-001</b><em>explicit table names</em></span><span class="hn-tick hn-tick--dup"><b>HNK-DB-002</b><em>foreign keys indexed</em></span><span class="hn-tick hn-tick--dup"><b>HNK-IMP-001</b><em>layers stay apart</em></span>
-      </div>
+    
+    <div class="hn-spine">
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s1-title" id="contract">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">01</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-split" data-hn-tabs>
+            <div class="hn-sticky">
+              <p class="hn-kicker">Single contract</p>
+              <h2 id="hn-s1-title">One declaration, every consumer.</h2>
+              <p class="hn-lead">Source excerpts from the checked-in Notes and Tracker examples. Routing, validation, OpenAPI, architectural rules and development MCP all read the same typed Python declarations.</p>
+
+              <div class="hn-vtabs" role="tablist" aria-orientation="vertical" aria-label="Contract surfaces">
+                <button type="button" role="tab" id="hn-ct-0" aria-controls="hn-cp-0" aria-selected="true">
+                  <span class="hn-vtabs__k">Model</span>
+                  <span class="hn-vtabs__d">Typed table compiled in the Rust ORM</span>
+                </button>
+                <button type="button" role="tab" id="hn-ct-1" aria-controls="hn-cp-1" aria-selected="false" tabindex="-1">
+                  <span class="hn-vtabs__k">Schema</span>
+                  <span class="hn-vtabs__d">Strict boundary, zero implicit coercion</span>
+                </button>
+                <button type="button" role="tab" id="hn-ct-2" aria-controls="hn-cp-2" aria-selected="false" tabindex="-1">
+                  <span class="hn-vtabs__k">Endpoint</span>
+                  <span class="hn-vtabs__d">Access, transactions and errors on the decorator</span>
+                </button>
+                <button type="button" role="tab" id="hn-ct-3" aria-controls="hn-cp-3" aria-selected="false" tabindex="-1">
+                  <span class="hn-vtabs__k">@crud class</span>
+                  <span class="hn-vtabs__d">Generated routes plus handwritten actions on one API class</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="hn-panels">
+              <div id="hn-cp-0" role="tabpanel" aria-labelledby="hn-ct-0" class="hn-stack">
+                <div class="hn-codebox">
+                  <div class="hn-codebox__head"><span>examples/notes/notes/apps/notes/models.py</span><span>lines 9–14</span></div>
+                  <pre class="hn-code"><span class="hn-ln" data-line="9"><span class="nd">@db.ordered_by</span>(<span class="s">"title"</span>)</span>
+<span class="hn-ln" data-line="10"><span class="nd">@db.table</span>(<span class="s">"notes"</span>)</span>
+<span class="hn-ln" data-line="11"><span class="k">class</span> <span class="nc">Note</span>(Model):</span>
+<span class="hn-ln" data-line="12">    id: UUID = pk(default_factory=uuid4)</span>
+<span class="hn-ln" data-line="13">    title: <span class="nb">str</span> = field(max_length=<span class="mi">80</span>, index=<span class="k">True</span>)</span>
+<span class="hn-ln" data-line="14">    body: <span class="nb">str</span> = <span class="s">""</span></span></pre>
+                </div>
+                <div class="hn-consumer">
+                  <p class="hn-consumer__label">Read by</p>
+                  <dl class="hn-kv">
+                    <dt>Rust ORM</dt><dd>Compiles queries for SQLite, PostgreSQL, MySQL or MariaDB without import-time I/O.</dd>
+                    <dt>migrations plan</dt><dd>Diffs the model against recorded migration state and writes a reviewed SQL file.</dd>
+                    <dt>hinoki check</dt><dd><code>HNK-DB-001</code> verifies explicit <code>@db.table</code>; <code>HNK-DB-002</code> verifies indexed foreign keys.</dd>
+                  </dl>
+                </div>
+              </div>
+
+              <div id="hn-cp-1" role="tabpanel" aria-labelledby="hn-ct-1" class="hn-stack" hidden>
+                <div class="hn-codebox">
+                  <div class="hn-codebox__head"><span>examples/notes/notes/apps/notes/schemas.py</span><span>lines 15–24</span></div>
+                  <pre class="hn-code"><span class="hn-ln" data-line="15"><span class="k">class</span> <span class="nc">NoteIn</span>(Schema):</span>
+<span class="hn-ln" data-line="16">    title: Annotated[<span class="nb">str</span>, Field(min_length=<span class="mi">1</span>, max_length=<span class="mi">80</span>, strip=<span class="k">True</span>)]</span>
+<span class="hn-ln" data-line="17">    body: Annotated[<span class="nb">str</span>, Field(max_length=<span class="mi">10_000</span>)] = <span class="s">""</span></span>
+<span class="hn-ln hn-ln--gap"></span>
+<span class="hn-ln" data-line="20"><span class="k">class</span> <span class="nc">NoteOut</span>(Schema):</span>
+<span class="hn-ln" data-line="21">    id: UUID</span>
+<span class="hn-ln" data-line="22">    title: <span class="nb">str</span></span>
+<span class="hn-ln" data-line="23">    body: <span class="nb">str</span></span></pre>
+                </div>
+                <div class="hn-consumer">
+                  <p class="hn-consumer__label">Read by</p>
+                  <dl class="hn-kv">
+                    <dt>Rust validator</dt><dd>Strict decoding with no implicit coercion. Errors report every problem in declaration order.</dd>
+                    <dt>Response check</dt><dd>Every response is verified against its return annotation; only fields named on <code>NoteOut</code> leave the process.</dd>
+                    <dt>OpenAPI &amp; rules</dt><dd>Emits JSON Schema directly; <code>HNK-SCH-001</code> forbids sensitive field names; <code>HNK-SCH-002</code> enforces string limits.</dd>
+                  </dl>
+                </div>
+              </div>
+
+              <div id="hn-cp-2" role="tabpanel" aria-labelledby="hn-ct-2" class="hn-stack" hidden>
+                <div class="hn-codebox">
+                  <div class="hn-codebox__head"><span>examples/tracker/tracker/apps/tasks/api.py</span><span>lines 39–45</span></div>
+                  <pre class="hn-code"><span class="hn-ln" data-line="39"><span class="nd">@http.post</span>(</span>
+<span class="hn-ln" data-line="40">    <span class="s">"/{item_id}/complete"</span>,</span>
+<span class="hn-ln" data-line="41">    access=member_only,</span>
+<span class="hn-ln" data-line="42">    atomic=<span class="k">True</span>,</span>
+<span class="hn-ln" data-line="43">    errors=(errors.NotFound, TaskAlreadyDone),</span>
+<span class="hn-ln" data-line="44">)</span>
+<span class="hn-ln" data-line="45"><span class="k">async def</span> <span class="nf">complete</span>(<span class="bp">self</span>, item_id: UUID, caller: Caller[Member]) -&gt; TaskOut:</span></pre>
+                </div>
+                <div class="hn-codebox">
+                  <div class="hn-codebox__head"><span>$ uv run --locked hinoki routes</span><span>examples/tracker</span></div>
+                  <pre class="hn-code"><span class="k">POST</span>    /tasks/{item_id}/complete  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.complete</pre>
+                </div>
+                <div class="hn-consumer">
+                  <p class="hn-consumer__label">Read by</p>
+                  <dl class="hn-kv">
+                    <dt>Access</dt><dd><code>member_only</code> resolves a bearer token to a <code>Caller[Member]</code> and checks <code>tracker:use</code> before the body is read.</dd>
+                    <dt>atomic=True</dt><dd>Opens a transaction for the action and rolls it back before translating <code>NotFound</code> or <code>TaskAlreadyDone</code> into an HTTP error.</dd>
+                    <dt>OpenAPI &amp; rules</dt><dd>Declared errors become documented responses; <code>HNK-ACC-001</code> and <code>HNK-TXN-001</code> read the same options.</dd>
+                  </dl>
+                </div>
+              </div>
+
+              <div id="hn-cp-3" role="tabpanel" aria-labelledby="hn-ct-3" class="hn-stack" hidden>
+                <div class="hn-codebox">
+                  <div class="hn-codebox__head"><span>examples/tracker/tracker/apps/tasks/api.py</span><span>lines 17–45</span></div>
+                  <pre class="hn-code"><span class="hn-ln" data-line="17"><span class="nd">@crud</span>(</span>
+<span class="hn-ln" data-line="18">    Task,</span>
+<span class="hn-ln" data-line="19">    path=<span class="s">""</span>,</span>
+<span class="hn-ln" data-line="20">    read=TaskOut,</span>
+<span class="hn-ln" data-line="21">    create=TaskIn,</span>
+<span class="hn-ln" data-line="22">    delete=<span class="k">True</span>,</span>
+<span class="hn-ln" data-line="23">    access=member_only,</span>
+<span class="hn-ln" data-line="24">    owner=<span class="s">"owner_id"</span>,</span>
+<span class="hn-ln" data-line="25">    filters=TaskFilters,</span>
+<span class="hn-ln" data-line="26">)</span>
+<span class="hn-ln" data-line="27"><span class="k">class</span> <span class="nc">Tasks</span>(API):</span>
+<span class="hn-ln" data-line="28">    <span class="c">"""The caller's own tasks: list (filtered), retrieve, create and delete."""</span></span>
+<span class="hn-ln hn-ln--gap"></span>
+<span class="hn-ln" data-line="30">    <span class="k">def</span> <span class="nf">get_queryset</span>(<span class="bp">self</span>, caller: Caller[Member]) -&gt; QuerySet[Task]:</span>
+<span class="hn-ln" data-line="31">        <span class="k">return</span> operations.mine(caller.user.id)</span>
+<span class="hn-ln hn-ln--gap"></span>
+<span class="hn-ln" data-line="39">    <span class="nd">@http.post</span>(<span class="s">"/{item_id}/complete"</span>, access=member_only, atomic=<span class="k">True</span>, ...)</span>
+<span class="hn-ln" data-line="45">    <span class="k">async def</span> <span class="nf">complete</span>(<span class="bp">self</span>, item_id: UUID, caller: Caller[Member]) -&gt; TaskOut: ...</span></pre>
+                </div>
+                <div class="hn-codebox">
+                  <div class="hn-codebox__head"><span>$ uv run --locked hinoki routes</span><span>examples/tracker</span></div>
+                  <pre class="hn-code"><span class="k">GET</span>     /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
+<span class="k">POST</span>    /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.create
+<span class="k">DELETE</span>  /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.delete
+<span class="k">GET</span>     /tasks/{item_id}           MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.retrieve
+<span class="k">POST</span>    /tasks/{item_id}/complete  MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.complete</pre>
+                </div>
+                <div class="hn-consumer">
+                  <p class="hn-consumer__label">Read by</p>
+                  <dl class="hn-kv">
+                    <dt>Same contracts</dt><dd>Generated and handwritten actions share one <code>Access</code> policy, <code>Schema</code> validation, OpenAPI document and rule set.</dd>
+                    <dt>owner= &amp; get_queryset</dt><dd><code>get_queryset</code> scopes reads to the caller; <code>owner="owner_id"</code> assigns the owner on create and constrains delete. <code>TaskFilters</code> types the list query.</dd>
+                    <dt>Kiso lanes</dt><dd>Eligible generated routes run natively on Kiso. With an access policy and owner rule, as here, the routes use the Python lane automatically.</dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          
+          <figure class="hn-arch hn-surface" data-hn-diagram role="group" aria-labelledby="hn-arch-cap">
+            <div class="hn-arch__head">
+              <span class="hn-arch__kicker">Contract graph</span>
+              <ul class="hn-arch__legend" aria-label="Legend"><li class="k-yours"><i></i>your code</li><li class="k-core"><i></i>contract</li><li class="k-rust"><i></i>Rust core</li><li class="k-server"><i></i>documents &amp; MCP</li><li class="k-amber"><i></i>checks &amp; migrations</li></ul>
+              <span class="hn-arch__hint">hover or focus a node</span>
+            </div>
+            <div class="hn-arch__canvas">
+              <svg class="hn-dg hn-dg--wide" viewBox="0 0 960 414" focusable="false">
+                <defs><marker id="hn-a-yours" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="hn-dg-head k-yours"/></marker><marker id="hn-a-core" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="hn-dg-head k-core"/></marker><marker id="hn-a-rust" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="hn-dg-head k-rust"/></marker><marker id="hn-a-server" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="hn-dg-head k-server"/></marker><marker id="hn-a-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="hn-dg-head k-amber"/></marker></defs>
+                <g class="hn-dg-wires">
+                  <path class="hn-dg-arrow k-yours" d="M246 66 C290 66 290 124 334 124" marker-end="url(#hn-a-yours)"/>
+                  <path class="hn-dg-arrow k-yours" d="M246 146 C290 146 290 146 334 146" marker-end="url(#hn-a-yours)"/>
+                  <path class="hn-dg-arrow k-yours" d="M246 226 C290 226 290 168 334 168" marker-end="url(#hn-a-yours)"/>
+                  <path class="hn-dg-arrow k-rust" d="M558 146 C612 146 612 30 664 30" marker-end="url(#hn-a-rust)"/>
+                  <path class="hn-dg-arrow k-rust" d="M558 146 C612 146 612 82 664 82" marker-end="url(#hn-a-rust)"/>
+                  <path class="hn-dg-arrow k-core" d="M558 146 C612 146 612 134 664 134" marker-end="url(#hn-a-core)"/>
+                  <path class="hn-dg-arrow k-server" d="M558 146 C612 146 612 186 664 186" marker-end="url(#hn-a-server)"/>
+                  <path class="hn-dg-arrow k-amber" d="M558 146 C612 146 612 238 664 238" marker-end="url(#hn-a-amber)"/>
+                  <path class="hn-dg-arrow k-server" d="M558 146 C612 146 612 290 664 290" marker-end="url(#hn-a-server)"/>
+                  <path class="hn-dg-arrow hn-dg-arrow--lane k-amber" d="M136 380 L184 380" marker-end="url(#hn-a-amber)"/>
+                  <path class="hn-dg-arrow hn-dg-arrow--lane k-amber" d="M356 380 L404 380" marker-end="url(#hn-a-amber)"/>
+                  <path class="hn-dg-arrow hn-dg-arrow--lane k-amber" d="M576 380 L624 380" marker-end="url(#hn-a-amber)"/>
+                  <path class="hn-dg-arrow hn-dg-arrow--lane k-amber" d="M776 380 L824 380" marker-end="url(#hn-a-amber)"/>
+                </g>
+                <line class="hn-dg-divider" x1="16" y1="322" x2="944" y2="322"/>
+                <text class="hn-dg-lane" x="16" y="346">SCHEMA CHANGES · EXPLICIT, NEVER AT STARTUP</text>
+                <g class="hn-dg-node k-yours" tabindex="0" data-tip="A typed class. Queries compile for the configured database in the Rust ORM." data-tip-title="Model">
+                  <rect x="16" y="40" width="230" height="52" rx="8"/><text class="hn-dg-t" x="30" y="62">Model</text><text class="hn-dg-s" x="30" y="79">tables and queries</text>
+                </g>
+                <g class="hn-dg-node k-yours" tabindex="0" data-tip="Strict validation without coercion. A response exposes only the fields it names." data-tip-title="Schema">
+                  <rect x="16" y="120" width="230" height="52" rx="8"/><text class="hn-dg-t" x="30" y="142">Schema</text><text class="hn-dg-s" x="30" y="159">accepts and returns</text>
+                </g>
+                <g class="hn-dg-node k-yours" tabindex="0" data-tip="Decorator options state access, atomic and errors next to the action." data-tip-title="Endpoint">
+                  <rect x="16" y="200" width="230" height="52" rx="8"/><text class="hn-dg-t" x="30" y="222">Endpoint</text><text class="hn-dg-s" x="30" y="239">access=  atomic=  errors=</text>
+                </g>
+                <g class="hn-dg-node k-core hn-dg-core" tabindex="0" data-tip="The single declaration every runtime and tooling consumer reads." data-tip-title="One declared contract">
+                  <rect x="336" y="94" width="220" height="104" rx="10"/>
+                  <text class="hn-dg-t hn-dg-t--core" x="352" y="141">One declared contract</text>
+                  <text class="hn-dg-s" x="352" y="160">ordinary Python decorators</text>
+                </g>
+                <g class="hn-dg-node k-rust" tabindex="0" data-tip="Route matching runs in Rust on Kiso; each route is assigned its fastest eligible lane at startup." data-tip-title="Routing &amp; Kiso lanes">
+                  <rect x="666" y="10" width="278" height="40" rx="8"/><text class="hn-dg-t" x="680" y="35">Routing &amp; Kiso lanes</text>
+                </g>
+                <g class="hn-dg-node k-rust" tabindex="0" data-tip="Strict validation without coercion, compiled once per Schema in Rust." data-tip-title="Rust Schema validation">
+                  <rect x="666" y="62" width="278" height="40" rx="8"/><text class="hn-dg-t" x="680" y="87">Rust Schema validation</text>
+                </g>
+                <g class="hn-dg-node k-core" tabindex="0" data-tip="An Access policy gates the action before the body is read; atomic=True rolls back before an HTTP error." data-tip-title="Access &amp; transactions">
+                  <rect x="666" y="114" width="278" height="40" rx="8"/><text class="hn-dg-t" x="680" y="139">Access &amp; transactions</text>
+                </g>
+                <g class="hn-dg-node k-server" tabindex="0" data-tip="Generated from the same declarations; hinoki openapi --breaking-against flags breaking changes." data-tip-title="OpenAPI document">
+                  <rect x="666" y="166" width="278" height="40" rx="8"/><text class="hn-dg-t" x="680" y="191">OpenAPI document</text>
+                </g>
+                <g class="hn-dg-node k-amber" tabindex="0" data-tip="Optional rules verify declarations and source imports in CI, with reviewed waivers." data-tip-title="hinoki check rules">
+                  <rect x="666" y="218" width="278" height="40" rx="8"/><text class="hn-dg-t" x="680" y="243">hinoki check rules</text>
+                </g>
+                <g class="hn-dg-node k-server" tabindex="0" data-tip="hinoki mcp inspects the project; expose_as_mcp publishes actions with the same access contract." data-tip-title="Dev &amp; App MCP">
+                  <rect x="666" y="270" width="278" height="40" rx="8"/><text class="hn-dg-t" x="680" y="295">Dev &amp; App MCP</text>
+                </g>
+                <g class="hn-dg-node k-yours" tabindex="0" data-tip="Typed Model classes in Python." data-tip-title="Model">
+                  <rect x="16" y="362" width="120" height="36" rx="8"/><text class="hn-dg-t" x="30" y="385">Model</text>
+                </g>
+                <g class="hn-dg-node k-amber" tabindex="0" data-tip="Compares models with recorded migration state and writes SQL." data-tip-title="migrations plan">
+                  <rect x="186" y="362" width="170" height="36" rx="8"/><text class="hn-dg-t" x="200" y="385">migrations plan</text>
+                </g>
+                <g class="hn-dg-node k-amber" tabindex="0" data-tip="You review the generated SQL file before anything touches a database." data-tip-title="reviewed SQL file">
+                  <rect x="406" y="362" width="170" height="36" rx="8"/><text class="hn-dg-t" x="420" y="385">reviewed SQL file</text>
+                </g>
+                <g class="hn-dg-node k-amber" tabindex="0" data-tip="hinoki migrations apply. Workers never run migrations at boot." data-tip-title="explicit apply">
+                  <rect x="626" y="362" width="150" height="36" rx="8"/><text class="hn-dg-t" x="640" y="385">explicit apply</text>
+                </g>
+                <g class="hn-dg-node k-server" tabindex="0" data-tip="SQLite, PostgreSQL, MySQL or MariaDB." data-tip-title="Database">
+                  <rect x="826" y="362" width="118" height="36" rx="8"/><text class="hn-dg-t" x="840" y="385">Database</text>
+                </g>
+              </svg>
+            </div>
+            <figcaption id="hn-arch-cap" class="hn-arch__cap">Every consumer reads the same declared contract — and schema changes travel a separate, human-reviewed SQL lane.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s2-title" id="kiso">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">02</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-sec__head">
+            <p class="hn-kicker">Speed &amp; execution boundary</p>
+            <h2 id="hn-s2-title">Rust core, Python surface — measured, not claimed.</h2>
+            <p class="hn-lead">Kiso is Hinoki's native Rust HTTP server (hyper, tokio, rustls). At worker startup it assigns each route to its fastest eligible lane while keeping identical status codes, headers and error order on every path.</p>
+          </div>
+
+          
+          <div class="hn-bench-card hn-surface" data-hn-bench>
+            <div class="hn-bench-card__head">
+              <div>
+                <p class="hn-bench-card__kicker">Retained benchmark · 2026-11-21 · 100 concurrent connections</p>
+                <h3>Median requests per second (higher is better)</h3>
+              </div>
+              <div class="hn-switch" role="group" aria-label="Benchmark workload" data-slider>
+                <button type="button" data-bench-case="json1k" aria-pressed="true">JSON 1 KB</button>
+                <button type="button" data-bench-case="json10k" aria-pressed="false">JSON 10 KB</button>
+                <button type="button" data-bench-case="detail" aria-pressed="false">Detail · PG</button>
+                <button type="button" data-bench-case="health" aria-pressed="false">Health</button>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__body" data-bench-panel="json1k">
+              <div class="hn-bar is-hinoki-kiso">
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>91,675</strong><small>req/s</small><em>Highest</em></span></div>
+                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>81,363</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:88.8%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki">
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>50,228</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:54.8%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>22,059</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:24.1%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>4,908</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:5.4%"></span></div>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__body" data-bench-panel="json10k" hidden>
+              <div class="hn-bar is-hinoki-kiso">
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>78,946</strong><small>req/s</small><em>Highest</em></span></div>
+                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>75,493</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:95.6%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki">
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>47,355</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:60.0%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>21,892</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:27.7%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>4,885</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:6.2%"></span></div>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__body" data-bench-panel="detail" hidden>
+              <div class="hn-bar is-hinoki-kiso">
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>12,819</strong><small>req/s</small><em>Highest</em></span></div>
+                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki">
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>11,411</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:89.0%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>5,612</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:43.8%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>3,642</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:28.4%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>1,907</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:14.9%"></span></div>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__body" data-bench-panel="health" hidden>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>73,516</strong><small>req/s</small><em>Highest</em></span></div>
+                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki-kiso">
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>72,443</strong><small>req/s</small><em>Tied (&lt;10%)</em></span></div>
+                <div class="hn-bar__track"><span style="--w:98.5%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki">
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>40,366</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:54.9%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>21,087</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:28.7%"></span></div>
+              </div>
+              <div class="hn-bar">
+                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>4,844</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:6.6%"></span></div>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__foot">
+              <span>i5-10300H (8 logical CPUs), Linux, PostgreSQL, warm data, loopback, median of 10 samples. Pre-alpha — not a production claim.</span>
+              <a class="hn-link" href="benchmarks/">Full methodology &amp; latency</a>
+            </div>
+          </div>
+
+          
+          <figure class="hn-lanes hn-surface" data-hn-lanes data-view="python">
+            <div class="hn-lanes__bar">
+              <div class="hn-switch hn-switch--lg" role="group" aria-label="Execution lane" data-slider>
+                <button type="button" data-lane-view="python" aria-pressed="true">Python pipeline</button>
+                <button type="button" data-lane-view="native" aria-pressed="false">Native handler lane</button>
+                <button type="button" data-lane-view="crud" aria-pressed="false">Generated CRUD</button>
+              </div>
+              <span class="hn-lanes__telemetry" data-lane-telemetry><span class="hn-lanes__where" data-ffi-where>in Rust</span><span>FFI crossings <b data-ffi-now>0</b> / <span data-ffi-total>2</span></span></span>
+            </div>
+
+            <div class="hn-sig" role="img" aria-labelledby="hn-lanes-cap">
+              <svg class="hn-sig__svg" viewBox="0 0 960 278" focusable="false">
+                <defs>
+                  <linearGradient id="hn-sig-grad-py" x1="122" y1="84" x2="916" y2="84" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="var(--hn-wood)"/>
+                    <stop offset="28%" stop-color="var(--hn-wood)"/>
+                    <stop offset="38%" stop-color="var(--hn-brand)"/>
+                    <stop offset="63%" stop-color="var(--hn-brand)"/>
+                    <stop offset="72%" stop-color="var(--hn-wood)"/>
+                    <stop offset="100%" stop-color="var(--hn-wood)"/>
+                  </linearGradient>
+                  <linearGradient id="hn-sig-grad-nat" x1="122" y1="84" x2="916" y2="84" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="var(--hn-wood)"/>
+                    <stop offset="45%" stop-color="var(--hn-wood)"/>
+                    <stop offset="56%" stop-color="var(--hn-brand)"/>
+                    <stop offset="63%" stop-color="var(--hn-brand)"/>
+                    <stop offset="72%" stop-color="var(--hn-wood)"/>
+                    <stop offset="100%" stop-color="var(--hn-wood)"/>
+                  </linearGradient>
+                </defs>
+
+                
+                <g class="hn-sig__guides" aria-hidden="true">
+                  <line x1="122" y1="24" x2="122" y2="254"/>
+                  <line x1="172" y1="68" x2="172" y2="220"/>
+                  <line x1="312" y1="68" x2="312" y2="220"/>
+                  <line x1="452" y1="68" x2="452" y2="220"/>
+                  <line x1="592" y1="68" x2="592" y2="220"/>
+                  <line x1="732" y1="68" x2="732" y2="220"/>
+                  <line x1="872" y1="68" x2="872" y2="220"/>
+                </g>
+
+                
+                <text class="hn-sig__axis hn-sig__axis--rust" x="108" y="81" text-anchor="end">RUST · KISO</text>
+                <text class="hn-sig__sub" x="108" y="96" text-anchor="end">native runtime</text>
+
+                <text class="hn-sig__axis hn-sig__axis--ffi" x="108" y="148" text-anchor="end">FFI BOUNDARY</text>
+                <line class="hn-sig__horizon" x1="122" y1="144" x2="936" y2="144"/>
+
+                <text class="hn-sig__axis hn-sig__axis--py" x="108" y="201" text-anchor="end">PYTHON</text>
+                <text class="hn-sig__sub" x="108" y="216" text-anchor="end">user code</text>
+
+                
+                <line class="hn-sig__rail" x1="122" y1="84" x2="936" y2="84"/>
+                <line class="hn-sig__rail hn-sig__rail--py" x1="416" y1="204" x2="628" y2="204"/>
+
+                
+                <path class="hn-sig__trace hn-sig__trace--python" d="M 122 84 L 312 84 C 382 84, 382 204, 452 204 L 592 204 C 662 204, 662 84, 732 84 L 936 84" stroke="url(#hn-sig-grad-py)"/>
+                <path class="hn-sig__trace hn-sig__trace--native" d="M 122 84 L 452 84 C 522 84, 522 204, 592 204 C 662 204, 662 84, 732 84 L 936 84" stroke="url(#hn-sig-grad-nat)"/>
+                <path class="hn-sig__trace hn-sig__trace--crud" d="M 122 84 L 936 84"/>
+
+                
+                <g class="hn-sig__cross hn-sig__cross--python">
+                  <circle cx="382" cy="144" r="3"/>
+                  <text x="392" y="139">↓ py</text>
+                  <circle cx="662" cy="144" r="3"/>
+                  <text x="672" y="139">↑ rust</text>
+                </g>
+                <g class="hn-sig__cross hn-sig__cross--native">
+                  <circle cx="522" cy="144" r="3"/>
+                  <text x="532" y="139">↓ py</text>
+                  <circle cx="662" cy="144" r="3"/>
+                  <text x="672" y="139">↑ rust</text>
+                </g>
+                <g class="hn-sig__cross hn-sig__cross--crud">
+                  <text x="522" y="139" text-anchor="middle">0 FFI crossings · stays in Rust end-to-end</text>
+                </g>
+
+                
+                <circle class="hn-sig__halo" r="9" cx="122" cy="84" data-sig-halo/>
+                <circle class="hn-sig__packet" r="3.6" cx="122" cy="84" data-sig-packet/>
+
+                
+                <g class="hn-sig__node is-always-rust" data-sig-node="r1">
+                  <circle class="hn-sig__ring" cx="172" cy="84" r="6"/><circle class="hn-sig__core" cx="172" cy="84" r="2.4"/>
+                  <text class="hn-sig__lbl" x="172" y="42" text-anchor="middle">01 · Listen &amp; parse</text>
+                  <text class="hn-sig__meta" x="172" y="57" text-anchor="middle">HTTP/1.1 · TLS</text>
+                </g>
+                <g class="hn-sig__node is-always-rust" data-sig-node="r2">
+                  <circle class="hn-sig__ring" cx="312" cy="84" r="6"/><circle class="hn-sig__core" cx="312" cy="84" r="2.4"/>
+                  <text class="hn-sig__lbl" x="312" y="42" text-anchor="middle">02 · Route &amp; guards</text>
+                  <text class="hn-sig__meta" x="312" y="57" text-anchor="middle">match · CORS</text>
+                </g>
+                <g class="hn-sig__node hn-sig__node--rust-bind" data-sig-node="r3">
+                  <circle class="hn-sig__ring" cx="452" cy="84" r="6"/><circle class="hn-sig__core" cx="452" cy="84" r="2.4"/>
+                  <text class="hn-sig__lbl" x="452" y="42" text-anchor="middle">03 · Bind &amp; validate</text>
+                  <text class="hn-sig__meta" x="452" y="57" text-anchor="middle">Schema in Rust</text>
+                </g>
+                <g class="hn-sig__node hn-sig__node--rust-crud" data-sig-node="r4">
+                  <circle class="hn-sig__ring" cx="592" cy="84" r="6"/><circle class="hn-sig__core" cx="592" cy="84" r="2.4"/>
+                  <text class="hn-sig__lbl" x="592" y="42" text-anchor="middle">04 · CRUD plan</text>
+                  <text class="hn-sig__meta" x="592" y="57" text-anchor="middle">native execution</text>
+                </g>
+                <g class="hn-sig__node is-always-rust" data-sig-node="r5">
+                  <circle class="hn-sig__ring" cx="732" cy="84" r="6"/><circle class="hn-sig__core" cx="732" cy="84" r="2.4"/>
+                  <text class="hn-sig__lbl" x="732" y="42" text-anchor="middle">05 · ORM &amp; commit</text>
+                  <text class="hn-sig__meta" x="732" y="57" text-anchor="middle">SQLite · PG · MySQL</text>
+                </g>
+                <g class="hn-sig__node is-always-rust" data-sig-node="r6">
+                  <circle class="hn-sig__ring" cx="872" cy="84" r="6"/><circle class="hn-sig__core" cx="872" cy="84" r="2.4"/>
+                  <text class="hn-sig__lbl" x="872" y="42" text-anchor="middle">06 · Encode &amp; send</text>
+                  <text class="hn-sig__meta" x="872" y="57" text-anchor="middle">JSON · headers</text>
+                </g>
+
+                
+                <g class="hn-sig__node hn-sig__node--py-bind" data-sig-node="p3">
+                  <circle class="hn-sig__ring" cx="452" cy="204" r="6"/><circle class="hn-sig__core" cx="452" cy="204" r="2.4"/>
+                  <text class="hn-sig__lbl" x="452" y="234" text-anchor="middle">03 · Bind &amp; auth</text>
+                  <text class="hn-sig__meta" x="452" y="249" text-anchor="middle">params · policy</text>
+                </g>
+                <g class="hn-sig__node hn-sig__node--py-handler" data-sig-node="p4">
+                  <circle class="hn-sig__ring" cx="592" cy="204" r="6"/><circle class="hn-sig__core" cx="592" cy="204" r="2.4"/>
+                  <text class="hn-sig__lbl" x="592" y="234" text-anchor="middle">04 · Handler</text>
+                  <text class="hn-sig__meta" x="592" y="249" text-anchor="middle">def / async def</text>
+                </g>
+              </svg>
+            </div>
+
+            <figcaption id="hn-lanes-cap" class="hn-lanes__cap" data-lane-caption>Python pipeline: Kiso owns the listener, HTTP/1.1 framing, host/CORS checks, route matching and JSON encoding in Rust; authentication, binding and the handler run in Python.</figcaption>
+          </figure>
+
+          <div class="hn-codebox hn-lanes__cli">
+            <div class="hn-codebox__head">
+              <span>$ cd examples/notes &amp;&amp; uv run --locked hinoki routes --lanes</span>
+              <button type="button" class="hn-copy hn-copy--inline" data-hn-copy data-copy-text="cd examples/notes && uv run --locked hinoki routes --lanes">Copy</button>
+            </div>
+            <pre class="hn-code"><span class="k">GET</span>    /notes           public  notes.apps.notes.routes.NoteCrud.list      <span class="hn-tag-rust">[native: eligible]</span>
+<span class="k">POST</span>   /notes           public  notes.apps.notes.routes.NoteCrud.create    <span class="hn-tag-py">[python: custom_or_unsupported_model]</span>
+<span class="k">DELETE</span> /notes/{item_id} public  notes.apps.notes.routes.NoteCrud.delete    <span class="hn-tag-rust">[native: eligible]</span>
+<span class="k">GET</span>    /notes/{item_id} public  notes.apps.notes.routes.NoteCrud.retrieve  <span class="hn-tag-rust">[native: eligible]</span>
+<span class="k">PATCH</span>  /notes/{item_id} public  notes.apps.notes.routes.NoteCrud.update    <span class="hn-tag-py">[python: custom_or_unsupported_model]</span></pre>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s3-title" id="ai-mcp">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">03</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-sec__head">
+            <p class="hn-kicker">AI &amp; agent-native workflow</p>
+            <h2 id="hn-s3-title">Built for coding agents and remote MCP clients.</h2>
+            <p class="hn-lead"><code>hinoki new</code> scaffolds an agent-ready project out of the box: <code>AGENTS.md</code>, <code>.mcp.json</code>, 8 rules enabled from day one, optional agent skills, and two distinct MCP servers — one to inspect your codebase, one to expose your API.</p>
+          </div>
+
+          <div class="hn-ai-grid">
+            
+            <article class="hn-ai-card hn-ai-card--dev hn-surface">
+              <div class="hn-ai-card__top">
+                <span class="hn-ai-card__tag">hinoki mcp · stdio JSON-RPC</span>
+                <a class="hn-link" href="dev-mcp/">Dev MCP</a>
+              </div>
+              <h3>Give coding agents live structural sight — never waiver write access.</h3>
+              <p class="hn-ai-card__desc">Reads the real app registry, models, OpenAPI and rules over stdio. Never writes source code, rules or <code>hinoki-rules.toml</code> waivers — humans keep final authority.</p>
+
+              <ul class="hn-mcp-tools">
+                <li><code>inspect_project</code><span>Actions, access, atomic, models &amp; rule count</span></li>
+                <li><code>check_project</code><span>Run startup or static rules with waivers applied</span></li>
+                <li><code>explain_action</code><span>Signature, policy, OpenAPI &amp; diagnostics</span></li>
+                <li><code>propose_model</code><span>Drafts Model, Schema &amp; CRUD (returned, never written)</span></li>
+                <li><code>recent_requests</code><span>Reads Kiso's <code>.hinoki/requests.jsonl</code> with lane &amp; ms</span></li>
+                <li><code>run_scenario</code><span>Opt-in via <code>--scenarios read|write</code> to exercise handlers</span></li>
+              </ul>
+
+              <div class="hn-ai-card__foot">
+                <span>Also ships: <code>hinoki skills install</code> (4 agent playbooks) · <code>hinoki openapi --breaking-against</code> · <code>request_cases</code></span>
+              </div>
+            </article>
+
+            
+            <article class="hn-ai-card hn-ai-card--app hn-surface">
+              <div class="hn-ai-card__top">
+                <span class="hn-ai-card__tag">expose_as_mcp · POST /mcp</span>
+                <a class="hn-link" href="app-mcp/">App MCP</a>
+              </div>
+              <h3>Publish HTTP actions as MCP tools with the exact same security contract.</h3>
+              <p class="hn-ai-card__desc">Each remote MCP tool call dispatches through the app like an HTTP request — preserving authentication, <code>Access</code> policies, strict <code>Schema</code> validation and <code>atomic=True</code>.</p>
+
+              <div class="hn-codebox hn-ai-card__code">
+                <div class="hn-codebox__head"><span>notes/main.py</span><span>read-only by default</span></div>
+                <pre class="hn-code"><span class="k">from</span> hinoki.ai.mcpapp <span class="k">import</span> expose_as_mcp
+
+mcp = expose_as_mcp(
+    app,
+    tools=[<span class="s">"notes.apps.billing.api.list_invoices"</span>],
+    access=billing_staff,
+)
+app.include(*mcp)  <span class="c"># mounts POST /mcp</span></pre>
+              </div>
+
+              <ul class="hn-ai-checks">
+                <li><code>GET</code> / <code>HEAD</code> / <code>QUERY</code> only unless <code>allow_writes=True</code></li>
+                <li><code>access</code> is mandatory — never bypasses ownership or tenant rules</li>
+                <li>Tool schema &amp; validation derived directly from the OpenAPI operation</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="hn-inline-links">
+            <a class="hn-link" href="ai-workflow/">Build with a coding agent</a>
+            <a class="hn-link" href="dev-mcp/">Development MCP reference</a>
+            <a class="hn-link" href="app-mcp/">Expose actions over MCP</a>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s4-title" id="rules">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">04</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-sec__head">
+            <p class="hn-kicker">Architecture checks</p>
+            <h2 id="hn-s4-title">Eleven optional rules. Turn promises into CI checks.</h2>
+            <p class="hn-lead">Adopt the rules your codebase cares about in a <code>RuleSet</code>. Every exception lives in <code>hinoki-rules.toml</code> with a reason, owner and expiry date — expired waivers fail CI with <code>HNK-WVR-002</code>.</p>
+          </div>
+
+          <div class="hn-explorer hn-surface" data-hn-explorer>
+            <div class="hn-explorer__head">
+              <div class="hn-switch" role="group" aria-label="Filter rules by scope" data-slider>
+                <button type="button" data-scope-filter="all" aria-pressed="true">all <span>11</span></button>
+                <button type="button" data-scope-filter="startup" aria-pressed="false">startup <span>10</span></button>
+                <button type="button" data-scope-filter="static" aria-pressed="false">static <span>1</span></button>
+              </div>
+              <a class="hn-link" href="rules/">Rules guide</a>
+            </div>
+
+            <div class="hn-explorer__grid">
+              <ul class="hn-explorer__list" role="list">
+                <li data-rule-item data-rule-id="HNK-ACC-001" data-scope="startup"><button type="button" aria-pressed="true"><code>HNK-ACC-001</code><span>Every matching action names an <code>Access</code> policy.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-ACC-002" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-ACC-002</code><span>An action with an <code>Access</code> policy names at least one permission.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-TXN-001" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-TXN-001</code><span>State-changing actions use <code>atomic=True</code>.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-API-001" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-API-001</code><span>No action returns a <code>Model</code>; responses are <code>Schema</code> classes.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-API-002" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-API-002</code><span>Every action annotates a concrete return type.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-API-003" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-API-003</code><span>A <code>GET</code> action returns a <code>Page</code>, never a plain list.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-SCH-001" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-SCH-001</code><span>Named fields never appear in a response <code>Schema</code>.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-SCH-002" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-SCH-002</code><span>Text fields of a request <code>Schema</code> have a length limit.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-DB-001" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-DB-001</code><span>Models pin their table name explicitly.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-DB-002" data-scope="startup"><button type="button" aria-pressed="false"><code>HNK-DB-002</code><span>Every foreign-key column is indexed.</span></button></li>
+                <li data-rule-item data-rule-id="HNK-IMP-001" data-scope="static"><button type="button" aria-pressed="false"><code>HNK-IMP-001</code><span>Modules under a source never import a target.</span><i class="hn-rule-scope">static · AST</i></button></li>
+              </ul>
+
+              <div class="hn-explorer__detail">
+                <div data-detail="HNK-ACC-001">
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Actions.require_access(match, except_)</pre>
+                  <p class="hn-file">Violated</p>
+                  <pre class="hn-code hn-pre--bad">tests/projects/rulesapp.py:7: HNK-ACC-001 [violated] GET /health (health) declares no access policy</pre>
+                  <p class="hn-file">Waived</p>
+                  <pre class="hn-code hn-pre--wvd">tests/projects/rulesapp.py:7: HNK-ACC-001 [waived] GET /health (health) declares no access policy
+  waived: liveness probe is public by design (platform-team, until 2027-01-31)</pre>
+                </div>
+                <div data-detail="HNK-ACC-002" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Actions.require_permissions(match, except_)</pre>
+                  <p class="hn-detail-note">Flags an action whose <code>Access</code> policy grants entry without naming a concrete permission. Startup check.</p>
+                </div>
+                <div data-detail="HNK-TXN-001" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Actions.require_atomic(methods=(<span class="s">"POST"</span>, <span class="s">"PUT"</span>, <span class="s">"PATCH"</span>, <span class="s">"DELETE"</span>))</pre>
+                  <p class="hn-file">Violated</p>
+                  <pre class="hn-code hn-pre--bad">tests/projects/rulesapp.py:12: HNK-TXN-001 [violated] POST /items (create) does not declare atomic=True</pre>
+                </div>
+                <div data-detail="HNK-API-001" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Actions.forbid_model_response(match)</pre>
+                  <p class="hn-detail-note">Prevents ORM models from leaking database columns into HTTP responses. Return a <code>Schema</code> instead.</p>
+                </div>
+                <div data-detail="HNK-API-002" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Actions.require_response_annotation(match)</pre>
+                  <p class="hn-detail-note">Every matched action must annotate a concrete return type so response verification and OpenAPI stay exact.</p>
+                </div>
+                <div data-detail="HNK-API-003" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Actions.require_pagination(match, except_)</pre>
+                  <p class="hn-detail-note">Flags unbounded list responses on <code>GET</code> actions so every collection endpoint returns a <code>Page</code>.</p>
+                </div>
+                <div data-detail="HNK-SCH-001" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Schemas.forbid_fields(<span class="s">"password_hash"</span>, <span class="s">"secret"</span>)</pre>
+                  <p class="hn-detail-note">Blocks sensitive field names from ever appearing on a response <code>Schema</code>.</p>
+                </div>
+                <div data-detail="HNK-SCH-002" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Schemas.require_max_length(match)</pre>
+                  <p class="hn-detail-note">Ensures every text field on a request <code>Schema</code> bounds input length with <code>Field(max_length=...)</code>.</p>
+                </div>
+                <div data-detail="HNK-DB-001" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Models.require_explicit_table()</pre>
+                  <p class="hn-detail-note">Requires <code>@db.table("...")</code> so refactoring a Python class name never renames a database table.</p>
+                </div>
+                <div data-detail="HNK-DB-002" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Models.require_fk_index()</pre>
+                  <p class="hn-detail-note">Verifies every foreign-key column declares an index before migrations are generated.</p>
+                </div>
+                <div data-detail="HNK-IMP-001" hidden>
+                  <p class="hn-file">Declaration</p>
+                  <pre class="hn-code">Imports.forbid(source=<span class="s">"apps.billing"</span>, target=<span class="s">"apps.shipping"</span>)</pre>
+                  <p class="hn-detail-note">Static AST check. Parses source files without importing the application and rejects forbidden module boundaries.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s5-title" id="invariants">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">05</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-sec__head">
+            <p class="hn-kicker">Runtime invariants</p>
+            <h2 id="hn-s5-title">Guarantees enforced by the framework.</h2>
+            <p class="hn-lead">Implemented today and exercised in the test suite. Every boundary and limitation is tracked on the <a href="status/">status page</a>.</p>
+          </div>
+
+          <ul class="hn-bento" role="list">
+            <li class="hn-bento__item hn-bento__item--wide">
+              <a class="hn-card hn-inv" href="modules/">
+                <span class="hn-inv__top"><span class="hn-inv__icon"><span class="i i--plug" aria-hidden="true"></span></span><span class="hn-inv__tag">01 · import</span></span>
+                <h3>Nothing touches a database at import</h3>
+                <p>Importing models, schemas or an application performs no I/O and opens no connections. Pools are created on the worker lifespan and closed on graceful shutdown.</p>
+                <span class="hn-card__foot"><span class="hn-card__proof">verified in tests</span><span class="hn-card__cta">Application modules <i aria-hidden="true">→</i></span></span>
+              </a>
+            </li>
+            <li class="hn-bento__item">
+              <a class="hn-card hn-inv" href="transactions/">
+                <span class="hn-inv__top"><span class="hn-inv__icon"><span class="i i--shield-check" aria-hidden="true"></span></span><span class="hn-inv__tag">02 · access · atomic</span></span>
+                <h3>Policy and transaction on the decorator</h3>
+                <p><code>access=</code> gates the action before the body is read; <code>atomic=True</code> rolls back before translating an HTTP error.</p>
+                <span class="hn-card__foot"><span class="hn-card__proof">verified in tests</span><span class="hn-card__cta">Transactions <i aria-hidden="true">→</i></span></span>
+              </a>
+            </li>
+            <li class="hn-bento__item">
+              <a class="hn-card hn-inv" href="schema-validation/">
+                <span class="hn-inv__top"><span class="hn-inv__icon"><span class="i i--braces" aria-hidden="true"></span></span><span class="hn-inv__tag">03 · schema</span></span>
+                <h3>Strict validation, no coercion</h3>
+                <p>Compiled once per <code>Schema</code> in Rust. Unexpected types fail with structured <code>422</code> diagnostics instead of silent casting.</p>
+                <span class="hn-card__foot"><span class="hn-card__proof">verified in tests</span><span class="hn-card__cta">Validate input <i aria-hidden="true">→</i></span></span>
+              </a>
+            </li>
+            <li class="hn-bento__item hn-bento__item--wide">
+              <a class="hn-card hn-inv" href="migrations/">
+                <span class="hn-inv__top"><span class="hn-inv__icon"><span class="i i--database" aria-hidden="true"></span></span><span class="hn-inv__tag">04 · migrations</span></span>
+                <h3>SQL you review; startup never changes tables</h3>
+                <p><code>hinoki migrations plan</code> writes SQL files you inspect for SQLite, PostgreSQL, MySQL and MariaDB. Workers never auto-migrate, and installing Hinoki never mutates a database.</p>
+                <span class="hn-card__foot"><span class="hn-card__proof">verified in tests</span><span class="hn-card__cta">Migrations <i aria-hidden="true">→</i></span></span>
+              </a>
+            </li>
+            <li class="hn-bento__item hn-bento__item--wide">
+              <a class="hn-card hn-inv" href="endpoints/">
+                <span class="hn-inv__top"><span class="hn-inv__icon"><span class="i i--circle-check" aria-hidden="true"></span></span><span class="hn-inv__tag">05 · response</span></span>
+                <h3>Every response checked against its annotation</h3>
+                <p>Return values are verified against the action's annotation; with <code>atomic=True</code> a mismatch rolls the write back. An annotation that cannot be checked stops the app at startup.</p>
+                <span class="hn-card__foot"><span class="hn-card__proof">verified in tests</span><span class="hn-card__cta">Requests and responses <i aria-hidden="true">→</i></span></span>
+              </a>
+            </li>
+            <li class="hn-bento__item">
+              <a class="hn-card hn-inv" href="sync-async/">
+                <span class="hn-inv__top"><span class="hn-inv__icon"><span class="i i--server" aria-hidden="true"></span></span><span class="hn-inv__tag">06 · lifecycle</span></span>
+                <h3>Bounded sync executor, graceful shutdown</h3>
+                <p>Plain <code>def</code> and <code>async def</code> handlers coexist with bounded queues, executor pools, timeouts and a clean drain.</p>
+                <span class="hn-card__foot"><span class="hn-card__proof">verified in tests</span><span class="hn-card__cta">Sync and async code <i aria-hidden="true">→</i></span></span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s6-title" id="scope">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">06</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-sec__head">
+            <p class="hn-kicker">Pre-alpha scope</p>
+            <h2 id="hn-s6-title">What's ready today and what's not there yet.</h2>
+            <p class="hn-lead">Hinoki is pre-alpha. Public APIs and migration formats can still change; the <a href="status/">status page</a> tracks every boundary.</p>
+          </div>
+
+          <div class="hn-fit">
+            <div class="hn-fit__col hn-fit__col--yes hn-surface">
+              <h3><i class="hn-fit__sq" aria-hidden="true"></i>A fit today</h3>
+              <ul>
+                <li>Evaluating a typed Python API with Kiso and SQLite, PostgreSQL, MySQL or MariaDB.</li>
+                <li>Turning architectural promises into automated CI checks with <code>hinoki check</code>.</li>
+                <li>Building with coding agents via <code>hinoki mcp</code>, <code>AGENTS.md</code> and <code>expose_as_mcp</code>.</li>
+                <li>Using the optional admin, OpenAPI diffing and reviewed SQL migrations.</li>
+              </ul>
+            </div>
+            <div class="hn-fit__col hn-fit__col--no hn-surface">
+              <h3><i class="hn-fit__sq" aria-hidden="true"></i>Not yet</h3>
+              <ul>
+                <li>Production deployments: public APIs and migration state format may still change.</li>
+                <li>PyPI distribution: not published yet; the <code>hinoki</code> name on PyPI is unrelated.</li>
+                <li>Container images or built-in health routes: you bring your own deployment wrapper.</li>
+                <li>SQL Server, Oracle, or implicit many-to-many relations.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s7-title" id="start">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">07</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-sec__head">
+            <p class="hn-kicker">Next step</p>
+            <h2 id="hn-s7-title">Pick your path.</h2>
+          </div>
+
+          <ul class="hn-paths" role="list">
+            <li><a class="hn-card hn-path hn-path--primary" href="quick-start/">
+              <span class="hn-path__icon"><span class="i i--rocket i--m" aria-hidden="true"></span></span>
+              <span class="hn-path__body"><span class="hn-path__label">Start here</span><b>Quick start</b><span class="hn-path__text">Create a project, run its tests and serve it with Kiso.</span></span>
+              <i class="hn-path__arrow" aria-hidden="true">→</i>
+            </a></li>
+            <li><a class="hn-card hn-path" href="tutorial/">
+              <span class="hn-path__icon"><span class="i i--graduation-cap i--m" aria-hidden="true"></span></span>
+              <span class="hn-path__body"><b>Tutorial</b><span class="hn-path__text">Build a task tracker from models through access checks and tests.</span></span>
+              <i class="hn-path__arrow" aria-hidden="true">→</i>
+            </a></li>
+            <li><a class="hn-card hn-path" href="ai-workflow/">
+              <span class="hn-path__icon"><span class="i i--plug i--m" aria-hidden="true"></span></span>
+              <span class="hn-path__body"><b>AI &amp; MCP workflow</b><span class="hn-path__text">Connect coding agents to Dev MCP and expose actions over App MCP.</span></span>
+              <i class="hn-path__arrow" aria-hidden="true">→</i>
+            </a></li>
+            <li><a class="hn-card hn-path" href="benchmarks/">
+              <span class="hn-path__icon"><span class="i i--gauge i--m" aria-hidden="true"></span></span>
+              <span class="hn-path__body"><b>Benchmarks</b><span class="hn-path__text">Inspect retained Kiso numbers, methodology and latency.</span></span>
+              <i class="hn-path__arrow" aria-hidden="true">→</i>
+            </a></li>
+          </ul>
+
+          <div class="hn-examples hn-surface">
+            <p class="hn-examples__label"><span class="i i--folder-git-2" aria-hidden="true"></span><span>Examples in the repository</span></p>
+            <ul class="hn-examples__list">
+              <li><a href="https://github.com/caspel26/hinoki/tree/main/examples/notes"><span class="hn-examples__name">Notes</span><span class="hn-examples__meta"><b>easy</b> generated CRUD</span><i aria-hidden="true">↗</i></a></li>
+              <li><a href="https://github.com/caspel26/hinoki/tree/main/examples/tracker"><span class="hn-examples__name">Tracker</span><span class="hn-examples__meta"><b>medium</b> access &amp; owner</span><i aria-hidden="true">↗</i></a></li>
+              <li><a href="https://github.com/caspel26/hinoki/tree/main/examples/blog"><span class="hn-examples__name">Blog</span><span class="hn-examples__meta"><b>complete</b> admin</span><i aria-hidden="true">↗</i></a></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      
+      <section class="hn-sec reveal" aria-labelledby="hn-s8-title" id="manual">
+        <div class="hn-sec__rail" aria-hidden="true">
+          <span class="hn-sec__marker"><i class="hn-sec__dot"></i><span class="hn-sec__num">08</span></span>
+          <span class="hn-sec__line"></span>
+        </div>
+        <div class="hn-sec__body">
+          <div class="hn-sec__head">
+            <p class="hn-kicker">The manual</p>
+            <h2 id="hn-s8-title">Everything, in six sections.</h2>
+            <p class="hn-lead">Open a section to browse its pages.</p>
+          </div>
+          
+          
+          
+          <div class="hn-index" data-hn-index>
+          
+            <article class="hn-card hn-index__card">
+              <a class="hn-index__head" href="getting-started/">
+                <span class="hn-index__icon"><span class="i i--rocket" aria-hidden="true"></span></span>
+                <b>01</b><h3>Get started</h3><span class="hn-index__go" aria-hidden="true">→</span>
+              </a>
+              <p>Install from a checkout and create your first project.</p>
+              <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-1"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="hn-index__pages" id="hn-idx-1"><ul><li><a href="getting-started/"><i>1.1</i><span>Installation</span></a></li><li><a href="quick-start/"><i>1.2</i><span>Quick start</span></a></li></ul></div>
+            </article>
+          
+            <article class="hn-card hn-index__card">
+              <a class="hn-index__head" href="tutorial/">
+                <span class="hn-index__icon"><span class="i i--graduation-cap" aria-hidden="true"></span></span>
+                <b>02</b><h3>Tutorial</h3><span class="hn-index__go" aria-hidden="true">→</span>
+              </a>
+              <p>Follow a task tracker from models to access checks and tests.</p>
+              <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-2"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="hn-index__pages" id="hn-idx-2"><ul><li><a href="tutorial/"><i>2.1</i><span>Overview</span></a></li><li><a href="tutorial/1-models/"><i>2.2</i><span>1. Models</span></a></li><li><a href="tutorial/2-schemas/"><i>2.3</i><span>2. Schemas</span></a></li><li><a href="tutorial/3-operations/"><i>2.4</i><span>3. Operations</span></a></li><li><a href="tutorial/4-endpoints/"><i>2.5</i><span>4. Endpoints</span></a></li><li><a href="tutorial/5-rules/"><i>2.6</i><span>5. Rules</span></a></li><li><a href="tutorial/6-run/"><i>2.7</i><span>6. Run and test it</span></a></li><li><a href="tutorial/7-validation/"><i>2.8</i><span>7. Validate input</span></a></li><li><a href="tutorial/8-projects/"><i>2.9</i><span>8. Projects and apps</span></a></li></ul></div>
+            </article>
+          
+            <article class="hn-card hn-index__card">
+              <a class="hn-index__head" href="guides/">
+                <span class="hn-index__icon"><span class="i i--book-open" aria-hidden="true"></span></span>
+                <b>03</b><h3>Guides</h3><span class="hn-index__go" aria-hidden="true">→</span>
+              </a>
+              <p>One page for each part of an application.</p>
+              <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-3"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="hn-index__pages" id="hn-idx-3"><ul><li><a href="guides/"><i>3.1</i><span>Overview</span></a></li><li><a href="databases/"><i>3.2</i><span>Configure a database</span></a></li><li><a href="models/"><i>3.3</i><span>Define models</span></a></li><li><a href="model-options/"><i>3.4</i><span>Model options</span></a></li><li><a href="relations/"><i>3.5</i><span>Relations</span></a></li><li><a href="queries/"><i>3.6</i><span>Query and write rows</span></a></li><li><a href="model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li><li><a href="events/"><i>3.8</i><span>Events</span></a></li><li><a href="migrations/"><i>3.9</i><span>Migrations</span></a></li><li><a href="schemas/"><i>3.10</i><span>Schemas</span></a></li><li><a href="schema-types/"><i>3.11</i><span>Scalar field types</span></a></li><li><a href="schema-collections/"><i>3.12</i><span>Collections and unions</span></a></li><li><a href="schema-validation/"><i>3.13</i><span>Validate input</span></a></li><li><a href="model-schemas/"><i>3.14</i><span>Schemas from models</span></a></li><li><a href="utilities/"><i>3.15</i><span>Time and utilities</span></a></li><li><a href="function-endpoints/"><i>3.16</i><span>Function-based APIs</span></a></li><li><a href="class-endpoints/"><i>3.17</i><span>Class-based APIs</span></a></li><li><a href="routes/"><i>3.18</i><span>Register routes</span></a></li><li><a href="endpoints/"><i>3.19</i><span>Requests and responses</span></a></li><li><a href="storage/"><i>3.20</i><span>Store uploaded files</span></a></li><li><a href="crud/"><i>3.21</i><span>Generate CRUD routes</span></a></li><li><a href="errors/"><i>3.22</i><span>Errors</span></a></li><li><a href="streaming/"><i>3.23</i><span>Stream a response</span></a></li><li><a href="websockets/"><i>3.24</i><span>WebSockets</span></a></li><li><a href="compression/"><i>3.25</i><span>Compress responses</span></a></li><li><a href="metrics/"><i>3.26</i><span>Export Prometheus metrics</span></a></li><li><a href="email/"><i>3.27</i><span>Send email</span></a></li><li><a href="email-templates/"><i>3.28</i><span>Email templates</span></a></li><li><a href="middleware/"><i>3.29</i><span>Middleware</span></a></li><li><a href="pagination/"><i>3.30</i><span>Pagination</span></a></li><li><a href="codecs/"><i>3.31</i><span>Parsers and renderers</span></a></li><li><a href="openapi/"><i>3.32</i><span>OpenAPI document</span></a></li><li><a href="authentication/"><i>3.33</i><span>Authentication and access</span></a></li><li><a href="sessions/"><i>3.34</i><span>Application sessions</span></a></li><li><a href="web-security/"><i>3.35</i><span>Hosts, CORS and HTTPS</span></a></li><li><a href="rules/"><i>3.36</i><span>Rules</span></a></li><li><a href="modules/"><i>3.37</i><span>Application modules</span></a></li><li><a href="cache/"><i>3.38</i><span>Cache values</span></a></li><li><a href="transactions/"><i>3.39</i><span>Transactions</span></a></li><li><a href="settings/"><i>3.40</i><span>Settings</span></a></li><li><a href="serving/"><i>3.41</i><span>Serve an application</span></a></li><li><a href="kiso/"><i>3.42</i><span>Kiso server</span></a></li><li><a href="testing/"><i>3.43</i><span>Test an application</span></a></li><li><a href="cli/"><i>3.44</i><span>Command line</span></a></li><li><a href="new-project/"><i>3.45</i><span>Create a project</span></a></li><li><a href="inspect/"><i>3.46</i><span>Inspect an application</span></a></li><li><a href="shell/"><i>3.47</i><span>Interactive shell</span></a></li><li><a href="typing/"><i>3.48</i><span>Typing</span></a></li><li><a href="admin/"><i>3.49</i><span>Add an admin</span></a></li><li><a href="admin-customize/"><i>3.50</i><span>Customize the admin</span></a></li><li><a href="app-mcp/"><i>3.51</i><span>Expose actions over MCP</span></a></li><li><a href="dev-mcp/"><i>3.52</i><span>Development MCP</span></a></li><li><a href="ai-workflow/"><i>3.53</i><span>Build with a coding agent</span></a></li><li><a href="best-practices/"><i>3.54</i><span>Best practices</span></a></li><li><a href="sync-async/"><i>3.55</i><span>Sync and async code</span></a></li><li><a href="benchmarks/"><i>3.56</i><span>Benchmarks</span></a></li><li><a href="changelog/"><i>3.57</i><span>Changelog</span></a></li><li><a href="rust-crud-orientation/"><i>3.58</i><span>Native CRUD orientation run</span></a></li></ul></div>
+            </article>
+          
+            <article class="hn-card hn-index__card">
+              <a class="hn-index__head" href="concepts/">
+                <span class="hn-index__icon"><span class="i i--lightbulb" aria-hidden="true"></span></span>
+                <b>04</b><h3>Concepts</h3><span class="hn-index__go" aria-hidden="true">→</span>
+              </a>
+              <p>Request lifecycle, patterns and the vocabulary.</p>
+              <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-4"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="hn-index__pages" id="hn-idx-4"><ul><li><a href="concepts/"><i>4.1</i><span>Concepts</span></a></li><li><a href="request-lifecycle/"><i>4.2</i><span>Request lifecycle</span></a></li><li><a href="patterns/"><i>4.3</i><span>Structure an application</span></a></li><li><a href="glossary/"><i>4.4</i><span>Glossary</span></a></li><li><a href="ecosystem/"><i>4.5</i><span>Use other libraries</span></a></li></ul></div>
+            </article>
+          
+            <article class="hn-card hn-index__card">
+              <a class="hn-index__head" href="reference/">
+                <span class="hn-index__icon"><span class="i i--braces" aria-hidden="true"></span></span>
+                <b>05</b><h3>Reference</h3><span class="hn-index__go" aria-hidden="true">→</span>
+              </a>
+              <p>Public symbols, signatures and docstrings.</p>
+              <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-5"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="hn-index__pages" id="hn-idx-5"><ul><li><a href="reference/"><i>5.1</i><span>Overview</span></a></li><li><a href="reference/web/"><i>5.2</i><span>Core API</span></a></li><li><a href="reference/crud/"><i>5.3</i><span>Generated CRUD</span></a></li><li><a href="reference/schemas/"><i>5.4</i><span>Schemas</span></a></li><li><a href="reference/orm/"><i>5.5</i><span>Models and queries</span></a></li><li><a href="reference/codecs/"><i>5.6</i><span>Parsers and renderers</span></a></li><li><a href="reference/auth/"><i>5.7</i><span>Auth and crypto</span></a></li><li><a href="reference/database/"><i>5.8</i><span>Database</span></a></li><li><a href="reference/settings/"><i>5.9</i><span>Settings</span></a></li><li><a href="reference/email/"><i>5.10</i><span>Email</span></a></li><li><a href="reference/sessions/"><i>5.11</i><span>Sessions</span></a></li><li><a href="reference/cache/"><i>5.12</i><span>Cache</span></a></li><li><a href="reference/storage/"><i>5.13</i><span>File storage</span></a></li><li><a href="reference/rules/"><i>5.14</i><span>Rules</span></a></li><li><a href="reference/runtime/"><i>5.15</i><span>Modules and runtime</span></a></li><li><a href="reference/tools/"><i>5.16</i><span>MCP and scaffold</span></a></li><li><a href="reference/admin/"><i>5.17</i><span>Admin</span></a></li><li><a href="reference/testing/"><i>5.18</i><span>Testing</span></a></li><li><a href="reference/utilities/"><i>5.19</i><span>Utilities</span></a></li></ul></div>
+            </article>
+          
+            <article class="hn-card hn-index__card">
+              <a class="hn-index__head" href="status/">
+                <span class="hn-index__icon"><span class="i i--folder-git-2" aria-hidden="true"></span></span>
+                <b>06</b><h3>Project</h3><span class="hn-index__go" aria-hidden="true">→</span>
+              </a>
+              <p>Status, roadmap, troubleshooting and toolchain.</p>
+              <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-6"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="hn-index__pages" id="hn-idx-6"><ul><li><a href="status/"><i>6.1</i><span>Status</span></a></li><li><a href="documentation-versions/"><i>6.2</i><span>Documentation versions</span></a></li><li><a href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md"><i>6.3</i><span>Roadmap</span></a></li><li><a href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md"><i>6.4</i><span>Contributing</span></a></li><li><a href="troubleshooting/"><i>6.5</i><span>Troubleshooting</span></a></li><li><a href="toolchain/"><i>6.6</i><span>Toolchain and CI</span></a></li><li><a href="release/"><i>6.7</i><span>Release checklist</span></a></li></ul></div>
+            </article>
+          
+          </div>
+        </div>
+      </section>
+
     </div>
-
-    <section class="hn-section" aria-labelledby="hn-index-title">
-      <p class="hn-label reveal"><b>00</b> The manual</p>
-      <h2 id="hn-index-title" class="reveal">Everything, in six sections.</h2>
-      <p class="hn-sub reveal">Open a section to browse its pages.</p>
-      
-      
-      
-      <div class="hn-index" data-stagger data-hn-index>
-      
-        <article class="hn-index__card reveal">
-          <a class="hn-index__head" href="getting-started/">
-            <b>01</b><h3>Get started</h3><span aria-hidden="true">→</span>
-          </a>
-          <p>Install from a checkout and create your first project.</p>
-          <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-1"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="hn-index__pages" id="hn-idx-1"><ul><li><a href="getting-started/"><i>1.1</i><span>Installation</span></a></li><li><a href="quick-start/"><i>1.2</i><span>Quick start</span></a></li></ul></div>
-        </article>
-      
-        <article class="hn-index__card reveal">
-          <a class="hn-index__head" href="tutorial/">
-            <b>02</b><h3>Tutorial</h3><span aria-hidden="true">→</span>
-          </a>
-          <p>Follow a task tracker from models to access checks and tests.</p>
-          <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-2"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="hn-index__pages" id="hn-idx-2"><ul><li><a href="tutorial/"><i>2.1</i><span>Overview</span></a></li><li><a href="tutorial/1-models/"><i>2.2</i><span>1. Models</span></a></li><li><a href="tutorial/2-schemas/"><i>2.3</i><span>2. Schemas</span></a></li><li><a href="tutorial/3-operations/"><i>2.4</i><span>3. Operations</span></a></li><li><a href="tutorial/4-endpoints/"><i>2.5</i><span>4. Endpoints</span></a></li><li><a href="tutorial/5-rules/"><i>2.6</i><span>5. Rules</span></a></li><li><a href="tutorial/6-run/"><i>2.7</i><span>6. Run and test it</span></a></li><li><a href="tutorial/7-validation/"><i>2.8</i><span>7. Validate input</span></a></li><li><a href="tutorial/8-projects/"><i>2.9</i><span>8. Projects and apps</span></a></li></ul></div>
-        </article>
-      
-        <article class="hn-index__card reveal">
-          <a class="hn-index__head" href="guides/">
-            <b>03</b><h3>Guides</h3><span aria-hidden="true">→</span>
-          </a>
-          <p>One page for each part of an application.</p>
-          <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-3"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="hn-index__pages" id="hn-idx-3"><ul><li><a href="guides/"><i>3.1</i><span>Overview</span></a></li><li><a href="databases/"><i>3.2</i><span>Configure a database</span></a></li><li><a href="models/"><i>3.3</i><span>Define models</span></a></li><li><a href="model-options/"><i>3.4</i><span>Model options</span></a></li><li><a href="relations/"><i>3.5</i><span>Relations</span></a></li><li><a href="queries/"><i>3.6</i><span>Query and write rows</span></a></li><li><a href="model-hooks/"><i>3.7</i><span>Lifecycle hooks</span></a></li><li><a href="events/"><i>3.8</i><span>Events</span></a></li><li><a href="migrations/"><i>3.9</i><span>Migrations</span></a></li><li><a href="schemas/"><i>3.10</i><span>Schemas</span></a></li><li><a href="schema-types/"><i>3.11</i><span>Scalar field types</span></a></li><li><a href="schema-collections/"><i>3.12</i><span>Collections and unions</span></a></li><li><a href="schema-validation/"><i>3.13</i><span>Validate input</span></a></li><li><a href="model-schemas/"><i>3.14</i><span>Schemas from models</span></a></li><li><a href="utilities/"><i>3.15</i><span>Time and utilities</span></a></li><li><a href="function-endpoints/"><i>3.16</i><span>Function-based APIs</span></a></li><li><a href="class-endpoints/"><i>3.17</i><span>Class-based APIs</span></a></li><li><a href="routes/"><i>3.18</i><span>Register routes</span></a></li><li><a href="endpoints/"><i>3.19</i><span>Requests and responses</span></a></li><li><a href="storage/"><i>3.20</i><span>Store uploaded files</span></a></li><li><a href="crud/"><i>3.21</i><span>Generate CRUD routes</span></a></li><li><a href="errors/"><i>3.22</i><span>Errors</span></a></li><li><a href="streaming/"><i>3.23</i><span>Stream a response</span></a></li><li><a href="websockets/"><i>3.24</i><span>WebSockets</span></a></li><li><a href="compression/"><i>3.25</i><span>Compress responses</span></a></li><li><a href="metrics/"><i>3.26</i><span>Export Prometheus metrics</span></a></li><li><a href="email/"><i>3.27</i><span>Send email</span></a></li><li><a href="email-templates/"><i>3.28</i><span>Email templates</span></a></li><li><a href="middleware/"><i>3.29</i><span>Middleware</span></a></li><li><a href="pagination/"><i>3.30</i><span>Pagination</span></a></li><li><a href="codecs/"><i>3.31</i><span>Parsers and renderers</span></a></li><li><a href="openapi/"><i>3.32</i><span>OpenAPI document</span></a></li><li><a href="authentication/"><i>3.33</i><span>Authentication and access</span></a></li><li><a href="sessions/"><i>3.34</i><span>Application sessions</span></a></li><li><a href="web-security/"><i>3.35</i><span>Hosts, CORS and HTTPS</span></a></li><li><a href="rules/"><i>3.36</i><span>Rules</span></a></li><li><a href="modules/"><i>3.37</i><span>Application modules</span></a></li><li><a href="cache/"><i>3.38</i><span>Cache values</span></a></li><li><a href="transactions/"><i>3.39</i><span>Transactions</span></a></li><li><a href="settings/"><i>3.40</i><span>Settings</span></a></li><li><a href="serving/"><i>3.41</i><span>Serve an application</span></a></li><li><a href="kiso/"><i>3.42</i><span>Kiso server</span></a></li><li><a href="testing/"><i>3.43</i><span>Test an application</span></a></li><li><a href="cli/"><i>3.44</i><span>Command line</span></a></li><li><a href="new-project/"><i>3.45</i><span>Create a project</span></a></li><li><a href="inspect/"><i>3.46</i><span>Inspect an application</span></a></li><li><a href="shell/"><i>3.47</i><span>Interactive shell</span></a></li><li><a href="typing/"><i>3.48</i><span>Typing</span></a></li><li><a href="admin/"><i>3.49</i><span>Add an admin</span></a></li><li><a href="admin-customize/"><i>3.50</i><span>Customize the admin</span></a></li><li><a href="app-mcp/"><i>3.51</i><span>Expose actions over MCP</span></a></li><li><a href="dev-mcp/"><i>3.52</i><span>Development MCP</span></a></li><li><a href="ai-workflow/"><i>3.53</i><span>Build with a coding agent</span></a></li><li><a href="best-practices/"><i>3.54</i><span>Best practices</span></a></li><li><a href="sync-async/"><i>3.55</i><span>Sync and async code</span></a></li><li><a href="benchmarks/"><i>3.56</i><span>Benchmarks</span></a></li><li><a href="changelog/"><i>3.57</i><span>Changelog</span></a></li><li><a href="rust-crud-orientation/"><i>3.58</i><span>Native CRUD orientation run</span></a></li></ul></div>
-        </article>
-      
-        <article class="hn-index__card reveal">
-          <a class="hn-index__head" href="concepts/">
-            <b>04</b><h3>Concepts</h3><span aria-hidden="true">→</span>
-          </a>
-          <p>Request lifecycle, patterns and the vocabulary.</p>
-          <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-4"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="hn-index__pages" id="hn-idx-4"><ul><li><a href="concepts/"><i>4.1</i><span>Concepts</span></a></li><li><a href="request-lifecycle/"><i>4.2</i><span>Request lifecycle</span></a></li><li><a href="patterns/"><i>4.3</i><span>Structure an application</span></a></li><li><a href="glossary/"><i>4.4</i><span>Glossary</span></a></li><li><a href="ecosystem/"><i>4.5</i><span>Use other libraries</span></a></li></ul></div>
-        </article>
-      
-        <article class="hn-index__card reveal">
-          <a class="hn-index__head" href="reference/">
-            <b>05</b><h3>Reference</h3><span aria-hidden="true">→</span>
-          </a>
-          <p>Public symbols, signatures and docstrings.</p>
-          <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-5"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="hn-index__pages" id="hn-idx-5"><ul><li><a href="reference/"><i>5.1</i><span>Overview</span></a></li><li><a href="reference/web/"><i>5.2</i><span>Core API</span></a></li><li><a href="reference/crud/"><i>5.3</i><span>Generated CRUD</span></a></li><li><a href="reference/schemas/"><i>5.4</i><span>Schemas</span></a></li><li><a href="reference/orm/"><i>5.5</i><span>Models and queries</span></a></li><li><a href="reference/codecs/"><i>5.6</i><span>Parsers and renderers</span></a></li><li><a href="reference/auth/"><i>5.7</i><span>Auth and crypto</span></a></li><li><a href="reference/database/"><i>5.8</i><span>Database</span></a></li><li><a href="reference/settings/"><i>5.9</i><span>Settings</span></a></li><li><a href="reference/email/"><i>5.10</i><span>Email</span></a></li><li><a href="reference/sessions/"><i>5.11</i><span>Sessions</span></a></li><li><a href="reference/cache/"><i>5.12</i><span>Cache</span></a></li><li><a href="reference/storage/"><i>5.13</i><span>File storage</span></a></li><li><a href="reference/rules/"><i>5.14</i><span>Rules</span></a></li><li><a href="reference/runtime/"><i>5.15</i><span>Modules and runtime</span></a></li><li><a href="reference/tools/"><i>5.16</i><span>MCP and scaffold</span></a></li><li><a href="reference/admin/"><i>5.17</i><span>Admin</span></a></li><li><a href="reference/testing/"><i>5.18</i><span>Testing</span></a></li><li><a href="reference/utilities/"><i>5.19</i><span>Utilities</span></a></li></ul></div>
-        </article>
-      
-        <article class="hn-index__card reveal">
-          <a class="hn-index__head" href="status/">
-            <b>06</b><h3>Project</h3><span aria-hidden="true">→</span>
-          </a>
-          <p>Status, roadmap, troubleshooting and toolchain.</p>
-          <button class="hn-index__toggle" type="button" aria-expanded="false" aria-controls="hn-idx-6"><span class="hn-index__count"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="hn-index__pages" id="hn-idx-6"><ul><li><a href="status/"><i>6.1</i><span>Status</span></a></li><li><a href="documentation-versions/"><i>6.2</i><span>Documentation versions</span></a></li><li><a href="https://github.com/caspel26/hinoki/blob/main/ROADMAP.md"><i>6.3</i><span>Roadmap</span></a></li><li><a href="https://github.com/caspel26/hinoki/blob/main/CONTRIBUTING.md"><i>6.4</i><span>Contributing</span></a></li><li><a href="troubleshooting/"><i>6.5</i><span>Troubleshooting</span></a></li><li><a href="toolchain/"><i>6.6</i><span>Toolchain and CI</span></a></li><li><a href="release/"><i>6.7</i><span>Release checklist</span></a></li></ul></div>
-        </article>
-      
-      </div>
-    </section>
-
-    <section class="hn-section" aria-labelledby="hn-problem-title">
-      <p class="hn-label reveal"><b>01</b> The problem</p>
-      <h2 id="hn-problem-title" class="reveal">Architecture drifts. Hinoki turns each promise into a check.</h2>
-      <ul class="hn-gaps" data-stagger>
-        <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">An endpoint that forgot its access policy is public by default.</p><p class="hn-gaps__fix">Declare <code>access=</code>; <a href="rules/#the-twelve-rules"><code>HNK-ACC-001</code></a> fails the check when it is missing.</p></li>
-        <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">A write that should be atomic is not.</p><p class="hn-gaps__fix">Declare <code>atomic=True</code>; <code>HNK-TXN-001</code> reports every state-changing action without it.</p></li>
-        <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">A response leaks a token or a whole model.</p><p class="hn-gaps__fix"><code>HNK-SCH-001</code> and <code>HNK-API-001</code> keep named fields out of responses and models out of handlers.</p></li>
-        <li class="reveal"><span class="hn-gaps__state" aria-hidden="true"><i class="hn-gaps__x">✕</i><i class="hn-gaps__v">✓</i></span><p class="hn-gaps__gap">Layers drift: models start importing the API.</p><p class="hn-gaps__fix"><code>HNK-IMP-001</code> reads the source files and reports forbidden imports.</p></li>
-      </ul>
-    </section>
-
-    <section class="hn-section" aria-labelledby="hn-walk-title" id="walkthrough">
-      <p class="hn-label reveal"><b>02</b> A project</p>
-      <h2 id="hn-walk-title" class="reveal">One project, end to end.</h2>
-      <p class="hn-sub reveal">Source excerpts from the Notes and Tracker examples. File names and line numbers point to the checked-in code.</p>
-      <div class="hn-walk hn-walk--bench reveal" data-hn-tabs>
-        <div class="hn-walk__tabs" data-slider role="tablist" aria-label="Project steps">
-          <button type="button" role="tab" id="hn-w-model" aria-controls="hn-wp-model" aria-selected="true" data-tab="model"><i>01</i><span><b>Model</b><small>Describe the table</small></span></button>
-          <button type="button" role="tab" id="hn-w-schema" aria-controls="hn-wp-schema" aria-selected="false" tabindex="-1" data-tab="schema"><i>02</i><span><b>Schema</b><small>State what crosses the boundary</small></span></button>
-          <button type="button" role="tab" id="hn-w-endpoint" aria-controls="hn-wp-endpoint" aria-selected="false" tabindex="-1" data-tab="endpoint"><i>03</i><span><b>Endpoint</b><small>Declare the behaviour</small></span></button>
-          <button type="button" role="tab" id="hn-w-check" aria-controls="hn-wp-check" aria-selected="false" tabindex="-1" data-tab="check"><i>04</i><span><b>Check and migrate</b><small>Run the rules, review the SQL</small></span></button>
-        </div>
-
-        <div class="hn-walk__panel" role="tabpanel" id="hn-wp-model" aria-labelledby="hn-w-model" data-panel="model">
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>models.py</span></div><span class="ide__path">examples/notes/notes/apps/notes</span></div><pre><code><span class="hn-ln" data-line="9"><span class="nd">@db.ordered_by</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span></span><span class="hn-ln" data-line="10"><span class="nd">@db.table</span><span class="p">(</span><span class="s2">"notes"</span><span class="p">)</span></span><span class="hn-ln" data-line="11"><span class="k">class</span> <span class="nc">Note</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span></span><span class="hn-ln" data-line="12">    <span class="n">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">pk</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span></span><span class="hn-ln" data-line="13">    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></span><span class="hn-ln" data-line="14">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></span></code></pre></div></div>
-          <div class="hn-walk__note"><h3>Describe the table</h3><p>A model is a typed class. Hinoki compiles its queries for the configured database in the Rust ORM, and nothing touches a database at import.</p><a class="hn-link" href="models/">Define models</a></div>
-        </div>
-
-        <div class="hn-walk__panel" role="tabpanel" id="hn-wp-schema" aria-labelledby="hn-w-schema" data-panel="schema" hidden>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>schemas.py</span></div><span class="ide__path">examples/notes/notes/apps/notes</span></div><pre><code><span class="hn-ln" data-line="11"><span class="k">class</span> <span class="nc">NoteIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span></span><span class="hn-ln" data-line="12">    <span class="n">title</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_length</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">strip</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span></span><span class="hn-ln" data-line="13">    <span class="n">body</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">10_000</span><span class="p">)]</span> <span class="o">=</span> <span class="s2">""</span></span><span class="hn-ln hn-ln--gap" data-line="…"></span><span class="hn-ln" data-line="21"><span class="k">class</span> <span class="nc">NoteOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span></span><span class="hn-ln" data-line="22">    <span class="n">id</span><span class="p">:</span> <span class="n">UUID</span></span><span class="hn-ln" data-line="23">    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span></span><span class="hn-ln" data-line="24">    <span class="n">body</span><span class="p">:</span> <span class="nb">str</span></span></code></pre></div></div>
-          <div class="hn-walk__note"><h3>State what crosses the boundary</h3><p>Validation is strict, with no coercion. A response exposes only the fields its <code>Schema</code> names.</p><a class="hn-link" href="schemas/">Schemas</a></div>
-        </div>
-
-        <div class="hn-walk__panel" role="tabpanel" id="hn-wp-endpoint" aria-labelledby="hn-w-endpoint" data-panel="endpoint" hidden>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>routes.py</span></div><span class="ide__path">examples/notes/notes/apps/notes</span></div><pre><code><span class="hn-ln" data-line="8"><span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span></span><span class="hn-ln" data-line="9">    <span class="n">crud</span><span class="p">(</span></span><span class="hn-ln" data-line="10">        <span class="n">Note</span><span class="p">,</span></span><span class="hn-ln" data-line="11">        <span class="n">path</span><span class="o">=</span><span class="s2">"/notes"</span><span class="p">,</span></span><span class="hn-ln" data-line="12">        <span class="n">read</span><span class="o">=</span><span class="n">NoteOut</span><span class="p">,</span></span><span class="hn-ln" data-line="13">        <span class="n">create</span><span class="o">=</span><span class="n">NoteIn</span><span class="p">,</span></span><span class="hn-ln" data-line="14">        <span class="n">update</span><span class="o">=</span><span class="n">NotePatch</span><span class="p">,</span></span><span class="hn-ln" data-line="15">        <span class="n">delete</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span></span><span class="hn-ln" data-line="16">        <span class="n">public_writes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Notes has no sign-in on purpose; Tracker adds one</span></span><span class="hn-ln" data-line="17">    <span class="p">)</span></span><span class="hn-ln" data-line="18"><span class="p">]</span></span></code></pre></div></div>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>api.py</span></div><span class="ide__path">examples/tracker/tracker/apps/tasks</span></div><pre><code><span class="hn-ln" data-line="40">    <span class="nd">@http.post</span><span class="p">(</span></span><span class="hn-ln" data-line="41">        <span class="s2">"/{item_id}/complete"</span><span class="p">,</span></span><span class="hn-ln" data-line="42">        <span class="n">access</span><span class="o">=</span><span class="n">member_only</span><span class="p">,</span></span><span class="hn-ln" data-line="43">        <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span></span><span class="hn-ln" data-line="44">        <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">NotFound</span><span class="p">,</span> <span class="n">TaskAlreadyDone</span><span class="p">),</span></span><span class="hn-ln" data-line="45">    <span class="p">)</span></span><span class="hn-ln" data-line="46">    <span class="k">async</span> <span class="k">def</span> <span class="nf">complete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">TaskOut</span><span class="p">:</span></span></code></pre></div></div>
-          <div class="hn-walk__note"><h3>Declare behaviour beside the action</h3><p>Access, transactions and errors are options of the decorator. The same declaration feeds routing, OpenAPI and the rules.</p><a class="hn-link" href="endpoints/">Requests and responses</a></div>
-        </div>
-
-        <div class="hn-walk__panel" role="tabpanel" id="hn-wp-check" aria-labelledby="hn-w-check" data-panel="check" hidden>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--py"></i>rules.py</span></div><span class="ide__path">examples/tracker/tracker</span></div><pre><code><span class="hn-ln" data-line="14"><span class="n">policy</span> <span class="o">=</span> <span class="n">RuleSet</span><span class="p">(</span></span><span class="hn-ln" data-line="15">    <span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.routes.health"</span><span class="p">]),</span></span><span class="hn-ln" data-line="16">    <span class="n">Actions</span><span class="o">.</span><span class="n">require_permissions</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">,</span> <span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.routes.health"</span><span class="p">]),</span></span><span class="hn-ln" data-line="17">    <span class="n">Actions</span><span class="o">.</span><span class="n">forbid_model_responses</span><span class="p">(</span><span class="n">match</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">PKG</span><span class="si">}</span><span class="s2">.*"</span><span class="p">),</span></span><span class="hn-ln ide-fold" data-line="18">▸ 7 more lines</span><span class="hn-ln" data-line="25"><span class="p">)</span></span></code></pre></div></div>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--sh"></i>terminal</span></div></div><pre><code><span class="hn-ln"><span class="gp">$</span> cd examples/tracker</span><span class="hn-ln"><span class="gp">$</span> uv run --locked hinoki check</span><span class="hn-ln">14 rule(s): 0 violated, 0 unverifiable, 0 waived</span></code></pre></div></div>
-          <div class="hn-walk__code"><div class="ide ide--flat"><div class="ide__bar"><div class="ide__tabs"><span class="ide__tab is-on"><i class="ide__dot ide__dot--sql"></i>0001-create-table-tracker-members.sql</span></div><span class="ide__path">examples/tracker/tracker/apps/members/migrations</span></div><pre><code><span class="hn-ln" data-line="1"><span class="c1">-- hinoki migration 0001-create-table-tracker-members</span></span><span class="hn-ln" data-line="2"><span class="c1">-- generated from the models; review it.</span></span><span class="hn-ln" data-line="3"> </span><span class="hn-ln" data-line="4"><span class="c1">-- create table tracker_members</span></span><span class="hn-ln" data-line="5"><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="ss">"tracker_members"</span> <span class="p">(</span></span><span class="hn-ln" data-line="6">    <span class="ss">"id"</span> <span class="n">UUID</span> <span class="k">PRIMARY KEY</span><span class="p">,</span></span><span class="hn-ln" data-line="7">    <span class="ss">"name"</span> <span class="nb">varchar</span><span class="p">(</span><span class="mi">80</span><span class="p">)</span> <span class="k">NOT NULL</span><span class="p">,</span></span><span class="hn-ln" data-line="8">    <span class="ss">"token"</span> <span class="nb">text</span> <span class="k">NOT NULL UNIQUE</span></span><span class="hn-ln" data-line="9"><span class="p">);</span></span></code></pre></div></div>
-          <div class="hn-walk__note"><h3>Check it, then review SQL</h3><p>Run rules from the example project. Migrations are SQL files you review and apply explicitly; startup never changes tables.</p><a class="hn-link" href="migrations/">Migrations</a></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="hn-section" aria-labelledby="hn-arch-title">
-      <p class="hn-label reveal"><b>03</b> Architecture</p>
-      <h2 id="hn-arch-title" class="reveal">How the parts fit together.</h2>
-      <p class="hn-sub reveal">You declare once. Routing, validation, the OpenAPI document, rules and development tools read the same declaration. Hover a node for what it does.</p>
-      <figure class="hn-figure reveal" data-hn-diagram role="group" aria-labelledby="hn-arch-cap">
-        <div role="img" aria-label="Model, Schema and Endpoint declarations form one declared contract, which routing, validation, access and transactions, the OpenAPI document, hinoki check rules and the development MCP all read. Schema changes follow a separate lane: migrations plan, a reviewed SQL file, an explicit apply, then the selected database.">
-          <svg class="hn-dg hn-dg--wide" viewBox="0 0 960 420" focusable="false"><defs><marker id="hn-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs><path class="hn-dg-arrow " style="--i:0" pathLength="1" d="M250 66 C295.0 66 295.0 150 340 150" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="A typed class. Queries compile for the configured database in the Rust ORM." data-tip-title="Model"><rect x="20" y="40" width="230" height="52" rx="8"/><text class="hn-dg-t" x="34" y="64.0">Model</text><text class="hn-dg-s" x="34" y="81.0">tables and queries</text></g><path class="hn-dg-arrow " style="--i:1" pathLength="1" d="M250 146 C295.0 146 295.0 150 340 150" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="Strict validation without coercion. A response exposes only the fields it names." data-tip-title="Schema"><rect x="20" y="120" width="230" height="52" rx="8"/><text class="hn-dg-t" x="34" y="144.0">Schema</text><text class="hn-dg-s" x="34" y="161.0">accepts and returns</text></g><path class="hn-dg-arrow " style="--i:2" pathLength="1" d="M250 226 C295.0 226 295.0 150 340 150" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="Decorator options state access, atomic and errors next to the action." data-tip-title="Endpoint"><rect x="20" y="200" width="230" height="52" rx="8"/><text class="hn-dg-t" x="34" y="224.0">Endpoint</text><text class="hn-dg-s" x="34" y="241.0">access=  atomic=  errors=</text></g><g class="hn-dg-node hn-dg-core" tabindex="0" data-tip="The single declaration every consumer below reads." data-tip-title="One declared contract"><rect x="340" y="98" width="220" height="104" rx="8"/><text class="hn-dg-t" x="354" y="148.0">One declared contract</text><text class="hn-dg-s" x="354" y="165.0">ordinary decorators</text></g><path class="hn-dg-arrow " style="--i:3" pathLength="1" d="M560 150 C615.0 150 615.0 30 670 30" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="Route matching runs in Rust; handlers on the ASGI path run in Python." data-tip-title="Routing"><rect x="670" y="10" width="270" height="40" rx="8"/><text class="hn-dg-t" x="684" y="35.0">Routing</text></g><path class="hn-dg-arrow " style="--i:4" pathLength="1" d="M560 150 C615.0 150 615.0 82 670 82" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="Strict validation without coercion, compiled once per Schema." data-tip-title="Validation"><rect x="670" y="62" width="270" height="40" rx="8"/><text class="hn-dg-t" x="684" y="87.0">Validation</text></g><path class="hn-dg-arrow " style="--i:5" pathLength="1" d="M560 150 C615.0 150 615.0 134 670 134" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="An Access policy gates the action; atomic=True wraps writes." data-tip-title="Access and transactions"><rect x="670" y="114" width="270" height="40" rx="8"/><text class="hn-dg-t" x="684" y="139.0">Access and transactions</text></g><path class="hn-dg-arrow " style="--i:6" pathLength="1" d="M560 150 C615.0 150 615.0 186 670 186" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="Generated from the same declarations, so it cannot drift from the code." data-tip-title="OpenAPI document"><rect x="670" y="166" width="270" height="40" rx="8"/><text class="hn-dg-t" x="684" y="191.0">OpenAPI document</text></g><path class="hn-dg-arrow " style="--i:7" pathLength="1" d="M560 150 C615.0 150 615.0 238 670 238" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="Optional rules read the declarations and the source files." data-tip-title="hinoki check rules"><rect x="670" y="218" width="270" height="40" rx="8"/><text class="hn-dg-t" x="684" y="243.0">hinoki check rules</text></g><path class="hn-dg-arrow " style="--i:8" pathLength="1" d="M560 150 C615.0 150 615.0 290 670 290" marker-end="url(#hn-arr)"/><g class="hn-dg-node " tabindex="0" data-tip="Tools that describe the live app to an agent, under rules the owner sets." data-tip-title="Development MCP"><rect x="670" y="270" width="270" height="40" rx="8"/><text class="hn-dg-t" x="684" y="295.0">Development MCP</text></g><text class="hn-dg-lane" x="20" y="352">Schema changes: explicit, never at startup</text><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:10" pathLength="1" d="M140 384 L190 384" marker-end="url(#hn-arr)"/><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:11" pathLength="1" d="M360 384 L410 384" marker-end="url(#hn-arr)"/><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:12" pathLength="1" d="M580 384 L630 384" marker-end="url(#hn-arr)"/><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:13" pathLength="1" d="M780 384 L830 384" marker-end="url(#hn-arr)"/><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="A typed class. Queries compile for the configured database in the Rust ORM." data-tip-title="Model"><rect x="20" y="366" width="120" height="36" rx="8"/><text class="hn-dg-t" x="34" y="389.0">Model</text></g><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="Compares the models with the recorded migration state and writes SQL." data-tip-title="migrations plan"><rect x="190" y="366" width="170" height="36" rx="8"/><text class="hn-dg-t" x="204" y="389.0">migrations plan</text></g><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="You read the generated SQL before anything touches a database." data-tip-title="reviewed SQL file"><rect x="410" y="366" width="170" height="36" rx="8"/><text class="hn-dg-t" x="424" y="389.0">reviewed SQL file</text></g><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="hinoki migrations apply. Startup never changes tables." data-tip-title="explicit apply"><rect x="630" y="366" width="150" height="36" rx="8"/><text class="hn-dg-t" x="644" y="389.0">explicit apply</text></g><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="SQLite, PostgreSQL, MySQL or MariaDB." data-tip-title="Database"><rect x="830" y="366" width="110" height="36" rx="8"/><text class="hn-dg-t" x="844" y="389.0">Database</text></g></svg>
-          <svg class="hn-dg hn-dg--narrow" viewBox="0 0 360 754" focusable="false"><defs><marker id="hn-arr-narrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs><path class="hn-dg-arrow " style="--i:0" pathLength="1" d="M62 50 V64"/><g class="hn-dg-node " tabindex="0" data-tip="A typed class. Queries compile for the configured database in the Rust ORM." data-tip-title="Model"><rect x="10" y="10" width="104" height="40" rx="8"/><text class="hn-dg-t" x="24" y="35.0">Model</text></g><path class="hn-dg-arrow " style="--i:1" pathLength="1" d="M174 50 V64"/><g class="hn-dg-node " tabindex="0" data-tip="Strict validation without coercion. A response exposes only the fields it names." data-tip-title="Schema"><rect x="122" y="10" width="104" height="40" rx="8"/><text class="hn-dg-t" x="136" y="35.0">Schema</text></g><path class="hn-dg-arrow " style="--i:2" pathLength="1" d="M286 50 V64"/><g class="hn-dg-node " tabindex="0" data-tip="Decorator options state access, atomic and errors next to the action." data-tip-title="Endpoint"><rect x="234" y="10" width="104" height="40" rx="8"/><text class="hn-dg-t" x="248" y="35.0">Endpoint</text></g><path class="hn-dg-arrow " style="--i:1" pathLength="1" d="M62 64 H286"/><path class="hn-dg-arrow " style="--i:2" pathLength="1" d="M180 64 V92" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node hn-dg-core" tabindex="0" data-tip="The single declaration every consumer below reads." data-tip-title="One declared contract"><rect x="20" y="94" width="320" height="60" rx="8"/><text class="hn-dg-t" x="34" y="122.0">One declared contract</text><text class="hn-dg-s" x="34" y="139.0">ordinary decorators</text></g><path class="hn-dg-arrow " style="--i:3" pathLength="1" d="M20 124 H12 V438"/><path class="hn-dg-arrow " style="--i:4" pathLength="1" d="M12 208 H34" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node " tabindex="0" data-tip="Route matching runs in Rust; handlers on the ASGI path run in Python." data-tip-title="Routing"><rect x="36" y="190" width="314" height="36" rx="8"/><text class="hn-dg-t" x="50" y="213.0">Routing</text></g><path class="hn-dg-arrow " style="--i:5" pathLength="1" d="M12 254 H34" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node " tabindex="0" data-tip="Strict validation without coercion, compiled once per Schema." data-tip-title="Validation"><rect x="36" y="236" width="314" height="36" rx="8"/><text class="hn-dg-t" x="50" y="259.0">Validation</text></g><path class="hn-dg-arrow " style="--i:6" pathLength="1" d="M12 300 H34" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node " tabindex="0" data-tip="An Access policy gates the action; atomic=True wraps writes." data-tip-title="Access and transactions"><rect x="36" y="282" width="314" height="36" rx="8"/><text class="hn-dg-t" x="50" y="305.0">Access and transactions</text></g><path class="hn-dg-arrow " style="--i:7" pathLength="1" d="M12 346 H34" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node " tabindex="0" data-tip="Generated from the same declarations, so it cannot drift from the code." data-tip-title="OpenAPI document"><rect x="36" y="328" width="314" height="36" rx="8"/><text class="hn-dg-t" x="50" y="351.0">OpenAPI document</text></g><path class="hn-dg-arrow " style="--i:8" pathLength="1" d="M12 392 H34" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node " tabindex="0" data-tip="Optional rules read the declarations and the source files." data-tip-title="hinoki check rules"><rect x="36" y="374" width="314" height="36" rx="8"/><text class="hn-dg-t" x="50" y="397.0">hinoki check rules</text></g><path class="hn-dg-arrow " style="--i:9" pathLength="1" d="M12 438 H34" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node " tabindex="0" data-tip="Tools that describe the live app to an agent, under rules the owner sets." data-tip-title="Development MCP"><rect x="36" y="420" width="314" height="36" rx="8"/><text class="hn-dg-t" x="50" y="443.0">Development MCP</text></g><text class="hn-dg-lane" x="10" y="480">Schema changes: explicit, never at startup</text><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="A typed class. Queries compile for the configured database in the Rust ORM." data-tip-title="Model"><rect x="10" y="498" width="340" height="32" rx="8"/><text class="hn-dg-t" x="24" y="519.0">Model</text></g><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:13" pathLength="1" d="M180 532 L180 550" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="Compares the models with the recorded migration state and writes SQL." data-tip-title="migrations plan"><rect x="10" y="552" width="340" height="32" rx="8"/><text class="hn-dg-t" x="24" y="573.0">migrations plan</text></g><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:14" pathLength="1" d="M180 586 L180 604" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="You read the generated SQL before anything touches a database." data-tip-title="reviewed SQL file"><rect x="10" y="606" width="340" height="32" rx="8"/><text class="hn-dg-t" x="24" y="627.0">reviewed SQL file</text></g><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:15" pathLength="1" d="M180 640 L180 658" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="hinoki migrations apply. Startup never changes tables." data-tip-title="explicit apply"><rect x="10" y="660" width="340" height="32" rx="8"/><text class="hn-dg-t" x="24" y="681.0">explicit apply</text></g><path class="hn-dg-arrow hn-dg-lane-arrow" style="--i:16" pathLength="1" d="M180 694 L180 712" marker-end="url(#hn-arr-narrow)"/><g class="hn-dg-node hn-dg-lane-node" tabindex="0" data-tip="SQLite, PostgreSQL, MySQL or MariaDB." data-tip-title="Database"><rect x="10" y="714" width="340" height="32" rx="8"/><text class="hn-dg-t" x="24" y="735.0">Selected database</text></g></svg>
-        </div>
-        <figcaption id="hn-arch-cap">Kiso, the default server, is native Rust. Handwritten handlers run in Python; only an <code>async def</code> handler limited to ORM calls, and eligible generated CRUD writes, are driven from Rust. The migration lane is separate on purpose.</figcaption>
-      </figure>
-    </section>
-
-    <section class="hn-section" aria-labelledby="hn-feat-title">
-      <p class="hn-label reveal"><b>04</b> Included</p>
-      <h2 id="hn-feat-title" class="reveal">What is implemented today.</h2>
-      <p class="hn-sub reveal">Pre-alpha, and exercised in the examples. The <a href="status/">status page</a> lists every boundary.</p>
-      <ul class="hn-feat" data-stagger>
-        <li class="reveal"><h3>Databases</h3><p>SQLite, PostgreSQL, MySQL and MariaDB through the Rust ORM, with relations, querysets and reviewed, file-based migrations.</p><a class="hn-link" href="databases/">Databases</a></li>
-        <li class="reveal"><h3>Sync and async</h3><p>Plain <code>def</code> and <code>async def</code> handlers, with bounded execution for the synchronous ones.</p><a class="hn-link" href="sync-async/">Sync and async</a></li>
-        <li class="reveal"><h3>Atomic writes</h3><p><code>atomic=True</code> on an action, or <code>db.atomic</code> as a block or a decorator, in sync and async code.</p><a class="hn-link" href="transactions/">Transactions</a></li>
-        <li class="reveal"><h3>Model hooks</h3><p>Lifecycle hooks with instance state, and callbacks that run after the commit.</p><a class="hn-link" href="model-hooks/">Lifecycle hooks</a></li>
-        <li class="reveal"><h3>Bulk writes</h3><p><code>bulk_create</code>, <code>bulk_update</code> and <code>bulk_delete</code>, and their <code>abulk_*</code> forms, each in one transaction.</p><a class="hn-link" href="queries/">Query and write rows</a></li>
-        <li class="reveal"><h3>Checked responses</h3><p>Every response is checked at runtime against its return annotation. An annotation that cannot be checked stops the app at startup.</p><a class="hn-link" href="endpoints/#the-response-is-checked-against-the-annotation">Requests and responses</a></li>
-        <li class="reveal"><h3>Optional admin</h3><p>A built-in app you activate explicitly, with four styles, its own users, a sign-in page and per-model permissions.</p><a class="hn-link" href="admin/">Admin</a></li>
-        <li class="reveal"><h3>Kiso server</h3><p>The default server is Kiso, Hinoki's Rust HTTP server. Granian stays available with <code>--server granian</code>.</p><a class="hn-link" href="kiso/">Kiso server</a></li>
-        <li class="reveal"><h3>MCP and OpenAPI</h3><p>A generated OpenAPI document, a development MCP server and an application MCP server.</p><a class="hn-link" href="dev-mcp/">Development MCP</a></li>
-      </ul>
-    </section>
-
-    <section class="hn-section" aria-labelledby="hn-rules-title">
-      <p class="hn-label reveal"><b>05</b> Rules</p>
-      <h2 id="hn-rules-title" class="reveal">Twelve rules ship today. All are optional.</h2>
-      <div class="hn-explorer reveal" data-hn-explorer>
-        <div class="hn-explorer__filters" data-slider role="group" aria-label="Filter rules by phase">
-          <button type="button" data-phase="all" aria-pressed="true">all <span>12</span></button>
-          <button type="button" data-phase="startup" aria-pressed="false">startup <span>10</span></button>
-          <button type="button" data-phase="static" aria-pressed="false">static <span>2</span></button>
-        </div>
-        <div class="hn-explorer__grid">
-          <ul class="hn-explorer__list">
-            <li><button type="button" data-rule="acc" data-phase="startup" aria-pressed="true"><code>HNK-ACC-001</code><b>Every matching action names an <code>Access</code> policy.</b></button></li>
-            <li><button type="button" data-rule="acc2" data-phase="startup" aria-pressed="false"><code>HNK-ACC-002</code><b>An action with an <code>Access</code> policy names at least one permission.</b></button></li>
-            <li><button type="button" data-rule="txn" data-phase="startup" aria-pressed="false"><code>HNK-TXN-001</code><b>State-changing actions use <code>atomic=True</code>.</b></button></li>
-            <li><button type="button" data-rule="api" data-phase="startup" aria-pressed="false"><code>HNK-API-001</code><b>No action returns a <code>Model</code>; responses are <code>Schema</code> classes.</b></button></li>
-            <li><button type="button" data-rule="api2" data-phase="startup" aria-pressed="false"><code>HNK-API-002</code><b>Every action annotates a concrete return type.</b></button></li>
-            <li><button type="button" data-rule="api3" data-phase="startup" aria-pressed="false"><code>HNK-API-003</code><b>A <code>GET</code> action returns a <code>Page</code>, never a plain list.</b></button></li>
-            <li><button type="button" data-rule="sch" data-phase="startup" aria-pressed="false"><code>HNK-SCH-001</code><b>Named fields never appear in a response <code>Schema</code>.</b></button></li>
-            <li><button type="button" data-rule="sch2" data-phase="startup" aria-pressed="false"><code>HNK-SCH-002</code><b>Text fields of a request <code>Schema</code> have a length limit.</b></button></li>
-            <li><button type="button" data-rule="db1" data-phase="startup" aria-pressed="false"><code>HNK-DB-001</code><b>Models pin their table name explicitly.</b></button></li>
-            <li><button type="button" data-rule="db2" data-phase="startup" aria-pressed="false"><code>HNK-DB-002</code><b>Every foreign-key column is indexed.</b></button></li>
-            <li><button type="button" data-rule="imp" data-phase="static" aria-pressed="false"><code>HNK-IMP-001</code><span class="hn-chip">static</span><b>Modules under a source never import a target.</b></button></li>
-            <li><button type="button" data-rule="mail" data-phase="static" aria-pressed="false"><code>HNK-MAIL-001</code><span class="hn-chip">static</span><b>Every email template matches its context <code>Schema</code>.</b></button></li>
-          </ul>
-          <div class="hn-explorer__detail" aria-live="polite" tabindex="0" role="region" aria-label="Rule detail">
-            <div data-detail="acc">
-              <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">require_access</span>(match, except_)</code></pre>
-              <p class="hn-file">violated</p><pre class="hn-pre hn-pre--bad"><code>tests/projects/rulesapp.py:7: <span class="hn-id">HNK-ACC-001</span> <span class="hn-bad">[violated]</span> GET /health (health) declares no access policy</code></pre>
-              <p class="hn-file">waived</p><pre class="hn-pre hn-pre--wvd"><code>tests/projects/rulesapp.py:7: <span class="hn-id">HNK-ACC-001</span> <span class="hn-wvd">[waived]</span> GET /health (health) declares no access policy
-    waived: liveness probe is public by design (platform-team, until 2027-01-31)</code></pre>
-            </div>
-            <div data-detail="acc2" hidden>
-              <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">require_permissions</span>(match, except_)</code></pre>
-              <p class="hn-note">An <code>Access</code> policy without permissions would mean any authenticated caller; the rule makes that explicit. See the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="txn" hidden>
-              <p class="hn-file">declaration</p><pre><code>Transactions.<span class="f">require_atomic</span>(methods)</code></pre>
-              <p class="hn-file">violated</p><pre class="hn-pre hn-pre--bad"><code>tests/projects/rulesapp.py:12: <span class="hn-id">HNK-TXN-001</span> <span class="hn-bad">[violated]</span> POST /items (create) does not declare atomic=True</code></pre>
-            </div>
-            <div data-detail="api" hidden>
-              <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">forbid_model_responses</span>(match, except_)</code></pre>
-              <p class="hn-note">Used by the Tracker example. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="api2" hidden>
-              <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">require_return_type</span>(match, except_)</code></pre>
-              <p class="hn-note">A missing return annotation, <code>Any</code> or <code>object</code> is reported; <code>None</code> is fine for a 204. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="api3" hidden>
-              <p class="hn-file">declaration</p><pre><code>Actions.<span class="f">require_pagination</span>(match, except_)</code></pre>
-              <p class="hn-note">Used by the Tracker example. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="sch" hidden>
-              <p class="hn-file">declaration</p><pre><code>Schemas.<span class="f">forbid_exposure</span>(<span class="s">"token"</span>)</code></pre>
-              <p class="hn-note">Used by the Tracker example. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="sch2" hidden>
-              <p class="hn-file">declaration</p><pre><code>Schemas.<span class="f">require_string_limits</span>()</code></pre>
-              <p class="hn-note">A text field passes with <code>max_length</code>, or when it is an <code>Enum</code> or <code>Literal</code>. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="db1" hidden>
-              <p class="hn-file">declaration</p><pre><code>Models.<span class="f">require_explicit_table</span>(match)</code></pre>
-              <p class="hn-note">Renaming a class then cannot change its physical table. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="db2" hidden>
-              <p class="hn-file">declaration</p><pre><code>Models.<span class="f">require_foreign_key_index</span>(match)</code></pre>
-              <p class="hn-note">The column must lead an index, a primary key or a unique constraint. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="imp" hidden>
-              <p class="hn-file">declaration</p><pre><code>Imports.<span class="f">forbid</span>(
-    source<span class="o">=</span><span class="s">"tracker.apps.tasks.models"</span>, target<span class="o">=</span><span class="s">"tracker.apps.tasks.api"</span>
-)</code></pre>
-              <p class="hn-note">Read from the source files; dynamic imports are reported, not ignored. Example output: see the <a href="rules/">Rules guide</a>.</p>
-            </div>
-            <div data-detail="mail" hidden>
-              <p class="hn-file">declaration</p><pre><code><span class="f">EmailTemplatesMatch</span>()</code></pre>
-              <p class="hn-note">Opt-in: list it in your <code>RuleSet</code>. It reads the template files, so run <code>hinoki check --allow-effects</code>. See the <a href="rules/#an-opt-in-rule-email-templates">Rules guide</a>.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <p class="hn-note">Exceptions live in <code>hinoki-rules.toml</code>, need a reason, an owner and a bounded target, and stay visible as <code>waived</code>.</p>
-    </section>
-
-    <section class="hn-section" aria-labelledby="hn-who-title">
-      <p class="hn-label reveal"><b>06</b> Fit</p>
-      <h2 id="hn-who-title" class="reveal">Who it is for, and who it is not for yet.</h2>
-      <div class="hn-who reveal">
-        <div class="hn-who__col hn-who__col--yes">
-          <h3>A fit today</h3>
-          <ul>
-            <li>You are evaluating a typed Python API with SQLite, PostgreSQL, MySQL or MariaDB.</li>
-            <li>You want architectural promises that a tool can check, not only review.</li>
-            <li>You can use a source checkout and test against disposable data.</li>
-          </ul>
-        </div>
-        <div class="hn-who__col hn-who__col--no">
-          <h3>Not yet</h3>
-          <ul>
-            <li>Production use: the API and migration format may change.</li>
-            <li>SQL Server or Oracle, which are not supported yet.</li>
-            <li>Workloads that need end-to-end performance claims.</li>
-            <li>Through-model columns on generated many-to-many links and advanced relation paths.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="hn-section" aria-labelledby="hn-start-title">
-      <p class="hn-label reveal"><b>07</b> Start</p>
-      <h2 id="hn-start-title" class="reveal">Start from a checkout.</h2>
-      <p class="hn-sub reveal">This repository's Hinoki framework is not published on PyPI; the <code>hinoki</code> name belongs to an unrelated legacy package. These commands come from the README and the quick start.</p>
-      <div class="hn-walk reveal" data-hn-tabs>
-        <div class="hn-walk__tabs" data-slider role="tablist" aria-label="Commands">
-          <button type="button" role="tab" id="hn-c-install" aria-controls="hn-cp-install" aria-selected="true" data-tab="install">Install</button>
-          <button type="button" role="tab" id="hn-c-run" aria-controls="hn-cp-run" aria-selected="false" tabindex="-1" data-tab="run">Run an example</button>
-          <button type="button" role="tab" id="hn-c-check" aria-controls="hn-cp-check" aria-selected="false" tabindex="-1" data-tab="check">Check rules</button>
-        </div>
-        <div class="hn-walk__panel hn-walk__panel--cmd" role="tabpanel" id="hn-cp-install" aria-labelledby="hn-c-install" data-panel="install">
-          <div class="hn-cmdblock ide ide--flat"><pre><code><span class="hn-ln"><span class="gp">$</span> git clone https://github.com/caspel26/hinoki</span><span class="hn-ln"><span class="gp">$</span> cd hinoki</span><span class="hn-ln"><span class="gp">$</span> uv sync --locked</span></code></pre><button type="button" class="hn-copy" data-hn-copy>Copy</button></div></div>
-        <div class="hn-walk__panel hn-walk__panel--cmd" role="tabpanel" id="hn-cp-run" aria-labelledby="hn-c-run" data-panel="run" hidden>
-          <div class="hn-cmdblock ide ide--flat"><pre><code><span class="hn-ln"><span class="gp">$</span> cd examples/notes</span><span class="hn-ln"><span class="gp">$</span> uv run --locked hinoki migrations apply</span><span class="hn-ln"><span class="gp">$</span> uv run --locked hinoki dev</span></code></pre><button type="button" class="hn-copy" data-hn-copy>Copy</button></div></div>
-        <div class="hn-walk__panel hn-walk__panel--cmd" role="tabpanel" id="hn-cp-check" aria-labelledby="hn-c-check" data-panel="check" hidden>
-          <div class="hn-cmdblock ide ide--flat"><pre><code><span class="hn-ln"><span class="gp">$</span> cd examples/tracker</span><span class="hn-ln"><span class="gp">$</span> uv run --locked hinoki check</span></code></pre><button type="button" class="hn-copy" data-hn-copy>Copy</button></div></div>
-      </div>
-      <ol class="hn-paths">
-        <li><a href="quick-start/"><span class="hn-paths__icon"><span class="i i--m i--rocket" aria-hidden="true"></span></span><b>Quick start</b><span class="hn-paths__text">Create a project, run its tests and serve it.</span><i aria-hidden="true">→</i></a></li>
-        <li><a href="tutorial/"><span class="hn-paths__icon"><span class="i i--m i--graduation-cap" aria-hidden="true"></span></span><b>Tutorial</b><span class="hn-paths__text">Build a task tracker from its models through access checks and tests.</span><i aria-hidden="true">→</i></a></li>
-        <li><a href="guides/"><span class="hn-paths__icon"><span class="i i--m i--book-open" aria-hidden="true"></span></span><b>Guides</b><span class="hn-paths__text">Focused guidance on each part of an application.</span><i aria-hidden="true">→</i></a></li>
-        <li><a href="reference/"><span class="hn-paths__icon"><span class="i i--m i--braces" aria-hidden="true"></span></span><b>Reference</b><span class="hn-paths__text">Public Python symbols, signatures and docstrings.</span><i aria-hidden="true">→</i></a></li>
-      </ol>
-    </section>
-
   </div>
-
-  <div class="hn-band">
-    <div class="hn-band__inner">
-      <h2>Hinoki is pre-alpha.</h2>
-      <p>APIs can still change. The status page lists what is implemented, what is a boundary today, and what is not available.</p>
-      <p class="hn-band__links"><a class="hn-btn hn-btn--primary" href="status/">Project status <span class="hn-btn__arrow" aria-hidden="true">→</span></a> <a class="hn-btn hn-btn--ghost" href="https://github.com/caspel26/hinoki">Source on GitHub</a></p>
-    </div>
-  </div>
-
 </main>
 
 
