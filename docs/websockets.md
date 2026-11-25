@@ -143,7 +143,8 @@ sources. Where the connection is known to be `https` (direct TLS, a trusted
 proxy reporting `https`, or `wss` on Granian), the same-host match also
 requires an `https://` origin. Granian handshakes also go through
 `allowed_hosts` and trusted-proxy handling, and the route is matched on the raw
-path, as for HTTP requests.
+path, as for HTTP requests. The same-host match trusts the `Host` header, so an app with
+WebSocket routes and `allowed_hosts` left at `*` refuses to start unless `debug` is on, which is for local development only; name the served hosts.
 
 ## Subprotocols
 

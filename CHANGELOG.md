@@ -300,6 +300,7 @@ The command line, the migration state files, the JSON log format, the MCP server
 ### 🔒 Security
 
 - **Breaking.** Any `Field(...)` on a scalar path or query parameter of an HTTP or WebSocket route now fails registration with a `RegistrationError`, including `Field(description=...)` and optional forms such as `Annotated[int, Field(ge=1)] | None` on a WebSocket. It was silently ignored before, so the constraint never ran. Declare constraints in a `Schema` taken as `Query[Schema]` or as the body; on a WebSocket validate in the handler. (`python/hinoki/runtime/binding.py`, `python/hinoki/websocket.py`, `python/hinoki/fields.py`, `docs/endpoints.md`)
+- **Breaking.** Serving an admin or a WebSocket route with `allowed_hosts` at its default `*` (also for an app built without settings) now refuses to start unless `debug` is on: the admin's CSRF check and the WebSocket same-origin check compare `Origin` with the client-supplied `Host`, so DNS rebinding passed both. Set `allowed_hosts` to the served hosts; `debug` only lifts the refusal for local development and does not make `Host` trustworthy. Apps without those features still only log the startup warning, and the in-process test clients are unchanged. See [Hosts, CORS and HTTPS](docs/web-security.md#allowed_hosts). (`python/hinoki/runtime/asgi.py`, `python/hinoki/app.py`, `docs/web-security.md`, `docs/admin.md`, `docs/websockets.md`, `docs/settings.md`, `examples/blog/README.md`)
 
 ### 🐛 Fixes
 

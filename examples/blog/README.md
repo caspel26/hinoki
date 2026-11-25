@@ -30,10 +30,14 @@ migrations (`0002-tags` adds the tags and the generated bridge table); the admin
 
 ## Run
 
-From this directory. The admin needs a signing secret of at least 32 bytes:
+From this directory. The admin needs a signing secret of at least 32 bytes and,
+because its CSRF check compares the `Origin` header with the `Host` header, named
+`allowed_hosts`; a served app with the admin and `allowed_hosts` left at `*`
+refuses to start:
 
 ```sh
 export BLOG_ADMIN__SECRET=a-local-development-secret-with-32-bytes
+export BLOG_ALLOWED_HOSTS=127.0.0.1,localhost
 uv run hinoki migrations apply
 uv run hinoki admin create-superuser ada
 uv run hinoki dev

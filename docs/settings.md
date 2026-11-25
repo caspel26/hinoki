@@ -130,7 +130,7 @@ generated `main.py` passes `openapi_url` and `docs_url` as `Hinoki(...)` argumen
 | `security` | `referrer_policy` | `same-origin` | A supported `settings.ReferrerPolicy` enum value |
 | (top level) | `timezone` | `UTC` | IANA timezone name used by `app.now()` |
 | (top level) | `debug` | `false` | Adds exception details to `500` answers; development only |
-| (top level) | `allowed_hosts` | `*` | Host names, `.domain` or `*`; other `Host` values receive `400` |
+| (top level) | `allowed_hosts` | `*` | Host names, `.domain` or `*`; other `Host` values receive `400`; `*` with `debug` off refuses to start an app that includes the admin or a WebSocket route |
 
 `settings.DatabaseSettings` is an optional field you declare in your own settings class, not a `settings.AppSettings` group. Its `url` defaults to `sqlite://./.hinoki/local.sqlite3`; `max_size` defaults to `10` connections per worker and must be at least `1`.
 
