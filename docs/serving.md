@@ -92,6 +92,7 @@ They come from the application's `server` settings group; flags override them:
 | `server.recent_requests` | `NOTES_SERVER__RECENT_REQUESTS` | unset | Kiso only: file that also receives each request as a JSON line, read by the `recent_requests` tool of [`hinoki mcp`](dev-mcp.md); rotated near 1 MiB |
 | `server.access_log_slow_ms` | `NOTES_SERVER__ACCESS_LOG_SLOW_MS` | unset | Kiso only: keep only answers at least this slow, in milliseconds |
 | `server.access_log_format` | `NOTES_SERVER__ACCESS_LOG_FORMAT` | unset | Kiso only: `pretty`, `plain`, `json` or `logger`. Unset is `pretty` on a colour terminal and `plain` otherwise |
+| `server.reuse_port` | `NOTES_SERVER__REUSE_PORT` | unset | Kiso only: on Linux, multi-worker `hinoki serve` on a non-zero port gives each worker its own `SO_REUSEPORT` socket by default; set `false` to share one descriptor everywhere |
 | `server.server` | `NOTES_SERVER__SERVER` | `kiso` | `--server` |
 
 The connection limits and timeouts (`max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`), `native_dispatch`, the TLS files and `http2`, and `trusted_proxies` are described under [Kiso](kiso.md) and in the [settings table](settings.md#built-in-fields-and-defaults). Left unset, they are `None` in `hinoki settings` and Kiso applies its own defaults (for example 10000 connections and a 10-second header timeout), so that Granian can refuse the Kiso-only ones only when you set them.
@@ -111,7 +112,7 @@ debug is off: ...` at startup, on every server.
 | Setting | Kiso | Granian |
 | --- | --- | --- |
 | `host`, `port`, `workers`, `runtime_threads`, `backlog`, `access_log`, `trusted_proxies`, `request_id_header`, `trust_request_id`, `tls_cert_file`, `tls_key_file`, `http2` | applied | applied |
-| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `access_log_format`, `access_log_skip`, `access_log_slow_ms`, `recent_requests`, `server_timing` | applied when set | refused when set |
+| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `reuse_port`, `access_log_format`, `access_log_skip`, `access_log_slow_ms`, `recent_requests`, `server_timing` | applied when set | refused when set |
 
 If the native extension of a build has no Kiso, `--server kiso` fails with an error that says so.
 
