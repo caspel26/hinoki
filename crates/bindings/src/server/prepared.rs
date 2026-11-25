@@ -649,13 +649,22 @@ impl PreparedRequest {
 
     /// Encode `value` directly into the owned response buffer and complete the
     /// native request without creating an intermediate Python `bytes` object.
+    /// With `strict`, the value must also be a plain `list[dict[str, object]]`
+    /// (see `encode_json_vec_strict`); any other value is an error that sends
+    /// nothing, and the caller then runs the checked path.
+    #[pyo3(signature = (status, headers, value, strict=false))]
     pub(crate) fn respond_final_json(
         &self,
         status: u16,
         headers: Vec<(Vec<u8>, Vec<u8>)>,
         value: &Bound<'_, PyAny>,
+        strict: bool,
     ) -> PyResult<bool> {
-        let body = crate::request::encode_json_vec(value)?;
+        let body = if strict {
+            crate::request::encode_json_vec_strict(value)?
+        } else {
+            crate::request::encode_json_vec(value)?
+        };
         Ok(self.respond_final_owned(status, headers, body))
     }
 

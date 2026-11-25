@@ -889,6 +889,9 @@ struct Encoder<'py> {
     /// enum members... always take their wire form; outside, a `default` hook
     /// decides first, and without one they take it too.
     schemas: usize,
+    /// Fused validate-and-encode of a `list[dict[str, object]]` (see
+    /// [`encode_json_vec_strict`]): anything but exact builtins is a miss.
+    strict: bool,
     /// Dict entries being written, one slice per open dict.
     pairs: Vec<Option<(Bound<'py, PyAny>, Bound<'py, PyAny>)>>,
     /// One-entry cache of the last schema class encoded, avoiding repeated
@@ -1022,6 +1025,9 @@ impl<'py> Encoder<'py> {
 
     fn mapping(&mut self, dict: &Bound<'py, PyDict>, depth: usize) -> PyResult<()> {
         Self::enter(depth)?;
+        if self.strict && !dict.is_exact_instance_of::<PyDict>() {
+            return Err(strict_miss());
+        }
         if self.sort_keys {
             return self.sorted_mapping(dict, depth);
         }
@@ -1055,6 +1061,9 @@ impl<'py> Encoder<'py> {
     }
 
     fn write_key(&mut self, key: &Bound<'py, PyAny>) -> PyResult<()> {
+        if self.strict && !key.is_exact_instance_of::<PyString>() {
+            return Err(strict_miss());
+        }
         match key.cast::<PyString>() {
             Ok(text) => write_pystring(&mut self.out, text),
             Err(_) => write_text(&mut self.out, &key_text(key)?),
@@ -1118,6 +1127,9 @@ impl<'py> Encoder<'py> {
     }
 
     fn element(&mut self, item: &Bound<'py, PyAny>, index: usize, depth: usize) -> PyResult<()> {
+        if self.strict && depth == 0 && !item.is_exact_instance_of::<PyDict>() {
+            return Err(strict_miss());
+        }
         if index > 0 {
             self.out.push(b',');
         }
@@ -1160,6 +1172,9 @@ impl<'py> Encoder<'py> {
     /// Objects that are not plain JSON values: schema instances, UUIDs, datetimes,
     /// anything with a `dump()` method, then the caller's `default` hook.
     fn object(&mut self, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
+        if self.strict {
+            return Err(strict_miss());
+        }
         if self.try_preencoded(value)? {
             return Ok(());
         }
@@ -1425,11 +1440,16 @@ fn is_plain_builtin(value: &Bound<'_, PyAny>) -> bool {
         || value.is_none()
 }
 
+fn strict_miss() -> PyErr {
+    PyTypeError::new_err("the value is not a plain list of dicts with str keys")
+}
+
 fn encode_into<'py>(
     value: &Bound<'py, PyAny>,
     indent: Option<usize>,
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
+    strict: bool,
 ) -> PyResult<Vec<u8>> {
     if indent.is_none() && !sort_keys && default.is_none() && !is_plain_builtin(value) {
         if let Some(handle) = preencoded_handle(value)? {
@@ -1445,6 +1465,7 @@ fn encode_into<'py>(
         default,
         hops: 0,
         schemas: 0,
+        strict,
         pairs: Vec::new(),
         last_schema: None,
     };
@@ -1454,7 +1475,19 @@ fn encode_into<'py>(
 }
 
 pub(crate) fn encode_json_vec(value: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
-    encode_into(value, None, false, None)
+    encode_into(value, None, false, None, false)
+}
+
+/// One-pass check and encode of a `list[dict[str, object]]` response: the same
+/// bytes as [`encode_json_vec`] when the value is an exact `list` of exact `dict`
+/// items whose keys, at every depth, are exact `str`, and no value needs Python
+/// code to be written. Anything else, or any encode error, is a miss: an error
+/// the caller answers by running the checked, non-strict path.
+pub(crate) fn encode_json_vec_strict(value: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    if !value.is_exact_instance_of::<PyList>() {
+        return Err(strict_miss());
+    }
+    encode_into(value, None, false, None, true)
 }
 
 /// Serialise plain Python values (`dict`, `list`, `tuple`, `str`, `int`,
@@ -1478,7 +1511,7 @@ pub fn encode_json<'py>(
             "indent must be at most {MAX_INDENT}"
         )));
     }
-    let out = encode_into(value, indent, sort_keys, default)?;
+    let out = encode_into(value, indent, sort_keys, default, false)?;
     if ensure_ascii {
         return Ok(PyBytes::new(py, &escape_non_ascii(&out)));
     }
@@ -1660,6 +1693,48 @@ mod tests {
             failing.set_item("bad", f64::NAN).unwrap();
             assert!(encode_json_vec(failing.as_any()).is_err());
             assert_eq!(encode_json_vec(plain.as_any()).unwrap(), via_vec);
+        });
+    }
+
+    #[test]
+    fn strict_encoding_matches_the_plain_bytes_and_misses_everything_else() {
+        Python::initialize();
+        Python::attach(|py| {
+            let first = PyDict::new(py);
+            first.set_item("id", 1).unwrap();
+            first.set_item("name", "caf\u{e9} \"x\"").unwrap();
+            first.set_item("score", 1.5).unwrap();
+            first
+                .set_item("tags", PyList::new(py, ["a", "b"]).unwrap())
+                .unwrap();
+            first.set_item("none", py.None()).unwrap();
+            let rows = PyList::new(py, [first, PyDict::new(py)]).unwrap();
+            let plain = encode_json_vec(rows.as_any()).unwrap();
+            assert_eq!(encode_json_vec_strict(rows.as_any()).unwrap(), plain);
+            let empty = PyList::empty(py);
+            assert_eq!(encode_json_vec_strict(empty.as_any()).unwrap(), b"[]");
+
+            let copy = rows.call_method0("copy").unwrap();
+            assert!(encode_json_vec_strict(&copy).is_ok());
+            let not_list = pyo3::types::PyTuple::new(py, [PyDict::new(py)]).unwrap();
+            assert!(encode_json_vec_strict(not_list.as_any()).is_err());
+            assert!(encode_json_vec_strict(PyDict::new(py).as_any()).is_err());
+
+            let int_key = PyDict::new(py);
+            int_key.set_item(1, "v").unwrap();
+            let nested_key = PyDict::new(py);
+            nested_key.set_item("in", int_key.clone()).unwrap();
+            for bad in [
+                PyList::new(py, [1]).unwrap(),
+                PyList::new(py, [int_key]).unwrap(),
+                PyList::new(py, [nested_key]).unwrap(),
+            ] {
+                assert!(encode_json_vec_strict(bad.as_any()).is_err());
+            }
+            let nan = PyDict::new(py);
+            nan.set_item("x", f64::NAN).unwrap();
+            let nan_rows = PyList::new(py, [nan]).unwrap();
+            assert!(encode_json_vec_strict(nan_rows.as_any()).is_err());
         });
     }
 }
