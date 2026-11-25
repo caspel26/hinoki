@@ -72,6 +72,7 @@ One page per task. Start with data and endpoints, then add access, rules and run
 
 ## Operating
 
+- [Best practices](https://hinoki.caspel.dev/dev/best-practices.md): project structure, `Schema` contracts, `Access` policies, queries, Rust fast paths, testing and production operations.
 - [Sync and async code](https://hinoki.caspel.dev/dev/sync-async.md): the event loop, the bounded sync pool and which style each surface accepts.
 - [Benchmarks](https://hinoki.caspel.dev/dev/benchmarks.md): retained measurements with their environment, method and limits.
 - [Changelog](https://hinoki.caspel.dev/dev/changelog.md): every user-facing change, explorable by version and type.
