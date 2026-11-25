@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use bytes::Bytes;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -1452,7 +1453,7 @@ fn encode_into<'py>(
     sort_keys: bool,
     default: Option<Bound<'py, PyAny>>,
     strict: bool,
-) -> PyResult<Vec<u8>> {
+) -> PyResult<Bytes> {
     if indent.is_none() && !sort_keys && default.is_none() && !is_plain_builtin(value) {
         if let Some(handle) = preencoded_handle(value)? {
             return Ok(handle.json.clone());
@@ -1473,19 +1474,19 @@ fn encode_into<'py>(
     };
     encoder.write(value, 0)?;
     LAST_LEN.store(encoder.out.len(), Ordering::Relaxed);
-    Ok(encoder.out)
+    Ok(Bytes::from(encoder.out))
 }
 
-pub(crate) fn encode_json_vec(value: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+pub(crate) fn encode_json_bytes(value: &Bound<'_, PyAny>) -> PyResult<Bytes> {
     encode_into(value, None, false, None, false)
 }
 
 /// One-pass check and encode of a `list[dict[str, object]]` response: the same
-/// bytes as [`encode_json_vec`] when the value is an exact `list` of exact `dict`
+/// bytes as [`encode_json_bytes`] when the value is an exact `list` of exact `dict`
 /// items whose keys, at every depth, are exact `str`, and no value needs Python
 /// code to be written. Anything else, or any encode error, is a miss: an error
 /// the caller answers by running the checked, non-strict path.
-pub(crate) fn encode_json_vec_strict(value: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+pub(crate) fn encode_json_bytes_strict(value: &Bound<'_, PyAny>) -> PyResult<Bytes> {
     if !value.is_exact_instance_of::<PyList>() {
         return Err(strict_miss());
     }
@@ -1677,7 +1678,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_json_vec_matches_encode_json_and_recovers_from_errors() {
+    fn encode_json_bytes_matches_encode_json_and_recovers_from_errors() {
         Python::initialize();
         Python::attach(|py| {
             let nested = PyDict::new(py);
@@ -1686,15 +1687,40 @@ mod tests {
             plain.set_item("a", 1).unwrap();
             plain.set_item("b", "text").unwrap();
             plain.set_item("nested", nested).unwrap();
-            let via_vec = encode_json_vec(plain.as_any()).unwrap();
+            let via_bytes = encode_json_bytes(plain.as_any()).unwrap();
             let via_py = encode_json(py, plain.as_any(), None, false, None, false).unwrap();
-            assert_eq!(via_vec.as_slice(), via_py.as_bytes());
+            assert_eq!(via_bytes.as_ref(), via_py.as_bytes());
 
             let failing = PyDict::new(py);
             failing.set_item("ok", 1).unwrap();
             failing.set_item("bad", f64::NAN).unwrap();
-            assert!(encode_json_vec(failing.as_any()).is_err());
-            assert_eq!(encode_json_vec(plain.as_any()).unwrap(), via_vec);
+            assert!(encode_json_bytes(failing.as_any()).is_err());
+            assert_eq!(encode_json_bytes(plain.as_any()).unwrap(), via_bytes);
+        });
+    }
+
+    #[test]
+    fn preencoded_projected_rows_share_underlying_buffer_without_copy() {
+        Python::initialize();
+        Python::attach(|py| {
+            let payload = Bytes::from(vec![b'['; 4096]);
+            let original_ptr = payload.as_ptr();
+            let rows = Bound::new(
+                py,
+                crate::rows::PyProjectedRows::new(
+                    payload,
+                    hinoki_orm::RowSet {
+                        columns: std::sync::Arc::from([]),
+                        rows: Vec::new(),
+                    },
+                    Vec::new(),
+                    None,
+                ),
+            )
+            .unwrap();
+            let encoded = encode_json_bytes(rows.as_any()).unwrap();
+            assert_eq!(encoded.len(), 4096);
+            assert_eq!(encoded.as_ptr(), original_ptr);
         });
     }
 
@@ -1711,16 +1737,19 @@ mod tests {
                 .unwrap();
             first.set_item("none", py.None()).unwrap();
             let rows = PyList::new(py, [first, PyDict::new(py)]).unwrap();
-            let plain = encode_json_vec(rows.as_any()).unwrap();
-            assert_eq!(encode_json_vec_strict(rows.as_any()).unwrap(), plain);
+            let plain = encode_json_bytes(rows.as_any()).unwrap();
+            assert_eq!(encode_json_bytes_strict(rows.as_any()).unwrap(), plain);
             let empty = PyList::empty(py);
-            assert_eq!(encode_json_vec_strict(empty.as_any()).unwrap(), b"[]");
+            assert_eq!(
+                encode_json_bytes_strict(empty.as_any()).unwrap().as_ref(),
+                b"[]"
+            );
 
             let copy = rows.call_method0("copy").unwrap();
-            assert!(encode_json_vec_strict(&copy).is_ok());
+            assert!(encode_json_bytes_strict(&copy).is_ok());
             let not_list = pyo3::types::PyTuple::new(py, [PyDict::new(py)]).unwrap();
-            assert!(encode_json_vec_strict(not_list.as_any()).is_err());
-            assert!(encode_json_vec_strict(PyDict::new(py).as_any()).is_err());
+            assert!(encode_json_bytes_strict(not_list.as_any()).is_err());
+            assert!(encode_json_bytes_strict(PyDict::new(py).as_any()).is_err());
 
             let int_key = PyDict::new(py);
             int_key.set_item(1, "v").unwrap();
@@ -1731,12 +1760,12 @@ mod tests {
                 PyList::new(py, [int_key]).unwrap(),
                 PyList::new(py, [nested_key]).unwrap(),
             ] {
-                assert!(encode_json_vec_strict(bad.as_any()).is_err());
+                assert!(encode_json_bytes_strict(bad.as_any()).is_err());
             }
             let nan = PyDict::new(py);
             nan.set_item("x", f64::NAN).unwrap();
             let nan_rows = PyList::new(py, [nan]).unwrap();
-            assert!(encode_json_vec_strict(nan_rows.as_any()).is_err());
+            assert!(encode_json_bytes_strict(nan_rows.as_any()).is_err());
         });
     }
 }

@@ -12,6 +12,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use hmac::{Hmac, KeyInit, Mac};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use serde::de::{Deserializer, MapAccess, Visitor};
 use serde_json::{Map, Value};
 use sha2::{Sha256, Sha384, Sha512};
@@ -355,9 +356,13 @@ fn segment(text: &str) -> Result<Vec<u8>, Fail> {
     URL_SAFE_NO_PAD.decode(text).map_err(|_| Fail::Malformed)
 }
 
-/// Verify `token` against `keys` and `rules`; returns the payload bytes (the
-/// claims JSON) on success.
-pub fn decode(token: &str, keys: &[Key], rules: &Rules<'_>) -> Result<Vec<u8>, Fail> {
+/// Verify `token` against `keys` and `rules`; returns the payload bytes and
+/// parsed claims object in a single JSON parse.
+fn decode_verified(
+    token: &str,
+    keys: &[Key],
+    rules: &Rules<'_>,
+) -> Result<(Vec<u8>, Map<String, Value>), Fail> {
     if token.len() > MAX_TOKEN || keys.is_empty() {
         return Err(Fail::Malformed);
     }
@@ -384,8 +389,25 @@ pub fn decode(token: &str, keys: &[Key], rules: &Rules<'_>) -> Result<Vec<u8>, F
     let message = &token.as_bytes()[..head_text.len() + 1 + body_text.len()];
     verify_signature(key, message, &segment(sig_text)?)?;
     let payload = segment(body_text)?;
-    check_claims(&object(&payload)?, rules)?;
-    Ok(payload)
+    let claims = object(&payload)?;
+    check_claims(&claims, rules)?;
+    Ok((payload, claims))
+}
+
+/// Verify `token` against `keys` and `rules`; returns the payload bytes (the
+/// claims JSON) on success.
+pub fn decode(token: &str, keys: &[Key], rules: &Rules<'_>) -> Result<Vec<u8>, Fail> {
+    decode_verified(token, keys, rules).map(|(payload, _)| payload)
+}
+
+/// Verify `token` against `keys` and `rules`; returns the parsed claims map on
+/// success without requiring a second JSON parse.
+pub fn decode_claims(
+    token: &str,
+    keys: &[Key],
+    rules: &Rules<'_>,
+) -> Result<Map<String, Value>, Fail> {
+    decode_verified(token, keys, rules).map(|(_, claims)| claims)
 }
 
 fn key_from(kid: Option<String>, algorithm: &str, bytes: Vec<u8>, public: bool) -> PyResult<Key> {
@@ -446,6 +468,72 @@ impl Verifier {
         };
         decode(token, &self.keys, &rules)
     }
+
+    fn verify_claims(&self, token: &str, rules: RuleSpec) -> Result<Map<String, Value>, Fail> {
+        let (now, leeway, issuer, audience, require_exp) = rules;
+        let rules = Rules {
+            now,
+            leeway,
+            issuer: issuer.as_deref(),
+            audience: audience.as_deref(),
+            require_exp,
+        };
+        decode_claims(token, &self.keys, &rules)
+    }
+}
+
+fn number_text_to_py<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyAny>> {
+    if text.contains(['.', 'e', 'E']) {
+        let float = text
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite())
+            .ok_or_else(|| PyValueError::new_err(Fail::Malformed.reason()))?;
+        return Ok(PyFloat::new(py, float).into_any());
+    }
+    py.get_type::<PyInt>().call1((text,))
+}
+
+fn number_to_py<'py>(py: Python<'py>, number: &serde_json::Number) -> PyResult<Bound<'py, PyAny>> {
+    if let Some(int) = number.as_i64() {
+        return Ok(PyInt::new(py, int).into_any());
+    }
+    if let Some(uint) = number.as_u64() {
+        return Ok(PyInt::new(py, uint).into_any());
+    }
+    number_text_to_py(py, number.as_str())
+}
+
+fn value_to_py<'py>(py: Python<'py>, value: &Value) -> PyResult<Bound<'py, PyAny>> {
+    match value {
+        Value::Null => Ok(py.None().into_bound(py)),
+        Value::Bool(flag) => Ok(PyBool::new(py, *flag).to_owned().into_any()),
+        Value::Number(number) => number_to_py(py, number),
+        Value::String(text) => Ok(PyString::new(py, text).into_any()),
+        Value::Array(items) => {
+            let list = PyList::empty(py);
+            for item in items {
+                list.append(value_to_py(py, item)?)?;
+            }
+            Ok(list.into_any())
+        }
+        Value::Object(map) => {
+            if map.len() == 1 {
+                if let Some(Value::String(text)) = map.get("$serde_json::private::Number") {
+                    return number_text_to_py(py, text);
+                }
+            }
+            Ok(map_to_py_dict(py, map)?.into_any())
+        }
+    }
+}
+
+fn map_to_py_dict<'py>(py: Python<'py>, map: &Map<String, Value>) -> PyResult<Bound<'py, PyDict>> {
+    let out = PyDict::new(py);
+    for (key, value) in map {
+        out.set_item(key, value_to_py(py, value)?)?;
+    }
+    Ok(out)
 }
 
 /// Native admission for a claims-only provider (`hinoki.crypto.ClaimsJWTAuth`).
@@ -494,10 +582,7 @@ impl ClaimsAuth {
             audience: self.audience.as_deref(),
             require_exp: self.require_exp,
         };
-        let Ok(payload) = decode(token, &self.keys, &rules) else {
-            return Admission::Invalid;
-        };
-        match object(&payload) {
+        match decode_claims(token, &self.keys, &rules) {
             Ok(claims) => self.grants(&claims),
             Err(_) => Admission::Invalid,
         }
@@ -598,7 +683,7 @@ impl PyClaimsAuth {
 }
 
 /// Private immutable native verifier; Python owns a short-lived reference.
-#[pyclass(name = "_JWTVerifier", module = "hinoki.core")]
+#[pyclass(name = "_JWTVerifier", module = "hinoki.core", frozen)]
 pub(super) struct PyJWTVerifier {
     inner: Verifier,
 }
@@ -623,6 +708,19 @@ impl PyJWTVerifier {
             .verify(token, rules)
             .map_err(|failure| PyValueError::new_err(failure.reason()))?;
         Ok(pyo3::types::PyBytes::new(py, &payload).unbind())
+    }
+
+    fn verify_claims<'py>(
+        &self,
+        py: Python<'py>,
+        token: &str,
+        rules: RuleSpec,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let claims = self
+            .inner
+            .verify_claims(token, rules)
+            .map_err(|failure| PyValueError::new_err(failure.reason()))?;
+        map_to_py_dict(py, &claims)
     }
 }
 
@@ -998,5 +1096,34 @@ mod tests {
         );
         assert_eq!(auth.admit(Some(b"Basic abc"), 1000), Admission::Defer);
         assert_eq!(auth.admit(Some(b"Bearer "), 1000), Admission::Defer);
+    }
+
+    #[test]
+    fn decode_claims_matches_decode_and_checks_errors() {
+        let key = hs(Some("k1"));
+        let token = encode(
+            br#"{"sub":"u1","exp":2000,"n":42,"ok":true,"tags":["a"]}"#,
+            &key,
+        )
+        .unwrap();
+        let claims = decode_claims(&token, &[key], &rules(1000)).unwrap();
+        assert_eq!(claims.get("sub").and_then(Value::as_str), Some("u1"));
+        assert_eq!(claims.get("n").and_then(Value::as_i64), Some(42));
+        assert_eq!(claims.get("ok").and_then(Value::as_bool), Some(true));
+        assert_eq!(
+            decode_claims(&token, &[hs(Some("k1"))], &rules(2000)),
+            Err(Fail::Expired)
+        );
+        assert_eq!(
+            decode_claims(
+                &token,
+                &[Key {
+                    bytes: vec![9; 32],
+                    ..hs(Some("k1"))
+                }],
+                &rules(1000)
+            ),
+            Err(Fail::Signature)
+        );
     }
 }

@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, cast
 
 from hinoki import context, core
 from hinoki.ai.llms import render_llms
-from hinoki.auth import Caller
+from hinoki.auth import Caller, _LazyHeaders
 from hinoki.context import request_id
 from hinoki.db import Database
 from hinoki.docsui import CSP, Page, llms_pages
@@ -132,7 +132,7 @@ class NativeBody(NamedTuple):
     the body of a body method) and the TCP peer, from which the rate limit
     resolves its client like the full pipeline does."""
 
-    source: BodySource
+    source: BodySource | None
     headers: list[tuple[bytes, bytes]]
     query: bytes
     client: tuple[str, int] | None
@@ -141,6 +141,9 @@ class NativeBody(NamedTuple):
     # Lower-cased header dict built directly from Rust's native header vector
     # when available, avoiding the intermediate list[tuple[bytes, bytes]].
     header_dict: dict[str, str] | None = None
+    # Request handle used for lazy, single-header auth lookups without
+    # materializing `header_dict`.
+    header_request: core.PreparedRequest | None = None
 
 
 def _native_headers(native: NativeBody) -> dict[str, str]:
@@ -398,12 +401,18 @@ class Pipeline:
         args: dict[str, object],
         input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
         body: NativeBody | None = None,
+        defer: bool = False,
     ) -> Response:
         """Run an eligible handler with Rust-prepared path and query inputs;
         ``body`` supplies the request body and headers of a body method."""
         return await self._in_request_context(
-            rid, self._respond_native(binding, rid, args, input_error, body)
+            rid, self._respond_native(binding, rid, args, input_error, body, defer)
         )
+
+    async def handle_native_error(self, exc: Exception, rid: str) -> Response:
+        """Translate an error raised after a native handler returned (such as
+        deferred JSON encoding) inside the request context."""
+        return await self._in_request_context(rid, self.native_failure(exc, rid))
 
     async def handle_native_failure(
         self, action: int, rid: str, failure: core.NativeFailure
@@ -633,12 +642,16 @@ class Pipeline:
         args: dict[str, object],
         input_error: tuple[str, str, str | None, list[tuple[str, str, str]]] | None,
         body: NativeBody | None = None,
+        defer: bool = False,
     ) -> Response:
         response: Response
         try:
             async with asyncio.timeout(self.app.runtime.request_timeout) as limit:
                 args = await self._native_arguments(binding, args, input_error, body)
-                response = await self._call_native(binding, args, body)
+                if defer and not binding.route.atomic:
+                    response = await self._call_native(binding, args, body, defer=True)
+                else:
+                    response = await self._call_native(binding, args, body)
         except TimeoutError as exc:
             if limit.expired():
                 response = HTTPError(HTTPStatus.GATEWAY_TIMEOUT, "timeout").response
@@ -1535,10 +1548,15 @@ class Pipeline:
             subject, scopes = native.principal
             principal = Caller(subject, None, frozenset(scopes))
         elif access is not None:
-            query = parse_query(native.query)
+            query = parse_query(native.query) if native.query else {}
+            headers = (
+                _LazyHeaders(native.header_request)
+                if native.header_dict is None and native.header_request is not None
+                else _native_headers(native)
+            )
             principal = await authorize(
                 access,
-                _native_headers(native),
+                headers,
                 query,
                 route=binding.route.path,
                 method=binding.route.method,
@@ -1604,6 +1622,16 @@ class Pipeline:
             raise ValidationError(errors)
         return binding.complete_native_args(args, (param.name, value))
 
+    @staticmethod
+    def _require_body_source(
+        body: NativeBody | None,
+    ) -> tuple[NativeBody, BodySource]:
+        if body is None or body.source is None:
+            raise RuntimeError(  # pragma: no cover - routing excludes this state
+                "native body route without its request data"
+            )
+        return body, body.source
+
     async def _native_body_args(
         self,
         binding: Binding,
@@ -1626,12 +1654,9 @@ class Pipeline:
             and input_error[0] != "invalid_query"
         ):
             raise native_input_exception(input_error)
-        if body is None:
-            raise RuntimeError(  # pragma: no cover - routing excludes this state
-                "native body route without its request data"
-            )
+        body, source = self._require_body_source(body)
         headers = _native_headers(body)
-        raw = await self._body(body.source, headers.get("content-length", ""))
+        raw = await self._body(source, headers.get("content-length", ""))
         if input_error is not None and not invalid:
             raise native_input_exception(input_error)
         content_type = headers.get("content-type", "")
@@ -1766,14 +1791,15 @@ class Pipeline:
     ) -> object:
         """Call an async handler in its task or a sync handler in the executor."""
         route = binding.route
-        kwargs = {
-            **kwargs,
-            **{
-                param.name: self.ctx.get(param.resource_type)
-                for param in binding.resource_params
-                if param.resource_type is not None
-            },
-        }
+        if binding.resource_params:
+            kwargs = {
+                **kwargs,
+                **{
+                    param.name: self.ctx.get(param.resource_type)
+                    for param in binding.resource_params
+                    if param.resource_type is not None
+                },
+            }
         if row_wire is not None:
             kwargs = {**kwargs, "_row_plan": row_wire}
         owner = (route.owner(),) if route.owner is not None else ()

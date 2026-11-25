@@ -93,6 +93,7 @@ WRITE_PATH = (
 )
 TASK_MODULES = frozenset({"asyncio", "_asyncio", "anyio"})
 TASK_APIS = frozenset({"asyncio", "anyio", "current_task", "all_tasks"})
+MAX_HELPER_DEPTH = 8
 MISSING = object()
 UNSUPPORTED = (
     ast.AsyncWith,
@@ -210,12 +211,60 @@ def check_steps(model: type[Model], steps: list[str], bus: EventBus | None) -> N
         check_write(model, bus, QUERYSET_WRITE_EVENTS.get(last))
 
 
+def resolve_helper(
+    func: types.FunctionType, node: ast.expr
+) -> types.FunctionType | None:
+    """Resolve a direct call ``helper(...)`` to a module-local plain async
+    function, or ``None`` when ``node`` is not a call to a defined function."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+        return None
+    name = node.func.id
+    code = func.__code__
+    if name in code.co_varnames or name in code.co_cellvars or name in code.co_freevars:
+        return None
+    found = func.__globals__.get(name, MISSING)
+    if found is MISSING or not isinstance(found, types.FunctionType):
+        return None
+    if found.__globals__ is not func.__globals__:
+        raise ProofError(f"{name} is not defined in this module")
+    if found.__code__.co_freevars:
+        raise ProofError(f"{name} captures closure variables")
+    return found
+
+
+def check_helper(
+    helper: types.FunctionType,
+    bus: EventBus | None,
+    depth: int,
+    seen: frozenset[types.FunctionType],
+    proved: set[types.FunctionType],
+) -> None:
+    """Prove a module-local async helper under the same rules, with bounded
+    depth and cycle detection."""
+    if helper in seen:
+        raise ProofError(f"{helper.__name__} is recursive")
+    if depth >= MAX_HELPER_DEPTH:
+        raise ProofError("helper call depth exceeded")
+    if helper not in proved:
+        _prove(helper, bus, depth + 1, seen, proved)
+        proved.add(helper)
+
+
 def check_await(
-    func: types.FunctionType, node: ast.Await, bus: EventBus | None
+    func: types.FunctionType,
+    node: ast.Await,
+    bus: EventBus | None,
+    depth: int,
+    seen: frozenset[types.FunctionType],
+    proved: set[types.FunctionType],
 ) -> None:
     root, links = chain_of(node.value)
     if not links:
-        raise ProofError("an await is not a call on a model")
+        helper = resolve_helper(func, node.value)
+        if helper is None:
+            raise ProofError("an await is not a call on a model")
+        check_helper(helper, bus, depth, seen, proved)
+        return
     target = resolve(func, root)
     if not (isinstance(target, type) and issubclass(target, Model)):
         raise ProofError("an await is not on a Model class")
@@ -254,11 +303,15 @@ def comprehension_is_async(node: ast.AST) -> bool:
     return isinstance(node, ast.comprehension) and bool(node.is_async)
 
 
-def prove(func: Callable[..., Any], bus: EventBus | None = None) -> None:
-    """Raise :class:`ProofError` with the reason unless ``func`` is provably
-    native. With the application's ``bus``, a write whose model event has a
-    handler is not."""
+def _prove(
+    func: Callable[..., Any],
+    bus: EventBus | None,
+    depth: int,
+    seen: frozenset[types.FunctionType],
+    proved: set[types.FunctionType],
+) -> None:
     function, definition = function_tree(func)
+    active = seen | {function}
     for node in ast.walk(definition):
         if node is definition:
             continue
@@ -271,7 +324,14 @@ def prove(func: Callable[..., Any], bus: EventBus | None = None) -> None:
         ):
             raise ProofError("it uses asyncio directly")
         if isinstance(node, ast.Await):
-            check_await(function, node, bus)
+            check_await(function, node, bus, depth, active, proved)
+
+
+def prove(func: Callable[..., Any], bus: EventBus | None = None) -> None:
+    """Raise :class:`ProofError` with the reason unless ``func`` is provably
+    native. With the application's ``bus``, a write whose model event has a
+    handler is not."""
+    _prove(func, bus, 0, frozenset(), set())
 
 
 def native_refusal(func: Callable[..., Any], bus: EventBus | None = None) -> str | None:

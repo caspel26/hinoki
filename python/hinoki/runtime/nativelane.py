@@ -45,7 +45,7 @@ log = logging.getLogger("hinoki.runtime")
 
 
 def build_native_body(
-    source: BodySource, binding: Binding, request: core.PreparedRequest
+    source: BodySource | None, binding: Binding, request: core.PreparedRequest
 ) -> NativeBody:
     """Build ``NativeBody`` without materializing raw headers or header dict
     unless the route actually needs them."""
@@ -56,15 +56,17 @@ def build_native_body(
         binding.body_param is not None
         or binding.query_param is not None
         or len(route.renderers) > 1
-        or (route.access is not None and principal is None)
     )
+    needs_auth = route.access is not None and principal is None
+    needs_query = binding.query_param is not None or needs_auth
     return NativeBody(
         source,
         request.headers if needs_raw else [],
-        request.query,
+        request.query if needs_query else b"",
         request.client if needs_raw else None,
         principal,
         request.header_dict if needs_dict else None,
+        request if (not needs_dict and needs_auth) else None,
     )
 
 
@@ -152,11 +154,12 @@ class Run:
         request: core.PreparedRequest,
         binding: Binding,
         ctx: contextvars.Context,
+        rid: str | None = None,
     ) -> None:
         self.request = request
         self.binding = binding
         self.ctx = ctx
-        self.rid = request.request_id
+        self.rid = request.request_id if rid is None else rid
         self.handle: core._NativeRun | None = None
 
 
@@ -186,13 +189,14 @@ class NativeLane:
         self.loop = asyncio.get_running_loop()
         self.steps = core._NativeSteps(self.loop)
         self.thread = threading.get_ident()
+        timeout = pipeline.app.runtime.request_timeout
+        self.deadline = None if timeout is None else max(1, int(timeout * 1000))
 
     def start(self, request: core.PreparedRequest) -> bool:
         """Drive the request's handler; ``False`` leaves it to the asyncio path."""
         action = request.action
         if (
-            action is None
-            or action not in self.actions
+            action not in self.actions
             or not request.native_handler
             or request.native_error is not None
         ):
@@ -200,11 +204,10 @@ class NativeLane:
         if request.id_ignored:
             log.warning("ignored invalid request ID from trusted proxy")
         binding = self.pipeline.bindings[action]
-        run = Run(request, binding, self.pipeline.native_context(request.request_id))
-        timeout = self.pipeline.app.runtime.request_timeout
-        deadline = None if timeout is None else max(1, int(timeout * 1000))
+        rid = request.request_id
+        run = Run(request, binding, self.pipeline.native_context(rid), rid)
         coro = self.pipeline.drive_native(
-            binding, request.native_args, self._request_data(request, action)
+            binding, request.native_args, self._request_data(request, action, binding)
         )
         self.runs.add(run)
         try:
@@ -213,7 +216,7 @@ class NativeLane:
                 lambda value, error, reason: self._done(run, value, error, reason),
                 lambda *handover: self._foreign(run, *handover),
                 run.ctx,
-                deadline,
+                self.deadline,
                 self.steps,
             )
         except BaseException:
@@ -222,14 +225,13 @@ class NativeLane:
         return True
 
     def _request_data(
-        self, request: core.PreparedRequest, action: int
+        self, request: core.PreparedRequest, action: int, binding: Binding
     ) -> NativeBody | None:
         """What the guards and the body read beyond the prepared inputs."""
         if action not in self.with_data:
             return None
-        return build_native_body(
-            self.source(request), self.pipeline.bindings[action], request
-        )
+        source = self.source(request) if binding.body_param is not None else None
+        return build_native_body(source, binding, request)
 
     def cancel_all(self) -> None:
         """Cancel every driven handler, as shutdown cancels the request tasks."""
@@ -340,7 +342,7 @@ class NativeLane:
         try:
             run.request.respond_final(response.status, headers, response.body)
         except Exception:
-            log.exception("request %s could not be answered", run.rid)
+            run.ctx.run(log.exception, "request %s could not be answered", run.rid)
             self.fail(run.request)
         return None
 
@@ -363,6 +365,6 @@ class NativeLane:
         run.request.respond_final_json(status, headers, payload)
 
     def _respond(self, run: Run, response: Response) -> None:
-        error = run.ctx.run(self._send, run, response)
+        error = self._send(run, response)
         if error is not None:
             self._translate_now(run, error)
