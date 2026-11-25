@@ -20,6 +20,7 @@ import time
 
 from hinoki import Hinoki, http
 from hinoki.runtime.kiso import KisoWorker
+from hinoki.settings import AppSettings
 
 # A build without WebSocket support is the http baseline.
 HAS_WEBSOCKET = hasattr(http, "websocket")
@@ -42,7 +43,8 @@ def application() -> Hinoki:
                 await socket.send_text(message)
 
         routes.append(echo)
-    return Hinoki(include=routes)
+    # A served WebSocket app refuses allowed_hosts "*"; the client sends 127.0.0.1.
+    return Hinoki(settings=AppSettings(allowed_hosts=("127.0.0.1",)), include=routes)
 
 
 def frame(payload: bytes) -> bytes:
