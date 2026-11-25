@@ -183,7 +183,7 @@ class Product(Model):
     sku: str = field(
         max_length=32, constraints=Field(min_length=3, pattern=r"[A-Z0-9-]+")
     )
-    price: float = field(constraints=Field(gt=0))
+    weight_kg: float = field(constraints=Field(gt=0))
     name: str = field(max_length=120, validators=(no_padding,))
 ```
 

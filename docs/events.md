@@ -167,17 +167,19 @@ def log_limit(event: RateLimited) -> None:
 | `Deleted[M]` | `subject`, `count` (rows one DELETE statement removed) | `Model.adelete`, `QuerySet.adelete`, `abulk_delete` (one per chunk of keys), generated CRUD delete, admin delete. No key or row is loaded, so there is no instance; nothing is emitted when no row was deleted. |
 
 ```python
-from hinoki import Hinoki, events
+from hinoki import Hinoki, db, events
 from hinoki.events import Created, Updated
 from hinoki.orm import Model, pk
 
 
-class Note(Model, table="notes"):
+@db.table("notes")
+class Note(Model):
     id: int = pk()
     title: str
 
 
-class Audit(Model, table="audit_lines"):
+@db.table("audit_lines")
+class Audit(Model):
     id: int = pk()
     note_id: int
 
