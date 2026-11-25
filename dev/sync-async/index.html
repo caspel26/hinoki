@@ -499,7 +499,7 @@
           <h1 id="sync-and-async-code">Sync and async code<a class="headerlink" href="#sync-and-async-code" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 01:00:42 UTC">November 25, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -564,14 +564,14 @@
 </tr>
 <tr>
 <td>Model writes and lookups</td>
-<td><code>acreate</code>, <code>aget</code>, <code>aget_or_none</code>, <code>aupdate</code>, <code>aupdate_where</code>, <code>adelete</code>, <code>asave</code>, <code>aupdate_from</code>, <code>abulk_create</code>, <code>abulk_update</code>, <code>abulk_delete</code></td>
+<td><code>acreate</code>, <code>aget</code>, <code>aget_or_none</code>, <code>aget_as</code>, <code>aget_or_none_as</code>, <code>aupdate</code>, <code>aupdate_where</code>, <code>adelete</code>, <code>asave</code>, <code>aupdate_from</code>, <code>abulk_create</code>, <code>abulk_update</code>, <code>abulk_delete</code></td>
 <td>The same names without <code>a</code></td>
 <td>Sync calls work only inside a sync handler or hook served by Hinoki; both take <code>returning=False</code> (<a href="../queries/#writes-that-do-not-read-the-row-back">queries</a>)</td>
 </tr>
 <tr>
 <td>QuerySet reads</td>
-<td><code>await qs</code>, <code>afirst</code>, <code>aget</code>, <code>acount</code>, <code>aexists</code>, <code>apaginate</code></td>
-<td><code>list</code>, <code>first</code>, <code>get</code>, <code>count</code>, <code>exists</code>, <code>paginate</code></td>
+<td><code>await qs</code>, <code>afirst</code>, <code>aget</code>, <code>aget_as</code>, <code>aget_or_none_as</code>, <code>acount</code>, <code>aexists</code>, <code>aproject</code>, <code>apaginate</code>, <code>apaginate_as</code></td>
+<td><code>list</code>, <code>first</code>, <code>get</code>, <code>get_as</code>, <code>get_or_none_as</code>, <code>count</code>, <code>exists</code>, <code>project</code>, <code>paginate</code>, <code>paginate_as</code></td>
 <td></td>
 </tr>
 <tr>
@@ -693,7 +693,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 01:00:42 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/sync-async.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

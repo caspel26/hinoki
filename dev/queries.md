@@ -17,6 +17,8 @@ models from [Define models](https://hinoki.caspel.dev/dev/models.md).
     count = await Invoice.filter(paid=False).acount()
     page = await Invoice.all().apaginate(PageParams(page=1, page_size=20))
     projected = await Invoice.filter(paid=False).order_by("reference").aproject(InvoiceOut)
+    one_projected = await Invoice.aget_as(InvoiceOut, id=invoice_id)
+    maybe_projected = await Invoice.aget_or_none_as(InvoiceOut, reference="INV-7")
     ```
 
 === "Sync"
@@ -32,16 +34,20 @@ models from [Define models](https://hinoki.caspel.dev/dev/models.md).
     count = Invoice.filter(paid=False).count()
     page = Invoice.all().paginate(PageParams(page=1, page_size=20))
     projected = Invoice.filter(paid=False).order_by("reference").project(InvoiceOut)
+    one_projected = Invoice.get_as(InvoiceOut, id=invoice_id)
+    maybe_projected = Invoice.get_or_none_as(InvoiceOut, reference="INV-7")
     ```
 
-`PageParams` comes from `hinoki.pagination`. `aget` raises `Invoice.NotFound`
-(a 404 in a request) or `MultipleObjectsReturned`. Building a query
-(`filter`, `order_by`, `limit`, `offset`, `select_related`, `prefetch_related`)
-issues no SQL; awaiting it or calling an evaluation method does. `aproject` /
-`project` (and `apaginate_as` / `paginate_as` for pages) encode eligible scalar
-and `select_related` schemas directly from Rust rows, materializing Python
-`Schema` instances lazily from the owned rows if inspected and falling back
-transparently when hooks, computed fields, or `prefetch_related` are present.
+`PageParams` comes from `hinoki.pagination`. `aget` and `aget_as` raise
+`Invoice.NotFound` (a 404 in a request) or `MultipleObjectsReturned`. Building a
+query (`filter`, `order_by`, `limit`, `offset`, `select_related`,
+`prefetch_related`) issues no SQL; awaiting it or calling an evaluation method
+does. `aproject` / `project`, `apaginate_as` / `paginate_as`, `aget_as` /
+`get_as`, and `aget_or_none_as` / `get_or_none_as` encode eligible scalar,
+`select_related`, and 1-level `prefetch_related` (reverse foreign keys and
+many-to-many) schemas directly from Rust rows, materializing Python `Schema`
+instances lazily from the owned rows if inspected and falling back transparently
+when hooks, computed fields, validators, or scoped prefetches are present.
 
 ## Query methods
 

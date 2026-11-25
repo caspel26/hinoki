@@ -2942,31 +2942,7 @@ MCP tool description then show.</p>
   </span>
 
 <a href="#hinoki.http.request.Request.GET" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">GET</span> <span class="o">=</span> <span class="n">QueryDict</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.http.request.Request.COOKIES" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">COOKIES</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.http.request.Request.COOKIES" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">COOKIES</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">parse_cookie_header</span><span class="p">(</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cookie"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-<span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">GET</span> <span class="o">=</span> <span class="n">QueryDict</span><span class="p">(</span><span class="n">query</span><span class="p">)</span> <span class="k">if</span> <span class="n">query</span> <span class="k">else</span> <span class="n">_EMPTY_QUERY</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3010,7 +2986,7 @@ MCP tool description then show.</p>
   </span>
 
 <a href="#hinoki.http.request.Request.path_params" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">path_params</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">path_params</span><span class="p">)</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">path_params</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">path_params</span><span class="p">)</span> <span class="k">if</span> <span class="n">path_params</span> <span class="k">else</span> <span class="p">{}</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -3102,6 +3078,30 @@ MCP tool description then show.</p>
 </code></pre></div>
 
     <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.http.request.Request.COOKIES" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">COOKIES</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.http.request.Request.COOKIES" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">COOKIES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Parsed <code>Cookie</code> header, decoded on first access.</p>
 
     </div>
 
@@ -6204,7 +6204,7 @@ first request, so routes given the same instance and the same <code>scope</code>
           </li><li><a href="#hinoki.routing.Route">Route</a>
             <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.middleware">middleware</a></li><li><a href="#hinoki.routing.Route.cors">cors</a></li><li><a href="#hinoki.routing.Route.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.Route.tags">tags</a></li><li><a href="#hinoki.routing.Route.deprecated">deprecated</a></li><li><a href="#hinoki.routing.Route.operation_id">operation_id</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li></ul>
           </li><li><a href="#hinoki.project.manifest_routes">manifest_routes</a></li><li><a href="#hinoki.project.manifest_events">manifest_events</a></li><li><a href="#hinoki.project.manifest_middleware">manifest_middleware</a></li><li><a href="#hinoki.project.manifest_rules">manifest_rules</a></li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
-            <ul><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
+            <ul><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.http.response.Response">Response</a>
             <ul><li><a href="#hinoki.http.response.Response.status">status</a></li><li><a href="#hinoki.http.response.Response.body">body</a></li><li><a href="#hinoki.http.response.Response.headers">headers</a></li><li><a href="#hinoki.http.response.Response.raw">raw</a></li><li><a href="#hinoki.http.response.Response.with_header">with_header</a></li></ul>
           </li><li><a href="#hinoki.http.response.set_cookie">set_cookie</a></li><li><a href="#hinoki.http.Stream">Stream</a></li><li><a href="#hinoki.http.EventStream">EventStream</a>

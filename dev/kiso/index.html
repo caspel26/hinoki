@@ -499,7 +499,7 @@
           <h1 id="kiso-hinokis-rust-server">Kiso, Hinoki's Rust server<a class="headerlink" href="#kiso-hinokis-rust-server" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:44:48 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 01:00:42 UTC">November 25, 2026</span></span>
             <span>26 min read</span>
           </p>
           
@@ -547,7 +547,7 @@ and WebSocket fuzzers in CI; locally they can be run with
 <li>it is a <code>GET</code>, <code>DELETE</code>, <code>POST</code>, <code>PUT</code>, <code>PATCH</code> or <code>QUERY</code> that is eligible for the native path above (a body method takes one <code>Schema</code> body and built-in parsers);</li>
 <li>the function is a plain <code>async def</code>, not wrapped by a decorator;</li>
 <li>every <code>await</code> in it is an ORM call on a <code>Model</code> class:<ul>
-<li>a read: <code>Model.aget(...)</code>, <code>Model.aget_or_none(...)</code>, or <code>Model.filter(...)</code> / <code>Model.all()</code> with <code>filter</code>, <code>select_related</code>, <code>order_by</code>, <code>limit</code> and <code>offset</code>, ending in <code>aget</code>, <code>afirst</code>, <code>acount</code> or <code>aexists</code>, or awaited directly (<code>prefetch_related</code> issues further queries and stays on asyncio);</li>
+<li>a read: <code>Model.aget(...)</code>, <code>Model.aget_or_none(...)</code>, <code>Model.aget_as(...)</code>, <code>Model.aget_or_none_as(...)</code>, or <code>Model.filter(...)</code> / <code>Model.all()</code> with <code>filter</code>, <code>select_related</code>, <code>prefetch_related</code>, <code>order_by</code>, <code>limit</code> and <code>offset</code>, ending in <code>aget</code>, <code>aget_as</code>, <code>aget_or_none_as</code>, <code>afirst</code>, <code>acount</code>, <code>aexists</code>, <code>aproject</code>, or <code>apaginate_as</code>, or awaited directly;</li>
 <li>a write: <code>acreate</code>, <code>aupdate</code>, <code>aupdate_where</code>, <code>adelete</code>, <code>abulk_create</code>, <code>abulk_update</code>, <code>abulk_delete</code>, or <code>aupdate</code> / <code>adelete</code> ending a <code>filter(...)</code> chain. A write counts only on a model that overrides none of the write hooks (<code>before_save</code>, <code>before_create</code>, <code>after_create</code>, <code>after_save</code>) or the methods the write calls (<code>insert</code>, <code>asave</code>, <code>from_schema</code> and the like); <code>asave</code>, <code>aupdate_from</code> and <code>aupdate_within</code> on an instance stay on asyncio.</li>
 </ul>
 </li>
@@ -698,7 +698,7 @@ reloaded 4 workers (generation 2)
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:44:48 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 01:00:42 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -520,6 +520,8 @@ models from <a href="../models/">Define models</a>.</p>
 <span class="n">count</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">acount</span><span class="p">()</span>
 <span class="n">page</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">apaginate</span><span class="p">(</span><span class="n">PageParams</span><span class="p">(</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">page_size</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
 <span class="n">projected</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">)</span><span class="o">.</span><span class="n">aproject</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">)</span>
+<span class="n">one_projected</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">aget_as</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">invoice_id</span><span class="p">)</span>
+<span class="n">maybe_projected</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">aget_or_none_as</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">reference</span><span class="o">=</span><span class="s2">"INV-7"</span><span class="p">)</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
@@ -533,18 +535,22 @@ models from <a href="../models/">Define models</a>.</p>
 <span class="n">count</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
 <span class="n">page</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">paginate</span><span class="p">(</span><span class="n">PageParams</span><span class="p">(</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">page_size</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>
 <span class="n">projected</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">paid</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">"reference"</span><span class="p">)</span><span class="o">.</span><span class="n">project</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">)</span>
+<span class="n">one_projected</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">get_as</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">invoice_id</span><span class="p">)</span>
+<span class="n">maybe_projected</span> <span class="o">=</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">get_or_none_as</span><span class="p">(</span><span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">reference</span><span class="o">=</span><span class="s2">"INV-7"</span><span class="p">)</span>
 </code></pre></div>
 </div>
 </div>
 </div>
-<p><code>PageParams</code> comes from <code>hinoki.pagination</code>. <code>aget</code> raises <code>Invoice.NotFound</code>
-(a 404 in a request) or <code>MultipleObjectsReturned</code>. Building a query
-(<code>filter</code>, <code>order_by</code>, <code>limit</code>, <code>offset</code>, <code>select_related</code>, <code>prefetch_related</code>)
-issues no SQL; awaiting it or calling an evaluation method does. <code>aproject</code> /
-<code>project</code> (and <code>apaginate_as</code> / <code>paginate_as</code> for pages) encode eligible scalar
-and <code>select_related</code> schemas directly from Rust rows, materializing Python
-<code>Schema</code> instances lazily from the owned rows if inspected and falling back
-transparently when hooks, computed fields, or <code>prefetch_related</code> are present.</p>
+<p><code>PageParams</code> comes from <code>hinoki.pagination</code>. <code>aget</code> and <code>aget_as</code> raise
+<code>Invoice.NotFound</code> (a 404 in a request) or <code>MultipleObjectsReturned</code>. Building a
+query (<code>filter</code>, <code>order_by</code>, <code>limit</code>, <code>offset</code>, <code>select_related</code>,
+<code>prefetch_related</code>) issues no SQL; awaiting it or calling an evaluation method
+does. <code>aproject</code> / <code>project</code>, <code>apaginate_as</code> / <code>paginate_as</code>, <code>aget_as</code> /
+<code>get_as</code>, and <code>aget_or_none_as</code> / <code>get_or_none_as</code> encode eligible scalar,
+<code>select_related</code>, and 1-level <code>prefetch_related</code> (reverse foreign keys and
+many-to-many) schemas directly from Rust rows, materializing Python <code>Schema</code>
+instances lazily from the owned rows if inspected and falling back transparently
+when hooks, computed fields, validators, or scoped prefetches are present.</p>
 <h2 id="query-methods">Query methods<a class="headerlink" href="#query-methods" title="Permanent link">&para;</a></h2>
 <p>Every read and write entry point has an async form (<code>a*</code>) for <code>async def</code>
 handlers and a matching sync form for <code>def</code> handlers.</p>

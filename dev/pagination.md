@@ -74,7 +74,7 @@ async def list_invoices_projected(page: PageParams) -> Page[InvoiceOut]:
     return await Invoice.all().apaginate_as(InvoiceOut, page, concurrent=True)
 ```
 
-The returned `Page[InvoiceOut]` carries the pre-encoded JSON bytes and owned rows. Returning it from a handler emits the exact same JSON as `(await Invoice.all().apaginate(page)).map(InvoiceOut.from_model)` and passes `validate_response=True` checks. Accessing `.items`, calling `.map()`, or inspecting elements materializes the `InvoiceOut` instances from the owned rows without issuing a second database query. Schemas with computed fields, hooks, validators, custom `dump()`, or `prefetch_related` fall back to normal Python hydration transparently.
+The returned `Page[InvoiceOut]` carries the pre-encoded JSON bytes and owned rows. Returning it from a handler emits the exact same JSON as `(await Invoice.all().apaginate(page)).map(InvoiceOut.from_model)` and passes `validate_response=True` checks. Accessing `.items`, calling `.map()`, or inspecting elements materializes the `InvoiceOut` instances from the owned rows without issuing a second database query. Scalar fields, `select_related`, and 1-level `prefetch_related` (reverse foreign keys and many-to-many) are encoded directly in Rust; schemas with computed fields, hooks, validators, custom `dump()`, or scoped prefetches fall back to normal Python hydration transparently.
 
 ## Cursor (keyset) pagination
 
