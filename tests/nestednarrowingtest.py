@@ -5,7 +5,7 @@ its subclass added, as a top-level response does."""
 from __future__ import annotations
 
 import json
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, TypedDict
 
 import pytest
 
@@ -14,6 +14,7 @@ from hinoki.cli.routes import lanes_of
 from hinoki.errors import RegistrationError
 from hinoki.pagination import Page
 from hinoki.routing import RouteGroup
+from hinoki.runtime.binding import guide_spec
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.testing import ASGIClient
 from tests.kisoservertest import fetch
@@ -141,6 +142,10 @@ class Pets(Schema):
     maybe: Annotated[Cat | Dog | None, Field(discriminator="kind")]
     several: list[Pet]
     either: Public | str
+
+
+class PublicDict(TypedDict):
+    inner: Public
 
 
 class Loose(Schema):
@@ -287,6 +292,19 @@ CASES: dict[str, tuple[Any, Any, object]] = {
         [PrivateMid(inner=private(1), note=SECRET), Mid(inner=public(2))],
         [{"inner": shown(1)}, {"inner": shown(2)}],
     ),
+    "/top-level-dict": (
+        dict[str, Public],
+        {"a": private(1), "b": public(2)},
+        {"a": shown(1), "b": shown(2)},
+    ),
+    "/top-level-tuple": (tuple[Public, ...], (private(1),), [shown(1)]),
+    "/top-level-optionals": (
+        list[Public | None],
+        [private(1), None],
+        [shown(1), None],
+    ),
+    "/top-level-grid": (list[list[Public]], [[private(1)], []], [[shown(1)], []]),
+    "/top-level-typeddict": (PublicDict, {"inner": private(1)}, {"inner": shown(1)}),
     "/top-level-holders": (
         list[Holder],
         [Holder(inner=private(1)), Holder(inner=public(2))],
@@ -300,10 +318,17 @@ CASES["/loose"] = (Loose, LOOSE, {"anything": FULL, "thing": FULL})
 LEAKS_BY_DESIGN = {"/loose"}
 
 
-def build_app(*, validate: bool) -> Hinoki:
+# `validate_response=True` refuses these annotations; they are served unchecked.
+UNCHECKABLE = {"/top-level-tuple", "/top-level-typeddict"}
+
+
+def build_app(*, validate: bool, skip: frozenset[str] = frozenset()) -> Hinoki:
     group = RouteGroup("")
     for path, (annotation, value, _) in CASES.items():
-        group.get(path, validate_response=validate)(handler(annotation, value))
+        if path in skip:
+            continue
+        checked = validate and path not in UNCHECKABLE
+        group.get(path, validate_response=checked)(handler(annotation, value))
     return Hinoki(include=[group])
 
 
@@ -372,6 +397,8 @@ async def test_python_lane_matches_native_lane_bytes() -> None:
 def test_the_two_encoders_write_the_same_bytes(path: str) -> None:
     """`encode_json` (the response encoder) and `dump()` (the Python lane and the
     public API) agree byte for byte, and with what the field types declare."""
+    if path.startswith("/top-level"):
+        return  # narrowed by the response pipeline, not by the encoder
     _, value, expected = CASES[path]
     written = core.encode_json(value, None, False, None)
     dumped = (
@@ -379,8 +406,6 @@ def test_the_two_encoders_write_the_same_bytes(path: str) -> None:
     )
     assert json.loads(written) == json.loads(json.dumps(dumped))
     assert written == json.dumps(dumped, separators=(",", ":")).encode()
-    if path.startswith("/top-level"):
-        return  # narrowed by the response pipeline, not by the encoder
     assert json.loads(written) == expected
 
 
@@ -424,7 +449,8 @@ def test_a_page_cannot_be_a_field_type() -> None:
 
 
 def test_the_openapi_document_declares_the_base_schema_only() -> None:
-    app = build_app(validate=True)
+    # OpenAPI refuses a bare union as a return annotation, here the list item
+    app = build_app(validate=True, skip=frozenset({"/top-level-optionals"}))
     document = json.dumps(app.openapi(), sort_keys=True)
     assert "Private" not in document
     assert "secret" not in document
@@ -444,3 +470,13 @@ async def test_the_xml_renderer_narrows_too() -> None:
     assert SECRET not in text
     assert text.count("<id>") == 2
     assert text.count("<tag>") == 2
+
+
+def test_a_top_level_union_narrows_to_the_member_the_value_derives_from() -> None:
+    spec = guide_spec(Public | Cat)
+    assert spec is not None
+    guide = core._ReturnGuide(spec)
+    assert guide.narrow(private()).dump() == shown()
+    exact = cat()
+    assert guide.narrow(exact) is exact
+    assert guide_spec(dict[str, int]) is None  # no Schema position: nothing to do
