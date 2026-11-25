@@ -77,11 +77,14 @@ class Supervisor:
         metrics: socket.socket | None = None,
         rolling: bool = False,
         startup_timeout: float = 30.0,
+        reuse_port: bool = False,
     ) -> None:
         self.target = target
         self.interface = interface
         # SIGHUP replaces the workers one by one (never under ``dev``).
         self.rolling = rolling and not reload and HANGUP is not None
+        self.reuse_port = reuse_port and not reload
+        self.address: tuple[str, int] | None = None
         self.ready_wait = startup_timeout + READY_MARGIN
         self.hangup = threading.Event()  # a SIGHUP waiting to be served
         self.generation = 1
@@ -108,14 +111,23 @@ class Supervisor:
         self.stop = threading.Event()
         self.signals = 0
 
+    def listener_arguments(self) -> list[str]:
+        if self.reuse_port:
+            host, port = (
+                self.address
+                if self.address is not None
+                else self.listener.getsockname()[:2]
+            )
+            return ["--host", str(host), "--port", str(port), "--reuse-port"]
+        return ["--fd", str(self.listener.fileno())]
+
     def command(self, slot: int = 0, ready_fd: int | None = None) -> list[str]:
         return [
             sys.executable,
             "-m",
             "hinoki.runtime.kiso",
             self.target,
-            "--fd",
-            str(self.listener.fileno()),
+            *self.listener_arguments(),
             "--parent",
             str(os.getpid()),
             *(["--interface", self.interface] if self.interface != "asgi" else []),
@@ -144,7 +156,7 @@ class Supervisor:
         the worker unblocks SIGINT first thing, behind a no-op handler
         (``kiso.take_interrupts``)."""
         previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
-        inherited = [self.listener.fileno()]
+        inherited = [] if self.reuse_port else [self.listener.fileno()]
         if self.metrics is not None:
             inherited.append(self.metrics.fileno())
         if ready_fd is not None:
@@ -222,6 +234,7 @@ class Supervisor:
         for number in SIGNALS:
             signal.signal(number, self.on_signal)
         host, port = self.listener.getsockname()[:2]
+        self.address = (str(host), int(port))
         shown = f"[{host}]" if ":" in str(host) else host
         mode = "reloading" if self.reload else f"{self.count} workers"
         print(f"listening on {self.scheme}://{shown}:{port} ({mode})", flush=True)
@@ -236,6 +249,10 @@ class Supervisor:
             self.release()
             self.discard_snapshots()
             return 0
+        if self.reuse_port:
+            # Close the supervisor's probe listener before workers bind their own
+            # SO_REUSEPORT sockets, so the kernel never routes connections here.
+            self.listener.close()
         self.processes = [self.spawn(slot) for slot in range(self.count)]
         if not self.reload and not self.rolling:
             # No worker is ever started again: only the workers listen, so a

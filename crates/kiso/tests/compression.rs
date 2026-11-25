@@ -44,7 +44,7 @@ impl Backend for Producer {
             return Delivery::Whole(Answer {
                 status: 200,
                 headers: text_headers(Some(body.len())),
-                body,
+                body: Bytes::from(body),
             });
         }
         let (sender, chunks) = mpsc::channel(1);

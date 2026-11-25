@@ -40,7 +40,7 @@ fn internal_error() -> Answer {
     Answer {
         status: 500,
         headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
-        body: Vec::new(),
+        body: bytes::Bytes::new(),
     }
 }
 
@@ -580,6 +580,58 @@ pub(crate) type LogArgs = (
     Option<Py<PyAny>>,
 );
 
+#[cfg(target_os = "linux")]
+fn bind_reuse_port_addr(addr: SocketAddr) -> std::io::Result<std::net::TcpListener> {
+    use socket2::{Domain, Protocol};
+
+    let sock = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))?;
+    sock.set_reuse_address(true)?;
+    sock.set_reuse_port(true)?;
+    sock.bind(&addr.into())?;
+    sock.listen(1024)?;
+    Ok(sock.into())
+}
+
+#[cfg(target_os = "linux")]
+fn bind_reuse_port(host: &str, port: u16) -> PyResult<std::net::TcpListener> {
+    use std::net::ToSocketAddrs;
+
+    let addrs = (host, port).to_socket_addrs().map_err(io_error)?;
+    let mut last_err = None;
+    for addr in addrs {
+        match bind_reuse_port_addr(addr) {
+            Ok(listener) => return Ok(listener),
+            Err(err) => last_err = Some(err),
+        }
+    }
+    Err(io_error(last_err.unwrap_or_else(|| {
+        std::io::Error::new(ErrorKind::InvalidInput, "could not resolve any addresses")
+    })))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn bind_reuse_port(_host: &str, _port: u16) -> PyResult<std::net::TcpListener> {
+    Err(PyValueError::new_err(
+        "reuse_port is only supported on Linux",
+    ))
+}
+
+fn open_or_bind_listener(
+    inherited: Option<std::net::TcpListener>,
+    host: &str,
+    port: u16,
+    reuse_port: bool,
+) -> PyResult<std::net::TcpListener> {
+    match (inherited, reuse_port) {
+        (Some(_), true) => Err(PyValueError::new_err(
+            "fd and reuse_port cannot be used together",
+        )),
+        (Some(listener), false) => Ok(listener),
+        (None, true) => bind_reuse_port(host, port),
+        (None, false) => std::net::TcpListener::bind((host, port)).map_err(io_error),
+    }
+}
+
 impl Shared {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
@@ -596,6 +648,7 @@ impl Shared {
         (access_log, access_log_skip, access_log_slow_ms, access_log_sink): LogArgs,
         server_timing: bool,
         compression: Option<Arc<Compression>>,
+        reuse_port: bool,
     ) -> PyResult<Self> {
         // First, so that every later error closes the descriptor with it.
         let inherited = fd.map(inherited_listener).transpose()?;
@@ -646,10 +699,7 @@ impl Shared {
                 ))
             }
         };
-        let listener = match inherited {
-            Some(listener) => listener,
-            None => std::net::TcpListener::bind((host, port)).map_err(io_error)?,
-        };
+        let listener = open_or_bind_listener(inherited, host, port, reuse_port)?;
         listener.set_nonblocking(true).map_err(io_error)?;
         let addr = listener.local_addr().map_err(io_error)?;
         Ok(Self {
@@ -709,7 +759,8 @@ impl KisoServer {
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
         access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false, compression=None, metrics=None
+        access_log_sink=None, server_timing=false, compression=None, metrics=None,
+        reuse_port=false
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -734,6 +785,7 @@ impl KisoServer {
         server_timing: bool,
         compression: Option<&Bound<'_, PyDict>>,
         metrics: Option<&Bound<'_, PyDict>>,
+        reuse_port: bool,
     ) -> PyResult<Self> {
         let compression = crate::compression::parse(compression)?;
         let metrics = crate::metrics::parse(metrics, &core.route_patterns())?;
@@ -761,6 +813,7 @@ impl KisoServer {
             ),
             server_timing,
             compression,
+            reuse_port,
         )?;
         let registry = metrics.as_ref().map(|m| Arc::clone(&m.registry));
         config.metrics.clone_from(&registry);

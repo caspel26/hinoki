@@ -121,7 +121,7 @@ fn status_only(status: u16) -> Answer {
     Answer {
         status,
         headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
-        body: Vec::new(),
+        body: bytes::Bytes::new(),
     }
 }
 
@@ -168,9 +168,9 @@ impl Backend for Endpoint {
                 ),
             ],
             body: if request.method == "HEAD" {
-                Vec::new()
+                bytes::Bytes::new()
             } else {
-                text
+                bytes::Bytes::from(text)
             },
         }
     }

@@ -479,7 +479,7 @@ fn a_head_answer_is_sized_by_the_length_it_declares() {
         Delivery::Whole(Answer {
             status: 200,
             headers: vec![header("content-length", length)],
-            body: Vec::new(),
+            body: Bytes::new(),
         })
     };
     assert!(matches!(Shape::of(&answer("5000")), Shape::Whole(5000)));

@@ -31,7 +31,12 @@ from hinoki import __version__, core
 from hinoki.app import Hinoki
 from hinoki.routing import ROUTE_ATTR
 from hinoki.runtime import banner
-from hinoki.runtime.listener import ListenError, check_port, open_listener
+from hinoki.runtime.listener import (
+    ListenError,
+    check_port,
+    open_listener,
+    supports_reuse_port,
+)
 from hinoki.settings import MAX_WORKERS, AppSettings, ServerSettings, SettingsError
 from hinoki.target import load_target as import_target
 from hinoki.wsgi import WSGIAdapter
@@ -272,6 +277,21 @@ def rolls_on_hangup(settings: ServerSettings, reload: bool) -> bool:
     return not reload and settings.sighup != "stop" and hasattr(signal, "SIGHUP")
 
 
+def use_reuse_port(
+    settings: ServerSettings, workers: int, port: int, reload: bool
+) -> bool:
+    """Whether supervised workers each bind their own ``SO_REUSEPORT`` socket.
+
+    Requires Linux, more than one worker, a non-zero port (port 0 falls back
+    to a shared descriptor so every worker serves the same ephemeral port),
+    and ``serve`` mode (``dev`` keeps one supervisor-owned socket across
+    restarts). ``server.reuse_port = False`` forces the shared descriptor.
+    """
+    if settings.reuse_port is False:
+        return False
+    return not reload and workers > 1 and port != 0 and supports_reuse_port()
+
+
 def run_supervised(
     args: argparse.Namespace,
     app: Hinoki,
@@ -282,7 +302,8 @@ def run_supervised(
     from hinoki.runtime.supervisor import Supervisor  # noqa: PLC0415
 
     workers = 1 if reload else (args.workers or settings.workers)
-    listener = open_listener(*address, settings.backlog)
+    reuse_port = use_reuse_port(settings, workers, address[1], reload)
+    listener = open_listener(*address, settings.backlog, reuse_port=reuse_port)
     grace = stop_grace(app)
     scheme = "https" if settings.tls_cert_file else "http"
     supervisor = Supervisor(
@@ -295,6 +316,7 @@ def run_supervised(
         metrics=open_metrics(app, settings.backlog),
         rolling=rolls_on_hangup(settings, reload),
         startup_timeout=app.runtime.startup_timeout,
+        reuse_port=reuse_port,
     )
     supervisor.docs = app.docs_url
     return supervisor.run()
@@ -449,7 +471,8 @@ def run_wsgi_kiso(
             return wsgiworker.run(target, *address, settings, dev=reload)
         from hinoki.runtime.supervisor import Supervisor  # noqa: PLC0415
 
-        listener = open_listener(*address, settings.backlog)
+        reuse_port = use_reuse_port(settings, workers, address[1], reload)
+        listener = open_listener(*address, settings.backlog, reuse_port=reuse_port)
         grace = stop_grace_of(target)
         return Supervisor(
             args.target,
@@ -462,6 +485,7 @@ def run_wsgi_kiso(
             metrics=open_metrics(target, settings.backlog),
             rolling=rolls_on_hangup(settings, reload),
             startup_timeout=app_settings_of(target).lifecycle.startup_timeout,
+            reuse_port=reuse_port,
         ).run()
     except ListenError as error:
         return refuse(f"cannot listen on {address[0]}:{address[1]}: {error}")

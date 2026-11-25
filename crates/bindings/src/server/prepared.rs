@@ -395,6 +395,11 @@ impl PreparedRequest {
         crate::request::joined_header_dict(py, &self.headers)
     }
 
+    /// Look up one lower-case header value without materializing `header_dict`.
+    fn header(&self, name: &str) -> Option<String> {
+        crate::request::lookup_header(&self.headers, name)
+    }
+
     /// Read the request body (empty bytes when there is none), refusing more
     /// than `limit` bytes. The bytes are read on the runtime and the Python
     /// object is built on the loop thread. Nothing is read, and no `100
@@ -543,7 +548,7 @@ impl PreparedRequest {
         headers: Vec<(Vec<u8>, Vec<u8>)>,
         body: &[u8],
     ) -> bool {
-        self.respond_owned(status, headers, body.to_vec())
+        self.respond_owned(status, headers, bytes::Bytes::copy_from_slice(body))
     }
 
     /// Answer with a head now and the body as it is produced. The returned
@@ -644,13 +649,13 @@ impl PreparedRequest {
         headers: Vec<(Vec<u8>, Vec<u8>)>,
         body: &[u8],
     ) -> bool {
-        self.respond_final_owned(status, headers, body.to_vec())
+        self.respond_final_owned(status, headers, bytes::Bytes::copy_from_slice(body))
     }
 
     /// Encode `value` directly into the owned response buffer and complete the
     /// native request without creating an intermediate Python `bytes` object.
     /// With `strict`, the value must also be a plain `list[dict[str, object]]`
-    /// (see `encode_json_vec_strict`); any other value is an error that sends
+    /// (see `encode_json_bytes_strict`); any other value is an error that sends
     /// nothing, and the caller then runs the checked path.
     #[pyo3(signature = (status, headers, value, strict=false))]
     pub(crate) fn respond_final_json(
@@ -661,9 +666,9 @@ impl PreparedRequest {
         strict: bool,
     ) -> PyResult<bool> {
         let body = if strict {
-            crate::request::encode_json_vec_strict(value)?
+            crate::request::encode_json_bytes_strict(value)?
         } else {
-            crate::request::encode_json_vec(value)?
+            crate::request::encode_json_bytes(value)?
         };
         Ok(self.respond_final_owned(status, headers, body))
     }
@@ -677,7 +682,12 @@ impl PreparedRequest {
         body: &[u8],
         route_headers: Vec<(String, String)>,
     ) -> bool {
-        self.finish(status, headers, body.to_vec(), &route_headers)
+        self.finish(
+            status,
+            headers,
+            bytes::Bytes::copy_from_slice(body),
+            &route_headers,
+        )
     }
 }
 
@@ -687,7 +697,7 @@ impl PreparedRequest {
         &self,
         status: u16,
         headers: Vec<(Vec<u8>, Vec<u8>)>,
-        body: Vec<u8>,
+        body: impl Into<bytes::Bytes>,
     ) -> bool {
         let sender = self.release();
         sender.is_some_and(|tx| {
@@ -696,7 +706,7 @@ impl PreparedRequest {
                 Sent::Whole(Reply {
                     status,
                     headers,
-                    body,
+                    body: body.into(),
                 }),
             )
         })
@@ -707,12 +717,12 @@ impl PreparedRequest {
         &self,
         status: u16,
         headers: Vec<(Vec<u8>, Vec<u8>)>,
-        body: Vec<u8>,
+        body: impl Into<bytes::Bytes>,
     ) -> bool {
         if !self.native_handler && !self.native_crud {
             return false;
         }
-        self.finish(status, headers, body, &self.route_headers)
+        self.finish(status, headers, body.into(), &self.route_headers)
     }
 
     /// The CORS headers to add: none when the answer or the route sets its own.
@@ -765,7 +775,7 @@ impl PreparedRequest {
         &self,
         status: u16,
         own: Vec<(Vec<u8>, Vec<u8>)>,
-        body: Vec<u8>,
+        body: bytes::Bytes,
         route_headers: &[(String, String)],
     ) -> bool {
         let body_len = body.len();
@@ -780,7 +790,7 @@ impl PreparedRequest {
             body_len,
         );
         let final_body = if self.method == "HEAD" {
-            Vec::new()
+            bytes::Bytes::new()
         } else {
             body
         };

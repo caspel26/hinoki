@@ -512,7 +512,11 @@ impl Core {
             self.ignored_ids.fetch_add(1, Ordering::Relaxed);
         }
         let cors = self.cors_headers(asked);
-        let mut body = page.body.clone();
+        let body = if asked.head_only {
+            bytes::Bytes::new()
+        } else {
+            bytes::Bytes::from(page.body.clone())
+        };
         let headers = final_headers(
             page.headers.clone(),
             &self.policies[usize::from(asked.https)],
@@ -520,11 +524,8 @@ impl Core {
             (&self.id_name, asked.request_id.as_bytes()),
             &cors,
             200,
-            body.len(),
+            page.body.len(),
         );
-        if asked.head_only {
-            body.clear();
-        }
         Outcome::Early(Reply {
             status: 200,
             headers,
@@ -564,7 +565,11 @@ impl Core {
             .startup_probe
             .as_ref()
             .ok_or_else(|| "startup probe is not configured".to_owned())?;
-        let mut body = probe.body.clone();
+        let body = if asked.head_only {
+            bytes::Bytes::new()
+        } else {
+            bytes::Bytes::from(probe.body.clone())
+        };
         let own = vec![(b"content-type".to_vec(), b"application/json".to_vec())];
         let cors = self.cors_headers(asked);
         let response_headers = final_headers(
@@ -574,11 +579,8 @@ impl Core {
             (&self.id_name, asked.request_id.as_bytes()),
             &cors,
             200,
-            body.len(),
+            probe.body.len(),
         );
-        if asked.head_only {
-            body.clear();
-        }
         Ok(Outcome::Early(Reply {
             status: 200,
             headers: response_headers,
@@ -797,7 +799,7 @@ impl Core {
         asked: &Asked,
         status: u16,
         own: Vec<Header>,
-        mut body: Vec<u8>,
+        body: Vec<u8>,
     ) -> Result<Reply, String> {
         if asked.id_ignored {
             self.ignored_ids.fetch_add(1, Ordering::Relaxed);
@@ -812,13 +814,15 @@ impl Core {
             status,
             body.len(),
         );
-        if asked.head_only {
-            body.clear();
-        }
+        let final_body = if asked.head_only {
+            bytes::Bytes::new()
+        } else {
+            bytes::Bytes::from(body)
+        };
         Ok(Reply {
             status,
             headers,
-            body,
+            body: final_body,
         })
     }
 }

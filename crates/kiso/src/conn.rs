@@ -71,7 +71,7 @@ pub struct Incoming {
 pub struct Answer {
     pub status: u16,
     pub headers: Vec<Header>,
-    pub body: Vec<u8>,
+    pub body: Bytes,
 }
 
 /// Decides every answer. It runs on a tokio thread and must not need the GIL.
@@ -163,11 +163,7 @@ fn parts_of(delivery: Delivery, head_only: bool) -> Result<(u16, Vec<Header>, Re
     let nothing = || Reply::Whole(Full::new(Bytes::new()));
     Ok(match delivery {
         Delivery::Whole(answer) => {
-            let body = if head_only {
-                Bytes::new()
-            } else {
-                Bytes::from(answer.body)
-            };
+            let body = if head_only { Bytes::new() } else { answer.body };
             (answer.status, answer.headers, Reply::Whole(Full::new(body)))
         }
         Delivery::Streamed(Streamed {
@@ -520,7 +516,7 @@ mod tests {
         Delivery::Whole(Answer {
             status,
             headers,
-            body: body.to_vec(),
+            body: Bytes::copy_from_slice(body),
         })
     }
 

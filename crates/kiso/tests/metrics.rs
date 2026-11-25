@@ -35,7 +35,7 @@ impl Backend for Routes {
             return Delivery::Whole(Answer {
                 status: 200,
                 headers: vec![(b"content-length".to_vec(), b"5".to_vec())],
-                body: b"hello".to_vec(),
+                body: Bytes::from_static(b"hello"),
             });
         }
         if request.path == "/stream" {
@@ -55,7 +55,7 @@ impl Backend for Routes {
         Delivery::Whole(Answer {
             status: 404,
             headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
-            body: Vec::new(),
+            body: Bytes::new(),
         })
     }
 }

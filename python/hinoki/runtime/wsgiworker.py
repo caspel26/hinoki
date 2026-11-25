@@ -56,6 +56,7 @@ def start_server(  # noqa: PLR0913 - the metrics listener and slot ride along
     settings: ServerSettings,
     *,
     listener_fd: int | None,
+    reuse_port: bool = False,
     dev: bool,
     metrics_fd: int | None = None,
     metrics_dir: str | None = None,
@@ -66,7 +67,9 @@ def start_server(  # noqa: PLR0913 - the metrics listener and slot ride along
     execution: ExecutionSettings = app.execution
     lifecycle: LifecycleSettings = app.lifecycle
     if listener_fd is None:
-        listener_fd = open_listener(host, port, settings.backlog).detach()
+        listener_fd = open_listener(
+            host, port, settings.backlog, reuse_port=reuse_port
+        ).detach()
     limits = {
         name: getattr(settings, name)
         for name in LIMITS
@@ -133,6 +136,7 @@ def run(  # noqa: PLR0913 - the metrics listener and slot ride along
     settings: ServerSettings,
     *,
     listener_fd: int | None = None,
+    reuse_port: bool = False,
     parent: int | None = None,
     dev: bool = False,
     metrics_fd: int | None = None,
@@ -151,6 +155,7 @@ def run(  # noqa: PLR0913 - the metrics listener and slot ride along
             port,
             settings,
             listener_fd=listener_fd,
+            reuse_port=reuse_port,
             dev=dev,
             metrics_fd=metrics_fd,
             metrics_dir=metrics_dir,
