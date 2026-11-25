@@ -19,6 +19,7 @@ static ENUM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PROJECTED_LIST: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static PROJECTED_PAGE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static PROJECTED_ITEM: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static OBJECT_NEW: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static COPY_DEEPCOPY: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 static FAST_UUID: PyOnceLock<Option<FastUuid>> = PyOnceLock::new();
@@ -39,6 +40,10 @@ pub fn projected_list_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, Py
 
 pub fn projected_page_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
     PROJECTED_PAGE.import(py, "hinoki.orm.projection", "_ProjectedPage")
+}
+
+pub fn projected_item_class<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {
+    PROJECTED_ITEM.import(py, "hinoki.orm.projection", "_ProjectedItem")
 }
 
 pub fn object_new<'py>(py: Python<'py>) -> PyResult<&'py Bound<'py, PyAny>> {

@@ -1378,6 +1378,7 @@ fn preencoded_handle<'py>(
     let ty = value.get_type();
     if !ty.is(crate::pytypes::projected_list_class(py)?)
         && !ty.is(crate::pytypes::projected_page_class(py)?)
+        && !ty.is(crate::pytypes::projected_item_class(py)?)
     {
         return Ok(None);
     }

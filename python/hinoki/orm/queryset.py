@@ -718,6 +718,14 @@ class QuerySet[M: Model]:
         """Sync ``aproject``."""
         return run_sync(self.aproject(schema))
 
+    def get_as[S: Schema](self, schema: type[S]) -> S:
+        """Sync ``aget_as``."""
+        return run_sync(self.aget_as(schema))
+
+    def get_or_none_as[S: Schema](self, schema: type[S]) -> S | None:
+        """Sync ``aget_or_none_as``."""
+        return run_sync(self.aget_or_none_as(schema))
+
     def paginate_as[S: Schema](
         self,
         schema: type[S],
@@ -745,6 +753,28 @@ class QuerySet[M: Model]:
         from hinoki.orm.projection import project_list  # noqa: PLC0415
 
         return await project_list(self, schema, current_database())
+
+    async def aget_as[S: Schema](self, schema: type[S]) -> S:
+        """Fetch exactly one row and project it directly to ``schema`` in Rust
+        when eligible; raises ``Model.NotFound`` or ``MultipleObjectsReturned``
+        otherwise."""
+        # local import avoids circular dependency with hinoki.orm.model
+        from hinoki.orm.projection import project_one  # noqa: PLC0415
+
+        found = await project_one(self, schema, current_database(), allow_none=False)
+        if found is None:
+            msg = f"{self.model.__name__} matching query does not exist."
+            raise self.model.NotFound(msg)
+        return found
+
+    async def aget_or_none_as[S: Schema](self, schema: type[S]) -> S | None:
+        """Fetch at most one row and project it directly to ``schema`` in Rust
+        when eligible; returns ``None`` if no row matches and raises
+        ``MultipleObjectsReturned`` if several match."""
+        # local import avoids circular dependency with hinoki.orm.model
+        from hinoki.orm.projection import project_one  # noqa: PLC0415
+
+        return await project_one(self, schema, current_database(), allow_none=True)
 
     async def apaginate_as[S: Schema](
         self,

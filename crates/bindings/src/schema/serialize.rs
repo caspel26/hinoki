@@ -58,6 +58,13 @@ fn convert<'py>(
     if let Ok(dict) = value.cast::<PyDict>() {
         return convert_dict(py, dict, mode, depth);
     }
+    if value
+        .get_type()
+        .is(crate::pytypes::projected_item_class(py)?)
+    {
+        let inner = value.call_method0(pyo3::intern!(py, "_ensure"))?;
+        return convert(&inner, mode, depth);
+    }
     if instance_fields(value, false, mode.by_alias, false)?.is_some() {
         return convert_schema(value, mode, depth);
     }

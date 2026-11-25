@@ -33,7 +33,7 @@ from hinoki.events import Created, Deleted, EventBus, Updated
 from hinoki.orm.model import Model
 
 MODEL_STARTS = frozenset({"filter", "all"})
-MODEL_TERMINALS = frozenset({"aget", "aget_or_none"})
+MODEL_TERMINALS = frozenset({"aget", "aget_or_none", "aget_as", "aget_or_none_as"})
 MODEL_WRITES = frozenset(
     {
         "acreate",
@@ -46,10 +46,19 @@ MODEL_WRITES = frozenset(
     }
 )
 QUERYSET_BUILDERS = frozenset(
-    {"filter", "select_related", "order_by", "limit", "offset"}
+    {"filter", "select_related", "prefetch_related", "order_by", "limit", "offset"}
 )
 QUERYSET_TERMINALS = frozenset(
-    {"aget", "afirst", "acount", "aexists", "aproject", "apaginate_as"}
+    {
+        "aget",
+        "afirst",
+        "acount",
+        "aexists",
+        "aproject",
+        "apaginate_as",
+        "aget_as",
+        "aget_or_none_as",
+    }
 )
 QUERYSET_WRITES = frozenset({"aupdate", "adelete"})
 # The model event a write emits; ``aupdate`` and ``aupdate_where`` emit none.

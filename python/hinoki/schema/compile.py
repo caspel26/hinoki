@@ -115,14 +115,20 @@ def bounded_annotation(annotation: Any, meta: Any) -> Any:
 def with_link_ids(
     cls: type[Schema], row: object, links: Mapping[str, Any], extra: dict[str, Any]
 ) -> dict[str, Any]:
-    """``extra`` plus each ids field of ``row``'s many-to-many relations the
-    schema declares, as a set (the stored value is an immutable tuple)."""
+    """``extra`` plus each ids field or loaded target list of ``row``'s
+    many-to-many relations that the schema declares."""
     specs = cls.specs()
-    found = {
-        side.ids_name: set(getattr(row, side.ids_name))
-        for side in links.values()
-        if side.forward and side.ids_name in specs and side.ids_name not in extra
-    }
+    found: dict[str, Any] = {}
+    for side in links.values():
+        if side.forward and side.ids_name in specs and side.ids_name not in extra:
+            found[side.ids_name] = set(getattr(row, side.ids_name))
+        if side.name in specs and side.name not in extra:
+            loaded = getattr(row, side.name).loaded
+            item = specs[side.name].ftype.item
+            if item is not None and item.schema is not None:
+                found[side.name] = [item.schema.from_model(obj) for obj in loaded]
+            else:
+                found[side.name] = list(loaded)
     return {**extra, **found} if found else extra
 
 

@@ -22,7 +22,7 @@ from hinoki import core
 from hinoki.errors import RegistrationError
 from hinoki.http.response import Response
 from hinoki.orm.model import Model
-from hinoki.orm.projection import _ProjectedList, _ProjectedPage
+from hinoki.orm.projection import _ProjectedItem, _ProjectedList, _ProjectedPage
 from hinoki.pagination import CursorPage, Page
 from hinoki.schema import Schema
 
@@ -117,11 +117,24 @@ def simple_check(arm: object) -> Check | None:
 def class_check(arm: type) -> Check | None:
     if arm in SCALARS:
         return lambda value: type(value) is arm  # exact: True is not an int
-    if issubclass(arm, Response):  # Stream, EventStream, File
+    if arm in {dict, list} or issubclass(arm, (Response, Model)):
         return lambda value: isinstance(value, arm)
-    if arm in {dict, list} or issubclass(arm, Schema | Model):
-        return lambda value: isinstance(value, arm)
+    if issubclass(arm, Schema):
+        return _schema_check(arm)
     return None
+
+
+def _schema_check(arm: type[Schema]) -> Check:
+    def check(value: object) -> bool:
+        if isinstance(value, arm):
+            return True
+        if isinstance(value, _ProjectedItem):
+            if value._projected_handle is not None:
+                return issubclass(value._schema, arm)
+            return isinstance(value._materialized, arm)
+        return False
+
+    return check
 
 
 def collection_check(name: str, arm: object) -> Check:

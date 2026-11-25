@@ -1,10 +1,13 @@
 //! Rust-only row projection and JSON encoding for eligible generated CRUD pages.
 
 use hinoki_orm::links::{Canon, KeyKind};
+use hinoki_orm::query::{
+    compile_select_bound, compile_select_linked, Dialect, Filter, Join, Op, QueryError, Select,
+};
 use hinoki_orm::Value;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyDict};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -25,6 +28,8 @@ enum Kind {
     Ids,
     /// A `select_related` forward relation encoded from joined alias columns.
     Nested,
+    /// A 1-level `prefetch_related` relation (M2M or reverse FK) encoded from child rows.
+    Prefetch,
 }
 
 impl Kind {
@@ -41,6 +46,7 @@ impl Kind {
             "date" => Ok(Self::Date),
             "ids" => Ok(Self::Ids),
             "nested" => Ok(Self::Nested),
+            "prefetch" => Ok(Self::Prefetch),
             _ => Err(PyValueError::new_err(format!(
                 "unsupported row wire kind {value:?}"
             ))),
@@ -54,7 +60,7 @@ struct Field {
     wire_name: String,
     kind: Kind,
     nullable: bool,
-    /// For an ids or nested field, its position among the plan's slots.
+    /// For an ids, nested or prefetch field, its position among the plan's slots.
     slot: usize,
     name: String,
 }
@@ -67,12 +73,119 @@ struct NestedPlan {
     fields: Vec<Field>,
 }
 
+/// Bridge table metadata for an M2M `prefetch_related` relation.
+#[derive(Clone, Debug)]
+pub(crate) struct BridgeSpec {
+    pub(crate) table: String,
+    pub(crate) alias: String,
+    pub(crate) target_pk: String,
+    pub(crate) far_col: String,
+    pub(crate) near_col: String,
+}
+
+/// One 1-level `prefetch_related` relation (M2M or reverse FK).
+#[derive(Clone, Debug)]
+pub(crate) struct PrefetchPlan {
+    pub(crate) name: String,
+    pub(crate) table: String,
+    pub(crate) columns: Vec<String>,
+    pub(crate) soft_delete: Option<String>,
+    pub(crate) order: Vec<(String, bool)>,
+    pub(crate) bridge: Option<BridgeSpec>,
+    pub(crate) filter_column: String,
+    pub(crate) link_column_index: usize,
+    pub(crate) child_plan: RowPlan,
+    pub(crate) max_items: Option<usize>,
+    pub(crate) dialect: Dialect,
+}
+
+impl PrefetchPlan {
+    /// Compile the SQL and bound values for one chunk of owner keys.
+    pub(crate) fn compile_chunk(
+        &self,
+        owners: &[Value],
+    ) -> Result<(String, Vec<Value>), QueryError> {
+        let mut filters = Vec::with_capacity(2);
+        if let Some(col) = &self.soft_delete {
+            filters.push(Filter {
+                column: col.clone(),
+                op: Op::IsNull,
+                values: Vec::new(),
+            });
+        }
+        filters.push(Filter {
+            column: self.filter_column.clone(),
+            op: Op::In,
+            values: owners.to_vec(),
+        });
+        let (joins, limit, linked) = match &self.bridge {
+            Some(bridge) => {
+                let join = Join {
+                    table: bridge.table.clone(),
+                    alias: bridge.alias.clone(),
+                    local: bridge.target_pk.clone(),
+                    remote: bridge.far_col.clone(),
+                    left: false,
+                    columns: vec![bridge.near_col.clone()],
+                    live: None,
+                };
+                let limit = self
+                    .max_items
+                    .map(|m| owners.len().saturating_mul(m).saturating_add(1) as u64);
+                (vec![join], limit, true)
+            }
+            None => (Vec::new(), None, false),
+        };
+        let select = Select {
+            table: self.table.clone(),
+            columns: self.columns.clone(),
+            joins,
+            filters,
+            subfilters: Vec::new(),
+            keyset: None,
+            order: self.order.clone(),
+            limit,
+            offset: None,
+            count: false,
+        };
+        let mut bind_int = Value::Int;
+        if linked {
+            compile_select_linked(&select, self.dialect, &mut bind_int)
+        } else {
+            compile_select_bound(&select, self.dialect, &mut bind_int)
+        }
+    }
+}
+
+/// Raw prefetch input from Python.
+#[derive(FromPyObject)]
+pub(crate) struct RawPrefetch(
+    String,
+    String,
+    Vec<String>,
+    Option<String>,
+    Vec<(String, bool)>,
+    Option<(String, String, String, String, String)>,
+    String,
+    String,
+    Vec<(String, String, String, bool)>,
+    Option<usize>,
+    String,
+);
+
+/// Pre-encoded child JSON arrays per prefetch slot, keyed by parent canonical key.
+pub(crate) type PrefetchedJson = Vec<HashMap<Canon, Vec<u8>>>;
+
+/// Raw child rows per prefetch slot, retained for lazy Python materialization.
+pub(crate) type PrefetchedRows = Vec<(String, Vec<Vec<(String, Value)>>)>;
+
 /// Metadata only: this plan owns no Python objects and is safe in a Tokio task.
 #[derive(Clone, Debug)]
 pub(crate) struct RowPlan {
     columns: Vec<String>,
     fields: Vec<Field>,
     nested: Vec<NestedPlan>,
+    prefetches: Vec<PrefetchPlan>,
     key_index: Option<usize>,
     key_kind: KeyKind,
 }
@@ -98,25 +211,33 @@ pub(crate) enum PageWireResult {
 }
 
 pub(crate) enum ProjectedListResult {
-    Encoded(Vec<u8>, Vec<Vec<(String, Value)>>),
+    Encoded(Vec<u8>, Vec<Vec<(String, Value)>>, PrefetchedRows),
     Fallback(Vec<Vec<(String, Value)>>),
 }
 
 pub(crate) enum ProjectedPageResult {
-    Encoded(Vec<u8>, Vec<Vec<(String, Value)>>, u64),
+    Encoded(Vec<u8>, Vec<Vec<(String, Value)>>, PrefetchedRows, u64),
     Fallback(Vec<Vec<(String, Value)>>, i64),
+}
+
+pub(crate) enum ProjectedOneResult {
+    Encoded(Vec<u8>, Vec<(String, Value)>, PrefetchedRows),
+    Empty,
+    Multiple,
+    Fallback(Vec<Vec<(String, Value)>>),
 }
 
 /// Owned Rust rows together with their pre-encoded compact UTF-8 JSON bytes.
 ///
-/// Returned by `fetch_projected_list` / `fetch_projected_page` so HTTP JSON
-/// responses can emit `json` directly without allocating Python `Model` or
-/// `Schema` instances, while Python attribute/sequence access materializes
-/// from `rows` without issuing a second database query.
+/// Returned by `fetch_projected_list` / `fetch_projected_page` / `fetch_projected_one`
+/// so HTTP JSON responses can emit `json` directly without allocating Python
+/// `Model` or `Schema` instances, while Python attribute/sequence access
+/// materializes from `rows` (and `prefetched`) without issuing a second query.
 #[pyclass(name = "_ProjectedRows", module = "hinoki.core")]
 pub(crate) struct PyProjectedRows {
     pub(crate) json: Vec<u8>,
     rows: Vec<Vec<(String, Value)>>,
+    prefetched: PrefetchedRows,
     pub(crate) page_info: Option<(u64, u64, u64)>,
 }
 
@@ -124,11 +245,13 @@ impl PyProjectedRows {
     pub(crate) fn new(
         json: Vec<u8>,
         rows: Vec<Vec<(String, Value)>>,
+        prefetched: PrefetchedRows,
         page_info: Option<(u64, u64, u64)>,
     ) -> Self {
         Self {
             json,
             rows,
+            prefetched,
             page_info,
         }
     }
@@ -153,6 +276,15 @@ impl PyProjectedRows {
     fn rows<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         crate::db::rows_to_py(py, &self.rows).map(|obj| obj.into_bound(py))
     }
+
+    fn prefetched_rows<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let out = PyDict::new(py);
+        for (name, rows) in &self.prefetched {
+            let py_rows = crate::db::rows_to_py(py, rows)?;
+            out.set_item(name, py_rows)?;
+        }
+        Ok(out)
+    }
 }
 
 #[pyclass(name = "_RowPlan", module = "hinoki.core")]
@@ -160,17 +292,44 @@ pub(crate) struct PyRowPlan {
     pub(crate) inner: Arc<RowPlan>,
 }
 
+fn parse_key_kind(kind: &str) -> PyResult<KeyKind> {
+    match kind {
+        "int" => Ok(KeyKind::Int),
+        "text" | "str" => Ok(KeyKind::Text {
+            max_length: usize::MAX,
+        }),
+        "uuid" => Ok(KeyKind::Uuid),
+        _ => Err(PyValueError::new_err(format!(
+            "unsupported key kind {kind:?}"
+        ))),
+    }
+}
+
 #[pymethods]
 impl PyRowPlan {
     /// `columns` is the complete SQL projection; fields are in Schema order.
     #[new]
-    #[pyo3(signature = (columns, fields, nested=Vec::new()))]
+    #[pyo3(signature = (columns, fields, nested=Vec::new(), prefetches=Vec::new(), key=None))]
     fn new(
         columns: Vec<String>,
         fields: Vec<(String, String, String, bool)>,
         nested: Vec<RawNested>,
+        prefetches: Vec<RawPrefetch>,
+        key: Option<(String, String)>,
     ) -> PyResult<Self> {
-        RowPlan::with_nested(columns, fields, nested).map(|inner| Self {
+        let (key_col, key_kind) = match key {
+            Some((col, kind)) => (Some(col), parse_key_kind(&kind)?),
+            None => (None, KeyKind::Int),
+        };
+        RowPlan::with_relations(
+            columns,
+            fields,
+            nested,
+            prefetches,
+            key_col.as_deref(),
+            key_kind,
+        )
+        .map(|inner| Self {
             inner: Arc::new(inner),
         })
     }
@@ -235,21 +394,90 @@ fn build_nested_plans(
     Ok(map)
 }
 
+fn build_prefetch_plans(raw: Vec<RawPrefetch>) -> PyResult<HashMap<String, PrefetchPlan>> {
+    let mut map = HashMap::with_capacity(raw.len());
+    for entry in raw {
+        let RawPrefetch(
+            name,
+            table,
+            columns,
+            soft_delete,
+            order,
+            bridge,
+            filter_column,
+            link_column,
+            fields,
+            max_items,
+            dialect_str,
+        ) = entry;
+        let dialect = crate::query::parse_dialect(&dialect_str)?;
+        let bridge = bridge.map(|(t, alias, target_pk, far_col, near_col)| BridgeSpec {
+            table: t,
+            alias,
+            target_pk,
+            far_col,
+            near_col,
+        });
+        let mut sql_columns = columns.clone();
+        if bridge.is_some() {
+            sql_columns.push(link_column.clone());
+        }
+        let link_column_index = column_position(&sql_columns, &link_column)?;
+        let child_plan = RowPlan::build(
+            sql_columns,
+            fields,
+            Vec::new(),
+            Vec::new(),
+            None,
+            KeyKind::Int,
+        )?;
+        map.insert(
+            name.clone(),
+            PrefetchPlan {
+                name,
+                table,
+                columns,
+                soft_delete,
+                order,
+                bridge,
+                filter_column,
+                link_column_index,
+                child_plan,
+                max_items,
+                dialect,
+            },
+        );
+    }
+    Ok(map)
+}
+
 impl RowPlan {
     #[cfg(test)]
     pub(crate) fn new(
         columns: Vec<String>,
         fields: Vec<(String, String, String, bool)>,
     ) -> PyResult<Self> {
-        Self::build(columns, fields, Vec::new(), None, KeyKind::Int)
+        Self::build(columns, fields, Vec::new(), Vec::new(), None, KeyKind::Int)
     }
 
+    #[cfg(test)]
     pub(crate) fn with_nested(
         columns: Vec<String>,
         fields: Vec<(String, String, String, bool)>,
         nested: Vec<RawNested>,
     ) -> PyResult<Self> {
-        Self::build(columns, fields, nested, None, KeyKind::Int)
+        Self::build(columns, fields, nested, Vec::new(), None, KeyKind::Int)
+    }
+
+    pub(crate) fn with_relations(
+        columns: Vec<String>,
+        fields: Vec<(String, String, String, bool)>,
+        nested: Vec<RawNested>,
+        prefetches: Vec<RawPrefetch>,
+        key_column: Option<&str>,
+        key_kind: KeyKind,
+    ) -> PyResult<Self> {
+        Self::build(columns, fields, nested, prefetches, key_column, key_kind)
     }
 
     /// A plan whose `ids` fields are filled from [`RowIds`], keyed by the
@@ -259,13 +487,21 @@ impl RowPlan {
         fields: Vec<(String, String, String, bool)>,
         (key_column, key_kind): (&str, KeyKind),
     ) -> PyResult<Self> {
-        Self::build(columns, fields, Vec::new(), Some(key_column), key_kind)
+        Self::build(
+            columns,
+            fields,
+            Vec::new(),
+            Vec::new(),
+            Some(key_column),
+            key_kind,
+        )
     }
 
     fn build(
         columns: Vec<String>,
         fields: Vec<(String, String, String, bool)>,
         raw_nested: Vec<RawNested>,
+        raw_prefetches: Vec<RawPrefetch>,
         key_column: Option<&str>,
         key_kind: KeyKind,
     ) -> PyResult<Self> {
@@ -274,8 +510,10 @@ impl RowPlan {
             .map(|key| column_position(&columns, key))
             .transpose()?;
         let mut nested_map = build_nested_plans(&columns, raw_nested)?;
+        let mut prefetch_map = build_prefetch_plans(raw_prefetches)?;
         let mut planned = Vec::with_capacity(fields.len());
         let mut nested = Vec::new();
+        let mut prefetches = Vec::new();
         let mut wire_names = HashSet::with_capacity(fields.len());
         let mut ids_slots = 0;
         for (name, wire_name, kind, nullable) in fields {
@@ -289,8 +527,8 @@ impl RowPlan {
                 kind,
                 key_index,
                 &mut ids_slots,
-                &mut nested_map,
-                &mut nested,
+                (&mut nested_map, &mut nested),
+                (&mut prefetch_map, &mut prefetches),
             )?;
             planned.push(Field {
                 column_index,
@@ -305,6 +543,7 @@ impl RowPlan {
             columns,
             fields: planned,
             nested,
+            prefetches,
             key_index,
             key_kind,
         })
@@ -319,9 +558,32 @@ impl RowPlan {
             .collect()
     }
 
-    /// The key of `row`, as the ids maps are keyed.
+    pub(crate) fn prefetches(&self) -> &[PrefetchPlan] {
+        &self.prefetches
+    }
+
+    pub(crate) fn key_kind(&self) -> KeyKind {
+        self.key_kind
+    }
+
+    /// The key of `row`, as the ids/prefetch maps are keyed.
     pub(crate) fn key_of(&self, row: &[(String, Value)]) -> Option<Canon> {
         self.key_kind.read(&row.get(self.key_index?)?.1)
+    }
+
+    /// Unique parent keys in row order, ready to bind into `IN (...)` prefetch queries.
+    pub(crate) fn owner_values(&self, rows: &[Vec<(String, Value)>]) -> Option<Vec<Value>> {
+        let key_index = self.key_index?;
+        let mut seen = HashSet::with_capacity(rows.len());
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let val = &row.get(key_index)?.1;
+            let canon = self.key_kind.read(val)?;
+            if seen.insert(canon) {
+                out.push(val.clone());
+            }
+        }
+        Some(out)
     }
 }
 
@@ -331,8 +593,8 @@ fn resolve_field_slot(
     kind: Kind,
     key_index: Option<usize>,
     ids_slots: &mut usize,
-    nested_map: &mut HashMap<String, NestedPlan>,
-    nested: &mut Vec<NestedPlan>,
+    nested_state: (&mut HashMap<String, NestedPlan>, &mut Vec<NestedPlan>),
+    prefetch_state: (&mut HashMap<String, PrefetchPlan>, &mut Vec<PrefetchPlan>),
 ) -> PyResult<(usize, usize)> {
     match kind {
         Kind::Ids => {
@@ -344,25 +606,74 @@ fn resolve_field_slot(
             Ok((usize::MAX, slot))
         }
         Kind::Nested => {
-            let plan = nested_map
+            let plan = nested_state
+                .0
                 .remove(name)
                 .ok_or_else(|| PyValueError::new_err(format!("missing nested plan {name:?}")))?;
-            let slot = nested.len();
-            nested.push(plan);
+            let slot = nested_state.1.len();
+            nested_state.1.push(plan);
+            Ok((usize::MAX, slot))
+        }
+        Kind::Prefetch => {
+            if key_index.is_none() {
+                return Err(PyValueError::new_err("a prefetch field needs a row key"));
+            }
+            let plan = prefetch_state
+                .0
+                .remove(name)
+                .ok_or_else(|| PyValueError::new_err(format!("missing prefetch plan {name:?}")))?;
+            let slot = prefetch_state.1.len();
+            prefetch_state.1.push(plan);
             Ok((usize::MAX, slot))
         }
         _ => Ok((column_position(columns, name)?, 0)),
     }
 }
 
+/// Group child rows by parent key and pre-encode each child as compact JSON.
+/// Returns `None` on column/value mismatch or M2M `max_items` overflow.
+pub(crate) fn group_prefetch_rows(
+    prefetch: &PrefetchPlan,
+    key_kind: KeyKind,
+    rows: &[Vec<(String, Value)>],
+) -> Option<HashMap<Canon, Vec<u8>>> {
+    let mut grouped: HashMap<Canon, Vec<u8>> = HashMap::new();
+    let mut counts: HashMap<Canon, usize> = HashMap::new();
+    for row in rows {
+        let owner = key_kind.read(&row.get(prefetch.link_column_index)?.1)?;
+        if let Some(limit) = prefetch.max_items {
+            let count = counts.entry(owner.clone()).or_insert(0);
+            *count += 1;
+            if *count > limit {
+                return None;
+            }
+        }
+        let buf = grouped.entry(owner).or_default();
+        if !buf.is_empty() {
+            buf.push(b',');
+        }
+        write_row(buf, row, &prefetch.child_plan, &RowIds::default(), &[])?;
+    }
+    Some(grouped)
+}
+
+#[cfg(test)]
 pub(crate) fn encode_list(rows: &[Vec<(String, Value)>], plan: &RowPlan) -> Option<Vec<u8>> {
+    encode_list_with(rows, plan, &[])
+}
+
+pub(crate) fn encode_list_with(
+    rows: &[Vec<(String, Value)>],
+    plan: &RowPlan,
+    prefetched: &[HashMap<Canon, Vec<u8>>],
+) -> Option<Vec<u8>> {
     let mut output = Vec::with_capacity(rows.len().saturating_mul(64) + 2);
     output.push(b'[');
     for (index, row) in rows.iter().enumerate() {
         if index > 0 {
             output.push(b',');
         }
-        write_row(&mut output, row, plan, &RowIds::default())?;
+        write_row(&mut output, row, plan, &RowIds::default(), prefetched)?;
     }
     output.push(b']');
     Some(output)
@@ -375,13 +686,38 @@ pub(crate) fn encode_page(
     page_size: u64,
     total: u64,
 ) -> Option<Vec<u8>> {
-    encode_page_with(rows, plan, &RowIds::default(), (page, page_size, total))
+    encode_page_full(
+        rows,
+        plan,
+        &RowIds::default(),
+        &[],
+        (page, page_size, total),
+    )
 }
 
 pub(crate) fn encode_page_with(
     rows: &[Vec<(String, Value)>],
     plan: &RowPlan,
     ids: &RowIds,
+    page_info: (u64, u64, u64),
+) -> Option<Vec<u8>> {
+    encode_page_full(rows, plan, ids, &[], page_info)
+}
+
+pub(crate) fn encode_page_with_prefetches(
+    rows: &[Vec<(String, Value)>],
+    plan: &RowPlan,
+    prefetched: &[HashMap<Canon, Vec<u8>>],
+    page_info: (u64, u64, u64),
+) -> Option<Vec<u8>> {
+    encode_page_full(rows, plan, &RowIds::default(), prefetched, page_info)
+}
+
+fn encode_page_full(
+    rows: &[Vec<(String, Value)>],
+    plan: &RowPlan,
+    ids: &RowIds,
+    prefetched: &[HashMap<Canon, Vec<u8>>],
     (page, page_size, total): (u64, u64, u64),
 ) -> Option<Vec<u8>> {
     if page == 0 || page_size == 0 {
@@ -395,7 +731,7 @@ pub(crate) fn encode_page_with(
         if index > 0 {
             output.push(b',');
         }
-        write_row(&mut output, row, plan, ids)?;
+        write_row(&mut output, row, plan, ids, prefetched)?;
     }
     output.extend_from_slice(b"],\"page\":");
     write_number(&mut output, page)?;
@@ -426,7 +762,7 @@ pub(crate) fn encode_cursor_page(
         if index > 0 {
             output.push(b',');
         }
-        write_row(&mut output, row, plan, &RowIds::default())?;
+        write_row(&mut output, row, plan, &RowIds::default(), &[])?;
     }
     output.extend_from_slice(b"],\"next\":");
     write_link(&mut output, links.next.as_deref());
@@ -456,7 +792,17 @@ pub(crate) fn encode_item_with(
     ids: &RowIds,
 ) -> Option<Vec<u8>> {
     let mut output = Vec::new();
-    write_row(&mut output, row, plan, ids)?;
+    write_row(&mut output, row, plan, ids, &[])?;
+    Some(output)
+}
+
+pub(crate) fn encode_item_with_prefetches(
+    row: &[(String, Value)],
+    plan: &RowPlan,
+    prefetched: &[HashMap<Canon, Vec<u8>>],
+) -> Option<Vec<u8>> {
+    let mut output = Vec::new();
+    write_row(&mut output, row, plan, &RowIds::default(), prefetched)?;
     Some(output)
 }
 
@@ -465,6 +811,7 @@ fn write_row(
     row: &[(String, Value)],
     plan: &RowPlan,
     ids: &RowIds,
+    prefetched: &[HashMap<Canon, Vec<u8>>],
 ) -> Option<()> {
     validate_columns(row, &plan.columns)?;
     output.push(b'{');
@@ -478,11 +825,23 @@ fn write_row(
             Kind::Nested => {
                 write_nested(output, row, plan.nested.get(field.slot)?, field.nullable)?
             }
+            Kind::Prefetch => {
+                let slot = prefetched.get(field.slot)?;
+                write_prefetch(output, slot.get(&plan.key_of(row)?));
+            }
             _ => write_value(output, &row[field.column_index].1, field)?,
         }
     }
     output.push(b'}');
     Some(())
+}
+
+fn write_prefetch(output: &mut Vec<u8>, items: Option<&Vec<u8>>) {
+    output.push(b'[');
+    if let Some(bytes) = items {
+        output.extend_from_slice(bytes);
+    }
+    output.push(b']');
 }
 
 fn write_nested(
@@ -950,5 +1309,87 @@ mod tests {
             br#"[{"id":1,"title":"First","writer":{"id":10,"name":"Ada"}},{"id":2,"title":"Draft","writer":null}]"#
         );
         assert!(super::encode_list(&[dangling], &plan).is_none());
+    }
+
+    #[test]
+    fn encodes_prefetched_children_and_enforces_max_items() {
+        use hinoki_orm::links::KeyKind;
+
+        let plan = RowPlan::with_relations(
+            vec!["id".into(), "title".into()],
+            vec![
+                ("id".into(), "id".into(), "int".into(), false),
+                ("title".into(), "title".into(), "str".into(), false),
+                ("tags".into(), "tags".into(), "prefetch".into(), false),
+            ],
+            vec![],
+            vec![super::RawPrefetch(
+                "tags".into(),
+                "tags".into(),
+                vec!["id".into(), "label".into()],
+                None,
+                vec![("id".into(), false)],
+                Some((
+                    "article_tags".into(),
+                    "hinoki_link".into(),
+                    "id".into(),
+                    "tag_id".into(),
+                    "article_id".into(),
+                )),
+                "hinoki_link.article_id".into(),
+                "hinoki_link__0".into(),
+                vec![
+                    ("id".into(), "id".into(), "int".into(), false),
+                    ("label".into(), "label".into(), "str".into(), false),
+                ],
+                Some(2),
+                "sqlite".into(),
+            )],
+            Some("id"),
+            KeyKind::Int,
+        )
+        .unwrap();
+
+        let parent1 = vec![
+            ("id".into(), Value::Int(1)),
+            ("title".into(), Value::Text("First".into())),
+        ];
+        let parent2 = vec![
+            ("id".into(), Value::Int(2)),
+            ("title".into(), Value::Text("Empty".into())),
+        ];
+        let tag_row = |owner: i64, id: i64, label: &str| {
+            vec![
+                ("id".into(), Value::Int(id)),
+                ("label".into(), Value::Text(label.into())),
+                ("hinoki_link__0".into(), Value::Int(owner)),
+            ]
+        };
+
+        let child_rows = vec![tag_row(1, 10, "rust"), tag_row(1, 11, "perf")];
+        let grouped =
+            super::group_prefetch_rows(&plan.prefetches[0], KeyKind::Int, &child_rows).unwrap();
+        let encoded_list = super::encode_list_with(
+            &[parent1.clone(), parent2],
+            &plan,
+            std::slice::from_ref(&grouped),
+        )
+        .unwrap();
+        assert_eq!(
+            encoded_list,
+            br#"[{"id":1,"title":"First","tags":[{"id":10,"label":"rust"},{"id":11,"label":"perf"}]},{"id":2,"title":"Empty","tags":[]}]"#
+        );
+        assert_eq!(
+            super::encode_item_with_prefetches(&parent1, &plan, &[grouped]).unwrap(),
+            br#"{"id":1,"title":"First","tags":[{"id":10,"label":"rust"},{"id":11,"label":"perf"}]}"#
+        );
+
+        let too_many = vec![
+            tag_row(1, 10, "a"),
+            tag_row(1, 11, "b"),
+            tag_row(1, 12, "c"),
+        ];
+        let overflow = super::group_prefetch_rows(&plan.prefetches[0], KeyKind::Int, &too_many);
+        assert!(overflow.is_none());
     }
 }

@@ -6,12 +6,15 @@ import copy
 import dataclasses
 import inspect
 import types
+import weakref
 from collections.abc import Callable, Iterable, Iterator
 from typing import TYPE_CHECKING, Any, SupportsIndex, cast, overload
 
 from hinoki import core
+from hinoki.errors import MultipleObjectsReturned
+from hinoki.orm.links import LinkSide
 from hinoki.orm.model import Model
-from hinoki.orm.relations import ALIAS_PREFIX
+from hinoki.orm.relations import ALIAS_PREFIX, store
 from hinoki.pagination import Page, PageParams
 from hinoki.schema import Schema, SchemaMeta, uses_generated_init
 
@@ -21,7 +24,19 @@ if TYPE_CHECKING:
 ROW_KINDS = frozenset(
     {"str", "int", "float", "bool", "uuid", "datetime", "bytes", "decimal", "date"}
 )
+KEY_KINDS = frozenset({"int", "str", "uuid"})
 SEPARATOR = "__"
+
+type _PlanKey = tuple[
+    type[Model],
+    tuple[str, ...],
+    tuple[str, ...],
+    str,
+    tuple[str, ...],
+]
+_PLAN_CACHE: weakref.WeakKeyDictionary[
+    type[Schema], dict[_PlanKey, core._RowPlan | None]
+] = weakref.WeakKeyDictionary()
 
 
 class _ProjectedList[S: Schema](list[S]):
@@ -282,6 +297,80 @@ class _ProjectedPage[S: Schema](Page[S]):
         )
 
 
+_ITEM_SLOTS = frozenset(
+    {"_materialize_fn", "_materialized", "_projected_handle", "_schema"}
+)
+
+
+class _ProjectedItem[S: Schema]:
+    """A single ``S`` backed by an owned Rust row and pre-encoded JSON bytes.
+
+    Compact JSON encoding and ``validate_response=True`` read
+    ``_projected_handle`` / ``_schema`` in O(1) without allocating a Python
+    ``Model`` or ``Schema``. Any attribute read, method call or mutation
+    materializes the ``Schema`` once from the owned Rust rows (no second DB
+    query) and drops ``_projected_handle`` so mutations stay consistent.
+    """
+
+    __slots__ = ("_materialize_fn", "_materialized", "_projected_handle", "_schema")
+
+    _projected_handle: core._ProjectedRows | None
+    _schema: type[S]
+    _materialize_fn: Callable[[core._ProjectedRows], S]
+    _materialized: S | None
+
+    def __init__(
+        self,
+        handle: core._ProjectedRows,
+        schema: type[S],
+        materialize: Callable[[core._ProjectedRows], S],
+    ) -> None:
+        object.__setattr__(self, "_projected_handle", handle)
+        object.__setattr__(self, "_schema", schema)
+        object.__setattr__(self, "_materialize_fn", materialize)
+        object.__setattr__(self, "_materialized", None)
+
+    def _ensure(self) -> S:
+        if self._materialized is not None:
+            return self._materialized
+        handle = self._projected_handle
+        if handle is None:
+            raise RuntimeError("projected item has no backing row")
+        built = self._materialize_fn(handle)
+        object.__setattr__(self, "_materialized", built)
+        object.__setattr__(self, "_projected_handle", None)
+        return built
+
+    @property  # type: ignore[misc]
+    def __class__(self) -> type[S]:  # type: ignore[override]
+        return self._schema
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._ensure(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in _ITEM_SLOTS:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._ensure(), name, value)
+
+    def __hash__(self) -> int:
+        return hash(self._ensure())
+
+    def __eq__(self, other: object) -> bool:
+        target = other._ensure() if isinstance(other, _ProjectedItem) else other
+        return bool(self._ensure() == target)
+
+    def __repr__(self) -> str:
+        return repr(self._ensure())
+
+    def __copy__(self) -> S:
+        return copy.copy(self._ensure())
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> S:
+        return copy.deepcopy(self._ensure(), memo)
+
+
 def _plain_descriptor(owner: type, name: str) -> bool:
     descriptor = inspect.getattr_static(owner, name, None)
     return (
@@ -427,6 +516,147 @@ def _nested_plan(
     return (name, relation.column, key_col, sub_fields)
 
 
+def _scalar_fields(
+    schema: type[Schema], model: type[Model]
+) -> list[tuple[str, str, str, bool]] | None:
+    columns = set(model.__columns__)
+    model_types = model.__field_types__
+    out: list[tuple[str, str, str, bool]] = []
+    for sub_name, sub_spec in schema.specs().items():
+        if not _scalar_field_ok(sub_name, sub_spec.ftype, columns, model_types):
+            return None
+        out.append(
+            (sub_name, sub_spec.wire_name, sub_spec.ftype.kind, sub_spec.ftype.nullable)
+        )
+    return out
+
+
+def _ordering_pairs(model: type[Model]) -> list[tuple[str, bool]]:
+    return [(col.removeprefix("-"), col.startswith("-")) for col in model.__ordering__]
+
+
+def _sqlite_decimal_ordered(model: type[Model], dialect: str) -> bool:
+    if dialect != "sqlite":
+        return False
+    types_map = model.__field_types__
+    return any(types_map[col].kind == "decimal" for col, _ in _ordering_pairs(model))
+
+
+def _prefetch_item_schema(spec: Any) -> type[Schema] | None:
+    ftype = spec.ftype
+    item = ftype.item
+    if (
+        ftype.kind != "list"
+        or item is None
+        or item.schema is None
+        or ftype.allows_unset
+        or ftype.info.constraints()
+        or ftype.discriminator is not None
+        or ftype.variants
+        or item.nullable
+        or item.allows_unset
+        or item.info.constraints()
+        or item.item is not None
+        or item.discriminator is not None
+        or item.variants
+    ):
+        return None
+    return cast("type[Schema]", item.schema)
+
+
+def _m2m_prefetch_plan(
+    model: type[Model],
+    name: str,
+    item_schema: type[Schema],
+    dialect: str,
+) -> core.RawPrefetchPlan | None:
+    side = model.__links__[name]
+    if not isinstance(side, LinkSide):
+        return None
+    target = side.target
+    if (
+        not _is_plain_model(target)
+        or not _is_plain_schema(item_schema)
+        or _sqlite_decimal_ordered(target, dialect)
+    ):
+        return None
+    sub_fields = _scalar_fields(item_schema, target)
+    if sub_fields is None:
+        return None
+    order = _ordering_pairs(target)
+    target_pk = target.__primary_key__
+    if not any(col == target_pk for col, _ in order):
+        order.append((target_pk, False))
+    table_alias = side.bridge_alias(side.base_query(None))
+    bridge: core.RawBridgeSpec = (
+        side.bridge.__table__,
+        table_alias,
+        target_pk,
+        side.far,
+        side.near,
+    )
+    return (
+        name,
+        target.__table__,
+        list(target.__columns__),
+        target.__soft_delete__,
+        order,
+        bridge,
+        f"{table_alias}.{side.near}",
+        f"{table_alias}__0",
+        sub_fields,
+        side.max_items,
+        dialect,
+    )
+
+
+def _reverse_fk_prefetch_plan(
+    query: QuerySet[Any],
+    name: str,
+    item_schema: type[Schema],
+    dialect: str,
+) -> core.RawPrefetchPlan | None:
+    relation = query.relation(name)
+    if relation.forward or relation.one_to_one:
+        return None
+    target = relation.model
+    if (
+        not _is_plain_model(target)
+        or not _is_plain_schema(item_schema)
+        or _sqlite_decimal_ordered(target, dialect)
+    ):
+        return None
+    sub_fields = _scalar_fields(item_schema, target)
+    if sub_fields is None:
+        return None
+    return (
+        name,
+        target.__table__,
+        list(target.__columns__),
+        target.__soft_delete__,
+        _ordering_pairs(target),
+        None,
+        relation.column,
+        relation.column,
+        sub_fields,
+        None,
+        dialect,
+    )
+
+
+def _prefetch_plan(
+    query: QuerySet[Any], name: str, spec: Any, dialect: str
+) -> core.RawPrefetchPlan | None:
+    if name not in query.loading.prefetched:
+        return None
+    item_schema = _prefetch_item_schema(spec)
+    if item_schema is None:
+        return None
+    if name in query.model.__links__:
+        return _m2m_prefetch_plan(query.model, name, item_schema, dialect)
+    return _reverse_fk_prefetch_plan(query, name, item_schema, dialect)
+
+
 def _sql_columns(query: QuerySet[Any]) -> list[str]:
     columns = list(query.model.__columns__)
     for rel_name in query.loading.selected:
@@ -438,41 +668,152 @@ def _sql_columns(query: QuerySet[Any]) -> list[str]:
     return columns
 
 
-def compile_projection_plan(
-    query: QuerySet[Any], schema: type[Schema]
+def _compile_schema_field(
+    query: QuerySet[Any],
+    name: str,
+    spec: Any,
+    dialect: str,
+    nested: list[core.RawNestedPlan],
+    prefetches: list[core.RawPrefetchPlan],
+) -> tuple[str, str, str, bool] | None:
+    field: tuple[str, str, str, bool] | None = None
+    if spec.ftype.schema is not None:
+        entry = _nested_plan(query, name, spec)
+        if entry is not None:
+            nested.append(entry)
+            field = (name, spec.wire_name, "nested", spec.ftype.nullable)
+    elif spec.ftype.kind == "list" and name in query.loading.prefetched:
+        pf = _prefetch_plan(query, name, spec, dialect)
+        if pf is not None:
+            prefetches.append(pf)
+            field = (name, spec.wire_name, "prefetch", spec.ftype.nullable)
+    elif _scalar_field_ok(
+        name, spec.ftype, set(query.model.__columns__), query.model.__field_types__
+    ):
+        field = (name, spec.wire_name, spec.ftype.kind, spec.ftype.nullable)
+    return field
+
+
+def _plan_key_spec(
+    model: type[Model], prefetches: list[core.RawPrefetchPlan]
+) -> tuple[str, str] | None:
+    if not prefetches:
+        return None
+    pk_col = model.__primary_key__
+    pk_kind = model.__field_types__[pk_col].kind
+    return (pk_col, pk_kind) if pk_kind in KEY_KINDS else None
+
+
+def _build_projection_plan(
+    query: QuerySet[Any], schema: type[Schema], dialect: str
 ) -> core._RowPlan | None:
-    """Build a Rust ``_RowPlan`` for ``(query, schema)``, or ``None`` to fall
-    back to normal Python model hydration + ``schema.from_model``."""
     model = query.model
-    if (
-        not query.uses_stock_builders()
-        or query.loading.prefetched
-        or not _is_plain_model(model)
-        or not _is_plain_schema(schema)
+    if not _is_plain_model(model) or not _is_plain_schema(schema):
+        return None
+    fields: list[tuple[str, str, str, bool]] = []
+    nested: list[core.RawNestedPlan] = []
+    prefetches: list[core.RawPrefetchPlan] = []
+    for name, spec in schema.specs().items():
+        field = _compile_schema_field(query, name, spec, dialect, nested, prefetches)
+        if field is None:
+            return None
+        fields.append(field)
+    key_spec = _plan_key_spec(model, prefetches)
+    if len(prefetches) != len(query.loading.prefetched) or (
+        prefetches and key_spec is None
     ):
         return None
-    columns = set(model.__columns__)
-    model_types = model.__field_types__
-    fields: list[tuple[str, str, str, bool]] = []
-    nested: list[tuple[str, str, str, list[tuple[str, str, str, bool]]]] = []
-    for name, spec in schema.specs().items():
-        if spec.ftype.schema is not None:
-            entry = _nested_plan(query, name, spec)
-            if entry is None:
-                return None
-            nested.append(entry)
-            fields.append((name, spec.wire_name, "nested", spec.ftype.nullable))
-        elif _scalar_field_ok(name, spec.ftype, columns, model_types):
-            fields.append((name, spec.wire_name, spec.ftype.kind, spec.ftype.nullable))
-        else:
-            return None
-    return core._RowPlan(_sql_columns(query), fields, nested)
+    return core._RowPlan(_sql_columns(query), fields, nested, prefetches, key_spec)
+
+
+_STOCK_FROM_ROW = getattr(Model.from_row, "__func__", None)
+
+
+def compile_projection_plan(
+    query: QuerySet[Any], schema: type[Schema], dialect: str = "sqlite"
+) -> core._RowPlan | None:
+    """Build or fetch a cached Rust ``_RowPlan`` for ``(query, schema)``, or
+    ``None`` to fall back to normal Python model hydration."""
+    if (
+        not query.uses_stock_builders()
+        or query.loading.scoped
+        or getattr(query.model.from_row, "__func__", None) is not _STOCK_FROM_ROW
+    ):
+        return None
+    computed_key = tuple(schema.__computed_specs__)
+    cache_key: _PlanKey = (
+        query.model,
+        query.loading.selected,
+        query.loading.prefetched,
+        dialect,
+        computed_key,
+    )
+    per_schema = _PLAN_CACHE.get(schema)
+    if per_schema is not None and cache_key in per_schema:
+        return per_schema[cache_key]
+    plan = _build_projection_plan(query, schema, dialect)
+    if per_schema is None:
+        per_schema = {}
+        _PLAN_CACHE[schema] = per_schema
+    per_schema[cache_key] = plan
+    return plan
+
+
+def _attach_m2m_rows(
+    instances: list[Any], model: type[Model], name: str, raw_rows: list[dict[str, Any]]
+) -> None:
+    side = model.__links__[name]
+    if not isinstance(side, LinkSide):
+        return
+    target = side.target
+    target_pk = target.__primary_key__
+    owner_pk = model.__primary_key__
+    link_col = f"{side.bridge_alias(side.base_query(None))}__0"
+    groups: dict[str, list[Any]] = {}
+    targets: dict[str, Any] = {}
+    for row in raw_rows:
+        owner_key = str(row[link_col])
+        own = {col: row[col] for col in target.__columns__}
+        item = target.from_row(own)
+        target_key = str(getattr(item, target_pk))
+        existing = targets.setdefault(target_key, item)
+        groups.setdefault(owner_key, []).append(existing)
+    for instance in instances:
+        found = tuple(groups.get(str(getattr(instance, owner_pk)), ()))
+        ids = tuple(getattr(item, target_pk) for item in found)
+        store(instance, name, (found, ids))
+
+
+def _attach_reverse_fk_rows(
+    query: QuerySet[Any],
+    instances: list[Any],
+    name: str,
+    raw_rows: list[dict[str, Any]],
+) -> None:
+    relation = query.relation(name)
+    target = relation.model
+    owner_pk = query.model.__primary_key__
+    groups: dict[Any, list[Any]] = {}
+    for row in raw_rows:
+        item = target.from_row(row)
+        groups.setdefault(getattr(item, relation.column), []).append(item)
+    for instance in instances:
+        store(instance, name, groups.get(getattr(instance, owner_pk), []))
 
 
 def _materialize_rows[S: Schema](
     query: QuerySet[Any], schema: type[S], handle: core._ProjectedRows
 ) -> list[S]:
-    return [schema.from_model(query.build(row)) for row in handle.rows()]
+    instances = [query.build(row) for row in handle.rows()]
+    prefetched = handle.prefetched_rows()
+    if prefetched:
+        model = query.model
+        for name, raw_rows in prefetched.items():
+            if name in model.__links__:
+                _attach_m2m_rows(instances, model, name, raw_rows)
+            else:
+                _attach_reverse_fk_rows(query, instances, name, raw_rows)
+    return [schema.from_model(inst) for inst in instances]
 
 
 async def project_list[S: Schema](
@@ -480,7 +821,7 @@ async def project_list[S: Schema](
 ) -> list[S]:
     """Execute ``query`` and project rows directly to ``schema`` in Rust when
     eligible, falling back cleanly to ``Model -> schema.from_model``."""
-    plan = compile_projection_plan(query, schema)
+    plan = compile_projection_plan(query, schema, database.dialect)
     fetch_projected = getattr(database, "fetch_projected_list", None)
     if plan is not None and fetch_projected is not None:
         sql, params = query.compile(dialect=database.dialect)
@@ -497,6 +838,53 @@ async def project_list[S: Schema](
     return [schema.from_model(item) for item in models]
 
 
+async def project_one[S: Schema](
+    query: QuerySet[Any],
+    schema: type[S],
+    database: Any,
+    *,
+    allow_none: bool = False,
+) -> S | None:
+    """Execute ``query.limit(2)`` and project the single row directly to
+    ``schema`` in Rust when eligible, returning a lazy ``_ProjectedItem``."""
+    window = query.limit(2)
+    plan = compile_projection_plan(window, schema, database.dialect)
+    fetch_one = getattr(database, "fetch_projected_one", None)
+    if plan is not None and fetch_one is not None:
+        sql, params = window.compile(dialect=database.dialect)
+        result = await fetch_one(sql, list(params), plan)
+        if result is None:
+            if allow_none:
+                return None
+            raise query.model.NotFound(f"{query.model.__name__} not found")
+        if result == "multiple":
+            raise MultipleObjectsReturned(f"{query.model.__name__}: several rows match")
+        if isinstance(result, core._ProjectedRows):
+            return cast(
+                "S",
+                _ProjectedItem(
+                    result,
+                    schema,
+                    lambda handle: _materialize_rows(window, schema, handle)[0],
+                ),
+            )
+        models = await window._hydrate(result)
+        return schema.from_model(models[0])
+    return await _project_one_fallback(query, schema, allow_none=allow_none)
+
+
+async def _project_one_fallback[S: Schema](
+    query: QuerySet[Any], schema: type[S], *, allow_none: bool
+) -> S | None:
+    if allow_none:
+        try:
+            instance = await query.aget()
+        except query.model.NotFound:  # NOSONAR
+            return None
+        return schema.from_model(instance)
+    return schema.from_model(await query.aget())
+
+
 async def paginate_projected[S: Schema](
     query: QuerySet[Any],
     schema: type[S],
@@ -509,7 +897,7 @@ async def paginate_projected[S: Schema](
     in Rust when eligible, falling back cleanly to normal pagination."""
     ordered = query.stably_ordered()
     window = ordered.limit(params.page_size).offset(params.offset)
-    plan = compile_projection_plan(window, schema)
+    plan = compile_projection_plan(window, schema, database.dialect)
     fetch_projected_page = getattr(database, "fetch_projected_page", None)
     if plan is not None and fetch_projected_page is not None:
         rows_sql, rows_params = window.compile(dialect=database.dialect)

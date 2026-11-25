@@ -102,6 +102,20 @@ class ModelPlan:
     def build(self, row: Any, extra: dict[str, Any] | None = None) -> Any: ...
 
 type RawNestedPlan = tuple[str, str, str, list[tuple[str, str, str, bool]]]
+type RawBridgeSpec = tuple[str, str, str, str, str]
+type RawPrefetchPlan = tuple[
+    str,
+    str,
+    list[str],
+    str | None,
+    list[tuple[str, bool]],
+    RawBridgeSpec | None,
+    str,
+    str,
+    list[tuple[str, str, str, bool]],
+    int | None,
+    str,
+]
 
 class _RowPlan:
     def __init__(
@@ -109,6 +123,8 @@ class _RowPlan:
         columns: list[str],
         fields: list[tuple[str, str, str, bool]],
         nested: list[RawNestedPlan] = ...,
+        prefetches: list[RawPrefetchPlan] = ...,
+        key: tuple[str, str] | None = ...,
     ) -> None: ...
 
 class _ProjectedRows:
@@ -118,6 +134,7 @@ class _ProjectedRows:
     def page_info(self) -> tuple[int, int, int] | None: ...
     def json_bytes(self) -> bytes: ...
     def rows(self) -> list[Row]: ...
+    def prefetched_rows(self) -> dict[str, list[Row]]: ...
 
 class _FilterPlan:
     """The declared client filters of one ``FilterSet``: checks a query string
@@ -384,6 +401,12 @@ class Transaction:
         params: list[Param],
         plan: _RowPlan,
     ) -> _ProjectedRows | list[Row]: ...
+    async def fetch_projected_one(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+    ) -> _ProjectedRows | list[Row] | str | None: ...
     async def fetch_projected_page(
         self,
         rows_sql: str,
@@ -456,6 +479,12 @@ class Database:
         params: list[Param],
         plan: _RowPlan,
     ) -> _ProjectedRows | list[Row]: ...
+    async def fetch_projected_one(
+        self,
+        sql: str,
+        params: list[Param],
+        plan: _RowPlan,
+    ) -> _ProjectedRows | list[Row] | str | None: ...
     async def fetch_projected_page(
         self,
         rows_sql: str,
