@@ -45,6 +45,7 @@ from hinoki.orm.projection import (
 )
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.runtime.kiso import KisoWorker
+from hinoki.runtime.pipeline import project_response
 from hinoki.runtime.responsecheck import compile_response_check
 from hinoki.schema import object_check
 from hinoki.testing import ASGIClient
@@ -898,3 +899,34 @@ def test_projection_plan_cache_invalidates_on_hooks_and_avoids_model_retention(
     assert ref() is None
     assert LongLivedOut in _PLAN_CACHE
     assert len(_PLAN_CACHE[LongLivedOut]) == 0
+
+
+async def test_project_response_keeps_projected_item_unmaterialized(
+    db: Database,
+) -> None:
+    class ArticleSlimOut(Schema):
+        id: int
+        title: str
+
+    class ArticleFullSubOut(ArticleSlimOut):
+        views: int
+
+    with use_database(db):
+        item = await ProjArticle.filter(title="First").aget_as(ArticleSlimOut)
+        assert isinstance(item, _ProjectedItem)
+        assert item._projected_handle is not None
+        assert item._materialized is None
+
+        # Exact schema match preserves the lazy _ProjectedItem without materializing
+        kept = project_response(ArticleSlimOut, item)
+        assert kept is item
+        assert item._projected_handle is not None
+        assert item._materialized is None
+
+        # Subclass schema still strips subclass-only fields via dump(include=...)
+        sub_item = await ProjArticle.filter(title="First").aget_as(ArticleFullSubOut)
+        assert isinstance(sub_item, _ProjectedItem)
+        stripped = project_response(ArticleSlimOut, sub_item)
+        assert isinstance(stripped, dict)
+        assert set(stripped) == {"id", "title"}
+        assert "views" not in stripped
