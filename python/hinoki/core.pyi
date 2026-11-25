@@ -33,6 +33,8 @@ class _ResponseObjectList:
 class _ResponseTypeList:
     def __init__(self, target: type, fallback: Callable[[object], bool]) -> None: ...
     def __call__(self, value: object) -> bool: ...
+    def scan(self, value: object) -> int:
+        """0 invalid, 1 valid and every item exactly ``target``, 2 valid otherwise."""
 
 def all_exact(value: object, target: type) -> bool:
     """Whether ``value`` is a list whose items are all exactly of ``target``."""

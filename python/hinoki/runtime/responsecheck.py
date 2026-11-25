@@ -159,15 +159,40 @@ def _schema_matches_annotation(schema_cls: type[Schema], annotation: object) -> 
     return False
 
 
-def page_check(annotation: object, item: Check) -> Check:
-    def check(value: object) -> bool:
-        if not isinstance(value, Page):
-            return False
-        if isinstance(value, _ProjectedPage) and value._projected_handle is not None:
-            return _schema_matches_annotation(value._schema, annotation)
-        return all(item(v) for v in value.items)
+class PageCheck:
+    """The check of ``Page[X]``. ``scan`` is the check and the narrowing scan in
+    one pass: 0 invalid, 1 valid with every item exactly ``X``, 2 valid otherwise."""
 
-    return check
+    def __init__(self, annotation: object, item: Check) -> None:
+        self.annotation = annotation
+        self.item = item
+        nested = unwrap(annotation)
+        self.native: core._ResponseTypeList | None = (
+            core._ResponseTypeList(nested, self.items_fallback)
+            if isinstance(nested, type) and issubclass(nested, Schema | Model)
+            else None
+        )
+
+    def items_fallback(self, value: object) -> bool:
+        return isinstance(value, list) and all(self.item(v) for v in value)
+
+    def scan(self, value: object) -> int:
+        if not isinstance(value, Page):
+            return 0
+        if isinstance(value, _ProjectedPage) and value._projected_handle is not None:
+            return (
+                2 if _schema_matches_annotation(value._schema, self.annotation) else 0
+            )
+        if self.native is not None:
+            return self.native.scan(value.items)
+        return 2 if self.items_fallback(value.items) else 0
+
+    def __call__(self, value: object) -> bool:
+        return self.scan(value) != 0
+
+
+def page_check(annotation: object, item: Check) -> Check:
+    return PageCheck(annotation, item)
 
 
 def list_check(annotation: object, item: Check) -> Check:

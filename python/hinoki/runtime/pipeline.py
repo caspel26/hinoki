@@ -1521,12 +1521,12 @@ class Pipeline:
             return await self._streamed(binding, result)
         if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
-        enforce_response(binding, result)
+        exact = enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = (
                 project_response(binding.response_schema, result)
                 if binding.narrow_schema is None
-                else narrow_result(binding.narrow_schema, result)
+                else narrow_result(binding.narrow_schema, result, exact)
             )
             shown = result if renderer.consumes_objects else encode(result)
             if request is None:  # only the stock JSON renderer runs without one
@@ -1737,13 +1737,12 @@ class Pipeline:
             return await self._plain_response(binding, result)
         # A deferred exact list is checked while Rust encodes it (`Response.strict`).
         fused = defer and binding.fused_check and type(result) is list
-        if not fused:
-            enforce_response(binding, result)
+        exact = False if fused else enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = (
                 project_response(binding.response_schema, result)
                 if binding.narrow_schema is None
-                else narrow_result(binding.narrow_schema, result)
+                else narrow_result(binding.narrow_schema, result, exact)
             )
             return self._native_rendered(
                 binding, result, native, defer=defer, strict=fused
@@ -1841,14 +1840,22 @@ class Pipeline:
             ) from None
 
 
-def enforce_response(binding: Binding, result: object) -> None:
+def enforce_response(binding: Binding, result: object) -> bool:
     """With ``validate_response=True``, refuse a result the annotation does not
-    allow; the error names the action, never the value."""
+    allow; the error names the action, never the value. ``True`` when the same
+    pass proved a list holds exactly the declared item Schema (nothing to narrow)."""
     check = binding.response_check
-    if check is None or binding.route.status in BODYLESS or check(result):
-        return
+    if check is None or binding.route.status in BODYLESS:
+        return False
+    scan = binding.response_scan
+    if scan is not None:
+        verdict = scan(result)
+        if verdict:
+            return verdict == 1
+    elif check(result):
+        return False
     if binding.response_schema is not None and isinstance(result, Model):
-        return  # a Model is projected through the declared Schema right after
+        return False  # a Model is projected through the declared Schema right after
     raise ResponseContractError(
         f"{binding.route.name} returned a {type(result).__name__} that does not "
         f"match its return annotation {binding.response_annotation}"
@@ -1901,16 +1908,17 @@ def narrow_instance(schema: type[Schema], value: Schema) -> object:
     return value if is_exact else value.dump(include=schema.specs())
 
 
-def narrow_result(schema: type[Schema], value: object) -> object:
+def narrow_result(schema: type[Schema], value: object, exact: bool = False) -> object:
     """Shape a handler result declared ``list[S]``, ``Page[S]``, ``CursorPage[S]``
     or ``S | None`` (``schema`` is ``S``): strict subclasses of ``S`` are sent
-    with the declared fields only."""
-    if type(value) is list:
+    with the declared fields only. ``exact``: the validation pass already proved a
+    list holds nothing but ``S``."""
+    if exact:
+        return value
+    if isinstance(value, list):
         return narrow_items(schema, value)
     if isinstance(value, (ResultPage, CursorPage)):
         return narrow_page(schema, value)
-    if isinstance(value, list):
-        return narrow_items(schema, value)
     return narrow_instance(schema, value) if isinstance(value, schema) else value
 
 

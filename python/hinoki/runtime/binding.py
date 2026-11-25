@@ -255,6 +255,10 @@ class Binding:
     principal_name: str | None = field(init=False, repr=False, compare=False)
     default_json: bool = field(init=False, repr=False, compare=False)
     fused_check: bool = field(init=False, repr=False, compare=False)
+    # the response check and the narrowing scan of a `list[S]` in one native pass
+    response_scan: Callable[[object], int] | None = field(
+        init=False, repr=False, compare=False
+    )
     native_defaults: tuple[tuple[str, object], ...] = field(
         init=False, repr=False, compare=False
     )
@@ -290,6 +294,11 @@ class Binding:
             and self.response_schema is None
             and isinstance(self.response_check, core._ResponseObjectList)
             and self.route.status not in BODYLESS,
+        )
+        object.__setattr__(
+            self,
+            "response_scan",
+            getattr(self.response_check, "scan", None) if self.narrow_schema else None,
         )
         principals = [p.name for p in self.params if p.source == "principal"]
         object.__setattr__(
