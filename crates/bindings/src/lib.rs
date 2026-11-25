@@ -25,6 +25,7 @@ mod links;
 mod mail;
 mod mailtemplate;
 mod metrics;
+mod migrations;
 mod modelrows;
 mod naming;
 mod nativecrud;
@@ -248,6 +249,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(waivers::fnmatch_case, m)?)?;
     m.add_function(wrap_pyfunction!(waivers::validate_waiver, m)?)?;
     m.add_function(wrap_pyfunction!(openapidiff::openapi_breaking_changes, m)?)?;
+    migrations::register(m)?;
     m.add_function(wrap_pyfunction!(request::encode_json, m)?)?;
     Ok(())
 }

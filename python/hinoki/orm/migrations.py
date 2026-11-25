@@ -11,7 +11,6 @@ rows are reported as destructive and only written when explicitly allowed.
 from __future__ import annotations
 
 import dataclasses
-import hashlib
 import inspect
 import re
 import types
@@ -19,14 +18,13 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any, Union, get_args, get_origin, get_type_hints
 
-from hinoki import jsontext
+from hinoki import core, jsontext
 from hinoki.errors import DestructiveMigration, MigrationError
 from hinoki.orm import Model
 from hinoki.orm.columntypes import sql_type
 from hinoki.orm.links import check_resolved
 from hinoki.orm.model import MARK, FieldMeta
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
-from hinoki.orm.relations import ON_DELETE
 from hinoki.target import add_project_to_import_path
 
 MAX_IDENTIFIER = 63  # PostgreSQL truncates longer names
@@ -80,11 +78,15 @@ class Plan:
     path: Path | None = None
 
 
+def _to_ops(raw: list[tuple[str, str, str]]) -> list[Operation]:
+    return [Operation(desc, sql, risk) for desc, sql, risk in raw]
+
+
 def quote(name: str, dialect: str = "postgres") -> str:
-    limit = 64 if dialect in {"mysql", "mariadb"} else MAX_IDENTIFIER
-    if not re.fullmatch(rf"[A-Za-z_][A-Za-z0-9_]{{0,{limit - 1}}}", name):
-        raise MigrationError(f"invalid identifier {name!r}")
-    return f"`{name}`" if dialect in {"mysql", "mariadb"} else f'"{name}"'
+    try:
+        return core.migration_quote(name, dialect)
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
 
 
 def models_of(module_name: str) -> list[type[Model]]:
@@ -160,55 +162,14 @@ def table_state(model: type[Model], dialect: str = "postgres") -> State:  # noqa
     return state
 
 
-def unique_changed(old: State, new: State) -> bool:
-    """Whether the composite unique constraints or their names differ."""
-    return any(old.get(key, empty) != new.get(key, empty) for key, empty in UNIQUE_KEYS)
-
-
-def unique_constraint_sql(group: list[str], spec: State, dialect: str) -> str:
-    """``UNIQUE (...)``, prefixed by ``CONSTRAINT <name>`` when it is named."""
-    names = {tuple(cols): name for name, cols in spec.get("unique_names", {}).items()}
-    columns = f"UNIQUE ({', '.join(quote(c, dialect) for c in group)})"
-    name = names.get(tuple(group))
-    return columns if name is None else f"CONSTRAINT {quote(name, dialect)} {columns}"
-
-
 def check_constraint_names(tables: State) -> None:
     """Named unique constraints must not reuse a name the database already
     holds: PostgreSQL keeps tables, indexes and unique constraints in one
-    namespace per schema, and MySQL and MariaDB compare names without case. A
-    name is checked against every table, generated index and foreign-key name
-    (for each backend's length limit) and the other constraint names."""
-    taken: dict[str, str] = {}
-    for table, spec in tables.items():
-        for name, owner in generated_names(table, spec):
-            taken.setdefault(name.casefold(), owner)
-    for table, spec in tables.items():
-        for name in spec.get("unique_names", {}):
-            holder = taken.get(name.casefold())
-            if holder is not None:
-                raise MigrationError(
-                    f"{table}: unique constraint name {name!r} is already used by "
-                    f"{holder}; choose another name"
-                )
-            taken[name.casefold()] = f"a unique constraint of {table}"
-
-
-def generated_names(table: str, spec: State) -> list[tuple[str, str]]:
-    """The table's own name and the index and foreign-key names Hinoki
-    generates for it, with a description of each."""
-    found = [(table, f"table {table}")]
-    for dialect in ("postgres", "mysql"):
-        found.extend(
-            (index_name(table, columns, dialect), f"an index of {table}")
-            for columns in spec.get("indexes", [])
-        )
-        found.extend(
-            (foreign_key_name(table, column, dialect), f"a foreign key of {table}")
-            for column, state in spec["columns"].items()
-            if state["references"] is not None
-        )
-    return found
+    namespace per schema, and MySQL and MariaDB compare names without case."""
+    try:
+        core.migration_check_constraint_names(jsontext.dumps(tables))
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
 
 
 def family(sql_type: str) -> str:
@@ -218,25 +179,11 @@ def family(sql_type: str) -> str:
 
 
 def check_references(state: State, external_tables: State | None = None) -> None:
-    for table, spec in state["tables"].items():
-        for name, column in spec["columns"].items():
-            target = column["references"]
-            if target is None:
-                continue
-            remote = state["tables"].get(
-                target["table"],
-                (external_tables or {"tables": {}})["tables"].get(
-                    target["table"], {"columns": {}}
-                ),
-            )
-            wanted = remote["columns"].get(target["column"])
-            if wanted is None:
-                raise MigrationError(f"{table}.{name} references an unknown table")
-            if family(wanted["type"]) != family(column["type"]):
-                raise MigrationError(
-                    f"{table}.{name} is {column['type']} but "
-                    f"{target['table']}.{target['column']} is {wanted['type']}"
-                )
+    ext = None if external_tables is None else jsontext.dumps(external_tables)
+    try:
+        core.migration_check_references(jsontext.dumps(state), ext)
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
 
 
 def state_of(
@@ -304,412 +251,78 @@ def _check_table_owner(model: type[Model], owners: list[type[Model]]) -> None:
 
 def creation_order(tables: State) -> list[str]:
     """Tables ordered so every referenced table comes first."""
-    ordered: list[str] = []
-    pending = dict(tables)
-    while pending:
-        ready = [
-            name
-            for name, spec in pending.items()
-            if all(
-                c["references"] is None
-                or c["references"]["table"] in ordered
-                or c["references"]["table"] == name
-                or c["references"]["table"] not in tables
-                for c in spec["columns"].values()
-            )
-        ]
-        if not ready:
-            raise MigrationError("foreign keys form a cycle between tables")
-        for name in ready:
-            ordered.append(name)
-            del pending[name]
-    return ordered
-
-
-def column_sql(
-    name: str,
-    column: State,
-    dialect: str = "postgres",
-    *,
-    inline_references: bool = True,
-    keys: bool = True,
-) -> str:
-    """A column definition. ``keys=False`` leaves out PRIMARY KEY, UNIQUE and
-    REFERENCES, for statements that redefine a column the table already keys."""
-    parts = [quote(name, dialect), dialect_type(column["type"], dialect)]
-    if column["primary_key"] and keys:
-        parts.append("PRIMARY KEY")
-    elif not column["nullable"] or column["primary_key"]:
-        parts.append("NOT NULL")
-    if column["unique"] and not column["primary_key"] and keys:
-        parts.append("UNIQUE")
-    target = column["references"]
-    if target and inline_references and keys:
-        rule = ON_DELETE[target["on_delete"]]
-        target_table = quote(target["table"], dialect)
-        target_column = quote(target["column"], dialect)
-        parts.append(f"REFERENCES {target_table} ({target_column}) ON DELETE {rule}")
-    return " ".join(parts)
+    try:
+        return core.migration_creation_order(jsontext.dumps(tables))
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
 
 
 def dialect_type(state_type: str, dialect: str) -> str:
     """Render a logical migration-state type for the selected SQL backend."""
-    types = (
-        SQLITE_STATE_TYPES
-        if dialect == "sqlite"
-        else MYSQL_STATE_TYPES
-        if dialect in {"mysql", "mariadb"}
-        else {}
-    )
-    return types.get(state_type, state_type)
-
-
-def keyed_columns(spec: State) -> set[str]:
-    """Columns that a unique constraint, an index, a key or a foreign key uses."""
-    keyed = {
-        name
-        for name, column in spec["columns"].items()
-        if column["unique"] or column["primary_key"] or column["references"]
-    }
-    for group in (*spec.get("unique", []), *spec.get("indexes", [])):
-        keyed.update(group)
-    return keyed
-
-
-def refuse_unbounded_keys(table: str, spec: State, dialect: str) -> None:
-    """MySQL and MariaDB cannot key a ``text`` column without a prefix length."""
-    if dialect not in {"mysql", "mariadb"}:
-        return
-    for name in sorted(keyed_columns(spec)):
-        column = spec["columns"].get(name)
-        if column is not None and column["type"] == "text":
-            raise MigrationError(
-                f"{table}.{name}: MySQL and MariaDB cannot key an unbounded text "
-                "column; give the field a max_length"
-            )
-
-
-def create_table(name: str, spec: State, dialect: str = "postgres") -> Operation:
-    refuse_unbounded_keys(name, spec, dialect)
-    statement = create_table_sql(name, spec, dialect)
-    for columns in spec.get("indexes", []):
-        statement += "\n" + create_index_sql(name, columns, dialect)
-    return Operation(f"create table {name}", statement)
+    return core.migration_dialect_type(state_type, dialect)
 
 
 def create_table_sql(name: str, spec: State, dialect: str = "postgres") -> str:
-    mysql_family = dialect in {"mysql", "mariadb"}
-    lines = [
-        f"    {column_sql(c, s, dialect, inline_references=not mysql_family)}"
-        for c, s in spec["columns"].items()
-    ]
-    lines.extend(
-        f"    {unique_constraint_sql(group, spec, dialect)}"
-        for group in spec.get("unique", [])
-    )
-    if mysql_family:
-        lines.extend(
-            f"    {foreign_key_sql(name, column, state, dialect)}"
-            for column, state in spec["columns"].items()
-            if state["references"] is not None
-        )
-    text = ",\n".join(lines)
-    suffix = " ENGINE=InnoDB" if dialect in {"mysql", "mariadb"} else ""
-    return f"CREATE TABLE {quote(name, dialect)} (\n{text}\n){suffix};"
+    try:
+        return core.migration_create_table_sql(name, jsontext.dumps(spec), dialect)
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
 
 
 def index_name(table: str, columns: list[str], dialect: str = "postgres") -> str:
-    """``ix_<table>_<columns>_<digest>``, cut to the backend's identifier limit.
-    The digest covers the length-prefixed parts, so ``("a_b")`` and ``("a", "b")``
-    never share a name."""
-    limit = 64 if dialect in {"mysql", "mariadb"} else MAX_IDENTIFIER
-    identity = f"{len(table)}:{table}" + "".join(f":{len(c)}:{c}" for c in columns)
-    digest = hashlib.sha256(identity.encode()).hexdigest()[:8]
-    prefix = "ix_" + table + "_" + "_".join(columns)
-    return f"{prefix[: limit - 9]}_{digest}"
-
-
-def create_index_sql(table: str, columns: list[str], dialect: str = "postgres") -> str:
-    cols = ", ".join(quote(c, dialect) for c in columns)
-    name = quote(index_name(table, columns, dialect), dialect)
-    return f"CREATE INDEX {name} ON {quote(table, dialect)} ({cols});"
+    """``ix_<table>_<columns>_<digest>``, cut to the backend's identifier limit."""
+    return core.migration_index_name(table, columns, dialect)
 
 
 def foreign_key_sql(table: str, column: str, state: State, dialect: str) -> str:
     """Render a named table-level FK, required by MySQL-family servers."""
-    target = state["references"]
-    if target is None:
-        raise MigrationError(f"{table}.{column} is not a foreign key")
-    rule = ON_DELETE[target["on_delete"]]
-    name = foreign_key_name(table, column, dialect)
-    return (
-        f"CONSTRAINT {quote(name, dialect)} FOREIGN KEY ({quote(column, dialect)}) "
-        f"REFERENCES {quote(target['table'], dialect)} "
-        f"({quote(target['column'], dialect)}) ON DELETE {rule}"
-    )
+    try:
+        return core.migration_foreign_key_sql(
+            table, column, jsontext.dumps(state), dialect
+        )
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
 
 
 def foreign_key_name(table: str, column: str, dialect: str) -> str:
     """Stable FK names, shortened to the backend's identifier limit."""
-    limit = 64 if dialect in {"mysql", "mariadb"} else MAX_IDENTIFIER
-    identity = f"{len(table)}:{table}:{len(column)}:{column}"
-    # The digest distinguishes ambiguous underscore pairs and case variants;
-    # MySQL compares FK symbols case-insensitively across the schema.
-    digest = hashlib.sha256(identity.encode()).hexdigest()[:16]
-    prefix = f"fk_{len(table)}_{table}_{column}"
-    return f"{prefix[: limit - 17]}_{digest}"
+    return core.migration_foreign_key_name(table, column, dialect)
 
 
 def alter_column(
     table: str, name: str, old: State, new: State, dialect: str = "postgres"
 ) -> list[Operation]:
-    for key in ("primary_key", "unique", "references"):
-        if old[key] != new[key]:
-            raise MigrationError(
-                f"{table}.{name}: changing {key} is not planned automatically; "
-                "write that migration by hand"
-            )
-    if dialect in {"mysql", "mariadb"}:
-        column = column_sql(name, new, dialect, keys=False)
-        return [
-            Operation(
-                f"change {table}.{name}",
-                f"ALTER TABLE {quote(table, dialect)} MODIFY COLUMN {column};",
-                "changing a column definition may rewrite the table or lose data",
-            )
-        ]
-    head = f"ALTER TABLE {quote(table, dialect)} ALTER COLUMN {quote(name, dialect)}"
-    operations = []
-    if old["type"] != new["type"]:
-        operations.append(
-            Operation(
-                f"change {table}.{name} to {new['type']}",
-                f"{head} TYPE {dialect_type(new['type'], dialect)} USING "
-                f"{quote(name, dialect)}::{dialect_type(new['type'], dialect)};",
-                "changing a column type can rewrite the table or lose data",
-            )
+    try:
+        raw = core.migration_alter_column(
+            table, name, jsontext.dumps(old), jsontext.dumps(new), dialect
         )
-    if old["nullable"] and not new["nullable"]:
-        operations.append(
-            Operation(
-                f"require {table}.{name}",
-                f"{head} SET NOT NULL;",
-                "fails when the column contains NULL",
-            )
-        )
-    if not old["nullable"] and new["nullable"]:
-        operations.append(
-            Operation(f"allow NULL in {table}.{name}", f"{head} DROP NOT NULL;")
-        )
-    return operations
-
-
-NOT_NULL_RISK = "adding a NOT NULL column without a default fails when rows exist"
-
-
-def add_column(
-    table: str, name: str, column: State, dialect: str = "postgres"
-) -> list[Operation]:
-    mysql_family = dialect in {"mysql", "mariadb"}
-    definition = column_sql(name, column, dialect, inline_references=not mysql_family)
-    statement = f"ALTER TABLE {quote(table, dialect)} ADD COLUMN {definition};"
-    risk = "" if column["nullable"] else NOT_NULL_RISK
-    operations = [Operation(f"add {table}.{name}", statement, risk)]
-    if mysql_family and column["references"] is not None:
-        constraint = foreign_key_sql(table, name, column, dialect)
-        operations.append(
-            Operation(
-                f"add foreign key {table}.{name}",
-                f"ALTER TABLE {quote(table, dialect)} ADD {constraint};",
-            )
-        )
-    return operations
-
-
-def drop_column(table: str, name: str, dialect: str = "postgres") -> Operation:
-    return Operation(
-        f"drop {table}.{name}",
-        f"ALTER TABLE {quote(table, dialect)} DROP COLUMN {quote(name, dialect)};",
-        "drops the column and its data",
-    )
-
-
-def index_changes(
-    table: str, old: State, new: State, dialect: str = "postgres"
-) -> tuple[list[Operation], list[Operation]]:
-    """The index operations to run after and before the column changes."""
-    before = [list(c) for c in old.get("indexes", [])]
-    after = [list(c) for c in new.get("indexes", [])]
-    created = [
-        Operation(
-            f"index {table} ({', '.join(columns)})",
-            create_index_sql(table, columns, dialect),
-        )
-        for columns in after
-        if columns not in before
-    ]
-    dropped = [
-        Operation(
-            f"drop index {table} ({', '.join(columns)})",
-            (
-                "DROP INDEX "
-                f"{quote(index_name(table, columns, dialect), dialect)} "
-                f"ON {quote(table, dialect)};"
-                if dialect in {"mysql", "mariadb"}
-                else "DROP INDEX "
-                f"{quote(index_name(table, columns, dialect), dialect)};"
-            ),
-        )
-        for columns in before
-        if columns not in after
-    ]
-    return created, dropped
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
+    return _to_ops(raw)
 
 
 def _sqlite_rebuild_warnings(old: State, new: State) -> list[str]:
-    destructive: list[str] = []
-    for name, column in new["columns"].items():
-        previous = old["columns"].get(name)
-        if previous is None:
-            if not column["nullable"]:
-                destructive.append(f"adding {name} requires values for existing rows")
-        elif previous is not None:
-            destructive.extend(_sqlite_column_warnings(name, previous, column))
-    destructive.extend(
-        f"dropping {name} loses its data"
-        for name in old["columns"]
-        if name not in new["columns"]
+    return core.migration_sqlite_rebuild_warnings(
+        jsontext.dumps(old), jsontext.dumps(new)
     )
-    # A rename alone rebuilds the table under the same rules: nothing to reject.
-    if old.get("unique", []) != new.get("unique", []):
-        destructive.append(
-            "changing composite unique constraints may reject existing rows"
-        )
-    return destructive
-
-
-def _sqlite_column_warnings(
-    name: str, previous: dict[str, Any], column: dict[str, Any]
-) -> list[str]:
-    warnings: list[str] = []
-    if previous == column:
-        return warnings
-    if previous["type"] != column["type"]:
-        warnings.append(f"changing {name} to {column['type']} may convert values")
-    if previous["nullable"] and not column["nullable"]:
-        warnings.append(f"requiring {name} fails when existing rows contain NULL")
-    warnings.extend(
-        f"changing {key} on {name} may reject existing rows"
-        for key in ("primary_key", "unique", "references")
-        if previous[key] != column[key]
-    )
-    return warnings
-
-
-def sqlite_rebuild(table: str, old: State, new: State, dialect: str) -> Operation:
-    digest = hashlib.sha1(table.encode()).hexdigest()[:8]  # noqa: S324 - temporary table name
-    temporary = f"__hinoki_{digest}"
-    statements = [create_table_sql(temporary, new, dialect)]
-    common = [name for name in old["columns"] if name in new["columns"]]
-    destructive = _sqlite_rebuild_warnings(old, new)
-    if common:
-        columns = ", ".join(quote(name, dialect) for name in common)
-        statements.append(
-            f"INSERT INTO {quote(temporary, dialect)} ({columns}) "  # noqa: S608 - quoted identifiers
-            f"SELECT {columns} FROM {quote(table, dialect)};"
-        )
-    statements.extend(
-        [
-            f"DROP TABLE {quote(table, dialect)};",
-            "ALTER TABLE "
-            f"{quote(temporary, dialect)} RENAME TO {quote(table, dialect)};",
-        ]
-    )
-    statements.extend(
-        create_index_sql(table, columns, dialect) for columns in new.get("indexes", [])
-    )
-    return Operation(
-        f"rebuild table {table}",
-        "\n".join(statements),
-        "; ".join(destructive),
-    )
-
-
-def stored_columns(state: State, dialect: str) -> dict[str, State]:
-    """Columns with their types as the backend stores them, so a logical type
-    change that the backend renders identically plans nothing."""
-    return {
-        name: {**column, "type": dialect_type(column["type"], dialect)}
-        for name, column in state["columns"].items()
-    }
 
 
 def table_changes(table: str, old: State, new: State, dialect: str) -> list[Operation]:
-    if dialect == "sqlite":
-        if stored_columns(old, dialect) != stored_columns(new, dialect) or (
-            unique_changed(old, new)
-        ):
-            return [sqlite_rebuild(table, old, new, dialect)]
-        created, dropped = index_changes(table, old, new, dialect)
-        return [*dropped, *created]
-    operations: list[Operation] = []
-    refuse_unbounded_keys(table, new, dialect)
-    if unique_changed(old, new):
-        raise MigrationError(
-            f"{table}: changing composite unique constraints is not planned "
-            "automatically; write that migration by hand"
+    try:
+        raw = core.migration_table_changes(
+            table, jsontext.dumps(old), jsontext.dumps(new), dialect
         )
-    created, dropped = index_changes(table, old, new, dialect)
-    operations.extend(dropped)
-    for name, column in new["columns"].items():
-        if name not in old["columns"]:
-            operations.extend(add_column(table, name, column, dialect))
-        elif old["columns"][name] != column:
-            operations.extend(
-                alter_column(table, name, old["columns"][name], column, dialect)
-            )
-    operations.extend(created)
-    operations.extend(removed_columns(table, old, new, dialect))
-    return operations
-
-
-def removed_columns(
-    table: str, old: State, new: State, dialect: str
-) -> list[Operation]:
-    """Plan removed columns unless legacy FK DDL makes removal ambiguous."""
-    operations = []
-    for name, old_column in old["columns"].items():
-        if name in new["columns"]:
-            continue
-        if dialect in {"mysql", "mariadb"} and old_column["references"] is not None:
-            raise MigrationError(
-                f"{table}.{name}: dropping a foreign-key column is not planned "
-                "automatically for MySQL/MariaDB; older Hinoki migrations may "
-                "not have created the constraint, so write a reviewed migration"
-            )
-        operations.append(drop_column(table, name, dialect))
-    return operations
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
+    return _to_ops(raw)
 
 
 def diff(old: State, new: State, dialect: str = "postgres") -> list[Operation]:
-    operations = [
-        create_table(name, new["tables"][name], dialect)
-        for name in creation_order(new["tables"])
-        if name not in old["tables"]
-    ]
-    for name, spec in new["tables"].items():
-        if name in old["tables"]:
-            operations.extend(table_changes(name, old["tables"][name], spec, dialect))
-    operations.extend(
-        Operation(
-            f"drop table {name}",
-            f"DROP TABLE {quote(name, dialect)};",
-            "drops the table and all its rows",
-        )
-        for name in reversed(creation_order(old["tables"]))
-        if name not in new["tables"]
-    )
-    return operations
+    try:
+        raw = core.migration_diff(jsontext.dumps(old), jsontext.dumps(new), dialect)
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
+    return _to_ops(raw)
 
 
 def migration_files(directory: Path) -> list[Path]:
@@ -739,96 +352,16 @@ def latest_state(directory: Path) -> State:
 
 def validate_migration_state(state: object, filename: str) -> State:
     """Validate and normalize a versioned or legacy migration state document."""
-    if not isinstance(state, dict):
-        raise MigrationError(f"{filename} must contain a tables object")
-    legacy_format = "format_version" not in state
-    _validate_state_version(state, filename)
-    tables = state.get("tables")
-    if not isinstance(tables, dict):
-        raise MigrationError(f"{filename} must contain a tables object")
-    for table, spec in tables.items():
-        _validate_migration_table(filename, table, spec, legacy_format=legacy_format)
-    for table in tables.values():
-        for column in table["columns"].values():
-            column["type"] = LEGACY_STATE_TYPES.get(
-                column["type"].casefold(), column["type"]
-            )
-    return state
-
-
-def _validate_state_version(state: dict[str, Any], filename: str) -> None:
-    version = state.get("format_version", STATE_FORMAT_VERSION)
-    if type(version) is not int or version != STATE_FORMAT_VERSION:
-        raise MigrationError(
-            f"{filename} uses unsupported migration state format version {version!r}"
-        )
-
-
-def _validate_migration_table(
-    filename: str, table: object, spec: object, *, legacy_format: bool
-) -> None:
-    if not isinstance(table, str) or not isinstance(spec, dict):
-        raise MigrationError(f"{filename} has an invalid table entry")
-    columns = spec.get("columns")
-    if not isinstance(columns, dict):
-        raise MigrationError(f"{filename} has invalid columns for {table!r}")
-    if legacy_format and "indexes" not in spec:
-        spec["indexes"] = []
-    _validate_constraint_groups(filename, table, spec, "unique")
-    _validate_constraint_groups(filename, table, spec, "indexes")
-    for name, column in columns.items():
-        _validate_migration_column(filename, table, name, column)
-
-
-def _validate_constraint_groups(
-    filename: str, table: str, spec: dict[str, Any], key: str
-) -> None:
-    groups = spec.get(key)
-    if not isinstance(groups, list) or any(
-        not isinstance(group, list)
-        or not group
-        or any(not isinstance(column, str) for column in group)
-        for group in groups
-    ):
-        raise MigrationError(f"{filename} has invalid {key} for {table!r}")
-
-
-def _validate_migration_column(
-    filename: str, table: str, name: object, column: object
-) -> None:
-    if not isinstance(name, str) or not isinstance(column, dict):
-        raise MigrationError(f"{filename} has invalid column state for {table}.{name}")
-    if (
-        not isinstance(column.get("type"), str)
-        or not isinstance(column.get("nullable"), bool)
-        or not isinstance(column.get("primary_key"), bool)
-        or not isinstance(column.get("unique"), bool)
-        or "references" not in column
-    ):
-        raise MigrationError(f"{filename} has invalid column state for {table}.{name}")
-    reference = column.get("references")
-    if reference is not None and (
-        not isinstance(reference, dict)
-        or not isinstance(reference.get("table"), str)
-        or not isinstance(reference.get("column"), str)
-        or not isinstance(reference.get("on_delete"), str)
-        or reference.get("on_delete") not in ON_DELETE
-    ):
-        raise MigrationError(f"{filename} has invalid column state for {table}.{name}")
+    try:
+        return core.migration_validate_state(state, filename)
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
 
 
 def render(title: str, operations: list[Operation]) -> str:
-    lines = [
-        f"-- hinoki migration {title}",
-        "-- generated from the models; review it.",
-        "",
-    ]
-    for operation in operations:
-        lines.append(f"-- {operation.description}")
-        if operation.destructive:
-            lines.append(f"-- DESTRUCTIVE: {operation.destructive}")
-        lines.extend([operation.sql, ""])
-    return "\n".join(lines)
+    return core.migration_render(
+        title, [(o.description, o.sql, o.destructive) for o in operations]
+    )
 
 
 def plan(
@@ -876,23 +409,13 @@ def plan(
 
 def automatic_migration_name(operations: list[Operation]) -> str:
     """Derive a stable file-name slug from the first planned schema operation."""
-    source = operations[0].description.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", source).strip("-")
-    return slug[:80].rstrip("-") or "schema-update"
+    return core.migration_auto_name(operations[0].description)
 
 
 def statements(text: str) -> list[str]:
     """Split a migration file: comments and blanks are skipped and a statement
     ends at a line ending with ``;``."""
-    found: list[str] = []
-    current: list[str] = []
-    for line in text.splitlines():
-        if not current and (not line.strip() or line.lstrip().startswith("--")):
-            continue
-        current.append(line)
-        if line.rstrip().endswith(";"):
-            found.append("\n".join(current).rstrip().removesuffix(";"))
-            current = []
-    if current:
-        raise MigrationError("the last statement does not end with ';'")
-    return found
+    try:
+        return core.migration_statements(text)
+    except ValueError as error:
+        raise MigrationError(str(error)) from None
