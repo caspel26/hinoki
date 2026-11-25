@@ -1899,13 +1899,18 @@ class ResponseProjectionError(RuntimeError):
 
 def narrow_instance(schema: type[Schema], value: Schema) -> object:
     """``value`` as the declared ``schema``: itself when it is exactly that
-    Schema (or its lazy projection), else the declared fields only."""
+    Schema (or its lazy projection), else what ``schema`` declares: its fields and
+    computed values, nested values narrowed by its own field types. A ``schema``
+    that decides its own ``dump()`` keeps the plain projection."""
     is_exact = type(value) is schema or (
         isinstance(value, _ProjectedItem)
         and value._projected_handle is not None
         and value._schema is schema
     )
-    return value if is_exact else value.dump(include=schema.specs())
+    if is_exact:
+        return value
+    narrowed = core.dump_as(value, schema)
+    return value.dump(include=schema.specs()) if narrowed is None else narrowed
 
 
 def narrow_result(schema: type[Schema], value: object, exact: bool = False) -> object:

@@ -268,10 +268,16 @@ impl<'py> XmlEncoder<'py> {
     fn object(&mut self, tag: &Tag<'_>, value: &Bound<'py, PyAny>, depth: usize) -> PyResult<()> {
         if let Some(text) = exact_text(value)? {
             self.leaf(tag, &text);
-        } else if let Some((names, unset, _)) =
-            crate::schema::instance_fields(value, true, true, true)?
+        } else if let Some((source, declared)) = crate::schema::narrowed_parts(value) {
+            // A subclass instance where its base class is declared.
+            match crate::schema::class_fields(&declared, true, true, true)? {
+                Some(fields) => self.schema_object(tag, &source, fields, depth)?,
+                None => self.object(tag, &source, depth)?,
+            }
+        } else if let Some(fields) =
+            crate::schema::class_fields(&value.get_type(), true, true, true)?
         {
-            self.schema_object(tag, value, names, &unset, depth)?;
+            self.schema_object(tag, value, fields, depth)?;
         } else if let Some(text) = self.instance_text(value)? {
             self.leaf(tag, &text);
         } else if let Some(other) = self.substitute(value)? {
@@ -317,16 +323,24 @@ impl<'py> XmlEncoder<'py> {
         &mut self,
         tag: &Tag<'_>,
         value: &Bound<'py, PyAny>,
-        names: Vec<(String, String)>,
-        unset: &Py<PyAny>,
+        (names, unset, _, guides): (
+            Vec<(String, String)>,
+            Py<PyAny>,
+            usize,
+            crate::schema::FieldGuides,
+        ),
         depth: usize,
     ) -> PyResult<()> {
         let mut present = Vec::with_capacity(names.len());
-        for (name, wire_name) in names {
-            let item = value.getattr(name.as_str())?;
-            if !item.is(unset) {
-                present.push((wire_name, item));
+        for (index, (name, wire_name)) in names.into_iter().enumerate() {
+            let mut item = value.getattr(name.as_str())?;
+            if item.is(&unset) {
+                continue;
             }
+            if let Some(Some(guide)) = guides.get(index) {
+                item = crate::schema::narrow(&item, guide)?.unwrap_or(item);
+            }
+            present.push((wire_name, item));
         }
         self.members(tag, present, depth)
     }

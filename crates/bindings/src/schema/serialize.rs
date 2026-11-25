@@ -1,8 +1,9 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyList};
+use pyo3::types::{PyBool, PyDict, PyList, PyType};
 
-use super::compile::instance_fields;
-use super::model::SchemaWireNames;
+use super::compile::{class_fields, instance_fields};
+use super::model::{FieldGuides, SchemaWireNames};
+use super::narrow::{narrow, narrowed_parts};
 use super::scalars::wire_text;
 
 const DUMP_DEPTH: usize = 1000;
@@ -21,6 +22,9 @@ struct Mode {
 }
 
 struct SerializationOptions<'a> {
+    /// Write the value as this class it derives from (its declared fields
+    /// and guides) instead of as its own class.
+    declared: Option<&'a Bound<'a, PyType>>,
     mode: Mode,
     exclude: &'a [String],
     include: Option<&'a [String]>,
@@ -57,6 +61,9 @@ fn convert<'py>(
     }
     if let Ok(dict) = value.cast::<PyDict>() {
         return convert_dict(py, dict, mode, depth);
+    }
+    if let Some((inner, declared)) = narrowed_parts(value) {
+        return convert_narrowed(&inner, &declared, mode, depth);
     }
     if value
         .get_type()
@@ -148,6 +155,35 @@ fn convert_schema<'py>(
     Ok(dump_instance_at(
         value,
         SerializationOptions {
+            declared: None,
+            mode,
+            exclude: &[],
+            include: None,
+        },
+        depth + 1,
+    )?
+    .into_any())
+}
+
+/// A subclass instance found where its base class is declared: written with the
+/// declared fields only. A declared class that decides its own `dump()` keeps
+/// writing the value as it is.
+fn convert_narrowed<'py>(
+    value: &Bound<'py, PyAny>,
+    declared: &Bound<'py, PyType>,
+    mode: Mode,
+    depth: usize,
+) -> PyResult<Bound<'py, PyAny>> {
+    if mode.json_mode
+        && !mode.storage
+        && class_fields(declared, true, mode.by_alias, false)?.is_none()
+    {
+        return convert(value, mode, depth);
+    }
+    Ok(dump_instance_at(
+        value,
+        SerializationOptions {
+            declared: Some(declared),
             mode,
             exclude: &[],
             include: None,
@@ -194,7 +230,7 @@ fn dump_instance_at<'py>(
     depth: usize,
 ) -> PyResult<Bound<'py, PyDict>> {
     let py = value.py();
-    let (names, unset, computed) = dump_schema_fields(value, &options)?;
+    let (names, unset, computed, guides) = dump_schema_fields(value, &options)?;
     let mode = options.mode;
     let supplied = supplied_fields(value, mode.exclude_unset)?;
     let out = PyDict::new(py);
@@ -209,9 +245,12 @@ fn dump_instance_at<'py>(
         if skip_serialized_field(py, &name, &options, tracked)? {
             continue;
         }
-        let item = value.getattr(name.as_str())?;
+        let mut item = value.getattr(name.as_str())?;
         if item.is(&unset) {
             continue;
+        }
+        if let Some(Some(guide)) = guides.get(index) {
+            item = narrow(&item, guide)?.unwrap_or(item);
         }
         out.set_item(&wire_name, convert(&item, mode, depth)?)?;
     }
@@ -221,10 +260,14 @@ fn dump_instance_at<'py>(
 fn dump_schema_fields(
     value: &Bound<'_, PyAny>,
     options: &SerializationOptions<'_>,
-) -> PyResult<(SchemaWireNames, Py<PyAny>, usize)> {
+) -> PyResult<(SchemaWireNames, Py<PyAny>, usize, FieldGuides)> {
     let mode = options.mode;
-    if let Some(fields) = instance_fields(
-        value,
+    let class = options
+        .declared
+        .cloned()
+        .unwrap_or_else(|| value.get_type());
+    if let Some(fields) = class_fields(
+        &class,
         mode.controlled && !mode.storage,
         mode.by_alias,
         mode.json_mode && !mode.storage,
@@ -301,6 +344,7 @@ pub fn dump_instance<'py>(
     dump_instance_at(
         value,
         SerializationOptions {
+            declared: None,
             mode: Mode {
                 json_mode,
                 by_alias,
@@ -328,6 +372,7 @@ pub fn serialize_instance<'py>(
     dump_instance_at(
         value,
         SerializationOptions {
+            declared: None,
             mode: Mode {
                 json_mode: true,
                 by_alias,
@@ -351,6 +396,7 @@ pub fn dump_for_storage<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, P
     dump_instance_at(
         value,
         SerializationOptions {
+            declared: None,
             mode: Mode {
                 json_mode: true,
                 by_alias: true,
@@ -363,4 +409,35 @@ pub fn dump_for_storage<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, P
         },
         0,
     )
+}
+
+/// A schema instance as the class it derives from declares it, for a value
+/// narrowed to its declared response schema: that class's fields and computed
+/// values only, nested values narrowed by its own field types. `None` when the
+/// declared class decides its own `dump()`.
+#[pyfunction]
+pub fn dump_as<'py>(
+    value: &Bound<'py, PyAny>,
+    declared: &Bound<'py, PyType>,
+) -> PyResult<Option<Bound<'py, PyDict>>> {
+    if class_fields(declared, true, true, false)?.is_none() {
+        return Ok(None);
+    }
+    dump_instance_at(
+        value,
+        SerializationOptions {
+            declared: Some(declared),
+            mode: Mode {
+                json_mode: true,
+                by_alias: true,
+                exclude_unset: false,
+                controlled: false,
+                storage: false,
+            },
+            exclude: &[],
+            include: None,
+        },
+        0,
+    )
+    .map(Some)
 }

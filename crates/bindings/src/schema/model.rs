@@ -10,12 +10,15 @@ use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use uuid::Uuid;
 
 use super::internet::NetKind;
+use super::narrow::Guide;
 use super::scalars::{ClockTime, DecimalNumber, Duration};
 use super::typeddecode;
 
 pub type SchemaWireNames = Vec<(String, String)>;
 /// Wire names, the `UNSET` sentinel and how many trailing names are computed.
 pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>, usize)>;
+/// What each declared field's annotation says about nested schemas, by position.
+pub(crate) type FieldGuides = Arc<[Option<Guide>]>;
 
 /// One pre-resolved field entry in a schema's cached JSON encoding plan.
 pub(crate) struct JsonFieldEntry {
@@ -29,6 +32,10 @@ pub(crate) struct JsonFieldPlan {
     pub(crate) entries: Box<[JsonFieldEntry]>,
     pub(crate) unset: Py<PyAny>,
     pub(crate) streamable: bool,
+    /// The declared fields' guides; computed entries follow with none.
+    pub(crate) guides: FieldGuides,
+    /// Whether any field declares a nested schema (otherwise nothing to narrow).
+    pub(crate) guided: bool,
     pub(super) computed_source: Option<Py<PyAny>>,
 }
 
@@ -243,6 +250,8 @@ pub struct Compiled {
     pub(super) native: Option<Arc<NativeSchema>>,
     /// The one-pass body decode of this schema, when it is inside its subset.
     pub(super) typed: Option<Arc<typeddecode::Typed>>,
+    /// The nested-schema guides of the root's fields.
+    pub(super) guides: FieldGuides,
     /// Cached JSON serialization plan for this class, built on first encode.
     pub(super) json_plan: PyOnceLock<Arc<JsonFieldPlan>>,
 }

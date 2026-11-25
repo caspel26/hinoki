@@ -284,6 +284,11 @@ def dump_instance(
     by_alias: bool = True,
 ) -> dict[str, Any]: ...
 def dump_for_storage(value: Any) -> dict[str, Any]: ...
+def dump_as(value: Any, declared: type) -> dict[str, Any] | None:
+    """``value`` written as the schema class ``declared`` it derives from: that
+    class's fields and computed values only, nested values narrowed by its field
+    types; ``None`` when ``declared`` decides its own ``dump()``."""
+
 def serialize_instance(
     value: Any,
     include: list[str] | None,
