@@ -437,8 +437,9 @@ def bind_signature(
             if carries_field(extras.get(name)):
                 raise RegistrationError(
                     f"{fn.__qualname__}: `Field(...)` on the scalar parameter "
-                    f"{name!r} is not enforced; validate it inside the handler "
-                    "or take a `Schema`"
+                    f"{name!r} is not enforced, and its description and examples are "
+                    "not read either; validate it inside the handler or take a "
+                    "`Schema`"
                 )
             params.append(scalar_param(fn, name, hint, parameter, name in in_path))
     if socket is None:

@@ -6,7 +6,8 @@ import hmac
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Annotated, Any, get_origin, overload
+from types import UnionType
+from typing import Annotated, Any, Union, get_args, get_origin, overload
 
 
 class Unset:
@@ -143,10 +144,14 @@ def Field(**options: Any) -> Any:
 
 def carries_field(hint: object) -> bool:
     """Whether ``hint`` is ``Annotated[...]`` with a ``Field(...)`` among its
-    metadata."""
-    return get_origin(hint) is Annotated and any(
-        isinstance(mark, FieldInfo) for mark in getattr(hint, "__metadata__", ())
-    )
+    metadata, at the top or inside an ``Optional``/union arm."""
+    if get_origin(hint) is Annotated:
+        return any(
+            isinstance(mark, FieldInfo) for mark in getattr(hint, "__metadata__", ())
+        )
+    if get_origin(hint) in (Union, UnionType):
+        return any(carries_field(arm) for arm in get_args(hint))
+    return False
 
 
 # Ready-made patterns for common formats; they run in the Rust engine like any pattern

@@ -658,8 +658,9 @@ def check_scalar_constraints(route: Route, params: tuple[Param, ...]) -> None:
         if name in scalars and carries_field(hint):
             raise RegistrationError(
                 f"{route.name}: `Field(...)` on the scalar parameter {name!r} "
-                "is not enforced; declare the constraints in a `Schema` and "
-                "take it as `Query[Schema]` or as the body"
+                "is not enforced, and its description and examples are not read "
+                "either; declare the constraints in a `Schema` and take it as "
+                "`Query[Schema]` or as the body"
             )
 
 
