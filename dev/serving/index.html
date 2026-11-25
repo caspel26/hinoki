@@ -501,8 +501,8 @@
           <h1 id="serve-an-application">Serve an application<a class="headerlink" href="#serve-an-application" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
-            <span>13 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></span>
+            <span>14 min read</span>
           </p>
           
         </header>
@@ -669,6 +669,12 @@ on <a href="../kiso/">Kiso server</a>.</p>
 <td>Kiso only: <code>pretty</code>, <code>plain</code>, <code>json</code> or <code>logger</code>. Unset is <code>pretty</code> on a colour terminal and <code>plain</code> otherwise</td>
 </tr>
 <tr>
+<td><code>server.reuse_port</code></td>
+<td><code>NOTES_SERVER__REUSE_PORT</code></td>
+<td>unset</td>
+<td>Kiso only: on Linux, multi-worker <code>hinoki serve</code> on a non-zero port gives each worker its own <code>SO_REUSEPORT</code> socket by default; set <code>false</code> to share one descriptor everywhere</td>
+</tr>
+<tr>
 <td><code>server.server</code></td>
 <td><code>NOTES_SERVER__SERVER</code></td>
 <td><code>kiso</code></td>
@@ -700,7 +706,7 @@ debug is off: ...</code> at startup, on every server.</p>
 <td>applied</td>
 </tr>
 <tr>
-<td><code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code>, <code>access_log_format</code>, <code>access_log_skip</code>, <code>access_log_slow_ms</code>, <code>recent_requests</code>, <code>server_timing</code></td>
+<td><code>max_connections</code>, <code>header_read_timeout</code>, <code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code>, <code>reuse_port</code>, <code>access_log_format</code>, <code>access_log_skip</code>, <code>access_log_slow_ms</code>, <code>recent_requests</code>, <code>server_timing</code></td>
 <td>applied when set</td>
 <td>refused when set</td>
 </tr>
@@ -862,7 +868,7 @@ sockets, TLS, the access log, the limits and the end of the response.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/serving.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

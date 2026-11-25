@@ -6,7 +6,7 @@
 
 - `hinoki.auth.Permission(new_class_name, /, names, *, module=None, qualname=None, type=None, start=1, boundary=None)`: Base for an application's typed permission names. [reference](https://hinoki.caspel.dev/dev/reference/auth/#hinoki.auth.Permission)
 
-- `hinoki.auth.Credentials(headers: 'dict[str, str]', query: 'dict[str, list[str]]', session: 'object | None' = None) -> None`: The parts of a request a provider may inspect. [reference](https://hinoki.caspel.dev/dev/reference/auth/#hinoki.auth.Credentials)
+- `hinoki.auth.Credentials(headers: 'Mapping[str, str]', query: 'dict[str, list[str]]', session: 'object | None' = None) -> None`: The parts of a request a provider may inspect. [reference](https://hinoki.caspel.dev/dev/reference/auth/#hinoki.auth.Credentials)
 
 - `hinoki.auth.BaseAuth()`: Base class of providers. [reference](https://hinoki.caspel.dev/dev/reference/auth/#hinoki.auth.BaseAuth)
 

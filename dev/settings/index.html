@@ -501,7 +501,7 @@
           <h1 id="configure-an-application-with-settings">Configure an application with settings<a class="headerlink" href="#configure-an-application-with-settings" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:03:20 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></span>
             <span>13 min read</span>
           </p>
           
@@ -818,6 +818,12 @@ generated <code>main.py</code> passes <code>openapi_url</code> and <code>docs_ur
 <td><code>sighup</code></td>
 <td>unset</td>
 <td>Kiso only, <code>hinoki serve</code>: <code>"reload"</code> (also what unset means) replaces the workers one at a time on <code>SIGHUP</code>, <code>"stop"</code> stops the server instead; see <a href="../kiso/#reload-on-sighup">reload on <code>SIGHUP</code></a></td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td><code>reuse_port</code></td>
+<td>unset</td>
+<td>Kiso only: on Linux, multi-worker <code>hinoki serve</code> on a non-zero port gives each worker its own <code>SO_REUSEPORT</code> socket; <code>false</code> forces one shared listening descriptor everywhere; refused under Granian</td>
 </tr>
 <tr>
 <td><code>server</code></td>
@@ -1231,7 +1237,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:03:20 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

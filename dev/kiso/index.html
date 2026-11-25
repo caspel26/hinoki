@@ -501,8 +501,8 @@
           <h1 id="kiso-hinokis-rust-server">Kiso, Hinoki's Rust server<a class="headerlink" href="#kiso-hinokis-rust-server" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 01:00:42 UTC">November 25, 2026</span></span>
-            <span>26 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></span>
+            <span>27 min read</span>
           </p>
           
         </header>
@@ -606,9 +606,14 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 <h2 id="response-compression">Response compression<a class="headerlink" href="#response-compression" title="Permanent link">&para;</a></h2>
 <p>With <code>compression.enabled</code> Kiso compresses eligible bodies with brotli or gzip after the application has answered, on HTTP/1.1 and HTTP/2, for whole answers, streams, event streams and files. It negotiates <code>accept-encoding</code>, adds <code>Vary</code>, skips small or non-text bodies and answers with <code>cache-control: no-transform</code>, flushes a stream whenever its producer pauses, and sends an answer uncompressed when <code>compression.max_concurrent</code> compressions are already running. It is a Kiso feature: Granian does not compress. See <a href="../compression/">compress responses</a>.</p>
 <h2 id="workers-signals-and-restarts">Workers, signals and restarts<a class="headerlink" href="#workers-signals-and-restarts" title="Permanent link">&para;</a></h2>
-<p>With one worker and <code>server.sighup = "stop"</code> (or where the system has no <code>SIGHUP</code>, as on Windows) <code>hinoki serve</code> runs the server in its own process. With several workers, with the default <code>sighup</code> (one extra supervisor process even for one worker) and always under <code>hinoki dev</code> it starts a supervisor that opens the listening socket once (honouring <code>backlog</code>), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
+<p>With one worker and <code>server.sighup = "stop"</code> (or where the system has no <code>SIGHUP</code>, as on Windows) <code>hinoki serve</code> runs the server in its own process. With several workers, with the default <code>sighup</code> (one extra supervisor process even for one worker) and always under <code>hinoki dev</code> it starts a supervisor that starts each worker as a fresh process that imports the target and builds the application. Databases and pools open inside each worker's lifespan, never in the supervisor.</p>
 <ul>
-<li><code>SIGTERM</code> or <code>SIGINT</code> (Ctrl-C) stops accepting, lets running requests finish for up to <code>lifecycle.shutdown_timeout</code>, runs the lifespan shutdown and exits. <code>SIGHUP</code> does the same when <code>server.sighup</code> is <code>"stop"</code> and <a href="#reload-on-sighup">reloads</a> otherwise. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. <code>--workers</code> must be 1 to 256 (<code>0</code> uses <code>server.workers</code>).</li>
+<li>
+<p><strong>Listening sockets and <code>SO_REUSEPORT</code>.</strong> On Linux, when <code>hinoki serve</code> runs more than one worker on a non-zero port (and <code>server.reuse_port</code> is not <code>false</code>), the supervisor probes <code>host:port</code> to validate it and then closes its probe socket before spawning workers; each worker opens its own <code>SO_REUSEPORT</code> listening socket (honouring <code>backlog</code>) after its lifespan startup succeeds, so the Linux kernel distributes incoming connections across per-worker accept queues. On macOS and other non-Linux platforms (where <code>SO_REUSEPORT</code> does not load-balance across sockets), with one worker, with <code>port = 0</code> (ephemeral port), under <code>hinoki dev</code>, or when <code>server.reuse_port = false</code>, the supervisor opens one listening socket (honouring <code>backlog</code>) and passes the descriptor down to every worker; connections are then spread by the operating system's accept on that shared socket.</p>
+</li>
+<li>
+<p><code>SIGTERM</code> or <code>SIGINT</code> (Ctrl-C) stops accepting, lets running requests finish for up to <code>lifecycle.shutdown_timeout</code>, runs the lifespan shutdown and exits. <code>SIGHUP</code> does the same when <code>server.sighup</code> is <code>"stop"</code> and <a href="#reload-on-sighup">reloads</a> otherwise. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. <code>--workers</code> must be 1 to 256 (<code>0</code> uses <code>server.workers</code>).</p>
+</li>
 <li>A worker that exits on its own, whether it failed to start or crashed, is not restarted: the supervisor stops the other workers and exits with a non-zero status. Restart policy belongs to the process manager (systemd, a container runtime) that runs <code>hinoki serve</code>.</li>
 <li>The listening socket is opened before the lifespan startup of a supervised worker finishes, so connections wait in the backlog until a worker accepts them. With one worker the socket is opened after a successful startup.</li>
 <li>If the supervisor is killed without a chance to clean up, its workers notice within a second of finishing their startup and stop. The workers' copy of the listening socket is not inherited by processes a handler starts.</li>
@@ -617,9 +622,9 @@ not, why (<a href="../inspect/#routes">Inspect an application</a>).</p>
 <h2 id="reload-on-sighup">Reload on <code>SIGHUP</code><a class="headerlink" href="#reload-on-sighup" title="Permanent link">&para;</a></h2>
 <p><code>kill -HUP &lt;supervisor pid&gt;</code> (or <code>ExecReload=/bin/kill -HUP $MAINPID</code> in a systemd unit) replaces the workers of a running <code>hinoki serve</code> with new ones, without closing the listening socket. The supervisor does this one worker at a time:</p>
 <ol>
-<li>It starts a new worker on the same socket. The new process imports the target and reads the settings, so changed code, <code>.env</code> and TOML files, TLS certificates, and CORS, host and security policies take effect.</li>
+<li>It starts a new worker on the same socket (or, with per-worker <code>SO_REUSEPORT</code> on Linux, with the same <code>host:port</code>, so the new worker binds its own <code>SO_REUSEPORT</code> socket only after its lifespan startup succeeds). The new process imports the target and reads the settings, so changed code, <code>.env</code> and TOML files, TLS certificates, and CORS, host and security policies take effect.</li>
 <li>It waits until the new worker has run its lifespan startup and serves. The wait is <code>lifecycle.startup_timeout</code> plus five seconds.</li>
-<li>It sends <code>SIGTERM</code> to the old worker, which stops accepting, lets the requests it has finished (up to <code>lifecycle.shutdown_timeout</code>), runs its lifespan shutdown and exits. It is killed if it is still running five seconds after that.</li>
+<li>It sends <code>SIGTERM</code> to the old worker, which stops accepting (closing its <code>SO_REUSEPORT</code> socket immediately on Linux so new connections go only to the active workers), lets the requests it has finish (up to <code>lifecycle.shutdown_timeout</code>), runs its lifespan shutdown and exits. It is killed if it is still running five seconds after that.</li>
 <li>It moves to the next worker. At most one extra worker runs at a time, so the database connections of an application are at most <code>(workers + 1) × pool_max</code> while a reload runs.</li>
 </ol>
 <div class="language-text highlight"><pre><span></span><code>reloading: SIGHUP (generation 2)
@@ -700,7 +705,7 @@ reloaded 4 workers (generation 2)
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 01:00:42 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/kiso.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

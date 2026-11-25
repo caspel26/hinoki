@@ -297,7 +297,7 @@
           <h1 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></span>
             <span>14 min read</span>
           </p>
           
@@ -1978,6 +1978,10 @@ means in <code>hinoki dev</code> only.
 <code>SIGHUP</code>) says what the signal does: <code>"reload"</code>, which is also what unset
 means, replaces the workers one at a time with new processes that import the
 code and read the settings again, <code>"stop"</code> stops the server.
+<code>reuse_port</code> (Rust server only; Linux only, unset means automatic for
+multi-worker <code>hinoki serve</code> on a non-zero port) lets each worker bind its
+own <code>SO_REUSEPORT</code> socket instead of sharing one listening descriptor;
+<code>False</code> forces the shared descriptor everywhere.
 <code>max_connections</code>, <code>header_read_timeout</code>,
 <code>body_read_timeout</code>, <code>write_timeout</code>, <code>native_dispatch</code> and
 <code>access_log_format</code>, <code>access_log_skip</code> and <code>access_log_slow_ms</code> belong to
@@ -2300,6 +2304,29 @@ without an asyncio task; <code>False</code> keeps every handler in one.</p>
 
 <a href="#hinoki.settings.ServerSettings.sighup" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">sighup</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'reload'</span><span class="p">,</span> <span class="s1">'stop'</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.settings.ServerSettings.reuse_port" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">reuse_port</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.settings.ServerSettings.reuse_port" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">reuse_port</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -5142,7 +5169,7 @@ and a failure aborts the start. <code>memory_capacity</code> bounds the outbox.<
           </li><li><a href="#hinoki.settings.DocsSettings">DocsSettings</a>
             <ul><li><a href="#hinoki.settings.DocsSettings.title">title</a></li><li><a href="#hinoki.settings.DocsSettings.version">version</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_url">openapi_url</a></li><li><a href="#hinoki.settings.DocsSettings.docs_url">docs_url</a></li><li><a href="#hinoki.settings.DocsSettings.redoc_url">redoc_url</a></li><li><a href="#hinoki.settings.DocsSettings.llms_url">llms_url</a></li><li><a href="#hinoki.settings.DocsSettings.openapi_version">openapi_version</a></li></ul>
           </li><li><a href="#hinoki.settings.ServerSettings">ServerSettings</a>
-            <ul><li><a href="#hinoki.settings.ServerSettings.server">server</a></li><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_format">access_log_format</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_skip">access_log_skip</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_slow_ms">access_log_slow_ms</a></li><li><a href="#hinoki.settings.ServerSettings.recent_requests">recent_requests</a></li><li><a href="#hinoki.settings.ServerSettings.server_timing">server_timing</a></li><li><a href="#hinoki.settings.ServerSettings.sighup">sighup</a></li><li><a href="#hinoki.settings.ServerSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.ServerSettings.header_read_timeout">header_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.body_read_timeout">body_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.write_timeout">write_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.tls_cert_file">tls_cert_file</a></li><li><a href="#hinoki.settings.ServerSettings.tls_key_file">tls_key_file</a></li><li><a href="#hinoki.settings.ServerSettings.http2">http2</a></li><li><a href="#hinoki.settings.ServerSettings.native_dispatch">native_dispatch</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
+            <ul><li><a href="#hinoki.settings.ServerSettings.server">server</a></li><li><a href="#hinoki.settings.ServerSettings.host">host</a></li><li><a href="#hinoki.settings.ServerSettings.port">port</a></li><li><a href="#hinoki.settings.ServerSettings.workers">workers</a></li><li><a href="#hinoki.settings.ServerSettings.runtime_threads">runtime_threads</a></li><li><a href="#hinoki.settings.ServerSettings.backlog">backlog</a></li><li><a href="#hinoki.settings.ServerSettings.access_log">access_log</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_format">access_log_format</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_skip">access_log_skip</a></li><li><a href="#hinoki.settings.ServerSettings.access_log_slow_ms">access_log_slow_ms</a></li><li><a href="#hinoki.settings.ServerSettings.recent_requests">recent_requests</a></li><li><a href="#hinoki.settings.ServerSettings.server_timing">server_timing</a></li><li><a href="#hinoki.settings.ServerSettings.sighup">sighup</a></li><li><a href="#hinoki.settings.ServerSettings.reuse_port">reuse_port</a></li><li><a href="#hinoki.settings.ServerSettings.max_connections">max_connections</a></li><li><a href="#hinoki.settings.ServerSettings.header_read_timeout">header_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.body_read_timeout">body_read_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.write_timeout">write_timeout</a></li><li><a href="#hinoki.settings.ServerSettings.tls_cert_file">tls_cert_file</a></li><li><a href="#hinoki.settings.ServerSettings.tls_key_file">tls_key_file</a></li><li><a href="#hinoki.settings.ServerSettings.http2">http2</a></li><li><a href="#hinoki.settings.ServerSettings.native_dispatch">native_dispatch</a></li><li><a href="#hinoki.settings.ServerSettings.trusted_proxies">trusted_proxies</a></li><li><a href="#hinoki.settings.ServerSettings.request_id_header">request_id_header</a></li><li><a href="#hinoki.settings.ServerSettings.trust_request_id">trust_request_id</a></li></ul>
           </li><li><a href="#hinoki.settings.PaginationSettings">PaginationSettings</a>
             <ul><li><a href="#hinoki.settings.PaginationSettings.page_size">page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.max_page_size">max_page_size</a></li><li><a href="#hinoki.settings.PaginationSettings.cursor_secret">cursor_secret</a></li><li><a href="#hinoki.settings.PaginationSettings.cursor_ttl_seconds">cursor_ttl_seconds</a></li></ul>
           </li><li><a href="#hinoki.settings.CorsSettings">CorsSettings</a>
@@ -5167,7 +5194,7 @@ and a failure aborts the start. <code>memory_capacity</code> bounds the outbox.<
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 23:11:47 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/settings.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
