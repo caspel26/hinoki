@@ -128,16 +128,18 @@ def run_routes(args: argparse.Namespace) -> int:
         return 1
     style = Style.detect(sys.stdout)
     width = max(len(route.path) for route in routes)
+    access_width = max(24, *(len(access_of(route)) for route in routes))
     for route in routes:
         lane, reason = lanes.get(id(route), unknown)
         access, handler = access_of(route), handler_of(route)
         if style.color:
             suffix = lane_suffix(style, lane, reason) if args.lanes else ""
-            row = route_row(style, route.method, route.path, width, access, handler)
+            row = route_row(
+                style, route.method, route.path, width, access, handler, access_width
+            )
             print(row + suffix)
             continue
         suffix = f"  [{lane}: {reason}]" if args.lanes else ""
-        print(
-            f"{route.method:<7} {route.path:<{width}}  {access:<24} {handler}{suffix}"
-        )
+        left = f"{route.method:<7} {route.path:<{width}}  {access:<{access_width}}"
+        print(f"{left} {handler}{suffix}")
     return 0
