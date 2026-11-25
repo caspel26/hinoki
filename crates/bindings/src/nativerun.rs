@@ -343,22 +343,14 @@ impl Job {
     }
 }
 
-const MAX_DRAIN_ROUNDS: usize = 8;
-
-struct QueueState {
-    jobs: Vec<Job>,
-    woken: bool,
-    draining: bool,
-}
-
 /// Steps for one event loop. Tokio threads queue them without the GIL and
-/// write one byte to a socket pair the loop watches only when no drain is
-/// active and no wake is already pending; the loop's reader drains newly
-/// arrived jobs across bounded rounds in one callback. `None` once the loop
-/// dropped the reader: a later step is dropped, which answers its drive with
-/// an error.
+/// write one byte to a socket pair the loop watches only when the queue goes
+/// from empty to non-empty; the loop's reader runs every queued step in one
+/// callback. The queue holds at most one step per running drive. `None` once
+/// the loop dropped the reader: a later step is dropped, which answers its
+/// drive with an error.
 struct Steps {
-    state: Mutex<Option<QueueState>>,
+    jobs: Mutex<Option<Vec<Job>>>,
     wake: UnixStream,
     read: UnixStream,
     #[cfg(test)]
@@ -371,11 +363,7 @@ impl Steps {
         wake.set_nonblocking(true)?;
         read.set_nonblocking(true)?;
         Ok(Self {
-            state: Mutex::new(Some(QueueState {
-                jobs: Vec::new(),
-                woken: false,
-                draining: false,
-            })),
+            jobs: Mutex::new(Some(Vec::new())),
             wake,
             read,
             #[cfg(test)]
@@ -383,32 +371,25 @@ impl Steps {
         })
     }
 
-    fn state(&self) -> MutexGuard<'_, Option<QueueState>> {
-        self.state.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    fn signal_wake(&self) {
-        #[cfg(test)]
-        self.wakes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        // `WouldBlock` means a wake byte is already buffered.
-        let _ = (&self.wake).write(&[1]);
+    fn jobs(&self) -> MutexGuard<'_, Option<Vec<Job>>> {
+        self.jobs.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     fn push(&self, job: Job) {
-        let mut state = self.state();
-        let Some(queue) = state.as_mut() else {
-            drop(state);
+        let mut jobs = self.jobs();
+        let Some(queued) = jobs.as_mut() else {
+            drop(jobs);
             drop(job);
             return;
         };
-        let wake = !queue.draining && !queue.woken;
+        let wake = queued.is_empty();
+        queued.push(job);
+        drop(jobs);
         if wake {
-            queue.woken = true;
-        }
-        queue.jobs.push(job);
-        drop(state);
-        if wake {
-            self.signal_wake();
+            #[cfg(test)]
+            self.wakes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            // `WouldBlock` means a wake is already pending.
+            let _ = (&self.wake).write(&[1]);
         }
     }
 
@@ -426,39 +407,12 @@ impl Steps {
         }
     }
 
-    fn begin_drain(&self) -> Vec<Job> {
-        let mut state = self.state();
-        let Some(queue) = state.as_mut() else {
-            return Vec::new();
-        };
-        queue.woken = false;
-        queue.draining = true;
-        std::mem::take(&mut queue.jobs)
-    }
-
-    fn continue_drain(&self, more_rounds: bool) -> Option<Vec<Job>> {
-        let mut state = self.state();
-        let queue = state.as_mut()?;
-        if more_rounds && !queue.jobs.is_empty() {
-            return Some(std::mem::take(&mut queue.jobs));
-        }
-        queue.draining = false;
-        let rearm = !queue.jobs.is_empty() && !queue.woken;
-        if rearm {
-            queue.woken = true;
-        }
-        drop(state);
-        if rearm {
-            self.signal_wake();
-        }
-        None
+    fn take(&self) -> Vec<Job> {
+        self.jobs().as_mut().map(std::mem::take).unwrap_or_default()
     }
 
     fn close(&self) -> Vec<Job> {
-        self.state()
-            .take()
-            .map(|queue| queue.jobs)
-            .unwrap_or_default()
+        self.jobs().take().unwrap_or_default()
     }
 }
 
@@ -468,50 +422,18 @@ struct StepsReader {
     steps: Arc<Steps>,
 }
 
-struct DrainGuard<'a> {
-    steps: &'a Steps,
-    active: bool,
-}
-
-impl Drop for DrainGuard<'_> {
-    fn drop(&mut self) {
-        if self.active {
-            // Clear `draining` and re-arm the wake socket on unwind so a
-            // panicked job cannot permanently wedge the native queue.
-            drop(self.steps.continue_drain(false));
-        }
-    }
-}
-
 #[pymethods]
 impl StepsReader {
-    /// Run every queued step and any that arrive while draining (up to
-    /// [`MAX_DRAIN_ROUNDS`]), suppressing redundant wakeups while active.
+    /// Run every queued step. Replies and the next waits go to Tokio together
+    /// once the steps ran. Steps queued meanwhile wake the loop again.
     fn __call__(&self, py: Python<'_>) {
         self.steps.clear();
-        let mut jobs = self.steps.begin_drain();
-        let mut guard = DrainGuard {
-            steps: &self.steps,
-            active: true,
-        };
-        let mut rounds = 0;
-        loop {
-            if !jobs.is_empty() {
-                handoff::batch(|| {
-                    for job in jobs {
-                        job.run(py);
-                    }
-                });
+        let jobs = self.steps.take();
+        handoff::batch(|| {
+            for job in jobs {
+                job.run(py);
             }
-            rounds += 1;
-            match self.steps.continue_drain(rounds < MAX_DRAIN_ROUNDS) {
-                Some(next) => jobs = next,
-                None => {
-                    guard.active = false;
-                    return;
-                }
-            }
-        }
+        });
     }
 }
 
@@ -659,7 +581,7 @@ def refuse(*args):
         let queued = Arc::clone(&steps.get().steps);
         py.detach(|| {
             let started = Instant::now();
-            while queued.state().as_ref().map_or(0, |q| q.jobs.len()) < count as usize {
+            while queued.jobs().as_ref().map_or(0, Vec::len) < count as usize {
                 assert!(started.elapsed() < Duration::from_secs(5), "steps queued");
                 std::thread::sleep(Duration::from_millis(1));
             }
@@ -722,38 +644,6 @@ def refuse(*args):
                 let (_, error, _): (Option<i64>, Option<String>, u64) = entry.extract().unwrap();
                 assert_eq!(error.as_deref(), Some("RuntimeError"));
             }
-        });
-    }
-
-    #[test]
-    fn pushes_while_draining_emit_no_extra_wakeups_and_all_complete() {
-        Python::initialize();
-        Python::attach(|py| {
-            let helpers =
-                PyModule::from_code(py, HELPERS, c"steps_helpers.py", c"steps_helpers").unwrap();
-            let asyncio = py.import("asyncio").unwrap();
-            let event_loop = asyncio.call_method0("new_event_loop").unwrap();
-            let steps = Bound::new(py, NativeSteps::new(py, &event_loop).unwrap()).unwrap();
-            let inner = Arc::clone(&steps.get().steps);
-            // Simulate an active drain while a batch of jobs arrives.
-            let initial = inner.begin_drain();
-            assert!(initial.is_empty());
-            let done = start_drives(py, &helpers, &steps, 4);
-            assert_eq!(inner.wakes.load(Ordering::SeqCst), 0);
-            // Finishing drain with more_rounds=false must re-arm exactly once.
-            assert!(inner.continue_drain(false).is_none());
-            assert_eq!(inner.wakes.load(Ordering::SeqCst), 1);
-            let pause = asyncio.call_method1("sleep", (0.05,)).unwrap();
-            event_loop
-                .call_method1("run_until_complete", (pause,))
-                .unwrap();
-            let mut values: Vec<i64> = done
-                .iter()
-                .map(|entry| entry.extract::<(i64, Option<String>, u64)>().unwrap().0)
-                .collect();
-            values.sort_unstable();
-            assert_eq!(values, vec![0, 1, 2, 3]);
-            event_loop.call_method0("close").unwrap();
         });
     }
 }
