@@ -1,6 +1,6 @@
 # Hinoki
 
-> A Python API framework that checks its own architecture. Typed `Schema`, ORM and settings of its own, a Rust core and the Kiso server. Not built on FastAPI, Starlette, Pydantic or Django: their APIs do not exist here.
+> A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, validation, OpenAPI, architecture rules and MCP. Typed `Schema`, ORM and settings of its own. Not built on FastAPI, Starlette, Pydantic or Django: their APIs do not exist here.
 
 Docs version: dev. Every page is Markdown at https://hinoki.caspel.dev/dev/<page>.md; all non-optional pages are in https://hinoki.caspel.dev/dev/llms-full.txt.
 
