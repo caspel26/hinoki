@@ -62,7 +62,7 @@ def build_native_body(
         source,
         request.headers if needs_raw else [],
         request.query,
-        request.client,
+        request.client if needs_raw else None,
         principal,
         request.header_dict if needs_dict else None,
     )

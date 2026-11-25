@@ -514,7 +514,7 @@ impl Core {
         let cors = self.cors_headers(asked);
         let mut body = page.body.clone();
         let headers = final_headers(
-            &page.headers,
+            page.headers.clone(),
             &self.policies[usize::from(asked.https)],
             &[],
             (&self.id_name, asked.request_id.as_bytes()),
@@ -568,7 +568,7 @@ impl Core {
         let own = vec![(b"content-type".to_vec(), b"application/json".to_vec())];
         let cors = self.cors_headers(asked);
         let response_headers = final_headers(
-            &own,
+            own,
             &self.policies[usize::from(asked.https)],
             &[],
             (&self.id_name, asked.request_id.as_bytes()),
@@ -604,7 +604,7 @@ impl Core {
         let native_crud = route_plan
             .and_then(|route| route.crud_plan.as_ref())
             .is_some_and(|slot| slot.is_armed());
-        let native_policy = self.policies[usize::from(asked.https)].clone();
+        let native_policy = Arc::clone(&self.policies[usize::from(asked.https)]);
         let native_cors = self.cors_headers(&asked);
         let route_headers = if native_crud {
             route_plan.map_or_else(Vec::new, |route| route.headers.clone())
@@ -627,7 +627,7 @@ impl Core {
             native_cors,
             route_headers,
             native_crud,
-            request_id_name: self.id_name.clone(),
+            request_id_name: Arc::clone(&self.id_name),
             needs_headers,
             params: params.clone(),
             prepared_path_params,
@@ -804,7 +804,7 @@ impl Core {
         }
         let cors = self.cors_headers(asked);
         let headers = final_headers(
-            &own,
+            own,
             &self.policies[usize::from(asked.https)],
             &[],
             (&self.id_name, asked.request_id.as_bytes()),

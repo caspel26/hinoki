@@ -27,8 +27,8 @@ pub use self::multipart::{
 pub use self::parse::{decode_path_parameter, join_headers, negotiate, parse_cookies, parse_query};
 #[allow(unused_imports)]
 pub use self::pyapi::{
-    header_dict, headers_and_size, parse_cookie_header, parse_query_string, request_headers,
-    response_headers,
+    header_dict, headers_and_size, joined_header_dict, parse_cookie_header, parse_query_string,
+    request_headers, response_headers,
 };
 
 #[cfg(test)]

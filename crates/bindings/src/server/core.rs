@@ -307,14 +307,14 @@ pub struct Core {
     pub(super) queue: Queue<PreparedRequest>,
     pub(super) in_flight: InFlight,
     pub(super) ready: AtomicBool,
-    pub(super) policies: [Vec<Header>; 2],
+    pub(super) policies: [Arc<[Header]>; 2],
     pub(super) cors: Option<Cors>,
     /// Policies of routes that declare their own CORS, by action number; each
     /// replaces `cors` for that route.
     pub(super) route_cors: HashMap<u32, Cors>,
     pub(super) hosts: Option<Hosts>,
     pub(super) redirect_https: bool,
-    pub(super) id_name: Vec<u8>,
+    pub(super) id_name: Arc<[u8]>,
     pub(super) prefix: String,
     pub(super) counter: AtomicU64,
     /// Invalid trusted request ids seen on natively answered requests; the
@@ -542,7 +542,7 @@ impl ServerCore {
                 queue: Queue::new(queue_capacity),
                 in_flight: InFlight::new(max_in_flight),
                 ready: AtomicBool::new(false),
-                policies: [policies.0, policies.1],
+                policies: [policies.0.into(), policies.1.into()],
                 cors: cors.map(cors_from),
                 route_cors: route_cors
                     .into_iter()
@@ -550,7 +550,7 @@ impl ServerCore {
                     .collect(),
                 hosts: hosts.map(|(exact, suffixes)| Hosts { exact, suffixes }),
                 redirect_https,
-                id_name: request_id_name,
+                id_name: request_id_name.into(),
                 prefix: request_id_prefix,
                 counter: AtomicU64::new(0),
                 ignored_ids: AtomicU64::new(0),

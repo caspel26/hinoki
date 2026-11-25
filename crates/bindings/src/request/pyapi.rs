@@ -47,11 +47,55 @@ pub fn headers_and_size(
         .map(|(name, value)| (name.as_bytes(), value.as_bytes()))
         .collect();
     let size = pairs.iter().map(|(n, v)| n.len() + v.len() + 4).sum();
-    let result = PyDict::new(py);
-    for (name, value) in join_headers(&pairs) {
-        result.set_item(name, value)?;
+    Ok((joined_header_dict(py, &pairs)?.unbind(), size))
+}
+
+/// A header the dict can take as is: the name is lower-case ASCII and the
+/// value ASCII, which is what hyper delivers.
+fn plain_header<'a>(name: &'a [u8], value: &'a [u8]) -> Option<(&'a str, &'a str)> {
+    if name.iter().any(u8::is_ascii_uppercase) || !name.is_ascii() || !value.is_ascii() {
+        return None;
     }
-    Ok((result.unbind(), size))
+    Some((
+        std::str::from_utf8(name).ok()?,
+        std::str::from_utf8(value).ok()?,
+    ))
+}
+
+/// The dict `join_headers` describes: lower-case names, repeats joined (`"; "`
+/// for `cookie`, `", "` otherwise) at the first occurrence. Plain headers go
+/// straight into the dict; any other input takes the `join_headers` path, which
+/// owns the Latin-1 and Unicode-lowercase rules.
+pub fn joined_header_dict<'py, N: AsRef<[u8]>, V: AsRef<[u8]>>(
+    py: Python<'py>,
+    headers: &[(N, V)],
+) -> PyResult<Bound<'py, PyDict>> {
+    let result = PyDict::new(py);
+    if !headers
+        .iter()
+        .all(|(n, v)| plain_header(n.as_ref(), v.as_ref()).is_some())
+    {
+        for (name, value) in join_headers(headers) {
+            result.set_item(name, value)?;
+        }
+        return Ok(result);
+    }
+    for (name, value) in headers {
+        let Some((name, value)) = plain_header(name.as_ref(), value.as_ref()) else {
+            continue;
+        };
+        match result.get_item(name)? {
+            Some(first) => {
+                let separator = if name == "cookie" { "; " } else { ", " };
+                result.set_item(
+                    name,
+                    format!("{}{separator}{value}", first.extract::<&str>()?),
+                )?;
+            }
+            None => result.set_item(name, value)?,
+        }
+    }
+    Ok(result)
 }
 
 /// A `(name, value)` pair of bytes; ASGI servers may send lists or tuples.
