@@ -27,15 +27,16 @@ ROW_KINDS = frozenset(
 KEY_KINDS = frozenset({"int", "str", "uuid"})
 SEPARATOR = "__"
 
-type _PlanKey = tuple[
-    type[Model],
-    tuple[str, ...],
-    tuple[str, ...],
-    str,
-    tuple[str, ...],
+type _PlanKey = tuple[tuple[str, ...], tuple[str, ...], str]
+type _PlanEntry = tuple[
+    core._RowPlan | None,
+    tuple[type[Schema], ...],
+    tuple[type[Model], ...],
+    bool,
 ]
 _PLAN_CACHE: weakref.WeakKeyDictionary[
-    type[Schema], dict[_PlanKey, core._RowPlan | None]
+    type[Schema],
+    weakref.WeakKeyDictionary[type[Model], dict[_PlanKey, _PlanEntry]],
 ] = weakref.WeakKeyDictionary()
 
 
@@ -727,6 +728,76 @@ def _build_projection_plan(
 
 
 _STOCK_FROM_ROW = getattr(Model.from_row, "__func__", None)
+_STOCK_SCHEMA_DUMP = Schema.dump
+_STOCK_SCHEMA_FROM_MODEL = getattr(Schema.from_model, "__func__", None)
+
+
+def _schema_hooks_stock(schema: type[Schema]) -> bool:
+    return bool(
+        schema.dump is _STOCK_SCHEMA_DUMP
+        and getattr(schema.from_model, "__func__", None) is _STOCK_SCHEMA_FROM_MODEL
+        and not schema.__checks__
+        and not schema.__normalizers__
+        and not schema.__computed_specs__
+    )
+
+
+def _schema_guards(schema: type[Schema]) -> tuple[type[Schema], ...]:
+    seen: list[type[Schema]] = []
+    for spec in schema.specs().values():
+        candidate = spec.ftype.schema or (
+            spec.ftype.item.schema if spec.ftype.item is not None else None
+        )
+        if candidate is not None and candidate is not schema and candidate not in seen:
+            seen.append(candidate)
+    return tuple(seen)
+
+
+def _model_guards(query: QuerySet[Any]) -> tuple[type[Model], ...]:
+    seen: list[type[Model]] = []
+    for rel_name in query.loading.selected:
+        if rel_name in query.model.__relations__:
+            target = query.forward(rel_name).model
+            if target is not query.model and target not in seen:
+                seen.append(target)
+    for pf_name in query.loading.prefetched:
+        pf_target = _prefetch_target_model(query, pf_name)
+        if (
+            pf_target is not None
+            and pf_target is not query.model
+            and pf_target not in seen
+        ):
+            seen.append(pf_target)
+    return tuple(seen)
+
+
+def _all_hooks_stock(
+    schema: type[Schema],
+    schemas: tuple[type[Schema], ...],
+    models: tuple[type[Model], ...],
+) -> bool:
+    return (
+        _schema_hooks_stock(schema)
+        and all(_schema_hooks_stock(s) for s in schemas)
+        and all(
+            getattr(m.from_row, "__func__", None) is _STOCK_FROM_ROW for m in models
+        )
+    )
+
+
+def _plan_guards(
+    query: QuerySet[Any], schema: type[Schema]
+) -> tuple[tuple[type[Schema], ...], tuple[type[Model], ...]]:
+    return _schema_guards(schema), _model_guards(query)
+
+
+def _prefetch_target_model(query: QuerySet[Any], name: str) -> type[Model] | None:
+    side = query.model.__links__.get(name)
+    if isinstance(side, LinkSide):
+        return side.target
+    if name in query.model.__relations__:
+        return query.relation(name).model
+    return None
 
 
 def compile_projection_plan(
@@ -740,22 +811,27 @@ def compile_projection_plan(
         or getattr(query.model.from_row, "__func__", None) is not _STOCK_FROM_ROW
     ):
         return None
-    computed_key = tuple(schema.__computed_specs__)
     cache_key: _PlanKey = (
-        query.model,
         query.loading.selected,
         query.loading.prefetched,
         dialect,
-        computed_key,
     )
     per_schema = _PLAN_CACHE.get(schema)
-    if per_schema is not None and cache_key in per_schema:
-        return per_schema[cache_key]
-    plan = _build_projection_plan(query, schema, dialect)
+    per_model = None if per_schema is None else per_schema.get(query.model)
+    if per_model is not None and cache_key in per_model:
+        plan, guard_schemas, guard_models, was_stock = per_model[cache_key]
+        if _all_hooks_stock(schema, guard_schemas, guard_models) == was_stock:
+            return plan
+    guard_schemas, guard_models = _plan_guards(query, schema)
+    was_stock = _all_hooks_stock(schema, guard_schemas, guard_models)
+    plan = _build_projection_plan(query, schema, dialect) if was_stock else None
     if per_schema is None:
-        per_schema = {}
+        per_schema = weakref.WeakKeyDictionary()
         _PLAN_CACHE[schema] = per_schema
-    per_schema[cache_key] = plan
+    if per_model is None:
+        per_model = {}
+        per_schema[query.model] = per_model
+    per_model[cache_key] = (plan, guard_schemas, guard_models, was_stock)
     return plan
 
 
