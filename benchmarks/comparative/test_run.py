@@ -1,4 +1,6 @@
+import importlib
 import json
+import logging
 import signal
 import socket
 import subprocess
@@ -494,3 +496,20 @@ def test_payloads_are_deterministic_compact_and_the_advertised_size() -> None:
     assert 9200 <= len(payloads.BODIES["json-10k"]) <= 11300
     assert b": " not in payloads.BODIES["json-1k"]
     assert json.loads(payloads.BODIES["json-1k"]) == payloads.ITEMS["json-1k"]
+
+
+def test_bolt_settings_disable_access_logging_and_compression(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BENCH_DATABASE_URL", run.DB)
+    monkeypatch.delitem(sys.modules, "parity_dj_settings", raising=False)
+    settings = importlib.import_module("parity_dj_settings")
+
+    assert settings.BOLT_COMPRESSION is False
+    levels = logging.getLevelNamesMapping()
+    loggers = settings.LOGGING["loggers"]
+    for name in ("django", "django.server", "django_bolt"):
+        assert levels[loggers[name]["level"]] >= logging.WARNING, name
+    assert loggers["django.server"]["propagate"] is False
+    assert loggers["django_bolt"]["propagate"] is False
+    assert levels[settings.LOGGING["root"]["level"]] >= logging.WARNING
