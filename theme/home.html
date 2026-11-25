@@ -22,33 +22,33 @@
           <span>python api framework · rust http &amp; orm · agent-ready</span>
         </p>
         <h1 id="hn-hero-title" class="hn-hero__title">Typed Python APIs. <span>Architecture rules you can run.</span></h1>
-        <p class="hn-hero__lead">High-throughput Python API framework powered by the Kiso Rust HTTP server and SQL ORM. One typed declaration drives routing, strict <code>Schema</code> validation, OpenAPI, architecture rules, and MCP.</p>
+        <p class="hn-hero__lead">A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, strict <code>Schema</code> validation, OpenAPI, architecture rules, and MCP.</p>
 
         <div class="hn-actions">
           <a class="hn-btn hn-btn--primary" href="{{ 'getting-started/' | url }}">Quick start <span class="hn-btn__arrow" aria-hidden="true">→</span></a>
-          <a class="hn-btn hn-btn--ghost" href="#kiso">Kiso &amp; benchmarks</a>
+          <a class="hn-btn hn-btn--ghost" href="#kiso">Kiso &amp; the Rust core</a>
           <a class="hn-btn hn-btn--ghost" href="#ai-mcp">AI &amp; MCP</a>
         </div>
 
-        {# Borderless typographic metric bar — real measured numbers from docs/benchmarks.md #}
-        <div class="hn-kpi" aria-label="Measured Kiso throughput and built-in architecture tooling">
-          <a class="hn-kpi__item" href="#kiso">
-            <span class="hn-kpi__val">91,675<em> req/s</em></span>
-            <span class="hn-kpi__label">JSON 1 KB · Kiso</span>
-            <span class="hn-kpi__sub">4.2× FastAPI (22,059)</span>
+        {# Borderless typographic fact bar #}
+        <div class="hn-kpi" aria-label="Built-in architecture tooling">
+          <a class="hn-kpi__item" href="#rules">
+            <span class="hn-kpi__val">12<em> rules</em></span>
+            <span class="hn-kpi__label">Architecture rules built in</span>
+            <span class="hn-kpi__sub">hinoki check · file, line, fix</span>
           </a>
-          <a class="hn-kpi__item" href="#kiso">
-            <span class="hn-kpi__val">12,819<em> req/s</em></span>
-            <span class="hn-kpi__label">PostgreSQL detail · Kiso</span>
-            <span class="hn-kpi__sub">3.5× FastAPI (3,642)</span>
+          <a class="hn-kpi__item" href="#contract">
+            <span class="hn-kpi__val">4<em> databases</em></span>
+            <span class="hn-kpi__label">SQLite, PostgreSQL, MySQL, MariaDB</span>
+            <span class="hn-kpi__sub">One ORM, one declaration</span>
           </a>
           <a class="hn-kpi__item" href="#ai-mcp">
-            <span class="hn-kpi__val">2<em> MCP</em> + 12<em> rules</em></span>
+            <span class="hn-kpi__val">2<em> MCP servers</em></span>
             <span class="hn-kpi__label">Dev &amp; App MCP built in</span>
             <span class="hn-kpi__sub">AGENTS.md · skills · check</span>
           </a>
         </div>
-        <p class="hn-kpi__note">Pre-alpha, single Linux host, loopback, 100 concurrent connections, median of 10 samples (2026-11-21). <a href="{{ 'benchmarks/' | url }}">Read the retained benchmark report ↗</a></p>
+        <p class="hn-kpi__note">Pre-alpha. <a href="{{ 'benchmarks/' | url }}">Retained benchmark report with its limits ↗</a></p>
 
         <div class="hn-install" data-hn-tabs>
           <div class="hn-install__head">
@@ -384,7 +384,7 @@
                   <text class="hn-dg-t hn-dg-t--core" x="352" y="141">One declared contract</text>
                   <text class="hn-dg-s" x="352" y="160">ordinary Python decorators</text>
                 </g>
-                <g class="hn-dg-node k-rust" tabindex="0" data-tip="Route matching runs in Rust on Kiso; each route is assigned its fastest eligible lane at startup." data-tip-title="Routing &amp; Kiso lanes">
+                <g class="hn-dg-node k-rust" tabindex="0" data-tip="Route matching runs in Rust on Kiso; each route is assigned an eligible lane at startup." data-tip-title="Routing &amp; Kiso lanes">
                   <rect x="666" y="10" width="278" height="40" rx="8"/><text class="hn-dg-t" x="680" y="35">Routing &amp; Kiso lanes</text>
                 </g>
                 <g class="hn-dg-node k-rust" tabindex="0" data-tip="Strict validation without coercion, compiled once per Schema in Rust." data-tip-title="Rust Schema validation">
@@ -432,16 +432,16 @@
         </div>
         <div class="hn-sec__body">
           <div class="hn-sec__head">
-            <p class="hn-kicker">Speed &amp; execution boundary</p>
-            <h2 id="hn-s2-title">Rust core, Python surface — measured, not claimed.</h2>
-            <p class="hn-lead">Kiso is Hinoki's native Rust HTTP server (hyper, tokio, rustls). At worker startup it assigns each route to its fastest eligible lane while keeping identical status codes, headers and error order on every path.</p>
+            <p class="hn-kicker">Execution boundary</p>
+            <h2 id="hn-s2-title">Rust core, Python surface.</h2>
+            <p class="hn-lead">Kiso is Hinoki's native Rust HTTP server (hyper, tokio, rustls). At worker startup it assigns each route to an eligible execution lane while keeping identical status codes, headers and error order on every path.</p>
           </div>
 
-          {# Interactive Measured Benchmarks Card (data from docs/benchmarks.md) #}
+          {# Interactive retained-report card (data from docs/benchmarks.md; competitor rows deliberately left to the report) #}
           <div class="hn-bench-card hn-surface" data-hn-bench>
             <div class="hn-bench-card__head">
               <div>
-                <p class="hn-bench-card__kicker">Retained benchmark · 2026-11-21 · 100 concurrent connections</p>
+                <p class="hn-bench-card__kicker">Retained report · Hinoki servers only · 2026-11-21 · 100 concurrent connections</p>
                 <h3>Median requests per second (higher is better)</h3>
               </div>
               <div class="hn-switch" role="group" aria-label="Benchmark workload" data-slider>
@@ -454,98 +454,50 @@
 
             <div class="hn-bench-card__body" data-bench-panel="json1k">
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>91,675</strong><small>req/s</small><em>Highest</em></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>91,675</strong><small>req/s</small></span></div>
                 <div class="hn-bar__track"><span style="--w:100%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>81,363</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:88.8%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
                 <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>50,228</strong><small>req/s</small></span></div>
                 <div class="hn-bar__track"><span style="--w:54.8%"></span></div>
               </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>22,059</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:24.1%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>4,908</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:5.4%"></span></div>
-              </div>
             </div>
 
             <div class="hn-bench-card__body" data-bench-panel="json10k" hidden>
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>78,946</strong><small>req/s</small><em>Highest</em></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>78,946</strong><small>req/s</small></span></div>
                 <div class="hn-bar__track"><span style="--w:100%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>75,493</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:95.6%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
                 <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>47,355</strong><small>req/s</small></span></div>
                 <div class="hn-bar__track"><span style="--w:60.0%"></span></div>
               </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>21,892</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:27.7%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>4,885</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:6.2%"></span></div>
-              </div>
             </div>
 
             <div class="hn-bench-card__body" data-bench-panel="detail" hidden>
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>12,819</strong><small>req/s</small><em>Highest</em></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>12,819</strong><small>req/s</small></span></div>
                 <div class="hn-bar__track"><span style="--w:100%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
                 <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>11,411</strong><small>req/s</small></span></div>
                 <div class="hn-bar__track"><span style="--w:89.0%"></span></div>
               </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>5,612</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:43.8%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>3,642</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:28.4%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>1,907</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:14.9%"></span></div>
-              </div>
             </div>
 
             <div class="hn-bench-card__body" data-bench-panel="health" hidden>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Bolt (Actix, native)</span><span class="hn-bar__val"><strong>73,516</strong><small>req/s</small><em>Highest</em></span></div>
-                <div class="hn-bar__track"><span style="--w:100%"></span></div>
-              </div>
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>72,443</strong><small>req/s</small><em>Tied (&lt;10%)</em></span></div>
-                <div class="hn-bar__track"><span style="--w:98.5%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>72,443</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
                 <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>40,366</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:54.9%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>FastAPI (Uvicorn)</span><span class="hn-bar__val"><strong>21,087</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:28.7%"></span></div>
-              </div>
-              <div class="hn-bar">
-                <div class="hn-bar__meta"><span>Django Ninja (Uvicorn)</span><span class="hn-bar__val"><strong>4,844</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:6.6%"></span></div>
+                <div class="hn-bar__track"><span style="--w:55.7%"></span></div>
               </div>
             </div>
 
             <div class="hn-bench-card__foot">
-              <span>i5-10300H (8 logical CPUs), Linux, PostgreSQL, warm data, loopback, median of 10 samples. Pre-alpha — not a production claim.</span>
+              <span>i5-10300H (8 logical CPUs), Linux, PostgreSQL, warm data, loopback, median of 10 samples. The two servers were measured in separate runs and the host load was not controlled. Pre-alpha, not a production claim. Other stacks are in the report.</span>
               <a class="hn-link" href="{{ 'benchmarks/' | url }}">Full methodology &amp; latency</a>
             </div>
           </div>
@@ -1013,7 +965,7 @@ app.include(*mcp)  <span class="c"># mounts POST /mcp</span></pre>
             </a></li>
             <li><a class="hn-card hn-path" href="{{ 'benchmarks/' | url }}">
               <span class="hn-path__icon">{{ m.icon("gauge", "m") }}</span>
-              <span class="hn-path__body"><b>Benchmarks</b><span class="hn-path__text">Inspect retained Kiso numbers, methodology and latency.</span></span>
+              <span class="hn-path__body"><b>Benchmarks</b><span class="hn-path__text">Read the retained report: methodology, limits and latency.</span></span>
               <i class="hn-path__arrow" aria-hidden="true">→</i>
             </a></li>
           </ul>
