@@ -50,6 +50,7 @@ from hinoki.modules import ModuleContext
 from hinoki.orm.context import database_var
 from hinoki.orm.links import check_resolved
 from hinoki.orm.model import Model
+from hinoki.orm.projection import _ProjectedItem
 from hinoki.pagination import Page as ResultPage
 from hinoki.parsers import JSONParser, Parser, choose, is_native_parser
 from hinoki.ratelimit import RateLimit, RateLimitContext
@@ -1847,7 +1848,12 @@ def project_response(schema: type[Schema] | None, value: object) -> object:
     if schema is None:
         return value
     if isinstance(value, schema):
-        return value if type(value) is schema else value.dump(include=schema.specs())
+        is_exact = type(value) is schema or (
+            isinstance(value, _ProjectedItem)
+            and value._projected_handle is not None
+            and value._schema is schema
+        )
+        return value if is_exact else value.dump(include=schema.specs())
     if not isinstance(value, Model):
         return value
     source = schema.__derived_model__
