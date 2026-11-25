@@ -56,7 +56,7 @@ async def refusals(client: ASGIClient) -> list[tuple[int, object]]:
         {"authorization": f"Bearer {SECRET}"},
         {"authorization": "Bearer reader"},
     ):
-        reply = await client.get("/notes/42?token=" + SECRET, headers=headers)
+        reply = await client.get("/notes/42", query="token=" + SECRET, headers=headers)
         body = {k: v for k, v in reply.body.items() if k != "request_id"}
         answers.append((reply.status, body))
     reply = await client.post("/login")
