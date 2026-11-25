@@ -271,6 +271,8 @@ The refusal is `errors.TooManyRequests(retry_after)`: status 429, code `rate_lim
 
 Limiting failed credentials of a `BearerAuth` provider belongs in that provider, because authentication runs first.
 
+The policy runs after the route is matched and the caller is authenticated, so it never sees a request whose credentials were refused and cannot throttle failed authentication attempts (guessing a password or a token). To bound those, limit at the reverse proxy, or put the limit on an unauthenticated login route (as `/auth/login` above), where the handler checks the credentials after the policy has run.
+
 A refusal emits a `RateLimited` [event](events.md#authentication-and-rate-limit-events) (policy class name, route template, `retry_after`; no key, caller or address) when the application has a handler for it. A handler cannot change the `429`.
 
 ### The response is checked against the annotation
