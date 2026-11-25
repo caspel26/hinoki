@@ -237,6 +237,40 @@ def test_header_dict_lowers_names_and_joins_repeats() -> None:
     assert found == {"x-a": "1, 3", "x-b": "é"}
 
 
+def joined_headers(pairs: list[tuple[bytes, bytes]]) -> dict[str, str]:
+    """The documented semantics: lower-cased Latin-1 names, repeats joined at
+    the first occurrence with "; " for cookie and ", " otherwise."""
+    joined: dict[str, str] = {}
+    for raw_name, raw_value in pairs:
+        name = raw_name.decode("latin-1").lower()
+        value = raw_value.decode("latin-1")
+        if name in joined:
+            joined[name] += ("; " if name == "cookie" else ", ") + value
+        else:
+            joined[name] = value
+    return joined
+
+
+@pytest.mark.parametrize(
+    "pairs",
+    [
+        [],
+        [(b"host", b"a"), (b"accept", b"*/*"), (b"x-id", b"1")],
+        [(b"x-a", b"1"), (b"x-b", b"2"), (b"x-a", b"3"), (b"x-a", b"4")],
+        [(b"cookie", b"a=1"), (b"accept", b"x"), (b"cookie", b"b=2")],
+        [(b"X-A", b"1"), (b"x-a", b"2")],
+        [(b"x-a", b"\xe9"), (b"x-b", b"2")],
+        [(b"x-a", b""), (b"x-a", b""), (b"x-c", b"c")],
+    ],
+)
+def test_header_dict_matches_the_join_semantics(
+    pairs: list[tuple[bytes, bytes]],
+) -> None:
+    found = core.header_dict(pairs)
+    assert found == joined_headers(pairs)
+    assert list(found) == list(joined_headers(pairs))
+
+
 @pytest.mark.parametrize(
     ("value", "sort_keys"),
     [

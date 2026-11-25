@@ -639,7 +639,11 @@ class PreparedRequest:
         self, status: int, headers: list[tuple[bytes, bytes]], body: bytes
     ) -> bool: ...
     def respond_final_json(
-        self, status: int, headers: list[tuple[bytes, bytes]], value: object
+        self,
+        status: int,
+        headers: list[tuple[bytes, bytes]],
+        value: object,
+        strict: bool = False,
     ) -> bool: ...
     def respond_routed(
         self,

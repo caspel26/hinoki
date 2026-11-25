@@ -1696,10 +1696,15 @@ class Pipeline:
         )
         if isinstance(result, HandlerResponse):
             return await self._plain_response(binding, result)
-        enforce_response(binding, result)
+        # A deferred exact list is checked while Rust encodes it (`Response.strict`).
+        fused = defer and binding.fused_check and type(result) is list
+        if not fused:
+            enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
             result = project_response(binding.response_schema, result)
-            return self._native_rendered(binding, result, native, defer=defer)
+            return self._native_rendered(
+                binding, result, native, defer=defer, strict=fused
+            )
         if route.status == HTTPStatus.OK:
             return Response(HTTPStatus.NO_CONTENT)
         return Response(route.status)
@@ -1717,6 +1722,7 @@ class Pipeline:
         result: object,
         native: NativeBody | None,
         defer: bool = False,
+        strict: bool = False,
     ) -> Response:
         """Render with the renderer ``Accept`` selects among the route's
         built-in renderers, which never read the ``Request``."""
@@ -1728,6 +1734,7 @@ class Pipeline:
                     b"",
                     [(b"content-type", b"application/json")],
                     payload=result,
+                    strict=strict,
                 )
             body = core.encode_json(result, None, False, None)
             return Response.rendered(route.status, body, "application/json", False)

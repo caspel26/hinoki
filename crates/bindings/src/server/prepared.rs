@@ -113,13 +113,13 @@ pub struct PreparedRequest {
     pub(super) native_args: NativeArgs,
     pub(super) native_error: Option<NativeInputError>,
     pub(super) native_principal: Option<(String, Vec<String>)>,
-    pub(super) native_policy: Vec<Header>,
+    pub(super) native_policy: Arc<[Header]>,
     /// The CORS headers for the request's `Origin`, added to a native handler's
     /// answer unless it sets its own `access-control-allow-origin`.
     pub(super) native_cors: Vec<Header>,
     pub(super) route_headers: Vec<(String, String)>,
     pub(super) native_crud: bool,
-    pub(super) request_id_name: Vec<u8>,
+    pub(super) request_id_name: Arc<[u8]>,
     pub(super) needs_headers: bool,
     pub(super) params: Vec<(String, String)>,
     pub(super) prepared_path_params: Option<PreparedPathParams>,
@@ -392,11 +392,7 @@ impl PreparedRequest {
     /// header vector without first materializing a Python list of byte pairs.
     #[getter]
     fn header_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let out = PyDict::new(py);
-        for (name, value) in crate::request::join_headers(&self.headers) {
-            out.set_item(name, value)?;
-        }
-        Ok(out)
+        crate::request::joined_header_dict(py, &self.headers)
     }
 
     /// Read the request body (empty bytes when there is none), refusing more
@@ -574,7 +570,7 @@ impl PreparedRequest {
             idle: seconds("idle_timeout", idle_timeout)?,
             keepalive: seconds("keepalive", keepalive)?,
         };
-        let mut head = self.head_of(&headers, &route_headers);
+        let mut head = self.head_of(headers, &route_headers);
         if let Some(length) = length {
             head.push((b"content-length".to_vec(), length.to_string().into_bytes()));
         }
@@ -630,7 +626,7 @@ impl PreparedRequest {
         path: PathBuf,
     ) -> PyResult<bool> {
         refuse_bodyless(status)?;
-        let head = self.head_of(&headers, &route_headers);
+        let head = self.head_of(headers, &route_headers);
         let sent = Sent::File(FileReply {
             status,
             headers: head,
@@ -653,13 +649,22 @@ impl PreparedRequest {
 
     /// Encode `value` directly into the owned response buffer and complete the
     /// native request without creating an intermediate Python `bytes` object.
+    /// With `strict`, the value must also be a plain `list[dict[str, object]]`
+    /// (see `encode_json_vec_strict`); any other value is an error that sends
+    /// nothing, and the caller then runs the checked path.
+    #[pyo3(signature = (status, headers, value, strict=false))]
     pub(crate) fn respond_final_json(
         &self,
         status: u16,
         headers: Vec<(Vec<u8>, Vec<u8>)>,
         value: &Bound<'_, PyAny>,
+        strict: bool,
     ) -> PyResult<bool> {
-        let body = crate::request::encode_json_vec(value)?;
+        let body = if strict {
+            crate::request::encode_json_vec_strict(value)?
+        } else {
+            crate::request::encode_json_vec(value)?
+        };
         Ok(self.respond_final_owned(status, headers, body))
     }
 
@@ -712,9 +717,12 @@ impl PreparedRequest {
 
     /// The CORS headers to add: none when the answer or the route sets its own.
     fn cors_for(&self, own: &[Header], route_headers: &[(String, String)]) -> &[Header] {
+        if self.native_cors.is_empty() {
+            return &[];
+        }
         let sets_origin = own
             .iter()
-            .chain(&self.native_policy)
+            .chain(self.native_policy.iter())
             .any(|(name, _)| name.eq_ignore_ascii_case(ALLOW_ORIGIN))
             || route_headers
                 .iter()
@@ -728,13 +736,14 @@ impl PreparedRequest {
 
     /// A head without `content-length`, for a body whose size the connection or
     /// the producer decides.
-    fn head_of(&self, own: &[Header], route_headers: &[(String, String)]) -> Vec<Header> {
+    fn head_of(&self, own: Vec<Header>, route_headers: &[(String, String)]) -> Vec<Header> {
+        let cors = self.cors_for(&own, route_headers);
         head_headers(
             own,
             &self.native_policy,
             route_headers,
             (&self.request_id_name, self.request_id.as_bytes()),
-            self.cors_for(own, route_headers),
+            cors,
         )
     }
 
@@ -759,14 +768,16 @@ impl PreparedRequest {
         body: Vec<u8>,
         route_headers: &[(String, String)],
     ) -> bool {
+        let body_len = body.len();
+        let cors = self.cors_for(&own, route_headers);
         let final_headers = final_headers(
-            &own,
+            own,
             &self.native_policy,
             route_headers,
             (&self.request_id_name, self.request_id.as_bytes()),
-            self.cors_for(&own, route_headers),
+            cors,
             status,
-            body.len(),
+            body_len,
         );
         let final_body = if self.method == "HEAD" {
             Vec::new()

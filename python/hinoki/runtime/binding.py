@@ -248,6 +248,7 @@ class Binding:
     body_param: Param | None = field(init=False, repr=False, compare=False)
     principal_name: str | None = field(init=False, repr=False, compare=False)
     default_json: bool = field(init=False, repr=False, compare=False)
+    fused_check: bool = field(init=False, repr=False, compare=False)
     native_defaults: tuple[tuple[str, object], ...] = field(
         init=False, repr=False, compare=False
     )
@@ -275,6 +276,14 @@ class Binding:
             self,
             "default_json",
             len(renderers) == 1 and is_default_json_renderer(renderers[0]),
+        )
+        object.__setattr__(
+            self,
+            "fused_check",
+            self.default_json
+            and self.response_schema is None
+            and isinstance(self.response_check, core._ResponseObjectList)
+            and self.route.status not in BODYLESS,
         )
         principals = [p.name for p in self.params if p.source == "principal"]
         object.__setattr__(

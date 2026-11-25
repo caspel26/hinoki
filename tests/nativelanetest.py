@@ -42,6 +42,7 @@ from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.nativelane import (
     NativeLane,
     Run,
+    build_native_body,
     lane_refusal,
     resume,
     timeout_response,
@@ -881,7 +882,9 @@ class FakeRequest:
             raise OSError("peer gone")
         self.answers.append(status)
 
-    def respond_final_json(self, status: int, headers: Any, value: object) -> None:
+    def respond_final_json(
+        self, status: int, headers: Any, value: object, strict: bool = False
+    ) -> None:
         body = core.encode_json(value, None, False, None)
         self.respond_final(status, headers, body)
 
@@ -1185,3 +1188,22 @@ async def test_handle_native_is_non_deferred_and_atomic_rolls_back_on_encode_err
         assert rows == []
     finally:
         await pipeline.lifespan.shutdown()
+
+
+@pytest.mark.parametrize(("limited", "client"), [(True, ("1.2.3.4", 9)), (False, None)])
+def test_native_body_carries_the_peer_only_for_a_rate_limit(
+    limited: bool, client: tuple[str, int] | None
+) -> None:
+    route = SimpleNamespace(
+        rate_limit=object() if limited else None, renderers=[], access=None
+    )
+    binding = SimpleNamespace(route=route, body_param=None, query_param=None)
+    request = SimpleNamespace(
+        native_principal=None,
+        headers=[(b"x", b"y")],
+        query=b"",
+        client=("1.2.3.4", 9),
+        header_dict={},
+    )
+    body = build_native_body(cast(Any, None), cast(Any, binding), cast(Any, request))
+    assert body.client == client

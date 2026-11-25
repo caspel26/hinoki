@@ -31,7 +31,7 @@ from hinoki.db import NATIVE_OWNER, current, current_owner
 from hinoki.events import AuthRejected, RateLimited
 from hinoki.runtime.binding import BODY_METHODS, Binding
 from hinoki.runtime.nativeproof import native_refusal
-from hinoki.runtime.pipeline import NativeBody
+from hinoki.runtime.pipeline import NativeBody, enforce_response
 from hinoki.runtime.responses import NO_PAYLOAD, HTTPError, Response
 from hinoki.runtime.servercore import native_handler_eligible, route_guarded
 
@@ -62,7 +62,7 @@ def build_native_body(
         source,
         request.headers if needs_raw else [],
         request.query,
-        request.client,
+        request.client if needs_raw else None,
         principal,
         request.header_dict if needs_dict else None,
     )
@@ -328,9 +328,12 @@ class NativeLane:
             headers = [*headers, *((n.encode(), v.encode()) for n, v in extra)]
         if response.payload is not NO_PAYLOAD:
             try:
-                run.request.respond_final_json(
-                    response.status, headers, response.payload
-                )
+                if response.strict:
+                    self._send_strict(run, response.status, headers, response.payload)
+                else:
+                    run.request.respond_final_json(
+                        response.status, headers, response.payload
+                    )
             except Exception as error:
                 return error
             return None
@@ -340,6 +343,24 @@ class NativeLane:
             log.exception("request %s could not be answered", run.rid)
             self.fail(run.request)
         return None
+
+    @staticmethod
+    def _send_strict(
+        run: Run, status: int, headers: list[tuple[bytes, bytes]], payload: object
+    ) -> None:
+        """Check and encode in one pass; any miss or error sends nothing and
+        runs the checked path, so its contract error and encode errors stand.
+        The first miss turns the fused path off for the binding: rows the strict
+        mode cannot vouch for would otherwise pay it on every request."""
+        try:
+            run.request.respond_final_json(status, headers, payload, True)
+            return
+        except Exception:  # noqa: S110 - the checked path below answers it
+            pass
+        # Before the check, so an error raised there still disables it.
+        object.__setattr__(run.binding, "fused_check", False)
+        enforce_response(run.binding, payload)
+        run.request.respond_final_json(status, headers, payload)
 
     def _respond(self, run: Run, response: Response) -> None:
         error = run.ctx.run(self._send, run, response)

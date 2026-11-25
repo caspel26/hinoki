@@ -54,6 +54,7 @@ class Response:
     headers: Headers = field(default_factory=list)
     stream: StreamHandle | None = None
     payload: object = NO_PAYLOAD
+    strict: bool = False  # the payload's response check is fused into its encoding
 
     @classmethod
     def rendered(
