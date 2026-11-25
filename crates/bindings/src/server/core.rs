@@ -138,17 +138,13 @@ fn decode_native_path(
     plan: &RoutePlan,
     params: &[(String, String)],
 ) -> Result<HashMap<String, String>, NativeInputError> {
-    let raw: HashMap<_, _> = params
-        .iter()
-        .map(|(name, value)| (name.clone(), value.clone()))
-        .collect();
-    let mut decoded = HashMap::new();
+    let mut decoded = HashMap::with_capacity(params.len());
     for input in &plan.input_params {
-        let name = &input.name;
         if input.source != "path" {
             continue;
         }
-        let Some(value) = raw.get(name) else {
+        let name = &input.name;
+        let Some((_, value)) = params.iter().find(|(k, _)| k == name) else {
             return Err(native_error(
                 "internal_error",
                 "missing matched path parameter",
