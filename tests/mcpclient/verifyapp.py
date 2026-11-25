@@ -56,6 +56,7 @@ async def main() -> None:
         **os.environ,
         "BLOG_DATABASE__URL": f"sqlite://{database}",
         "BLOG_ADMIN__SECRET": "m" * 40,
+        "BLOG_ALLOWED_HOSTS": "127.0.0.1",
         "PYTHONPATH": str(project),
     }
     subprocess.run(
