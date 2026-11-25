@@ -12,7 +12,7 @@ admin: Blog adds those.
 | # | File | What to see |
 | --- | --- | --- |
 | 1 | [`hinoki.toml`](hinoki.toml) | The whole wiring. `[project]` lists the application, the project routes, the middleware and the rule sets (lines 1-5). Each `[[apps]]` names its models, migrations and routes; `requires` fixes the order (lines 12, 19 and 27) and `events` registers the handlers of `activity` (line 26) |
-| 2 | [`tracker/apps/members/security.py`](tracker/apps/members/security.py) | `MemberTokens` resolves a bearer token to a `Member` (line 12); the reusable `member_only` access policy (line 22) |
+| 2 | [`tracker/apps/members/security.py`](tracker/apps/members/security.py) | `MemberTokens` resolves a bearer token to a `Member` by the SHA-256 digest of the token, which is all the table stores (line 19); the reusable `member_only` access policy (line 29) |
 | 3 | [`tracker/apps/tasks/models.py`](tracker/apps/tasks/models.py) | `Task` belongs to a `Member` through a foreign key (lines 12-24) |
 | 4 | [`tracker/apps/tasks/schemas.py`](tracker/apps/tasks/schemas.py) | The request body `TaskIn` (line 10) and the response `TaskOut` derived from the model without the owner (line 18) |
 | 5 | [`tracker/apps/tasks/filters.py`](tracker/apps/tasks/filters.py) | The `FilterSet` of the list: `Eq`, `In`, `Range`, a `.null` filter, `Search` and `ordering` (lines 8-14) |
@@ -33,18 +33,18 @@ From this directory (`examples/tracker`):
 
 ```sh
 uv run hinoki migrations apply
-uv run hinoki manage seed
+uv run hinoki manage seed   # prints the token; then: export TOKEN=<the printed token>
 uv run hinoki dev
 ```
 
 `migrations apply` creates `.hinoki/local.sqlite3` here and applies the apps in
-`requires` order. `manage seed` creates the member `Ada Demo` with the synthetic
-token `demo-member-token`. In another terminal:
+`requires` order. `manage seed` creates the member `Ada Demo` and prints a random token once;
+the table keeps only its digest. A local SQLite database created before tokens were stored as digests has the old `members` column: delete `.hinoki/local.sqlite3` and migrate again. Export the token and, in another terminal:
 
 ```sh
-curl -X POST http://127.0.0.1:8000/tasks -H 'authorization: Bearer demo-member-token' -H 'content-type: application/json' -d '{"title":"Write docs","priority":2}'
-curl 'http://127.0.0.1:8000/tasks?done=false&priority=1,2&search=docs&ordering=-created_at' -H 'authorization: Bearer demo-member-token'
-curl http://127.0.0.1:8000/activity -H 'authorization: Bearer demo-member-token'
+curl -X POST http://127.0.0.1:8000/tasks -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"title":"Write docs","priority":2}'
+curl 'http://127.0.0.1:8000/tasks?done=false&priority=1,2&search=docs&ordering=-created_at' -H "authorization: Bearer $TOKEN"
+curl http://127.0.0.1:8000/activity -H "authorization: Bearer $TOKEN"
 ```
 
 | Route | Action |

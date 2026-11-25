@@ -102,23 +102,26 @@ from the `server` settings ([serving](../serving.md)).
 
 Every task route needs a member's token, and the Tracker has no sign-up route.
 `hinoki manage seed` is a management command of the example
-(`tracker/commands.py`) that creates the member `Ada Demo` with the synthetic
-token `demo-member-token`:
+(`tracker/commands.py`) that creates the member `Ada Demo` and prints a random token once; the table stores only its SHA-256 digest, so the token cannot be shown again. Export it:
 
 ```text
-member 'Ada Demo' created; token 'demo-member-token'
+member 'Ada Demo' created; token '<random token>' (shown once)
+```
+
+```sh
+export TOKEN='<the printed token>'
 ```
 
 With the server running, call the API from a second terminal:
 
 ```sh
 curl -X POST http://127.0.0.1:8000/tasks \
-  -H 'Authorization: Bearer demo-member-token' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'content-type: application/json' \
   -d '{"title":"Write docs","priority":2}'
 curl 'http://127.0.0.1:8000/tasks?done=false&priority=1,2&search=docs&ordering=-created_at' \
-  -H 'Authorization: Bearer demo-member-token'
-curl http://127.0.0.1:8000/activity -H 'Authorization: Bearer demo-member-token'
+  -H "Authorization: Bearer $TOKEN"
+curl http://127.0.0.1:8000/activity -H "Authorization: Bearer $TOKEN"
 ```
 
 The first call answers `201` with the new task, the second a page with it that
@@ -134,7 +137,7 @@ Completing the task answers `200`; completing it again is a `409`
 `done_tasks_are_kept`:
 
 ```sh
-curl -X POST http://127.0.0.1:8000/tasks/<id>/complete -H 'Authorization: Bearer demo-member-token'
+curl -X POST http://127.0.0.1:8000/tasks/<id>/complete -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Test it
@@ -153,8 +156,8 @@ async def world(tmp_path: Path) -> AsyncIterator[World]:
     for name in ORDER:
         await migrator.apply(database, APPS / name / "migrations", namespace=name)
     with use_database(database):
-        ann = await Member.acreate(name="Ann", token="ann-token")
-        ben = await Member.acreate(name="Ben", token="ben-token")
+        ann = await Member.acreate(name="Ann", token_hash=hash_token("ann-token"))
+        ben = await Member.acreate(name="Ben", token_hash=hash_token("ben-token"))
     database.close()
     settings = TrackerSettings.load(overrides={"database": {"url": url}})
     async with ASGIClient(create_app(settings)) as client:
@@ -171,7 +174,7 @@ async def test_completing_twice_is_a_conflict_and_done_tasks_are_kept(
 ) -> None:
     task = await create(world, "Ship")
     path = f"/tasks/{task['id']}"
-    ann = world.ann.token
+    ann = "ann-token"
 
     done = await world.client.post(f"{path}/complete", token=ann)
     again = await world.client.post(f"{path}/complete", token=ann)

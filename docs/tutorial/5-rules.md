@@ -29,7 +29,7 @@ policy = RuleSet(
     Actions.require_return_type(match=f"{PKG}.*"),
     Actions.require_pagination(match=f"{PKG}.*"),
     Transactions.require_atomic(),
-    Schemas.forbid_exposure("token"),
+    Schemas.forbid_exposure("token_hash"),
     Schemas.require_string_limits(),
     Models.require_explicit_table(match=f"{PKG}.*"),
     Models.require_foreign_key_index(match=f"{PKG}.*"),
