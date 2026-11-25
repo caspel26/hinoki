@@ -113,7 +113,13 @@ from hinoki import crud
 
 from notes.apps.billing.filters import InvoiceFilters
 
-invoices = crud(Invoice, path="/invoices", read=InvoiceOut, filters=InvoiceFilters)
+invoices = crud(
+    Invoice,
+    path="/invoices",
+    read=InvoiceOut,
+    access=billing_staff,
+    filters=InvoiceFilters,
+)
 ```
 
 | Declaration | Request | Meaning |
@@ -145,7 +151,13 @@ from hinoki import API, Caller, crud
 from hinoki.orm import QuerySet
 
 
-@crud(Invoice, path="/invoices", read=InvoiceOut, filters=InvoiceFilters)
+@crud(
+    Invoice,
+    path="/invoices",
+    read=InvoiceOut,
+    access=billing_staff,
+    filters=InvoiceFilters,
+)
 class Invoices(API):
     def filter_queryset(
         self,

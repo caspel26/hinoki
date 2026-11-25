@@ -8,7 +8,7 @@ class Health(Schema):
 
 
 @http.get("/health")
-def health() -> Health:
+async def health() -> Health:
     return Health(status="ok")
 
 

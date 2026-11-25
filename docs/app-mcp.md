@@ -32,7 +32,7 @@ mcp = expose_as_mcp(
 app.include(*mcp)  # POST /mcp
 ```
 
-`Hinoki(...)` has already included the routes listed in `hinoki.toml`; `expose_as_mcp` selects among those, so call it after the app exists. It raises `ExposureError` right away when the patterns select no allowed action (for example only writes with `allow_writes=False`), a streaming action or one left out of the schema. The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py) does the same for one read-only action of an `API` class (`blog.apps.blog.api.Posts.drafts`, with the `editor` policy).
+`Hinoki(...)` has already included the routes listed in `hinoki.toml`; `expose_as_mcp` selects among those, so call it after the app exists. It raises `ExposureError` right away when the patterns select no allowed action (for example only writes with `allow_writes=False`), a streaming action or one left out of the OpenAPI document. The [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py) does the same for one read-only action of an `API` class (`blog.apps.blog.api.Posts.drafts`, with the `editor` policy).
 
 ## Choose the tools
 

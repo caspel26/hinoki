@@ -485,11 +485,7 @@
 }
 
 .bench-range {
-  position: absolute;
-  top: 50%;
-  height: 2px;
-  background: var(--hn-text);
-  box-shadow: 0 0 0 1px var(--hn-surface-1);
+  display: none;
 }
 
 .bench-value {

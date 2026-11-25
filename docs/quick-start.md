@@ -81,8 +81,7 @@ every change, as `AGENTS.md` tells an agent to.
 uv run hinoki dev
 ```
 
-The test calls `/health` in process and needs no database. `hinoki dev` serves
-on `http://127.0.0.1:8000` and reloads when a file changes. In another terminal:
+`hinoki dev` serves on `http://127.0.0.1:8000` and reloads when a file changes. In another terminal:
 
 ```sh
 curl http://127.0.0.1:8000/health
