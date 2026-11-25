@@ -38,7 +38,7 @@ from hinoki.errors import InvalidBody, RegistrationError
 from hinoki.http.request import Headers
 from hinoki.management import Command
 from hinoki.modules import Module, ModuleContext
-from hinoki.orm.naming import _resolve_display_names, _words, resolve_model_names
+from hinoki.orm.naming import resolve_model_names, snake_case
 from hinoki.parsers import DEFAULT_PARSERS, Parser
 from hinoki.renderers import Renderer, TextRenderer
 from hinoki.routing import Route
@@ -331,14 +331,14 @@ def test_openapi_writer_returns_error_for_an_unwritable_path(
 
 def test_model_name_derivation_rejects_unusable_class_names() -> None:
     with pytest.raises(RegistrationError, match="cannot derive names"):
-        _resolve_display_names("", [], "", "")
+        resolve_model_names("", "", "", "", abstract=False)
     *_names, implicit, problem = resolve_model_names(
         "", "", "Explicit", "Explicit items", abstract=False
     )
     assert implicit is True
     assert problem.startswith(": cannot derive a table name")
     assert "@db.table" in problem
-    assert _words("some_model") == ["some", "model"]
+    assert snake_case("some_model") == "some_model"
 
 
 def test_check_cli_rejects_non_rule_objects(monkeypatch: pytest.MonkeyPatch) -> None:
