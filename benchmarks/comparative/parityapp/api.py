@@ -18,7 +18,7 @@ from django_bolt.exceptions import NotFound
 
 from parityapp.models import Article, BenchmarkUser
 
-api = BoltAPI(enable_logging=False)
+api = BoltAPI(enable_logging=False, compression=False)
 
 cookie_auth = JWTAuthentication(
     secret=parity_data.SECRET,
