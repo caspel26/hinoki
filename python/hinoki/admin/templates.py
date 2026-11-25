@@ -11,15 +11,13 @@ component names are looked up, so a name cannot walk the filesystem.
 from __future__ import annotations
 
 import functools
-import html
-import re
 from pathlib import Path
 from typing import Any
 
+from hinoki import core
 from hinoki.admin.themes import Theme, resolve
 
 UI = Path(__file__).parent / "ui"
-PLACEHOLDER = re.compile(r"\{\{\{\s*(\w+)\s*\}\}\}|\{\{\s*(\w+)\s*\}\}")
 
 
 @functools.cache
@@ -40,16 +38,12 @@ class Raw(str):
 
 def escape(value: object) -> Raw:
     """HTML-escape any value (attributes included) into a ``Raw`` string."""
-    return Raw(html.escape(str(value), quote=True))
+    return Raw(core.html_escape(str(value)))
 
 
 def placeholders(source: str) -> set[tuple[str, bool]]:
     """Every ``(name, is_raw)`` placeholder in a component's source."""
-    return {
-        (raw or plain, bool(raw))
-        for raw, plain in PLACEHOLDER.findall(source)
-        if raw or plain
-    }
+    return set(core.template_placeholders(source))
 
 
 class Templates:
@@ -62,6 +56,9 @@ class Templates:
         self.theme = resolve(theme)
         self.check_overrides()
         self.sources = {name: self.read(name) for name in component_names()}
+        self._compiled = {
+            name: core.AdminTemplate(src) for name, src in self.sources.items()
+        }
         self.sprite = Raw((UI / "icons.svg").read_text(encoding="utf-8"))
 
     def check_overrides(self) -> None:
@@ -107,29 +104,16 @@ class Templates:
         return (UI / "admin.js").read_bytes()
 
     def render(self, component: str, /, **values: Any) -> Raw:
-        source = self.sources.get(component)
-        if source is None:
+        compiled = self._compiled.get(component)
+        if compiled is None:
             raise TemplateError(f"unknown component {component!r}")
-        return Raw(PLACEHOLDER.sub(Filler(component, values), source))
-
-
-class Filler:
-    """Replacement function for one render: looks values up and escapes them."""
-
-    def __init__(self, component: str, values: dict[str, Any]) -> None:
-        self.component = component
-        self.values = values
-
-    def __call__(self, found: re.Match[str]) -> str:
-        raw_name, plain_name = found.groups()
-        key = raw_name or plain_name
-        if key not in self.values:
-            raise TemplateError(f"{self.component}: no value for {key!r}")
-        value = self.values[key]
-        if raw_name:
-            if not isinstance(value, Raw):
-                raise TemplateError(
-                    f"{self.component}: {key!r} is raw but not a Raw value"
-                )
-            return value
-        return html.escape(str(value), quote=True)
+        try:
+            return Raw(compiled.render(values, Raw))
+        except KeyError as exc:
+            key = exc.args[0]
+            raise TemplateError(f"{component}: no value for {key!r}") from None
+        except TypeError as exc:
+            key = exc.args[0]
+            raise TemplateError(
+                f"{component}: {key!r} is raw but not a Raw value"
+            ) from None

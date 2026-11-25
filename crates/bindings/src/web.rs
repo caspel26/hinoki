@@ -487,6 +487,148 @@ pub fn parse_cursor_params(
     Ok((size, token, errors))
 }
 
+#[pyfunction]
+pub fn parse_dotenv(text: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for raw in text.split(['\n', '\r']) {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') || !line.contains('=') {
+            continue;
+        }
+        let stripped = line.strip_prefix("export ").map_or(line, str::trim);
+        let Some((key, val)) = stripped.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        if key.is_empty() {
+            continue;
+        }
+        let val = val.trim();
+        let cleaned = if val.len() >= 2
+            && ((val.starts_with('"') && val.ends_with('"'))
+                || (val.starts_with('\'') && val.ends_with('\'')))
+        {
+            &val[1..val.len() - 1]
+        } else {
+            val.split_once(" #")
+                .map_or(val, |(head, _)| head)
+                .trim_end()
+        };
+        out.push((key.to_owned(), cleaned.to_owned()));
+    }
+    out
+}
+
+fn is_host_label(label: &str) -> bool {
+    let bytes = label.as_bytes();
+    if bytes.is_empty() || bytes.len() > 63 {
+        return false;
+    }
+    let ok_edge = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let ok_mid = |b: u8| ok_edge(b) || b == b'-';
+    ok_edge(bytes[0]) && ok_edge(bytes[bytes.len() - 1]) && bytes.iter().all(|&b| ok_mid(b))
+}
+
+#[pyfunction]
+pub fn is_host_pattern(entry: &str) -> bool {
+    if entry == "*" {
+        return true;
+    }
+    if entry.contains(':') {
+        if !entry.is_ascii() {
+            return false;
+        }
+        let addr = entry.split_once('%').map_or(entry, |(ip, zone)| {
+            if zone.is_empty() || zone.contains(['%', '/']) {
+                ""
+            } else {
+                ip
+            }
+        });
+        return addr.parse::<std::net::Ipv6Addr>().is_ok();
+    }
+    let host = entry.strip_prefix('.').unwrap_or(entry);
+    !host.is_empty() && host.split('.').all(is_host_label)
+}
+
+fn is_origin_scheme(scheme: &str) -> bool {
+    let bytes = scheme.as_bytes();
+    !bytes.is_empty()
+        && bytes[0].is_ascii_alphabetic()
+        && bytes
+            .iter()
+            .all(|&b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'.' | b'-'))
+}
+
+fn is_origin_port(port: &str) -> bool {
+    if port.is_empty() {
+        return true;
+    }
+    let Some(digits) = port.strip_prefix(':') else {
+        return false;
+    };
+    !digits.is_empty() && digits.len() <= 5 && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
+#[pyfunction]
+pub fn is_valid_origin(entry: &str) -> bool {
+    let Some((scheme, rest)) = entry.split_once("://") else {
+        return false;
+    };
+    if !is_origin_scheme(scheme) {
+        return false;
+    }
+    if let Some(after_open) = rest.strip_prefix('[') {
+        let Some((ip, port)) = after_open.split_once(']') else {
+            return false;
+        };
+        return !ip.is_empty()
+            && ip
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() || b == b':' || b == b'.')
+            && is_origin_port(port);
+    }
+    let (host, port) = match rest.find(':') {
+        Some(idx) => (&rest[..idx], &rest[idx..]),
+        None => (rest, ""),
+    };
+    !host.is_empty()
+        && host
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+        && is_origin_port(port)
+}
+
+#[pyfunction]
+pub fn is_http_token_str(entry: &str) -> bool {
+    is_http_token(entry)
+}
+
+fn is_media_rule_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric()
+        || matches!(
+            b,
+            b'!' | b'#' | b'$' | b'&' | b'^' | b'_' | b'.' | b'+' | b'-'
+        )
+}
+
+#[pyfunction]
+pub fn is_media_rule(rule: &str) -> bool {
+    if let Some(suffix) = rule.strip_prefix("*/*+") {
+        return !suffix.is_empty()
+            && suffix
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'+' | b'-'));
+    }
+    let Some((kind, sub)) = rule.split_once('/') else {
+        return false;
+    };
+    if kind.is_empty() || !kind.bytes().all(is_media_rule_byte) {
+        return false;
+    }
+    sub == "*" || (!sub.is_empty() && sub.bytes().all(is_media_rule_byte))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

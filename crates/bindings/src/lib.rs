@@ -6,6 +6,7 @@
 #[cfg(not(unix))]
 compile_error!("Hinoki supports Linux and macOS. On Windows, install and run it inside WSL2.");
 
+mod admintemplate;
 mod cache;
 mod completion;
 mod compression;
@@ -33,6 +34,7 @@ mod policy;
 mod pytypes;
 mod query;
 mod ratelimit;
+mod recent;
 mod request;
 mod responsecheck;
 mod router;
@@ -40,6 +42,7 @@ mod rows;
 mod schema;
 mod server;
 mod sink;
+mod storage;
 mod streamlimit;
 mod tally;
 mod web;
@@ -219,9 +222,25 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(web::same_site_origin, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_page_params, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_cursor_params, m)?)?;
+    m.add_function(wrap_pyfunction!(web::parse_dotenv, m)?)?;
+    m.add_function(wrap_pyfunction!(web::is_host_pattern, m)?)?;
+    m.add_function(wrap_pyfunction!(web::is_valid_origin, m)?)?;
+    m.add_function(wrap_pyfunction!(web::is_http_token_str, m)?)?;
+    m.add_function(wrap_pyfunction!(web::is_media_rule, m)?)?;
     m.add_function(wrap_pyfunction!(naming::snake_case, m)?)?;
     m.add_function(wrap_pyfunction!(naming::app_label, m)?)?;
     m.add_function(wrap_pyfunction!(naming::resolve_model_names, m)?)?;
+    m.add_function(wrap_pyfunction!(storage::validate_storage_key, m)?)?;
+    m.add_function(wrap_pyfunction!(storage::normalize_content_type, m)?)?;
+    m.add_function(wrap_pyfunction!(storage::new_storage_key, m)?)?;
+    m.add_class::<storage::NativeMemoryStorage>()?;
+    m.add_function(wrap_pyfunction!(admintemplate::html_escape, m)?)?;
+    m.add_function(wrap_pyfunction!(admintemplate::template_placeholders, m)?)?;
+    m.add_class::<admintemplate::AdminTemplate>()?;
+    m.add_function(wrap_pyfunction!(recent::append_recent, m)?)?;
+    m.add_function(wrap_pyfunction!(recent::read_recent, m)?)?;
+    m.add_function(wrap_pyfunction!(cache::validate_cache_key, m)?)?;
+    m.add_function(wrap_pyfunction!(cache::validate_cache_ttl, m)?)?;
     m.add_function(wrap_pyfunction!(request::encode_json, m)?)?;
     Ok(())
 }

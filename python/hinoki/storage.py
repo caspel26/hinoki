@@ -10,14 +10,12 @@ import os
 import re
 import tempfile
 import threading
-from collections import OrderedDict
 from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeVar
-from uuid import uuid4
 
 from hinoki import core
 from hinoki.errors import APIError
@@ -158,13 +156,7 @@ def _file_parts(
 
 
 def _content_type(value: str) -> str:
-    if (
-        not value.isascii()
-        or len(value) > MAX_CONTENT_TYPE_BYTES
-        or not CONTENT_TYPE_PATTERN.fullmatch(value)
-    ):
-        return "application/octet-stream"
-    return value.lower()
+    return core.normalize_content_type(value)
 
 
 def _max_size(value: int | None, configured: int) -> int:
@@ -175,19 +167,25 @@ def _max_size(value: int | None, configured: int) -> int:
 
 
 def _check_key(key: str) -> None:
-    if (
-        not key.isascii()
-        or len(key.encode("ascii")) > MAX_KEY_BYTES
-        or not KEY_PATTERN.fullmatch(key)
-        or key.startswith("/")
-        or ".." in key.split("/")
-    ):
+    if not core.validate_storage_key(key):
         raise InvalidStorageKey
 
 
 def _new_key() -> str:
-    token = uuid4().hex
-    return f"{token[:2]}/{token[2:4]}/{token}"
+    return core.new_storage_key()
+
+
+def _raise_storage_error(exc: ValueError) -> None:
+    code = str(exc)
+    if code == "file_too_large":
+        raise FileTooLarge from None
+    if code == "quota_exceeded":
+        raise StorageQuotaExceeded from None
+    if code == "invalid_key":
+        raise InvalidStorageKey from None
+    if code == "not_found":
+        raise StoredFileNotFound from None
+    raise exc
 
 
 class MemoryFileStorage(FileStorage):
@@ -203,9 +201,7 @@ class MemoryFileStorage(FileStorage):
         _whole(max_total_bytes, "max_total_bytes", 0)
         self.max_file_bytes = max_file_bytes
         self.max_total_bytes = max_total_bytes
-        self._items: OrderedDict[str, tuple[StoredFile, bytes]] = OrderedDict()
-        self._size = 0
-        self._lock = threading.RLock()
+        self._native = core.NativeMemoryStorage(max_file_bytes, max_total_bytes)
 
     def save_sync(
         self,
@@ -216,17 +212,15 @@ class MemoryFileStorage(FileStorage):
         max_bytes: int | None = None,
     ) -> StoredFile:
         content, media, name = _file_parts(file, content_type, filename)
-        if len(content) > _max_size(max_bytes, self.max_file_bytes):
-            raise FileTooLarge
-        stored = StoredFile(
-            _new_key(), len(content), media, hashlib.sha256(content).hexdigest(), name
-        )
-        with self._lock:
-            if self._size + len(content) > self.max_total_bytes:
-                raise StorageQuotaExceeded
-            self._items[stored.key] = (stored, content)
-            self._size += len(content)
-        return stored
+        limit = _max_size(max_bytes, self.max_file_bytes)
+        try:
+            key, size, resolved_media, digest, stored_name = self._native.save(
+                content, media, name, limit
+            )
+        except ValueError as exc:
+            _raise_storage_error(exc)
+            raise  # unreachable
+        return StoredFile(key, size, resolved_media, digest, stored_name)
 
     async def save(
         self,
@@ -244,34 +238,32 @@ class MemoryFileStorage(FileStorage):
         )
 
     def read_sync(self, key: str, *, max_bytes: int | None = None) -> bytes:
-        _check_key(key)
-        with self._lock:
-            item = self._items.get(key)
-        if item is None:
-            raise StoredFileNotFound
-        content = item[1]
-        _check_read_size(content, _max_size(max_bytes, self.max_file_bytes))
-        return content
+        limit = _max_size(max_bytes, self.max_file_bytes)
+        try:
+            return self._native.read(key, limit)
+        except ValueError as exc:
+            _raise_storage_error(exc)
+            raise  # unreachable
 
     async def read(self, key: str, *, max_bytes: int | None = None) -> bytes:
         return self.read_sync(key, max_bytes=max_bytes)
 
     def exists_sync(self, key: str) -> bool:
-        _check_key(key)
-        with self._lock:
-            return key in self._items
+        try:
+            return self._native.exists(key)
+        except ValueError as exc:
+            _raise_storage_error(exc)
+            raise  # unreachable
 
     async def exists(self, key: str) -> bool:
         return self.exists_sync(key)
 
     def delete_sync(self, key: str) -> bool:
-        _check_key(key)
-        with self._lock:
-            item = self._items.pop(key, None)
-            if item is None:
-                return False
-            self._size -= item[0].size
-        return True
+        try:
+            return self._native.delete(key)
+        except ValueError as exc:
+            _raise_storage_error(exc)
+            raise  # unreachable
 
     async def delete(self, key: str) -> bool:
         return self.delete_sync(key)
@@ -294,12 +286,12 @@ class MemoryFileStorage(FileStorage):
         )
 
     def _metadata(self, key: str) -> StoredFile:
-        _check_key(key)
-        with self._lock:
-            item = self._items.get(key)
-        if item is None:
-            raise StoredFileNotFound
-        return item[0]
+        try:
+            key, size, media, digest, name = self._native.metadata(key)
+        except ValueError as exc:
+            _raise_storage_error(exc)
+            raise  # unreachable
+        return StoredFile(key, size, media, digest, name)
 
 
 def _check_read_size(content: bytes, max_bytes: int | None) -> None:
