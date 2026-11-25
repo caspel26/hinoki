@@ -70,7 +70,7 @@ Take `complete` out of its transaction by changing `atomic=True` to
 check again:
 
 ```text
-tracker/apps/tasks/api.py:40: HNK-TXN-001 [violated] POST /tasks/{item_id}/complete (Tasks.complete) does not declare atomic=True
+tracker/apps/tasks/api.py:39: HNK-TXN-001 [violated] POST /tasks/{item_id}/complete (Tasks.complete) does not declare atomic=True
   fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
 14 rule(s): 1 violated, 0 unverifiable, 0 waived
 ```
@@ -81,7 +81,7 @@ The import rules fail the same way. Add `from tracker.apps.activity import model
 as the last line of `tracker/apps/tasks/operations.py` and the check reports it:
 
 ```text
-tracker/apps/tasks/operations.py:45: HNK-IMP-001 [violated] tracker.apps.tasks.operations imports tracker.apps.activity, which is forbidden for tracker.apps.tasks
+tracker/apps/tasks/operations.py:46: HNK-IMP-001 [violated] tracker.apps.tasks.operations imports tracker.apps.activity, which is forbidden for tracker.apps.tasks
   fix: move the code to an allowed layer, or depend on it through the layer in between
 ```
 
