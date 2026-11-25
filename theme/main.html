@@ -38,6 +38,7 @@
   <link rel="preload" href="{{ 'static/fonts/plex-sans-latin-wght.woff2' | url }}" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="{{ 'static/fonts/ibm-plex-mono-latin-400.woff2' | url }}" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="{{ 'static/fonts/ibm-plex-mono-latin-500.woff2' | url }}" as="font" type="font/woff2" crossorigin>
+  {% if page and page.is_homepage %}<link rel="preload" href="{{ 'static/fonts/space-grotesk-latin-wght.woff2' | url }}" as="font" type="font/woff2" crossorigin>{% endif %}
   <link rel="stylesheet" href="{{ 'static/css/tokens.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/base.css' | url }}">
   <link rel="stylesheet" href="{{ 'static/css/prose.css' | url }}">
