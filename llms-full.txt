@@ -9666,6 +9666,7 @@ generated `main.py` passes `openapi_url` and `docs_url` as `Hinoki(...)` argumen
 | `server` | `access_log_skip` | unset | Kiso only: paths the log leaves out, exact or a `*` prefix; failures are still logged |
 | `server` | `server_timing` | unset | Kiso only: add a `Server-Timing` header with the time taken and the serving lane; unset means `hinoki dev` only, so browser developer tools show it |
 | `server` | `sighup` | unset | Kiso only, `hinoki serve`: `"reload"` (also what unset means) replaces the workers one at a time on `SIGHUP`, `"stop"` stops the server instead; see [reload on `SIGHUP`](https://hinoki.caspel.dev/dev/kiso.md#reload-on-sighup) |
+| `server` | `reuse_port` | unset | Kiso only: on Linux, multi-worker `hinoki serve` on a non-zero port gives each worker its own `SO_REUSEPORT` socket; `false` forces one shared listening descriptor everywhere; refused under Granian |
 | `server` | `recent_requests` | unset | Kiso only: file that also receives each request as a JSON line for `hinoki mcp`'s `recent_requests` tool; works with the access log off |
 | `server` | `access_log_slow_ms` | unset | Kiso only: keep only answers at least this slow (ms); failures are still logged |
 | `server` | `access_log_format` | unset | Kiso only (Granian refuses it): `pretty`, `plain`, `json` or `logger` (route to the `hinoki.access` Python logger). Unset is `pretty` on a colour terminal and `plain` otherwise |
@@ -9953,6 +9954,7 @@ They come from the application's `server` settings group; flags override them:
 | `server.recent_requests` | `NOTES_SERVER__RECENT_REQUESTS` | unset | Kiso only: file that also receives each request as a JSON line, read by the `recent_requests` tool of [`hinoki mcp`](https://hinoki.caspel.dev/dev/dev-mcp.md); rotated near 1 MiB |
 | `server.access_log_slow_ms` | `NOTES_SERVER__ACCESS_LOG_SLOW_MS` | unset | Kiso only: keep only answers at least this slow, in milliseconds |
 | `server.access_log_format` | `NOTES_SERVER__ACCESS_LOG_FORMAT` | unset | Kiso only: `pretty`, `plain`, `json` or `logger`. Unset is `pretty` on a colour terminal and `plain` otherwise |
+| `server.reuse_port` | `NOTES_SERVER__REUSE_PORT` | unset | Kiso only: on Linux, multi-worker `hinoki serve` on a non-zero port gives each worker its own `SO_REUSEPORT` socket by default; set `false` to share one descriptor everywhere |
 | `server.server` | `NOTES_SERVER__SERVER` | `kiso` | `--server` |
 
 The connection limits and timeouts (`max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`), `native_dispatch`, the TLS files and `http2`, and `trusted_proxies` are described under [Kiso](https://hinoki.caspel.dev/dev/kiso.md) and in the [settings table](https://hinoki.caspel.dev/dev/settings.md#built-in-fields-and-defaults). Left unset, they are `None` in `hinoki settings` and Kiso applies its own defaults (for example 10000 connections and a 10-second header timeout), so that Granian can refuse the Kiso-only ones only when you set them.
@@ -9972,7 +9974,7 @@ debug is off: ...` at startup, on every server.
 | Setting | Kiso | Granian |
 | --- | --- | --- |
 | `host`, `port`, `workers`, `runtime_threads`, `backlog`, `access_log`, `trusted_proxies`, `request_id_header`, `trust_request_id`, `tls_cert_file`, `tls_key_file`, `http2` | applied | applied |
-| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `access_log_format`, `access_log_skip`, `access_log_slow_ms`, `recent_requests`, `server_timing` | applied when set | refused when set |
+| `max_connections`, `header_read_timeout`, `body_read_timeout`, `write_timeout`, `native_dispatch`, `reuse_port`, `access_log_format`, `access_log_skip`, `access_log_slow_ms`, `recent_requests`, `server_timing` | applied when set | refused when set |
 
 If the native extension of a build has no Kiso, `--server kiso` fails with an error that says so.
 
@@ -10257,7 +10259,9 @@ With `compression.enabled` Kiso compresses eligible bodies with brotli or gzip a
 
 ## Workers, signals and restarts
 
-With one worker and `server.sighup = "stop"` (or where the system has no `SIGHUP`, as on Windows) `hinoki serve` runs the server in its own process. With several workers, with the default `sighup` (one extra supervisor process even for one worker) and always under `hinoki dev` it starts a supervisor that opens the listening socket once (honouring `backlog`), starts each worker as a fresh process that imports the target and builds the application, and passes the socket down. Workers share the one socket, so connections are spread by the operating system's accept; Hinoki does not balance them. Databases and pools open inside each worker's lifespan, never in the supervisor.
+With one worker and `server.sighup = "stop"` (or where the system has no `SIGHUP`, as on Windows) `hinoki serve` runs the server in its own process. With several workers, with the default `sighup` (one extra supervisor process even for one worker) and always under `hinoki dev` it starts a supervisor that starts each worker as a fresh process that imports the target and builds the application. Databases and pools open inside each worker's lifespan, never in the supervisor.
+
+* **Listening sockets and `SO_REUSEPORT`.** On Linux, when `hinoki serve` runs more than one worker on a non-zero port (and `server.reuse_port` is not `false`), the supervisor probes `host:port` to validate it and then closes its probe socket before spawning workers; each worker opens its own `SO_REUSEPORT` listening socket (honouring `backlog`) after its lifespan startup succeeds, so the Linux kernel distributes incoming connections across per-worker accept queues. On macOS and other non-Linux platforms (where `SO_REUSEPORT` does not load-balance across sockets), with one worker, with `port = 0` (ephemeral port), under `hinoki dev`, or when `server.reuse_port = false`, the supervisor opens one listening socket (honouring `backlog`) and passes the descriptor down to every worker; connections are then spread by the operating system's accept on that shared socket.
 
 * `SIGTERM` or `SIGINT` (Ctrl-C) stops accepting, lets running requests finish for up to `lifecycle.shutdown_timeout`, runs the lifespan shutdown and exits. `SIGHUP` does the same when `server.sighup` is `"stop"` and [reloads](https://hinoki.caspel.dev/dev/kiso.md#reload-on-sighup) otherwise. A worker still running five seconds after that is killed. A second signal kills the workers immediately. Once the stop begins the supervisor closes its own copy of the socket, so a client that connects while the workers drain is refused. `--workers` must be 1 to 256 (`0` uses `server.workers`).
 * A worker that exits on its own, whether it failed to start or crashed, is not restarted: the supervisor stops the other workers and exits with a non-zero status. Restart policy belongs to the process manager (systemd, a container runtime) that runs `hinoki serve`.
@@ -10269,9 +10273,9 @@ With one worker and `server.sighup = "stop"` (or where the system has no `SIGHUP
 
 `kill -HUP <supervisor pid>` (or `ExecReload=/bin/kill -HUP $MAINPID` in a systemd unit) replaces the workers of a running `hinoki serve` with new ones, without closing the listening socket. The supervisor does this one worker at a time:
 
-1. It starts a new worker on the same socket. The new process imports the target and reads the settings, so changed code, `.env` and TOML files, TLS certificates, and CORS, host and security policies take effect.
+1. It starts a new worker on the same socket (or, with per-worker `SO_REUSEPORT` on Linux, with the same `host:port`, so the new worker binds its own `SO_REUSEPORT` socket only after its lifespan startup succeeds). The new process imports the target and reads the settings, so changed code, `.env` and TOML files, TLS certificates, and CORS, host and security policies take effect.
 2. It waits until the new worker has run its lifespan startup and serves. The wait is `lifecycle.startup_timeout` plus five seconds.
-3. It sends `SIGTERM` to the old worker, which stops accepting, lets the requests it has finished (up to `lifecycle.shutdown_timeout`), runs its lifespan shutdown and exits. It is killed if it is still running five seconds after that.
+3. It sends `SIGTERM` to the old worker, which stops accepting (closing its `SO_REUSEPORT` socket immediately on Linux so new connections go only to the active workers), lets the requests it has finish (up to `lifecycle.shutdown_timeout`), runs its lifespan shutdown and exits. It is killed if it is still running five seconds after that.
 4. It moves to the next worker. At most one extra worker runs at a time, so the database connections of an application are at most `(workers + 1) × pool_max` while a reload runs.
 
 ```text
