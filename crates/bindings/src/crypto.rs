@@ -7,10 +7,14 @@
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use hmac::{Hmac, KeyInit, Mac};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
+type HmacSha256 = Hmac<Sha256>;
 
 /// Longest password accepted (bytes): bounds the work an attacker can ask for.
 pub const MAX_PASSWORD: usize = 4096;
@@ -141,6 +145,81 @@ pub fn make_uuid7<'py>(py: Python<'py>) -> Bound<'py, PyBytes> {
 #[pyfunction]
 pub fn constant_time_equal(a: &[u8], b: &[u8]) -> bool {
     equal(a, b)
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
+    }
+    out
+}
+
+fn compute_hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+    let mut mac =
+        <HmacSha256 as KeyInit>::new_from_slice(key).expect("HMAC-SHA256 accepts keys of any size");
+    mac.update(message);
+    mac.finalize().into_bytes().into()
+}
+
+fn compute_csrf_mac(key: &[u8], subject: &str, nonce: &str) -> String {
+    let mut msg = Vec::with_capacity(subject.len() + 1 + nonce.len());
+    msg.extend_from_slice(subject.as_bytes());
+    msg.push(0);
+    msg.extend_from_slice(nonce.as_bytes());
+    let digest = compute_hmac_sha256(key, &msg);
+    hex_encode(&digest[..16])
+}
+
+#[pyfunction]
+pub fn sha256_hex(text: &str) -> String {
+    let digest = Sha256::digest(text.as_bytes());
+    hex_encode(&digest)
+}
+
+#[pyfunction]
+pub fn hmac_sha256_hex(key: &[u8], message: &[u8]) -> String {
+    hex_encode(&compute_hmac_sha256(key, message))
+}
+
+#[pyfunction]
+pub fn hmac_sha256_verify(key: &[u8], message: &[u8], expected: &str) -> bool {
+    let actual = hmac_sha256_hex(key, message);
+    equal(actual.as_bytes(), expected.as_bytes())
+}
+
+#[pyfunction]
+pub fn csrf_mac(key: &[u8], subject: &str, nonce: &str) -> String {
+    compute_csrf_mac(key, subject, nonce)
+}
+
+#[pyfunction]
+pub fn csrf_mint(key: &[u8], subject: &str) -> PyResult<String> {
+    let mut raw = [0u8; 16];
+    getrandom::fill(&mut raw).map_err(|_| PyValueError::new_err("random bytes unavailable"))?;
+    let nonce = hex_encode(&raw);
+    let mac = compute_csrf_mac(key, subject, &nonce);
+    Ok(format!("{nonce}.{mac}"))
+}
+
+fn is_lower_hex_32(s: &str) -> bool {
+    s.len() == 32
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+#[pyfunction]
+pub fn csrf_verify(key: &[u8], token: &str, subject: &str) -> bool {
+    let Some((nonce, mac)) = token.split_once('.') else {
+        return false;
+    };
+    if !is_lower_hex_32(nonce) || !is_lower_hex_32(mac) {
+        return false;
+    }
+    let expected = compute_csrf_mac(key, subject, nonce);
+    equal(mac.as_bytes(), expected.as_bytes())
 }
 
 #[cfg(test)]

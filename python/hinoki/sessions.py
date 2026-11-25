@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import logging
 import secrets
@@ -18,6 +16,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TypeVar, cast
 
+from hinoki import core
 from hinoki.auth import BaseAuth, Caller, Credentials
 from hinoki.blocking import call_hook
 from hinoki.db import Database, DatabaseModule
@@ -473,10 +472,12 @@ class Session:
     def csrf_token(self) -> str:
         if self.token is None:
             raise SessionError("session has no token")
-        return hmac.new(self.csrf_secret, self.token.encode(), "sha256").hexdigest()
+        return core.hmac_sha256_hex(self.csrf_secret, self.token.encode())
 
     def verify_csrf(self, token: str) -> bool:
-        return hmac.compare_digest(self.csrf_token(), token)
+        if self.token is None:
+            raise SessionError("session has no token")
+        return core.hmac_sha256_verify(self.csrf_secret, self.token.encode(), token)
 
     def _record_original_token_for_revocation(self) -> None:
         if self._pending_delete is None:
@@ -535,7 +536,7 @@ class Session:
 
 
 def _digest(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
+    return core.sha256_hex(token)
 
 
 class SessionModule(Module):

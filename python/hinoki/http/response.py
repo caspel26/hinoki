@@ -12,15 +12,12 @@ status of the ``Response``.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping, Sequence
 from copy import copy
 
+from hinoki import core
 from hinoki.runtime.responses import BODYLESS
 
-TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
-COOKIE_VALUE = re.compile(r"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*")
-CONTROL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
 RESERVED = {"content-length", "transfer-encoding", "connection", "x-request-id"}
 SAME_SITE = {"Strict", "Lax", "None"}
 MIN_STATUS, MAX_STATUS = 200, 599
@@ -29,17 +26,7 @@ ResponseHeaders = Mapping[str, str] | Sequence[tuple[str, str]]
 
 
 def encode_header(name: str, value: str) -> tuple[bytes, bytes]:
-    lowered = name.lower()
-    if not TOKEN.fullmatch(name):
-        raise ValueError(f"invalid header name {name!r}")
-    if lowered in RESERVED:
-        raise ValueError(f"header {name!r} is set by the server")
-    if CONTROL.search(value):
-        raise ValueError(f"invalid characters in the value of header {name!r}")
-    try:
-        return lowered.encode("ascii"), value.encode("latin-1")
-    except UnicodeEncodeError:
-        raise ValueError(f"header {name!r} must be Latin-1") from None
+    return core.encode_header(name, value)
 
 
 class Response:
@@ -108,17 +95,15 @@ def set_cookie(
     """A ``("set-cookie", ...)`` header for ``Response(headers=[...])``. The name
     must be a token and the value cookie-safe (no space, quote, comma,
     semicolon or backslash); encode richer data yourself."""
-    if not TOKEN.fullmatch(name) or not COOKIE_VALUE.fullmatch(value):
-        raise ValueError("cookie name or value contains forbidden characters")
-    if same_site not in SAME_SITE or (same_site == "None" and not secure):
-        raise ValueError("same_site must be Strict, Lax, or None together with secure")
-    if not path.startswith("/") or any(c in path for c in ";\r\n"):
-        raise ValueError("invalid cookie path")
-    parts = [f"{name}={value}", f"Path={path}", f"SameSite={same_site}"]
-    if max_age is not None:
-        parts.append(f"Max-Age={int(max_age)}")
-    parts += [flag for flag, on in (("HttpOnly", http_only), ("Secure", secure)) if on]
-    return "set-cookie", "; ".join(parts)
+    return core.set_cookie_header(
+        name,
+        value,
+        path=path,
+        max_age=None if max_age is None else int(max_age),
+        http_only=http_only,
+        secure=secure,
+        same_site=same_site,
+    )
 
 
 __all__ = ["Response", "ResponseHeaders", "set_cookie"]

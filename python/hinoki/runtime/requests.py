@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import MutableMapping
 from http import HTTPStatus
 from typing import Any
-from urllib.parse import unquote
 
 from hinoki import core
 from hinoki.access import Access
@@ -56,9 +55,11 @@ async def read_body(receive: Any, limit: int = MAX_BODY) -> bytes:
 def decode_params(params: dict[str, str]) -> dict[str, str]:
     """Percent-decode parameter values after routing on the raw path, so an
     encoded ``/`` stays inside one segment."""
+    if not params:
+        return {}
     try:
-        return {k: unquote(v, errors="strict") for k, v in params.items()}
-    except UnicodeDecodeError:
+        return core.decode_path_params(params)
+    except ValueError:
         raise HTTPError(HTTPStatus.BAD_REQUEST, "bad_path_encoding") from None
 
 
