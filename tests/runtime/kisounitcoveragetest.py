@@ -65,7 +65,9 @@ class _Request:
     def respond_final(self, *values: Any) -> None:
         self.responses.append(values)
 
-    def respond_final_json(self, status: int, headers: Any, value: object) -> None:
+    def respond_final_json(
+        self, status: int, headers: Any, value: object, strict: bool = False
+    ) -> None:
         body = core.encode_json(value, None, False, None)
         self.respond_final(status, headers, body)
 

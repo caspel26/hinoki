@@ -882,7 +882,9 @@ class FakeRequest:
             raise OSError("peer gone")
         self.answers.append(status)
 
-    def respond_final_json(self, status: int, headers: Any, value: object) -> None:
+    def respond_final_json(
+        self, status: int, headers: Any, value: object, strict: bool = False
+    ) -> None:
         body = core.encode_json(value, None, False, None)
         self.respond_final(status, headers, body)
 
