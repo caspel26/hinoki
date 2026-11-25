@@ -122,11 +122,17 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
     it. Lists or pages of models, models of another class, and plain `dict`
     values are `500 internal_error` unless the action sets
     `validate_response=False`. A subclass instance is sent with the declared
-    fields only, whether the action returns it alone, as `Schema | None`, in a
-    `list[Schema]`, or in a `Page[Schema]` or `CursorPage[Schema]`; a list or page
-    of exact `Schema` instances is sent as it is. A `Schema` nested in a field of
-    another `Schema` is encoded as the instance it holds: declare the field's
-    own type with the instance you mean to send. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
+    fields only (and the declared `@computed_field` values, as an exact instance
+    shows them), at the top level (`Schema`, `Schema | None`, `list[Schema]`,
+    `Page[Schema]`, `CursorPage[Schema]`) and nested in a `Schema` field declared
+    as `S`, `S | None`, `list[S]`, `list[S | None]`, `list[list[S]]`,
+    `tuple[S, ...]`, `tuple[S, T]`, `dict[str, S]`, the `T` field of a generic `Envelope[S]`, or a
+    union of `S` with scalars, in the JSON, XML and `dump()` outputs alike. A
+    list or page of exact `Schema` instances is sent as it is. A position that
+    declares no schema (`Any`, `object`) writes the value it holds, whole; so
+    does a nested class that overrides `dump()`, which decides its own shape. A
+    `@computed_field` is not itself narrowed: a computed value that returns a
+    subclass instance is written as it is. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
 
 ## See also
 
