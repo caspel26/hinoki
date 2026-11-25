@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import datetime
+import gc
+import weakref
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Annotated, Any, ClassVar
+from typing import Annotated, Any, ClassVar, cast
 
 import pytest
 
@@ -21,6 +24,7 @@ from hinoki import (
 )
 from hinoki.cli.routes import lanes_of
 from hinoki.db import Database, DatabaseModule
+from hinoki.errors import MultipleObjectsReturned
 from hinoki.orm import (
     ManyToMany,
     Model,
@@ -32,9 +36,16 @@ from hinoki.orm import (
     use_database,
 )
 from hinoki.orm.migrations import create_table_sql, table_state
-from hinoki.orm.projection import _ProjectedList, _ProjectedPage
+from hinoki.orm.projection import (
+    _PLAN_CACHE,
+    _ProjectedItem,
+    _ProjectedList,
+    _ProjectedPage,
+    compile_projection_plan,
+)
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.runtime.kiso import KisoWorker
+from hinoki.runtime.pipeline import project_response
 from hinoki.runtime.responsecheck import compile_response_check
 from hinoki.schema import object_check
 from hinoki.testing import ASGIClient
@@ -92,6 +103,24 @@ class ArticleWithAuthorOut(Schema):
 class OtherOut(Schema):
     id: int
     code: str
+
+
+class TagOut(Schema):
+    id: int
+    label: str
+
+
+class ArticleWithTagsOut(Schema):
+    id: int
+    title: str = Field(alias="headline")
+    author: AuthorOut | None
+    tags: list[TagOut]
+
+
+class AuthorWithArticlesOut(Schema):
+    id: int
+    name: str
+    articles: list[ArticleOut]
 
 
 class ComputedArticleOut(Schema):
@@ -610,3 +639,294 @@ async def test_unmaterialized_schema_validate_dump_copy_ordering_and_union_check
         ):
             assert compile_response_check("act", page_ann)(proj_page4) is True
         assert compile_response_check("act", Page[OtherOut])(proj_page4) is False
+
+
+def test_compile_projection_plan_cache_and_invalidation() -> None:
+    q_flat = ProjArticle.all().order_by("id")
+    plan1 = compile_projection_plan(q_flat, ArticleOut, "sqlite")
+    plan2 = compile_projection_plan(q_flat, ArticleOut, "sqlite")
+    assert plan1 is not None
+    assert plan1 is plan2
+
+    # Different dialect or loading produces a distinct cached plan
+    plan_pg = compile_projection_plan(q_flat, ArticleOut, "postgres")
+    assert plan_pg is not None
+    assert plan_pg is not plan1
+
+    q_joined = ProjArticle.all().select_related("author")
+    plan_joined = compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite")
+    assert plan_joined is not None
+    assert (
+        compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is plan_joined
+    )
+
+    # Cache uses WeakKeyDictionary on schema and invalidates on __computed_specs__
+    assert isinstance(_PLAN_CACHE, weakref.WeakKeyDictionary)
+
+    class TempOut(Schema):
+        id: int
+        title: str
+
+    temp_plan = compile_projection_plan(q_flat, TempOut, "sqlite")
+    assert temp_plan is not None
+    assert TempOut in _PLAN_CACHE
+
+    TempOut.__computed_specs__ = {"extra": cast(Any, object())}
+    assert compile_projection_plan(q_flat, TempOut, "sqlite") is None
+
+
+async def test_prefetch_m2m_and_reverse_fk_projection_and_lazy_materialization(
+    db: Database, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # M2M + select_related list and paginated projection
+    q_m2m = (
+        ProjArticle.all()
+        .select_related("author")
+        .prefetch_related("tags")
+        .order_by("id")
+    )
+    expected_models = await q_m2m
+    expected_schemas = [ArticleWithTagsOut.from_model(m) for m in expected_models]
+    expected_bytes = core.encode_json(expected_schemas)
+
+    projected = await q_m2m.aproject(ArticleWithTagsOut)
+    assert isinstance(projected, _ProjectedList)
+    assert projected._projected_handle is not None
+    assert core.encode_json(projected) == expected_bytes
+    assert projected._projected_handle is not None
+
+    # Paginated concurrent=True with prefetch_related matches byte-for-byte
+    params = PageParams(page=1, page_size=2)
+    expected_page = (await q_m2m.apaginate(params, concurrent=True)).map(
+        ArticleWithTagsOut.from_model
+    )
+    projected_page = await q_m2m.apaginate_as(
+        ArticleWithTagsOut, params, concurrent=True
+    )
+    assert isinstance(projected_page, _ProjectedPage)
+    assert projected_page._projected_handle is not None
+    assert core.encode_json(projected_page) == core.encode_json(expected_page)
+
+    # Reverse FK prefetch projection
+    q_rev = ProjAuthor.all().prefetch_related("articles").order_by("id")
+    expected_authors = [AuthorWithArticlesOut.from_model(m) for m in await q_rev]
+    projected_authors = await q_rev.aproject(AuthorWithArticlesOut)
+    assert isinstance(projected_authors, _ProjectedList)
+    assert projected_authors._projected_handle is not None
+    assert core.encode_json(projected_authors) == core.encode_json(expected_authors)
+
+    # Materialization must NOT issue any database queries
+    async def forbid_fetch(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("Lazy materialization must not hit the database")
+
+    monkeypatch.setattr(db, "fetch", forbid_fetch)
+    assert list(projected) == expected_schemas
+    assert list(projected_authors) == expected_authors
+
+    # Scoped prefetch falls back cleanly to plain list
+    monkeypatch.undo()
+    q_scoped = (
+        ProjArticle.all()
+        .select_related("author")
+        .prefetch_related(tags=ProjTag.filter(label="rust"))
+        .order_by("id")
+    )
+    scoped_res = await q_scoped.aproject(ArticleWithTagsOut)
+    assert type(scoped_res) is list
+    assert core.encode_json(scoped_res) == expected_bytes
+
+
+async def test_single_record_projection_get_as_and_get_or_none_as(
+    db: Database,
+) -> None:
+    # Model & QuerySet aget_as with select_related + prefetch_related
+    q_one = ProjArticle.filter(id=1).select_related("author").prefetch_related("tags")
+    expected = ArticleWithTagsOut.from_model(await q_one.aget())
+    expected_bytes = core.encode_json(expected)
+
+    item = await q_one.aget_as(ArticleWithTagsOut)
+    assert isinstance(item, _ProjectedItem)
+    assert item._projected_handle is not None
+    assert core.encode_json(item) == expected_bytes
+    assert item._projected_handle is not None
+
+    # validate_response checks O(1) without materializing
+    assert compile_response_check("act", ArticleWithTagsOut)(item) is True
+    assert compile_response_check("act", ArticleWithTagsOut | None)(item) is True
+    assert compile_response_check("act", OtherOut)(item) is False
+    assert item._projected_handle is not None
+
+    # Non-compact JSON and attribute access materialize lazily with zero DB queries
+    assert core.encode_json(item, indent=2) == core.encode_json(expected, indent=2)
+    assert item == expected
+    assert item.title == "First"
+    assert len(item.tags) == 1
+    assert item.tags[0].label == "rust"
+
+    # 0 rows and >1 rows semantics
+    with pytest.raises(ProjArticle.NotFound):
+        await ProjArticle.aget_as(ArticleOut, id=999)
+    assert await ProjArticle.aget_or_none_as(ArticleOut, id=999) is None
+    with pytest.raises(MultipleObjectsReturned):
+        await ProjArticle.all().aget_as(ArticleOut)
+    with pytest.raises(MultipleObjectsReturned):
+        await ProjArticle.all().aget_or_none_as(ArticleOut)
+
+
+async def test_single_record_projection_schema_contract_and_native_lane(
+    db: Database, tmp_path: Path
+) -> None:
+    fresh = await ProjArticle.aget_as(ArticleOut, id=1)
+    expected_flat = ArticleOut.from_model(await ProjArticle.aget(id=1))
+    assert isinstance(fresh, _ProjectedItem)
+    assert isinstance(fresh, ArticleOut)
+    assert isinstance(fresh, Schema)
+    assert fresh._projected_handle is not None
+
+    # Embedding in another Schema, to_dict(), and hash() match a materialized Schema
+    class WrapArticle(Schema):
+        article: ArticleOut
+
+    class AnyWrap(Schema):
+        item: Any
+
+    wrapped = WrapArticle(article=fresh)
+    assert wrapped.article == expected_flat
+    assert AnyWrap(item=fresh).to_dict() == AnyWrap(item=expected_flat).to_dict()
+    assert hash(fresh) == hash(expected_flat)
+
+    fresh2 = await ProjArticle.aget_as(ArticleOut, id=1)
+    assert isinstance(fresh2, _ProjectedItem)
+    assert fresh2._projected_handle is not None
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        fresh2.title = "Mutated"  # type: ignore[misc]
+    assert fresh2._projected_handle is None
+
+    # Native lane accepts aget_as/aget_or_none_as; sync twins work in sync routes
+    q_one = ProjArticle.filter(id=1).select_related("author").prefetch_related("tags")
+    expected_bytes = core.encode_json(ArticleWithTagsOut.from_model(await q_one.aget()))
+    group = RouteGroup("")
+
+    @group.get("/item/{article_id}", validate_response=True)
+    async def get_item(article_id: int) -> ArticleWithTagsOut:
+        return (
+            await ProjArticle.filter(id=article_id)
+            .select_related("author")
+            .prefetch_related("tags")
+            .aget_as(ArticleWithTagsOut)
+        )
+
+    @group.get("/maybe/{article_id}", validate_response=True)
+    async def maybe_item(article_id: int) -> ArticleOut | None:
+        return await ProjArticle.aget_or_none_as(ArticleOut, id=article_id)
+
+    @group.get("/sync-item/{article_id}", validate_response=True)
+    def sync_get_item(article_id: int) -> ArticleOut:
+        return ProjArticle.get_as(ArticleOut, id=article_id)
+
+    @group.get("/sync-maybe/{article_id}", validate_response=True)
+    def sync_maybe_item(article_id: int) -> ArticleOut | None:
+        return ProjArticle.get_or_none_as(ArticleOut, id=article_id)
+
+    url = f"sqlite:///{tmp_path / 'lazy_projection.sqlite3'}"
+    app = Hinoki(modules=[DatabaseModule(url)], include=[group])
+    lanes = {r.path: lanes_of(app)[id(r)] for r in app.routes}
+    assert lanes["/item/{article_id}"][0] == "native"
+    assert lanes["/maybe/{article_id}"][0] == "native"
+
+    async with ASGIClient(app) as client:
+        r_async = await client.get("/item/1")
+        assert r_async.status == 200
+        assert r_async.raw == expected_bytes
+
+        r_sync = await client.get("/sync-item/1")
+        assert r_sync.status == 200
+        assert r_sync.raw == core.encode_json(
+            await ProjArticle.aget_as(ArticleOut, id=1)
+        )
+
+        r_none = await client.get("/sync-maybe/999")
+        assert r_none.status == 204
+        assert r_none.body is None
+
+
+def test_projection_plan_cache_invalidates_on_hooks_and_avoids_model_retention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    q_joined = ProjArticle.all().select_related("author")
+    plan = compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite")
+    assert plan is not None
+
+    # Monkeypatching related model from_row invalidates the cached plan
+    @classmethod  # type: ignore[misc]
+    def custom_from_row(cls: type[ProjAuthor], row: dict[str, Any]) -> ProjAuthor:
+        return cast(ProjAuthor, Model.from_row.__func__(cls, row))  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(ProjAuthor, "from_row", custom_from_row)
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is None
+    monkeypatch.undo()
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is not None
+
+    # Monkeypatching schema.dump or __checks__ invalidates the cached plan
+    monkeypatch.setattr(ArticleWithAuthorOut, "dump", lambda _self: {})
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is None
+    monkeypatch.undo()
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is not None
+
+    monkeypatch.setattr(ArticleWithAuthorOut, "__checks__", (lambda v: v,))
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is None
+    monkeypatch.undo()
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is not None
+
+    # Nested WeakKeyDictionary does not strongly retain dynamic Model classes
+    class LongLivedOut(Schema):
+        id: int
+        title: str
+
+    def _compile_dynamic() -> weakref.ref[type[Model]]:
+        class DynamicArticle(Model):
+            id: int = field(primary_key=True)
+            title: str
+
+        assert (
+            compile_projection_plan(DynamicArticle.all(), LongLivedOut, "sqlite")
+            is not None
+        )
+        return weakref.ref(DynamicArticle)
+
+    ref = _compile_dynamic()
+    gc.collect()
+    assert ref() is None
+    assert LongLivedOut in _PLAN_CACHE
+    assert len(_PLAN_CACHE[LongLivedOut]) == 0
+
+
+async def test_project_response_keeps_projected_item_unmaterialized(
+    db: Database,
+) -> None:
+    class ArticleSlimOut(Schema):
+        id: int
+        title: str
+
+    class ArticleFullSubOut(ArticleSlimOut):
+        views: int
+
+    with use_database(db):
+        item = await ProjArticle.filter(title="First").aget_as(ArticleSlimOut)
+        assert isinstance(item, _ProjectedItem)
+        assert item._projected_handle is not None
+        assert item._materialized is None
+
+        # Exact schema match preserves the lazy _ProjectedItem without materializing
+        kept = project_response(ArticleSlimOut, item)
+        assert kept is item
+        assert item._projected_handle is not None
+        assert item._materialized is None
+
+        # Subclass schema still strips subclass-only fields via dump(include=...)
+        sub_item = await ProjArticle.filter(title="First").aget_as(ArticleFullSubOut)
+        assert isinstance(sub_item, _ProjectedItem)
+        stripped = project_response(ArticleSlimOut, sub_item)
+        assert isinstance(stripped, dict)
+        assert set(stripped) == {"id", "title"}
+        assert "views" not in stripped

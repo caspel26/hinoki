@@ -49,8 +49,8 @@ A name with the `a` prefix awaits the database (`aget`, `acreate`, `acount`); th
 | Action handlers | `async def` | `def` | Sync runs on the executor |
 | CRUD hooks (`get_queryset`, `written_queryset`, `to_schema`, `store`, `change`, `remove`) | `async def` | `def` | Same executor as handlers |
 | Auth providers (`authenticate`, `resolve`, `resolve_token`, JWT `resolve_claims`) | `async def` | `def` | Sync hooks run on the executor |
-| Model writes and lookups | `acreate`, `aget`, `aget_or_none`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from`, `abulk_create`, `abulk_update`, `abulk_delete` | The same names without `a` | Sync calls work only inside a sync handler or hook served by Hinoki; both take `returning=False` ([queries](queries.md#writes-that-do-not-read-the-row-back)) |
-| QuerySet reads | `await qs`, `afirst`, `aget`, `acount`, `aexists`, `apaginate` | `list`, `first`, `get`, `count`, `exists`, `paginate` | |
+| Model writes and lookups | `acreate`, `aget`, `aget_or_none`, `aget_as`, `aget_or_none_as`, `aupdate`, `aupdate_where`, `adelete`, `asave`, `aupdate_from`, `abulk_create`, `abulk_update`, `abulk_delete` | The same names without `a` | Sync calls work only inside a sync handler or hook served by Hinoki; both take `returning=False` ([queries](queries.md#writes-that-do-not-read-the-row-back)) |
+| QuerySet reads | `await qs`, `afirst`, `aget`, `aget_as`, `aget_or_none_as`, `acount`, `aexists`, `aproject`, `apaginate`, `apaginate_as` | `list`, `first`, `get`, `get_as`, `get_or_none_as`, `count`, `exists`, `project`, `paginate`, `paginate_as` | |
 | QuerySet writes | `aupdate`, `adelete` | `update`, `delete` | |
 | Relations | `select_related`, `prefetch_related` | same | Never lazy in either style |
 | Raw SQL (`Database.fetch`, `fetch_one`, `execute`) | async | none | Async-only escape hatch |

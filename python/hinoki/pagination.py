@@ -79,12 +79,10 @@ class PageNumberPagination:
 
     def parse(self, query: dict[str, list[str]]) -> PageParams:
         """Read and validate the query; every problem is reported at once."""
-        errors: list[ErrorDetail] = []
         default_size, upper = self.sizes()
-        page = self.number(query, "page", 1, None, errors)
-        size = self.number(query, "page_size", default_size, upper, errors)
+        page, size, errors = core.parse_page_params(query, default_size, upper)
         if errors:
-            raise ValidationError(errors)
+            raise ValidationError([ErrorDetail(*err) for err in errors])
         return PageParams(page, size)
 
     @staticmethod
@@ -184,12 +182,10 @@ class CursorPagination:
         return size, upper
 
     def parse(self, query: dict[str, list[str]]) -> CursorParams:
-        errors: list[ErrorDetail] = []
         default_size, upper = self.limits
-        size = PageNumberPagination.number(query, "limit", default_size, upper, errors)
-        token = self.token(query, errors)
+        size, token, errors = core.parse_cursor_params(query, default_size, upper)
         if errors:
-            raise ValidationError(errors)
+            raise ValidationError([ErrorDetail(*err) for err in errors])
         return CursorParams(size, token, self)
 
     @staticmethod

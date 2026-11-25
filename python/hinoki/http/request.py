@@ -43,6 +43,13 @@ class Headers(Mapping[str, str]):
         headers.items_ = dict(items)
         return headers
 
+    @classmethod
+    def _wrap(cls, items: dict[str, str]) -> Headers:
+        """Wrap a freshly-built lower-case header dict without copying it."""
+        headers = cls.__new__(cls)
+        headers.items_ = items
+        return headers
+
     def __getitem__(self, name: str) -> str:
         return self.items_[name.lower()]
 
@@ -66,12 +73,16 @@ def media_type(raw: str) -> str:
     return raw.split(";", maxsplit=1)[0].strip().lower()
 
 
+_EMPTY_QUERY: QueryDict = QueryDict({})
+
+
 class Request:
     """One HTTP request. Never mutate it; it is shared with the whole call."""
 
     __slots__ = (
-        "COOKIES",
         "GET",
+        "_content_type",
+        "_cookies",
         "body",
         "cached",
         "client",
@@ -108,19 +119,34 @@ class Request:
         self.host = host
         self.client = client
         self.headers = headers if isinstance(headers, Headers) else Headers(headers)
-        self.GET = QueryDict(query)
-        self.COOKIES = core.parse_cookie_header(self.headers.get("cookie", ""))
+        self.GET = QueryDict(query) if query else _EMPTY_QUERY
+        self._cookies: dict[str, str] | None = None
+        self._content_type: str | None = None
         self.body = body
-        self.path_params = dict(path_params)
+        self.path_params = dict(path_params) if path_params else {}
         self.user = user
         self.request_id = request_id
         self.parsers = tuple(parsers)
         self.cached: Parsed | None = None
 
     @property
+    def COOKIES(self) -> dict[str, str]:
+        """Parsed ``Cookie`` header, decoded on first access."""
+        cookies = self._cookies
+        if cookies is None:
+            raw = self.headers.get("cookie", "")
+            cookies = core.parse_cookie_header(raw) if raw else {}
+            self._cookies = cookies
+        return cookies
+
+    @property
     def content_type(self) -> str:
         """Media type without parameters, lower-case ("" when absent)."""
-        return media_type(self.headers.get("content-type", ""))
+        cached = self._content_type
+        if cached is None:
+            cached = media_type(self.headers.get("content-type", ""))
+            self._content_type = cached
+        return cached
 
     def parsed(self) -> Parsed:
         """The body through the parser for its content type, once; raises

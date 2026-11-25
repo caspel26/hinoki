@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -80,16 +79,7 @@ class CacheDecodeError(CacheError):
 
 
 def _ttl_seconds(value: float | timedelta) -> float:
-    seconds = value.total_seconds() if isinstance(value, timedelta) else value
-    if (
-        isinstance(seconds, bool)
-        or not isinstance(seconds, int | float)
-        or seconds <= 0
-        or seconds > MAX_TTL_SECONDS
-        or not math.isfinite(seconds)
-    ):
-        raise ValueError("ttl must be finite, positive and at most 366 days")
-    return float(seconds)
+    return core.validate_cache_ttl(value)
 
 
 def _positive_limit(value: int, name: str) -> None:
@@ -114,14 +104,10 @@ def _decode_json(raw: bytes) -> object:
 
 
 def _key(value: str, prefix: str = "") -> str:
-    full = f"{prefix}:{value}" if prefix else value
     try:
-        encoded = full.encode("utf-8")
-    except UnicodeEncodeError:
+        return core.validate_cache_key(value, prefix)
+    except ValueError:
         raise InvalidCacheKey from None
-    if not encoded or len(encoded) > MAX_KEY_BYTES or b"\x00" in encoded:
-        raise InvalidCacheKey
-    return full
 
 
 class Cache(Resource):

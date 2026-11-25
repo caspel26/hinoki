@@ -11,6 +11,7 @@ from urllib.parse import parse_qs
 import pytest
 
 from hinoki import Schema, Secret, core
+from hinoki.http.request import Headers, Request
 
 
 @pytest.mark.parametrize(
@@ -478,3 +479,63 @@ def test_encode_handles_datetime_edge_cases_and_subclasses() -> None:
         custom.isoformat(),
         "12345",
     ]
+
+
+class _OtherColor(Schema):
+    code: str
+
+
+def test_encode_homogeneous_and_heterogeneous_schema_lists_and_sets() -> None:
+    colors = [_Color(name="red", level=1), _Color(name="blue", level=2)]
+    mixed: list[Schema] = [_Color(name="red", level=1), _OtherColor(code="#f00")]
+    assert json.loads(core.encode_json(colors)) == [
+        {"name": "red", "level": 1},
+        {"name": "blue", "level": 2},
+    ]
+    assert json.loads(core.encode_json(mixed)) == [
+        {"name": "red", "level": 1},
+        {"code": "#f00"},
+    ]
+    assert core.encode_json({"c", "a", "b"}) == b'["a","b","c"]'
+    assert core.encode_json({30, -5, 2}) == b"[-5,2,30]"
+    assert core.encode_json({True, 2, "a"}) == b'[true,2,"a"]'
+    assert core.encode_json(set()) == b"[]"
+
+
+def test_request_lazy_cookies_and_cached_content_type() -> None:
+    raw_headers = {"content-type": "application/json; charset=utf-8"}
+    req = Request(
+        method="POST",
+        path="/x",
+        scheme="http",
+        host="localhost",
+        client=None,
+        headers=Headers._wrap(raw_headers),
+        query={},
+        body=b"{}",
+        path_params={},
+        user=None,
+        request_id="r1",
+    )
+    assert req._cookies is None
+    assert req.COOKIES == {}
+    assert req._cookies == {}
+    assert req.content_type == "application/json"
+    assert req._content_type == "application/json"
+    assert len(req.GET) == 0
+
+    with_cookie = Request(
+        method="GET",
+        path="/x",
+        scheme="http",
+        host="localhost",
+        client=None,
+        headers=Headers.lowered({"cookie": "a=1; b=two"}),
+        query={"k": ["v"]},
+        body=b"",
+        path_params={},
+        user=None,
+        request_id="r2",
+    )
+    assert with_cookie.COOKIES == {"a": "1", "b": "two"}
+    assert with_cookie.GET["k"] == "v"

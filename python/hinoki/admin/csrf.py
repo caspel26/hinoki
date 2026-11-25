@@ -18,18 +18,15 @@ can do is sign the victim in as the attacker (login CSRF).
 
 from __future__ import annotations
 
-import hashlib
 import hmac
-import re
-import secrets
 
+from hinoki import core
 from hinoki.http.request import Request
 from hinoki.http.response import set_cookie
 from hinoki.http.security import same_site_origin
 
 COOKIE = "hinoki_csrf"
 FIELD = "csrf"
-TOKEN = re.compile(r"[0-9a-f]{32}\.[0-9a-f]{32}")
 MIN_SECRET = 32
 
 
@@ -44,18 +41,13 @@ class Csrf:
         self.key = key
 
     def mac(self, subject: str, nonce: str) -> str:
-        message = f"{subject}\x00{nonce}".encode()
-        return hmac.new(self.key, message, hashlib.sha256).hexdigest()[:32]
+        return core.csrf_mac(self.key, subject, nonce)
 
     def mint(self, subject: str) -> str:
-        nonce = secrets.token_hex(16)
-        return f"{nonce}.{self.mac(subject, nonce)}"
+        return core.csrf_mint(self.key, subject)
 
     def genuine(self, token: str, subject: str) -> bool:
-        if not TOKEN.fullmatch(token):
-            return False
-        nonce, _, mac = token.partition(".")
-        return hmac.compare_digest(mac, self.mac(subject, nonce))
+        return core.csrf_verify(self.key, token, subject)
 
     def issue(self, request: Request, subject: str) -> tuple[str, bool]:
         """``(token, is_new)``: reuse the caller's genuine cookie, else mint one."""

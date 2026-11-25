@@ -399,6 +399,7 @@ impl Steps {
         loop {
             match (&self.read).read(&mut buf) {
                 Ok(0) => return,
+                Ok(n) if n < buf.len() => return,
                 Ok(_) => {}
                 Err(error) if error.kind() == ErrorKind::Interrupted => {}
                 Err(_) => return,

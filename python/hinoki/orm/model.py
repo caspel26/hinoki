@@ -1805,6 +1805,18 @@ class Model:
         except cls.NotFound:  # NOSONAR
             return None
 
+    @classmethod
+    async def aget_as[S: Schema](cls, schema: type[S], **conditions: Any) -> S:
+        """Exactly one row projected to ``schema``."""
+        return await cls.filter(**conditions).aget_as(schema)
+
+    @classmethod
+    async def aget_or_none_as[S: Schema](
+        cls, schema: type[S], **conditions: Any
+    ) -> S | None:
+        """At most one row projected to ``schema``, or ``None``."""
+        return await cls.filter(**conditions).aget_or_none_as(schema)
+
     @overload
     @classmethod
     async def aupdate(
@@ -2010,6 +2022,16 @@ class Model:
     @classmethod
     def get_or_none(cls, **conditions: Any) -> Self | None:
         return run_sync(cls.aget_or_none(**conditions))
+
+    @classmethod
+    def get_as[S: Schema](cls, schema: type[S], **conditions: Any) -> S:
+        """Sync ``aget_as``."""
+        return run_sync(cls.aget_as(schema, **conditions))
+
+    @classmethod
+    def get_or_none_as[S: Schema](cls, schema: type[S], **conditions: Any) -> S | None:
+        """Sync ``aget_or_none_as``."""
+        return run_sync(cls.aget_or_none_as(schema, **conditions))
 
     @overload
     @classmethod

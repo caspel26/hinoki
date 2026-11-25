@@ -547,21 +547,7 @@ def describe(value: Any) -> Any:
 def parse_dotenv(text: str) -> dict[str, str]:
     """``KEY=value`` lines; ``#`` comments, blank lines, optional ``export``,
     matching single or double quotes removed. No expansion, no multi-line values."""
-    values: dict[str, str] = {}
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        line = line.removeprefix("export ").strip()
-        key, _, value = line.partition("=")
-        value = value.strip()
-        if len(value) >= QUOTED and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
-        else:
-            value = value.split(" #", 1)[0].rstrip()
-        if key.strip():
-            values[key.strip()] = value
-    return values
+    return dict(core.parse_dotenv(text))
 
 
 def known_keys(cls: type[Settings], prefix: str, path: str = "") -> set[str]:
@@ -1390,15 +1376,7 @@ class PaginationSettings(Settings):
 def is_host_pattern(entry: str) -> bool:
     """``*``, a host name, ``.domain`` (the domain and its subdomains) or an IP
     address; never a scheme, port or path."""
-    if entry == ANY:
-        return True
-    if ":" in entry:  # only an IPv6 address may contain colons
-        try:
-            ipaddress.IPv6Address(entry)
-        except ValueError:
-            return False
-        return entry.isascii()  # a zone ID may be any text; entries are ASCII
-    return HOST_PATTERN.fullmatch(entry) is not None
+    return core.is_host_pattern(entry)
 
 
 class CorsSettings(Settings):
@@ -1416,10 +1394,10 @@ class CorsSettings(Settings):
             raise ValueError("origins: '*' must be the only entry")
         if ANY in self.origins and self.credentials:
             raise ValueError("origins: '*' cannot be combined with credentials")
-        if any(o != ANY and ORIGIN.fullmatch(o) is None for o in self.origins):
+        if any(o != ANY and not core.is_valid_origin(o) for o in self.origins):
             raise ValueError("origins must look like scheme://host[:port], or be '*'")
         names = (*self.methods, *self.headers, *self.expose_headers)
-        if any(TOKEN.fullmatch(name) is None for name in names):
+        if any(not core.is_http_token_str(name) for name in names):
             raise ValueError("methods and headers must be HTTP token names")
         if not 0 <= self.max_age <= MAX_CORS_AGE:
             raise ValueError(f"max_age must be 0 to {MAX_CORS_AGE} seconds")
@@ -1458,7 +1436,7 @@ class CompressionSettings(Settings):
             raise ValueError("encodings: each of br and gzip at most once")
         if not 0 <= self.min_size <= MAX_COMPRESSION_MIN_SIZE:
             raise ValueError(f"min_size must be 0 to {MAX_COMPRESSION_MIN_SIZE} bytes")
-        if any(MEDIA_RULE.fullmatch(rule) is None for rule in self.types):
+        if any(not core.is_media_rule(rule) for rule in self.types):
             raise ValueError("types: type/subtype, type/* or */*+suffix")
         if not 1 <= self.gzip_level <= MAX_GZIP_LEVEL:
             raise ValueError("gzip_level must be 1 to 9")

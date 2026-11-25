@@ -42,8 +42,12 @@ from hinoki.http.stream import EventStream, Sourced
 from hinoki.mail import Mailer
 from hinoki.runtime import banner
 from hinoki.runtime.listener import inherited_address, open_listener, signal_ready
-from hinoki.runtime.nativelane import NativeLane, lane_refusal, needs_request_data
-from hinoki.runtime.pipeline import NativeBody
+from hinoki.runtime.nativelane import (
+    NativeLane,
+    build_native_body,
+    lane_refusal,
+    needs_request_data,
+)
 from hinoki.runtime.recent import RequestRecorder
 from hinoki.runtime.responses import HTTPError, Response, StreamHandle
 from hinoki.runtime.servercore import (
@@ -640,20 +644,17 @@ class KisoWorker:
             if action is None:
                 raise RuntimeError("native handler request has no action")
             binding = self.pipeline.bindings[action]
+            native_body = (
+                build_native_body(RustBody(request), binding, request)
+                if needs_request_data(binding)
+                else None
+            )
             return await self.pipeline.handle_native(
                 binding,
                 request.request_id,
                 request.native_args,
                 request.native_error,
-                NativeBody(
-                    RustBody(request),
-                    request.headers,
-                    request.query,
-                    request.client,
-                    request.native_principal,
-                )
-                if needs_request_data(binding)
-                else None,
+                native_body,
             ), True
         failure = request._take_native_failure()
         if failure is not None:

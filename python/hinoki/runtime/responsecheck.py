@@ -117,9 +117,7 @@ def simple_check(arm: object) -> Check | None:
 def class_check(arm: type) -> Check | None:
     if arm in SCALARS:
         return lambda value: type(value) is arm  # exact: True is not an int
-    if issubclass(arm, Response):  # Stream, EventStream, File
-        return lambda value: isinstance(value, arm)
-    if arm in {dict, list} or issubclass(arm, Schema | Model):
+    if arm in {dict, list} or issubclass(arm, (Response, Model, Schema)):
         return lambda value: isinstance(value, arm)
     return None
 

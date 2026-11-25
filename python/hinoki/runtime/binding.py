@@ -14,7 +14,6 @@ constructible without arguments.
 from __future__ import annotations
 
 import inspect
-import math
 import re
 import typing
 from collections.abc import Callable
@@ -75,31 +74,19 @@ OPTIONAL_UNION_ARITY = 2
 
 
 def to_bool(raw: str) -> bool:
-    if raw in {"true", "1"}:
-        return True
-    if raw in {"false", "0"}:
-        return False
-    raise ValueError(raw)
+    return core.parse_bool(raw)
 
 
 def to_int(raw: str) -> int:
-    if not INTEGER.fullmatch(raw):
-        raise ValueError(raw)
-    return int(raw)
+    return core.parse_int(raw)
 
 
 def to_float(raw: str) -> float:
-    value = float(raw) if DECIMAL.fullmatch(raw) else math.nan
-    if not math.isfinite(value):
-        raise ValueError(raw)
-    return value
+    return core.parse_float(raw)
 
 
 def to_uuid(raw: str) -> UUID:
-    value = UUID(raw)
-    if str(value) != raw.lower():
-        raise ValueError(raw)  # only the canonical 8-4-4-4-12 form
-    return value
+    return core.parse_uuid(raw)
 
 
 KINDS: dict[object, str] = {

@@ -16,7 +16,9 @@ use crate::cursor::{CursorQuery, CursorWire, PyCursorCodec};
 use crate::links::{outcome_to_py, raw_keys, scope_of, PyLinkSpec, RawScope};
 use crate::modelrows::{models_to_py, PyModelRows};
 use crate::rows::{
-    PageWireResult, ProjectedListResult, ProjectedPageResult, PyProjectedRows, PyRowPlan,
+    group_prefetch_rows, PageWireResult, PrefetchPlan, PrefetchedJson, PrefetchedRows,
+    ProjectedListResult, ProjectedOneResult, ProjectedPageResult, PyProjectedRows, PyRowPlan,
+    RowPlan,
 };
 
 pyo3::create_exception!(core, DatabaseError, pyo3::exceptions::PyException);
@@ -145,10 +147,8 @@ pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if obj.is_instance_of::<PyBytes>() {
         return Ok(Value::Bytes(obj.extract()?));
     }
-    if let Some(text) = crate::pytypes::exact_uuid_text(obj)? {
-        return uuid::Uuid::parse_str(&text)
-            .map(Value::Uuid)
-            .map_err(|e| PyValueError::new_err(e.to_string()));
+    if let Some(id) = crate::pytypes::exact_uuid(obj)? {
+        return Ok(Value::Uuid(id));
     }
     if obj.is_instance(crate::pytypes::uuid_class(py)?)? {
         let text: String = obj.str()?.extract()?;
@@ -159,13 +159,15 @@ pub(crate) fn to_value(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if crate::pytypes::is_ip_object(obj)? {
         return Ok(Value::Text(obj.str()?.extract()?));
     }
-    if obj.is_instance(&py.import("datetime")?.getattr("datetime")?)? {
-        if obj.getattr("tzinfo")?.is_none() {
+    if obj.is_instance(crate::pytypes::datetime_class(py)?)? {
+        if obj.getattr(pyo3::intern!(py, "tzinfo"))?.is_none() {
             return Err(PyValueError::new_err(
                 "datetime parameters must be timezone-aware",
             ));
         }
-        let text: String = obj.call_method0("isoformat")?.extract()?;
+        let text: String = obj
+            .call_method0(pyo3::intern!(py, "isoformat"))?
+            .extract()?;
         return hinoki_orm::parse_timestamp(&text)
             .map(Value::Timestamp)
             .ok_or_else(|| PyValueError::new_err("invalid datetime parameter"));
@@ -204,8 +206,48 @@ pub(crate) fn from_value(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
                 db_error(py, &DbError::new(ErrorKind::Type, message))
             })?
             .unbind(),
-        Value::Json(v) => crate::request::decode_json(py, v.to_string().as_bytes())?.unbind(),
+        Value::Json(v) => json_value_to_py(py, v)?,
     })
+}
+
+pub(crate) fn json_value_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
+    match value {
+        serde_json::Value::Null => Ok(py.None()),
+        serde_json::Value::Bool(b) => Ok(b.into_pyobject(py)?.to_owned().into_any().unbind()),
+        serde_json::Value::Number(n) => json_number_to_py(py, n),
+        serde_json::Value::String(s) => Ok(s.into_pyobject(py)?.into_any().unbind()),
+        serde_json::Value::Array(items) => {
+            let list = PyList::empty(py);
+            for item in items {
+                list.append(json_value_to_py(py, item)?)?;
+            }
+            Ok(list.into_any().unbind())
+        }
+        serde_json::Value::Object(entries) => {
+            let dict = PyDict::new(py);
+            for (k, v) in entries {
+                dict.set_item(k, json_value_to_py(py, v)?)?;
+            }
+            Ok(dict.into_any().unbind())
+        }
+    }
+}
+
+fn json_number_to_py(py: Python<'_>, n: &serde_json::Number) -> PyResult<Py<PyAny>> {
+    if let Some(i) = n.as_i64() {
+        return Ok(i.into_pyobject(py)?.into_any().unbind());
+    }
+    if let Some(u) = n.as_u64() {
+        return Ok(u.into_pyobject(py)?.into_any().unbind());
+    }
+    let raw = n.as_str();
+    if !raw.contains(['.', 'e', 'E']) {
+        return Ok(py.get_type::<PyInt>().call1((raw,))?.unbind());
+    }
+    let f = n
+        .as_f64()
+        .ok_or_else(|| PyValueError::new_err("JSON number out of range"))?;
+    Ok(f.into_pyobject(py)?.into_any().unbind())
 }
 
 pub(crate) fn rows_to_py(py: Python<'_>, rows: &[Vec<(String, Value)>]) -> PyResult<Py<PyAny>> {
@@ -376,12 +418,25 @@ impl PyDatabase {
         let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
         let fut = async move {
             let rows = db.fetch(&sql, &values).await?;
-            Ok::<_, DbError>(match crate::rows::encode_list(&rows, &plan) {
-                Some(json) => ProjectedListResult::Encoded(json, rows),
-                None => ProjectedListResult::Fallback(rows),
-            })
+            finish_projected_list_db(&db, rows, &plan).await
         };
         bridge!(py, fut, |py2, result| projected_list_to_py(py2, result))
+    }
+
+    #[pyo3(signature = (sql, params, plan))]
+    fn fetch_projected_one<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (db, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let rows = db.fetch(&sql, &values).await?;
+            finish_projected_one_db(&db, rows, &plan).await
+        };
+        bridge!(py, fut, |py2, result| projected_one_to_py(py2, result))
     }
 
     #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, plan, page, page_size, concurrent=false))]
@@ -410,7 +465,7 @@ impl PyDatabase {
                 count_params: &count_values,
             };
             let (rows, total) = db.fetch_page(&queries, concurrent).await?;
-            Ok::<_, DbError>(finish_projected_page(rows, total, &plan, page, page_size))
+            finish_projected_page_db(&db, rows, total, &plan, page, page_size).await
         };
         bridge!(py, fut, |py2, result| projected_page_to_py(
             py2, result, page, page_size
@@ -531,28 +586,262 @@ impl PyDatabase {
     }
 }
 
-fn finish_projected_page(
+const PREFETCH_IN_CHUNK: usize = 500;
+
+async fn fetch_one_prefetch_db(
+    db: &Database,
+    prefetch: &PrefetchPlan,
+    owners: &[Value],
+) -> Result<Vec<Vec<(String, Value)>>, DbError> {
+    let mut all = Vec::new();
+    for chunk in owners.chunks(PREFETCH_IN_CHUNK) {
+        let (sql, params) = prefetch
+            .compile_chunk(chunk)
+            .map_err(|e| DbError::new(ErrorKind::Other, e.to_string()))?;
+        all.extend(db.fetch(&sql, &params).await?);
+    }
+    Ok(all)
+}
+
+async fn fetch_one_prefetch_tx(
+    tx: &Transaction,
+    prefetch: &PrefetchPlan,
+    owners: &[Value],
+) -> Result<Vec<Vec<(String, Value)>>, DbError> {
+    let mut all = Vec::new();
+    for chunk in owners.chunks(PREFETCH_IN_CHUNK) {
+        let (sql, params) = prefetch
+            .compile_chunk(chunk)
+            .map_err(|e| DbError::new(ErrorKind::Other, e.to_string()))?;
+        all.extend(tx.fetch(&sql, &params).await?);
+    }
+    Ok(all)
+}
+
+fn group_all_prefetches(
+    plan: &RowPlan,
+    raw: Vec<Vec<Vec<(String, Value)>>>,
+) -> Option<(PrefetchedJson, PrefetchedRows)> {
+    let mut encoded = Vec::with_capacity(raw.len());
+    let mut retained = Vec::with_capacity(raw.len());
+    for (prefetch, rows) in plan.prefetches().iter().zip(raw) {
+        let grouped = group_prefetch_rows(prefetch, plan.key_kind(), &rows)?;
+        encoded.push(grouped);
+        retained.push((prefetch.name.clone(), rows));
+    }
+    Some((encoded, retained))
+}
+
+fn empty_prefetches(plan: &RowPlan) -> (PrefetchedJson, PrefetchedRows) {
+    let encoded = vec![std::collections::HashMap::new(); plan.prefetches().len()];
+    let retained = plan
+        .prefetches()
+        .iter()
+        .map(|p| (p.name.clone(), Vec::new()))
+        .collect();
+    (encoded, retained)
+}
+
+async fn load_prefetches_db(
+    db: &Database,
+    plan: &RowPlan,
+    rows: &[Vec<(String, Value)>],
+) -> Result<Option<(PrefetchedJson, PrefetchedRows)>, DbError> {
+    let prefetches = plan.prefetches();
+    if prefetches.is_empty() {
+        return Ok(Some((Vec::new(), Vec::new())));
+    }
+    if rows.is_empty() {
+        return Ok(Some(empty_prefetches(plan)));
+    }
+    let Some(owners) = plan.owner_values(rows) else {
+        return Ok(None);
+    };
+    let raw = match prefetches {
+        [one] => vec![fetch_one_prefetch_db(db, one, &owners).await?],
+        [first, second] => {
+            let (a, b) = tokio::try_join!(
+                fetch_one_prefetch_db(db, first, &owners),
+                fetch_one_prefetch_db(db, second, &owners),
+            )?;
+            vec![a, b]
+        }
+        many => {
+            let mut out = Vec::with_capacity(many.len());
+            for prefetch in many {
+                out.push(fetch_one_prefetch_db(db, prefetch, &owners).await?);
+            }
+            out
+        }
+    };
+    Ok(group_all_prefetches(plan, raw))
+}
+
+async fn load_prefetches_tx(
+    tx: &Transaction,
+    plan: &RowPlan,
+    rows: &[Vec<(String, Value)>],
+) -> Result<Option<(PrefetchedJson, PrefetchedRows)>, DbError> {
+    let prefetches = plan.prefetches();
+    if prefetches.is_empty() {
+        return Ok(Some((Vec::new(), Vec::new())));
+    }
+    if rows.is_empty() {
+        return Ok(Some(empty_prefetches(plan)));
+    }
+    let Some(owners) = plan.owner_values(rows) else {
+        return Ok(None);
+    };
+    let mut raw = Vec::with_capacity(prefetches.len());
+    for prefetch in prefetches {
+        raw.push(fetch_one_prefetch_tx(tx, prefetch, &owners).await?);
+    }
+    Ok(group_all_prefetches(plan, raw))
+}
+
+async fn finish_projected_list_db(
+    db: &Database,
+    rows: Vec<Vec<(String, Value)>>,
+    plan: &RowPlan,
+) -> Result<ProjectedListResult, DbError> {
+    let Some((encoded, retained)) = load_prefetches_db(db, plan, &rows).await? else {
+        return Ok(ProjectedListResult::Fallback(rows));
+    };
+    Ok(match crate::rows::encode_list_with(&rows, plan, &encoded) {
+        Some(json) => ProjectedListResult::Encoded(json, rows, retained),
+        None => ProjectedListResult::Fallback(rows),
+    })
+}
+
+async fn finish_projected_list_tx(
+    tx: &Transaction,
+    rows: Vec<Vec<(String, Value)>>,
+    plan: &RowPlan,
+) -> Result<ProjectedListResult, DbError> {
+    let Some((encoded, retained)) = load_prefetches_tx(tx, plan, &rows).await? else {
+        return Ok(ProjectedListResult::Fallback(rows));
+    };
+    Ok(match crate::rows::encode_list_with(&rows, plan, &encoded) {
+        Some(json) => ProjectedListResult::Encoded(json, rows, retained),
+        None => ProjectedListResult::Fallback(rows),
+    })
+}
+
+async fn finish_projected_one_db(
+    db: &Database,
+    mut rows: Vec<Vec<(String, Value)>>,
+    plan: &RowPlan,
+) -> Result<ProjectedOneResult, DbError> {
+    if rows.is_empty() {
+        return Ok(ProjectedOneResult::Empty);
+    }
+    if rows.len() > 1 {
+        return Ok(ProjectedOneResult::Multiple);
+    }
+    let Some((encoded, retained)) = load_prefetches_db(db, plan, &rows).await? else {
+        return Ok(ProjectedOneResult::Fallback(rows));
+    };
+    Ok(
+        match crate::rows::encode_item_with_prefetches(&rows[0], plan, &encoded) {
+            Some(json) => ProjectedOneResult::Encoded(json, rows.swap_remove(0), retained),
+            None => ProjectedOneResult::Fallback(rows),
+        },
+    )
+}
+
+async fn finish_projected_one_tx(
+    tx: &Transaction,
+    mut rows: Vec<Vec<(String, Value)>>,
+    plan: &RowPlan,
+) -> Result<ProjectedOneResult, DbError> {
+    if rows.is_empty() {
+        return Ok(ProjectedOneResult::Empty);
+    }
+    if rows.len() > 1 {
+        return Ok(ProjectedOneResult::Multiple);
+    }
+    let Some((encoded, retained)) = load_prefetches_tx(tx, plan, &rows).await? else {
+        return Ok(ProjectedOneResult::Fallback(rows));
+    };
+    Ok(
+        match crate::rows::encode_item_with_prefetches(&rows[0], plan, &encoded) {
+            Some(json) => ProjectedOneResult::Encoded(json, rows.swap_remove(0), retained),
+            None => ProjectedOneResult::Fallback(rows),
+        },
+    )
+}
+
+async fn finish_projected_page_db(
+    db: &Database,
     rows: Vec<Vec<(String, Value)>>,
     total: i64,
-    plan: &crate::rows::RowPlan,
+    plan: &RowPlan,
     page: u64,
     page_size: u64,
-) -> ProjectedPageResult {
-    match u64::try_from(total)
-        .ok()
-        .and_then(|count| crate::rows::encode_page(&rows, plan, page, page_size, count))
-    {
-        Some(json) => ProjectedPageResult::Encoded(json, rows, total as u64),
-        None => ProjectedPageResult::Fallback(rows, total),
-    }
+) -> Result<ProjectedPageResult, DbError> {
+    let Some(count) = u64::try_from(total).ok() else {
+        return Ok(ProjectedPageResult::Fallback(rows, total));
+    };
+    let Some((encoded, retained)) = load_prefetches_db(db, plan, &rows).await? else {
+        return Ok(ProjectedPageResult::Fallback(rows, total));
+    };
+    Ok(
+        match crate::rows::encode_page_with_prefetches(
+            &rows,
+            plan,
+            &encoded,
+            (page, page_size, count),
+        ) {
+            Some(json) => ProjectedPageResult::Encoded(json, rows, retained, count),
+            None => ProjectedPageResult::Fallback(rows, total),
+        },
+    )
+}
+
+async fn finish_projected_page_tx(
+    tx: &Transaction,
+    rows: Vec<Vec<(String, Value)>>,
+    total: i64,
+    plan: &RowPlan,
+    page: u64,
+    page_size: u64,
+) -> Result<ProjectedPageResult, DbError> {
+    let Some(count) = u64::try_from(total).ok() else {
+        return Ok(ProjectedPageResult::Fallback(rows, total));
+    };
+    let Some((encoded, retained)) = load_prefetches_tx(tx, plan, &rows).await? else {
+        return Ok(ProjectedPageResult::Fallback(rows, total));
+    };
+    Ok(
+        match crate::rows::encode_page_with_prefetches(
+            &rows,
+            plan,
+            &encoded,
+            (page, page_size, count),
+        ) {
+            Some(json) => ProjectedPageResult::Encoded(json, rows, retained, count),
+            None => ProjectedPageResult::Fallback(rows, total),
+        },
+    )
 }
 
 fn projected_list_to_py(py: Python<'_>, result: ProjectedListResult) -> PyResult<Py<PyAny>> {
     match result {
-        ProjectedListResult::Encoded(json, rows) => {
-            Ok(Py::new(py, PyProjectedRows::new(json, rows, None))?.into_any())
+        ProjectedListResult::Encoded(json, rows, prefetched) => {
+            Ok(Py::new(py, PyProjectedRows::new(json, rows, prefetched, None))?.into_any())
         }
         ProjectedListResult::Fallback(rows) => rows_to_py(py, &rows),
+    }
+}
+
+fn projected_one_to_py(py: Python<'_>, result: ProjectedOneResult) -> PyResult<Py<PyAny>> {
+    match result {
+        ProjectedOneResult::Encoded(json, row, prefetched) => {
+            Ok(Py::new(py, PyProjectedRows::new(json, vec![row], prefetched, None))?.into_any())
+        }
+        ProjectedOneResult::Empty => Ok(py.None()),
+        ProjectedOneResult::Multiple => Ok(PyString::new(py, "multiple").into_any().unbind()),
+        ProjectedOneResult::Fallback(rows) => rows_to_py(py, &rows),
     }
 }
 
@@ -563,9 +852,9 @@ fn projected_page_to_py(
     page_size: u64,
 ) -> PyResult<Py<PyAny>> {
     match result {
-        ProjectedPageResult::Encoded(json, rows, total) => Ok(Py::new(
+        ProjectedPageResult::Encoded(json, rows, prefetched, total) => Ok(Py::new(
             py,
-            PyProjectedRows::new(json, rows, Some((page, page_size, total))),
+            PyProjectedRows::new(json, rows, prefetched, Some((page, page_size, total))),
         )?
         .into_any()),
         ProjectedPageResult::Fallback(rows, total) => {
@@ -709,12 +998,27 @@ impl PyTransaction {
             let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
             let tx = guard.as_ref().ok_or_else(busy_error)?;
             let rows = tx.fetch(&sql, &values).await?;
-            Ok::<_, DbError>(match crate::rows::encode_list(&rows, &plan) {
-                Some(json) => ProjectedListResult::Encoded(json, rows),
-                None => ProjectedListResult::Fallback(rows),
-            })
+            finish_projected_list_tx(tx, rows, &plan).await
         };
         bridge!(py, fut, |py2, result| projected_list_to_py(py2, result))
+    }
+
+    #[pyo3(signature = (sql, params, plan))]
+    fn fetch_projected_one<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &Bound<'py, PyList>,
+        plan: PyRef<'py, PyRowPlan>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (inner, values, plan) = (self.inner.clone(), to_values(params)?, plan.inner.clone());
+        let fut = async move {
+            let guard = inner.try_lock_owned().map_err(|_| busy_error())?;
+            let tx = guard.as_ref().ok_or_else(busy_error)?;
+            let rows = tx.fetch(&sql, &values).await?;
+            finish_projected_one_tx(tx, rows, &plan).await
+        };
+        bridge!(py, fut, |py2, result| projected_one_to_py(py2, result))
     }
 
     #[pyo3(signature = (rows_sql, rows_params, count_sql, count_params, plan, page, page_size, concurrent=false))]
@@ -746,7 +1050,7 @@ impl PyTransaction {
                 count_params: &count_values,
             };
             let (rows, total) = tx.fetch_page(&queries).await?;
-            Ok::<_, DbError>(finish_projected_page(rows, total, &plan, page, page_size))
+            finish_projected_page_tx(tx, rows, total, &plan, page, page_size).await
         };
         bridge!(py, fut, |py2, result| projected_page_to_py(
             py2, result, page, page_size

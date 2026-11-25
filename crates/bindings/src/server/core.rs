@@ -109,16 +109,24 @@ pub(super) fn prepare_native_inputs(
         error.available = Some(plan.media_types.join(", "));
         return Some(NativeInput::failed(error));
     }
-    let parsed = match request::parse_query(query, 1000) {
-        Ok(parsed) => parsed,
-        Err(_) => {
-            return Some(NativeInput::failed(native_error(
-                "invalid_query",
-                "malformed query string",
-            )));
+    let parsed = if query.is_empty() {
+        Vec::new()
+    } else {
+        match request::parse_query(query, 1000) {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                return Some(NativeInput::failed(native_error(
+                    "invalid_query",
+                    "malformed query string",
+                )));
+            }
         }
     };
-    let values = query_values(parsed);
+    let values = if parsed.is_empty() || !plan.input_params.iter().any(|p| p.source == "query") {
+        HashMap::new()
+    } else {
+        query_values(parsed)
+    };
     let (args, errors) = collect_native_args(plan, &decoded_path, &values)?;
     Some(if errors.is_empty() {
         NativeInput {
@@ -138,17 +146,13 @@ fn decode_native_path(
     plan: &RoutePlan,
     params: &[(String, String)],
 ) -> Result<HashMap<String, String>, NativeInputError> {
-    let raw: HashMap<_, _> = params
-        .iter()
-        .map(|(name, value)| (name.clone(), value.clone()))
-        .collect();
-    let mut decoded = HashMap::new();
+    let mut decoded = HashMap::with_capacity(params.len());
     for input in &plan.input_params {
-        let name = &input.name;
         if input.source != "path" {
             continue;
         }
-        let Some(value) = raw.get(name) else {
+        let name = &input.name;
+        let Some((_, value)) = params.iter().find(|(k, _)| k == name) else {
             return Err(native_error(
                 "internal_error",
                 "missing matched path parameter",

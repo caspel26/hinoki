@@ -328,22 +328,33 @@ def build_selection(
     )
 
 
+_QUERYSET_SLOTS = (
+    "model",
+    "filters",
+    "order",
+    "limit_to",
+    "offset_by",
+    "loading",
+    "implicit_filter_count",
+)
+
+
+def _queryset_state(query: object) -> dict[str, Any] | None:
+    """Read the exact slots of a stock ``QuerySet`` without triggering descriptors."""
+    if type(query) is not QuerySet:
+        return None
+    try:
+        return {name: object.__getattribute__(query, name) for name in _QUERYSET_SLOTS}
+    except AttributeError:
+        return None
+
+
 def valid_base_query(
     selection: RowWireSelection, query: object
 ) -> TypeGuard[QuerySet[Any]]:
     """Require the exact unmodified queryset whose hydration the wire path skips."""
-    if type(query) is not QuerySet:
-        return False
-    attributes = object.__getattribute__(query, "__dict__")
-    if set(attributes) != {
-        "model",
-        "filters",
-        "order",
-        "limit_to",
-        "offset_by",
-        "loading",
-        "implicit_filter_count",
-    }:
+    attributes = _queryset_state(query)
+    if attributes is None:
         return False
     expected = default_order(selection.model)
     return (
@@ -366,23 +377,11 @@ def valid_query_state(
     limit: int | None,
     offset: int | None,
 ) -> TypeGuard[QuerySet[Any]]:
-    if type(query) is not QuerySet:
+    attributes = _queryset_state(query)
+    if attributes is None:
         return False
-    attributes = object.__getattribute__(query, "__dict__")
     return (
-        set(attributes)
-        == {
-            "model",
-            "filters",
-            "order",
-            "limit_to",
-            "offset_by",
-            "loading",
-            "implicit_filter_count",
-        }
-        and static_state_matches(
-            QuerySet, QUERYSET_GUARD_NAMES, selection.queryset_state
-        )
+        static_state_matches(QuerySet, QUERYSET_GUARD_NAMES, selection.queryset_state)
         and attributes["model"] is selection.model
         and type(attributes["filters"]) is tuple
         and type(attributes["implicit_filter_count"]) is int

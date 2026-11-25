@@ -7,6 +7,7 @@ from __future__ import annotations
 import builtins
 import contextlib
 import dataclasses
+import weakref
 from collections.abc import Generator, Iterable
 from contextlib import AbstractAsyncContextManager
 from decimal import Decimal, InvalidOperation
@@ -85,8 +86,28 @@ class SubQuery:
         return (self.column, self.negated, inner)
 
 
+_UNSET: Any = object()
+_JOINED_PLAN_CACHE: weakref.WeakKeyDictionary[
+    type[Model],
+    dict[
+        tuple[str, ...],
+        tuple[core._ModelRows, tuple[core._ModelRows, ...], core._ModelRows],
+    ],
+] = weakref.WeakKeyDictionary()
+
+
 class QuerySet[M: Model]:
     """Lazy, immutable query description; nothing runs until an ``a...`` call."""
+
+    __slots__ = (
+        "filters",
+        "implicit_filter_count",
+        "limit_to",
+        "loading",
+        "model",
+        "offset_by",
+        "order",
+    )
 
     subfilters: tuple[SubQuery, ...] = ()
 
@@ -112,17 +133,29 @@ class QuerySet[M: Model]:
         self.loading = loading
         self.implicit_filter_count = 0
 
-    def derive(self, **changes: Any) -> QuerySet[M]:
-        state = {
-            "filters": self.filters,
-            "order": self.order,
-            "limit_to": self.limit_to,
-            "offset_by": self.offset_by,
-            "loading": self.loading,
-        }
-        implicit = changes.pop("implicit_filter_count", self.implicit_filter_count)
-        query = QuerySet(self.model, **{**state, **changes})
-        query.implicit_filter_count = implicit
+    def derive(
+        self,
+        *,
+        filters: Any = _UNSET,
+        order: Any = _UNSET,
+        limit_to: Any = _UNSET,
+        offset_by: Any = _UNSET,
+        loading: Any = _UNSET,
+        implicit_filter_count: Any = _UNSET,
+    ) -> QuerySet[M]:
+        query = QuerySet(
+            self.model,
+            self.filters if filters is _UNSET else filters,
+            self.order if order is _UNSET else order,
+            self.limit_to if limit_to is _UNSET else limit_to,
+            self.offset_by if offset_by is _UNSET else offset_by,
+            self.loading if loading is _UNSET else loading,
+        )
+        query.implicit_filter_count = (
+            self.implicit_filter_count
+            if implicit_filter_count is _UNSET
+            else implicit_filter_count
+        )
         return query
 
     def has_explicit_write_filter(self) -> bool:
@@ -418,16 +451,30 @@ class QuerySet[M: Model]:
         """The native builder for ``plan``'s model with its ``select_related``
         relations, laid out as ``build`` reads them; ``None`` when a related
         model must go through ``from_row``."""
+        selected = self.loading.selected
+        per_model = _JOINED_PLAN_CACHE.get(self.model)
+        related_plans: list[core._ModelRows] = []
         joins = []
-        for name in self.loading.selected:
+        for name in selected:
             related = self.forward(name).model
             related_plan = related.row_plan()
             # a soft-deleted row is stored as ``Hidden``, which only ``build`` does
             if related_plan is None or related.__soft_delete__ is not None:
                 return None
+            related_plans.append(related_plan)
             key = list(related.__columns__).index(related.__primary_key__)
             joins.append((name, related_plan, f"{ALIAS_PREFIX}{name}{SEPARATOR}", key))
-        return plan.joined(joins, STORE)
+        related_tuple = tuple(related_plans)
+        if per_model is not None:
+            cached = per_model.get(selected)
+            if cached is not None and cached[0] is plan and cached[1] == related_tuple:
+                return cached[2]
+        built = plan.joined(joins, STORE)
+        if per_model is None:
+            per_model = {}
+            _JOINED_PLAN_CACHE[self.model] = per_model
+        per_model[selected] = (plan, related_tuple, built)
+        return built
 
     def _model_plan(self) -> core._ModelRows | None:
         plan = self.model.row_plan() if self.uses_stock_builders() else None
@@ -718,6 +765,14 @@ class QuerySet[M: Model]:
         """Sync ``aproject``."""
         return run_sync(self.aproject(schema))
 
+    def get_as[S: Schema](self, schema: type[S]) -> S:
+        """Sync ``aget_as``."""
+        return run_sync(self.aget_as(schema))
+
+    def get_or_none_as[S: Schema](self, schema: type[S]) -> S | None:
+        """Sync ``aget_or_none_as``."""
+        return run_sync(self.aget_or_none_as(schema))
+
     def paginate_as[S: Schema](
         self,
         schema: type[S],
@@ -745,6 +800,28 @@ class QuerySet[M: Model]:
         from hinoki.orm.projection import project_list  # noqa: PLC0415
 
         return await project_list(self, schema, current_database())
+
+    async def aget_as[S: Schema](self, schema: type[S]) -> S:
+        """Fetch exactly one row and project it directly to ``schema`` in Rust
+        when eligible; raises ``Model.NotFound`` or ``MultipleObjectsReturned``
+        otherwise."""
+        # local import avoids circular dependency with hinoki.orm.model
+        from hinoki.orm.projection import project_one  # noqa: PLC0415
+
+        found = await project_one(self, schema, current_database(), allow_none=False)
+        if found is None:
+            msg = f"{self.model.__name__} matching query does not exist."
+            raise self.model.NotFound(msg)
+        return found
+
+    async def aget_or_none_as[S: Schema](self, schema: type[S]) -> S | None:
+        """Fetch at most one row and project it directly to ``schema`` in Rust
+        when eligible; returns ``None`` if no row matches and raises
+        ``MultipleObjectsReturned`` if several match."""
+        # local import avoids circular dependency with hinoki.orm.model
+        from hinoki.orm.projection import project_one  # noqa: PLC0415
+
+        return await project_one(self, schema, current_database(), allow_none=True)
 
     async def apaginate_as[S: Schema](
         self,
@@ -914,6 +991,8 @@ class LinkedQuerySet[M: Model](QuerySet[M]):
     """A query with conditions across a many-to-many relation. Plain queries
     never carry them, so they pay nothing for the feature."""
 
+    __slots__ = ("subfilters",)
+
     def __init__(
         self,
         model: type[M],
@@ -927,18 +1006,31 @@ class LinkedQuerySet[M: Model](QuerySet[M]):
         super().__init__(model, filters, order, limit_to, offset_by, loading)
         self.subfilters = subfilters
 
-    def derive(self, **changes: Any) -> QuerySet[M]:
-        state = {
-            "filters": self.filters,
-            "order": self.order,
-            "limit_to": self.limit_to,
-            "offset_by": self.offset_by,
-            "loading": self.loading,
-            "subfilters": self.subfilters,
-        }
-        implicit = changes.pop("implicit_filter_count", self.implicit_filter_count)
-        query = LinkedQuerySet(self.model, **{**state, **changes})
-        query.implicit_filter_count = implicit
+    def derive(
+        self,
+        *,
+        filters: Any = _UNSET,
+        order: Any = _UNSET,
+        limit_to: Any = _UNSET,
+        offset_by: Any = _UNSET,
+        loading: Any = _UNSET,
+        implicit_filter_count: Any = _UNSET,
+        subfilters: Any = _UNSET,
+    ) -> QuerySet[M]:
+        query = LinkedQuerySet(
+            self.model,
+            self.filters if filters is _UNSET else filters,
+            self.order if order is _UNSET else order,
+            self.limit_to if limit_to is _UNSET else limit_to,
+            self.offset_by if offset_by is _UNSET else offset_by,
+            self.loading if loading is _UNSET else loading,
+            self.subfilters if subfilters is _UNSET else subfilters,
+        )
+        query.implicit_filter_count = (
+            self.implicit_filter_count
+            if implicit_filter_count is _UNSET
+            else implicit_filter_count
+        )
         return query
 
     def compile(

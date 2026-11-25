@@ -4,8 +4,68 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyUnicodeEncodeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
+use pyo3::types::PyBool;
+
+const MAX_KEY_BYTES: usize = 256;
+const TTL_ERR: &str = "ttl must be finite, positive and at most 366 days";
+
+static TIMEDELTA_CLS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+fn timedelta_cls(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
+    TIMEDELTA_CLS
+        .get_or_try_init(py, || {
+            let obj = py.import("datetime")?.getattr("timedelta")?;
+            Ok(obj.unbind())
+        })
+        .map(|o| o.bind(py))
+}
+
+#[pyfunction]
+#[pyo3(signature = (value, prefix=""))]
+pub fn validate_cache_key(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    prefix: &str,
+) -> PyResult<String> {
+    let raw: String = match value.extract() {
+        Ok(s) => s,
+        Err(err) if err.is_instance_of::<PyUnicodeEncodeError>(py) => {
+            return Err(PyValueError::new_err("invalid_cache_key"));
+        }
+        Err(err) => return Err(err),
+    };
+    let full = if prefix.is_empty() {
+        raw
+    } else {
+        format!("{prefix}:{raw}")
+    };
+    if full.is_empty() || full.len() > MAX_KEY_BYTES || full.as_bytes().contains(&0) {
+        return Err(PyValueError::new_err("invalid_cache_key"));
+    }
+    Ok(full)
+}
+
+#[pyfunction]
+pub fn validate_cache_ttl(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    let candidate = if value.is_instance(timedelta_cls(py)?)? {
+        value.call_method0("total_seconds")?
+    } else {
+        value.clone()
+    };
+    if candidate.is_instance_of::<PyBool>() {
+        return Err(PyValueError::new_err(TTL_ERR));
+    }
+    let seconds: f64 = candidate
+        .extract::<f64>()
+        .map_err(|_| PyValueError::new_err(TTL_ERR))?;
+    if !seconds.is_finite() || seconds <= 0.0 || seconds > MAX_TTL_SECONDS {
+        return Err(PyValueError::new_err(TTL_ERR));
+    }
+    Ok(seconds)
+}
 
 struct Entry {
     value: Vec<u8>,

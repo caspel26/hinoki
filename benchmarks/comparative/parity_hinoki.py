@@ -23,7 +23,7 @@ from hinoki.orm import (
     foreign_key,
     many_to_many,
 )
-from hinoki.pagination import PageParams
+from hinoki.pagination import Page, PageParams
 
 
 class BenchmarkUser(Model, table="benchmark_users"):
@@ -143,14 +143,6 @@ class ArticleDetailOut(Schema):
     updated_at: datetime
 
 
-class ArticlePage(Schema):
-    items: list[ArticleOut]
-    total: int
-    page: int
-    page_size: int
-    pages: int
-
-
 class Health(Schema):
     status: str
 
@@ -167,13 +159,13 @@ def cookie(header: str, name: str) -> str | None:
     return None
 
 
-class CookieTokens(JWTAuth[User]):
+class CookieTokens(JWTAuth[UserOut]):
     """The token of the ``access_token`` cookie (Hinoki's ``JWTAuth`` reads a
     bearer header, so this provider reads the cookie and reuses its verifier)."""
 
     keys = (JWTKey(None, parity_data.ALGORITHM, parity_data.SECRET),)
 
-    async def authenticate(self, credentials: Credentials) -> Caller[User] | None:
+    async def authenticate(self, credentials: Credentials) -> Caller[UserOut] | None:
         token = cookie(credentials.headers.get("cookie", ""), parity_data.COOKIE)
         if token is None:
             return None
@@ -182,59 +174,25 @@ class CookieTokens(JWTAuth[User]):
             raise Unauthorized("Invalid credentials.")
         return caller
 
-    async def resolve_claims(self, claims: dict[str, object]) -> Caller[User] | None:
+    async def resolve_claims(self, claims: dict[str, object]) -> Caller[UserOut] | None:
         subject = claims.get("sub")
         if not isinstance(subject, str) or not subject.isdigit():
             return None
-        user = await User.aget_or_none(id=int(subject))
+        user = await User.aget_or_none_as(UserOut, id=int(subject))
         return None if user is None else Caller(subject, user)
 
 
 signed_in = Access(auth=CookieTokens())
 
 
-def author_out(author: Author) -> AuthorOut:
-    return AuthorOut(
-        id=author.id,
-        name=author.name,
-        email=author.email,
-        bio=author.bio,
-        created_at=author.created_at,
-    )
-
-
-def tags_out(article: Article) -> list[TagOut]:
-    return [TagOut(id=t.id, name=t.name, slug=t.slug) for t in article.tags.loaded]
-
-
-def article_out(article: Article) -> ArticleOut:
-    return ArticleOut(
-        id=article.id,
-        title=article.title,
-        content=article.content,
-        published=article.published,
-        author=author_out(article.author),
-        tags=tags_out(article),
-        created_at=article.created_at,
-        updated_at=article.updated_at,
-    )
-
-
-async def articles_page(page: int, page_size: int) -> ArticlePage:
+async def articles_page(page: int, page_size: int) -> Page[ArticleOut]:
     params = PageParams(page=max(1, page), page_size=max(1, min(100, page_size)))
-    paged = (
+    return (
         await Article.all()
         .select_related("author")
         .prefetch_related("tags")
         .order_by("-created_at")
-        .apaginate(params, concurrent=True)
-    )
-    return ArticlePage(
-        items=[article_out(article) for article in paged.items],
-        total=paged.total,
-        page=paged.page,
-        page_size=paged.page_size,
-        pages=paged.pages,
+        .apaginate_as(ArticleOut, params, concurrent=True)
     )
 
 
@@ -259,55 +217,27 @@ async def db_read() -> list[UserOut]:
 
 
 @http.get("/articles")
-async def list_articles(page: int = 1, page_size: int = 20) -> ArticlePage:
+async def list_articles(page: int = 1, page_size: int = 20) -> Page[ArticleOut]:
     return await articles_page(page, page_size)
 
 
 @http.get("/articles/{article_id}")
 async def get_article(article_id: int) -> ArticleDetailOut:
-    article = (
+    return (
         await Article.filter(id=article_id)
         .select_related("author")
         .prefetch_related("tags", "comments")
-        .aget()
-    )
-    return ArticleDetailOut(
-        id=article.id,
-        title=article.title,
-        content=article.content,
-        published=article.published,
-        author=author_out(article.author),
-        tags=tags_out(article),
-        comments=[
-            CommentOut(
-                id=c.id,
-                article_id=c.article_id,
-                author_name=c.author_name,
-                content=c.content,
-                created_at=c.created_at,
-            )
-            for c in article.comments
-        ],
-        created_at=article.created_at,
-        updated_at=article.updated_at,
+        .aget_as(ArticleDetailOut)
     )
 
 
 @http.get("/auth/me", access=signed_in)
-async def auth_me(caller: Caller[User]) -> UserOut:
-    user = caller.user
-    return UserOut(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        is_active=user.is_active,
-    )
+async def auth_me(caller: Caller[UserOut]) -> UserOut:
+    return caller.user
 
 
 @http.get("/auth/articles", access=signed_in)
-async def auth_articles(page: int = 1, page_size: int = 20) -> ArticlePage:
+async def auth_articles(page: int = 1, page_size: int = 20) -> Page[ArticleOut]:
     # The policy has already loaded the user row (one SELECT), as on every stack.
     return await articles_page(page, page_size)
 

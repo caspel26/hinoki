@@ -44,6 +44,30 @@ if TYPE_CHECKING:
 log = logging.getLogger("hinoki.runtime")
 
 
+def build_native_body(
+    source: BodySource, binding: Binding, request: core.PreparedRequest
+) -> NativeBody:
+    """Build ``NativeBody`` without materializing raw headers or header dict
+    unless the route actually needs them."""
+    principal = request.native_principal
+    route = binding.route
+    needs_raw = route.rate_limit is not None
+    needs_dict = (
+        binding.body_param is not None
+        or binding.query_param is not None
+        or len(route.renderers) > 1
+        or (route.access is not None and principal is None)
+    )
+    return NativeBody(
+        source,
+        request.headers if needs_raw else [],
+        request.query,
+        request.client,
+        principal,
+        request.header_dict if needs_dict else None,
+    )
+
+
 def needs_request_data(binding: Binding) -> bool:
     """Whether the route reads the headers, the peer or the body itself."""
     return binding.route.method in BODY_METHODS or route_guarded(binding)
@@ -203,12 +227,8 @@ class NativeLane:
         """What the guards and the body read beyond the prepared inputs."""
         if action not in self.with_data:
             return None
-        return NativeBody(
-            self.source(request),
-            request.headers,
-            request.query,
-            request.client,
-            request.native_principal,
+        return build_native_body(
+            self.source(request), self.pipeline.bindings[action], request
         )
 
     def cancel_all(self) -> None:

@@ -58,6 +58,13 @@ fn convert<'py>(
     if let Ok(dict) = value.cast::<PyDict>() {
         return convert_dict(py, dict, mode, depth);
     }
+    if value
+        .get_type()
+        .is(crate::pytypes::projected_item_class(py)?)
+    {
+        let inner = value.call_method0(pyo3::intern!(py, "_ensure"))?;
+        return convert(&inner, mode, depth);
+    }
     if instance_fields(value, false, mode.by_alias, false)?.is_some() {
         return convert_schema(value, mode, depth);
     }
@@ -166,7 +173,7 @@ fn convert_json_object<'py>(
         .get_type()
         .is(crate::pytypes::datetime_class(value.py())?)
     {
-        return value.call_method0("isoformat");
+        return value.call_method0(pyo3::intern!(value.py(), "isoformat"));
     }
     if let Some(text) = wire_text(value)? {
         return Ok(pyo3::types::PyString::new(value.py(), &text).into_any());
@@ -174,8 +181,9 @@ fn convert_json_object<'py>(
     if let Some(member) = crate::pytypes::enum_value(value)? {
         return Ok(member);
     }
-    if value.hasattr("dump")? {
-        return value.call_method0("dump");
+    let dump_name = pyo3::intern!(value.py(), "dump");
+    if value.hasattr(dump_name)? {
+        return value.call_method0(dump_name);
     }
     Ok(value.clone())
 }

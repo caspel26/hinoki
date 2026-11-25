@@ -214,7 +214,6 @@ async def non_awaited_task() -> None:
         (hooked_queryset_write, "HookedNote has write hooks"),
         (replaced_write_path, "ReplacedNote.write_insert is overridden"),
         (unknown_write, "aupdate_from is not a native query step"),
-        (prefetches, "prefetch_related is not a native query step"),
         (chained_past_a_terminal, "aget is followed by more calls"),
         (async_with, "it uses AsyncWith"),
         (async_for, "it uses AsyncFor"),
@@ -231,6 +230,7 @@ def test_anything_else_stays_on_the_python_path(
 
 def test_stock_writes_on_a_hookless_model_are_native() -> None:
     assert native_refusal(writes) is None
+    assert native_refusal(prefetches) is None
 
 
 def test_an_unproven_await_nested_in_an_argument_is_found() -> None:

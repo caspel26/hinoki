@@ -13,7 +13,6 @@ truncation.
 from __future__ import annotations
 
 import dataclasses
-import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import ClassVar
 
@@ -193,13 +192,9 @@ class XMLParser(Parser):
             raise InvalidBody("invalid_xml", str(exc)) from None
 
 
-BOUNDARY = re.compile(r';\s*boundary=(?:"([^"]*)"|([^;\s]*))', re.IGNORECASE)
-
-
 def boundary_of(content_type: str) -> str:
     """The ``boundary`` parameter, quoted or not (a quoted one may hold ``;``)."""
-    found = BOUNDARY.search(content_type)
-    return (found.group(1) or found.group(2) or "") if found else ""
+    return core.extract_boundary(content_type)
 
 
 class MultiPartParser(Parser):
