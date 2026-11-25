@@ -595,9 +595,10 @@ def test_row_wire_query_guards_accept_only_the_expected_window() -> None:
     assert selection.valid_window(window, order=query.order, limit=20, offset=0)
     assert not selection.valid_query(object())
     assert not selection.valid_query(query.limit(1))
-    malformed = WireRecord.all()
-    malformed.__dict__["unexpected"] = True
+    malformed: QuerySet[Any] = object.__new__(QuerySet)
     assert not selection.valid_query(malformed)
+    with pytest.raises(AttributeError):
+        cast(Any, WireRecord.all()).unexpected = True
     assert not selection.valid_window(object(), order=query.order, limit=20, offset=0)
     custom_query_type = type("CustomQuerySet", (QuerySet,), {})
     custom_query: QuerySet[Any] = cast(Any, object.__new__(custom_query_type))
