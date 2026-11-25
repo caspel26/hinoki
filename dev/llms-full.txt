@@ -675,17 +675,11 @@ members app, so every app reuses it:
 
 ```python
 # tracker/apps/members/security.py
-from typing import Any, cast
-from uuid import UUID
+"""Authentication: an opaque bearer token resolved to a ``Member``."""
 
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import Member
-
-
-def member_id(principal: Caller[Any] | None) -> UUID:
-    """The caller's member id, for a hook of an API whose actions are member_only."""
-    return cast("Caller[Member]", principal).user.id
 
 
 class MemberPermission(Permission):
@@ -730,13 +724,14 @@ the same class:
 
 ```python
 # tracker/apps/tasks/api.py
-from typing import Any
+"""HTTP layer of the tasks app: generated CRUD plus one handwritten action."""
+
 from uuid import UUID
 
 from hinoki import API, Caller, Includable, crud, errors, http
 from hinoki.orm import QuerySet
 from tracker.apps.members.models import Member
-from tracker.apps.members.security import member_id, member_only
+from tracker.apps.members.security import member_only
 
 from . import operations
 from .errors import TaskAlreadyDone
@@ -758,13 +753,13 @@ from .schemas import TaskIn, TaskOut
 class Tasks(API):
     """The caller's own tasks: list (filtered), retrieve, create and delete."""
 
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Task]:
-        return operations.mine(member_id(principal))
+    def get_queryset(self, caller: Caller[Member]) -> QuerySet[Task]:
+        return operations.mine(caller.user.id)
 
     async def remove(
-        self, item: Task, _scoped: QuerySet[Task], principal: Caller[Any]
+        self, item: Task, _scoped: QuerySet[Task], caller: Caller[Member]
     ) -> bool:
-        await operations.delete_task(member_id(principal), item.id)
+        await operations.delete_task(caller.user.id, item.id)
         return True
 
     @http.post(
@@ -782,6 +777,13 @@ class Tasks(API):
 
 routes: list[Includable] = [Tasks]
 ```
+
+The hooks `get_queryset` and `remove` take a typed `caller: Caller[Member]`.
+That is valid because every generated action that calls them has the
+`member_only` policy, so the caller is never `None`; Hinoki checks this when
+the class is declared and raises `RegistrationError` otherwise. For a resource
+that mixes public and protected actions, annotate `Caller[Member] | None`. See
+[hooks](https://hinoki.caspel.dev/dev/crud.md#hooks-in-the-class-form) in the CRUD guide.
 
 The project's `GET /health` is a plain function in `tracker/routes.py`, public
 on purpose, and it answers a `Schema` like every other action:
@@ -839,11 +841,12 @@ to the caller:
 
 ```python
 # tracker/apps/activity/api.py
-from typing import Any
+"""HTTP layer of the activity app, mounted at ``/activity`` by hinoki.toml."""
 
 from hinoki import API, Caller, Includable, crud
 from hinoki.orm import QuerySet
-from tracker.apps.members.security import member_id, member_only
+from tracker.apps.members.models import Member
+from tracker.apps.members.security import member_only
 
 from .models import Activity
 from .schemas import ActivityOut
@@ -853,8 +856,8 @@ from .schemas import ActivityOut
 class Feed(API):
     """The caller's activity, newest first. Read only."""
 
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Activity]:
-        return Activity.filter(member_id=member_id(principal))
+    def get_queryset(self, caller: Caller[Member]) -> QuerySet[Activity]:
+        return Activity.filter(member_id=caller.user.id)
 
 
 routes: list[Includable] = [Feed]
@@ -947,7 +950,7 @@ Take `complete` out of its transaction by changing `atomic=True` to
 check again:
 
 ```text
-tracker/apps/tasks/api.py:40: HNK-TXN-001 [violated] POST /tasks/{item_id}/complete (Tasks.complete) does not declare atomic=True
+tracker/apps/tasks/api.py:39: HNK-TXN-001 [violated] POST /tasks/{item_id}/complete (Tasks.complete) does not declare atomic=True
   fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
 14 rule(s): 1 violated, 0 unverifiable, 0 waived
 ```
@@ -958,7 +961,7 @@ The import rules fail the same way. Add `from tracker.apps.activity import model
 as the last line of `tracker/apps/tasks/operations.py` and the check reports it:
 
 ```text
-tracker/apps/tasks/operations.py:45: HNK-IMP-001 [violated] tracker.apps.tasks.operations imports tracker.apps.activity, which is forbidden for tracker.apps.tasks
+tracker/apps/tasks/operations.py:46: HNK-IMP-001 [violated] tracker.apps.tasks.operations imports tracker.apps.activity, which is forbidden for tracker.apps.tasks
   fix: move the code to an allowed layer, or depend on it through the layer in between
 ```
 
@@ -3136,7 +3139,7 @@ Source: https://hinoki.caspel.dev/dev/events.md
 
 An event is a class; a handler is a function registered for that class. Events let one part of an application announce that something happened without importing the parts that react. Nothing registers by import: the application lists its handler collections, and the order they run in is the order of that list.
 
-Events are not Django signals: they are typed (mypy checks the payload), they have no string names, and the moment a handler runs is part of how you register it. They are not a message queue either: delivery stays inside one worker process, with no retry and no at-least-once guarantee.
+Events are typed (mypy checks the payload), they have no string names, and the moment a handler runs is part of how you register it. Events are not a message queue: delivery stays inside one worker process, with no retry and no at-least-once guarantee.
 
 ## A minimal example
 
@@ -9803,7 +9806,7 @@ hinoki settings --example > .env.example
 
 ## Logging and your own loggers {#your-own-loggers}
 
-Declare loggers, handlers and formatters the way Django's `LOGGING` does, with a standard [`logging.config.dictConfig`](https://docs.python.org/3/library/logging.config.html#logging-config-dictschema) mapping, and point `logging.config` at it:
+Declare loggers, handlers and formatters with a standard [`logging.config.dictConfig`](https://docs.python.org/3/library/logging.config.html#logging-config-dictschema) mapping, and point `logging.config` at it:
 
 ```python
 # notes/logs.py
@@ -10731,7 +10734,7 @@ uv run hinoki migrations sql 0001-initial
 `--app billing`); read-only `plan --check` and `plan --dry-run` without an app
 cover every app in dependency order. `sql` searches every app; `--app` narrows
 it when two apps share a migration name. `--name` is optional for a
-focused plan: Hinoki derives a stable slug from the first planned schema change
+focused plan: Hinoki derives a stable slug from the first planned table change
 (for example, `create-table-notes`); pass `--name initial-notes` to override
 it. All-app previews cannot use `--name`. Numbering is automatic. `apply`
 initializes the configured local SQLite database when no database is configured.
@@ -10760,7 +10763,7 @@ hinoki migrations --dir myapp/migrations apply
 hinoki migrations --dir myapp/migrations sql 0001-initial
 ```
 
-`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. plan/status/apply target `--database`, then `HINOKI_DATABASE_URL`, then the `DatabaseModule` or `database` setting of the project's application, then the local SQLite file at `.hinoki/local.sqlite3` ([which database](https://hinoki.caspel.dev/dev/migrations.md#which-database)); `plan`, `status` and `apply` print the chosen database and its source on standard error with the credentials masked, and stop with exit 2 when the project's application or database cannot be resolved. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the error itself does not repeat the URL. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
+`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned table change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. plan/status/apply target `--database`, then `HINOKI_DATABASE_URL`, then the `DatabaseModule` or `database` setting of the project's application, then the local SQLite file at `.hinoki/local.sqlite3` ([which database](https://hinoki.caspel.dev/dev/migrations.md#which-database)); `plan`, `status` and `apply` print the chosen database and its source on standard error with the credentials masked, and stop with exit 2 when the project's application or database cannot be resolved. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the error itself does not repeat the URL. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
 
 On an animated terminal, `plan` and `apply` show a spinner while they work and finish with a timing line (`✔ applied   1.2s`); the commands' own output is printed unchanged before it. Piped output, `NO_COLOR`, `TERM=dumb`, `CI` and `HINOKI_ANIMATE=0` print only the commands' own output.
 
@@ -11067,8 +11070,11 @@ The report covers manifest validity, Python/native extension and optional
 Granian availability, route registration, configured typed settings, and
 in-memory OpenAPI generation. An app with no settings object reports that
 check as skipped; a custom non-`Settings` object is a warning. JSON output has
-`schema_version: 1` and stable check IDs. Settings values and exception
-messages are not included. Exit status is `0` when no
+`schema_version: 1` and stable check IDs. Settings values are not included.
+When the application cannot be loaded, the finding names the exception class;
+for a Hinoki declaration error with no chained cause (for example a missing
+admin secret) it also shows the message, on one line and truncated. Other
+exception messages are not included. Exit status is `0` when no
 diagnostic failed, `1` for invalid manifest or app diagnostics, and `2` when a
 requested target cannot be loaded. Warnings and skipped checks remain visible.
 
@@ -11109,7 +11115,7 @@ From `examples/tracker`:
 ```text
 GET     /activity                  MemberTokens[tracker:use] tracker.apps.activity.api.Feed.list
 GET     /activity/{item_id}        MemberTokens[tracker:use] tracker.apps.activity.api.Feed.retrieve
-GET     /health                    public                   tracker.routes.health
+GET     /health                    public                    tracker.routes.health
 GET     /members/me                MemberTokens[tracker:use] tracker.apps.members.api.me
 GET     /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
 POST    /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.create

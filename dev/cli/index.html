@@ -499,7 +499,7 @@
           <h1 id="command-line">Command line<a class="headerlink" href="#command-line" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></span>
             <span>12 min read</span>
           </p>
           
@@ -706,7 +706,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
 <code>--app billing</code>); read-only <code>plan --check</code> and <code>plan --dry-run</code> without an app
 cover every app in dependency order. <code>sql</code> searches every app; <code>--app</code> narrows
 it when two apps share a migration name. <code>--name</code> is optional for a
-focused plan: Hinoki derives a stable slug from the first planned schema change
+focused plan: Hinoki derives a stable slug from the first planned table change
 (for example, <code>create-table-notes</code>); pass <code>--name initial-notes</code> to override
 it. All-app previews cannot use <code>--name</code>. Numbering is automatic. <code>apply</code>
 initializes the configured local SQLite database when no database is configured.
@@ -730,7 +730,7 @@ safety across apps, destructive changes and the ledger are explained in
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>apply
 hinoki<span class="w"> </span>migrations<span class="w"> </span>--dir<span class="w"> </span>myapp/migrations<span class="w"> </span>sql<span class="w"> </span><span class="m">0001</span>-initial
 </code></pre></div>
-<p><code>plan</code> requires <code>--models MODULE</code>; <code>--name</code> is an optional slug override and is derived from the first planned schema change when omitted. <code>--dry-run</code> prints operations without writing files. Destructive operations require <code>--allow-destructive</code>. plan/status/apply target <code>--database</code>, then <code>HINOKI_DATABASE_URL</code>, then the <code>DatabaseModule</code> or <code>database</code> setting of the project's application, then the local SQLite file at <code>.hinoki/local.sqlite3</code> (<a href="../migrations/#which-database">which database</a>); <code>plan</code>, <code>status</code> and <code>apply</code> print the chosen database and its source on standard error with the credentials masked, and stop with exit 2 when the project's application or database cannot be resolved. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints <code>error: database: …</code> with a <code>fix:</code> line and exits 1; the error itself does not repeat the URL. <code>sql NAME</code> prints a migration's SQL. Use a disposable database while reviewing migrations.</p>
+<p><code>plan</code> requires <code>--models MODULE</code>; <code>--name</code> is an optional slug override and is derived from the first planned table change when omitted. <code>--dry-run</code> prints operations without writing files. Destructive operations require <code>--allow-destructive</code>. plan/status/apply target <code>--database</code>, then <code>HINOKI_DATABASE_URL</code>, then the <code>DatabaseModule</code> or <code>database</code> setting of the project's application, then the local SQLite file at <code>.hinoki/local.sqlite3</code> (<a href="../migrations/#which-database">which database</a>); <code>plan</code>, <code>status</code> and <code>apply</code> print the chosen database and its source on standard error with the credentials masked, and stop with exit 2 when the project's application or database cannot be resolved. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints <code>error: database: …</code> with a <code>fix:</code> line and exits 1; the error itself does not repeat the URL. <code>sql NAME</code> prints a migration's SQL. Use a disposable database while reviewing migrations.</p>
 <p>On an animated terminal, <code>plan</code> and <code>apply</code> show a spinner while they work and finish with a timing line (<code>✔ applied   1.2s</code>); the commands' own output is printed unchanged before it. Piped output, <code>NO_COLOR</code>, <code>TERM=dumb</code>, <code>CI</code> and <code>HINOKI_ANIMATE=0</code> print only the commands' own output.</p>
 <h2 id="mcp"><code>mcp</code><a class="headerlink" href="#mcp" title="Permanent link">&para;</a></h2>
 <div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>mcp
@@ -846,7 +846,7 @@ uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </sp
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/cli.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

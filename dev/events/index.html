@@ -499,14 +499,14 @@
           <h1 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:03:19 UTC">November 25, 2026</span></span>
             <span>12 min read</span>
           </p>
           
         </header>
         
 <p>An event is a class; a handler is a function registered for that class. Events let one part of an application announce that something happened without importing the parts that react. Nothing registers by import: the application lists its handler collections, and the order they run in is the order of that list.</p>
-<p>Events are not Django signals: they are typed (mypy checks the payload), they have no string names, and the moment a handler runs is part of how you register it. They are not a message queue either: delivery stays inside one worker process, with no retry and no at-least-once guarantee.</p>
+<p>Events are typed (mypy checks the payload), they have no string names, and the moment a handler runs is part of how you register it. Events are not a message queue: delivery stays inside one worker process, with no retry and no at-least-once guarantee.</p>
 <h2 id="a-minimal-example">A minimal example<a class="headerlink" href="#a-minimal-example" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">http</span>
 
@@ -771,6 +771,11 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
 </ul>
 <p>See also <a href="../model-hooks/">Lifecycle hooks</a>, <a href="../transactions/">Transactions</a> and <a href="../modules/">Application modules</a>.</p>
         
+        <aside class="related" aria-label="Related pages">
+          <p class="related__label">Related</p>
+          <ul><li><a href="../model-hooks/">Lifecycle hooks</a></li><li><a href="../transactions/">Transactions</a></li></ul>
+        </aside>
+        
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
@@ -792,8 +797,8 @@ hinoki_event_handler_duration_seconds_count{event="NoteSaved",phase="after_commi
         </nav>
         
         <dl class="titleblock">
-          
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:03:19 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/events.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

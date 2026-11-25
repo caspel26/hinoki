@@ -255,7 +255,7 @@
           <h1 id="4-endpoints">4. Endpoints<a class="headerlink" href="#4-endpoints" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:06:04 UTC">November 25, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -267,17 +267,11 @@ no business rule and no SQL.</p>
 names the permission that every task action requires. The policy lives in the
 members app, so every app reuses it:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/members/security.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">cast</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+<span class="sd">"""Authentication: an opaque bearer token resolved to a ``Member``."""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Access</span><span class="p">,</span> <span class="n">BearerAuth</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Permission</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">member_id</span><span class="p">(</span><span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UUID</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""The caller's member id, for a hook of an API whose actions are member_only."""</span>
-    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">"Caller[Member]"</span><span class="p">,</span> <span class="n">principal</span><span class="p">)</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">MemberPermission</span><span class="p">(</span><span class="n">Permission</span><span class="p">):</span>
@@ -316,13 +310,14 @@ parameter once; only what it declares is accepted:</p>
 model by <code>@crud</code>; the one action it cannot know, <code>complete</code>, is handwritten in
 the same class:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tasks/api.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="sd">"""HTTP layer of the tasks app: generated CRUD plus one handwritten action."""</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">crud</span><span class="p">,</span> <span class="n">errors</span><span class="p">,</span> <span class="n">http</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.members.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.members.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_id</span><span class="p">,</span> <span class="n">member_only</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.members.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">operations</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskAlreadyDone</span>
@@ -344,13 +339,13 @@ the same class:</p>
 <span class="k">class</span><span class="w"> </span><span class="nc">Tasks</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""The caller's own tasks: list (filtered), retrieve, create and delete."""</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Task</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="n">operations</span><span class="o">.</span><span class="n">mine</span><span class="p">(</span><span class="n">member_id</span><span class="p">(</span><span class="n">principal</span><span class="p">))</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Task</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">operations</span><span class="o">.</span><span class="n">mine</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">remove</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="n">Task</span><span class="p">,</span> <span class="n">_scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Task</span><span class="p">],</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="n">Task</span><span class="p">,</span> <span class="n">_scoped</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Task</span><span class="p">],</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">]</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-        <span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">member_id</span><span class="p">(</span><span class="n">principal</span><span class="p">),</span> <span class="n">item</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">operations</span><span class="o">.</span><span class="n">delete_task</span><span class="p">(</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">True</span>
 
     <span class="nd">@http</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
@@ -368,6 +363,12 @@ the same class:</p>
 
 <span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Tasks</span><span class="p">]</span>
 </code></pre></div>
+<p>The hooks <code>get_queryset</code> and <code>remove</code> take a typed <code>caller: Caller[Member]</code>.
+That is valid because every generated action that calls them has the
+<code>member_only</code> policy, so the caller is never <code>None</code>; Hinoki checks this when
+the class is declared and raises <code>RegistrationError</code> otherwise. For a resource
+that mixes public and protected actions, annotate <code>Caller[Member] | None</code>. See
+<a href="../../crud/#hooks-in-the-class-form">hooks</a> in the CRUD guide.</p>
 <p>The project's <code>GET /health</code> is a plain function in <code>tracker/routes.py</code>, public
 on purpose, and it answers a <code>Schema</code> like every other action:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/routes.py</span>
@@ -416,11 +417,12 @@ list</a>.</p>
 action, <code>GET /members/me</code>, and <code>activity</code> has a read-only generated list scoped
 to the caller:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/activity/api.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="sd">"""HTTP layer of the activity app, mounted at ``/activity`` by hinoki.toml."""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">crud</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.members.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_id</span><span class="p">,</span> <span class="n">member_only</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.members.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Member</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.members.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">member_only</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Activity</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActivityOut</span>
@@ -430,8 +432,8 @@ to the caller:</p>
 <span class="k">class</span><span class="w"> </span><span class="nc">Feed</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""The caller's activity, newest first. Read only."""</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">principal</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Activity</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="n">Activity</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">member_id</span><span class="o">=</span><span class="n">member_id</span><span class="p">(</span><span class="n">principal</span><span class="p">))</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">Member</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Activity</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">Activity</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">member_id</span><span class="o">=</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
 
 
 <span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Feed</span><span class="p">]</span>
@@ -480,7 +482,7 @@ default <code>/&lt;app name&gt;</code>), which is why <code>path=""</code> above
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:06:04 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/4-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

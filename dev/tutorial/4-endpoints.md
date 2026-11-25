@@ -9,17 +9,11 @@ members app, so every app reuses it:
 
 ```python
 # tracker/apps/members/security.py
-from typing import Any, cast
-from uuid import UUID
+"""Authentication: an opaque bearer token resolved to a ``Member``."""
 
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import Member
-
-
-def member_id(principal: Caller[Any] | None) -> UUID:
-    """The caller's member id, for a hook of an API whose actions are member_only."""
-    return cast("Caller[Member]", principal).user.id
 
 
 class MemberPermission(Permission):
@@ -64,13 +58,14 @@ the same class:
 
 ```python
 # tracker/apps/tasks/api.py
-from typing import Any
+"""HTTP layer of the tasks app: generated CRUD plus one handwritten action."""
+
 from uuid import UUID
 
 from hinoki import API, Caller, Includable, crud, errors, http
 from hinoki.orm import QuerySet
 from tracker.apps.members.models import Member
-from tracker.apps.members.security import member_id, member_only
+from tracker.apps.members.security import member_only
 
 from . import operations
 from .errors import TaskAlreadyDone
@@ -92,13 +87,13 @@ from .schemas import TaskIn, TaskOut
 class Tasks(API):
     """The caller's own tasks: list (filtered), retrieve, create and delete."""
 
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Task]:
-        return operations.mine(member_id(principal))
+    def get_queryset(self, caller: Caller[Member]) -> QuerySet[Task]:
+        return operations.mine(caller.user.id)
 
     async def remove(
-        self, item: Task, _scoped: QuerySet[Task], principal: Caller[Any]
+        self, item: Task, _scoped: QuerySet[Task], caller: Caller[Member]
     ) -> bool:
-        await operations.delete_task(member_id(principal), item.id)
+        await operations.delete_task(caller.user.id, item.id)
         return True
 
     @http.post(
@@ -116,6 +111,13 @@ class Tasks(API):
 
 routes: list[Includable] = [Tasks]
 ```
+
+The hooks `get_queryset` and `remove` take a typed `caller: Caller[Member]`.
+That is valid because every generated action that calls them has the
+`member_only` policy, so the caller is never `None`; Hinoki checks this when
+the class is declared and raises `RegistrationError` otherwise. For a resource
+that mixes public and protected actions, annotate `Caller[Member] | None`. See
+[hooks](https://hinoki.caspel.dev/dev/crud.md#hooks-in-the-class-form) in the CRUD guide.
 
 The project's `GET /health` is a plain function in `tracker/routes.py`, public
 on purpose, and it answers a `Schema` like every other action:
@@ -173,11 +175,12 @@ to the caller:
 
 ```python
 # tracker/apps/activity/api.py
-from typing import Any
+"""HTTP layer of the activity app, mounted at ``/activity`` by hinoki.toml."""
 
 from hinoki import API, Caller, Includable, crud
 from hinoki.orm import QuerySet
-from tracker.apps.members.security import member_id, member_only
+from tracker.apps.members.models import Member
+from tracker.apps.members.security import member_only
 
 from .models import Activity
 from .schemas import ActivityOut
@@ -187,8 +190,8 @@ from .schemas import ActivityOut
 class Feed(API):
     """The caller's activity, newest first. Read only."""
 
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Activity]:
-        return Activity.filter(member_id=member_id(principal))
+    def get_queryset(self, caller: Caller[Member]) -> QuerySet[Activity]:
+        return Activity.filter(member_id=caller.user.id)
 
 
 routes: list[Includable] = [Feed]

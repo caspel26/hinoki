@@ -227,7 +227,7 @@ hinoki settings --example > .env.example
 
 ## Logging and your own loggers {#your-own-loggers}
 
-Declare loggers, handlers and formatters the way Django's `LOGGING` does, with a standard [`logging.config.dictConfig`](https://docs.python.org/3/library/logging.config.html#logging-config-dictschema) mapping, and point `logging.config` at it:
+Declare loggers, handlers and formatters with a standard [`logging.config.dictConfig`](https://docs.python.org/3/library/logging.config.html#logging-config-dictschema) mapping, and point `logging.config` at it:
 
 ```python
 # notes/logs.py

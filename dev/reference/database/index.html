@@ -295,7 +295,7 @@
           <h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -339,7 +339,7 @@ as a distinct backend even though it uses the MySQL wire driver and SQL dialect.
 <tr>
 <td>SQLite</td>
 <td>Supported</td>
-<td>Default for local development. SQLite permits one writer at a time. Schema changes that SQLite cannot express directly use a table rebuild.</td>
+<td>Default for local development. SQLite permits one writer at a time. Table changes that SQLite cannot express directly use a table rebuild.</td>
 </tr>
 <tr>
 <td>PostgreSQL</td>
@@ -361,7 +361,7 @@ as a distinct backend even though it uses the MySQL wire driver and SQL dialect.
 <p>SQL Server and Oracle are not currently supported. Do not assume that MySQL
 compatibility implies MariaDB compatibility. Hinoki does not silently roll
 back MySQL-family DDL: review generated migrations and keep a recoverable
-backup before applying schema changes.</p>
+backup before applying migrations.</p>
 <p>Datetime values stored in MySQL <code>DATETIME</code> columns use Hinoki's UTC-naive
 storage convention; values returned by the ORM are interpreted as UTC. MySQL
 pool capacity and acquisition wait are bounded by the database pool settings.</p>
@@ -1406,7 +1406,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

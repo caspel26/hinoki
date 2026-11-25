@@ -255,7 +255,7 @@
           <h1 id="5-rules">5. Rules<a class="headerlink" href="#5-rules" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:06:04 UTC">November 25, 2026</span></span>
             <span>3 min read</span>
           </p>
           
@@ -309,14 +309,14 @@ and scans the <code>tracker</code> package for the import rules.</p>
 <p>Take <code>complete</code> out of its transaction by changing <code>atomic=True</code> to
 <code>atomic=False</code> in its decorator in <code>tracker/apps/tasks/api.py</code>, then run the
 check again:</p>
-<div class="language-text highlight"><pre><span></span><code>tracker/apps/tasks/api.py:40: HNK-TXN-001 [violated] POST /tasks/{item_id}/complete (Tasks.complete) does not declare atomic=True
+<div class="language-text highlight"><pre><span></span><code>tracker/apps/tasks/api.py:39: HNK-TXN-001 [violated] POST /tasks/{item_id}/complete (Tasks.complete) does not declare atomic=True
   fix: add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)
 14 rule(s): 1 violated, 0 unverifiable, 0 waived
 </code></pre></div>
 <p>The command exits with status 1. Put <code>atomic=True</code> back to restore the check.</p>
 <p>The import rules fail the same way. Add <code>from tracker.apps.activity import models</code>
 as the last line of <code>tracker/apps/tasks/operations.py</code> and the check reports it:</p>
-<div class="language-text highlight"><pre><span></span><code>tracker/apps/tasks/operations.py:45: HNK-IMP-001 [violated] tracker.apps.tasks.operations imports tracker.apps.activity, which is forbidden for tracker.apps.tasks
+<div class="language-text highlight"><pre><span></span><code>tracker/apps/tasks/operations.py:46: HNK-IMP-001 [violated] tracker.apps.tasks.operations imports tracker.apps.activity, which is forbidden for tracker.apps.tasks
   fix: move the code to an allowed layer, or depend on it through the layer in between
 </code></pre></div>
 <p>(the check also lists the same line for <code>tracker.apps.activity.models</code>, which
@@ -363,7 +363,7 @@ carries one.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:06:04 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/5-rules.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -30,8 +30,11 @@ The report covers manifest validity, Python/native extension and optional
 Granian availability, route registration, configured typed settings, and
 in-memory OpenAPI generation. An app with no settings object reports that
 check as skipped; a custom non-`Settings` object is a warning. JSON output has
-`schema_version: 1` and stable check IDs. Settings values and exception
-messages are not included. Exit status is `0` when no
+`schema_version: 1` and stable check IDs. Settings values are not included.
+When the application cannot be loaded, the finding names the exception class;
+for a Hinoki declaration error with no chained cause (for example a missing
+admin secret) it also shows the message, on one line and truncated. Other
+exception messages are not included. Exit status is `0` when no
 diagnostic failed, `1` for invalid manifest or app diagnostics, and `2` when a
 requested target cannot be loaded. Warnings and skipped checks remain visible.
 
@@ -72,7 +75,7 @@ From `examples/tracker`:
 ```text
 GET     /activity                  MemberTokens[tracker:use] tracker.apps.activity.api.Feed.list
 GET     /activity/{item_id}        MemberTokens[tracker:use] tracker.apps.activity.api.Feed.retrieve
-GET     /health                    public                   tracker.routes.health
+GET     /health                    public                    tracker.routes.health
 GET     /members/me                MemberTokens[tracker:use] tracker.apps.members.api.me
 GET     /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
 POST    /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.create

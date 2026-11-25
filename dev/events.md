@@ -2,7 +2,7 @@
 
 An event is a class; a handler is a function registered for that class. Events let one part of an application announce that something happened without importing the parts that react. Nothing registers by import: the application lists its handler collections, and the order they run in is the order of that list.
 
-Events are not Django signals: they are typed (mypy checks the payload), they have no string names, and the moment a handler runs is part of how you register it. They are not a message queue either: delivery stays inside one worker process, with no retry and no at-least-once guarantee.
+Events are typed (mypy checks the payload), they have no string names, and the moment a handler runs is part of how you register it. Events are not a message queue: delivery stays inside one worker process, with no retry and no at-least-once guarantee.
 
 ## A minimal example
 

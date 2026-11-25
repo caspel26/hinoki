@@ -499,8 +499,8 @@
           <h1 id="inspect-an-application">Inspect an application<a class="headerlink" href="#inspect-an-application" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -527,8 +527,11 @@ start a server, run architecture rules, connect to a database, or write files.</
 Granian availability, route registration, configured typed settings, and
 in-memory OpenAPI generation. An app with no settings object reports that
 check as skipped; a custom non-<code>Settings</code> object is a warning. JSON output has
-<code>schema_version: 1</code> and stable check IDs. Settings values and exception
-messages are not included. Exit status is <code>0</code> when no
+<code>schema_version: 1</code> and stable check IDs. Settings values are not included.
+When the application cannot be loaded, the finding names the exception class;
+for a Hinoki declaration error with no chained cause (for example a missing
+admin secret) it also shows the message, on one line and truncated. Other
+exception messages are not included. Exit status is <code>0</code> when no
 diagnostic failed, <code>1</code> for invalid manifest or app diagnostics, and <code>2</code> when a
 requested target cannot be loaded. Warnings and skipped checks remain visible.</p>
 <p>Database connectivity and applied migration state are intentionally separate:
@@ -590,7 +593,7 @@ how to read and waive a result, is in <a href="../rules/">Rules</a>.</p>
 <p>From <code>examples/tracker</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>GET     /activity                  MemberTokens[tracker:use] tracker.apps.activity.api.Feed.list
 GET     /activity/{item_id}        MemberTokens[tracker:use] tracker.apps.activity.api.Feed.retrieve
-GET     /health                    public                   tracker.routes.health
+GET     /health                    public                    tracker.routes.health
 GET     /members/me                MemberTokens[tracker:use] tracker.apps.members.api.me
 GET     /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.list
 POST    /tasks                     MemberTokens[tracker:use] tracker.apps.tasks.api.Tasks.create
@@ -704,7 +707,7 @@ values with no printable default (secrets, unset values). See
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:45:21 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/inspect.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
