@@ -161,7 +161,7 @@ def test_several_workers_run_under_a_supervisor(
             return 0
 
     monkeypatch.setattr(supervisor, "Supervisor", FakeSupervisor)
-    monkeypatch.setattr(serve, "open_listener", lambda *_a: object())
+    monkeypatch.setattr(serve, "open_listener", lambda *_a, **_kw: object())
     assert serve.run(served_args(PLAIN, port=9102, workers=3), reload=False) == 0
     assert built["workers"] == 3
     assert built["interface"] == "wsgi"
@@ -187,7 +187,7 @@ def test_dev_always_uses_the_supervisor_with_one_worker(
             return 0
 
     monkeypatch.setattr(supervisor, "Supervisor", FakeSupervisor)
-    monkeypatch.setattr(serve, "open_listener", lambda *_a: object())
+    monkeypatch.setattr(serve, "open_listener", lambda *_a, **_kw: object())
     monkeypatch.setattr(importlib.util, "find_spec", lambda _name: object())
     assert serve.run(served_args(PLAIN, port=9103, workers=4), reload=True) == 0
     assert built == {"workers": 1, "reload": True}

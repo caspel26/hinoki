@@ -22,7 +22,13 @@ from granian.constants import HTTPModes, SSLProtocols
 import hinoki.serve as serve_module
 from hinoki import Hinoki, core
 from hinoki.runtime.kiso import KisoWorker
-from hinoki.runtime.listener import ListenError, inherited_address, open_listener
+from hinoki.runtime.kiso import main as kiso_main
+from hinoki.runtime.listener import (
+    ListenError,
+    inherited_address,
+    open_listener,
+    supports_reuse_port,
+)
 from hinoki.runtime.supervisor import Supervisor, docs_line
 from hinoki.serve import add_arguments, choose_server, granian_tls, warn_key_access
 from hinoki.settings import (
@@ -406,6 +412,7 @@ def test_run_supervised_opens_listener_and_computes_scheme(
         "metrics": None,
         "rolling": serve_module.rolls_on_hangup(settings, False),
         "startup_timeout": app.runtime.startup_timeout,
+        "reuse_port": False,
     }
     listener.close()
 
@@ -917,3 +924,119 @@ def test_supervisor_run_owns_worker_and_listener_until_exit(
     assert supervisor.processes == []
     assert len(signals) == 6
     assert all(handler is signal.SIG_IGN for _, handler in signals[-3:])
+
+
+def test_reuse_port_setting_is_kiso_only_and_loads_from_env(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    loaded = AppSettings.load(env={"SERVER__REUSE_PORT": "false"}).server
+    assert loaded.reuse_port is False
+    assert choose_server(parsed("--server", "granian"), loaded) == 2
+    assert "reuse_port" in capsys.readouterr().err
+    assert choose_server(parsed("--server", "kiso"), loaded) == "kiso"
+
+
+@pytest.mark.parametrize(
+    ("platform_ok", "setting", "workers", "port", "reload", "expected"),
+    [
+        (True, None, 4, 8000, False, True),
+        (True, True, 4, 8000, False, True),
+        (True, False, 4, 8000, False, False),
+        (True, None, 1, 8000, False, False),
+        (True, None, 4, 0, False, False),
+        (True, None, 4, 8000, True, False),
+        (False, None, 4, 8000, False, False),
+        (False, True, 4, 8000, False, False),
+    ],
+)
+def test_use_reuse_port_policy(
+    platform_ok: bool,
+    setting: bool | None,
+    workers: int,
+    port: int,
+    reload: bool,
+    expected: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(serve_module, "supports_reuse_port", lambda: platform_ok)
+    settings = ServerSettings(reuse_port=setting)
+    assert serve_module.use_reuse_port(settings, workers, port, reload) is expected
+
+
+def test_open_listener_reuse_port_platform_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert supports_reuse_port() is (
+        sys.platform == "linux" and hasattr(socket, "SO_REUSEPORT")
+    )
+    monkeypatch.setattr("hinoki.runtime.listener.supports_reuse_port", lambda: False)
+    with pytest.raises(ListenError, match="only supported on Linux"):
+        open_listener("127.0.0.1", 0, 8, reuse_port=True)
+
+
+def test_open_listener_sets_so_reuseport_when_supported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if not hasattr(socket, "SO_REUSEPORT"):
+        pytest.skip("platform lacks SO_REUSEPORT constant")
+    monkeypatch.setattr("hinoki.runtime.listener.supports_reuse_port", lambda: True)
+    sock = open_listener("127.0.0.1", 0, 8, reuse_port=True)
+    try:
+        assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) != 0
+    finally:
+        sock.close()
+
+
+def test_supervisor_reuse_port_closes_probe_and_passes_host_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listener = open_listener("127.0.0.1", 0, 8)
+    port = listener.getsockname()[1]
+    supervisor = Supervisor("app:make", listener, 2, 2.0, rolling=True, reuse_port=True)
+    assert supervisor.reuse_port is True
+    dev_supervisor = Supervisor(
+        "app:make", listener, 1, 2.0, reload=True, reuse_port=True
+    )
+    assert dev_supervisor.reuse_port is False
+
+    spawned_cmds: list[list[str]] = []
+    spawned_fds: list[tuple[int, ...]] = []
+    listener_closed_at_spawn: list[bool] = []
+
+    def fake_popen(cmd: list[str], pass_fds: tuple[int, ...] = ()) -> FakeWorkerProcess:
+        spawned_cmds.append(cmd)
+        spawned_fds.append(pass_fds)
+        listener_closed_at_spawn.append(listener.fileno() == -1)
+        return FakeWorkerProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(signal, "signal", lambda *_: None)
+    monkeypatch.setattr(supervisor, "ticks", lambda: iter([set()]))
+    monkeypatch.setattr(supervisor, "supervise", lambda _events: 0)
+    assert supervisor.run() == 0
+    assert listener_closed_at_spawn == [True, True]
+    assert spawned_fds == [(), ()]
+    for cmd in spawned_cmds:
+        assert "--fd" not in cmd
+        assert "--reuse-port" in cmd
+        assert "--host" in cmd and "127.0.0.1" in cmd
+        assert "--port" in cmd and str(port) in cmd
+
+
+def test_kiso_worker_cli_refuses_fd_and_reuse_port_together() -> None:
+    with pytest.raises(SystemExit) as exc:
+        kiso_main(["tests.kisoserverapp:app", "--fd", "3", "--reuse-port"])
+    assert exc.value.code == 2
+
+
+def test_native_server_refuses_fd_and_reuse_port_together_and_closes_fd() -> None:
+    fd = detached(socket.SOCK_STREAM, listen=True)
+    with pytest.raises(ValueError, match="fd and reuse_port"):
+        core.KisoServer.start(native_core(), "127.0.0.1", 0, fd=fd, reuse_port=True)
+    assert not is_open(fd)
+
+
+@pytest.mark.skipif(sys.platform == "linux", reason="non-Linux refusal test")
+def test_native_server_refuses_reuse_port_on_non_linux() -> None:
+    with pytest.raises(ValueError, match="only supported on Linux"):
+        core.KisoServer.start(native_core(), "127.0.0.1", 0, reuse_port=True)

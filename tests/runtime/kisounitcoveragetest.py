@@ -548,7 +548,9 @@ async def test_start_binds_only_after_success_and_registers_housekeeping(
             return 33
 
     monkeypatch.setattr(kiso, "core", SimpleNamespace(KisoServer=NativeServer))
-    monkeypatch.setattr("hinoki.runtime.kiso.open_listener", lambda *_args: Listener())
+    monkeypatch.setattr(
+        "hinoki.runtime.kiso.open_listener", lambda *_args, **_kw: Listener()
+    )
     monkeypatch.setattr(
         worker,
         "_lifespan",
