@@ -11,13 +11,13 @@ admin: Blog adds those.
 
 | # | File | What to see |
 | --- | --- | --- |
-| 1 | [`hinoki.toml`](hinoki.toml) | The whole wiring. `[project]` lists the application, the project routes, the middleware and the rule sets (lines 1-5). Each `[[apps]]` names its models, migrations and routes; `requires` fixes the order (lines 14-19) and `events` registers the handlers of `activity` (line 26) |
-| 2 | [`tracker/apps/members/security.py`](tracker/apps/members/security.py) | `MemberTokens` resolves a bearer token to a `Member` (line 20); the reusable `member_only` access policy (line 30) |
+| 1 | [`hinoki.toml`](hinoki.toml) | The whole wiring. `[project]` lists the application, the project routes, the middleware and the rule sets (lines 1-5). Each `[[apps]]` names its models, migrations and routes; `requires` fixes the order (lines 12, 19 and 27) and `events` registers the handlers of `activity` (line 26) |
+| 2 | [`tracker/apps/members/security.py`](tracker/apps/members/security.py) | `MemberTokens` resolves a bearer token to a `Member` (line 12); the reusable `member_only` access policy (line 22) |
 | 3 | [`tracker/apps/tasks/models.py`](tracker/apps/tasks/models.py) | `Task` belongs to a `Member` through a foreign key (lines 12-24) |
 | 4 | [`tracker/apps/tasks/schemas.py`](tracker/apps/tasks/schemas.py) | The request body `TaskIn` (line 10) and the response `TaskOut` derived from the model without the owner (line 18) |
 | 5 | [`tracker/apps/tasks/filters.py`](tracker/apps/tasks/filters.py) | The `FilterSet` of the list: `Eq`, `In`, `Range`, a `.null` filter, `Search` and `ordering` (lines 8-14) |
-| 6 | [`tracker/apps/tasks/operations.py`](tracker/apps/tasks/operations.py) | The business rules as plain async functions with no HTTP types: `complete_task` (line 24) and `delete_task` (line 38). The owner is part of each statement; `complete_task` announces `Updated[Task]` itself (line 32) |
-| 7 | [`tracker/apps/tasks/api.py`](tracker/apps/tasks/api.py) | `@crud` generates the list, retrieve, create and delete with the `access`, `owner` and `filters` options (lines 18-28); `get_queryset` scopes every action to the caller (line 31); `remove` calls the operation (line 34); `complete` is handwritten with `atomic=True` (lines 40-51) |
+| 6 | [`tracker/apps/tasks/operations.py`](tracker/apps/tasks/operations.py) | The business rules as plain async functions with no HTTP types: `complete_task` (line 25) and `delete_task` (line 39). The owner is part of each statement; `complete_task` announces `Updated[Task]` itself (line 33) |
+| 7 | [`tracker/apps/tasks/api.py`](tracker/apps/tasks/api.py) | `@crud` generates the list, retrieve, create and delete with the `access`, `owner` and `filters` options (lines 17-26); `get_queryset` scopes every action to the caller (line 30); `remove` calls the operation (line 33); `complete` is handwritten with `atomic=True` (lines 39-49) |
 | 8 | [`tracker/apps/activity/events.py`](tracker/apps/activity/events.py) | `activity` listens to `Created[Task]` and `Updated[Task]` (lines 17 and 22) and writes in the same transaction; `tasks` never imports it |
 | 9 | [`tracker/middleware.py`](tracker/middleware.py) | `ApiVersion` adds a header to every answer of a matched route (line 6) |
 | 10 | [`tracker/rules.py`](tracker/rules.py) | Two `RuleSet` objects: `policy` (what an action must declare, line 14) and `layers` (who may import whom, line 27) |
