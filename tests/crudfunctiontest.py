@@ -29,6 +29,11 @@ from hinoki.orm import Model, QuerySet, field
 from hinoki.rules import Project, RuleSet, qualified
 from tests.harness import Pool
 
+# Fixtures declare owner= resources on purpose: the owner read-scope warning is
+# not what these tests check.
+OWNER_READS = r"\w+. owner=.* constrains writes only"
+pytestmark = pytest.mark.filterwarnings(f"ignore:{OWNER_READS}:UserWarning")
+
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
     URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"

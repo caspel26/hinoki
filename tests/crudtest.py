@@ -38,6 +38,14 @@ from hinoki.runtime.crudplan import assign_is_plain
 from hinoki.testing import ASGIClient
 from tests.harness import Client, Pool
 
+# Fixtures declare owner= resources on purpose: the owner read-scope warning is
+# not what these tests check.
+OWNER_READS = r"\w+. owner=.* constrains writes only"
+pytestmark = pytest.mark.filterwarnings(f"ignore:{OWNER_READS}:UserWarning")
+warnings.filterwarnings(
+    "ignore", message=OWNER_READS, category=UserWarning, module=__name__
+)
+
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
     URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"
