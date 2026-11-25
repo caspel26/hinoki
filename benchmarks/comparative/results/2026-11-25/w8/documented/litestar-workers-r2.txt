@@ -1,0 +1,11 @@
+pid pgid cputime command
+ 251787  251787 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -m uvicorn parity_litestar:app --workers 8 --port 8801 --loop uvloop --http httptools --log-level warning --no-access-log
+ 251788  251787 00:00:00 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.resource_tracker import main;main(6)
+ 251789  251787 00:01:12 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=9) --multiprocessing-fork
+ 251790  251787 00:01:13 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=13) --multiprocessing-fork
+ 251791  251787 00:01:14 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=17) --multiprocessing-fork
+ 251792  251787 00:01:13 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=21) --multiprocessing-fork
+ 251793  251787 00:01:12 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=25) --multiprocessing-fork
+ 251794  251787 00:01:11 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=29) --multiprocessing-fork
+ 251795  251787 00:01:13 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=33) --multiprocessing-fork
+ 251796  251787 00:01:12 /root/hinoki/benchmarks/comparative/.venv/bin/python -c from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=7, pipe_handle=37) --multiprocessing-fork
