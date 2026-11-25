@@ -29,6 +29,7 @@ from hinoki.errors import (
     RegistrationError,
     ValidationError,
 )
+from hinoki.fields import carries_field
 from hinoki.filters import FilterSet
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
@@ -648,6 +649,20 @@ def text_sources(route: Route) -> dict[str, TextSource]:
     return found
 
 
+def check_scalar_constraints(route: Route, params: tuple[Param, ...]) -> None:
+    """Refuse ``Field(...)`` on a scalar path or query parameter: nothing would
+    enforce it, so the constraint would be silently ignored. ``bind`` has already
+    resolved the annotations, so a failure here cannot happen."""
+    scalars = {p.name for p in params if p.source in {"path", "query"}}
+    for name, hint in hints_of(route.handler, include_extras=True).items():
+        if name in scalars and carries_field(hint):
+            raise RegistrationError(
+                f"{route.name}: `Field(...)` on the scalar parameter {name!r} "
+                "is not enforced; declare the constraints in a `Schema` and "
+                "take it as `Query[Schema]` or as the body"
+            )
+
+
 def declared_source(route: Route) -> TextSource | None:
     """The text source a body action binds with ``Form[...]``/``XML[...]``, which
     decides the parsers it needs."""
@@ -844,6 +859,7 @@ def bind(route: Route) -> Binding:
         raise RegistrationError(
             f"{route.name}: pagination=... needs a PageParams or CursorParams parameter"
         )
+    check_scalar_constraints(route, params)
     check_query_schema(route, params)
     check_filters(route, params)
     check_body_and_files(route, params, sources)
