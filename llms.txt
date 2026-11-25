@@ -131,6 +131,7 @@ assert "/greeting" in app.openapi()["paths"]
 
 ## Operating
 
+- [Best practices](https://hinoki.caspel.dev/dev/best-practices.md): project structure, `Schema` contracts, `Access` policies, queries, Rust fast paths, testing and production operations.
 - [Sync and async code](https://hinoki.caspel.dev/dev/sync-async.md): the event loop, the bounded sync pool and which style each surface accepts.
 
 ## Concepts
