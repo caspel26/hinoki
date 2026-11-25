@@ -88,7 +88,9 @@ class PostAdmin(ModelAdmin[Post]):
 
     @action(confirm="Publish the selected posts?")
     async def publish(self, posts: tuple[Post, ...], principal: Caller[Any]) -> None:
-        await Post.filter(id__in=[p.id for p in posts]).aupdate({"published": True})
+        await Post.filter(id__in=[p.id for p in posts]).aupdate(
+            {"published": True}, returning=False
+        )
 
     def queryset(self, principal: Caller[Any]) -> Any:
         return Post.all().select_related("author")
@@ -133,7 +135,7 @@ class UserAdmin(ModelAdmin[User]):
     label = "Authors"
     icon = "users"
     columns = ("name", "is_editor")
-    exclude = ("token",)
+    exclude = ("token", "password_hash")
     readonly = ("is_editor",)
     badges: ClassVar[dict[str, Any]] = {
         "is_editor": {

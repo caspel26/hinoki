@@ -7,7 +7,6 @@ editor stays inside it (``get_queryset``, ``assign``, ``drafts``, ``export``).
 import csv
 import io
 from collections.abc import Iterator
-from typing import Any
 from uuid import UUID
 
 from hinoki import API, Caller, crud, errors, events, from_user, http
@@ -70,7 +69,7 @@ def csv_rows(posts: list[Post]) -> Iterator[str]:
 
 
 @http.get("/health")
-def health() -> HealthOut:
+async def health() -> HealthOut:
     """Liveness: answers while the worker runs."""
     return HealthOut(status="ok")
 
@@ -86,7 +85,7 @@ def health() -> HealthOut:
 class Tags(API):
     """Tags of the caller's publication: listed and created by its editors."""
 
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Tag]:
+    def get_queryset(self, principal: Caller[User] | None) -> QuerySet[Tag]:
         return tags_of(None if principal is None else principal.user)
 
 
@@ -105,7 +104,7 @@ class Tags(API):
 class Posts(API):
     """Generated create and delete (owner and tenant enforced), handwritten reads."""
 
-    def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Post]:
+    def get_queryset(self, principal: Caller[User] | None) -> QuerySet[Post]:
         if principal is None:
             return Post.all()
         return in_publication(principal)
@@ -168,7 +167,7 @@ class Posts(API):
         changed = (
             await in_publication(principal)
             .filter(id=item_id, author_id=principal.user.id, published=False)
-            .aupdate({"published": True})
+            .aupdate({"published": True}, returning=False)
         )
         if not changed:
             # Keep the API's distinct 403 for another author and 404 for a

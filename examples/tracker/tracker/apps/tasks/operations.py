@@ -8,7 +8,7 @@ task looks exactly like a missing one.
 
 from uuid import UUID
 
-from hinoki import events
+from hinoki import db, events
 from hinoki.events import Updated
 from hinoki.orm import QuerySet
 from hinoki.utils import utc_now
@@ -21,6 +21,7 @@ def mine(owner_id: UUID) -> QuerySet[Task]:
     return Task.filter(owner_id=owner_id)
 
 
+@db.atomic
 async def complete_task(owner_id: UUID, task_id: UUID) -> Task:
     """Mark an own open task done in one statement."""
     changed = await Task.aupdate_where(

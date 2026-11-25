@@ -8,7 +8,7 @@ same bounds as the message contexts, which the OpenAPI document then shows.
 import hmac
 from typing import Annotated
 
-from hinoki import Access, Caller, Field, Includable, Schema, errors, http, mail
+from hinoki import Access, Caller, Field, Includable, RouteGroup, Schema, errors, mail
 from hinoki.auth import APIKeyAuth
 from hinoki.crypto import random_token
 from hinoki.fields import Email
@@ -71,8 +71,9 @@ def build_routes(config: MailroomSettings) -> list[Includable]:
     """The routes, closed over the API key and the base URL of reset links."""
     access = Access(auth=MailKey(config.api_key.reveal()))
     base_url = config.public_base_url.rstrip("/")
+    group = RouteGroup("", access=access)
 
-    @http.post("/signup", status=202, access=access)
+    @group.post("/signup", status=202)
     async def sign_up(data: SignUp) -> Sent:
         """Send the welcome message of a new account."""
         welcome = Welcome(
@@ -82,7 +83,7 @@ def build_routes(config: MailroomSettings) -> list[Includable]:
         sent = await mail.send(WELCOME.message(welcome, to=(data.email,)))
         return Sent(message_id=sent.message_id)
 
-    @http.post("/password-reset", status=202, access=access)
+    @group.post("/password-reset", status=202)
     async def reset_password(data: PasswordReset) -> Sent:
         """Send a password reset link built here, never taken from the request.
 
@@ -98,10 +99,9 @@ def build_routes(config: MailroomSettings) -> list[Includable]:
         sent = await mail.send(RESET_PASSWORD.message(context, to=(data.email,)))
         return Sent(message_id=sent.message_id)
 
-    @http.post(
+    @group.post(
         "/notices/{slug}",
         status=202,
-        access=access,
         errors=(errors.NotFound, errors.BadRequest),
     )
     async def send_notice(slug: str, data: Notice) -> Sent:
@@ -117,4 +117,4 @@ def build_routes(config: MailroomSettings) -> list[Includable]:
             ) from None
         return Sent(message_id=(await mail.send(message)).message_id)
 
-    return [sign_up, reset_password, send_notice]
+    return [group]

@@ -11,11 +11,25 @@ in the ``hinoki_rate_limits`` table every worker shares (the ``ratelimit`` app o
 ``hinoki.toml``). Not included, on purpose: refresh tokens.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Annotated, Any, ClassVar
 from uuid import UUID
 
-from hinoki import Access, Caller, Field, RateLimit, Schema, errors, http
+from hinoki import (
+    Access,
+    Caller,
+    Field,
+    Module,
+    ModuleContext,
+    RateLimit,
+    Resource,
+    Schema,
+    Secret,
+    errors,
+    http,
+)
 from hinoki.crypto import JWTAuth, JWTKey, PasswordHasher
 
 from .models import User
@@ -41,10 +55,32 @@ class MeOut(Schema):
     is_editor: bool
 
 
-def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHasher]:
-    """The account actions and the hasher they own (close it at shutdown)."""
-    hasher = PasswordHasher()
-    unknown_user = hasher.hash_sync("not-a-real-password")  # equalises timing
+@dataclass(frozen=True, slots=True)
+class PasswordService(Resource):
+    """Worker-owned password hasher and dummy hash used to equalise login timing."""
+
+    hasher: PasswordHasher
+    unknown_user: str
+
+
+class Passwords(Module):
+    """Owns the Argon2id worker pool for the lifetime of one server worker."""
+
+    name = "passwords"
+
+    @asynccontextmanager
+    async def lifespan(self, ctx: ModuleContext) -> AsyncIterator[None]:
+        hasher = PasswordHasher()
+        unknown_user = await hasher.hash("not-a-real-password")
+        ctx.provide(PasswordService, PasswordService(hasher, unknown_user))
+        try:
+            yield
+        finally:
+            hasher.close()
+
+
+def build_accounts(secret: Secret) -> tuple[list[Callable[..., Any]], Module]:
+    """The account actions and the module owning their password hasher."""
 
     class Sessions(JWTAuth[User]):
         keys: ClassVar[Sequence[JWTKey]] = (JWTKey("blog-1", "HS256", secret),)
@@ -70,12 +106,20 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
     sessions = Sessions()
     signed_in = Access(auth=sessions)
 
-    @http.post("/auth/login", rate_limit=RateLimit(20, 60, scope="login"))
-    async def login(data: LoginIn) -> SessionOut:
+    @http.post(
+        "/auth/login",
+        rate_limit=RateLimit(20, 60, scope="login"),
+        errors=(errors.Unauthorized,),
+    )
+    async def login(data: LoginIn, passwords: PasswordService) -> SessionOut:
         """Exchange a username and password for a short-lived bearer token."""
         user = await User.aget_or_none(username=data.username)
-        stored = user.password_hash if user and user.password_hash else unknown_user
-        genuine = await hasher.verify(data.password, stored)
+        stored = (
+            user.password_hash
+            if user and user.password_hash
+            else passwords.unknown_user
+        )
+        genuine = await passwords.hasher.verify(data.password, stored)
         if user is None or not user.password_hash or not genuine:
             raise errors.Unauthorized(
                 "Invalid credentials."
@@ -93,4 +137,4 @@ def build_accounts(secret: str) -> tuple[list[Callable[..., Any]], PasswordHashe
         user = caller.user
         return MeOut(username=user.username, name=user.name, is_editor=user.is_editor)
 
-    return [login, me], hasher
+    return [login, me], Passwords()

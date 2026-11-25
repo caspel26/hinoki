@@ -22,14 +22,16 @@ from hinoki.orm.relations import Related
 from hinoki.utils import utc_now
 
 
-class Publication(Model, table="blog_publications"):
+@db.table("blog_publications")
+class Publication(Model):
     id: UUID = pk(default_factory=uuid4)
     name: str = field(max_length=80)
     slug: str = field(unique=True, max_length=80)
 
 
+@db.table("blog_users")
 @db.indexed("publication_id")  # a foreign key is always indexed (HNK-DB-002)
-class User(Model, table="blog_users"):
+class User(Model):
     id: UUID = pk(default_factory=uuid4)
     publication_id: UUID = foreign_key(
         Publication, on_delete=OnDelete.RESTRICT, related_name="users"
@@ -42,9 +44,10 @@ class User(Model, table="blog_users"):
     posts: ClassVar["Related[list[Post]]"]
 
 
+@db.table("blog_tags")
 @db.indexed("publication_id")
 @db.unique("publication_id", "name")
-class Tag(Model, table="blog_tags"):
+class Tag(Model):
     """A label of one publication; posts link to tags of their own publication."""
 
     id: UUID = pk(default_factory=uuid4)
@@ -54,9 +57,10 @@ class Tag(Model, table="blog_tags"):
     name: str = field(max_length=40)
 
 
+@db.table("blog_posts")
 @db.indexed("author_id")
 @db.indexed("publication_id")
-class Post(Model, table="blog_posts"):
+class Post(Model):
     id: UUID = pk(default_factory=uuid4)
     publication_id: UUID = foreign_key(
         Publication, on_delete=OnDelete.RESTRICT, related_name="posts"
@@ -75,9 +79,10 @@ class Post(Model, table="blog_posts"):
     )
 
 
+@db.table("blog_audit")
 @db.indexed("post_id")
 @db.ordered_by("-created_at", "-id")
-class AuditEntry(Model, table="blog_audit"):
+class AuditEntry(Model):
     """What happened to a post, written by the ``audit`` event handlers."""
 
     id: UUID = pk(default_factory=uuid4)
