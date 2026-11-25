@@ -36,7 +36,7 @@ as a distinct backend even though it uses the MySQL wire driver and SQL dialect.
 
 | Backend | Status | Notes |
 | --- | --- | --- |
-| SQLite | Supported | Default for local development. SQLite permits one writer at a time. Schema changes that SQLite cannot express directly use a table rebuild. |
+| SQLite | Supported | Default for local development. SQLite permits one writer at a time. Table changes that SQLite cannot express directly use a table rebuild. |
 | PostgreSQL | Supported | Uses PostgreSQL-native UUID, timestamp, JSON and byte types. |
 | MySQL | Supported | Uses InnoDB tables, binary UUIDs and MySQL-native JSON. MySQL DDL implicitly commits, so a failed migration can leave earlier DDL applied; inspect migration status and table state before retrying. `RETURNING` is not supported by the compiler; ORM create/update operations use follow-up reads. TLS is required by default. |
 | MariaDB | Supported | Tested independently on MariaDB 11.4. Its `JSON` alias is text, so typed ORM `dict`/`list` fields are decoded from the model declaration. Low-level `Database.fetch()` returns JSON values as bytes because arbitrary text columns cannot be safely inferred as JSON. DDL can implicitly commit; TLS is required by default. |
@@ -44,7 +44,7 @@ as a distinct backend even though it uses the MySQL wire driver and SQL dialect.
 SQL Server and Oracle are not currently supported. Do not assume that MySQL
 compatibility implies MariaDB compatibility. Hinoki does not silently roll
 back MySQL-family DDL: review generated migrations and keep a recoverable
-backup before applying schema changes.
+backup before applying migrations.
 
 Datetime values stored in MySQL ``DATETIME`` columns use Hinoki's UTC-naive
 storage convention; values returned by the ORM are interpreted as UTC. MySQL
