@@ -57,7 +57,7 @@ does. `aproject` / `project`, `apaginate_as` / `paginate_as`, `aget_as` /
 `select_related`, and 1-level `prefetch_related` (reverse foreign keys and
 many-to-many) schemas directly from Rust rows, materializing Python `Schema`
 instances lazily from the owned rows if inspected and falling back transparently
-when hooks, computed fields, validators, or scoped prefetches are present. A projected item passes `isinstance`, `dataclasses.is_dataclass`, `dataclasses.asdict`, `dataclasses.replace` and `copy.replace` as the `Schema` itself.
+when hooks, computed fields, validators, or scoped prefetches are present. A projected item passes `isinstance`, `dataclasses.is_dataclass`, `dataclasses.asdict`, `dataclasses.replace` and `copy.replace` as the `Schema` itself. `dataclasses.fields(type(item))` sees no fields (the class of a projected item is not the `Schema`); use `dataclasses.fields(item)`.
 
 ## Query methods
 

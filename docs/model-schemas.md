@@ -132,7 +132,12 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
     declares no schema (`Any`, `object`) writes the value it holds, whole; so
     does a nested class that overrides `dump()`, which decides its own shape. A
     `@computed_field` is not itself narrowed: a computed value that returns a
-    subclass instance is written as it is. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
+    subclass instance is written as it is (its subclass can override the value).
+    The same holds for a top-level `dict[str, S]`, `tuple[S, ...]`,
+    `list[S | None]`, `list[list[S]]`, a union containing `S` and a `TypedDict` of
+    them; a dataclass, or a `Page` inside another container, is written as it is.
+    A narrowed value is written with wire names (aliases) like an exact one; a
+    lazy projection (`aget_as`, `aproject`) held in a field is narrowed too. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
 
 ## See also
 
