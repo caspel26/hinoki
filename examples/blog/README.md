@@ -72,6 +72,9 @@ uv run hinoki events
 uv run hinoki routes
 ```
 
+These commands build the application, so `BLOG_ADMIN__SECRET` (see Run) must be
+exported for them too.
+
 `POST /mcp` serves one read-only tool (`Posts.drafts`) to a caller holding an
 editor token. With the Kiso server, `BLOG_METRICS__LISTEN=127.0.0.1:9100` serves
 Prometheus metrics on that address, and `uv run hinoki serve --server kiso`

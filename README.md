@@ -9,7 +9,7 @@
 
 <p align="center">
   <strong>Typed Python APIs. Architecture rules you can run.</strong><br>
-  <sub>High-throughput Python API framework powered by a Rust HTTP server (Kiso) and SQL ORM.</sub>
+  <sub>A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso.</sub>
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@
 > [!WARNING]
 > **Pre-alpha, not released.** In the planned `0.1.x` line, documented Python, CLI, settings and runtime contracts, plus migration files, stay compatible across patch releases. Additions and fixes for incorrect behavior remain possible and will be described in the changelog. Breaking changes may arrive in a later `0.y.0`; there is no fixed deprecation period and no compatibility promise for undocumented internals or old framework versions. Review migrations and use disposable data when evaluating Hinoki. The package will be named `hinoki-api`; the [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project.
 
-Hinoki is a high-throughput Python API framework powered by a Rust HTTP server (**Kiso**, on hyper, tokio and rustls) and SQL ORM. `hinoki dev` and `hinoki serve` run Kiso by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. One typed declaration drives routing, strict schema validation and serialization, OpenAPI, architecture rules, and MCP — reaching **91,675 req/s** on 1 KB JSON and **12,819 req/s** on PostgreSQL detail reads in the retained single-host benchmarks ([benchmarks](docs/benchmarks.md)). You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix. Projects are agent-ready out of the box, with built-in application and development MCP servers, `hinoki llms` / `llms.txt` endpoints, and a generated `AGENTS.md`.
+Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls. `hinoki dev` and `hinoki serve` run Kiso by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. One typed declaration drives routing, strict schema validation and serialization, OpenAPI, architecture rules, and MCP. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix. Projects are agent-ready out of the box, with built-in application and development MCP servers and a generated `AGENTS.md`.
 
 <p align="center">
   <a href="#how-it-works">How it works</a> ·
@@ -59,12 +59,12 @@ Hinoki is a high-throughput Python API framework powered by a Rust HTTP server (
 
 ## How it works
 
-You declare once. Routing, validation, the OpenAPI document, rules and the development tools read the same declaration; schema changes follow a separate, explicit lane.
+You declare once. Routing, validation, the OpenAPI document, rules and the development tools read the same declaration; table changes follow a separate, explicit lane.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/readme/arch-dark.svg">
-    <img src="assets/readme/arch-light.svg" alt="Architecture: Model, Schema and Endpoint declarations form one declared contract, which routing, validation, access and transactions, the OpenAPI document, hinoki check rules and the development MCP all read. Schema changes follow a separate lane: migrations plan, a reviewed SQL file, an explicit apply, then the database." width="860">
+    <img src="assets/readme/arch-light.svg" alt="Architecture: Model, Schema and Endpoint declarations form one declared contract, which routing, validation, access and transactions, the OpenAPI document, hinoki check rules and the development MCP all read. Table changes follow a separate lane: migrations plan, a reviewed SQL file, an explicit apply, then the database." width="860">
   </picture>
 </p>
 

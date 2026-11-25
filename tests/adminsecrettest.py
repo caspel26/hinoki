@@ -47,6 +47,23 @@ def test_no_secret_anywhere_stops_the_app_at_include() -> None:
         Hinoki(include=[site()])  # settings that are not AppSettings carry none
 
 
+class PrefixedSettings(AppSettings, prefix="DEMO_"):
+    pass
+
+
+def test_the_missing_secret_message_names_the_real_variable() -> None:
+    with pytest.raises(errors.RegistrationError) as caught:
+        Hinoki(settings=PrefixedSettings(), include=[site()])
+    assert "DEMO_ADMIN__SECRET" in str(caught.value)
+    assert "DEMO__ADMIN" not in str(caught.value)
+
+
+def test_the_missing_secret_message_without_a_prefix_gives_an_example() -> None:
+    with pytest.raises(errors.RegistrationError) as caught:
+        Hinoki(include=[site()])
+    assert "<prefix>ADMIN__SECRET, for example BLOG_ADMIN__SECRET" in str(caught.value)
+
+
 def test_an_unbound_admin_refuses_to_issue_tokens() -> None:
     with pytest.raises(errors.RegistrationError, match=r"admin\.secret"):
         site().csrf  # noqa: B018 - reading it is the failure under test

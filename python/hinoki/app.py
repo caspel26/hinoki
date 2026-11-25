@@ -102,7 +102,10 @@ log = logging.getLogger("hinoki")
 
 
 def bind_app_timezone(
-    item: object, timezone: tzinfo, settings: AdminSettings | None = None
+    item: object,
+    timezone: tzinfo,
+    settings: AdminSettings | None = None,
+    env_prefix: str = "",
 ) -> None:
     """Bind the timezone and server secret of the app to an included admin,
     whether it is included as an object or as an API class."""
@@ -116,15 +119,18 @@ def bind_app_timezone(
         bind_timezone(timezone)
     bind_settings = getattr(admin, "bind_settings", None)
     if callable(bind_settings):
-        bind_settings(settings)
+        bind_settings(settings, env_prefix)
 
 
 def bind_app_timezones(
-    items: Sequence[object], timezone: tzinfo, settings: AdminSettings | None = None
+    items: Sequence[object],
+    timezone: tzinfo,
+    settings: AdminSettings | None = None,
+    env_prefix: str = "",
 ) -> None:
     """Bind integrations after the app has validated all routes."""
     for item, _prefix in flatten(items):
-        bind_app_timezone(item, timezone, settings)
+        bind_app_timezone(item, timezone, settings, env_prefix)
 
 
 def check_hooks(option: str, hooks: Sequence[Hook]) -> tuple[Hook, ...]:
@@ -288,6 +294,12 @@ class Hinoki:
     def admin_settings(self) -> AdminSettings | None:
         """The app's ``admin`` settings group, or ``None`` without built-in settings."""
         return self.settings.admin if isinstance(self.settings, AppSettings) else None
+
+    def _env_prefix(self) -> str:
+        """The environment prefix declared by the app's settings class."""
+        if isinstance(self.settings, AppSettings):
+            return type(self.settings).__env_prefix__
+        return ""
 
     def _configure_runtime(
         self, built_in: AppSettings | None, runtime: RuntimeConfig | None
@@ -489,7 +501,9 @@ class Hinoki:
 
         bound = [rowplan.with_row_wire(binding) for binding in bound]
         staged = self._stage_router(pending)
-        bind_app_timezones(items, self._timezone, self.admin_settings())
+        bind_app_timezones(
+            items, self._timezone, self.admin_settings(), self._env_prefix()
+        )
         self._router = staged
         self._ws_router = ws_router
         self._routes.extend(pending)

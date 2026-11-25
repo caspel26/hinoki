@@ -14,6 +14,7 @@ import hinoki.core as native_core
 from hinoki import jsontext
 from hinoki.cli.check import build_app
 from hinoki.cli.reportui import doctor_text
+from hinoki.errors import RegistrationError
 from hinoki.project import (
     ProjectError,
     ProjectManifest,
@@ -108,6 +109,27 @@ def _environment_checks() -> list[Check]:
     return checks
 
 
+TARGET_HINT = (
+    "Check the module:attribute target and inspect it with `hinoki routes TARGET`."
+)
+BUILD_HINT = (
+    "The application could not be built; the message above gives the cause "
+    "(`hinoki routes TARGET` fails with the same error)."
+)
+
+
+def _load_failure(exc: BaseException, limit: int = 300) -> tuple[str, str]:
+    """Summary and fix of a load failure. The message of a ``RegistrationError``
+    with no chained cause is shown on one line, truncated; any other error, or a
+    chain that may come from a settings value, shows only its class name."""
+    name = type(exc).__name__
+    if not isinstance(exc, RegistrationError) or exc.__cause__ is not None:
+        return f"target could not be loaded ({name})", TARGET_HINT
+    text = " ".join(str(exc).split())
+    shown = text if len(text) <= limit else text[: limit - 3] + "..."
+    return f"target could not be loaded ({name}: {shown})", BUILD_HINT
+
+
 def _target_check(
     target: str, manifest: ProjectManifest | None
 ) -> tuple[list[Check], int]:
@@ -116,15 +138,10 @@ def _target_check(
     try:
         app = build_app(target)
     except (Exception, SystemExit) as exc:
+        summary, fix = _load_failure(exc)
         return (
             [
-                Check(
-                    "application.load",
-                    "failed",
-                    f"target could not be loaded ({type(exc).__name__})",
-                    "Check the module:attribute target and inspect it with "
-                    "`hinoki routes TARGET`.",
-                ),
+                Check("application.load", "failed", summary, fix),
                 Check("application.routes", "skipped", "application did not load"),
                 Check("application.settings", "skipped", "application did not load"),
                 Check("application.openapi", "skipped", "application did not load"),

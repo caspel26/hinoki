@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" height="460" role="img" aria-label="Architecture: Model, Schema and Endpoint declarations form one declared contract, which routing, validation, access and transactions, the OpenAPI document, hinoki check rules and the development MCP all read. Schema changes follow a separate lane: migrations plan, a reviewed SQL file, an explicit apply, then the database.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" height="460" role="img" aria-label="Architecture: Model, Schema and Endpoint declarations form one declared contract, which routing, validation, access and transactions, the OpenAPI document, hinoki check rules and the development MCP all read. Table changes follow a separate lane: migrations plan, a reviewed SQL file, an explicit apply, then the database.">
   <style>
   text { font-family: ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; }
   .k-server { --edge: #8fb8e0; --tint: #252a34; }
@@ -61,6 +61,6 @@
   <rect class="node k-amber" x="410" y="366" width="170" height="36" rx="8"/><text class="title" x="424" y="389.0">reviewed SQL file</text>
   <rect class="node k-amber" x="630" y="366" width="150" height="36" rx="8"/><text class="title" x="644" y="389.0">explicit apply</text>
   <rect class="node k-server" x="830" y="366" width="110" height="36" rx="8"/><text class="title" x="844" y="389.0">Database</text>
-  <text class="lane" x="20" y="352">Schema changes: explicit, never at startup</text>
+  <text class="lane" x="20" y="352">Table changes: explicit, never at startup</text>
   </g>
 </svg>

@@ -101,12 +101,18 @@ def check_text(
 
 
 def route_row(
-    style: Style, method: str, path: str, width: int, access: str, handler: str
+    style: Style,
+    method: str,
+    path: str,
+    width: int,
+    access: str,
+    handler: str,
+    access_width: int = 24,
 ) -> str:
     verb = style.paint(f"{method:<7}", METHOD_COLORS.get(method, "text"), bold=True)
     pad = " " * (width - len(path))
     shown = style.paint(access, "dim" if access == "public" else "brand")
-    spacing = " " * max(24 - len(access), 0)
+    spacing = " " * max(access_width - len(access), 0)
     return f"{verb} {style.text(path)}{pad}  {shown}{spacing} {style.dim(handler)}"
 
 

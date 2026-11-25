@@ -64,11 +64,22 @@ def clone(function: Callable[..., Any], name: str) -> Callable[..., Any]:
     return copy
 
 
-NO_SECRET_MESSAGE = (
-    "admin: no secret to sign its forms with; set `admin.secret` in the app's "  # noqa: S105
-    "settings (environment variable PREFIX_ADMIN__SECRET, at least 32 bytes) "
-    "or pass Admin(secret=...)"
-)
+def no_secret_message(env_prefix: str = "") -> str:
+    """The error for an admin with no secret; with the settings class prefix it
+    names the real environment variable."""
+    variable = (
+        f"{env_prefix}ADMIN__SECRET"
+        if env_prefix
+        else '<prefix>ADMIN__SECRET, for example BLOG_ADMIN__SECRET with prefix="BLOG_"'
+    )
+    return (
+        "admin: no secret to sign its forms with; set `admin.secret` in the app's "
+        f"settings (environment variable {variable}, at least 32 bytes) "
+        "or pass Admin(secret=...)"
+    )
+
+
+NO_SECRET_MESSAGE = no_secret_message()
 
 
 class Admin:
@@ -164,7 +175,9 @@ class Admin:
             raise RegistrationError("admin: this site has no users= accounts")
         return self.users
 
-    def bind_settings(self, settings: AdminSettings | None) -> None:
+    def bind_settings(
+        self, settings: AdminSettings | None, env_prefix: str = ""
+    ) -> None:
         """Use the app's ``admin`` settings: the secret (unless the admin was given
         its own), the theme (unless it was given one) and the session and
         password rules of its own users."""
@@ -175,7 +188,7 @@ class Admin:
         if self._csrf is not None:
             return
         if settings is None or settings.secret is None:
-            raise RegistrationError(NO_SECRET_MESSAGE)
+            raise RegistrationError(no_secret_message(env_prefix))
         self._csrf = Csrf(settings.secret.reveal(), self.cookie_name(CSRF_COOKIE))
 
     @property
