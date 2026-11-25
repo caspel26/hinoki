@@ -198,6 +198,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<nativerun::NativeRun>()?;
     m.add_class::<nativerun::NativeSteps>()?;
     m.add_function(wrap_pyfunction!(nativerun::run_native, m)?)?;
+    m.add_function(wrap_pyfunction!(handoff::handoff_batch, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_encode, m)?)?;
     m.add_function(wrap_pyfunction!(jwt::jwt_decode, m)?)?;
     m.add_class::<jwt::PyJWTVerifier>()?;

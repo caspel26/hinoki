@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import socket
+import sys
 
 MAX_PORT = 65535
 
@@ -20,6 +21,16 @@ class ListenError(OSError):
     host); nothing was served."""
 
 
+def supports_reuse_port() -> bool:
+    """Whether this platform load-balances across ``SO_REUSEPORT`` sockets.
+
+    Only Linux distributes incoming connections across multiple ``SO_REUSEPORT``
+    listeners in the kernel; macOS and other BSDs do not, so they keep a single
+    shared listening descriptor instead.
+    """
+    return sys.platform == "linux" and hasattr(socket, "SO_REUSEPORT")
+
+
 def check_port(port: int) -> None:
     """Refuse a port outside 0 to 65535. The system's resolver does not: glibc
     wraps a larger number to 16 bits, so ``70000`` would quietly listen on 4464."""
@@ -27,9 +38,17 @@ def check_port(port: int) -> None:
         raise ListenError(f"invalid port {port}: it must be 0 to {MAX_PORT}")
 
 
-def open_listener(host: str, port: int, backlog: int) -> socket.socket:
-    """A bound, listening TCP socket for ``host:port`` (port 0 picks a free one)."""
+def open_listener(
+    host: str, port: int, backlog: int, *, reuse_port: bool = False
+) -> socket.socket:
+    """A bound, listening TCP socket for ``host:port`` (port 0 picks a free one).
+
+    When ``reuse_port`` is true (Linux only), sets ``SO_REUSEPORT`` before
+    binding so each worker process can own its own accept queue.
+    """
     check_port(port)
+    if reuse_port and not supports_reuse_port():
+        raise ListenError("SO_REUSEPORT is only supported on Linux")
     failure: OSError | None = None
     try:
         candidates = socket.getaddrinfo(
@@ -41,6 +60,8 @@ def open_listener(host: str, port: int, backlog: int) -> socket.socket:
         sock = socket.socket(family, kind, protocol)
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if reuse_port:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             sock.bind(address)
             sock.listen(backlog)
         except (OverflowError, ValueError, UnicodeError) as error:

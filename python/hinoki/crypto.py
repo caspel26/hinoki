@@ -23,11 +23,11 @@ import weakref
 from abc import abstractmethod
 from collections.abc import Awaitable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar, Self, cast
 
 from hinoki import core
 from hinoki.auth import BearerAuth, Caller
-from hinoki.blocking import call_hook
+from hinoki.blocking import call_hook, is_coroutine_hook
 from hinoki.errors import APIError
 from hinoki.fields import Secret, secret_bytes
 
@@ -228,6 +228,12 @@ def check_key_set(keys: Sequence[JWTKey]) -> None:
         raise ValueError("with several keys every key needs a distinct kid")
 
 
+def _keys_match(keys: Sequence[JWTKey], snapshot: tuple[JWTKey, ...]) -> bool:
+    if len(keys) != len(snapshot):
+        return False
+    return all(item is snapshot[index] for index, item in enumerate(keys))
+
+
 class JWTAuth[T](BearerAuth[T]):
     """Bearer-token provider for JWTs. Subclass, set ``keys`` (and usually
     ``issuer`` and ``audience``) and implement ``resolve_claims``::
@@ -256,6 +262,14 @@ class JWTAuth[T](BearerAuth[T]):
     audience: ClassVar[str | None] = None
     leeway: ClassVar[int] = 0
     require_exp: ClassVar[bool] = True
+    _resolve_claims_fn: ClassVar[object] = None
+    _resolve_claims_is_async: ClassVar[bool] = False
+    _verifier_entry: tuple[tuple[JWTKey, ...], core._JWTVerifier] | None = None
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        cls._resolve_claims_fn = cls.resolve_claims
+        cls._resolve_claims_is_async = is_coroutine_hook(cls.resolve_claims)
 
     def __init__(self) -> None:
         check_key_set(self.keys)
@@ -263,6 +277,19 @@ class JWTAuth[T](BearerAuth[T]):
             raise ValueError(
                 f"leeway must be between 0 and {MAX_LEEWAY} seconds, not {self.leeway}"
             )
+
+    def _verifier(self) -> core._JWTVerifier:
+        keys = self.keys
+        entry = self._verifier_entry
+        if entry is not None:
+            snapshot, verifier = entry
+            if keys is snapshot or _keys_match(keys, snapshot):
+                return verifier
+        specs = [k.spec() for k in keys]
+        verifier = core._JWTVerifier(specs)
+        snapshot = keys if type(keys) is tuple else tuple(keys)
+        self._verifier_entry = (snapshot, verifier)
+        return verifier
 
     def openapi_scheme(self) -> dict[str, object] | None:
         return {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
@@ -281,17 +308,19 @@ class JWTAuth[T](BearerAuth[T]):
     async def resolve_token(self, token: str) -> Caller[T] | None:
         rules = (self.now(), self.leeway, self.issuer, self.audience, self.require_exp)
         try:
-            payload = core.jwt_decode(token, [k.spec() for k in self.keys], rules)
+            claims = self._verifier().verify_claims(token, rules)
         except ValueError as reason:
             log.debug("token rejected: %s", reason)
             return None
-        try:
-            claims = core.decode_json(payload)
-        except (
-            ValueError
-        ):  # pragma: no cover - the verifier already rejects these payloads
-            log.debug("token rejected: payload is not decodable")
-            return None
+        cls = type(self)
+        if (
+            cls._resolve_claims_is_async
+            and cls.resolve_claims is cls._resolve_claims_fn
+            and "resolve_claims" not in self.__dict__
+        ):
+            return await cast(
+                "Awaitable[Caller[T] | None]", self.resolve_claims(claims)
+            )
         found: Caller[T] | None = await call_hook(self.resolve_claims, claims)
         return found
 

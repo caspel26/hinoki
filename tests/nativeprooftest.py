@@ -13,6 +13,7 @@ import pytest
 from hinoki.orm import Model, OnDelete, field, foreign_key
 from hinoki.runtime import nativeproof
 from hinoki.runtime.nativeproof import native_refusal
+from hinoki.runtime.pipeline import announce_rate_limited as _foreign_helper
 
 
 class ProofNote(Model):
@@ -387,3 +388,228 @@ def test_a_source_that_is_not_one_async_function_is_refused() -> None:
         )
     finally:
         linecache.cache.pop(filename, None)
+
+
+async def _local_page_helper(title: str) -> list[ProofNote]:
+    return await ProofNote.filter(title=title).order_by("id").limit(5)
+
+
+async def _nested_helper(title: str) -> list[ProofNote]:
+    return await _local_page_helper(title)
+
+
+async def _diamond_left(title: str) -> list[ProofNote]:
+    return await _local_page_helper(title)
+
+
+async def _diamond_right(title: str) -> list[ProofNote]:
+    return await _local_page_helper(title)
+
+
+async def calls_local_helper(title: str) -> list[ProofNote]:
+    return await _local_page_helper(title)
+
+
+async def calls_nested_helper(title: str) -> list[ProofNote]:
+    return await _nested_helper(title)
+
+
+async def calls_diamond_helpers(
+    title: str,
+) -> tuple[list[ProofNote], list[ProofNote]]:
+    return await _diamond_left(title), await _diamond_right(title)
+
+
+async def _try_except_helper(id: int) -> ProofNote | None:
+    try:
+        return await ProofNote.aget(id=id)
+    except ProofNote.NotFound:
+        return None
+
+
+async def _varargs_helper(*args: Any, **kwargs: Any) -> ProofNote | None:
+    del args
+    return await ProofNote.aget_or_none(**kwargs)
+
+
+async def calls_try_except_and_varargs(
+    id: int,
+) -> tuple[ProofNote | None, ProofNote | None]:
+    return await _try_except_helper(id), await _varargs_helper(id=id)
+
+
+async def _self_recursive(n: int) -> int:
+    if n <= 0:
+        return 0
+    return await _self_recursive(n - 1)
+
+
+async def _mutual_a(n: int) -> int:
+    return await _mutual_b(n)
+
+
+async def _mutual_b(n: int) -> int:
+    return await _mutual_a(n)
+
+
+async def calls_self_recursive(n: int) -> int:
+    return await _self_recursive(n)
+
+
+async def calls_mutual_recursive(n: int) -> int:
+    return await _mutual_a(n)
+
+
+async def _unsafe_sleep_helper() -> None:
+    await asyncio.sleep(0)
+
+
+async def _unsafe_try_helper() -> ProofNote | None:
+    try:
+        await asyncio.sleep(0)
+    except ProofNote.NotFound:
+        return None
+    return None
+
+
+async def _unsafe_task_helper() -> None:
+    asyncio.current_task()
+    await ProofNote.aget(id=1)
+
+
+async def _unsafe_hook_helper() -> Any:
+    return await HookedNote.acreate(title="x")
+
+
+def _wrap_helper(
+    func: Callable[..., Awaitable[Any]],
+) -> Callable[..., Awaitable[Any]]:
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        return await func(*args, **kwargs)
+
+    return wrapper
+
+
+@_wrap_helper
+async def _decorated_helper(id: int) -> ProofNote:
+    return await ProofNote.aget(id=id)
+
+
+def _make_closure_helper() -> Callable[[int], Awaitable[ProofNote]]:
+    model = ProofNote
+
+    async def closed(id: int) -> ProofNote:
+        return await model.aget(id=id)
+
+    return closed
+
+
+_closure_helper = _make_closure_helper()
+
+
+async def calls_unsafe_sleep() -> None:
+    await _unsafe_sleep_helper()
+
+
+async def calls_unsafe_try() -> ProofNote | None:
+    return await _unsafe_try_helper()
+
+
+async def calls_unsafe_task() -> None:
+    await _unsafe_task_helper()
+
+
+async def calls_unsafe_hook() -> Any:
+    return await _unsafe_hook_helper()
+
+
+async def calls_decorated_helper(id: int) -> Any:
+    return await _decorated_helper(id)
+
+
+async def calls_closure_helper(id: int) -> ProofNote:
+    return await _closure_helper(id)
+
+
+async def calls_foreign_helper() -> None:
+    await _foreign_helper(None, None, None)  # type: ignore[arg-type]
+
+
+async def _depth_1() -> ProofNote:
+    return await ProofNote.aget(id=1)
+
+
+async def _depth_2() -> ProofNote:
+    return await _depth_1()
+
+
+async def _depth_3() -> ProofNote:
+    return await _depth_2()
+
+
+async def _depth_4() -> ProofNote:
+    return await _depth_3()
+
+
+async def _depth_5() -> ProofNote:
+    return await _depth_4()
+
+
+async def _depth_6() -> ProofNote:
+    return await _depth_5()
+
+
+async def _depth_7() -> ProofNote:
+    return await _depth_6()
+
+
+async def _depth_8() -> ProofNote:
+    return await _depth_7()
+
+
+async def _depth_9() -> ProofNote:
+    return await _depth_8()
+
+
+async def calls_at_depth_limit() -> ProofNote:
+    return await _depth_8()
+
+
+async def calls_past_depth_limit() -> ProofNote:
+    return await _depth_9()
+
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        calls_local_helper,
+        calls_nested_helper,
+        calls_diamond_helpers,
+        calls_try_except_and_varargs,
+        calls_at_depth_limit,
+    ],
+)
+def test_safe_module_local_helpers_are_proved(handler: Callable[..., Any]) -> None:
+    assert native_refusal(handler) is None
+
+
+@pytest.mark.parametrize(
+    ("handler", "reason"),
+    [
+        (calls_self_recursive, "_self_recursive is recursive"),
+        (calls_mutual_recursive, "_mutual_a is recursive"),
+        (calls_past_depth_limit, "helper call depth exceeded"),
+        (calls_unsafe_sleep, "an await is not on a Model class"),
+        (calls_unsafe_try, "an await is not on a Model class"),
+        (calls_unsafe_task, "it uses asyncio directly"),
+        (calls_unsafe_hook, "HookedNote has write hooks"),
+        (calls_decorated_helper, "_decorated_helper captures closure variables"),
+        (calls_closure_helper, "_closure_helper captures closure variables"),
+        (calls_foreign_helper, "_foreign_helper is not defined in this module"),
+    ],
+)
+def test_unsafe_or_non_local_helpers_are_refused(
+    handler: Callable[..., Any], reason: str
+) -> None:
+    assert native_refusal(handler) == reason

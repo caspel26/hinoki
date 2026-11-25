@@ -546,7 +546,7 @@ def claims_access_is_plain(declared: Any) -> bool:
     auth = declared.auth
     return bool(
         type(auth).__mro__.count(ClaimsJWTAuth) == 1
-        and not vars(auth)
+        and not (vars(auth).keys() - {"_verifier_entry"})
         and auth.header == "authorization"
         and static_state_matches(
             type(auth), CLAIMS_AUTH_METHODS, CLAIMS_AUTH_METHODS_ORIGINAL

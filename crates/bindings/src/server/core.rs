@@ -356,7 +356,7 @@ impl Core {
                 .unwrap_or_else(|_| Reply {
                     status: 503,
                     headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
-                    body: Vec::new(),
+                    body: bytes::Bytes::new(),
                 });
             return Err(Box::new((request, reply)));
         }
@@ -383,7 +383,7 @@ impl Core {
             .unwrap_or_else(|_| Reply {
                 status: 503,
                 headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
-                body: Vec::new(),
+                body: bytes::Bytes::new(),
             })
     }
 }
@@ -771,7 +771,7 @@ impl ServerCore {
                     .unwrap_or_else(|_| Reply {
                         status: 503,
                         headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
-                        body: Vec::new(),
+                        body: bytes::Bytes::new(),
                     });
                 request.respond_owned(reply.status, reply.headers, reply.body);
                 Submission {

@@ -9,12 +9,16 @@ rules checked after authentication (401 -> no/invalid credentials,
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Iterable, Iterator
+from collections.abc import Awaitable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any, ClassVar, cast
 
-from hinoki.blocking import call_hook
+from hinoki import core
+from hinoki.blocking import call_hook, is_coroutine_hook
 from hinoki.errors import Unauthorized
+
+_EMPTY_FROZENSET: frozenset[str] = frozenset()
 
 
 class Permission(StrEnum):
@@ -48,16 +52,74 @@ class Caller[T]:
         object.__setattr__(self, "user", user)
         if isinstance(permissions, str | bytes):
             raise TypeError("permissions is a list of names, not one string")
+        if not permissions:
+            object.__setattr__(self, "permissions", _EMPTY_FROZENSET)
+            return
         # Plain strings, as ``Access`` stores them: a ``Permission`` member
         # equals its value, so checks match either way.
         object.__setattr__(self, "permissions", frozenset(str(p) for p in permissions))
+
+
+class _LazyHeaders(Mapping[str, str]):
+    """Read-only mapping backed by ``PreparedRequest`` that resolves single
+    header lookups in Rust and materializes ``header_dict`` only when iterated
+    or measured."""
+
+    __slots__ = ("_dict", "_request")
+    __hash__ = None  # type: ignore[assignment]
+
+    def __init__(self, request: core.PreparedRequest) -> None:
+        self._request = request
+        self._dict: dict[str, str] | None = None
+
+    def _materialize(self) -> dict[str, str]:
+        if self._dict is None:
+            self._dict = self._request.header_dict
+        return self._dict
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if self._dict is not None:
+            return self._dict.get(key, default)
+        value = self._request.header(key)
+        return default if value is None else value
+
+    def __getitem__(self, key: str) -> str:
+        if self._dict is not None:
+            return self._dict[key]
+        value = self._request.header(key)
+        if value is None:
+            raise KeyError(key)
+        return value
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        if self._dict is not None:
+            return key in self._dict
+        return self._request.header(key) is not None
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._materialize())
+
+    def __len__(self) -> int:
+        return len(self._materialize())
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, _LazyHeaders):
+            return self._materialize() == other._materialize()
+        if isinstance(other, Mapping):
+            return self._materialize() == other
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return repr(self._materialize())
 
 
 @dataclass(frozen=True, slots=True)
 class Credentials:
     """The parts of a request a provider may inspect."""
 
-    headers: dict[str, str]
+    headers: Mapping[str, str]
     query: dict[str, list[str]]
     session: object | None = None
 
@@ -137,6 +199,15 @@ class HeaderAuth[T](BaseAuth[T]):
     """Credential carried in a named header; subclasses implement ``resolve``."""
 
     header = "authorization"
+    _header_lower: ClassVar[str] = "authorization"
+    _resolve_fn: ClassVar[object] = None
+    _resolve_is_async: ClassVar[bool] = False
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        cls._header_lower = cls.header.lower()
+        cls._resolve_fn = cls.resolve
+        cls._resolve_is_async = is_coroutine_hook(cls.resolve)
 
     def openapi_scheme(self) -> dict[str, object] | None:
         return {"type": "apiKey", "in": "header", "name": self.header}
@@ -147,10 +218,21 @@ class HeaderAuth[T](BaseAuth[T]):
         or plain ``def``."""
 
     async def authenticate(self, credentials: Credentials) -> Caller[T] | None:
-        value = credentials.headers.get(self.header.lower())
+        cls = type(self)
+        header_name = (
+            cls._header_lower if self.header == cls.header else self.header.lower()
+        )
+        value = credentials.headers.get(header_name)
         if value is None:
             return None
-        principal: Caller[T] | None = await call_hook(self.resolve, value)
+        if (
+            cls._resolve_is_async
+            and cls.resolve is cls._resolve_fn
+            and "resolve" not in self.__dict__
+        ):
+            principal = await cast("Awaitable[Caller[T] | None]", self.resolve(value))
+        else:
+            principal = await call_hook(self.resolve, value)
         if principal is None:
             raise Unauthorized("Invalid credentials.", headers=self.headers())
         return principal
@@ -170,6 +252,13 @@ class BearerAuth[T](HeaderAuth[T]):
     """``Authorization: Bearer <token>``; subclasses implement ``resolve_token``."""
 
     challenge = "Bearer"
+    _resolve_token_fn: ClassVar[object] = None
+    _resolve_token_is_async: ClassVar[bool] = False
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        cls._resolve_token_fn = cls.resolve_token
+        cls._resolve_token_is_async = is_coroutine_hook(cls.resolve_token)
 
     def openapi_scheme(self) -> dict[str, object] | None:
         return {"type": "http", "scheme": "bearer"}
@@ -182,7 +271,17 @@ class BearerAuth[T](HeaderAuth[T]):
 
     async def resolve(self, value: str) -> Caller[T] | None:
         scheme, _, token = value.partition(" ")
-        if scheme.lower() != "bearer" or not token.strip():
+        stripped = token.strip()
+        if scheme.lower() != "bearer" or not stripped:
             return None
-        found: Caller[T] | None = await call_hook(self.resolve_token, token.strip())
+        cls = type(self)
+        if (
+            cls._resolve_token_is_async
+            and cls.resolve_token is cls._resolve_token_fn
+            and "resolve_token" not in self.__dict__
+        ):
+            return await cast(
+                "Awaitable[Caller[T] | None]", self.resolve_token(stripped)
+            )
+        found: Caller[T] | None = await call_hook(self.resolve_token, stripped)
         return found

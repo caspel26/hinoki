@@ -15,7 +15,7 @@ mod pyapi;
 pub(crate) use self::json::json_to_python;
 pub use self::json::{decode_json, encode_json, JsonDecodeError};
 pub(crate) use self::json::{
-    decode_json_document, encode_json_vec, encode_json_vec_strict, float_text, int_text,
+    decode_json_document, encode_json_bytes, encode_json_bytes_strict, float_text, int_text,
     is_instance_of_named, key_text, string_bytes, Json, JsonObject, MAX_DEPTH,
 };
 #[allow(unused_imports)]
@@ -24,7 +24,9 @@ pub use self::multipart::{
     Part,
 };
 #[allow(unused_imports)]
-pub use self::parse::{decode_path_parameter, join_headers, negotiate, parse_cookies, parse_query};
+pub use self::parse::{
+    decode_path_parameter, join_headers, lookup_header, negotiate, parse_cookies, parse_query,
+};
 #[allow(unused_imports)]
 pub use self::pyapi::{
     header_dict, headers_and_size, joined_header_dict, parse_cookie_header, parse_query_string,
@@ -65,5 +67,33 @@ mod tests {
         assert!(parse("Content-Disposition: form-data; name=\"a\"; name=\"b\"").is_err());
         assert!(parse("Content-Disposition: form-data; name=\"a\"; filename=\"x\ny\"").is_err());
         assert!(parse("Content-Disposition: form-data; name=\"a\"\nX: y").is_err());
+    }
+
+    #[test]
+    fn lookup_header_matches_join_headers_semantics() {
+        let headers = vec![
+            (b"Host".to_vec(), b"example.com".to_vec()),
+            (b"Cookie".to_vec(), b"a=1".to_vec()),
+            (b"cookie".to_vec(), b"b=2".to_vec()),
+            (b"Authorization".to_vec(), b"Bearer one".to_vec()),
+            (b"authorization".to_vec(), b"Bearer two".to_vec()),
+        ];
+        assert_eq!(
+            lookup_header(&headers, "host").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(lookup_header(&headers, "Host"), None);
+        assert_eq!(
+            lookup_header(&headers, "cookie").as_deref(),
+            Some("a=1; b=2")
+        );
+        assert_eq!(
+            lookup_header(&headers, "authorization").as_deref(),
+            Some("Bearer one, Bearer two")
+        );
+        assert_eq!(lookup_header(&headers, "x-missing"), None);
+
+        let latin1 = vec![(b"X-Note".to_vec(), vec![b'a', 0xe9])];
+        assert_eq!(lookup_header(&latin1, "x-note").as_deref(), Some("a\u{e9}"));
     }
 }

@@ -20,6 +20,33 @@ use crate::value::Value;
 /// One result row: column names with decoded values, in column order.
 pub type Row = Vec<(String, Value)>;
 
+/// Result rows sharing one column-name slice so decoding allocates column names
+/// once per query instead of once per row.
+#[derive(Debug, Clone, Default)]
+pub struct RowSet {
+    pub columns: Arc<[String]>,
+    pub rows: Vec<Vec<Value>>,
+}
+
+impl RowSet {
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// Append another chunk's rows into this set, adopting its column names if
+    /// this set is currently empty.
+    pub fn extend_from(&mut self, other: Self) {
+        if self.columns.is_empty() && !other.columns.is_empty() {
+            self.columns = other.columns;
+        }
+        self.rows.extend(other.rows);
+    }
+}
+
 /// The rows and count queries for one paginated page.
 pub struct PageQueries<'a> {
     pub rows_sql: &'a str,
@@ -33,6 +60,17 @@ fn extract_count(rows: &[Row]) -> Result<i64, DbError> {
         .first()
         .and_then(|row| row.first())
         .map(|(_, value)| value);
+    match value {
+        Some(Value::Int(count)) => Ok(*count),
+        _ => Err(DbError::new(
+            ErrorKind::Type,
+            "expected an integer count from the count query",
+        )),
+    }
+}
+
+fn extract_count_set(set: &RowSet) -> Result<i64, DbError> {
+    let value = set.rows.first().and_then(|row| row.first());
     match value {
         Some(Value::Int(count)) => Ok(*count),
         _ => Err(DbError::new(
@@ -109,6 +147,14 @@ fn decode(row: &tokio_postgres::Row) -> Result<Row, DbError> {
         .iter()
         .enumerate()
         .map(|(i, col)| Ok((col.name().to_owned(), decode_cell(row, i, col.type_())?)))
+        .collect()
+}
+
+fn decode_values(row: &tokio_postgres::Row, types: &[&Type]) -> Result<Vec<Value>, DbError> {
+    types
+        .iter()
+        .enumerate()
+        .map(|(i, ty)| decode_cell(row, i, ty))
         .collect()
 }
 
@@ -230,6 +276,25 @@ async fn run_fetch(conn: &Object, sql: &str, values: &[Value]) -> Result<Vec<Row
     rows.iter().map(decode).collect()
 }
 
+async fn run_fetch_set(conn: &Object, sql: &str, values: &[Value]) -> Result<RowSet, DbError> {
+    let stmt = conn
+        .prepare_cached(sql)
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    let raw_rows = conn
+        .query(&stmt, &params(values))
+        .await
+        .map_err(|e| DbError::from_driver(&e))?;
+    let stmt_cols = stmt.columns();
+    let columns: Arc<[String]> = stmt_cols.iter().map(|c| c.name().to_owned()).collect();
+    let types: Vec<&Type> = stmt_cols.iter().map(|c| c.type_()).collect();
+    let rows = raw_rows
+        .iter()
+        .map(|row| decode_values(row, &types))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(RowSet { columns, rows })
+}
+
 async fn run_execute(conn: &Object, sql: &str, values: &[Value]) -> Result<u64, DbError> {
     let stmt = conn
         .prepare_cached(sql)
@@ -281,6 +346,20 @@ async fn fetch_with_recovery(
         Err(err) if is_stale_plan(&err) => {
             conn.statement_cache.remove(sql, &[]);
             run_fetch(conn, sql, values).await
+        }
+        other => other,
+    }
+}
+
+async fn fetch_set_with_recovery(
+    conn: &Object,
+    sql: &str,
+    values: &[Value],
+) -> Result<RowSet, DbError> {
+    match run_fetch_set(conn, sql, values).await {
+        Err(err) if is_stale_plan(&err) => {
+            conn.statement_cache.remove(sql, &[]);
+            run_fetch_set(conn, sql, values).await
         }
         other => other,
     }
@@ -479,6 +558,48 @@ impl Database {
         let outcome = fetch_with_recovery(lease.get()?, sql, values).await;
         lease.release();
         outcome
+    }
+
+    pub async fn fetch_set(&self, sql: &str, values: &[Value]) -> Result<RowSet, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("fetch", sql, values);
+        if let DatabaseBackend::Sqlite(sqlite) = &self.backend {
+            return sqlite.acquire().await?.fetch_set(sql, values).await;
+        }
+        if let DatabaseBackend::Mysql { pool: mysql, .. } = &self.backend {
+            let mut lease = mysql.acquire().await?;
+            let outcome = lease.fetch_set(sql, values).await;
+            if outcome.is_ok() {
+                lease.release();
+            }
+            return outcome;
+        }
+        let lease = self.acquire().await?;
+        let outcome = fetch_set_with_recovery(lease.get()?, sql, values).await;
+        lease.release();
+        outcome
+    }
+
+    pub async fn fetch_page_set(
+        &self,
+        queries: &PageQueries<'_>,
+        concurrent: bool,
+    ) -> Result<(RowSet, i64), DbError> {
+        if concurrent && self.supports_concurrent_reads() {
+            let (count_set, rows) = tokio::try_join!(
+                self.fetch_set(queries.count_sql, queries.count_params),
+                self.fetch_set(queries.rows_sql, queries.rows_params),
+            )?;
+            return Ok((rows, extract_count_set(&count_set)?));
+        }
+        let count_set = self
+            .fetch_set(queries.count_sql, queries.count_params)
+            .await?;
+        let total = extract_count_set(&count_set)?;
+        let rows = self
+            .fetch_set(queries.rows_sql, queries.rows_params)
+            .await?;
+        Ok((rows, total))
     }
 
     /// Whether the pool can safely run two read statements concurrently.
@@ -897,6 +1018,60 @@ impl Transaction {
         let count_rows = self.fetch(queries.count_sql, queries.count_params).await?;
         let total = extract_count(&count_rows)?;
         let rows = self.fetch(queries.rows_sql, queries.rows_params).await?;
+        Ok((rows, total))
+    }
+
+    pub async fn fetch_set(&self, sql: &str, values: &[Value]) -> Result<RowSet, DbError> {
+        #[cfg(feature = "sql-trace")]
+        self.trace.record("fetch", sql, values);
+        match &self.backend {
+            TransactionBackend::Sqlite { primary, .. } => {
+                self.ensure_not_interrupted()?;
+                let mut flight = SqliteFlight {
+                    poisoned: &self.poisoned,
+                    armed: true,
+                };
+                let outcome = primary.fetch_set(sql, values).await;
+                flight.armed = false;
+                self.settle(sql, &outcome);
+                outcome
+            }
+            TransactionBackend::Finished => Err(DbError::new(
+                ErrorKind::Other,
+                "transaction already finished",
+            )),
+            TransactionBackend::Mysql(mysql) => {
+                let outcome = mysql.lock().await.fetch_set(sql, values).await;
+                self.settle(sql, &outcome);
+                outcome
+            }
+            TransactionBackend::Postgres { tls, .. } => {
+                let conn = self.conn()?;
+                let mut flight = Flight {
+                    poisoned: &self.poisoned,
+                    token: conn.cancel_token(),
+                    tls: tls.clone(),
+                    armed: true,
+                };
+                let outcome = run_fetch_set(conn, sql, values).await;
+                flight.armed = false;
+                self.settle(sql, &outcome);
+                outcome
+            }
+        }
+    }
+
+    pub async fn fetch_page_set(
+        &self,
+        queries: &PageQueries<'_>,
+    ) -> Result<(RowSet, i64), DbError> {
+        let count_set = self
+            .fetch_set(queries.count_sql, queries.count_params)
+            .await?;
+        let total = extract_count_set(&count_set)?;
+        let rows = self
+            .fetch_set(queries.rows_sql, queries.rows_params)
+            .await?;
         Ok((rows, total))
     }
 

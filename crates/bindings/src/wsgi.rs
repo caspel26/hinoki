@@ -306,7 +306,7 @@ fn plain(status: u16, text: &'static str) -> Delivery {
                 text.len().to_string().into_bytes(),
             ),
         ],
-        body: text.as_bytes().to_vec(),
+        body: bytes::Bytes::from_static(text.as_bytes()),
     })
 }
 
@@ -478,12 +478,12 @@ impl Backend for WsgiBackend {
             }) => Answer {
                 status,
                 headers,
-                body: Vec::new(),
+                body: bytes::Bytes::new(),
             },
             Delivery::Upgrade(_) => Answer {
                 status: 500,
                 headers: Vec::new(),
-                body: Vec::new(),
+                body: bytes::Bytes::new(),
             },
         }
     }
@@ -528,7 +528,8 @@ impl WsgiServer {
         shutdown_timeout=10.0, max_header_bytes=32_768, body_read_timeout=10.0,
         fd=None, write_timeout=30.0, tls_cert=None, tls_key=None, http2=false,
         access_log=None, access_log_skip=None, access_log_slow_ms=None,
-        access_log_sink=None, server_timing=false, compression=None, metrics=None
+        access_log_sink=None, server_timing=false, compression=None, metrics=None,
+        reuse_port=false
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start(
@@ -556,6 +557,7 @@ impl WsgiServer {
         server_timing: bool,
         compression: Option<&Bound<'_, PyDict>>,
         metrics: Option<&Bound<'_, PyDict>>,
+        reuse_port: bool,
     ) -> PyResult<Self> {
         let compression = crate::compression::parse(compression)?;
         // A WSGI callable has no Hinoki routes: every answer is route "".
@@ -593,6 +595,7 @@ impl WsgiServer {
             ),
             server_timing,
             compression,
+            reuse_port,
         )?;
         config.metrics = metrics.as_ref().map(|m| Arc::clone(&m.registry));
         let drain = config.shutdown_timeout;

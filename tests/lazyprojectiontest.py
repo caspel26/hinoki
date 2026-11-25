@@ -9,6 +9,7 @@ import datetime
 import gc
 import weakref
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any, ClassVar, cast
 
@@ -24,7 +25,7 @@ from hinoki import (
 )
 from hinoki.cli.routes import lanes_of
 from hinoki.db import Database, DatabaseModule
-from hinoki.errors import MultipleObjectsReturned
+from hinoki.errors import FieldError, MultipleObjectsReturned
 from hinoki.orm import (
     ManyToMany,
     Model,
@@ -35,6 +36,7 @@ from hinoki.orm import (
     many_to_many,
     use_database,
 )
+from hinoki.orm import queryset as qs_mod
 from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.orm.projection import (
     _PLAN_CACHE,
@@ -43,6 +45,7 @@ from hinoki.orm.projection import (
     _ProjectedPage,
     compile_projection_plan,
 )
+from hinoki.orm.queryset import QuerySet
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.pipeline import project_response
@@ -930,3 +933,124 @@ async def test_project_response_keeps_projected_item_unmaterialized(
         assert isinstance(stripped, dict)
         assert set(stripped) == {"id", "title"}
         assert "views" not in stripped
+
+
+def test_select_sql_cache_hits_dialects_bounds_and_safety(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    qs_mod._SELECT_SQL_CACHE.pop(ProjArticle, None)
+    calls = 0
+    real_compile = core.compile_query
+
+    def counting_compile(*args: Any, **kwargs: Any) -> tuple[str, list[Any]]:
+        nonlocal calls
+        calls += 1
+        return real_compile(*args, **kwargs)
+
+    monkeypatch.setattr(core, "compile_query", counting_compile)
+
+    # First compile is a miss; second with different bound value is a hit
+    sql1, p1 = ProjArticle.filter(id=1).limit(2).compile(dialect="sqlite")
+    sql2, p2 = ProjArticle.filter(id=99).limit(5).compile(dialect="sqlite")
+    assert sql1 == sql2
+    assert p1 == [1, 2]
+    assert p2 == [99, 5]
+    assert calls == 1
+
+    # Different dialect produces dialect-specific placeholders (miss -> hit)
+    pg_sql1, pg_p1 = ProjArticle.filter(id=1).limit(2).compile(dialect="postgres")
+    pg_sql2, pg_p2 = ProjArticle.filter(id=2).limit(3).compile(dialect="postgres")
+    assert pg_sql1 == pg_sql2
+    assert pg_sql1 != sql1
+    assert pg_p1 == [1, 2]
+    assert pg_p2 == [2, 3]
+    assert calls == 2
+
+    # `contains` bypasses cache (pattern escaping depends on value & dialect)
+    c1, cp1 = ProjArticle.filter(title__contains="foo").compile(dialect="sqlite")
+    c2, cp2 = ProjArticle.filter(title__contains="bar").compile(dialect="sqlite")
+    assert c1 == c2
+    assert cp1 != cp2
+    assert calls == 4
+
+    # `in` distinguishes arity and empty list
+    in0_sql, in0_p = ProjArticle.filter(id__in=[]).compile(dialect="sqlite")
+    in2_sql, in2_p = ProjArticle.filter(id__in=[1, 2]).compile(dialect="sqlite")
+    in2_sql2, in2_p2 = ProjArticle.filter(id__in=[3, 4]).compile(dialect="sqlite")
+    assert in0_p == []
+    assert in2_sql == in2_sql2
+    assert in2_sql != in0_sql
+    assert in2_p == [1, 2]
+    assert in2_p2 == [3, 4]
+    assert calls == 6
+
+    # Bounded LRU eviction respects _SELECT_SQL_CACHE_MAX
+    monkeypatch.setattr(qs_mod, "_SELECT_SQL_CACHE_MAX", 3)
+    qs_mod._SELECT_SQL_CACHE.pop(ProjArticle, None)
+    ProjArticle.filter(id=1).compile(dialect="sqlite")
+    ProjArticle.filter(title="a").compile(dialect="sqlite")
+    ProjArticle.filter(views=1).compile(dialect="sqlite")
+    ProjArticle.filter(id=1, title="a").compile(dialect="sqlite")
+    assert len(qs_mod._SELECT_SQL_CACHE[ProjArticle]) == 3
+
+    # SQLite Decimal range refusal is never cached
+    class DecimalItem(Model):
+        id: int = field(primary_key=True)
+        price: Decimal
+
+    with pytest.raises(FieldError):
+        DecimalItem.filter(price__gt=Decimal("1.00")).compile(dialect="sqlite")
+    assert DecimalItem not in qs_mod._SELECT_SQL_CACHE
+
+
+async def test_model_aget_as_fast_path_avoids_queryset_and_preserves_parity(
+    db: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with use_database(db):
+        # Warm plan & SQL caches
+        warmed = await ProjArticle.aget_as(ArticleOut, id=1)
+        assert isinstance(warmed, _ProjectedItem)
+        assert warmed.title == "First"
+
+        # Hot path allocates zero QuerySet instances
+        def forbid_queryset(*_args: Any, **_kwargs: Any) -> None:
+            raise AssertionError("QuerySet should not be allocated on fast path")
+
+        monkeypatch.setattr(QuerySet, "__init__", forbid_queryset)
+
+        found = await ProjArticle.aget_as(ArticleOut, id=1)
+        assert isinstance(found, _ProjectedItem)
+        assert found._materialized is None
+        assert found.id == 1
+        assert found.title == "First"
+
+        found_opt = await ProjArticle.aget_or_none_as(ArticleOut, id=2)
+        assert found_opt is not None
+        assert found_opt.title == "Second"
+
+        assert await ProjArticle.aget_or_none_as(ArticleOut, id=999) is None
+        with pytest.raises(ProjArticle.NotFound):
+            await ProjArticle.aget_as(ArticleOut, id=999)
+        with pytest.raises(MultipleObjectsReturned):
+            await ProjArticle.aget_as(ArticleOut)
+        with pytest.raises(MultipleObjectsReturned):
+            await ProjArticle.aget_or_none_as(ArticleOut)
+
+        # Multi-column equality also uses fast path
+        multi = await ProjArticle.aget_as(ArticleOut, id=1, title="First")
+        assert multi.id == 1
+
+        monkeypatch.undo()
+
+        # Complex filters, ordering, and prefetches still fall back cleanly
+        filtered = await ProjArticle.aget_as(ArticleOut, id__gte=1, title="Second")
+        assert filtered.id == 2
+        with_pf = (
+            await ProjArticle.filter(id=1)
+            .select_related("author")
+            .prefetch_related("tags")
+            .aget_as(ArticleWithTagsOut)
+        )
+        assert with_pf.author is not None
+        assert [t.label for t in with_pf.tags] == ["rust"]

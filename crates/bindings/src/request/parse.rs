@@ -105,6 +105,53 @@ pub fn join_headers<N: AsRef<[u8]>, V: AsRef<[u8]>>(headers: &[(N, V)]) -> Vec<(
     joined
 }
 
+/// Look up one lower-case header name without building the full header map.
+/// Matches `join_headers` semantics: repeated values are joined with `"; "`
+/// for `cookie` and `", "` otherwise, and any non-lower-case lookup key returns
+/// `None`.
+pub fn lookup_header<N: AsRef<[u8]>, V: AsRef<[u8]>>(
+    headers: &[(N, V)],
+    name: &str,
+) -> Option<String> {
+    if name.chars().any(char::is_uppercase) {
+        return None;
+    }
+    if !name.is_ascii()
+        || !headers
+            .iter()
+            .all(|(k, v)| k.as_ref().is_ascii() && v.as_ref().is_ascii())
+    {
+        return join_headers(headers)
+            .into_iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v);
+    }
+    lookup_ascii_header(headers, name)
+}
+
+fn lookup_ascii_header<N: AsRef<[u8]>, V: AsRef<[u8]>>(
+    headers: &[(N, V)],
+    name: &str,
+) -> Option<String> {
+    let target = name.as_bytes();
+    let separator = if name == "cookie" { "; " } else { ", " };
+    let mut joined: Option<String> = None;
+    for (h_name, h_val) in headers {
+        if !h_name.as_ref().eq_ignore_ascii_case(target) {
+            continue;
+        }
+        let text = std::str::from_utf8(h_val.as_ref()).ok()?;
+        match &mut joined {
+            Some(existing) => {
+                existing.push_str(separator);
+                existing.push_str(text);
+            }
+            None => joined = Some(text.to_owned()),
+        }
+    }
+    joined
+}
+
 /// Latin-1 bytes as a `String`; plain ASCII (every real header) skips the
 /// per-byte widening.
 fn latin1(bytes: &[u8]) -> String {

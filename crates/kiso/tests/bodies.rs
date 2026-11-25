@@ -32,7 +32,7 @@ fn answer(status: u16, body: &[u8]) -> Answer {
             b"content-length".to_vec(),
             body.len().to_string().into_bytes(),
         )],
-        body: body.to_vec(),
+        body: bytes::Bytes::copy_from_slice(body),
     }
 }
 

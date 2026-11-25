@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Awaitable, Mapping, MutableMapping
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 
 from hinoki import core
 from hinoki.access import Access
@@ -72,7 +72,7 @@ def header_map(scope: Scope) -> dict[str, str]:
 
 async def authorize(
     access: Access,
-    headers: dict[str, str],
+    headers: Mapping[str, str],
     query: dict[str, list[str]],
     *,
     route: str = "",
@@ -82,10 +82,19 @@ async def authorize(
     """Authenticate and check permissions for a protected action. ``query`` is
     the parsed query string, shared with the request built afterwards. ``route``
     and ``method`` name the action in an ``AuthRejected`` event."""
+    auth = access.auth
+    creds = Credentials(headers, query, session)
     try:
-        principal: Caller[Any] | None = await call_hook(
-            access.auth.authenticate, Credentials(headers, query, session)
-        )
+        if (
+            access._auth_is_async
+            and type(auth).authenticate is access._auth_fn
+            and "authenticate" not in auth.__dict__
+        ):
+            principal = await cast(
+                "Awaitable[Caller[Any] | None]", auth.authenticate(creds)
+            )
+        else:
+            principal = await call_hook(auth.authenticate, creds)
     except Unauthorized:
         await rejected("invalid", route, method)
         raise

@@ -33,7 +33,7 @@ impl Backend for Echo {
                 b"content-length".to_vec(),
                 body.len().to_string().into_bytes(),
             )],
-            body,
+            body: bytes::Bytes::from(body),
         }
     }
 }

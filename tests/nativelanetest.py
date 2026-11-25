@@ -1207,3 +1207,178 @@ def test_native_body_carries_the_peer_only_for_a_rate_limit(
     )
     body = build_native_body(cast(Any, None), cast(Any, binding), cast(Any, request))
     assert body.client == client
+
+
+async def test_kiso_fallback_lane_uses_deferred_json_and_preserves_parity(
+    tmp_path: Path,
+) -> None:
+    db_url = f"sqlite://{tmp_path / 'deferred_fallback.sqlite3'}"
+
+    @http.get("/plain")
+    async def plain() -> dict[str, int]:
+        return {"n": 1}
+
+    @http.get("/rows")
+    async def rows() -> list[dict[str, object]]:
+        return [{"id": 1, "name": "a"}]
+
+    @http.get("/rows-miss")
+    async def rows_miss() -> list[dict[str, object]]:
+        return [{"id": 1, "bad": float("nan")}]
+
+    @http.get("/bad-json", validate_response=False)
+    async def bad_json() -> dict[str, object]:
+        return {"bad": object()}
+
+    @http.get("/empty")
+    async def empty() -> None:
+        return None
+
+    @http.post("/atomic-bad", atomic=True, validate_response=False)
+    async def atomic_bad() -> dict[str, object]:
+        await LaneNote.acreate(id=77, title="rolled-back")
+        return {"bad": object()}
+
+    app = Hinoki(
+        include=[plain, rows, rows_miss, bad_json, empty, atomic_bad],
+        modules=[DatabaseModule(db_url), Holder()],
+    )
+    Holder.current.clear()
+    worker = KisoWorker(app, "127.0.0.1", 0, native_dispatch=False)
+    worker.core.set_ready(True)
+    await worker.pipeline.lifespan.startup()
+    try:
+        plain_binding = next(
+            b for b in worker.pipeline.bindings if b.route.path == "/plain"
+        )
+        atomic_binding = next(
+            b for b in worker.pipeline.bindings if b.route.path == "/atomic-bad"
+        )
+        deferred = await worker.pipeline.handle_native(
+            plain_binding, "r" * 32, {}, None, None, True
+        )
+        assert deferred.payload == {"n": 1} and deferred.body == b""
+
+        atomic_resp = await worker.pipeline.handle_native(
+            atomic_binding, "r" * 32, {}, None, None, True
+        )
+        assert atomic_resp.status == 500 and atomic_resp.payload is NO_PAYLOAD
+        db = Holder.current[-1]
+        assert await db.fetch("select id from lane_notes where id = 77") == []
+
+        for path, expected_status, expected_body in [
+            ("/plain", 200, b'{"n":1}'),
+            ("/rows", 200, b'[{"id":1,"name":"a"}]'),
+            ("/empty", 204, b""),
+        ]:
+            submission = worker.core.submit("GET", path, b"", [])
+            [request] = worker.core.drain(1)
+            await worker._serve(request)
+            reply = submission.reply()
+            assert reply is not None
+            assert reply[0] == expected_status
+            assert reply[2] == expected_body
+
+        for path in ("/rows-miss", "/bad-json"):
+            submission = worker.core.submit("GET", path, b"", [])
+            [request] = worker.core.drain(1)
+            await worker._serve(request)
+            reply = submission.reply()
+            assert reply is not None
+            assert reply[0] == 500
+    finally:
+        await worker.pipeline.lifespan.shutdown()
+
+
+def test_handoff_batch_returns_value_and_propagates_errors() -> None:
+    assert core.handoff_batch(lambda: 123) == 123
+
+    def explode() -> None:
+        raise RuntimeError("batch boom")
+
+    with pytest.raises(RuntimeError, match="batch boom"):
+        core.handoff_batch(explode)
+
+
+async def test_native_lane_avoids_eager_body_header_dict_and_empty_query_parse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parse_calls: list[bytes] = []
+    real_parse = core.parse_query_string
+
+    def counting_parse(raw: bytes, limit: int) -> dict[str, list[str]]:
+        parse_calls.append(raw)
+        return real_parse(raw, limit)
+
+    monkeypatch.setattr(core, "parse_query_string", counting_parse)
+
+    @http.get("/lane/lazy-auth", access=Access(TokenAuth()))
+    async def lazy_auth(who: Caller[str]) -> dict[str, str]:
+        return {"id": who.id}
+
+    app = Hinoki(include=[lazy_auth])
+    pipeline = app.asgi().pipeline
+    binding = pipeline.bindings[0]
+    source_calls = 0
+    header_dict_calls = 0
+    rid_reads = 0
+
+    class CountingRequest:
+        action = 0
+        native_handler = True
+        native_error = None
+        id_ignored = False
+        native_args: ClassVar[dict[str, object]] = {}
+        native_principal = None
+        query = b""
+        headers: ClassVar[list[tuple[bytes, bytes]]] = []
+        client = None
+
+        @property
+        def request_id(self) -> str:
+            nonlocal rid_reads
+            rid_reads += 1
+            return "rid-1"
+
+        @property
+        def header_dict(self) -> dict[str, str]:
+            nonlocal header_dict_calls
+            header_dict_calls += 1
+            return {"authorization": "Bearer reader-token"}
+
+        def header(self, name: str) -> str | None:
+            return "Bearer reader-token" if name == "authorization" else None
+
+    def make_source(_req: Any) -> Any:
+        nonlocal source_calls
+        source_calls += 1
+        return SimpleNamespace()
+
+    lane = NativeLane(pipeline, frozenset({0}), set(), lambda _req: None, make_source)
+    req = CountingRequest()
+    native_body = lane._request_data(cast("Any", req), 0, binding)
+    assert native_body is not None
+    assert native_body.source is None
+    assert native_body.header_dict is None
+    assert native_body.header_request is cast("Any", req)
+    assert source_calls == 0
+    assert header_dict_calls == 0
+
+    response = await pipeline.drive_native(binding, {}, native_body)
+    assert response.status == 200
+    assert response.payload == {"id": "u-reader"}
+    assert parse_calls == []
+    assert header_dict_calls == 0
+
+    captured_coros: list[Any] = []
+
+    def fake_run_native(coro: Any, *_args: Any) -> Any:
+        captured_coros.append(coro)
+        return SimpleNamespace(cancel=lambda: None)
+
+    monkeypatch.setattr(core, "run_native", fake_run_native)
+    assert lane.start(cast("Any", req)) is True
+    assert rid_reads == 1
+    assert source_calls == 0
+    for coro in captured_coros:
+        coro.close()

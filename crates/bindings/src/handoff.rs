@@ -78,6 +78,13 @@ pub(crate) fn batch<R>(body: impl FnOnce() -> R) -> R {
     body()
 }
 
+/// Run a Python callable inside [`batch`] so replies and spawns queued during
+/// the call flush immediately when it returns or raises.
+#[pyfunction]
+pub(crate) fn handoff_batch(body: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    batch(|| body.call0().map(Bound::unbind))
+}
+
 /// Give `sent` to the connection waiting on `sender`. `false` when nobody
 /// waits any more; within a batch that is known when the reply is queued.
 pub(crate) fn reply(sender: oneshot::Sender<Sent>, sent: Sent) -> bool {
@@ -301,7 +308,7 @@ mod tests {
         Sent::Whole(Reply {
             status,
             headers: Vec::new(),
-            body: Vec::new(),
+            body: bytes::Bytes::new(),
         })
     }
 
@@ -523,5 +530,46 @@ mod tests {
         assert_eq!(seen.recv_timeout(timeout).unwrap(), "dropped");
         let quiet = std::time::Duration::from_millis(50);
         assert!(seen.recv_timeout(quiet).is_err());
+    }
+
+    #[test]
+    fn handoff_batch_flushes_on_return_and_on_python_exception() {
+        Python::initialize();
+        Python::attach(|py| {
+            let (sender, mut receiver) = oneshot::channel();
+            let sender = Mutex::new(Some(sender));
+            let body = pyo3::types::PyCFunction::new_closure(
+                py,
+                None,
+                None,
+                move |_args, _kwargs| -> PyResult<i32> {
+                    if let Some(tx) = sender.lock().unwrap().take() {
+                        assert!(reply(tx, answer(201)));
+                    }
+                    Ok(42)
+                },
+            )
+            .unwrap();
+            let result: i32 = handoff_batch(body.as_any()).unwrap().extract(py).unwrap();
+            assert_eq!(result, 42);
+            assert_eq!(status_of(receiver.try_recv().unwrap()), 201);
+
+            let (sender, mut receiver) = oneshot::channel();
+            let sender = Mutex::new(Some(sender));
+            let failing = pyo3::types::PyCFunction::new_closure(
+                py,
+                None,
+                None,
+                move |_args, _kwargs| -> PyResult<()> {
+                    if let Some(tx) = sender.lock().unwrap().take() {
+                        assert!(reply(tx, answer(500)));
+                    }
+                    Err(pyo3::exceptions::PyRuntimeError::new_err("boom"))
+                },
+            )
+            .unwrap();
+            assert!(handoff_batch(failing.as_any()).is_err());
+            assert_eq!(status_of(receiver.try_recv().unwrap()), 500);
+        });
     }
 }

@@ -26,7 +26,7 @@ impl Backend for Echo {
         Answer {
             status: 200,
             headers: vec![(b"content-length".to_vec(), b"2".to_vec())],
-            body: b"ok".to_vec(),
+            body: bytes::Bytes::from_static(b"ok"),
         }
     }
 

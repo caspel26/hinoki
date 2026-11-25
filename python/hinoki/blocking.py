@@ -9,11 +9,37 @@ event loop itself, where blocking would freeze the whole worker.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
+import types
+import weakref
 from collections.abc import Callable, Coroutine
 from typing import Any
 
 from hinoki import context
+
+_CO_COROUTINE = inspect.CO_COROUTINE
+_ASYNC_HOOK_CACHE: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
+
+
+def is_coroutine_hook(hook: Callable[..., Any]) -> bool:
+    """Cached check for whether ``hook`` is a coroutine function."""
+    if isinstance(hook, (types.FunctionType, types.MethodType)):
+        if hook.__code__.co_flags & _CO_COROUTINE:
+            return True
+        target: object = hook.__func__ if isinstance(hook, types.MethodType) else hook
+    else:
+        target = hook
+    try:
+        cached = _ASYNC_HOOK_CACHE.get(target)
+    except TypeError:
+        return inspect.iscoroutinefunction(hook)
+    if cached is not None:
+        return cached
+    result = inspect.iscoroutinefunction(hook)
+    with contextlib.suppress(TypeError):
+        _ASYNC_HOOK_CACHE[target] = result
+    return result
 
 
 def refuse_event_loop() -> None:
@@ -64,7 +90,7 @@ async def call_hook(hook: Callable[..., Any], *arguments: Any) -> Any:
     Async hooks are awaited on the event loop. A plain ``def`` hook runs on the
     bounded sync executor (so blocking work and the sync model methods are safe
     in it) and counts toward the same queue limit as sync handlers."""
-    if inspect.iscoroutinefunction(hook):
+    if is_coroutine_hook(hook):
         return await hook(*arguments)
     runner = context.sync_runner.get()
     if runner is None:

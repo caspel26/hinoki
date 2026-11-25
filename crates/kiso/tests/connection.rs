@@ -29,7 +29,7 @@ fn answer(body: &str) -> Answer {
                 body.len().to_string().into_bytes(),
             ),
         ],
-        body: body.as_bytes().to_vec(),
+        body: bytes::Bytes::copy_from_slice(body.as_bytes()),
     }
 }
 
@@ -39,7 +39,7 @@ impl Backend for Fake {
             return Answer {
                 status: early.status(),
                 headers: vec![(b"content-length".to_vec(), b"0".to_vec())],
-                body: Vec::new(),
+                body: bytes::Bytes::new(),
             };
         }
         match request.path.as_str() {
@@ -55,7 +55,7 @@ impl Backend for Fake {
             "/switch" => Answer {
                 status: 101,
                 headers: vec![(b"upgrade".to_vec(), b"websocket".to_vec())],
-                body: Vec::new(),
+                body: bytes::Bytes::new(),
             },
             "/big" => answer(&"x".repeat(64 * 1024 * 1024)),
             "/echo" => {

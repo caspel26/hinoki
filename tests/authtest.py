@@ -13,6 +13,7 @@ from hinoki import (
     core,
     http,
 )
+from hinoki.auth import Credentials, _LazyHeaders
 from hinoki.errors import RegistrationError
 from hinoki.http.request import Request
 from tests.harness import Client, Pool
@@ -344,3 +345,72 @@ async def test_permission_members_and_strings_share_the_401_and_403_paths(
     assert (both.status, both.body) == (200, {"id": "u-both"})
     partial = await client.request("GET", "/mixed-edit", headers=bearer("typed-token"))
     assert (partial.status, partial.body["error"]) == (403, "forbidden")
+
+
+def test_caller_empty_permissions_reuses_singleton_and_rejects_empty_string() -> None:
+    a = Caller("u1", None)
+    b = Caller("u2", None, [])
+    c = Caller("u3", None, frozenset())
+    assert a.permissions is b.permissions is c.permissions
+    empty_iter: tuple[str, ...] = ()
+    assert Caller("u4", None, (p for p in empty_iter)).permissions == frozenset()
+    assert Caller("u5", None, [PostPermission.WRITE]).permissions == frozenset(
+        {"posts:write"}
+    )
+    for bad in ("", b""):
+        with pytest.raises(TypeError, match="not one string"):
+            Caller("u", None, bad)  # type: ignore[arg-type]
+
+
+def test_lazy_credentials_headers_avoids_full_dict_until_iterated() -> None:
+    dict_calls = 0
+    lookup_calls: list[str] = []
+
+    class FakePrepared:
+        def header(self, name: str) -> str | None:
+            lookup_calls.append(name)
+            return {"cookie": "sid=1", "authorization": "Bearer tok"}.get(name)
+
+        @property
+        def header_dict(self) -> dict[str, str]:
+            nonlocal dict_calls
+            dict_calls += 1
+            return {"cookie": "sid=1", "authorization": "Bearer tok", "host": "a"}
+
+    creds = Credentials(_LazyHeaders(FakePrepared()), {})  # type: ignore[arg-type]
+    assert creds.headers.get("cookie") == "sid=1"
+    assert creds.headers.get("missing", "fallback") == "fallback"
+    assert creds.headers["authorization"] == "Bearer tok"
+    assert "cookie" in creds.headers
+    assert "missing" not in creds.headers
+    non_str: object = 123
+    assert non_str not in creds.headers
+    with pytest.raises(KeyError):
+        _ = creds.headers["missing"]
+    assert dict_calls == 0
+    assert lookup_calls == [
+        "cookie",
+        "missing",
+        "authorization",
+        "cookie",
+        "missing",
+        "missing",
+    ]
+
+    # Full mapping operations lazily materialize header_dict once and cache it.
+    assert len(creds.headers) == 3
+    assert dict(creds.headers) == {
+        "cookie": "sid=1",
+        "authorization": "Bearer tok",
+        "host": "a",
+    }
+    assert creds.headers == {
+        "cookie": "sid=1",
+        "authorization": "Bearer tok",
+        "host": "a",
+    }
+    assert "cookie" in repr(creds.headers)
+    assert creds.headers.get("host") == "a"
+    assert creds.headers["host"] == "a"
+    assert "host" in creds.headers
+    assert dict_calls == 1

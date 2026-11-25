@@ -61,6 +61,7 @@ from hinoki.orm.context import current_database
 from hinoki.orm.naming import resolve_model_names
 from hinoki.orm.queryset import (
     QuerySet,
+    _projection_hooks,
     delete_keys,
     write_statement,
     write_transaction,
@@ -1806,8 +1807,35 @@ class Model:
             return None
 
     @classmethod
+    def _simple_get_conditions(cls, conditions: dict[str, Any]) -> bool:
+        if (
+            cls.__abstract__
+            or getattr(cls.all, "__func__", None)
+            is not getattr(Model.all, "__func__", None)
+            or getattr(cls.filter, "__func__", None)
+            is not getattr(Model.filter, "__func__", None)
+        ):
+            return False
+        columns = cls.__columns__
+        field_types = cls.__field_types__
+        return all(
+            value is not None
+            and "__" not in key
+            and key in columns
+            and field_types[key].kind != "decimal"
+            for key, value in conditions.items()
+        )
+
+    @classmethod
     async def aget_as[S: Schema](cls, schema: type[S], **conditions: Any) -> S:
         """Exactly one row projected to ``schema``."""
+        if cls._simple_get_conditions(conditions):
+            _, _, _, project_model_one, fallback = _projection_hooks()
+            result = await project_model_one(
+                cls, schema, conditions, current_database(), allow_none=False
+            )
+            if result is not fallback:
+                return cast("S", result)
         return await cls.filter(**conditions).aget_as(schema)
 
     @classmethod
@@ -1815,6 +1843,13 @@ class Model:
         cls, schema: type[S], **conditions: Any
     ) -> S | None:
         """At most one row projected to ``schema``, or ``None``."""
+        if cls._simple_get_conditions(conditions):
+            _, _, _, project_model_one, fallback = _projection_hooks()
+            result = await project_model_one(
+                cls, schema, conditions, current_database(), allow_none=True
+            )
+            if result is not fallback:
+                return cast("S | None", result)
         return await cls.filter(**conditions).aget_or_none_as(schema)
 
     @overload

@@ -341,7 +341,7 @@ class Binding:
     ) -> dict[str, object]:
         """Restore omitted query defaults, and place the validated body, in
         declaration order."""
-        if not self.native_defaults and body is None and self.principal_name is None:
+        if not self.native_defaults and body is None:
             return supplied
         defaults = dict(self.native_defaults)
         if body is not None:

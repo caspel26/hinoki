@@ -48,8 +48,9 @@ from hinoki.runtime.nativelane import (
     lane_refusal,
     needs_request_data,
 )
+from hinoki.runtime.pipeline import enforce_response
 from hinoki.runtime.recent import RequestRecorder
-from hinoki.runtime.responses import HTTPError, Response, StreamHandle
+from hinoki.runtime.responses import NO_PAYLOAD, HTTPError, Response, StreamHandle
 from hinoki.runtime.servercore import (
     build_server_core,
     claims_route_access,
@@ -178,6 +179,7 @@ class KisoWorker:
 
     # The routes Rust authenticates, with what it copied; set at startup.
     _route_auth: Mapping[int, tuple[Any, tuple[object, ...]]] = MappingProxyType({})
+    reuse_port: bool = False
 
     def __init__(  # noqa: PLR0913 - one parameter per native limit
         self,
@@ -194,6 +196,7 @@ class KisoWorker:
         http2: bool = False,
         backlog: int = 1024,
         listener_fd: int | None = None,
+        reuse_port: bool = False,
         parent: int | None = None,
         native_dispatch: bool = True,
         access_log: str | None = None,
@@ -233,6 +236,7 @@ class KisoWorker:
         # An inherited listening descriptor (a supervisor owns the socket); the
         # native server takes it over. Without one, the worker binds itself.
         self.listener_fd = listener_fd
+        self.reuse_port = reuse_port
         # The pid of the supervisor that started this worker, if any: the worker
         # stops when its parent is no longer that process.
         self.parent = parent
@@ -286,7 +290,9 @@ class KisoWorker:
             if self.listener_fd is None:
                 # Bound only now, after the startup succeeded: a failed startup
                 # leaves nothing listening.
-                listener = open_listener(self.host, self.port, self.backlog)
+                listener = open_listener(
+                    self.host, self.port, self.backlog, reuse_port=self.reuse_port
+                )
                 self.listener_fd = listener.detach()
             fd, self.listener_fd = self.listener_fd, None  # taken, even on failure
             server = core.KisoServer.start(
@@ -499,6 +505,9 @@ class KisoWorker:
             loop.call_soon(self._wake, server)
 
     def _drain(self) -> None:
+        core.handoff_batch(self._drain_loop)
+
+    def _drain_loop(self) -> None:
         while True:
             batch = self.core.drain(DRAIN_BATCH)
             for request in batch:
@@ -645,7 +654,11 @@ class KisoWorker:
                 raise RuntimeError("native handler request has no action")
             binding = self.pipeline.bindings[action]
             native_body = (
-                build_native_body(RustBody(request), binding, request)
+                build_native_body(
+                    RustBody(request) if binding.body_param is not None else None,
+                    binding,
+                    request,
+                )
                 if needs_request_data(binding)
                 else None
             )
@@ -655,6 +668,7 @@ class KisoWorker:
                 request.native_args,
                 request.native_error,
                 native_body,
+                True,
             ), True
         failure = request._take_native_failure()
         if failure is not None:
@@ -687,11 +701,7 @@ class KisoWorker:
             if response.stream is not None:
                 await self._send_stream(request, response, response.stream)
             elif native_final:
-                request.respond_final(
-                    response.status,
-                    [*response.headers, *_rate_limit_pairs()],
-                    response.body,
-                )
+                await self._send_native_final(request, response)
             else:
                 # Set by the pipeline in this task's context while it answered.
                 request.respond_routed(
@@ -705,6 +715,42 @@ class KisoWorker:
             # The route's own headers may be what failed; the 500 must not reuse them.
             context.route_headers.set(())
             self._fail(request)
+
+    async def _send_native_final(
+        self, request: core.PreparedRequest, response: Response
+    ) -> None:
+        headers = [*response.headers, *_rate_limit_pairs()]
+        payload = getattr(response, "payload", NO_PAYLOAD)
+        if payload is not NO_PAYLOAD:
+            try:
+                if response.strict:
+                    self._send_native_strict(request, response.status, headers, payload)
+                else:
+                    request.respond_final_json(response.status, headers, payload)
+            except Exception as error:
+                err = await self.pipeline.handle_native_error(error, request.request_id)
+                request.respond_final(err.status, err.headers, err.body)
+            return
+        request.respond_final(response.status, headers, response.body)
+
+    def _send_native_strict(
+        self,
+        request: core.PreparedRequest,
+        status: int,
+        headers: list[tuple[bytes, bytes]],
+        payload: object,
+    ) -> None:
+        try:
+            request.respond_final_json(status, headers, payload, True)
+            return
+        except Exception:  # noqa: S110 - the checked path below answers it
+            pass
+        action = request.action
+        if action is not None:
+            binding = self.pipeline.bindings[action]
+            object.__setattr__(binding, "fused_check", False)
+            enforce_response(binding, payload)
+        request.respond_final_json(status, headers, payload)
 
     async def _send_stream(
         self, request: core.PreparedRequest, response: Response, handle: StreamHandle
@@ -887,6 +933,7 @@ def build_worker(  # noqa: PLR0913 - the supervisor's descriptors and the metric
     settings: ServerSettings,
     *,
     listener_fd: int | None = None,
+    reuse_port: bool = False,
     parent: int | None = None,
     dev: bool = False,
     metrics_fd: int | None = None,
@@ -913,6 +960,7 @@ def build_worker(  # noqa: PLR0913 - the supervisor's descriptors and the metric
         tls_key_file=settings.tls_key_file,
         http2=settings.http2,
         listener_fd=listener_fd,
+        reuse_port=reuse_port,
         parent=parent,
         ready_fd=ready_fd,
         access_log=access_style(settings, dev),
@@ -964,6 +1012,7 @@ def run_wsgi_worker(args: argparse.Namespace, host: str, port: int) -> int:
         port,
         settings,
         listener_fd=args.fd,
+        reuse_port=args.reuse_port,
         parent=args.parent,
         dev=args.dev,
         metrics_fd=args.metrics_fd,
@@ -981,6 +1030,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--fd", type=int, help="an inherited listening socket (host and port ignored)"
     )
+    parser.add_argument("--reuse-port", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--parent", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--dev", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--metrics-fd", type=int, help=argparse.SUPPRESS)
@@ -994,6 +1044,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="how the target is called (default asgi)",
     )
     args = parser.parse_args(argv)
+    if args.fd is not None and args.reuse_port:
+        parser.error("--fd and --reuse-port cannot be used together")
     if args.parent is not None:
         take_interrupts()
         if os.getppid() != args.parent:
@@ -1019,6 +1071,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         port,
         settings,
         listener_fd=args.fd,
+        reuse_port=args.reuse_port,
         parent=args.parent,
         dev=args.dev,
         metrics_fd=args.metrics_fd,

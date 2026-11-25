@@ -68,7 +68,7 @@ fn answer(body: &[u8]) -> Answer {
                 body.len().to_string().into_bytes(),
             ),
         ],
-        body: body.to_vec(),
+        body: Bytes::copy_from_slice(body),
     }
 }
 

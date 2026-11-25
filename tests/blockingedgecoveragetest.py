@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import functools
+import inspect
 import threading
 from typing import Any
 
 import pytest
 
 from hinoki import context
-from hinoki.blocking import call_hook, run_sync
+from hinoki.blocking import call_hook, is_coroutine_hook, run_sync
 
 
 @pytest.mark.asyncio
@@ -103,3 +105,44 @@ async def test_call_hook_awaits_async_hooks_and_returns_plain_sync_values() -> N
         assert await call_hook(lambda value: value * 3, 4) == 12
     finally:
         context.sync_runner.reset(token)
+
+
+def test_is_coroutine_hook_caches_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+    real = inspect.iscoroutinefunction
+
+    def counting(obj: Any) -> bool:
+        nonlocal calls
+        calls += 1
+        return real(obj)
+
+    monkeypatch.setattr(inspect, "iscoroutinefunction", counting)
+
+    async def async_fn() -> None: ...
+
+    def sync_fn() -> int:
+        return 1
+
+    class Holder:
+        async def async_method(self) -> None: ...
+        def sync_method(self) -> int:
+            return 2
+
+    holder = Holder()
+
+    assert is_coroutine_hook(async_fn) is True
+    assert is_coroutine_hook(holder.async_method) is True
+    assert calls == 0
+
+    assert is_coroutine_hook(sync_fn) is False
+    assert is_coroutine_hook(sync_fn) is False
+    assert calls == 1
+
+    assert is_coroutine_hook(holder.sync_method) is False
+    assert is_coroutine_hook(Holder().sync_method) is False
+    assert calls == 2
+
+    partial_async = functools.partial(async_fn)
+    assert is_coroutine_hook(partial_async) is True
+    assert is_coroutine_hook(partial_async) is True
+    assert calls == 3

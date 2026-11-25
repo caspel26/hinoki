@@ -511,3 +511,87 @@ def test_a_jwt_key_takes_a_secret_and_never_shows_it() -> None:
     assert key.material() == material.encode()
     assert material not in repr(key)
     assert key.material() == JWTKey(None, "HS256", material).material()
+
+
+def test_private_jwt_verifier_verify_claims_matches_decode_and_errors() -> None:
+    specs: list[tuple[str | None, str, bytes, bool]] = [("k1", "HS256", SECRET, False)]
+    verifier = core._JWTVerifier(specs)
+    rich = {
+        **GOOD,
+        "count": 42,
+        "big": 10**30,
+        "ratio": 1.25,
+        "flag": True,
+        "empty": None,
+        "nested": {"items": [1, "two", False]},
+    }
+    token = oracle_hs256(rich, kid="k1")
+    rules = (1_000, 0, "https://api.test", "blog", True)
+    assert verifier.verify_claims(token, rules) == core.decode_json(
+        verifier.verify(token, rules)
+    )
+
+    with pytest.raises(ValueError, match="expired"):
+        verifier.verify_claims(token, (2_000, 0, "https://api.test", "blog", True))
+
+    wrong_sig = oracle_hs256(GOOD, key=b"x" * 40, kid="k1")
+    with pytest.raises(ValueError, match="signature"):
+        verifier.verify_claims(wrong_sig, rules)
+
+    head_hs512 = b64(b'{"alg":"HS512","kid":"k1"}')
+    body_good = b64(json.dumps(GOOD).encode())
+    with pytest.raises(ValueError, match="algorithm"):
+        verifier.verify_claims(f"{head_hs512}.{body_good}.AAAA", rules)
+
+    deep_json = (
+        b'{"exp":2000,"iss":"https://api.test","aud":"blog","d":'
+        + b"[" * 140
+        + b"1"
+        + b"]" * 140
+        + b"}"
+    )
+    head = b64(b'{"alg":"HS256","kid":"k1"}')
+    body = b64(deep_json)
+    sig = b64(hmac.new(SECRET, f"{head}.{body}".encode(), hashlib.sha256).digest())
+    with pytest.raises(ValueError, match="malformed"):
+        verifier.verify_claims(f"{head}.{body}.{sig}", rules)
+
+
+async def test_jwt_verifier_is_cached_and_invalidated_on_key_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class CachedTokens(Tokens):
+        keys: ClassVar[Sequence[JWTKey]] = (JWTKey("k1", "HS256", SECRET),)
+
+    auth = CachedTokens()
+    token1 = oracle_hs256(GOOD, kid="k1")
+    assert await auth.resolve_token(token1) is not None
+    first_entry = auth._verifier_entry
+    assert first_entry is not None
+    assert await auth.resolve_token(token1) is not None
+    assert auth._verifier_entry is first_entry
+
+    # Class-level reassignment invalidates the cache.
+    secret2 = b"m" * 40
+    monkeypatch.setattr(CachedTokens, "keys", (JWTKey("k2", "HS256", secret2),))
+    token2 = oracle_hs256(GOOD, key=secret2, kid="k2")
+    assert await auth.resolve_token(token1) is None
+    assert await auth.resolve_token(token2) is not None
+    second_entry = auth._verifier_entry
+    assert second_entry is not None and second_entry is not first_entry
+
+    # Mutable list keys reuse cache until mutated in-place.
+    mutable_keys = [JWTKey("k1", "HS256", SECRET)]
+    object.__setattr__(auth, "keys", mutable_keys)
+    assert await auth.resolve_token(token1) is not None
+    list_entry = auth._verifier_entry
+    assert list_entry is not None
+    assert await auth.resolve_token(token1) is not None
+    assert auth._verifier_entry is list_entry
+
+    mutable_keys.append(JWTKey("k2", "HS256", secret2))
+    assert await auth.resolve_token(token2) is not None
+    assert auth._verifier_entry is not list_entry
+
+    mutable_keys.clear()
+    assert await auth.resolve_token(token1) is None
