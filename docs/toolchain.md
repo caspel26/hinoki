@@ -29,7 +29,7 @@ The PyO3 extension build backend requires maturin ≥ 1.16.0 (`[build-system]` i
 | Format | `uv run --locked ruff format .` |
 | Types + typing fixtures | `uv run --locked mypy` (checks `python/hinoki`, `tests` and `examples`) |
 | Python cognitive complexity | `uv run --locked complexipy . --failed` |
-| Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
+| Rust cognitive complexity | Install `rust-code-analysis-cli` 0.0.25, then run `mkdir -p /tmp/hinoki-rust-complexity && rust-code-analysis-cli -m -p crates -O json --pr -o /tmp/hinoki-rust-complexity && python scripts/check_rust_complexity.py /tmp/hinoki-rust-complexity` |
 | Python tests + coverage | `uv run --locked pytest --cov` (runs `tests` and the tests of `examples/notes`, `examples/tracker`, `examples/blog` and `examples/mailroom`) |
 | Only the real-server tests | `uv run --locked pytest -m runtime` |
 | Rust format / lints / tests | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace` (see PyO3 setup below) |
