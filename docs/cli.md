@@ -142,7 +142,7 @@ uv run hinoki migrations sql 0001-initial
 `--app billing`); read-only `plan --check` and `plan --dry-run` without an app
 cover every app in dependency order. `sql` searches every app; `--app` narrows
 it when two apps share a migration name. `--name` is optional for a
-focused plan: Hinoki derives a stable slug from the first planned schema change
+focused plan: Hinoki derives a stable slug from the first planned table change
 (for example, `create-table-notes`); pass `--name initial-notes` to override
 it. All-app previews cannot use `--name`. Numbering is automatic. `apply`
 initializes the configured local SQLite database when no database is configured.
@@ -171,7 +171,7 @@ hinoki migrations --dir myapp/migrations apply
 hinoki migrations --dir myapp/migrations sql 0001-initial
 ```
 
-`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned schema change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. plan/status/apply target `--database`, then `HINOKI_DATABASE_URL`, then the `DatabaseModule` or `database` setting of the project's application, then the local SQLite file at `.hinoki/local.sqlite3` ([which database](migrations.md#which-database)); `plan`, `status` and `apply` print the chosen database and its source on standard error with the credentials masked, and stop with exit 2 when the project's application or database cannot be resolved. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the error itself does not repeat the URL. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
+`plan` requires `--models MODULE`; `--name` is an optional slug override and is derived from the first planned table change when omitted. `--dry-run` prints operations without writing files. Destructive operations require `--allow-destructive`. plan/status/apply target `--database`, then `HINOKI_DATABASE_URL`, then the `DatabaseModule` or `database` setting of the project's application, then the local SQLite file at `.hinoki/local.sqlite3` ([which database](migrations.md#which-database)); `plan`, `status` and `apply` print the chosen database and its source on standard error with the credentials masked, and stop with exit 2 when the project's application or database cannot be resolved. A URL given as an argument is visible in the process list and shell history, so keep a URL containing a password in the environment. When the connection fails, the command prints `error: database: …` with a `fix:` line and exits 1; the error itself does not repeat the URL. `sql NAME` prints a migration's SQL. Use a disposable database while reviewing migrations.
 
 On an animated terminal, `plan` and `apply` show a spinner while they work and finish with a timing line (`✔ applied   1.2s`); the commands' own output is printed unchanged before it. Piped output, `NO_COLOR`, `TERM=dumb`, `CI` and `HINOKI_ANIMATE=0` print only the commands' own output.
 

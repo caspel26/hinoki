@@ -75,11 +75,11 @@ ARROWS = (
     Arrow("M780 384 L830 384", "amber"),
 )
 
-LANE_LABEL = "Schema changes: explicit, never at startup"
+LANE_LABEL = "Table changes: explicit, never at startup"
 ALT = (
     "Architecture: Model, Schema and Endpoint declarations form one declared "
     "contract, which routing, validation, access and transactions, the OpenAPI "
-    "document, hinoki check rules and the development MCP all read. Schema "
+    "document, hinoki check rules and the development MCP all read. Table "
     "changes follow a separate lane: migrations plan, a reviewed SQL file, an "
     "explicit apply, then the database."
 )
