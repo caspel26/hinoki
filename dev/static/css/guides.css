@@ -20,11 +20,25 @@
   color: var(--hn-text-2);
   font-size: 14px;
   line-height: 1.55;
-  transition: border-color var(--hn-dur-1) var(--hn-ease), background var(--hn-dur-1) var(--hn-ease);
+  isolation: isolate;
+  transition: border-color var(--hn-dur-1) var(--hn-ease), transform var(--hn-dur-1) var(--hn-ease);
 }
 
 .hn-guides .prose > ul > li::marker {
   content: none;
+}
+
+/* Hover wash: a tinted layer that fades in, so only opacity changes. */
+.hn-guides .prose > ul > li::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--sec-wash, var(--hn-brand-tint));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--hn-dur-1) var(--hn-ease);
 }
 
 .hn-guides .prose > ul > li > a:first-child {
@@ -49,17 +63,31 @@
 }
 
 .hn-guides .prose > ul > li:has(> a:first-child:hover) {
-  border-color: var(--hn-brand);
-  background: var(--hn-surface-2);
+  border-color: var(--sec, var(--hn-brand));
+  transform: translateY(-1px);
+}
+
+.hn-guides .prose > ul > li:has(> a:first-child:hover)::before {
+  opacity: 1;
+}
+
+.hn-guides .prose > ul > li:has(> a:first-child:active) {
+  transform: translateY(0);
 }
 
 .hn-guides .prose > ul > li:has(> a:first-child:hover) > a:first-child {
-  color: var(--hn-brand);
+  color: var(--sec, var(--hn-brand));
 }
 
 .hn-guides .prose > ul > li:has(> a:first-child:focus-visible) {
-  outline: 2px solid var(--hn-brand);
+  outline: 2px solid var(--sec, var(--hn-brand));
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hn-guides .prose > ul > li:has(> a:first-child:is(:hover, :active)) {
+    transform: none;
+  }
 }
 
 .hn-guides .prose > ul > li code {

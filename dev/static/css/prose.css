@@ -125,12 +125,26 @@
   font-weight: 400;
   text-decoration: none;
   opacity: 0;
-  transition: opacity var(--hn-dur-1) var(--hn-ease);
+  transition: opacity var(--hn-dur-1) var(--hn-ease), color var(--hn-dur-1) var(--hn-ease);
 }
 
 :is(h1, h2, h3, h4):hover > .headerlink,
 .headerlink:focus-visible {
   opacity: 1;
+}
+
+/* Touch screens have no hover: keep the anchor faintly visible. */
+@media (hover: none) {
+  .headerlink {
+    opacity: 0.55;
+  }
+}
+
+/* After a click hinoki.js copies the link and marks the anchor for a moment. */
+.headerlink.is-copied {
+  opacity: 1;
+  color: var(--hn-green);
+  animation: hn-pop-in var(--hn-dur-1) var(--hn-ease);
 }
 
 .prose p,
@@ -324,7 +338,18 @@
 }
 
 .copy-btn.is-done {
+  background: color-mix(in srgb, var(--hn-green) 14%, transparent);
   color: var(--hn-green);
+}
+
+/* One-shot feedback after a click; nothing runs while the page is idle. */
+.copy-btn.is-done .i {
+  animation: hn-pop-in var(--hn-dur-1) var(--hn-ease);
+}
+
+@keyframes hn-pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @media (max-width: 560px) {
@@ -413,15 +438,29 @@
   font: 500 13px/1.4 var(--hn-font-sans);
   white-space: nowrap;
   cursor: pointer;
-  transition: color var(--hn-dur-1) var(--hn-ease), border-color var(--hn-dur-1) var(--hn-ease);
+  transition: color var(--hn-dur-1) var(--hn-ease), border-color var(--hn-dur-1) var(--hn-ease), transform var(--hn-dur-1) var(--hn-ease);
 }
 
 .tabbed-labels > label:hover {
   color: var(--hn-text);
 }
 
+.tabbed-labels > label:active {
+  transform: translateY(1px);
+}
+
 .tabbed-block {
   display: none;
+}
+
+/* The shown block fades in after a switch (hinoki.js adds .is-switched on the first change). */
+.tabbed-set.is-switched .tabbed-block {
+  animation: hn-tab-in var(--hn-dur-1) var(--hn-ease);
+}
+
+@keyframes hn-tab-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
 }
 
 .tabbed-block > .highlight {
@@ -454,7 +493,7 @@
 .tabbed-set:has(> input:nth-of-type(6):checked) > .tabbed-labels > label:nth-child(6),
 .tabbed-set:has(> input:nth-of-type(7):checked) > .tabbed-labels > label:nth-child(7),
 .tabbed-set:has(> input:nth-of-type(8):checked) > .tabbed-labels > label:nth-child(8) {
-  border-bottom-color: var(--hn-brand);
+  border-bottom-color: var(--sec, var(--hn-brand));
   background: none;
   color: var(--hn-text);
 }
