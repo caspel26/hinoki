@@ -1,6 +1,7 @@
 """Nested ``include`` lists and the ``routes`` command."""
 
 import json
+import re
 import types
 
 import pytest
@@ -10,7 +11,9 @@ from hinoki.__main__ import main
 from hinoki.errors import RegistrationError
 from hinoki.http.request import Request
 from hinoki.rules import qualified
+from hinoki.terminal import Style
 
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
 APP = "tests.routeinclusiontest:make_app"
 
 users = RouteGroup("/users")
@@ -68,6 +71,38 @@ def test_routes_command_lists_paths_in_order(
         ["GET", "/users"],
     ]
     assert "public" in lines[0]
+
+
+def test_routes_command_aligns_handlers_past_a_long_access(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "hinoki.cli.routes.access_of",
+        lambda route: (
+            "LongTokens[tracker:use-it]" if route.path == "/health" else "public"
+        ),
+    )
+    assert main(["routes", APP]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    starts = {line.index("tests.") for line in lines}
+    assert len(starts) == 1
+
+
+def test_routes_command_aligns_handlers_in_the_colored_output(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "hinoki.cli.routes.access_of",
+        lambda route: (
+            "LongTokens[tracker:use-it]" if route.path == "/health" else "public"
+        ),
+    )
+    monkeypatch.setattr(
+        "hinoki.cli.routes.Style.detect", lambda *_args: Style(color=True)
+    )
+    assert main(["routes", APP]) == 0
+    plain = [ANSI.sub("", line) for line in capsys.readouterr().out.splitlines()]
+    assert len({line.index("tests.") for line in plain}) == 1
 
 
 def test_routes_command_filters_and_prints_json(
