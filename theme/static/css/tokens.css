@@ -9,6 +9,14 @@
 }
 
 @font-face {
+  font-family: "Space Grotesk";
+  src: url("../fonts/space-grotesk-latin-wght.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "IBM Plex Mono";
   src: url("../fonts/ibm-plex-mono-latin-400.woff2") format("woff2");
   font-weight: 400;
@@ -35,6 +43,9 @@
 :root {
   --hn-font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --hn-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Display figures: KPIs, benchmark numbers and section indices (tabular, tight). */
+  --hn-font-display: "Space Grotesk", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --hn-font-num: var(--hn-font-display);
   --hn-radius-s: 8px;
   --hn-radius-m: 12px;
   --hn-radius-l: 20px;
@@ -79,6 +90,18 @@
   --icon-s: 16px;
   --icon-m: 20px;
   --icon-stroke: 1.75;
+
+  --hn-ctl-h: 40px;
+  --hn-ctl-h-lg: 44px;
+  --hn-r-ctl: 8px;
+  --hn-r-card: 12px;
+  --hn-lane-rust: var(--hn-wood);
+  --hn-lane-py: var(--hn-brand);
+  --hn-lane-you: var(--hn-green);
+
+  /* One opaque surface system for panels and cards. */
+  --hn-r-panel: 10px;
+  --hn-r-inner: 6px;
 }
 
 :root[data-theme="dark"] {
@@ -91,6 +114,8 @@
   --hn-edge: #2c2c34;
   --hn-edge-2: #3a3a44;
   --hn-edge-control: #6b6b78;
+  --hn-hair: rgb(255 255 255 / 0.06);
+  --hn-hair-2: rgb(255 255 255 / 0.10);
   --hn-text: #eeedf2;
   --hn-text-2: #cfcdd8;
   --hn-text-3: #9d9ca9;
@@ -136,6 +161,13 @@
   --hn-icon: #b9a0e7;
   --hn-icon-tint: #2a2734;
   --hn-watermark: rgb(185 160 231 / 0.05);
+  --hn-card-hi: #1b1a21;
+  --hn-card-edge-lit: rgb(185 160 231 / 0.42);
+  --hn-panel: var(--hn-surface-1);
+  --hn-panel-head: #1b1b21;
+  --hn-panel-row: var(--hn-surface-2);
+  --hn-panel-line: #25252d;
+  --hn-panel-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 1px 0 rgb(0 0 0 / 0.4), 0 18px 40px -28px rgb(0 0 0 / 0.8);
 }
 
 :root[data-theme="light"] {
@@ -148,6 +180,8 @@
   --hn-edge: #ddd6cb;
   --hn-edge-2: #cdc5b8;
   --hn-edge-control: #8a8176;
+  --hn-hair: rgb(29 26 36 / 0.08);
+  --hn-hair-2: rgb(29 26 36 / 0.12);
   --hn-text: #1d1a24;
   --hn-text-2: #4d4859;
   --hn-text-3: #5f596a;
@@ -195,94 +229,92 @@
   --hn-icon: #5f3da5;
   --hn-icon-tint: #efecf6;
   --hn-watermark: rgb(95 61 165 / 0.045);
+  --hn-card-hi: #fdfcfa;
+  --hn-card-edge-lit: rgb(95 61 165 / 0.34);
+  --hn-panel: var(--hn-surface-1);
+  --hn-panel-head: var(--hn-sunken);
+  --hn-panel-row: #f4f1ec;
+  --hn-panel-line: #ebe6de;
+  --hn-panel-shadow: 0 1px 0 rgb(29 26 36 / 0.04), 0 1px 2px rgb(29 26 36 / 0.05), 0 16px 32px -26px rgb(29 26 36 / 0.28);
 }
 
-/* Editor surfaces (home panels, explorer, command blocks) keep the Lilac Nights palette in both
-   site themes. Documentation code blocks use it only in the dark theme. */
-.ide,
-.hn-explorer__detail,
-.hn-cmdblock,
-[data-theme="dark"] .highlight {
-  --ide-bg: #211a2e;
-  --ide-chrome: #15111f;
-  --ide-side: #1a1526;
-  --ide-line: #2b2340;
+/* Code surfaces (.highlight in docs, .hn-code on the home page, and IDE/console containers)
+   follow the active theme: deep plum in dark, soft lavender in light. */
+:root,
+:root[data-theme="dark"],
+[data-theme="dark"] .highlight,
+[data-theme="dark"] .hn-code {
+  --ide-bg: var(--hn-code-bg);
+  --ide-chrome: var(--hn-code-chrome);
+  --ide-edge: var(--hn-code-edge);
+  --ide-fg: var(--hn-code-fg);
+  --ide-line: #261f38;
   --ide-sel: #453863;
-  --ide-edge: #31274a;
   --ide-ln: #716490;
   --ide-ln-on: #d7b8ff;
-  --ide-fg: #e6e0f5;
   --ide-muted: #a99bcc;
   --ide-accent: #b98cff;
-  --ide-red: #ff6b85;
-  --hn-brand: #b98cff;
-  --hn-text: #e6e0f5;
-  --hn-text-2: #cfc6ea;
-  --hn-text-3: #9183b6;
-  --hn-red: #ff6b85;
-  --hn-green: #8fdc98;
-  --hn-amber: #ffcc80;
-  --hn-wood: #ffcc80;
-  --hn-edge: #31274a;
-  --hn-edge-2: #3d3059;
-  --hn-tint-error: rgb(255 107 133 / 0.14);
-  --hn-tint-success: rgb(143 220 152 / 0.12);
-  --hn-brand-tint: rgb(185 140 255 / 0.16);
+}
+
+[data-theme="dark"] .highlight,
+[data-theme="dark"] .hn-code {
   color: var(--ide-fg);
 }
 
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.c, .c1, .cm, .cp, .ch, .cs) { color: #9183b6; font-style: italic; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.k, .kn, .kd, .kp, .kr, .ow) { color: #b98cff; font-weight: 600; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .kt { color: #ffcc80; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.kc, .m, .mi, .mf, .mh, .mo, .il) { color: #ff9d7a; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.kc) { font-style: italic; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nb, .fm) { color: #8ec5ff; font-style: italic; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .bp { color: #b98cff; font-style: italic; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nf, .f) { color: #8ec5ff; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nc, .nn, .ne, .t) { color: #ffcc80; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.nd, .d) { color: #f18ce8; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .sh, .si, .sx, .ss) { color: #8fdc98; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.se, .sr) { color: #5fe3d4; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .o { color: #5fe3d4; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .p { color: #9183b6; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.n, .nv, .vm) { color: #e6e0f5; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) :is(.na, .nx, .nl, .py) { color: #d7b8ff; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gp { color: #9183b6; user-select: none; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .go { color: #cfc6ea; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gi { display: inline-block; width: 100%; background: rgb(143 220 152 / 0.12); color: #8fdc98; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .gd { display: inline-block; width: 100%; background: rgb(255 107 133 / 0.14); color: #ff6b85; }
-:is(.ide, .highlight, .hn-explorer__detail, .hn-cmdblock) .b { color: #8ec5ff; font-style: italic; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.c, .c1, .cm, .cp, .ch, .cs) { color: #9183b6; font-style: italic; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.k, .kn, .kd, .kp, .kr, .ow) { color: #b98cff; font-weight: 600; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .kt { color: #ffcc80; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.kc, .m, .mi, .mf, .mh, .mo, .il) { color: #ff9d7a; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.kc) { font-style: italic; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.nb, .fm) { color: #8ec5ff; font-style: italic; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .bp { color: #b98cff; font-style: italic; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.nf, .f) { color: #8ec5ff; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.nc, .nn, .ne, .t) { color: #ffcc80; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.nd, .d) { color: #f18ce8; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .sh, .si, .sx, .ss) { color: #8fdc98; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.se, .sr) { color: #5fe3d4; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .o { color: #5fe3d4; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .p { color: #9183b6; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.n, .nv, .vm) { color: #e6e0f5; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) :is(.na, .nx, .nl, .py) { color: #d7b8ff; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .gp { color: #9183b6; user-select: none; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .go { color: #cfc6ea; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .gi { display: inline-block; width: 100%; background: rgb(143 220 152 / 0.12); color: #8fdc98; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .gd { display: inline-block; width: 100%; background: rgb(255 107 133 / 0.14); color: #ff6b85; }
+:is([data-theme="dark"] .highlight, [data-theme="dark"] .hn-code) .b { color: #8ec5ff; font-style: italic; }
 
-/* Documentation code blocks sit on the reading surface: a light lavender card in the light theme,
-   a deep plum one in the dark theme. */
 .highlight,
-[data-theme="dark"] .highlight {
+.hn-code {
   --ide-bg: var(--hn-code-bg);
   --ide-chrome: var(--hn-code-chrome);
   --ide-edge: var(--hn-code-edge);
   --ide-fg: var(--hn-code-fg);
 }
 
-[data-theme="light"] .highlight {
+:root[data-theme="light"],
+[data-theme="light"] .highlight,
+[data-theme="light"] .hn-code {
   --ide-line: rgb(95 61 165 / 0.08);
   --ide-sel: #d9cfee;
+  --ide-ln: #8a8199;
+  --ide-ln-on: #5f3da5;
   --ide-muted: #5f596a;
   --ide-accent: #5f3da5;
   color: var(--ide-fg);
 }
 
-[data-theme="light"] .highlight :is(.c, .c1, .cm, .cp, .ch, .cs) { color: var(--hn-syn-comment); font-style: italic; }
-[data-theme="light"] .highlight :is(.k, .kn, .kd, .kp, .kr, .ow, .bp) { color: var(--hn-syn-keyword); font-weight: 600; }
-[data-theme="light"] .highlight :is(.kt, .nc, .nn, .ne, .t) { color: var(--hn-syn-type); }
-[data-theme="light"] .highlight :is(.kc, .m, .mi, .mf, .mh, .mo, .il) { color: var(--hn-syn-number); }
-[data-theme="light"] .highlight :is(.nb, .fm, .b) { color: var(--hn-syn-builtin); }
-[data-theme="light"] .highlight :is(.nf, .f) { color: var(--hn-syn-function); font-weight: 600; }
-[data-theme="light"] .highlight :is(.nd, .d) { color: var(--hn-syn-decorator); }
-[data-theme="light"] .highlight :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .sh, .si, .sx, .ss, .se, .sr) { color: var(--hn-syn-string); }
-[data-theme="light"] .highlight :is(.o, .p) { color: var(--hn-syn-operator); }
-[data-theme="light"] .highlight :is(.n, .nv, .vm) { color: var(--hn-syn-name); }
-[data-theme="light"] .highlight :is(.na, .nx, .nl, .py) { color: var(--hn-syn-function); }
-[data-theme="light"] .highlight .gp { color: var(--hn-syn-comment); }
-[data-theme="light"] .highlight .go { color: var(--hn-text-2); }
-[data-theme="light"] .highlight .gi { background: var(--hn-tint-success); color: var(--hn-green); }
-[data-theme="light"] .highlight .gd { background: var(--hn-tint-error); color: var(--hn-red); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.c, .c1, .cm, .cp, .ch, .cs) { color: var(--hn-syn-comment); font-style: italic; }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.k, .kn, .kd, .kp, .kr, .ow, .bp) { color: var(--hn-syn-keyword); font-weight: 600; }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.kt, .nc, .nn, .ne, .t) { color: var(--hn-syn-type); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.kc, .m, .mi, .mf, .mh, .mo, .il) { color: var(--hn-syn-number); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.nb, .fm, .b) { color: var(--hn-syn-builtin); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.nf, .f) { color: var(--hn-syn-function); font-weight: 600; }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.nd, .d) { color: var(--hn-syn-decorator); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .sh, .si, .sx, .ss, .se, .sr) { color: var(--hn-syn-string); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.o, .p) { color: var(--hn-syn-operator); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.n, .nv, .vm) { color: var(--hn-syn-name); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) :is(.na, .nx, .nl, .py) { color: var(--hn-syn-function); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) .gp { color: var(--hn-syn-comment); user-select: none; }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) .go { color: var(--hn-text-2); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) .gi { display: inline-block; width: 100%; background: var(--hn-tint-success); color: var(--hn-green); }
+:is([data-theme="light"] .highlight, [data-theme="light"] .hn-code) .gd { display: inline-block; width: 100%; background: var(--hn-tint-error); color: var(--hn-red); }
