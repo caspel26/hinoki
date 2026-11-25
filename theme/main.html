@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if page and page.title and not page.is_homepage %}{{ page.title }} · {% endif %}{{ config.site_name }}</title>
+  <title>{% if page and page.title and not page.is_homepage %}{{ page.title }} · {{ config.site_name }}{% else %}{{ config.site_name }}: {{ config.extra.hn_tagline }}{% endif %}</title>
   <meta name="description" content="{{ config.site_description }}">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="{{ 'static/apple-touch-icon.png' | url }}">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{ config.site_name }}">
-  <meta property="og:title" content="{% if page and page.title and not page.is_homepage %}{{ page.title }} · {% endif %}{{ config.site_name }}">
+  <meta property="og:title" content="{% if page and page.title and not page.is_homepage %}{{ page.title }} · {{ config.site_name }}{% else %}{{ config.site_name }}: {{ config.extra.hn_tagline }}{% endif %}">
   <meta property="og:description" content="{{ config.site_description }}">
   <meta property="og:image" content="{{ config.site_url }}static/og.png">
   <meta property="og:image:alt" content="{{ config.site_name }}: {{ config.site_description }}">
