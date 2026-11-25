@@ -300,6 +300,9 @@ The command line, the migration state files, the JSON log format, the MCP server
 - **Migrations:** a plan error no longer suggests running `migrations plan` (#392).
 - **Model validation:** text length errors count characters, not items (`python/hinoki/orm/model.py`, #396).
 - **WSGI:** a plain WSGI callable reads its settings from the environment (`python/hinoki/runtime/wsgiworker.py`, #400).
+- **Admin secret error:** the error for an app with no admin secret names the real environment variable (for example `BLOG_ADMIN__SECRET`, from the settings class prefix) instead of a placeholder (`python/hinoki/admin/core.py`, `python/hinoki/app.py`).
+- **`hinoki doctor`:** when the application cannot be built because of a Hinoki declaration error, the finding shows that error's message and a fix that points to it, instead of only the exception class (`python/hinoki/cli/doctor.py`, `docs/inspect.md`).
+- **`hinoki routes`:** the handler column stays aligned when an access name is longer than 24 characters, in plain and coloured output (`python/hinoki/cli/routes.py`, `python/hinoki/cli/reportui.py`).
 - **JSON nesting limits:** reading accepts exactly 128 nested arrays or objects and writing exactly 200, as documented; the 129th and the 201st are refused. An empty innermost array or object used to count as one more, and a `Schema` object is now counted as a container (`crates/bindings/src/request.rs`).
 
 ---
