@@ -3,6 +3,9 @@
 //! Scope: the path router, the database bridge, the SQL compiler and request
 //! decoding / JSON (see `request.rs`).
 
+// Unsafe code is denied crate-wide; each use is allowed on its own function with a SAFETY comment.
+#![deny(unsafe_code)]
+
 #[cfg(not(unix))]
 compile_error!("Hinoki supports Linux and macOS. On Windows, install and run it inside WSL2.");
 
