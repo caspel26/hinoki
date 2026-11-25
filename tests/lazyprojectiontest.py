@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import datetime
+import gc
 import weakref
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -846,3 +847,54 @@ async def test_single_record_projection_schema_contract_and_native_lane(
         r_none = await client.get("/sync-maybe/999")
         assert r_none.status == 204
         assert r_none.body is None
+
+
+def test_projection_plan_cache_invalidates_on_hooks_and_avoids_model_retention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    q_joined = ProjArticle.all().select_related("author")
+    plan = compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite")
+    assert plan is not None
+
+    # Monkeypatching related model from_row invalidates the cached plan
+    @classmethod  # type: ignore[misc]
+    def custom_from_row(cls: type[ProjAuthor], row: dict[str, Any]) -> ProjAuthor:
+        return cast(ProjAuthor, Model.from_row.__func__(cls, row))  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(ProjAuthor, "from_row", custom_from_row)
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is None
+    monkeypatch.undo()
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is not None
+
+    # Monkeypatching schema.dump or __checks__ invalidates the cached plan
+    monkeypatch.setattr(ArticleWithAuthorOut, "dump", lambda _self: {})
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is None
+    monkeypatch.undo()
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is not None
+
+    monkeypatch.setattr(ArticleWithAuthorOut, "__checks__", (lambda v: v,))
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is None
+    monkeypatch.undo()
+    assert compile_projection_plan(q_joined, ArticleWithAuthorOut, "sqlite") is not None
+
+    # Nested WeakKeyDictionary does not strongly retain dynamic Model classes
+    class LongLivedOut(Schema):
+        id: int
+        title: str
+
+    def _compile_dynamic() -> weakref.ref[type[Model]]:
+        class DynamicArticle(Model):
+            id: int = field(primary_key=True)
+            title: str
+
+        assert (
+            compile_projection_plan(DynamicArticle.all(), LongLivedOut, "sqlite")
+            is not None
+        )
+        return weakref.ref(DynamicArticle)
+
+    ref = _compile_dynamic()
+    gc.collect()
+    assert ref() is None
+    assert LongLivedOut in _PLAN_CACHE
+    assert len(_PLAN_CACHE[LongLivedOut]) == 0
