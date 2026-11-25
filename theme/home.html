@@ -441,63 +441,99 @@
           <div class="hn-bench-card hn-surface" data-hn-bench>
             <div class="hn-bench-card__head">
               <div>
-                <p class="hn-bench-card__kicker">Retained report · Hinoki servers only · 2026-11-21 · 100 concurrent connections</p>
+                <p class="hn-bench-card__kicker">Retained report · Hinoki servers only · 2026-11-24 · 100 concurrent connections</p>
                 <h3>Median requests per second (higher is better)</h3>
               </div>
               <div class="hn-switch" role="group" aria-label="Benchmark workload" data-slider>
                 <button type="button" data-bench-case="json1k" aria-pressed="true">JSON 1 KB</button>
                 <button type="button" data-bench-case="json10k" aria-pressed="false">JSON 10 KB</button>
-                <button type="button" data-bench-case="detail" aria-pressed="false">Detail · PG</button>
-                <button type="button" data-bench-case="health" aria-pressed="false">Health</button>
+                <button type="button" data-bench-case="users" aria-pressed="false">Users</button>
+                <button type="button" data-bench-case="articles" aria-pressed="false">Articles</button>
+                <button type="button" data-bench-case="article" aria-pressed="false">Article</button>
+                <button type="button" data-bench-case="authme" aria-pressed="false">Auth: me</button>
+                <button type="button" data-bench-case="autharticles" aria-pressed="false">Auth: articles</button>
               </div>
             </div>
 
             <div class="hn-bench-card__body" data-bench-panel="json1k">
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>91,675</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>104,120</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100.0%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
-                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>50,228</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:54.8%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>65,454</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:62.9%"></span></div>
               </div>
             </div>
 
             <div class="hn-bench-card__body" data-bench-panel="json10k" hidden>
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>78,946</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>45,058</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100.0%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
-                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>47,355</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:60.0%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>33,074</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:73.4%"></span></div>
               </div>
             </div>
 
-            <div class="hn-bench-card__body" data-bench-panel="detail" hidden>
+            <div class="hn-bench-card__body" data-bench-panel="users" hidden>
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>12,819</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>25,414</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100.0%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
-                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>11,411</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:89.0%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>20,567</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:80.9%"></span></div>
               </div>
             </div>
 
-            <div class="hn-bench-card__body" data-bench-panel="health" hidden>
+            <div class="hn-bench-card__body" data-bench-panel="articles" hidden>
               <div class="hn-bar is-hinoki-kiso">
-                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>72,443</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:100%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>1,821</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:98.6%"></span></div>
               </div>
               <div class="hn-bar is-hinoki">
-                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>40,366</strong><small>req/s</small></span></div>
-                <div class="hn-bar__track"><span style="--w:55.7%"></span></div>
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>1,846</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100.0%"></span></div>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__body" data-bench-panel="article" hidden>
+              <div class="hn-bar is-hinoki-kiso">
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>6,319</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100.0%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki">
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>6,207</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:98.2%"></span></div>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__body" data-bench-panel="authme" hidden>
+              <div class="hn-bar is-hinoki-kiso">
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>27,495</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100.0%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki">
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>22,709</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:82.6%"></span></div>
+              </div>
+            </div>
+
+            <div class="hn-bench-card__body" data-bench-panel="autharticles" hidden>
+              <div class="hn-bar is-hinoki-kiso">
+                <div class="hn-bar__meta"><b>Hinoki (Kiso, native server)</b><span class="hn-bar__val"><strong>1,814</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:100.0%"></span></div>
+              </div>
+              <div class="hn-bar is-hinoki">
+                <div class="hn-bar__meta"><b>Hinoki (Granian ASGI)</b><span class="hn-bar__val"><strong>1,707</strong><small>req/s</small></span></div>
+                <div class="hn-bar__track"><span style="--w:94.1%"></span></div>
               </div>
             </div>
 
             <div class="hn-bench-card__foot">
-              <span>i5-10300H (8 logical CPUs), Linux, PostgreSQL, warm data, loopback, median of 10 samples. The two servers were measured in separate runs and the host load was not controlled. Pre-alpha, not a production claim. 4 of 6 request types shown; List and Create are in the report, as are the other stacks.</span>
+              <span>AMD EPYC-Milan (8 logical CPUs), Linux, PostgreSQL, warm data, loopback, median of 2 samples. The two servers were measured in separate runs and the host load was not controlled. Pre-alpha, not a production claim. All 7 request types of the report are shown; the other stacks are in the report.</span>
               <a class="hn-link" href="{{ 'benchmarks/' | url }}">Full report: methodology, latency, all request types</a>
             </div>
           </div>
