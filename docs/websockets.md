@@ -139,9 +139,13 @@ origin the application's CORS policy lists by name. A CORS wildcard
 WebSocket handshake and does not hide the answer from other sites, so an open
 policy would let any site use a cookie-authenticated action. Anything else is
 refused with `403` before the upgrade. On Granian the check covers the same
-sources. Where the connection is known to be `https` (direct TLS, a trusted
-proxy reporting `https`, or `wss` on Granian), the same-host match also
-requires an `https://` origin. Granian handshakes also go through
+sources, through the same Rust predicate. The same-host match requires the
+scheme the connection has: `https://` where the connection is `https` (direct
+TLS, a trusted proxy reporting `https`, or `wss` on Granian) and `http://`
+otherwise, never both. Behind a proxy that terminates TLS without reporting the
+scheme, list the page's origin in `origins=` or the CORS origins. The host is
+compared exactly, in lower case, port included: no default port or trailing dot
+is folded in. Granian handshakes also go through
 `allowed_hosts` and trusted-proxy handling, and the route is matched on the raw
 path, as for HTTP requests. The same-host match trusts the `Host` header, so an app with
 WebSocket routes and `allowed_hosts` left at `*` refuses to start unless `debug` is on, which is for local development only; name the served hosts.
