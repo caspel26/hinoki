@@ -1078,3 +1078,7 @@ async def test_projected_item_behaves_as_a_dataclass_instance(db: Database) -> N
         fresh = await ProjArticle.filter(id=2).aget_as(ArticleOut)
         assert dataclasses.is_dataclass(fresh)
         assert cast(Any, fresh)._projected_handle is not None
+
+
+def test_the_bare_projected_class_has_no_dataclass_fields() -> None:
+    assert dataclasses.fields(_ProjectedItem) == ()  # type: ignore[arg-type]
