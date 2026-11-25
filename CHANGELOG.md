@@ -183,6 +183,11 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### ⚡ Fewer allocations per native-lane response, and a one-pass response check
+> `crates/kiso/src/headers.rs`, `crates/bindings/src/server/core.rs`, `crates/bindings/src/server/routes.rs`, `crates/bindings/src/server/prepared.rs`, `crates/bindings/src/request/pyapi.rs`, `crates/bindings/src/request/json.rs`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/nativelane.py`
+
+Response heads share the server's policy headers and move the answer's own headers instead of copying them, `header_dict` is filled directly for plain ASCII headers, and a route without a rate limit no longer hands its peer address to the request data. A route that returns `list[dict[str, object]]` with `validate_response=True` on the native lane is checked while Rust encodes it, so the list is walked once; any value the one-pass check cannot vouch for (subclasses, non-`str` keys, objects that could run Python code, encode errors) takes the previous two-step path, so the same `ResponseContractError` or encode error is raised and the bytes are identical. No API changes. On a loopback run on one machine, `/json-10k` served about 9% more requests per second; the other routes measured within noise. These are relative figures, not benchmark claims.
+
 #### 🔗 One query per many-to-many prefetch chunk
 > `python/hinoki/orm/links.py`, `python/hinoki/orm/queryset.py`, `crates/bindings/src/modelrows.rs`, `crates/orm/src/query.rs`, `docs/relations.md`
 
