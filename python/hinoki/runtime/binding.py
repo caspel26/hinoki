@@ -248,6 +248,9 @@ class Binding:
     streams: bool = False  # the return annotation names Stream, EventStream or File
     # S when the return type is `list[S]`, `Page[S]`, `CursorPage[S]` or `S | None`
     narrow_schema: type[Schema] | None = None
+    # any other return annotation that holds a Schema (`dict[str, S]`,
+    # `tuple[S, ...]`, `list[list[S]]`, a `TypedDict`...): its native guide
+    narrow_guide: core._ReturnGuide | None = None
     stream_capable: bool = False  # Response may be a stream, including FileStorage
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
@@ -904,7 +907,20 @@ def bind(route: Route) -> Binding:
         streams=streams,
         stream_capable=stream_capable,
         narrow_schema=collection_narrow_schema(response),
+        narrow_guide=other_narrow_guide(response, response_schema),
     )
+
+
+def other_narrow_guide(
+    annotation: object, response_schema: type[Schema] | None
+) -> core._ReturnGuide | None:
+    """The guide that narrows a result whose annotation holds a Schema outside
+    the shapes of ``response_schema`` and ``collection_narrow_schema``; ``None``
+    (nothing to do per request) when there is no Schema position to narrow."""
+    if response_schema is not None or collection_narrow_schema(annotation):
+        return None
+    spec = guide_spec(annotation)
+    return None if spec is None else core._ReturnGuide(spec)
 
 
 def collection_narrow_schema(annotation: object) -> type[Schema] | None:
@@ -920,6 +936,59 @@ def collection_narrow_schema(annotation: object) -> type[Schema] | None:
     args = typing.get_args(arm)
     item = unwrap(args[0]) if len(args) == 1 else None
     return item if is_schema(item) else None
+
+
+Spec = tuple[str, typing.Any]
+
+
+def guide_spec(annotation: object) -> Spec | None:
+    """The nested spec of ``core._ReturnGuide`` for the Schema positions of an
+    annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``
+    and ``TypedDict`` containers; ``None`` when it holds none. A ``Page``, a
+    dataclass or an ``Any`` position is not narrowed."""
+    classes: list[type[Schema]] = []
+    others: list[Spec] = []
+    for arm in union_arms(annotation):
+        if is_schema(arm):
+            classes.append(arm)
+        elif (spec := container_spec(arm)) is not None:
+            others.append(spec)
+    members: list[Spec] = ([("schema", classes)] if classes else []) + others
+    if not members:
+        return None
+    return members[0] if len(members) == 1 else ("union", members)
+
+
+def container_spec(arm: object) -> Spec | None:
+    if typing.is_typeddict(arm):
+        return typeddict_spec(arm)
+    args = typing.get_args(arm)
+    origin = typing.get_origin(arm)
+    if origin is dict and args:
+        return wrapped("map", guide_spec(args[-1]))
+    if origin in {list, tuple} and args:
+        return sequence_spec(origin, args)
+    return None
+
+
+def sequence_spec(origin: object, args: tuple[object, ...]) -> Spec | None:
+    if origin is list or args[1:] == (Ellipsis,):
+        return wrapped("seq", guide_spec(args[0]))
+    specs = [guide_spec(item) for item in args]
+    return ("tuple", specs) if any(specs) else None
+
+
+def wrapped(kind: str, inner: Spec | None) -> Spec | None:
+    return None if inner is None else (kind, inner)
+
+
+def typeddict_spec(arm: object) -> Spec | None:
+    try:
+        hints = typing.get_type_hints(arm)
+    except NameError:  # a forward reference that does not resolve: left whole
+        return None
+    found = [(key, spec) for key, hint in hints.items() if (spec := guide_spec(hint))]
+    return ("keyed", found) if found else None
 
 
 def is_schema(candidate: object) -> typing.TypeGuard[type[Schema]]:

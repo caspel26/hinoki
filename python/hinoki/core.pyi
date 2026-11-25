@@ -36,6 +36,11 @@ class _ResponseTypeList:
     def scan(self, value: object) -> int:
         """0 invalid, 1 valid and every item exactly ``target``, 2 valid otherwise."""
 
+class _ReturnGuide:
+    def __init__(self, spec: tuple[str, Any]) -> None: ...
+    def narrow(self, value: Any) -> Any:
+        """``value`` with every subclass of a declared Schema narrowed to it."""
+
 def all_exact(value: object, target: type) -> bool:
     """Whether ``value`` is a list whose items are all exactly of ``target``."""
 

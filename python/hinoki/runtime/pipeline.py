@@ -540,11 +540,7 @@ class Pipeline:
                 try:
                     result = await self._hydrate_native_rows(action, fallback)
                     binding = self.bindings[action]
-                    result = (
-                        project_response(binding.response_schema, result)
-                        if binding.narrow_schema is None
-                        else narrow_result(binding.narrow_schema, result)
-                    )
+                    result = shape_result(binding, result)
                     body = core.encode_json(result, None, False, None)
                     return Response.rendered(
                         binding.route.status, body, "application/json", False
@@ -1523,11 +1519,7 @@ class Pipeline:
             return Response(result.status, result.body, result.headers)
         exact = enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
-            result = (
-                project_response(binding.response_schema, result)
-                if binding.narrow_schema is None
-                else narrow_result(binding.narrow_schema, result, exact)
-            )
+            result = shape_result(binding, result, exact)
             shown = result if renderer.consumes_objects else encode(result)
             if request is None:  # only the stock JSON renderer runs without one
                 body = core.encode_json(shown, None, False, None)
@@ -1739,11 +1731,7 @@ class Pipeline:
         fused = defer and binding.fused_check and type(result) is list
         exact = False if fused else enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
-            result = (
-                project_response(binding.response_schema, result)
-                if binding.narrow_schema is None
-                else narrow_result(binding.narrow_schema, result, exact)
-            )
+            result = shape_result(binding, result, exact)
             return self._native_rendered(
                 binding, result, native, defer=defer, strict=fused
             )
@@ -1895,6 +1883,16 @@ class ResponseProjectionError(RuntimeError):
     It is a server fault, answered as ``500 internal_error`` and logged with the
     original ``ValidationError`` as its cause; no constraint detail reaches the
     client."""
+
+
+def shape_result(binding: Binding, result: object, exact: bool = False) -> object:
+    """A handler result as the declared annotation shows it: narrowed to the
+    Schema its annotation names, wherever the annotation holds one."""
+    if binding.narrow_schema is not None:
+        return narrow_result(binding.narrow_schema, result, exact)
+    if binding.narrow_guide is not None:
+        return binding.narrow_guide.narrow(result)
+    return project_response(binding.response_schema, result)
 
 
 def narrow_instance(schema: type[Schema], value: Schema) -> object:

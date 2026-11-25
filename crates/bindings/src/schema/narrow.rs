@@ -11,7 +11,7 @@
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyTuple, PyType};
+use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
 
 use super::{Definition, Kind, Node, PyRules};
 
@@ -27,6 +27,8 @@ pub(crate) enum Guide {
     Tuple(Box<[Option<Guide>]>),
     /// `dict[str, X]`.
     Map(Box<Guide>),
+    /// A `TypedDict`: a guide per key.
+    Keyed(Box<[(String, Guide)]>),
     /// A union of containers and schemas.
     Union(Box<[Guide]>),
 }
@@ -125,6 +127,7 @@ pub(crate) fn narrow<'py>(
         Guide::Seq(inner) => narrow_sequence(value, inner),
         Guide::Tuple(guides) => narrow_tuple(value, guides),
         Guide::Map(inner) => narrow_map(value, inner),
+        Guide::Keyed(keys) => narrow_keyed(value, keys),
         Guide::Union(members) => {
             for member in members.iter() {
                 if let Some(narrowed) = narrow(value, member)? {
@@ -144,9 +147,20 @@ fn narrow_instance<'py>(
         return Ok(None);
     }
     let py = value.py();
-    let mro = value.get_type().getattr(intern!(py, "__mro__"))?;
+    let mut class = value.get_type();
+    if class.is(crate::pytypes::projected_item_class(py)?) {
+        // A lazy projection reports its Schema as its class (`__class__`), but
+        // its own type is the wrapper: read the Schema it stands for.
+        class = value
+            .getattr(intern!(py, "_schema"))?
+            .cast_into::<PyType>()?;
+        if classes.iter().any(|known| known.as_ptr() == class.as_ptr()) {
+            return Ok(None); // pre-encoded as exactly the declared Schema
+        }
+    }
+    let mro = class.getattr(intern!(py, "__mro__"))?;
     for base in mro.cast::<PyTuple>()?.iter().skip(1) {
-        if classes.iter().any(|class| class.as_ptr() == base.as_ptr()) {
+        if classes.iter().any(|known| known.as_ptr() == base.as_ptr()) {
             let wrapped = Narrowed {
                 value: value.clone().unbind(),
                 declared: base.unbind(),
@@ -276,4 +290,112 @@ pub(crate) fn narrowed_parts<'py>(
     let py = value.py();
     let declared = narrowed.declared.bind(py).cast::<PyType>().ok()?.clone();
     Some((narrowed.value.bind(py).clone(), declared))
+}
+
+fn narrow_keyed<'py>(
+    value: &Bound<'py, PyAny>,
+    keys: &[(String, Guide)],
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let Ok(map) = value.cast::<PyDict>() else {
+        return Ok(None);
+    };
+    let mut changed = false;
+    let mut pairs = Vec::with_capacity(map.len());
+    for (key, item) in map.iter() {
+        let guide = key
+            .cast::<PyString>()
+            .ok()
+            .and_then(|name| {
+                keys.iter()
+                    .find(|(known, _)| name.to_str().is_ok_and(|n| n == known))
+            })
+            .map(|(_, guide)| guide);
+        let narrowed = match guide {
+            Some(guide) => narrow(&item, guide)?,
+            None => None,
+        };
+        changed |= narrowed.is_some();
+        pairs.push((key, narrowed.unwrap_or(item)));
+    }
+    if !changed {
+        return Ok(None);
+    }
+    let out = PyDict::new(value.py());
+    for (key, item) in pairs {
+        out.set_item(key, item)?;
+    }
+    Ok(Some(out.into_any()))
+}
+
+#[pymethods]
+impl Narrowed {
+    /// The declared form as a dict, for a renderer that reads plain data.
+    fn dump<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let value = self.value.bind(py);
+        let declared = self.declared.bind(py).cast::<PyType>()?;
+        match super::serialize::dump_as(value, declared)? {
+            Some(dumped) => Ok(dumped.into_any()),
+            None => value.call_method0("dump"),
+        }
+    }
+}
+
+/// The guide of a handler's return annotation, built from a nested spec:
+/// `("schema", [classes])`, `("seq", spec)`, `("tuple", [spec | None])`,
+/// `("map", spec)`, `("keyed", [(key, spec)])` or `("union", [specs])`.
+#[pyclass(frozen, module = "hinoki.core", name = "_ReturnGuide")]
+pub struct ReturnGuide {
+    guide: Guide,
+}
+
+#[pymethods]
+impl ReturnGuide {
+    #[new]
+    fn new(spec: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            guide: from_spec(spec)?,
+        })
+    }
+
+    /// `value` with every subclass of a declared class narrowed to it; the
+    /// same object when nothing changes.
+    fn narrow<'py>(&self, value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        Ok(narrow(value, &self.guide)?.unwrap_or_else(|| value.clone()))
+    }
+}
+
+fn from_spec(spec: &Bound<'_, PyAny>) -> PyResult<Guide> {
+    let (kind, arg): (String, Bound<'_, PyAny>) = spec.extract()?;
+    let bad = || pyo3::exceptions::PyValueError::new_err(format!("unknown guide {kind}"));
+    Ok(match kind.as_str() {
+        "schema" => Guide::Schema(arg.extract::<Vec<Py<PyAny>>>()?.into_boxed_slice()),
+        "seq" => Guide::Seq(from_spec(&arg)?.into()),
+        "map" => Guide::Map(from_spec(&arg)?.into()),
+        "union" => Guide::Union(specs(&arg)?.into_boxed_slice()),
+        "tuple" => {
+            let mut guides = Vec::new();
+            for item in arg.try_iter()? {
+                let item = item?;
+                guides.push(if item.is_none() {
+                    None
+                } else {
+                    Some(from_spec(&item)?)
+                });
+            }
+            Guide::Tuple(guides.into_boxed_slice())
+        }
+        "keyed" => {
+            let mut keys = Vec::new();
+            for entry in arg.try_iter()? {
+                let (key, inner): (String, Bound<'_, PyAny>) = entry?.extract()?;
+                keys.push((key, from_spec(&inner)?));
+            }
+            Guide::Keyed(keys.into_boxed_slice())
+        }
+        _ => return Err(bad()),
+    })
+}
+
+fn specs(arg: &Bound<'_, PyAny>) -> PyResult<Vec<Guide>> {
+    arg.try_iter()?.map(|item| from_spec(&item?)).collect()
 }

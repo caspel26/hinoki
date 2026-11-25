@@ -42,6 +42,7 @@ use model::{Definition, Kind, Node, MAX_DEPTH};
 #[allow(unused_imports)]
 pub use model::{SchemaInstanceFields, SchemaWireNames};
 pub use modelplan::ModelPlan;
+pub use narrow::ReturnGuide;
 pub(crate) use narrow::{narrow, narrowed_parts};
 pub use scalars::wire_text_of;
 pub(crate) use scalars::{parse_date, wire_text, DECIMAL_DIGITS_CEILING, SECRET_MASK};
