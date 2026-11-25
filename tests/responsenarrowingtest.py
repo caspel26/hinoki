@@ -21,6 +21,7 @@ from hinoki.pagination import CursorPage, Page, PageParams
 from hinoki.routing import RouteGroup
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.pipeline import narrow_items, narrow_page
+from hinoki.runtime.responsecheck import PageCheck, compile_response_check
 from hinoki.testing import ASGIClient
 from tests.kisoservertest import fetch
 
@@ -238,3 +239,33 @@ def test_all_exact_accepts_only_an_exact_list_of_exact_items() -> None:
     assert not core.all_exact(Lazy([public(1)]), Public)
     assert not core.all_exact((public(1),), Public)
     assert not core.all_exact(public(1), Public)
+
+
+class Other(Schema):
+    code: str
+
+
+def test_scan_checks_and_classifies_in_one_pass() -> None:
+    class Lazy(list[Public]):
+        pass
+
+    listed = compile_response_check("action", list[Public])
+    assert isinstance(listed, core._ResponseTypeList)
+    assert listed.scan([]) == 1
+    assert listed.scan([public(1), public(2)]) == 1
+    assert listed.scan([public(1), private(2)]) == 2
+    assert listed.scan(Lazy([public(1)])) == 2
+    assert listed.scan([public(1), Other(code="x")]) == 0
+    assert listed.scan((public(1),)) == 0
+    assert listed.scan(public(1)) == 0
+
+
+def test_page_scan_checks_and_classifies_in_one_pass() -> None:
+    paged = compile_response_check("action", Page[Public])
+    assert isinstance(paged, PageCheck)
+    assert paged.scan(Page([public(1)], 1, 1, 1)) == 1
+    assert paged.scan(Page([public(1), private(2)], 1, 2, 2)) == 2
+    assert paged.scan(Page([Other(code="x")], 1, 1, 1)) == 0
+    assert paged.scan([public(1)]) == 0
+    assert paged(Page([], 1, 1, 0))
+    assert not paged(Page([Other(code="x")], 1, 1, 1))
