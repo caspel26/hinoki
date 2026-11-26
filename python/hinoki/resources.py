@@ -423,7 +423,12 @@ def _user_stacklevel() -> int:
 def warn_unscoped_owner_reads(cls: type[CrudBase], config: _CrudConfig) -> None:
     """Warn when ``owner=`` guards writes but nothing scopes the generated reads."""
     reads = {"list", "retrieve"} - config.omit
-    if not config.owner or not reads or cls.get_queryset is not CrudBase.get_queryset:
+    if (
+        not config.owner
+        or not reads
+        or config.row_scope is not None
+        or cls.get_queryset is not CrudBase.get_queryset
+    ):
         return
     warnings.warn(
         f"{config.model.__name__}: owner={config.owner!r} constrains writes only; "
