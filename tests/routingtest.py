@@ -453,3 +453,48 @@ def test_route_group_inherits_include_in_schema_and_rejects_explicit_none() -> N
         @fresh.get("/invalid", include_in_schema=None)  # type: ignore[arg-type]
         def invalid_visible() -> str:
             return "ok"
+
+
+def test_route_distinguishes_omitted_access_from_explicit_none() -> None:
+    other = Access(auth=TokenAuth(), permissions=["posts:read"])
+
+    @http.get("/a")
+    def omitted() -> str:
+        return "ok"
+
+    @http.get("/b", access=None)
+    def explicit_public() -> str:
+        return "ok"
+
+    @http.get("/c", access=editor)
+    def explicit_policy() -> str:
+        return "ok"
+
+    group = RouteGroup("/g", access=editor)
+
+    @group.get("/inherited")
+    def inherited() -> str:
+        return "ok"
+
+    @group.get("/open", access=None)
+    def group_public() -> str:
+        return "ok"
+
+    @group.get("/other", access=other)
+    def group_other() -> str:
+        return "ok"
+
+    included = Hinoki(include=[omitted, explicit_public, explicit_policy, group]).routes
+    routes = {r.path: r for r in included}
+    assert (routes["/a"].access, routes["/a"].access_explicit) == (None, False)
+    assert (routes["/b"].access, routes["/b"].access_explicit) == (None, True)
+    assert (routes["/c"].access, routes["/c"].access_explicit) == (editor, True)
+    assert (routes["/g/inherited"].access, routes["/g/inherited"].access_explicit) == (
+        editor,
+        False,
+    )
+    assert (routes["/g/open"].access, routes["/g/open"].access_explicit) == (None, True)
+    assert (routes["/g/other"].access, routes["/g/other"].access_explicit) == (
+        other,
+        True,
+    )

@@ -63,6 +63,7 @@ class Route:
     tags: tuple[str, ...] = ()
     deprecated: bool | date = False
     operation_id: str | None = None
+    access_explicit: bool = False
 
     @property
     def is_async(self) -> bool:
@@ -93,6 +94,13 @@ class Options:
     tags: Sequence[str] = ()
     deprecated: bool | date = False
     operation_id: str | None = None
+    access_explicit: bool = False
+
+
+def _resolve_access(access: Access | Unset | None) -> tuple[Access | None, bool]:
+    if isinstance(access, Unset):
+        return None, False
+    return access, True
 
 
 class RouteDeclaration:
@@ -145,6 +153,7 @@ class RouteDeclaration:
             tags=check_tags(options.tags),
             deprecated=check_deprecated(options.deprecated),
             operation_id=check_operation_id(options.operation_id),
+            access_explicit=options.access_explicit,
         )
         setattr(fn, ROUTE_ATTR, route)
         return fn
@@ -218,7 +227,7 @@ def get(
     path: str,
     *,
     status: int = 200,
-    access: Access | None = None,
+    access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
     replaces: str = "",
@@ -237,9 +246,10 @@ def get(
     """Declare a GET action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
+    resolved_access, access_explicit = _resolve_access(access)
     options = Options(
         status,
-        access,
+        resolved_access,
         atomic,
         pagination,
         replaces,
@@ -254,6 +264,7 @@ def get(
         tags,
         deprecated,
         operation_id,
+        access_explicit,
     )
     return RouteDeclaration("GET", path, options)
 
@@ -262,7 +273,7 @@ def post(
     path: str,
     *,
     status: int = 200,
-    access: Access | None = None,
+    access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
     replaces: str = "",
@@ -281,9 +292,10 @@ def post(
     """Declare a POST action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
+    resolved_access, access_explicit = _resolve_access(access)
     options = Options(
         status,
-        access,
+        resolved_access,
         atomic,
         pagination,
         replaces,
@@ -298,6 +310,7 @@ def post(
         tags,
         deprecated,
         operation_id,
+        access_explicit,
     )
     return RouteDeclaration("POST", path, options)
 
@@ -306,7 +319,7 @@ def put(
     path: str,
     *,
     status: int = 200,
-    access: Access | None = None,
+    access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
     replaces: str = "",
@@ -325,9 +338,10 @@ def put(
     """Declare a PUT action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
+    resolved_access, access_explicit = _resolve_access(access)
     options = Options(
         status,
-        access,
+        resolved_access,
         atomic,
         pagination,
         replaces,
@@ -342,6 +356,7 @@ def put(
         tags,
         deprecated,
         operation_id,
+        access_explicit,
     )
     return RouteDeclaration("PUT", path, options)
 
@@ -350,7 +365,7 @@ def patch(
     path: str,
     *,
     status: int = 200,
-    access: Access | None = None,
+    access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
     replaces: str = "",
@@ -369,9 +384,10 @@ def patch(
     """Declare a PATCH action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
+    resolved_access, access_explicit = _resolve_access(access)
     options = Options(
         status,
-        access,
+        resolved_access,
         atomic,
         pagination,
         replaces,
@@ -386,6 +402,7 @@ def patch(
         tags,
         deprecated,
         operation_id,
+        access_explicit,
     )
     return RouteDeclaration("PATCH", path, options)
 
@@ -394,7 +411,7 @@ def delete(
     path: str,
     *,
     status: int = 200,
-    access: Access | None = None,
+    access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
     replaces: str = "",
@@ -413,9 +430,10 @@ def delete(
     """Declare a DELETE action. ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
+    resolved_access, access_explicit = _resolve_access(access)
     options = Options(
         status,
-        access,
+        resolved_access,
         atomic,
         pagination,
         replaces,
@@ -430,6 +448,7 @@ def delete(
         tags,
         deprecated,
         operation_id,
+        access_explicit,
     )
     return RouteDeclaration("DELETE", path, options)
 
@@ -438,7 +457,7 @@ def query(
     path: str,
     *,
     status: int = 200,
-    access: Access | None = None,
+    access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
     replaces: str = "",
@@ -460,9 +479,10 @@ def query(
     ``errors`` lists the ``APIError`` subclasses the
     action may raise; each carries its own status and code, which OpenAPI and the
     MCP tool description then show."""
+    resolved_access, access_explicit = _resolve_access(access)
     options = Options(
         status,
-        access,
+        resolved_access,
         atomic,
         pagination,
         replaces,
@@ -477,6 +497,7 @@ def query(
         tags,
         deprecated,
         operation_id,
+        access_explicit,
     )
     return RouteDeclaration("QUERY", path, options)
 
@@ -624,6 +645,7 @@ class RouteGroup:
             tags=(*self.tags, *options.pop("tags", ())),
             deprecated=options.pop("deprecated", False),
             operation_id=options.pop("operation_id", None),
+            access_explicit=not isinstance(access, Unset),
         )
         if options:
             raise TypeError(f"unknown action options {sorted(options)}")

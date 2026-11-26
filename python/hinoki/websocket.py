@@ -37,6 +37,7 @@ from hinoki import core
 from hinoki.access import Access
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError, ValidationError
+from hinoki.fields import UNSET, Unset
 from hinoki.schema import Schema, encode
 
 S = TypeVar("S", bound=Schema)
@@ -246,6 +247,7 @@ class WebSocketRoute:
     caller: str | None = None
     owner: type | None = None  # the ``API`` class of a method, made per connection
     bound: bool = False
+    access_explicit: bool = False
 
     @property
     def name(self) -> str:
@@ -272,7 +274,7 @@ def websocket_of(obj: object) -> WebSocketRoute | None:
 def websocket(  # noqa: PLR0913 - one keyword per documented option
     path: str,
     *,
-    access: Access | None = None,
+    access: Access | Unset | None = UNSET,
     message: type[Schema] | None = None,
     reply: type[Schema] | None = None,
     subprotocols: Sequence[str] | Mapping[str, Access | None] = (),
@@ -297,6 +299,8 @@ def websocket(  # noqa: PLR0913 - one keyword per documented option
     checked = check_options(
         path, message, reply, subprotocols, origins, max_message_bytes, idle_timeout
     )
+    resolved_access = None if isinstance(access, Unset) else access
+    access_explicit = not isinstance(access, Unset)
 
     def decorate(
         fn: Callable[P, Coroutine[Any, Any, R]],
@@ -308,13 +312,14 @@ def websocket(  # noqa: PLR0913 - one keyword per documented option
         declared = WebSocketRoute(
             path,
             fn,
-            access,
+            resolved_access,
             message,
             reply,
             checked[0],
             checked[1],
             max_message_bytes,
             idle_timeout,
+            access_explicit=access_explicit,
         )
         setattr(fn, WS_ATTR, declared)
         return fn

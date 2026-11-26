@@ -114,6 +114,7 @@ class Posts(API):
 
     @http.get(
         "/",
+        access=None,
         pagination=PageNumberPagination(page_size=10, max_page_size=50),
     )
     async def listing(self, page: PageParams) -> Page[PostOut]:
@@ -151,7 +152,7 @@ class Posts(API):
             headers={"content-disposition": 'attachment; filename="posts.csv"'},
         )
 
-    @http.get("/{item_id}")
+    @http.get("/{item_id}", access=None)
     async def one(self, item_id: UUID) -> PostOut:
         """A published post; unpublished posts are not found."""
         return to_out(await with_author(Post.filter(id=item_id, published=True)).aget())

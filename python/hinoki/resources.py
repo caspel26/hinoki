@@ -49,12 +49,15 @@ from hinoki.pagination import (
 )
 from hinoki.routing import (
     Options,
+    Route,
     RouteDeclaration,
     check_deprecated,
     check_flag,
     check_tags,
+    route_of,
 )
 from hinoki.schema import Schema
+from hinoki.websocket import WebSocketRoute, websocket_of
 
 if typing.TYPE_CHECKING:
     from hinoki.runtime.rowplan import RowWireSelection
@@ -338,6 +341,14 @@ class _CrudConfig:
 
     def unprotected_writes(self) -> bool:
         return any(self.access_for(a) is None for a in self.writes() or ["create"])
+
+    def is_protected(self) -> bool:
+        """Whether any generated CRUD action declares an ``Access`` policy."""
+        return any(
+            self.access_for(action) is not None
+            for action in ACTIONS
+            if action not in self.omit and enabled(self, action)
+        )
 
     def assigned(self) -> dict[str, Callable[[Any], Any]]:
         extra = {self.owner: self.identity_key} if self.owner else {}
@@ -908,6 +919,38 @@ def specialize(
     return copy
 
 
+def _missing_handwritten_access(
+    cls: type[CrudBase], name: str, member: object
+) -> str | None:
+    if getattr(member, GENERATED, False):
+        return None
+    route = route_of(member)
+    if route is not None and not route.access_explicit:
+        return (
+            f"{cls.__name__}.{name}: handwritten action on a protected @crud "
+            "resource must declare access=... (or access=None to make it public)"
+        )
+    ws = websocket_of(member)
+    if ws is not None and not ws.access_explicit:
+        return (
+            f"{cls.__name__}.{name}: handwritten WebSocket action on a protected "
+            "@crud resource must declare access=... (or access=None to make it public)"
+        )
+    return None
+
+
+def check_handwritten_access(cls: type[CrudBase], config: _CrudConfig) -> None:
+    """Require explicit ``access=`` on handwritten actions of a protected @crud."""
+    if not config.is_protected():
+        return
+    for name in cls.member_names():
+        message = _missing_handwritten_access(
+            cls, name, inspect.getattr_static(cls, name)
+        )
+        if message is not None:
+            raise RegistrationError(message)
+
+
 class CrudBase(API):
     """The API class that ``crud(...)`` generates; it is not declared directly."""
 
@@ -948,6 +991,19 @@ class CrudBase(API):
             # access, schemas and owner); a resource that does not declare them
             # must not keep them running against the new one.
             setattr(cls, name, generated.get(name))
+        check_handwritten_access(cls, config)
+
+    @classmethod
+    def routes(cls) -> list[Route]:
+        if hasattr(cls, "resource"):
+            check_handwritten_access(cls, cls.resource)
+        return super().routes()
+
+    @classmethod
+    def websockets(cls) -> list[WebSocketRoute]:
+        if hasattr(cls, "resource"):
+            check_handwritten_access(cls, cls.resource)
+        return super().websockets()
 
     def get_queryset(
         self,
