@@ -550,7 +550,12 @@ routes: list[Includable] = [health, Mount(&quot;/billing&quot;, billing_routes)]
 <blockquote>
 <p><code>python/hinoki/runtime/pipeline.py</code>, <code>docs/model-schemas.md</code>, <code>docs/endpoints.md</code></p>
 </blockquote>
-<p>Handlers annotated with a <code>Schema</code> return type no longer implicitly convert a returned <code>Model</code> via <code>from_model()</code>; returning a <code>Model</code> now fails the response contract check with <code>500 internal_error</code> (<code>ResponseContractError</code>, rolling back <code>atomic=True</code> transactions before the HTTP response). Convert explicitly with <code>Out.from_model(row)</code> or an ORM projection (<code>QuerySet.aproject</code>, <code>apaginate_as</code>, generated CRUD).</p></section><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🧩 Optional persistence and <code>--no-models</code> apps in <code>hinoki.toml</code></h4>
+<p>Handlers annotated with a <code>Schema</code> return type no longer implicitly convert a returned <code>Model</code> via <code>from_model()</code>; returning a <code>Model</code> now fails the response contract check with <code>500 internal_error</code> (<code>ResponseContractError</code>, rolling back <code>atomic=True</code> transactions before the HTTP response). Convert explicitly with <code>Out.from_model(row)</code> or an ORM projection (<code>QuerySet.aproject</code>, <code>apaginate_as</code>, generated CRUD).</p></section><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>📦 Align <code>hinoki.admin</code> packaging with <code>hinoki-api</code> wheel</h4>
+<blockquote>
+<p><code>python/hinoki/admin/__init__.py</code>, <code>CLAUDE.md</code>, <code>docs/admin.md</code>, <code>examples/blog/hinoki.toml</code>, <code>tests/adminpackagingtest.py</code></p>
+</blockquote>
+<p>Clarified that <code>hinoki.admin</code> (including its UI assets and user migrations) ships in the base <code>hinoki-api</code> package with explicit mounting (<code>Mount("/admin", site)</code>) and explicit migrations rather than as a separate optional extra.</p>
+<h4>🧩 Optional persistence and <code>--no-models</code> apps in <code>hinoki.toml</code></h4>
 <blockquote>
 <p><code>python/hinoki/project.py</code>, <code>python/hinoki/cli/project.py</code>, <code>python/hinoki/cli/migrations.py</code>, <code>python/hinoki/__main__.py</code></p>
 </blockquote>

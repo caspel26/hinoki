@@ -11579,7 +11579,7 @@ The Python package includes typing metadata, and the compiled `hinoki.core` modu
 
 Source: https://hinoki.caspel.dev/dev/admin.md
 
-`hinoki.admin` gives staff a list, search, create, edit, bulk actions and a dashboard for your models, behind its own sign-in page, users and per-model permissions. It ships with the framework; nothing is served until you include it, and importing it never touches a database.
+`hinoki.admin` gives staff a list, search, create, edit, bulk actions and a dashboard for your models, behind its own sign-in page, users and per-model permissions. It ships in `hinoki-api` (no extra to install); nothing is served until you mount it with `Mount("/admin", site)`, its migrations are applied explicitly, and importing it never touches a database.
 
 ```python
 # blog/apps/blog/adminsite.py
