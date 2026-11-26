@@ -144,12 +144,16 @@ Narrowed, wherever the annotation names a `Schema` `S`:
 - the abstract forms `Sequence[S]`, `MutableSequence[S]`, `Collection[S]`,
   `Iterable[S]` (a returned `list`, `tuple`, `set` or `frozenset`), `set[S]`,
   `frozenset[S]`, `Set[S]`, `MutableSet[S]` (a set holding a subclass instance
-  is written as a list, in JSON and XML alike; the response check refuses a
+  is written as a list, in JSON and XML alike, in the set's iteration order—not
+  deterministic for subclass members; the response check refuses a
   set annotation, so these take `validate_response=False`), `Mapping[str, S]` and
   `MutableMapping[str, S]` (a returned `dict`), and a PEP 695 `type` alias of
-  any of these (`type Items = list[S]`; a generic one with its arguments substituted, `type Box[T] = list[T]` as `Box[S]`, `type Ident[T] = T`, `type Pair[A, B] = dict[B, A]`). A recursive alias that holds a `Schema` (`type Tree[T] = list[Tree[T]] | T`) and an alias with a `TypeVarTuple` parameter cannot be narrowed: the app stops with a `RegistrationError` that names the action;
+  any of these (`type Items = list[S]`; a generic one with its arguments substituted, `type Box[T] = list[T]` as `Box[S]`, `type Ident[T] = T`, `type Pair[A, B] = dict[B, A]`). A recursive alias that holds a `Schema` (`type Tree[T] = list[Tree[T]] | T`), an alias with a `TypeVarTuple` parameter, and an alias or `TypedDict` key whose annotation does not resolve cannot be narrowed: the app stops at startup with a `RegistrationError` that names the action;
 - the return annotation of a `@computed_field`: a method declared `-> Public`
-  that returns a `Private` sends `Public`'s fields;
+  that returns a `Private` sends `Public`'s fields. A `@computed_field` whose
+  return annotation does not resolve fails closed with a `RegistrationError`
+  at the first compile of the class (`validate`, body decoding, `dump`, or
+  OpenAPI generation; not at `Hinoki(include=...)` or `hinoki check`);
 - a tuple returned where `list[S]` is declared (with `validate_response=False`:
   the response check, on by default, answers `500` for it), and a lazy projection
   (`aget_as`, `aproject`) held anywhere above;
@@ -159,10 +163,9 @@ Written whole, because no declared schema decides them:
 
 - a position typed `Any` or `object`;
 - a dataclass, and a `Page` inside another container (`dict[str, Page[S]]`);
-- a declared class that overrides `dump()`: its own `dump()` decides the shape;
-- the fields of an exact instance, for a custom renderer that takes objects: it
-  receives the instance itself (the built-in JSON and XML encoders and `dump()`
-  narrow its fields);
+- a declared class that overrides `dump()`: the declared class's own `dump()`
+  runs on the instance restricted to the declared fields (a subclass's own
+  `dump()` no longer decides);
 - a value that is not a `list`, `tuple`, `set`, `frozenset` or `dict` where a
   collection is declared (a generator or iterator returned for `Iterable[S]`, a
   mapping that is not a `dict`) is not walked, and the JSON and XML encoders
@@ -177,8 +180,11 @@ Written whole, because no declared schema decides them:
   appended item and the XML encoder writes the list storage as it is.
 
 A narrowed value keeps the wire names (aliases) of an exact one.
-[Custom renderers](codecs.md#inherit-and-override) that take objects receive the
-narrowed instance as a `Narrowed` view of the declared class.
+[Custom renderers](codecs.md#inherit-and-override) that take objects
+(`consumes_objects = True`, or a `JSONRenderer` subclass overriding `prepare`)
+always receive a `Narrowed` view of the declared class—never the raw instance,
+even when the returned object is an exact instance of the declared class—so
+nested subclass instances in its fields cannot leak.
 
 ## See also
 
