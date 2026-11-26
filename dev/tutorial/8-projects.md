@@ -1,4 +1,4 @@
-# 8. Projects and apps
+# 9. Projects and apps
 
 An app is a package with its own models, migrations and routes, registered in
 `hinoki.toml`. This chapter adds a `billing` app to the `notes` project from the
@@ -15,7 +15,6 @@ uv run hinoki app create
 | Prompt | Default | Answer |
 | --- | --- | --- |
 | App name | | `billing` |
-| URL prefix | `/billing` | `/billing` |
 | Depends on | | (none) |
 
 The command writes the package and registers it:

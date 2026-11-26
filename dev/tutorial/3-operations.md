@@ -1,11 +1,21 @@
-# 3. Operations
+# 4. Implement a business rule
 
-The rules of the application live in plain async functions. They take the
-acting member's id and plain values, never a `Request`, so an endpoint, a
-command, a test or an admin hook can call them. The list, retrieve and create
-of tasks are generated ([chapter 4](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md)); what remains for
-`operations.py` is what the generator cannot know. It starts with one query
-that every action reuses:
+Generated CRUD ([chapter 3](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md)) already handles listing, retrieving,
+creating and deleting rows. When an action encodes a domain rule — such as
+marking an open task done or refusing to delete a completed one — put that rule
+in `operations.py` instead of writing SQL or state checks directly inside the
+HTTP handler:
+
+- **Reuse across entry points**: plain `async def` functions take `owner_id` and
+  plain values, never a `Request`, so an endpoint, a management command, a test
+  or an admin hook can call the same rule.
+- **Layer isolation**: `api.py` stays responsible only for HTTP shapes, status
+  codes, `Access` policies and `atomic=True` transaction boundaries, while
+  [chapter 6](https://hinoki.caspel.dev/dev/tutorial/5-rules.md) enforces that `operations.py` never imports HTTP types.
+- **Single-statement ownership**: writes include the owner in the `WHERE` clause
+  so there is no race between reading a row, checking ownership and updating it.
+
+It starts with one scoped query that every action reuses:
 
 ```python
 # tracker/apps/tasks/operations.py
@@ -72,65 +82,11 @@ class DoneTasksAreKept(errors.Conflict):
     message = "Completed tasks are kept as a record and cannot be deleted."
 ```
 
-## Events between apps
-
-Creating a task and completing one both leave a line in the member's activity
-feed, but `tasks` does not know the feed exists. It announces: generated create
-emits `Created[Task]`, and `complete_task` emits `Updated[Task]` itself because
-`aupdate_where` emits no model event. The `activity` app listens:
-
-```python
-# tracker/apps/activity/events.py
-from hinoki import events
-from tracker.apps.tasks.models import Task
-
-from .models import Activity
-
-handlers = events.Handlers("activity")
-
-
-async def record(task: Task, kind: str) -> None:
-    await Activity.acreate(member_id=task.owner_id, task_id=task.id, kind=kind)
-
-
-@handlers.in_transaction(events.Created[Task])
-async def task_created(event: events.Created[Task]) -> None:
-    await record(event.instance, "created")
-
-
-@handlers.in_transaction(events.Updated[Task])
-async def task_updated(event: events.Updated[Task]) -> None:
-    await record(event.instance, "updated")
-```
-
-`in_transaction` runs the handler inside the transaction of the change, so the
-task and its activity line commit together or not at all. The handlers are
-registered by the `events` entry of the `activity` app in `hinoki.toml`
-([chapter 6](https://hinoki.caspel.dev/dev/tutorial/6-run.md)), and one command lists them:
-
-```sh
-uv run hinoki events
-```
-
-```text
-Created[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_created
-Updated[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_updated
-
-limits: events.handler_timeout=5.0, events.max_handlers=16, events.max_depth=4
-declared in hinoki.toml: activity -> tracker.apps.activity.events:handlers
-```
-
-The dependency points from `activity` to `tasks` only, which is also why
-`activity` lists `requires = ["tasks", "members"]`. [Chapter 5](https://hinoki.caspel.dev/dev/tutorial/5-rules.md)
-makes the other direction a failing check. See [events](https://hinoki.caspel.dev/dev/events.md) for
-`after_commit` handlers and the limits.
-
 ## Recap
 
-- Operations hold the rules and know nothing about HTTP.
+- Business rules such as `complete_task(...)` belong in `operations.py`,
+  separate from HTTP handlers in `api.py`.
 - Ownership is part of the `WHERE` clause, not a separate check.
 - Errors are classes with a status and a stable code.
-- An app announces what happened; another app listens, without an import in
-  the other direction.
 
-Next: [4. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md).
+Next: [5. Events between apps](https://hinoki.caspel.dev/dev/tutorial/events.md).

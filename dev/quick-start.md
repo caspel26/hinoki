@@ -90,12 +90,24 @@ name the hosts you serve, and silence it, add
 [`allowed_hosts`](https://hinoki.caspel.dev/dev/web-security.md#allowed_hosts).
 
 Open `http://127.0.0.1:8000/docs` for the generated OpenAPI UI, or run
-`uv run hinoki routes` to list every route with its access policy.
+`uv run hinoki routes` to inspect the route map that `Hinoki(settings=ProjectSettings, ...)`
+loaded automatically from `notes/routes.py` (`[project] routes` in `hinoki.toml`):
+
+```sh
+uv run hinoki routes
+```
+
+```text
+METHOD  PATH     HANDLER           ACCESS  ATOMIC  ERRORS
+GET     /health  notes.api.health  public  -       -
+```
 
 ## What the manifest does
 
-`hinoki.toml` names the application, where its routes live and which rules it
-runs; each app you create adds its own models, migrations and routes:
+`hinoki.toml` registers the application, the project's route map (`[project] routes`),
+the rules it runs and each app's persistence and dependencies. `notes/main.py`
+loads `[project] routes` automatically, while `notes/routes.py` decides which
+apps are mounted over HTTP (`Mount("/entries", ...)`):
 
 ```toml
 [project]

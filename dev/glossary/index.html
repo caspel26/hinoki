@@ -241,7 +241,7 @@
           <h1 id="glossary">Glossary<a class="headerlink" href="#glossary" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -313,7 +313,7 @@
 <tbody>
 <tr>
 <td>manifest</td>
-<td><code>hinoki.toml</code>: the project's application, its project-wide routes, middleware and rules, and its apps with their routes, events, prefixes and dependencies.</td>
+<td><code>hinoki.toml</code>: the project's application, its <code>[project] routes</code> map, middleware and rules, and its registered <code>[[apps]]</code> with their optional persistence, events and dependencies.</td>
 </tr>
 <tr>
 <td>project application</td>
@@ -321,11 +321,11 @@
 </tr>
 <tr>
 <td>app</td>
-<td>A package listed under <code>[[apps]]</code>: models, migrations and a <code>routes.py</code>. Not a second <code>Hinoki</code> object.</td>
+<td>A package listed under <code>[[apps]]</code> (with optional <code>models</code>/<code>migrations</code>, <code>events</code>, <code>requires</code>, and reusable <code>routes.py</code>). Not a second <code>Hinoki</code> object.</td>
 </tr>
 <tr>
-<td>app prefix</td>
-<td>The path an app's routes are mounted under, set only in <code>hinoki.toml</code> (<code>/billing</code>).</td>
+<td>app mount</td>
+<td><code>Mount("/billing", billing_routes)</code> in the project's <code>routes.py</code>, deciding whether and at which prefix an app is exposed over HTTP.</td>
 </tr>
 <tr>
 <td>target</td>
@@ -392,7 +392,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 14:21:19 UTC">November 23, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/glossary.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

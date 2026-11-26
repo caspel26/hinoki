@@ -10,15 +10,16 @@ to your own project.
 | --- | --- | --- |
 | [1. Models](https://hinoki.caspel.dev/dev/tutorial/1-models.md) | tables, a foreign key, an index, a default order | models and migrations |
 | [2. Schemas](https://hinoki.caspel.dev/dev/tutorial/2-schemas.md) | what clients send and receive | strict validation, derived schemas |
-| [3. Operations](https://hinoki.caspel.dev/dev/tutorial/3-operations.md) | the business rules and the events they announce | ownership inside the statement, events between apps |
-| [4. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md) | the HTTP layer | access, generated CRUD with filters, transactions, declared errors |
-| [5. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md) | checks that keep the layers apart | `hinoki check` |
-| [6. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md) | the manifest, settings, a server, tests | `hinoki dev`, the test client |
-| [7. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md) | normalizers and checks | field and cross-field errors |
-| [8. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md) | an app in your own project | `hinoki app create`, planned migrations |
+| [3. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md) | the HTTP layer and explicit app mounts | access, generated CRUD with filters, transactions, declared errors |
+| [4. Implement a business rule](https://hinoki.caspel.dev/dev/tutorial/3-operations.md) | `complete_task(...)` and `delete_task(...)` | why domain rules live in `operations.py` with ownership in SQL |
+| [5. Events between apps](https://hinoki.caspel.dev/dev/tutorial/events.md) | `Created[Task]`, `Updated[Task]` and `activity` | decoupled `in_transaction` handlers and `hinoki events` |
+| [6. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md) | checks that keep the layers apart | `hinoki check` |
+| [7. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md) | the manifest, settings, a server, tests | `hinoki dev`, the test client |
+| [8. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md) | normalizers and checks | field and cross-field errors |
+| [9. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md) | an app in your own project | `hinoki app create`, planned migrations |
 
-Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
-chapter 8 continues the project from the [Quick start](https://hinoki.caspel.dev/dev/quick-start.md).
+Chapters 1–7 cover the Tracker. Chapter 8 uses standalone examples, and
+chapter 9 continues the project from the [Quick start](https://hinoki.caspel.dev/dev/quick-start.md).
 
 ## The Tracker's shape
 
@@ -28,7 +29,7 @@ purpose. Each app is a package with its own models, endpoints and migrations:
 ```text
 tracker/
 ├── main.py, settings.py   the application and its typed settings
-├── routes.py              routes that belong to no app (GET /health)
+├── routes.py              the project route map (GET /health and explicit app mounts)
 ├── middleware.py          a project-wide middleware
 ├── rules.py               architecture rules
 └── apps/
@@ -37,9 +38,8 @@ tracker/
     └── activity/          Activity, written by listening to task events
 ```
 
-`hinoki.toml` is the whole wiring. `[project]` names the application, the
-project routes, the middleware and the rule sets; each `[[apps]]` names its
-models, migrations and routes, and `requires` fixes the order:
+`hinoki.toml` registers the application, its route map, middleware, rules and
+apps, while `tracker/routes.py` decides where each exposed app is mounted:
 
 ```toml
 # examples/tracker/hinoki.toml
@@ -53,21 +53,18 @@ rules = ["tracker.rules:policy", "tracker.rules:layers"]
 name = "members"
 models = "tracker.apps.members.models"
 migrations = "tracker.apps.members.migrations"
-routes = "tracker.apps.members.api:routes"
 requires = []
 
 [[apps]]
 name = "tasks"
 models = "tracker.apps.tasks.models"
 migrations = "tracker.apps.tasks.migrations"
-routes = "tracker.apps.tasks.api:routes"
 requires = ["members"]
 
 [[apps]]
 name = "activity"
 models = "tracker.apps.activity.models"
 migrations = "tracker.apps.activity.migrations"
-routes = "tracker.apps.activity.api:routes"
 events = "tracker.apps.activity.events:handlers"
 requires = ["tasks", "members"]
 ```

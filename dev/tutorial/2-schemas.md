@@ -46,4 +46,4 @@ Schemas also support aliases, computed fields and tagged unions; see
 - Output schemas can be derived from a model, minus what must stay private.
 - Ownership comes from the caller, never from the request body.
 
-Next: [3. Operations](https://hinoki.caspel.dev/dev/tutorial/3-operations.md).
+Next: [3. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md).

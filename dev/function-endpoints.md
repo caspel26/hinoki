@@ -205,6 +205,5 @@ The handlers are plain functions, so a unit test can also `await get_invoice(inv
 | `RuntimeError: a RouteGroup cannot change after it is included` | An action is added after the group is included | Declare every action at import time |
 | `RegistrationError: a RouteGroup must declare at least one action` | An empty group in `routes.py` | Remove it or add an action |
 | `RegistrationError: a RouteGroup can be included only once` | The group is listed twice in one application | List it once; mount the list, not each group |
-| `RegistrationError: … replaces=... only works inside an API class` | `replaces=` on a group action | Remove it; it belongs to [classes](https://hinoki.caspel.dev/dev/class-endpoints.md) |
 | `ValueError: … already declares an HTTP route` | Two HTTP decorators on one function | One decorator per function |
 | `RegistrationError: 1 rule violation(s)` naming `HNK-ACC-001` | A public action not listed in `notes/rules.py` | Add it to `except_`, or give it a policy |

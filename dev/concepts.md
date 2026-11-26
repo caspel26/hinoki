@@ -8,7 +8,7 @@ A `Model` describes a table and its queries (SQLite, PostgreSQL, MySQL or MariaD
 
 ## A declaration is reused
 
-An action's signature and decorator options state its route, inputs, access policy, transaction (`atomic=`), declared errors and response. Routing, binding, the OpenAPI document, the rules, the admin and MCP all read that one declaration. Actions are [plain functions](https://hinoki.caspel.dev/dev/function-endpoints.md), optionally grouped in a `RouteGroup` with shared options, or [methods of an `API` class](https://hinoki.caspel.dev/dev/class-endpoints.md). Each app lists them in its `routes.py`, and `hinoki.toml` mounts every app under its prefix ([register routes](https://hinoki.caspel.dev/dev/routes.md)).
+An action's signature and decorator options state its route, inputs, access policy, transaction (`atomic=`), declared errors and response. Routing, binding, the OpenAPI document, the rules, the admin and MCP all read that one declaration. Actions are [plain functions](https://hinoki.caspel.dev/dev/function-endpoints.md), optionally grouped in a `RouteGroup` with shared options, or [methods of an `API` class](https://hinoki.caspel.dev/dev/class-endpoints.md). Each app lists them in its `routes.py`, and the project's `routes.py` mounts exposed apps with `Mount(...)` ([register routes](https://hinoki.caspel.dev/dev/routes.md)).
 
 ## One application object
 
@@ -29,7 +29,7 @@ def card_error(error: stripe.CardError) -> errors.APIError:
     return errors.APIError(error.user_message, status=402, code="card_declined")
 ```
 
-`Hinoki(...)` loads the routes, events, middleware and rules that `hinoki.toml` declares (each of `include=`, `events=`, `middleware=` and `rules=` you pass replaces its manifest value; the [Notes example](https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/main.py) passes `include=` because its manifest lists no routes) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
+`Hinoki(...)` loads `[project] routes`, app `events`, `[project] middleware` and `[project] rules` that `hinoki.toml` declares (each of `include=`, `events=`, `middleware=` and `rules=` you pass replaces its manifest value; for example, the [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py) passes `include=` for conditional routes) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` register app packages (optional `models`/`migrations`, `events`, `requires`), not further `Hinoki` objects.
 
 ## One request
 

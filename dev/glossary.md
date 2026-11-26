@@ -24,10 +24,10 @@ One word, one meaning. "Schema" has four meanings in this field, so the docs kee
 
 | Term | Meaning |
 | --- | --- |
-| manifest | `hinoki.toml`: the project's application, its project-wide routes, middleware and rules, and its apps with their routes, events, prefixes and dependencies. |
+| manifest | `hinoki.toml`: the project's application, its `[project] routes` map, middleware and rules, and its registered `[[apps]]` with their optional persistence, events and dependencies. |
 | project application | The `Hinoki` object named by `project.application` (`notes.main:app`); the one a server process serves. |
-| app | A package listed under `[[apps]]`: models, migrations and a `routes.py`. Not a second `Hinoki` object. |
-| app prefix | The path an app's routes are mounted under, set only in `hinoki.toml` (`/billing`). |
+| app | A package listed under `[[apps]]` (with optional `models`/`migrations`, `events`, `requires`, and reusable `routes.py`). Not a second `Hinoki` object. |
+| app mount | `Mount("/billing", billing_routes)` in the project's `routes.py`, deciding whether and at which prefix an app is exposed over HTTP. |
 | target | `module:attribute` naming an app, such as `notes.main:app`. Commands use `project.application` from `hinoki.toml` when it is omitted. |
 
 ## Code

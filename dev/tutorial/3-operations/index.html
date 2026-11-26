@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>3. Operations · Hinoki</title>
+  <title>4. Implement a business rule · Hinoki</title>
   <meta name="description" content="High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="3. Operations · Hinoki">
+  <meta property="og:title" content="4. Implement a business rule · Hinoki">
   <meta property="og:description" content="High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
   <meta property="og:image" content="https://hinoki.caspel.dev/devstatic/og.png">
   <meta property="og:image:alt" content="Hinoki: High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
@@ -221,27 +221,31 @@
               
             
               
-                <li><a class="side__link is-active" href="./" aria-current="page"><span>3. Operations</span></a></li>
+                <li><a class="side__link" href="../4-endpoints/"><span>3. Endpoints</span></a></li>
               
             
               
-                <li><a class="side__link" href="../4-endpoints/"><span>4. Endpoints</span></a></li>
+                <li><a class="side__link is-active" href="./" aria-current="page"><span>4. Implement a business rule</span></a></li>
               
             
               
-                <li><a class="side__link" href="../5-rules/"><span>5. Rules</span></a></li>
+                <li><a class="side__link" href="../events/"><span>5. Events between apps</span></a></li>
               
             
               
-                <li><a class="side__link" href="../6-run/"><span>6. Run and test it</span></a></li>
+                <li><a class="side__link" href="../5-rules/"><span>6. Rules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../7-validation/"><span>7. Validate input</span></a></li>
+                <li><a class="side__link" href="../6-run/"><span>7. Run and test it</span></a></li>
               
             
               
-                <li><a class="side__link" href="../8-projects/"><span>8. Projects and apps</span></a></li>
+                <li><a class="side__link" href="../7-validation/"><span>8. Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../8-projects/"><span>9. Projects and apps</span></a></li>
               
             
             </ul>
@@ -254,21 +258,31 @@
       <article class="prose">
         <header class="page-head">
           <p class="kicker" data-search-exclude><span class="i-tile"><span class="i i--graduation-cap i--m" aria-hidden="true"></span></span><span>Tutorial</span></p>
-          <h1 id="3-operations">3. Operations<a class="headerlink" href="#3-operations" title="Permanent link">&para;</a></h1>
+          <h1 id="4-implement-a-business-rule">4. Implement a business rule<a class="headerlink" href="#4-implement-a-business-rule" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
-            <span>3 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></span>
+            <span>2 min read</span>
           </p>
           
         </header>
         
-<p>The rules of the application live in plain async functions. They take the
-acting member's id and plain values, never a <code>Request</code>, so an endpoint, a
-command, a test or an admin hook can call them. The list, retrieve and create
-of tasks are generated (<a href="../4-endpoints/">chapter 4</a>); what remains for
-<code>operations.py</code> is what the generator cannot know. It starts with one query
-that every action reuses:</p>
+<p>Generated CRUD (<a href="../4-endpoints/">chapter 3</a>) already handles listing, retrieving,
+creating and deleting rows. When an action encodes a domain rule — such as
+marking an open task done or refusing to delete a completed one — put that rule
+in <code>operations.py</code> instead of writing SQL or state checks directly inside the
+HTTP handler:</p>
+<ul>
+<li><strong>Reuse across entry points</strong>: plain <code>async def</code> functions take <code>owner_id</code> and
+  plain values, never a <code>Request</code>, so an endpoint, a management command, a test
+  or an admin hook can call the same rule.</li>
+<li><strong>Layer isolation</strong>: <code>api.py</code> stays responsible only for HTTP shapes, status
+  codes, <code>Access</code> policies and <code>atomic=True</code> transaction boundaries, while
+  <a href="../5-rules/">chapter 6</a> enforces that <code>operations.py</code> never imports HTTP types.</li>
+<li><strong>Single-statement ownership</strong>: writes include the owner in the <code>WHERE</code> clause
+  so there is no race between reading a row, checking ownership and updating it.</li>
+</ul>
+<p>It starts with one scoped query that every action reuses:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/tasks/operations.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
 
@@ -325,58 +339,14 @@ status (409 for <code>Conflict</code>) and a stable code:</p>
     <span class="n">code</span> <span class="o">=</span> <span class="s2">"done_tasks_are_kept"</span>
     <span class="n">message</span> <span class="o">=</span> <span class="s2">"Completed tasks are kept as a record and cannot be deleted."</span>
 </code></pre></div>
-<h2 id="events-between-apps">Events between apps<a class="headerlink" href="#events-between-apps" title="Permanent link">&para;</a></h2>
-<p>Creating a task and completing one both leave a line in the member's activity
-feed, but <code>tasks</code> does not know the feed exists. It announces: generated create
-emits <code>Created[Task]</code>, and <code>complete_task</code> emits <code>Updated[Task]</code> itself because
-<code>aupdate_where</code> emits no model event. The <code>activity</code> app listens:</p>
-<div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/apps/activity/events.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">events</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">tracker.apps.tasks.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Task</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Activity</span>
-
-<span class="n">handlers</span> <span class="o">=</span> <span class="n">events</span><span class="o">.</span><span class="n">Handlers</span><span class="p">(</span><span class="s2">"activity"</span><span class="p">)</span>
-
-
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">record</span><span class="p">(</span><span class="n">task</span><span class="p">:</span> <span class="n">Task</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">await</span> <span class="n">Activity</span><span class="o">.</span><span class="n">acreate</span><span class="p">(</span><span class="n">member_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">owner_id</span><span class="p">,</span> <span class="n">task_id</span><span class="o">=</span><span class="n">task</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="n">kind</span><span class="p">)</span>
-
-
-<span class="nd">@handlers</span><span class="o">.</span><span class="n">in_transaction</span><span class="p">(</span><span class="n">events</span><span class="o">.</span><span class="n">Created</span><span class="p">[</span><span class="n">Task</span><span class="p">])</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">task_created</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">events</span><span class="o">.</span><span class="n">Created</span><span class="p">[</span><span class="n">Task</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">await</span> <span class="n">record</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">instance</span><span class="p">,</span> <span class="s2">"created"</span><span class="p">)</span>
-
-
-<span class="nd">@handlers</span><span class="o">.</span><span class="n">in_transaction</span><span class="p">(</span><span class="n">events</span><span class="o">.</span><span class="n">Updated</span><span class="p">[</span><span class="n">Task</span><span class="p">])</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">task_updated</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">events</span><span class="o">.</span><span class="n">Updated</span><span class="p">[</span><span class="n">Task</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="k">await</span> <span class="n">record</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">instance</span><span class="p">,</span> <span class="s2">"updated"</span><span class="p">)</span>
-</code></pre></div>
-<p><code>in_transaction</code> runs the handler inside the transaction of the change, so the
-task and its activity line commit together or not at all. The handlers are
-registered by the <code>events</code> entry of the <code>activity</code> app in <code>hinoki.toml</code>
-(<a href="../6-run/">chapter 6</a>), and one command lists them:</p>
-<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>events
-</code></pre></div>
-<div class="language-text highlight"><pre><span></span><code>Created[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_created
-Updated[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_updated
-
-limits: events.handler_timeout=5.0, events.max_handlers=16, events.max_depth=4
-declared in hinoki.toml: activity -&gt; tracker.apps.activity.events:handlers
-</code></pre></div>
-<p>The dependency points from <code>activity</code> to <code>tasks</code> only, which is also why
-<code>activity</code> lists <code>requires = ["tasks", "members"]</code>. <a href="../5-rules/">Chapter 5</a>
-makes the other direction a failing check. See <a href="../../events/">events</a> for
-<code>after_commit</code> handlers and the limits.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Operations hold the rules and know nothing about HTTP.</li>
+<li>Business rules such as <code>complete_task(...)</code> belong in <code>operations.py</code>,
+  separate from HTTP handlers in <code>api.py</code>.</li>
 <li>Ownership is part of the <code>WHERE</code> clause, not a separate check.</li>
 <li>Errors are classes with a status and a stable code.</li>
-<li>An app announces what happened; another app listens, without an import in
-  the other direction.</li>
 </ul>
-<p>Next: <a href="../4-endpoints/">4. Endpoints</a>.</p>
+<p>Next: <a href="../events/">5. Events between apps</a>.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -386,8 +356,8 @@ makes the other direction a failing check. See <a href="../../events/">events</a
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../2-schemas/"><small>Previous</small><span>2. Schemas</span></a>
-        <a class="pager__link pager__link--next" href="../4-endpoints/"><small>Next</small><span>4. Endpoints</span></a>
+        <a class="pager__link pager__link--prev" href="../4-endpoints/"><small>Previous</small><span>3. Endpoints</span></a>
+        <a class="pager__link pager__link--next" href="../events/"><small>Next</small><span>5. Events between apps</span></a>
       </nav>
     </main>
 
@@ -399,13 +369,13 @@ makes the other direction a failing check. See <a href="../../events/">events</a
           <span class="toc__marker" aria-hidden="true"></span>
           
           
-            <ul><li><a href="#events-between-apps">Events between apps</a></li><li><a href="#recap">Recap</a></li></ul>
+            <ul><li><a href="#recap">Recap</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/3-operations.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

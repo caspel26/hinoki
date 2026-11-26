@@ -229,7 +229,7 @@
           <h1 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -351,10 +351,18 @@ name the hosts you serve, and silence it, add
 <code>NOTES_ALLOWED_HOSTS=127.0.0.1,localhost</code> to <code>.env</code>; see
 <a href="../web-security/#allowed_hosts"><code>allowed_hosts</code></a>.</p>
 <p>Open <code>http://127.0.0.1:8000/docs</code> for the generated OpenAPI UI, or run
-<code>uv run hinoki routes</code> to list every route with its access policy.</p>
+<code>uv run hinoki routes</code> to inspect the route map that <code>Hinoki(settings=ProjectSettings, ...)</code>
+loaded automatically from <code>notes/routes.py</code> (<code>[project] routes</code> in <code>hinoki.toml</code>):</p>
+<div class="language-sh highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>hinoki<span class="w"> </span>routes
+</code></pre></div>
+<div class="language-text highlight"><pre><span></span><code>METHOD  PATH     HANDLER           ACCESS  ATOMIC  ERRORS
+GET     /health  notes.api.health  public  -       -
+</code></pre></div>
 <h2 id="what-the-manifest-does">What the manifest does<a class="headerlink" href="#what-the-manifest-does" title="Permanent link">&para;</a></h2>
-<p><code>hinoki.toml</code> names the application, where its routes live and which rules it
-runs; each app you create adds its own models, migrations and routes:</p>
+<p><code>hinoki.toml</code> registers the application, the project's route map (<code>[project] routes</code>),
+the rules it runs and each app's persistence and dependencies. <code>notes/main.py</code>
+loads <code>[project] routes</code> automatically, while <code>notes/routes.py</code> decides which
+apps are mounted over HTTP (<code>Mount("/entries", ...)</code>):</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
 <span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span>
@@ -436,7 +444,7 @@ walks through it.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
-          <ul><li><a href="../tutorial/8-projects/">8. Projects and apps</a></li><li><a href="../cli/">Command line</a></li><li><a href="../serving/">Serve an application</a></li></ul>
+          <ul><li><a href="../tutorial/8-projects/">9. Projects and apps</a></li><li><a href="../cli/">Command line</a></li><li><a href="../serving/">Serve an application</a></li></ul>
         </aside>
         
       </article>
@@ -463,7 +471,7 @@ walks through it.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

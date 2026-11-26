@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>4. Endpoints · Hinoki</title>
+  <title>3. Endpoints · Hinoki</title>
   <meta name="description" content="High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="../../static/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
-  <meta property="og:title" content="4. Endpoints · Hinoki">
+  <meta property="og:title" content="3. Endpoints · Hinoki">
   <meta property="og:description" content="High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
   <meta property="og:image" content="https://hinoki.caspel.dev/devstatic/og.png">
   <meta property="og:image:alt" content="Hinoki: High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
@@ -221,27 +221,31 @@
               
             
               
-                <li><a class="side__link" href="../3-operations/"><span>3. Operations</span></a></li>
+                <li><a class="side__link is-active" href="./" aria-current="page"><span>3. Endpoints</span></a></li>
               
             
               
-                <li><a class="side__link is-active" href="./" aria-current="page"><span>4. Endpoints</span></a></li>
+                <li><a class="side__link" href="../3-operations/"><span>4. Implement a business rule</span></a></li>
               
             
               
-                <li><a class="side__link" href="../5-rules/"><span>5. Rules</span></a></li>
+                <li><a class="side__link" href="../events/"><span>5. Events between apps</span></a></li>
               
             
               
-                <li><a class="side__link" href="../6-run/"><span>6. Run and test it</span></a></li>
+                <li><a class="side__link" href="../5-rules/"><span>6. Rules</span></a></li>
               
             
               
-                <li><a class="side__link" href="../7-validation/"><span>7. Validate input</span></a></li>
+                <li><a class="side__link" href="../6-run/"><span>7. Run and test it</span></a></li>
               
             
               
-                <li><a class="side__link" href="../8-projects/"><span>8. Projects and apps</span></a></li>
+                <li><a class="side__link" href="../7-validation/"><span>8. Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="../8-projects/"><span>9. Projects and apps</span></a></li>
               
             
             </ul>
@@ -254,11 +258,11 @@
       <article class="prose">
         <header class="page-head">
           <p class="kicker" data-search-exclude><span class="i-tile"><span class="i i--graduation-cap i--m" aria-hidden="true"></span></span><span>Tutorial</span></p>
-          <h1 id="4-endpoints">4. Endpoints<a class="headerlink" href="#4-endpoints" title="Permanent link">&para;</a></h1>
+          <h1 id="3-endpoints">3. Endpoints<a class="headerlink" href="#3-endpoints" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></span>
-            <span>5 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></span>
+            <span>6 min read</span>
           </p>
           
         </header>
@@ -378,10 +382,14 @@ That is valid because every generated action that calls them has the
 the class is declared and raises <code>RegistrationError</code> otherwise. For a resource
 that mixes public and protected actions, annotate <code>Caller[Member] | None</code>. See
 <a href="../../crud/#hooks-in-the-class-form">hooks</a> in the CRUD guide.</p>
-<p>The project's <code>GET /health</code> is a plain function in <code>tracker/routes.py</code>, public
-on purpose, and it answers a <code>Schema</code> like every other action:</p>
+<p>The project's <code>tracker/routes.py</code> defines the public <code>GET /health</code> check and
+mounts each exposed app explicitly with <code>Mount(...)</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tracker/routes.py</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">Mount</span><span class="p">,</span> <span class="n">Schema</span><span class="p">,</span> <span class="n">http</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.apps.activity.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">activity_routes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.apps.members.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">members_routes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.apps.tasks.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">tasks_routes</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">Health</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span>
@@ -389,11 +397,16 @@ on purpose, and it answers a <code>Schema</code> like every other action:</p>
 
 
 <span class="nd">@http</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">)</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Health</span><span class="p">:</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">health</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Health</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">Health</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"ok"</span><span class="p">)</span>
 
 
-<span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">health</span><span class="p">]</span>
+<span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">health</span><span class="p">,</span>
+    <span class="n">Mount</span><span class="p">(</span><span class="s2">"/members"</span><span class="p">,</span> <span class="n">members_routes</span><span class="p">),</span>
+    <span class="n">Mount</span><span class="p">(</span><span class="s2">"/tasks"</span><span class="p">,</span> <span class="n">tasks_routes</span><span class="p">),</span>
+    <span class="n">Mount</span><span class="p">(</span><span class="s2">"/activity"</span><span class="p">,</span> <span class="n">activity_routes</span><span class="p">),</span>
+<span class="p">]</span>
 </code></pre></div>
 <ul>
 <li><strong><code>@crud(...)</code></strong> generates the list, retrieve, create and delete actions with
@@ -462,7 +475,7 @@ default <code>/&lt;app name&gt;</code>), which is why <code>path=""</code> above
 <li>Handlers call operations and convert rows with <code>from_model</code>.</li>
 <li>Every error an action raises is declared.</li>
 </ul>
-<p>Next: <a href="../5-rules/">5. Rules</a>. In the guides: <a href="../../function-endpoints/">function-based APIs</a> and <a href="../../class-endpoints/">class-based APIs</a>.</p>
+<p>Next: <a href="../3-operations/">4. Implement a business rule</a>. In the guides: <a href="../../function-endpoints/">function-based APIs</a> and <a href="../../class-endpoints/">class-based APIs</a>.</p>
         
         <aside class="related" aria-label="Related pages">
           <p class="related__label">Related</p>
@@ -472,8 +485,8 @@ default <code>/&lt;app name&gt;</code>), which is why <code>path=""</code> above
       </article>
 
       <nav class="pager" aria-label="Previous and next page">
-        <a class="pager__link pager__link--prev" href="../3-operations/"><small>Previous</small><span>3. Operations</span></a>
-        <a class="pager__link pager__link--next" href="../5-rules/"><small>Next</small><span>5. Rules</span></a>
+        <a class="pager__link pager__link--prev" href="../2-schemas/"><small>Previous</small><span>2. Schemas</span></a>
+        <a class="pager__link pager__link--next" href="../3-operations/"><small>Next</small><span>4. Implement a business rule</span></a>
       </nav>
     </main>
 
@@ -491,7 +504,7 @@ default <code>/&lt;app name&gt;</code>), which is why <code>path=""</code> above
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 17:02:16 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/4-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

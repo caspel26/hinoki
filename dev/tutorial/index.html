@@ -221,27 +221,31 @@
               
             
               
-                <li><a class="side__link" href="3-operations/"><span>3. Operations</span></a></li>
+                <li><a class="side__link" href="4-endpoints/"><span>3. Endpoints</span></a></li>
               
             
               
-                <li><a class="side__link" href="4-endpoints/"><span>4. Endpoints</span></a></li>
+                <li><a class="side__link" href="3-operations/"><span>4. Implement a business rule</span></a></li>
               
             
               
-                <li><a class="side__link" href="5-rules/"><span>5. Rules</span></a></li>
+                <li><a class="side__link" href="events/"><span>5. Events between apps</span></a></li>
               
             
               
-                <li><a class="side__link" href="6-run/"><span>6. Run and test it</span></a></li>
+                <li><a class="side__link" href="5-rules/"><span>6. Rules</span></a></li>
               
             
               
-                <li><a class="side__link" href="7-validation/"><span>7. Validate input</span></a></li>
+                <li><a class="side__link" href="6-run/"><span>7. Run and test it</span></a></li>
               
             
               
-                <li><a class="side__link" href="8-projects/"><span>8. Projects and apps</span></a></li>
+                <li><a class="side__link" href="7-validation/"><span>8. Validate input</span></a></li>
+              
+            
+              
+                <li><a class="side__link" href="8-projects/"><span>9. Projects and apps</span></a></li>
               
             
             </ul>
@@ -257,7 +261,7 @@
           <h1 id="tutorial">Tutorial<a class="headerlink" href="#tutorial" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -288,45 +292,50 @@ to your own project.</p>
 <td>strict validation, derived schemas</td>
 </tr>
 <tr>
-<td><a href="3-operations/">3. Operations</a></td>
-<td>the business rules and the events they announce</td>
-<td>ownership inside the statement, events between apps</td>
-</tr>
-<tr>
-<td><a href="4-endpoints/">4. Endpoints</a></td>
-<td>the HTTP layer</td>
+<td><a href="4-endpoints/">3. Endpoints</a></td>
+<td>the HTTP layer and explicit app mounts</td>
 <td>access, generated CRUD with filters, transactions, declared errors</td>
 </tr>
 <tr>
-<td><a href="5-rules/">5. Rules</a></td>
+<td><a href="3-operations/">4. Implement a business rule</a></td>
+<td><code>complete_task(...)</code> and <code>delete_task(...)</code></td>
+<td>why domain rules live in <code>operations.py</code> with ownership in SQL</td>
+</tr>
+<tr>
+<td><a href="events/">5. Events between apps</a></td>
+<td><code>Created[Task]</code>, <code>Updated[Task]</code> and <code>activity</code></td>
+<td>decoupled <code>in_transaction</code> handlers and <code>hinoki events</code></td>
+</tr>
+<tr>
+<td><a href="5-rules/">6. Rules</a></td>
 <td>checks that keep the layers apart</td>
 <td><code>hinoki check</code></td>
 </tr>
 <tr>
-<td><a href="6-run/">6. Run and test it</a></td>
+<td><a href="6-run/">7. Run and test it</a></td>
 <td>the manifest, settings, a server, tests</td>
 <td><code>hinoki dev</code>, the test client</td>
 </tr>
 <tr>
-<td><a href="7-validation/">7. Validate input</a></td>
+<td><a href="7-validation/">8. Validate input</a></td>
 <td>normalizers and checks</td>
 <td>field and cross-field errors</td>
 </tr>
 <tr>
-<td><a href="8-projects/">8. Projects and apps</a></td>
+<td><a href="8-projects/">9. Projects and apps</a></td>
 <td>an app in your own project</td>
 <td><code>hinoki app create</code>, planned migrations</td>
 </tr>
 </tbody>
 </table>
-<p>Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
-chapter 8 continues the project from the <a href="../quick-start/">Quick start</a>.</p>
+<p>Chapters 1–7 cover the Tracker. Chapter 8 uses standalone examples, and
+chapter 9 continues the project from the <a href="../quick-start/">Quick start</a>.</p>
 <h2 id="the-trackers-shape">The Tracker's shape<a class="headerlink" href="#the-trackers-shape" title="Permanent link">&para;</a></h2>
 <p>The Tracker is one project with three apps that depend on each other on
 purpose. Each app is a package with its own models, endpoints and migrations:</p>
 <div class="language-text highlight"><pre><span></span><code>tracker/
 ├── main.py, settings.py   the application and its typed settings
-├── routes.py              routes that belong to no app (GET /health)
+├── routes.py              the project route map (GET /health and explicit app mounts)
 ├── middleware.py          a project-wide middleware
 ├── rules.py               architecture rules
 └── apps/
@@ -334,9 +343,8 @@ purpose. Each app is a package with its own models, endpoints and migrations:</p
     ├── tasks/             Task: models, schemas, filters, operations, api
     └── activity/          Activity, written by listening to task events
 </code></pre></div>
-<p><code>hinoki.toml</code> is the whole wiring. <code>[project]</code> names the application, the
-project routes, the middleware and the rule sets; each <code>[[apps]]</code> names its
-models, migrations and routes, and <code>requires</code> fixes the order:</p>
+<p><code>hinoki.toml</code> registers the application, its route map, middleware, rules and
+apps, while <code>tracker/routes.py</code> decides where each exposed app is mounted:</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="c1"># examples/tracker/hinoki.toml</span>
 <span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.main:app"</span>
@@ -348,21 +356,18 @@ models, migrations and routes, and <code>requires</code> fixes the order:</p>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"members"</span>
 <span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.members.models"</span>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.members.migrations"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.members.api:routes"</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
 
 <span class="k">[[apps]]</span>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tasks"</span>
 <span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.tasks.models"</span>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.tasks.migrations"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.tasks.api:routes"</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"members"</span><span class="p">]</span>
 
 <span class="k">[[apps]]</span>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"activity"</span>
 <span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.models"</span>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.migrations"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.api:routes"</span>
 <span class="n">events</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"tracker.apps.activity.events:handlers"</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"tasks"</span><span class="p">,</span><span class="w"> </span><span class="s2">"members"</span><span class="p">]</span>
 </code></pre></div>
@@ -413,7 +418,7 @@ repository ignores.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:53:10 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/index.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
