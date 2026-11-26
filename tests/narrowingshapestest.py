@@ -81,6 +81,12 @@ CASES: Cases = {
     "/generic-alias": (Box[Public], [private(1)], [shown(1)]),
     "/optional-alias": (Alias | None, [private(1)], [shown(1)]),
     "/tuple-as-list": (list[Public], (private(1), private(2)), [shown(1), shown(2)]),
+    "/fixed-tuple": (tuple[Public, int], (private(1), 5), [shown(1), 5]),
+    "/tuple-ellipsis": (
+        tuple[Public, ...],
+        (private(1), private(2)),
+        [shown(1), shown(2)],
+    ),
 }
 # A recursive TypedDict is narrowed at its first level: the back-reference to
 # itself is written as it is.
