@@ -305,6 +305,7 @@ def test_a_single_arm_is_checked_directly_and_a_union_by_any_arm() -> None:
 
 def test_a_union_check_creates_no_generator_per_response() -> None:
     union = compile_response_check("action", NoteOut | None)
+    sample = note()  # built before profiling: a first construction is not the check
     created: list[str] = []
 
     def watch(frame: Any, event: str, _arg: object) -> None:
@@ -313,7 +314,7 @@ def test_a_union_check_creates_no_generator_per_response() -> None:
 
     sys.setprofile(watch)
     try:
-        assert union(note())
+        assert union(sample)
         assert union(None)
         assert not union(3)
     finally:
