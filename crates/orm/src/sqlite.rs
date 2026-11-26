@@ -7,10 +7,10 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use rusqlite::params_from_iter;
-use rusqlite::types::{Value as SqliteValue, ValueRef};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use tokio_rusqlite::{rusqlite, Connection};
+use tokio_rusqlite::rusqlite::types::{Value as SqliteValue, ValueRef};
+use tokio_rusqlite::rusqlite::{self, params_from_iter};
+use tokio_rusqlite::Connection;
 
 use crate::error::{DbError, ErrorKind};
 use crate::value::Value;

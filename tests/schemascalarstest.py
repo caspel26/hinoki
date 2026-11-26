@@ -23,6 +23,7 @@ from hinoki import (
     Schemas,
     Unset,
     core,
+    derive,
     field_check,
     http,
 )
@@ -886,7 +887,8 @@ class Attachment(Model, table="scalar_attachments"):
     thumbnail: bytes | None = None
 
 
-class AttachmentOut(Schema, model=Attachment):
+@derive(Attachment)
+class AttachmentOut(Schema):
     pass
 
 

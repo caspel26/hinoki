@@ -3,6 +3,7 @@
 use std::fmt;
 
 use tokio_postgres::error::SqlState;
+use tokio_rusqlite::rusqlite;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorKind {
