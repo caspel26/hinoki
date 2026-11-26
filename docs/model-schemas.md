@@ -160,6 +160,9 @@ Written whole, because no declared schema decides them:
 - a position typed `Any` or `object`;
 - a dataclass, and a `Page` inside another container (`dict[str, Page[S]]`);
 - a declared class that overrides `dump()`: its own `dump()` decides the shape;
+- the fields of an exact instance, for a custom renderer that takes objects: it
+  receives the instance itself (the built-in JSON and XML encoders and `dump()`
+  narrow its fields);
 - a value that is not a `list`, `tuple`, `set`, `frozenset` or `dict` where a
   collection is declared (a generator or iterator returned for `Iterable[S]`, a
   mapping that is not a `dict`) is not walked, and the JSON and XML encoders
