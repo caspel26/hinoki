@@ -10,7 +10,7 @@ use hinoki_orm::{Database, DbError, ErrorKind, Transaction, Value};
 use time::{OffsetDateTime, UtcOffset};
 use uuid::Uuid;
 
-use crate::crudplan::{one_row_params, CrudPlan, ModelDefault, ModelDefaultValue};
+use crate::crudplan::{retrieve_params, CallerContext, CrudPlan, ModelDefault, ModelDefaultValue};
 use crate::filters::Typed;
 use crate::nativelinks::{self, InTransaction, LinkWork, Refused};
 use crate::request::{decode_json_document, decode_path_parameter, parse_query, Json};
@@ -60,15 +60,17 @@ impl OwnerScope {
 }
 
 enum PreparedWrite {
-    Create(Vec<(String, Value)>, LinkWork),
+    Create(Option<Value>, Vec<(String, Value)>, LinkWork),
     Update {
         id: Value,
         values: Vec<(String, Value)>,
+        scope: Option<Value>,
         owner: Option<OwnerScope>,
         links: LinkWork,
     },
     Delete {
         id: Value,
+        scope: Option<Value>,
         owner: Option<OwnerScope>,
     },
 }
@@ -155,9 +157,10 @@ pub(crate) async fn execute_read(
     database: &Database,
     path_params: &[(String, String)],
     raw_query: &[u8],
-    caller: Option<&str>,
+    request_id: &str,
+    caller: Option<CallerContext<'_>>,
 ) -> NativeRead {
-    execute_read_with(plan, database, path_params, raw_query, caller).await
+    execute_read_with(plan, database, path_params, raw_query, request_id, caller).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -169,13 +172,13 @@ pub(crate) async fn execute_write(
     raw_query: &[u8],
     max_body_bytes: usize,
     timeout: Duration,
-    caller: Option<&str>,
+    caller: Option<CallerContext<'_>>,
 ) -> NativeWrite {
     let owner = match (plan.owner.as_deref(), caller) {
         (None, _) => None,
-        (Some(column), Some(value)) => Some(OwnerScope {
+        (Some(column), Some(ctx)) => Some(OwnerScope {
             column: column.to_owned(),
-            value: value.to_owned(),
+            value: ctx.subject.to_owned(),
         }),
         (Some(_), None) => return NativeWrite::Defer(None),
     };
@@ -279,7 +282,7 @@ fn prepare_write(
     path_params: &[(String, String)],
     raw_query: &[u8],
     body: Option<&[u8]>,
-    (owner, caller): (Option<OwnerScope>, Option<&str>),
+    (owner, caller): (Option<OwnerScope>, Option<CallerContext<'_>>),
 ) -> Result<PreparedWrite, NativeWrite> {
     if parse_query(raw_query, 1000).is_err() {
         return Err(http_error(
@@ -289,7 +292,6 @@ fn prepare_write(
             Some("malformed query string"),
         ));
     }
-    let caller = caller.map(str::to_owned);
     match plan.action.as_str() {
         "create" => prepare_create(
             plan,
@@ -306,17 +308,65 @@ fn prepare_write(
         ),
         "delete" => {
             let id = write_path_id(plan, path_params).ok_or(NativeWrite::Defer(None))?;
-            Ok(PreparedWrite::Delete { id, owner })
+            let scope = resolve_scope(plan, caller)
+                .map_err(|message| http_error(request, 403, "forbidden", Some(message)))?;
+            Ok(PreparedWrite::Delete { id, scope, owner })
         }
         _ => Err(NativeWrite::Defer(body.map(<[u8]>::to_vec))),
     }
+}
+
+fn link_work(
+    plan: &CrudPlan,
+    sets: Vec<(usize, Vec<hinoki_orm::links::Canon>)>,
+    caller: Option<CallerContext<'_>>,
+    request: &PreparedRequest,
+) -> Result<LinkWork, NativeWrite> {
+    let active = sets
+        .iter()
+        .map(|(index, _)| *index)
+        .chain(plan.read_links.iter().copied());
+    ensure_link_scopes(plan, caller, active)
+        .map_err(|message| http_error(request, 403, "forbidden", Some(message)))?;
+    let owned_caller = caller.map(|ctx| (ctx.subject.to_owned(), ctx.claims.to_vec()));
+    Ok(LinkWork {
+        sets,
+        caller: owned_caller,
+    })
+}
+
+fn resolve_scope(
+    plan: &CrudPlan,
+    caller: Option<CallerContext<'_>>,
+) -> Result<Option<Value>, &'static str> {
+    let Some(spec) = &plan.scope else {
+        return Ok(None);
+    };
+    spec.resolve(caller)
+        .map(Some)
+        .ok_or("You cannot access this item.")
+}
+
+fn ensure_link_scopes(
+    plan: &CrudPlan,
+    caller: Option<CallerContext<'_>>,
+    indices: impl Iterator<Item = usize>,
+) -> Result<(), &'static str> {
+    for index in indices {
+        if let Some(spec) = &plan.links[index].scope {
+            if spec.resolve(caller).is_none() {
+                return Err("You cannot access this item.");
+            }
+        }
+    }
+    Ok(())
 }
 
 fn prepare_create(
     plan: &CrudPlan,
     request: &PreparedRequest,
     body: &[u8],
-    (owner, caller): (Option<OwnerScope>, Option<String>),
+    (owner, caller): (Option<OwnerScope>, Option<CallerContext<'_>>),
 ) -> Result<PreparedWrite, NativeWrite> {
     let json = decode_body(request, body)?;
     let schema = plan
@@ -326,8 +376,15 @@ fn prepare_create(
     let Some((mut values, sets)) = parsed else {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     };
+    let scope = resolve_scope(plan, caller)
+        .map_err(|message| http_error(request, 403, "forbidden", Some(message)))?;
+    let links = link_work(plan, sets, caller, request)?;
     if !append_defaults(&mut values, plan.create_defaults(), plan) {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
+    }
+    if let (Some(spec), Some(value)) = (&plan.scope, scope.as_ref()) {
+        // The schema cannot carry the scope column, so this never overrides input.
+        values.push((spec.column.clone(), value.clone()));
     }
     if let Some(owner) = owner {
         // The schema cannot carry the owner column, so this never overrides input.
@@ -335,7 +392,7 @@ fn prepare_create(
     }
     order_schema_values(&mut values, schema);
     ensure_create_requirements(plan, &values, body)?;
-    Ok(PreparedWrite::Create(values, LinkWork { sets, caller }))
+    Ok(PreparedWrite::Create(scope, values, links))
 }
 
 fn prepare_update(
@@ -343,7 +400,7 @@ fn prepare_update(
     request: &PreparedRequest,
     path_params: &[(String, String)],
     body: &[u8],
-    (owner, caller): (Option<OwnerScope>, Option<String>),
+    (owner, caller): (Option<OwnerScope>, Option<CallerContext<'_>>),
 ) -> Result<PreparedWrite, NativeWrite> {
     let id = write_path_id(plan, path_params).ok_or(NativeWrite::Defer(Some(body.to_vec())))?;
     let json = decode_body(request, body)?;
@@ -353,6 +410,9 @@ fn prepare_update(
     let Some((mut values, sets)) = validate_body(plan, schema, &json, request)? else {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     };
+    let scope = resolve_scope(plan, caller)
+        .map_err(|message| http_error(request, 403, "forbidden", Some(message)))?;
+    let links = link_work(plan, sets, caller, request)?;
     if !append_defaults(&mut values, plan.update_defaults(), plan) {
         return Err(NativeWrite::Defer(Some(body.to_vec())));
     }
@@ -360,8 +420,9 @@ fn prepare_update(
     Ok(PreparedWrite::Update {
         id,
         values,
+        scope,
         owner,
-        links: LinkWork { sets, caller },
+        links,
     })
 }
 
@@ -677,12 +738,22 @@ async fn execute_in_transaction(
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     match prepared {
-        PreparedWrite::Create(values, links) => {
-            create_in_transaction(plan, dialect, transaction, values, &links, request_id).await
+        PreparedWrite::Create(scope, values, links) => {
+            create_in_transaction(
+                plan,
+                dialect,
+                transaction,
+                scope.as_ref(),
+                values,
+                &links,
+                request_id,
+            )
+            .await
         }
         PreparedWrite::Update {
             id,
             values,
+            scope,
             owner,
             links,
         } => {
@@ -690,15 +761,21 @@ async fn execute_in_transaction(
                 plan,
                 dialect,
                 transaction,
-                (id, owner.as_ref()),
+                (id, scope.as_ref(), owner.as_ref()),
                 (values, &links),
                 request_id,
             )
             .await
         }
-        PreparedWrite::Delete { id, owner } => {
-            delete_in_transaction(plan, dialect, transaction, (id, owner.as_ref()), request_id)
-                .await
+        PreparedWrite::Delete { id, scope, owner } => {
+            delete_in_transaction(
+                plan,
+                dialect,
+                transaction,
+                (id, scope.as_ref(), owner.as_ref()),
+                request_id,
+            )
+            .await
         }
     }
 }
@@ -707,6 +784,7 @@ async fn create_in_transaction(
     plan: &CrudPlan,
     dialect: &str,
     transaction: &Transaction,
+    scope: Option<&Value>,
     supplied: Vec<(String, Value)>,
     links: &LinkWork,
     request_id: &str,
@@ -750,7 +828,7 @@ async fn create_in_transaction(
         .read_back_sql(dialect)
         .ok_or_else(|| DbError::new(ErrorKind::Other, "CRUD read-back SQL is unavailable"))?;
     let rows = transaction
-        .fetch(read_back_sql, &one_row_params(primary_key))
+        .fetch(read_back_sql, &retrieve_params(primary_key, scope))
         .await?;
     match rows.as_slice() {
         [] => Ok(TransactionResult::NotFound(format!(
@@ -781,7 +859,7 @@ async fn written_item(
         plan,
         &database,
         std::slice::from_ref(&row.to_vec()),
-        links.caller.as_deref(),
+        links.caller_context(),
     )
     .await?
     else {
@@ -850,13 +928,13 @@ async fn update_in_transaction(
     plan: &CrudPlan,
     dialect: &str,
     transaction: &Transaction,
-    (id, owner): (Value, Option<&OwnerScope>),
+    (id, scope, owner): (Value, Option<&Value>, Option<&OwnerScope>),
     (supplied, links): (Vec<(String, Value)>, &LinkWork),
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
     let visible = transaction
-        .fetch(visible_sql, &one_row_params(id.clone()))
+        .fetch(visible_sql, &retrieve_params(id.clone(), scope))
         .await?;
     if visible.is_empty() {
         return Ok(TransactionResult::NotFound(format!(
@@ -870,19 +948,21 @@ async fn update_in_transaction(
             "database returned multiple rows for a primary key",
         ));
     }
-    if let Some(scope) = owner {
-        if !scope.owns(&visible[0]) {
+    if let Some(owner_scope) = owner {
+        if !owner_scope.owns(&visible[0]) {
             return forbidden_result(request_id, "You cannot change this item.");
         }
     }
     let values = add_update_timestamp(plan, supplied);
     if !values.is_empty() {
-        let written = write_columns(plan, (dialect, transaction), (&id, owner), values).await?;
+        let written =
+            write_columns(plan, (dialect, transaction), (&id, scope, owner), values).await?;
         if written.is_empty() {
-            return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
+            return refused_result(plan, dialect, transaction, (id, scope, owner), request_id)
+                .await;
         }
     }
-    let owner_scope = link_owner_scope(plan, owner);
+    let owner_scope = link_owner_scope(plan, scope, owner);
     if let Some(refused) =
         nativelinks::write_links(plan, dialect, transaction, &id, (links, owner_scope)).await?
     {
@@ -893,13 +973,14 @@ async fn update_in_transaction(
             )));
         }
         if matches!(refused, Refused::OwnerMissing) {
-            return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
+            return refused_result(plan, dialect, transaction, (id, scope, owner), request_id)
+                .await;
         }
         return refused_links(refused, request_id);
     }
     let read_back_sql = required_sql(plan.read_back_sql(dialect))?;
     let rows = transaction
-        .fetch(read_back_sql, &one_row_params(id.clone()))
+        .fetch(read_back_sql, &retrieve_params(id.clone(), scope))
         .await?;
     match rows.as_slice() {
         [] => Ok(TransactionResult::NotFound(format!(
@@ -918,7 +999,7 @@ async fn update_in_transaction(
 async fn write_columns(
     plan: &CrudPlan,
     (dialect, transaction): (&str, &Transaction),
-    (id, owner): (&Value, Option<&OwnerScope>),
+    (id, scope, owner): (&Value, Option<&Value>, Option<&OwnerScope>),
     values: Vec<(String, Value)>,
 ) -> Result<Vec<Vec<(String, Value)>>, DbError> {
     let columns = values
@@ -928,10 +1009,10 @@ async fn write_columns(
     let sql = plan
         .update_sql(dialect, &columns)
         .map_err(|_| DbError::new(ErrorKind::Other, "CRUD update SQL is unavailable"))?;
-    let parameters = update_parameters(values, id, owner);
+    let parameters = update_parameters(values, id, scope, owner);
     if is_mysql(dialect) {
-        let scope = scope_parameters(id, owner);
-        mysql_update(transaction, plan, &sql, (&parameters, &scope)).await
+        let bound = scope_parameters(id, scope, owner);
+        mysql_update(transaction, plan, &sql, (&parameters, &bound)).await
     } else {
         transaction.fetch(&sql, &parameters).await
     }
@@ -940,26 +1021,40 @@ async fn write_columns(
 fn update_parameters(
     values: Vec<(String, Value)>,
     id: &Value,
+    scope: Option<&Value>,
     owner: Option<&OwnerScope>,
 ) -> Vec<Value> {
     let mut parameters = values
         .into_iter()
         .map(|(_, value)| value)
         .collect::<Vec<_>>();
-    parameters.push(id.clone());
-    if let Some(scope) = owner {
-        parameters.push(Value::Text(scope.value.clone()));
-    }
+    parameters.extend(scope_parameters(id, scope, owner));
     parameters
 }
 
-/// The rows whose links an update may lock and change: the caller's own rows
-/// when the action is owned, and only live rows of a soft-delete model, as
-/// Python's `update_row` scopes them with `model.all()`.
-fn link_owner_scope(plan: &CrudPlan, owner: Option<&OwnerScope>) -> hinoki_orm::links::Scope {
-    let mut scope = owner.map_or_else(hinoki_orm::links::Scope::default, |scope| {
-        hinoki_orm::links::Scope::column_equals(&scope.column, Value::Text(scope.value.clone()))
-    });
+/// The rows whose links an update may lock and change: rows in the mandatory
+/// row scope, the caller's own rows when owned, and only live rows of a
+/// soft-delete model, as Python's `update_row` scopes them.
+fn link_owner_scope(
+    plan: &CrudPlan,
+    row_scope: Option<&Value>,
+    owner: Option<&OwnerScope>,
+) -> hinoki_orm::links::Scope {
+    let mut scope = hinoki_orm::links::Scope::default();
+    if let (Some(spec), Some(value)) = (&plan.scope, row_scope) {
+        scope.filters.push(Filter {
+            column: spec.column.clone(),
+            op: Op::Eq,
+            values: vec![value.clone()],
+        });
+    }
+    if let Some(owner_scope) = owner {
+        scope.filters.push(Filter {
+            column: owner_scope.column.clone(),
+            op: Op::Eq,
+            values: vec![Value::Text(owner_scope.value.clone())],
+        });
+    }
     if let Some(column) = &plan.soft_delete {
         scope.filters.push(Filter {
             column: column.clone(),
@@ -970,16 +1065,19 @@ fn link_owner_scope(plan: &CrudPlan, owner: Option<&OwnerScope>) -> hinoki_orm::
     scope
 }
 
-fn scope_parameters(id: &Value, owner: Option<&OwnerScope>) -> Vec<Value> {
+fn scope_parameters(id: &Value, scope: Option<&Value>, owner: Option<&OwnerScope>) -> Vec<Value> {
     let mut parameters = vec![id.clone()];
-    if let Some(scope) = owner {
-        parameters.push(Value::Text(scope.value.clone()));
+    if let Some(value) = scope {
+        parameters.push(value.clone());
+    }
+    if let Some(owner_scope) = owner {
+        parameters.push(Value::Text(owner_scope.value.clone()));
     }
     parameters
 }
 
-/// MySQL has no RETURNING: the row is read back with the update's own key and
-/// owner filter, so a write that matched no row reads back as empty.
+/// MySQL has no RETURNING: the row is read back with the update's own key,
+/// scope and owner filter, so a write that matched no row reads back as empty.
 async fn mysql_update(
     transaction: &Transaction,
     plan: &CrudPlan,
@@ -1012,11 +1110,13 @@ async fn refused_result(
     plan: &CrudPlan,
     dialect: &str,
     transaction: &Transaction,
-    (id, owner): (Value, Option<&OwnerScope>),
+    (id, scope, owner): (Value, Option<&Value>, Option<&OwnerScope>),
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let sql = required_sql(plan.retrieve_sql(dialect))?;
-    let rows = transaction.fetch(sql, &one_row_params(id.clone())).await?;
+    let rows = transaction
+        .fetch(sql, &retrieve_params(id.clone(), scope))
+        .await?;
     let Some(row) = rows.first() else {
         return Ok(TransactionResult::NotFound(format!(
             "{} not found",
@@ -1038,12 +1138,12 @@ async fn delete_in_transaction(
     plan: &CrudPlan,
     dialect: &str,
     transaction: &Transaction,
-    (id, owner): (Value, Option<&OwnerScope>),
+    (id, scope, owner): (Value, Option<&Value>, Option<&OwnerScope>),
     request_id: &str,
 ) -> Result<TransactionResult, DbError> {
     let visible_sql = required_sql(plan.retrieve_sql(dialect))?;
     let visible = transaction
-        .fetch(visible_sql, &one_row_params(id.clone()))
+        .fetch(visible_sql, &retrieve_params(id.clone(), scope))
         .await?;
     if visible.is_empty() {
         return Ok(TransactionResult::NotFound(format!(
@@ -1051,8 +1151,8 @@ async fn delete_in_transaction(
             plan.model_name
         )));
     }
-    if let Some(scope) = owner {
-        if !scope.owns(&visible[0]) {
+    if let Some(owner_scope) = owner {
+        if !owner_scope.owns(&visible[0]) {
             return forbidden_result(request_id, "You cannot change this item.");
         }
     }
@@ -1062,12 +1162,9 @@ async fn delete_in_transaction(
         .iter()
         .map(|_| utc_now_value())
         .collect();
-    parameters.push(id.clone());
-    if let Some(scope) = owner {
-        parameters.push(Value::Text(scope.value.clone()));
-    }
+    parameters.extend(scope_parameters(&id, scope, owner));
     if transaction.execute(delete_sql, &parameters).await? == 0 {
-        return refused_result(plan, dialect, transaction, (id, owner), request_id).await;
+        return refused_result(plan, dialect, transaction, (id, scope, owner), request_id).await;
     }
     Ok(TransactionResult::Reply {
         status: 204,
@@ -1143,20 +1240,42 @@ async fn execute_read_with<D: ReadDatabase>(
     database: &D,
     path_params: &[(String, String)],
     raw_query: &[u8],
-    caller: Option<&str>,
+    request_id: &str,
+    caller: Option<CallerContext<'_>>,
 ) -> NativeRead {
     match plan.action.as_str() {
-        "list" => execute_list(plan, database, raw_query, caller).await,
-        "retrieve" => execute_retrieve(plan, database, path_params, raw_query, caller).await,
+        "list" => execute_list(plan, database, raw_query, request_id, caller).await,
+        "retrieve" => {
+            execute_retrieve(plan, database, path_params, raw_query, request_id, caller).await
+        }
         _ => NativeRead::Defer,
     }
+}
+
+fn read_forbidden(request_id: &str, message: &str) -> NativeRead {
+    error_body(request_id, "forbidden", Some(message)).map_or(NativeRead::Defer, |body| {
+        NativeRead::Reply { status: 403, body }
+    })
+}
+
+fn resolve_read_scope(
+    plan: &CrudPlan,
+    request_id: &str,
+    caller: Option<CallerContext<'_>>,
+) -> Result<Option<Value>, NativeRead> {
+    let scope =
+        resolve_scope(plan, caller).map_err(|message| read_forbidden(request_id, message))?;
+    ensure_link_scopes(plan, caller, plan.read_links.iter().copied())
+        .map_err(|message| read_forbidden(request_id, message))?;
+    Ok(scope)
 }
 
 async fn execute_list<D: ReadDatabase>(
     plan: &CrudPlan,
     database: &D,
     raw_query: &[u8],
-    caller: Option<&str>,
+    request_id: &str,
+    caller: Option<CallerContext<'_>>,
 ) -> NativeRead {
     let Ok(pairs) = parse_query(raw_query, 1000) else {
         return NativeRead::Defer;
@@ -1168,8 +1287,12 @@ async fn execute_list<D: ReadDatabase>(
     let Some(filtered) = parse_list_filters(plan, dialect, pairs) else {
         return NativeRead::Defer;
     };
+    let scope = match resolve_read_scope(plan, request_id, caller) {
+        Ok(scope) => scope,
+        Err(reply) => return reply,
+    };
     let Some((count_sql, count_params, list_sql, list_params)) =
-        list_statements(plan, dialect, filtered, page)
+        list_statements(plan, dialect, scope, filtered, page)
     else {
         return NativeRead::Defer;
     };
@@ -1212,17 +1335,21 @@ type ListStatements = (String, Vec<Value>, String, Vec<Value>);
 fn list_statements(
     plan: &CrudPlan,
     dialect: &str,
+    scope: Option<Value>,
     (filters, order): ListQuery,
     page: Page,
 ) -> Option<ListStatements> {
     if filters.is_empty() && order.is_empty() {
         let count_sql = plan.count_sql(dialect)?.to_owned();
-        let (list_sql, list_params) = plan.list_sql(dialect, page.size, page.offset).ok()?;
-        return Some((count_sql, Vec::new(), list_sql, list_params));
+        let count_params = scope.clone().into_iter().collect();
+        let (list_sql, list_params) = plan.list_sql(dialect, page.size, page.offset, scope).ok()?;
+        return Some((count_sql, count_params, list_sql, list_params));
     }
-    let (count_sql, count_params) = plan.filtered_count_sql(dialect, filters.clone()).ok()?;
+    let (count_sql, count_params) = plan
+        .filtered_count_sql(dialect, scope.clone(), filters.clone())
+        .ok()?;
     let (list_sql, list_params) = plan
-        .filtered_list_sql(dialect, filters, order, page.size, page.offset)
+        .filtered_list_sql(dialect, scope, filters, order, page.size, page.offset)
         .ok()?;
     Some((count_sql, count_params, list_sql, list_params))
 }
@@ -1328,7 +1455,8 @@ async fn execute_retrieve<D: ReadDatabase>(
     database: &D,
     path_params: &[(String, String)],
     raw_query: &[u8],
-    caller: Option<&str>,
+    request_id: &str,
+    caller: Option<CallerContext<'_>>,
 ) -> NativeRead {
     if parse_query(raw_query, 1000).is_err() {
         return NativeRead::Defer;
@@ -1342,11 +1470,18 @@ async fn execute_retrieve<D: ReadDatabase>(
     let Some(value) = primary_key_value(plan, &decoded_id) else {
         return NativeRead::Defer;
     };
+    let scope = match resolve_read_scope(plan, request_id, caller) {
+        Ok(scope) => scope,
+        Err(reply) => return reply,
+    };
     let dialect = database.dialect();
     let Some(sql) = plan.retrieve_sql(dialect) else {
         return NativeRead::Defer;
     };
-    let rows = match database.fetch(sql, &one_row_params(value)).await {
+    let rows = match database
+        .fetch(sql, &retrieve_params(value, scope.as_ref()))
+        .await
+    {
         Ok(rows) => rows,
         Err(error) => return NativeRead::Failure(error),
     };
@@ -1493,6 +1628,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .unwrap()
     }
@@ -1507,7 +1643,7 @@ mod tests {
         };
         let mut soft = plan("update");
         soft.soft_delete = Some("deleted_at".to_owned());
-        let scope = super::link_owner_scope(&soft, Some(&owner));
+        let scope = super::link_owner_scope(&soft, None, Some(&owner));
         let filters: Vec<_> = scope
             .filters
             .iter()
@@ -1520,10 +1656,10 @@ mod tests {
                 ("deleted_at", Op::IsNull, Vec::new()),
             ]
         );
-        let unowned = super::link_owner_scope(&soft, None);
+        let unowned = super::link_owner_scope(&soft, None, None);
         assert_eq!(unowned.filters.len(), 1);
         assert_eq!(unowned.filters[0].op, Op::IsNull);
-        assert!(super::link_owner_scope(&plan("update"), None)
+        assert!(super::link_owner_scope(&plan("update"), None, None)
             .filters
             .is_empty());
     }
@@ -1578,8 +1714,15 @@ mod tests {
         let database = StubDatabase {
             statements: Mutex::new(Vec::new()),
         };
-        let result =
-            execute_read_with(&plan("list"), &database, &[], b"page=2&page_size=1", None).await;
+        let result = execute_read_with(
+            &plan("list"),
+            &database,
+            &[],
+            b"page=2&page_size=1",
+            "req-1",
+            None,
+        )
+        .await;
         let NativeRead::Reply { status, body } = result else {
             panic!("valid native list did not encode");
         };
@@ -1601,7 +1744,8 @@ mod tests {
             statements: Mutex::new(Vec::new()),
         };
         let params = vec![("item_id".to_owned(), "%37".to_owned())];
-        let result = execute_read_with(&plan("retrieve"), &database, &params, b"", None).await;
+        let result =
+            execute_read_with(&plan("retrieve"), &database, &params, b"", "req-2", None).await;
         let NativeRead::Reply { status, body } = result else {
             panic!("valid native retrieve did not encode");
         };
@@ -1656,11 +1800,13 @@ mod tests {
         let params = vec![("item_id".to_owned(), "7".to_owned())];
         for query in [b"%FF".as_slice(), b"a=%FF", b"%C3"] {
             let result =
-                execute_read_with(&plan("retrieve"), &database, &params, query, None).await;
+                execute_read_with(&plan("retrieve"), &database, &params, query, "req-3", None)
+                    .await;
             assert!(matches!(result, NativeRead::Defer), "{query:?}");
         }
         assert!(database.statements.lock().unwrap().is_empty());
-        let valid = execute_read_with(&plan("retrieve"), &database, &params, b"a=1", None).await;
+        let valid =
+            execute_read_with(&plan("retrieve"), &database, &params, b"a=1", "req-4", None).await;
         assert!(matches!(valid, NativeRead::Reply { .. }));
     }
 
@@ -1681,7 +1827,9 @@ mod tests {
                 q("id")
             );
             for (size, offset) in [(7_i64, 14_i64), (7, 7_000), (100, 0)] {
-                let (sql, params) = plan.list_sql(dialect, size as u64, offset as u64).unwrap();
+                let (sql, params) = plan
+                    .list_sql(dialect, size as u64, offset as u64, None)
+                    .unwrap();
                 assert_eq!(sql, expected);
                 assert_eq!(params, [Value::Int(size), Value::Int(offset)]);
             }
@@ -1755,6 +1903,7 @@ mod tests {
                 ("name".to_owned(), "name".to_owned(), "str".to_owned(), false),
             ],
             br#"{"error":"validation_error","request_id":"0123456789abcdeffedcba9876543210","details":[{"path":"body","code":"invalid","message":"invalid"}]}"#.to_vec(),
+            None,
             None,
             None,
             None,
@@ -1841,7 +1990,8 @@ mod tests {
             statements: Mutex::new(Vec::new()),
         };
         let query = b"name=alpha,beta&price.from=10&note.null=true&search=50%25&ordering=-name";
-        let result = execute_read_with(&filtered_plan(false), &database, &[], query, None).await;
+        let result =
+            execute_read_with(&filtered_plan(false), &database, &[], query, "req-5", None).await;
         let NativeRead::Reply { status, body } = result else {
             panic!("filtered native list did not encode");
         };
@@ -1872,7 +2022,8 @@ mod tests {
             b"price.from=notanumber",
             b"ordering=unknown",
         ] {
-            let result = execute_read_with(&filtered_plan(false), &pg, &[], query, None).await;
+            let result =
+                execute_read_with(&filtered_plan(false), &pg, &[], query, "req-6", None).await;
             assert!(matches!(result, NativeRead::Defer), "{query:?}");
         }
         assert!(pg.statements.lock().unwrap().is_empty());
@@ -1882,9 +2033,266 @@ mod tests {
             statements: Mutex::new(Vec::new()),
         };
         for query in [b"price.from=1.50".as_slice(), b"ordering=price"] {
-            let result = execute_read_with(&filtered_plan(true), &sqlite, &[], query, None).await;
+            let result =
+                execute_read_with(&filtered_plan(true), &sqlite, &[], query, "req-7", None).await;
             assert!(matches!(result, NativeRead::Defer), "{query:?}");
         }
         assert!(sqlite.statements.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn missing_row_scope_refuses_with_403_before_any_query() {
+        use crate::crudplan::{CallerContext, RowScopeSpec, ScopeSource};
+
+        let database = StubDatabase {
+            statements: Mutex::new(Vec::new()),
+        };
+        let mut scoped_plan = plan("list");
+        scoped_plan.scope = Some(RowScopeSpec {
+            column: "name".to_owned(),
+            source: ScopeSource::Claim("tenant_id".to_owned()),
+        });
+        let claims = vec![("tenant_id".to_owned(), None)];
+        let caller = CallerContext {
+            subject: "alice",
+            claims: &claims,
+        };
+        let result =
+            execute_read_with(&scoped_plan, &database, &[], b"", "req-scope", Some(caller)).await;
+        let NativeRead::Reply { status, body } = result else {
+            panic!("missing scope claim did not return 403");
+        };
+        assert_eq!(status, 403);
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(parsed["error"], "forbidden");
+        assert!(database.statements.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn scoped_crud_executes_with_tenant_and_owner_parity_on_sqlite() {
+        use std::time::Duration;
+
+        use hinoki_orm::Database;
+
+        use super::{
+            create_in_transaction, delete_in_transaction, update_in_transaction, LinkWork,
+            OwnerScope, TransactionResult,
+        };
+        use crate::crudplan::{CallerContext, RowScopeSpec, ScopeSource};
+
+        let path =
+            std::env::temp_dir().join(format!("hinoki_row_scope_{}.sqlite3", uuid::Uuid::new_v4()));
+        let url = format!("sqlite://{}", path.display());
+        let db = Database::connect(&url, 1, Duration::from_secs(2)).unwrap();
+        let tx = db.begin().await.unwrap();
+        tx.execute(
+            "CREATE TABLE invoices (id INTEGER PRIMARY KEY, tenant_id TEXT NOT NULL, owner_id TEXT NOT NULL, title TEXT NOT NULL)",
+            &[],
+        )
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+
+        let scoped_plan = |action: &str| {
+            CrudPlan::new(
+                action.to_owned(),
+                "Invoice".to_owned(),
+                "invoices".to_owned(),
+                vec![
+                    "id".to_owned(),
+                    "tenant_id".to_owned(),
+                    "owner_id".to_owned(),
+                    "title".to_owned(),
+                ],
+                "id".to_owned(),
+                Vec::new(),
+                20,
+                100,
+                vec![
+                    ("id".to_owned(), "int".to_owned(), false),
+                    ("tenant_id".to_owned(), "str".to_owned(), false),
+                    ("owner_id".to_owned(), "str".to_owned(), false),
+                    ("title".to_owned(), "str".to_owned(), false),
+                ],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                vec![
+                    "id".to_owned(),
+                    "tenant_id".to_owned(),
+                    "owner_id".to_owned(),
+                    "title".to_owned(),
+                ],
+                vec!["title".to_owned()],
+                None,
+                vec![
+                    ("id".to_owned(), "id".to_owned(), "int".to_owned(), false),
+                    (
+                        "tenant_id".to_owned(),
+                        "tenant_id".to_owned(),
+                        "str".to_owned(),
+                        false,
+                    ),
+                    (
+                        "owner_id".to_owned(),
+                        "owner_id".to_owned(),
+                        "str".to_owned(),
+                        false,
+                    ),
+                    (
+                        "title".to_owned(),
+                        "title".to_owned(),
+                        "str".to_owned(),
+                        false,
+                    ),
+                ],
+                br#"{"error":"validation_error","request_id":"0123456789abcdeffedcba9876543210","details":[{"path":"body","code":"invalid","message":"invalid"}]}"#.to_vec(),
+                None,
+                None,
+                Some("owner_id".to_owned()),
+                Some(RowScopeSpec {
+                    column: "tenant_id".to_owned(),
+                    source: ScopeSource::Claim("tenant_id".to_owned()),
+                }),
+            )
+            .unwrap()
+        };
+
+        let tx = db.begin().await.unwrap();
+        let tenant = Value::Text("acme".to_owned());
+        let alice_create = create_in_transaction(
+            &scoped_plan("create"),
+            "sqlite",
+            &tx,
+            Some(&tenant),
+            vec![
+                ("id".to_owned(), Value::Int(1)),
+                ("tenant_id".to_owned(), tenant.clone()),
+                ("owner_id".to_owned(), Value::Text("alice".to_owned())),
+                ("title".to_owned(), Value::Text("Acme Q4".to_owned())),
+            ],
+            &LinkWork::default(),
+            "req-c",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            alice_create,
+            TransactionResult::Reply { status: 201, .. }
+        ));
+        tx.commit().await.unwrap();
+
+        let acme_claims = vec![("tenant_id".to_owned(), Some("acme".to_owned()))];
+        let globex_claims = vec![("tenant_id".to_owned(), Some("globex".to_owned()))];
+        let alice_ctx = CallerContext {
+            subject: "alice",
+            claims: &acme_claims,
+        };
+        let bob_ctx = CallerContext {
+            subject: "bob",
+            claims: &globex_claims,
+        };
+        let list_plan = scoped_plan("list");
+        let NativeRead::Reply {
+            status: 200,
+            body: alice_body,
+        } = execute_read_with(&list_plan, &db, &[], b"", "req-l1", Some(alice_ctx)).await
+        else {
+            panic!("acme list failed");
+        };
+        let parsed: serde_json::Value = serde_json::from_slice(&alice_body).unwrap();
+        assert_eq!(parsed["total"], 1);
+        let NativeRead::Reply {
+            status: 200,
+            body: bob_body,
+        } = execute_read_with(&list_plan, &db, &[], b"", "req-l2", Some(bob_ctx)).await
+        else {
+            panic!("globex list failed");
+        };
+        let parsed_bob: serde_json::Value = serde_json::from_slice(&bob_body).unwrap();
+        assert_eq!(parsed_bob["total"], 0);
+
+        let params = vec![("item_id".to_owned(), "1".to_owned())];
+        let retrieve_plan = scoped_plan("retrieve");
+        assert!(matches!(
+            execute_read_with(&retrieve_plan, &db, &params, b"", "req-r1", Some(alice_ctx)).await,
+            NativeRead::Reply { status: 200, .. }
+        ));
+        assert!(matches!(
+            execute_read_with(&retrieve_plan, &db, &params, b"", "req-r2", Some(bob_ctx)).await,
+            NativeRead::NotFound
+        ));
+
+        let aaron_owner = OwnerScope {
+            column: "owner_id".to_owned(),
+            value: "aaron".to_owned(),
+        };
+        let alice_owner = OwnerScope {
+            column: "owner_id".to_owned(),
+            value: "alice".to_owned(),
+        };
+        let globex = Value::Text("globex".to_owned());
+        let tx = db.begin().await.unwrap();
+        let aaron_res = update_in_transaction(
+            &scoped_plan("update"),
+            "sqlite",
+            &tx,
+            (Value::Int(1), Some(&tenant), Some(&aaron_owner)),
+            (
+                vec![("title".to_owned(), Value::Text("Hijack".to_owned()))],
+                &LinkWork::default(),
+            ),
+            "req-u1",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(aaron_res, TransactionResult::Forbidden(_)));
+        let bob_res = update_in_transaction(
+            &scoped_plan("update"),
+            "sqlite",
+            &tx,
+            (Value::Int(1), Some(&globex), Some(&alice_owner)),
+            (
+                vec![("title".to_owned(), Value::Text("Hijack".to_owned()))],
+                &LinkWork::default(),
+            ),
+            "req-u2",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(bob_res, TransactionResult::NotFound(_)));
+        let alice_upd = update_in_transaction(
+            &scoped_plan("update"),
+            "sqlite",
+            &tx,
+            (Value::Int(1), Some(&tenant), Some(&alice_owner)),
+            (
+                vec![("title".to_owned(), Value::Text("Updated".to_owned()))],
+                &LinkWork::default(),
+            ),
+            "req-u3",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            alice_upd,
+            TransactionResult::Reply { status: 200, .. }
+        ));
+        let alice_del = delete_in_transaction(
+            &scoped_plan("delete"),
+            "sqlite",
+            &tx,
+            (Value::Int(1), Some(&tenant), Some(&alice_owner)),
+            "req-d1",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            alice_del,
+            TransactionResult::Reply { status: 204, .. }
+        ));
+        tx.commit().await.unwrap();
+        drop(db);
+        let _ = std::fs::remove_file(path);
     }
 }

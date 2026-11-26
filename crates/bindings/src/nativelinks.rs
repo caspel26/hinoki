@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use hinoki_orm::links::{self, coerce_keys, Canon, LinkOp, LinkOutcome, LinkWrite, RawKey, Scope};
 use hinoki_orm::{DbError, ErrorKind, Transaction, Value};
 
-use crate::crudplan::{CrudPlan, PlanLink};
+use crate::crudplan::{CallerContext, CrudPlan, PlanLink};
+use crate::jwt::ClaimList;
 use crate::nativecrud::{FetchFuture, ReadDatabase};
 use crate::rows::RowIds;
 use crate::schema::Validated;
@@ -21,7 +22,15 @@ type Row = Vec<(String, Value)>;
 #[derive(Debug, Default)]
 pub(crate) struct LinkWork {
     pub(crate) sets: Vec<(usize, Vec<Canon>)>,
-    pub(crate) caller: Option<String>,
+    pub(crate) caller: Option<(String, ClaimList)>,
+}
+
+impl LinkWork {
+    pub(crate) fn caller_context(&self) -> Option<CallerContext<'_>> {
+        self.caller
+            .as_ref()
+            .map(|(subject, claims)| CallerContext { subject, claims })
+    }
 }
 
 /// The index of the relation `name` is the ids field of.
@@ -47,15 +56,14 @@ pub(crate) fn keys_of(link: &PlanLink, value: Validated) -> Option<Vec<Canon>> {
     coerce_keys(link.table.target_kind, &raw, link.table.max_items).ok()
 }
 
-/// The targets the caller may link or see; `None` when an owned scope has no
-/// caller to bound it.
-fn scope_of(link: &PlanLink, caller: Option<&str>) -> Option<Scope> {
-    match (&link.scope_column, caller) {
-        (None, _) => Some(Scope::default()),
-        (Some(column), Some(caller)) => {
-            Some(Scope::column_equals(column, Value::Text(caller.to_owned())))
-        }
-        (Some(_), None) => None,
+/// The targets the caller may link or see; `None` when a scoped link has no
+/// resolvable scope value for this caller.
+pub(crate) fn scope_of(link: &PlanLink, caller: Option<CallerContext<'_>>) -> Option<Scope> {
+    match &link.scope {
+        None => Some(Scope::default()),
+        Some(spec) => spec
+            .resolve(caller)
+            .map(|value| Scope::column_equals(&spec.column, value)),
     }
 }
 
@@ -71,7 +79,7 @@ pub(crate) async fn read_ids<D: ReadDatabase>(
     plan: &CrudPlan,
     database: &D,
     rows: &[Row],
-    caller: Option<&str>,
+    caller: Option<CallerContext<'_>>,
 ) -> Result<Option<RowIds>, DbError> {
     if plan.read_links.is_empty() {
         return Ok(Some(RowIds::default()));
@@ -143,7 +151,7 @@ pub(crate) async fn write_links(
     for (index, keys) in &work.sets {
         let link = &plan.links[*index];
         let (Some(scope), Some(owner)) = (
-            scope_of(link, work.caller.as_deref()),
+            scope_of(link, work.caller_context()),
             link.table.owner_kind.read(owner),
         ) else {
             return Ok(Some(Refused::Replay));

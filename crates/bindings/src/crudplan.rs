@@ -69,15 +69,54 @@ pub(crate) struct ModelDefault {
     pub(crate) value: ModelDefaultValue,
 }
 
+/// Who a row scope resolves against: the caller's `sub` or one named claim.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ScopeSource {
+    CallerId,
+    Claim(String),
+}
+
+/// A compiled mandatory row scope on a text column.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RowScopeSpec {
+    pub(crate) column: String,
+    pub(crate) source: ScopeSource,
+}
+
+/// Caller identity passed from native admission into native CRUD execution.
+#[derive(Clone, Copy)]
+pub(crate) struct CallerContext<'a> {
+    pub(crate) subject: &'a str,
+    pub(crate) claims: &'a [(String, Option<String>)],
+}
+
+impl RowScopeSpec {
+    /// Resolve the required text scope value for `caller`, or `None` when
+    /// missing or empty.
+    pub(crate) fn resolve(&self, caller: Option<CallerContext<'_>>) -> Option<Value> {
+        let caller = caller?;
+        let raw = match &self.source {
+            ScopeSource::CallerId => caller.subject,
+            ScopeSource::Claim(name) => caller
+                .claims
+                .iter()
+                .find(|(key, _)| key == name)
+                .and_then(|(_, value)| value.as_deref())?,
+        };
+        (!raw.is_empty()).then(|| Value::Text(raw.to_owned()))
+    }
+}
+
+pub(crate) type ScopeSpecArg = (String, String, Option<String>);
+
 /// One many-to-many relation the route reads and writes through its ids field.
 #[derive(Clone, Debug)]
 pub(crate) struct PlanLink {
     /// The ids field of the schemas.
     pub(crate) field: String,
     pub(crate) table: LinkTable,
-    /// The target column that must equal the caller's id, or `None` when the
-    /// caller may link every row of the target.
-    pub(crate) scope_column: Option<String>,
+    /// Optional target-side row scope, or `None` when every target row is allowed.
+    pub(crate) scope: Option<RowScopeSpec>,
 }
 
 /// No Python object is retained by a plan; validator snapshots are Rust-owned.
@@ -107,6 +146,8 @@ pub(crate) struct CrudPlan {
     /// Text column holding the caller's id: set on create, and required to
     /// match on update and delete. Only present together with `auth`.
     pub(crate) owner: Option<String>,
+    /// Mandatory tenant/row scope applied to every read, write, and reload.
+    pub(crate) scope: Option<RowScopeSpec>,
     /// The relations of the ids fields; `read_links[slot]` is the one the
     /// `slot`-th ids field of the read plan shows.
     pub(crate) links: Vec<PlanLink>,
@@ -136,7 +177,7 @@ impl PyCrudPlan {
         updated_at,
         read_schema, read_fields,
         create_schema=None, update_schema=None, validation_error=Vec::new(), auth=None,
-        owner=None, links=Vec::new(), filters=None, soft_delete=None
+        owner=None, scope=None, links=Vec::new(), filters=None, soft_delete=None
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -163,13 +204,20 @@ impl PyCrudPlan {
         validation_error: Vec<u8>,
         auth: Option<Py<PyClaimsAuth>>,
         owner: Option<String>,
-        links: Vec<(String, Py<PyLinkSpec>, Option<String>)>,
+        scope: Option<ScopeSpecArg>,
+        links: Vec<(String, Py<PyLinkSpec>, Option<ScopeSpecArg>)>,
         filters: Option<Py<PyFilterPlan>>,
         soft_delete: Option<String>,
     ) -> PyResult<Self> {
         if owner.is_some() && auth.is_none() {
             return Err(PyValueError::new_err(
                 "an owner column needs native claims authentication",
+            ));
+        }
+        let scope = scope.map(parse_scope_spec).transpose()?;
+        if scope.is_some() && auth.is_none() {
+            return Err(PyValueError::new_err(
+                "a row scope needs native claims authentication",
             ));
         }
         let _ = native_schema(py, &read_schema)?;
@@ -196,23 +244,30 @@ impl PyCrudPlan {
             create_schema,
             update_schema,
             owner,
+            scope,
         )?;
         inner.auth = auth.map(|auth| Arc::clone(&auth.get().inner));
-        inner.attach_links(
-            links
-                .into_iter()
-                .map(|(field, spec, scope_column)| PlanLink {
+        let parsed_links = links
+            .into_iter()
+            .map(|(field, spec, scope)| {
+                Ok(PlanLink {
                     field,
                     table: spec.get().table.clone(),
-                    scope_column,
+                    scope: scope.map(parse_scope_spec).transpose()?,
                 })
-                .collect(),
-        )?;
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        inner.attach_links(parsed_links)?;
         inner.attach_filters(filters.map(|plan| Arc::clone(&plan.get().spec)))?;
         inner.attach_soft_delete(soft_delete)?;
         Ok(Self {
             inner: Arc::new(inner),
         })
+    }
+
+    #[getter]
+    fn scope_column(&self) -> Option<&str> {
+        self.inner.scope_column()
     }
 
     #[getter]
@@ -242,9 +297,16 @@ impl PyCrudPlan {
         page_size: u64,
         offset: u64,
     ) -> PyResult<(String, Vec<i64>)> {
-        let (sql, params) = self.inner.list_sql(dialect, page_size, offset)?;
+        let sentinel = self
+            .inner
+            .scope
+            .as_ref()
+            .map(|_| Value::Text(String::new()));
+        let (sql, params) = self.inner.list_sql(dialect, page_size, offset, sentinel)?;
+        let offset_params = usize::from(self.inner.scope.is_some());
         let counts = params
             .into_iter()
+            .skip(offset_params)
             .map(|value| match value {
                 Value::Int(count) => Ok(count),
                 _ => Err(PyValueError::new_err("list window is not a row count")),
@@ -435,6 +497,10 @@ impl CrudPlan {
             .map(|(_, kind, _)| kind.as_str())
     }
 
+    pub(crate) fn scope_column(&self) -> Option<&str> {
+        self.scope.as_ref().map(|spec| spec.column.as_str())
+    }
+
     pub(crate) fn update_sql(&self, dialect_name: &str, columns: &[String]) -> PyResult<String> {
         let dialect = DIALECTS
             .iter()
@@ -454,6 +520,7 @@ impl CrudPlan {
                 assignments,
                 filters: scoped_filters(
                     (self.soft_delete.as_deref(), &self.primary_key),
+                    self.scope_column(),
                     self.owner.as_deref(),
                     columns.len(),
                 ),
@@ -471,15 +538,17 @@ impl CrudPlan {
         dialect_name: &str,
         page_size: u64,
         offset: u64,
+        scope_value: Option<Value>,
     ) -> PyResult<(String, Vec<Value>)> {
         let dialect = resolve_dialect(dialect_name)?;
         let order = self.default_list_order();
+        let filters = self.with_base_filters(scope_value, Vec::new());
         compile_select_with(
             &Select::<Value> {
                 table: self.table.clone(),
                 columns: self.columns.clone(),
                 joins: Vec::new(),
-                filters: soft_filters(self.soft_delete.as_deref()),
+                filters,
                 subfilters: Vec::new(),
                 keyset: None,
                 order,
@@ -495,11 +564,12 @@ impl CrudPlan {
     pub(crate) fn filtered_count_sql(
         &self,
         dialect_name: &str,
+        scope_value: Option<Value>,
         filters: Vec<Filter<Value>>,
     ) -> Result<(String, Vec<Value>), QueryError> {
         let dialect = find_dialect(dialect_name)
             .ok_or(QueryError::Unsupported("unsupported CRUD database dialect"))?;
-        let filters = self.with_soft_filter(filters);
+        let filters = self.with_base_filters(scope_value, filters);
         compile_select_with(
             &Select {
                 table: self.table.clone(),
@@ -520,6 +590,7 @@ impl CrudPlan {
     pub(crate) fn filtered_list_sql(
         &self,
         dialect_name: &str,
+        scope_value: Option<Value>,
         filters: Vec<Filter<Value>>,
         order: Vec<(String, bool)>,
         page_size: u64,
@@ -532,7 +603,7 @@ impl CrudPlan {
         } else {
             order
         };
-        let filters = self.with_soft_filter(filters);
+        let filters = self.with_base_filters(scope_value, filters);
         compile_select_with(
             &Select {
                 table: self.table.clone(),
@@ -550,8 +621,19 @@ impl CrudPlan {
         )
     }
 
-    fn with_soft_filter(&self, filters: Vec<Filter<Value>>) -> Vec<Filter<Value>> {
+    fn with_base_filters(
+        &self,
+        scope_value: Option<Value>,
+        filters: Vec<Filter<Value>>,
+    ) -> Vec<Filter<Value>> {
         let mut scoped = soft_filters(self.soft_delete.as_deref());
+        if let (Some(spec), Some(value)) = (&self.scope, scope_value) {
+            scoped.push(Filter {
+                column: spec.column.clone(),
+                op: Op::Eq,
+                values: vec![value],
+            });
+        }
         scoped.extend(filters);
         scoped
     }
@@ -655,9 +737,9 @@ impl CrudPlan {
             if links[..index].iter().any(|other| other.field == link.field) {
                 return Err(PyValueError::new_err("duplicate relation field"));
             }
-            if link.scope_column.is_some() && self.auth.is_none() {
+            if link.scope.is_some() && self.auth.is_none() {
                 return Err(PyValueError::new_err(
-                    "an owned link scope needs native claims authentication",
+                    "a scoped link needs native claims authentication",
                 ));
             }
         }
@@ -693,8 +775,16 @@ impl CrudPlan {
         create_schema: Option<Arc<NativeSchema>>,
         update_schema: Option<Arc<NativeSchema>>,
         owner: Option<String>,
+        scope: Option<RowScopeSpec>,
     ) -> PyResult<Self> {
         validate_owner(
+            owner.as_deref(),
+            &primary_key,
+            &model_fields,
+            &update_columns,
+        )?;
+        validate_scope(
+            scope.as_ref(),
             owner.as_deref(),
             &primary_key,
             &model_fields,
@@ -749,6 +839,7 @@ impl CrudPlan {
             read_rows,
             auth: None,
             owner,
+            scope,
             links: Vec::new(),
             read_links: Vec::new(),
             filters: None,
@@ -984,17 +1075,18 @@ fn compile_templates(name: &str, dialect: Dialect, plan: &CrudPlan) -> PyResult<
     let (table, columns, ordering) = (plan.table.as_str(), &plan.columns, &plan.ordering);
     let soft = plan.soft_delete.as_deref();
     let key = (soft, plan.primary_key.as_str());
+    let scope = plan.scope_column();
     let owner = plan.owner.as_deref();
-    let count = select_sql(table, &[], (soft, &[]), (None, None), true, dialect)?;
+    let count = select_sql(table, &[], (soft, scope, &[]), (None, None), true, dialect)?;
     let list = select_sql(
         table,
         columns,
-        (soft, &plan.default_list_order()),
+        (soft, scope, &plan.default_list_order()),
         (Some(plan.page_size), Some(0)),
         false,
         dialect,
     )?;
-    let retrieve = select_filtered_sql(table, columns, key, ordering, dialect)?;
+    let retrieve = select_filtered_sql(table, columns, key, scope, ordering, dialect)?;
     let create = create_template(plan, dialect)?;
     let update = if plan.update_columns.is_empty() {
         None
@@ -1002,16 +1094,20 @@ fn compile_templates(name: &str, dialect: Dialect, plan: &CrudPlan) -> PyResult<
         Some(update_template(
             table,
             &plan.update_columns,
-            (key, owner),
+            (key, scope, owner),
             columns,
             dialect,
         )?)
     };
     let delete = delete_template(plan, dialect)?;
-    let read_back = select_filtered_sql(table, columns, key, ordering, dialect)?;
-    let write_read_back =
-        select_write_sql(table, columns, ((None, &plan.primary_key), None), dialect)?;
-    let mut update_read_back = select_write_sql(table, columns, (key, owner), dialect)?;
+    let read_back = select_filtered_sql(table, columns, key, scope, ordering, dialect)?;
+    let write_read_back = select_write_sql(
+        table,
+        columns,
+        ((None, &plan.primary_key), None, None),
+        dialect,
+    )?;
+    let mut update_read_back = select_write_sql(table, columns, (key, scope, owner), dialect)?;
     if dialect == Dialect::Mysql {
         // A current read: a plain read would keep the handler's snapshot and
         // return the row even when a concurrent owner change matched nothing.
@@ -1052,12 +1148,12 @@ fn create_template(plan: &CrudPlan, dialect: Dialect) -> PyResult<Option<String>
     .map_err(query_error)
 }
 
-type KeyScope<'a> = ((Option<&'a str>, &'a str), Option<&'a str>);
+type KeyScope<'a> = ((Option<&'a str>, &'a str), Option<&'a str>, Option<&'a str>);
 
 fn update_template(
     table: &str,
     assignments: &[String],
-    (key, owner): KeyScope<'_>,
+    (key, scope, owner): KeyScope<'_>,
     returning: &[String],
     dialect: Dialect,
 ) -> PyResult<String> {
@@ -1065,7 +1161,7 @@ fn update_template(
         &Update {
             table: table.to_owned(),
             assignments: indexed(assignments),
-            filters: scoped_filters(key, owner, assignments.len()),
+            filters: scoped_filters(key, scope, owner, assignments.len()),
             subfilters: Vec::new(),
             returning: returning_columns(returning, dialect),
         },
@@ -1075,18 +1171,19 @@ fn update_template(
     .map_err(query_error)
 }
 
-/// A `DELETE` by key and owner, or for a soft-delete model the `UPDATE`
-/// Python's `adelete` runs: the timestamps first, then the key, the owner
-/// and the soft-delete condition once more.
+/// A `DELETE` by key, scope and owner, or for a soft-delete model the `UPDATE`
+/// Python's `adelete` runs: the timestamps first, then the key, the scope, the
+/// owner and the soft-delete condition once more.
 fn delete_template(plan: &CrudPlan, dialect: Dialect) -> PyResult<String> {
     let soft = plan.soft_delete.as_deref();
     let key = (soft, plan.primary_key.as_str());
+    let scope = plan.scope_column();
     let owner = plan.owner.as_deref();
     if soft.is_none() {
         return compile_delete_with(
             &Delete {
                 table: plan.table.clone(),
-                filters: scoped_filters(key, owner, 0),
+                filters: scoped_filters(key, scope, owner, 0),
                 subfilters: Vec::new(),
                 returning: Vec::new(),
             },
@@ -1096,7 +1193,7 @@ fn delete_template(plan: &CrudPlan, dialect: Dialect) -> PyResult<String> {
         .map_err(query_error);
     }
     let assignments = plan.soft_delete_assignments();
-    let mut filters = scoped_filters(key, owner, assignments.len());
+    let mut filters = scoped_filters(key, scope, owner, assignments.len());
     filters.extend(soft_filters(soft));
     compile_update_with(
         &Update {
@@ -1115,7 +1212,7 @@ fn delete_template(plan: &CrudPlan, dialect: Dialect) -> PyResult<String> {
 fn select_write_sql(
     table: &str,
     columns: &[String],
-    (key, owner): KeyScope<'_>,
+    (key, scope, owner): KeyScope<'_>,
     dialect: Dialect,
 ) -> PyResult<String> {
     compile_select_fixed(
@@ -1123,7 +1220,7 @@ fn select_write_sql(
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
-            filters: scoped_filters(key, owner, 0),
+            filters: scoped_filters(key, scope, owner, 0),
             subfilters: Vec::new(),
             keyset: None,
             order: Vec::new(),
@@ -1140,17 +1237,21 @@ fn select_write_sql(
 fn select_sql(
     table: &str,
     columns: &[String],
-    (soft, order): (Option<&str>, &[(String, bool)]),
+    (soft, scope, order): (Option<&str>, Option<&str>, &[(String, bool)]),
     (limit, offset): (Option<u64>, Option<u64>),
     count: bool,
     dialect: Dialect,
 ) -> PyResult<String> {
-    compile_select_with(
-        &Select::<i64> {
+    let mut filters = soft_filters(soft);
+    if let Some(column) = scope {
+        filters.push(equality_filter(column, 0));
+    }
+    compile_select_bound(
+        &Select::<usize> {
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
-            filters: soft_filters(soft),
+            filters,
             subfilters: Vec::new(),
             keyset: None,
             order: order.to_vec(),
@@ -1159,26 +1260,29 @@ fn select_sql(
             count,
         },
         dialect,
+        &mut |value| usize::try_from(value).unwrap_or(0),
     )
     .map(|(sql, _)| sql)
     .map_err(query_error)
 }
 
-/// The one-row read by primary key, bound like the Python lane: the key, then
-/// the [`ONE_ROW_LIMIT`] count; pass [`one_row_params`].
+/// The one-row read by primary key (and optional scope), bound like the Python
+/// lane: the key, optional scope, then the [`ONE_ROW_LIMIT`] count.
 fn select_filtered_sql(
     table: &str,
     columns: &[String],
     key: (Option<&str>, &str),
+    scope: Option<&str>,
     order: &[(String, bool)],
     dialect: Dialect,
 ) -> PyResult<String> {
+    let limit_param = if scope.is_some() { 2 } else { 1 };
     compile_select_bound(
         &Select::<usize> {
             table: table.to_owned(),
             columns: columns.to_vec(),
             joins: Vec::new(),
-            filters: scoped_filters(key, None, 0),
+            filters: scoped_filters(key, scope, None, 0),
             subfilters: Vec::new(),
             keyset: None,
             order: order.to_vec(),
@@ -1187,7 +1291,7 @@ fn select_filtered_sql(
             count: false,
         },
         dialect,
-        &mut |_| 1,
+        &mut |_| limit_param,
     )
     .map(|(sql, _)| sql)
     .map_err(query_error)
@@ -1196,9 +1300,14 @@ fn select_filtered_sql(
 /// Rows a one-row read asks for: a second row reveals a non-unique key.
 const ONE_ROW_LIMIT: i64 = 2;
 
-/// Parameters of the retrieve and read-back statements for `id`.
-pub(crate) fn one_row_params(id: Value) -> [Value; 2] {
-    [id, Value::Int(ONE_ROW_LIMIT)]
+/// Parameters of the retrieve and read-back statements for `id` and optional `scope`.
+pub(crate) fn retrieve_params(id: Value, scope: Option<&Value>) -> Vec<Value> {
+    let mut params = vec![id];
+    if let Some(value) = scope {
+        params.push(value.clone());
+    }
+    params.push(Value::Int(ONE_ROW_LIMIT));
+    params
 }
 
 fn equality_filter(column: &str, value: usize) -> Filter<usize> {
@@ -1221,19 +1330,61 @@ fn soft_filters<V>(column: Option<&str>) -> Vec<Filter<V>> {
         .collect()
 }
 
-/// The soft-delete condition, the key filter, then the owner filter on the
-/// next parameter when scoped; the order of Python's `all().filter(...)`.
+/// The soft-delete condition, the key filter, optional scope filter, then optional
+/// owner filter in bind order.
 fn scoped_filters(
     (soft, primary_key): (Option<&str>, &str),
+    scope: Option<&str>,
     owner: Option<&str>,
     first: usize,
 ) -> Vec<Filter<usize>> {
     let mut filters = soft_filters(soft);
     filters.push(equality_filter(primary_key, first));
+    let mut next = first + 1;
+    if let Some(column) = scope {
+        filters.push(equality_filter(column, next));
+        next += 1;
+    }
     if let Some(column) = owner {
-        filters.push(equality_filter(column, first + 1));
+        filters.push(equality_filter(column, next));
     }
     filters
+}
+
+fn parse_scope_spec((column, kind, claim): ScopeSpecArg) -> PyResult<RowScopeSpec> {
+    let source = match (kind.as_str(), claim) {
+        ("caller", None) => ScopeSource::CallerId,
+        ("claim", Some(name)) if !name.is_empty() => ScopeSource::Claim(name),
+        _ => return Err(PyValueError::new_err("invalid row scope specification")),
+    };
+    Ok(RowScopeSpec { column, source })
+}
+
+fn validate_scope(
+    scope: Option<&RowScopeSpec>,
+    owner: Option<&str>,
+    primary_key: &str,
+    model_fields: &[(String, String, bool)],
+    update_columns: &[String],
+) -> PyResult<()> {
+    let Some(spec) = scope else {
+        return Ok(());
+    };
+    let text = model_fields
+        .iter()
+        .any(|(name, kind, _)| name == &spec.column && kind == "str");
+    if spec.column == primary_key || !text || update_columns.iter().any(|name| name == &spec.column)
+    {
+        return Err(PyValueError::new_err(
+            "the row scope must be a text column that is neither the key nor updatable",
+        ));
+    }
+    if owner == Some(spec.column.as_str()) {
+        return Err(PyValueError::new_err(
+            "the row scope column cannot match the owner column",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_owner(
