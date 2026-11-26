@@ -384,9 +384,12 @@ impl Core {
             .admit(first.map(|(_, value)| value.as_slice()), now)
         {
             Admission::Admit {
-                subject, scopes, ..
+                subject,
+                scopes,
+                raw_claims,
+                ..
             } => {
-                input.principal = Some((subject, scopes));
+                input.principal = Some((subject, scopes, raw_claims));
                 return None;
             }
             Admission::Defer => return None,

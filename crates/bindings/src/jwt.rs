@@ -528,7 +528,10 @@ fn value_to_py<'py>(py: Python<'py>, value: &Value) -> PyResult<Bound<'py, PyAny
     }
 }
 
-fn map_to_py_dict<'py>(py: Python<'py>, map: &Map<String, Value>) -> PyResult<Bound<'py, PyDict>> {
+pub(crate) fn map_to_py_dict<'py>(
+    py: Python<'py>,
+    map: &Map<String, Value>,
+) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
     for (key, value) in map {
         out.set_item(key, value_to_py(py, value)?)?;
@@ -588,12 +591,12 @@ impl ClaimsAuth {
             require_exp: self.require_exp,
         };
         match decode_claims(token, &self.keys, &rules) {
-            Ok(claims) => self.grants(&claims),
+            Ok(claims) => self.grants(claims),
             Err(_) => Admission::Invalid,
         }
     }
 
-    fn grants(&self, claims: &Map<String, Value>) -> Admission {
+    fn grants(&self, claims: Map<String, Value>) -> Admission {
         let subject = match claims.get("sub") {
             Some(Value::String(subject)) if !subject.is_empty() => subject.clone(),
             _ => return Admission::Invalid,
@@ -626,6 +629,7 @@ impl ClaimsAuth {
             subject,
             scopes,
             claims: extracted,
+            raw_claims: claims,
         }
     }
 }
@@ -648,12 +652,13 @@ fn plain_bearer(authorization: &[u8]) -> Option<&str> {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Admission {
     /// Authenticated, with every permission the route requires; `scopes` are all
-    /// the string scopes of the token, and `claims` are any extra non-empty
-    /// string claims requested by the plan.
+    /// the string scopes of the token, `claims` are any extra non-empty string
+    /// claims requested by a CRUD plan, and `raw_claims` is the verified claim map.
     Admit {
         subject: String,
         scopes: Vec<String>,
         claims: Vec<(String, Option<String>)>,
+        raw_claims: Map<String, Value>,
     },
     /// No credentials: Python answers `401`.
     Missing,
@@ -1107,6 +1112,7 @@ mod tests {
                 subject: "u1".to_owned(),
                 scopes: vec!["posts:write".to_owned(), "x".to_owned()],
                 claims: Vec::new(),
+                raw_claims: serde_json::from_str(good).unwrap(),
             }
         );
         assert_eq!(auth.admit(None, 1000), Admission::Missing);

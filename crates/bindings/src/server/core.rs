@@ -65,13 +65,19 @@ pub(super) type RouteSpec = (
     Option<Py<PyCrudPlan>>,                      // dark generated CRUD plan
 );
 
+pub(super) type NativePrincipal = (
+    String,
+    Vec<String>,
+    serde_json::Map<String, serde_json::Value>,
+);
+
 #[derive(Default)]
 pub(super) struct NativeInput {
     pub(super) enabled: bool,
     pub(super) args: NativeArgs,
     pub(super) error: Option<NativeInputError>,
-    /// The caller Rust authenticated: the `sub` and every string scope.
-    pub(super) principal: Option<(String, Vec<String>)>,
+    /// The caller Rust authenticated: `sub`, string scopes, and verified claims.
+    pub(super) principal: Option<NativePrincipal>,
 }
 
 impl NativeInput {
