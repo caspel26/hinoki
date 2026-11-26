@@ -9,7 +9,7 @@
 
 <p align="center">
   <strong>Typed Python APIs. Architecture rules you can run.</strong><br>
-  <sub>A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso.</sub>
+  <sub>High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.</sub>
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@
 > [!WARNING]
 > **Pre-alpha, not released.** In the planned `0.1.x` line, documented Python, CLI, settings and runtime contracts, plus migration files, stay compatible across patch releases. Additions and fixes for incorrect behavior remain possible and will be described in the changelog. Breaking changes may arrive in a later `0.y.0`; there is no fixed deprecation period and no compatibility promise for undocumented internals or old framework versions. Review migrations and use disposable data when evaluating Hinoki. The package will be named `hinoki-api`; the [`hinoki` package on PyPI](https://pypi.org/project/hinoki/) is an unrelated project.
 
-Hinoki is a Python framework for typed HTTP APIs with a Rust core. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls. `hinoki dev` and `hinoki serve` run Kiso by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. One typed declaration drives routing, strict schema validation and serialization, OpenAPI, architecture rules, and MCP. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix. Projects are agent-ready out of the box, with built-in application and development MCP servers and a generated `AGENTS.md`.
+Hinoki is a high-throughput Python API framework powered by a Rust HTTP server and SQL ORM. Apps run on **Kiso**, Hinoki's own HTTP server, written in Rust on hyper, tokio and rustls. `hinoki dev` and `hinoki serve` run Kiso by default, and `--server granian` runs [Granian](https://github.com/emmett-framework/granian) instead. One typed declaration drives routing, strict schema validation and serialization, OpenAPI, architecture rules, and MCP. You declare schemas, access policies and `atomic` writes in plain Python; `hinoki check` turns architecture rules into findings with a file, a line and a fix. Projects are agent-ready out of the box, with built-in application and development MCP servers and a generated `AGENTS.md`.
 
 <p align="center">
   <a href="#how-it-works">How it works</a> ·
@@ -152,7 +152,7 @@ from hinoki.orm import Model, field, pk
 class Note(Model):
     id: UUID = pk(default_factory=uuid4)
     title: str = field(max_length=80, index=True)
-    body: str = ""
+    body: str = field(max_length=2000, default="")
 
 
 @db.table("notes_editors")
@@ -166,8 +166,10 @@ class Editor(Model):
 from typing import Annotated
 from uuid import UUID
 
-from hinoki import Field, Schema
+from hinoki import Field, Schema, derive
 from hinoki.filters import Eq, FilterSet, Search
+
+from notes.apps.notes.models import Note
 
 
 class NoteIn(Schema):
@@ -175,10 +177,18 @@ class NoteIn(Schema):
     body: Annotated[str, Field(max_length=2000)] = ""
 
 
+@derive(Note, only=("title", "body"), partial=True)
+class NotePatch(Schema): ...
+
+
 class NoteOut(Schema):
     id: UUID
     title: str
     body: str
+
+
+class NoteStats(Schema):
+    total: int
 
 
 class NoteFilters(FilterSet):
@@ -214,34 +224,59 @@ editors = Access(auth=EditorTokens(), permissions=[NotePermission.WRITE])
 ```
 
 ```python
-# notes/apps/notes/api.py
-from hinoki import crud
+# notes/apps/notes/routes.py
+from hinoki import Includable, crud
 
+from notes.apps.notes.api import stats
 from notes.apps.notes.models import Note
-from notes.apps.notes.schemas import NoteFilters, NoteIn, NoteOut
+from notes.apps.notes.schemas import NoteFilters, NoteIn, NoteOut, NotePatch
 from notes.apps.notes.security import editors
 
-notes = crud(
-    Note,
-    path="",
-    read=NoteOut,
-    create=NoteIn,
-    access=editors,
-    filters=NoteFilters,
-)
+routes: list[Includable] = [
+    crud(
+        Note,
+        path="",
+        read=NoteOut,
+        create=NoteIn,
+        update=NotePatch,
+        delete=True,
+        access=editors,
+        filters=NoteFilters,
+    ),
+    stats,
+]
 ```
 
-List `notes` in `notes/apps/notes/routes.py` (`routes = [notes]`, imported from `notes.apps.notes.api`); `main.py` does not change. The app's routes are mounted at its `prefix`, `/notes` here.
+Anything that is not CRUD is a plain function with an `@http` decorator (`@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete`), taking the same `access` and `atomic` options:
+
+```python
+# notes/apps/notes/api.py
+from hinoki import http
+
+from notes.apps.notes.models import Note
+from notes.apps.notes.schemas import NoteStats
+from notes.apps.notes.security import editors
+
+
+@http.get("/stats", access=editors)
+async def stats() -> NoteStats:
+    return NoteStats(total=await Note.all().acount())
+```
+
+`routes.py` lists the generated `crud(...)` value and `stats`; `main.py` does not change. The app's routes are mounted at its `prefix`, `/notes` here.
 
 ```console
 $ hinoki routes
 GET     /health           public                    notes.api.health
-GET     /notes            EditorTokens[notes:write] notes.apps.notes.api.NoteCrud.list
-POST    /notes            EditorTokens[notes:write] notes.apps.notes.api.NoteCrud.create
-GET     /notes/{item_id}  EditorTokens[notes:write] notes.apps.notes.api.NoteCrud.retrieve
+GET     /notes            EditorTokens[notes:write] notes.apps.notes.routes.NoteCrud.list
+POST    /notes            EditorTokens[notes:write] notes.apps.notes.routes.NoteCrud.create
+GET     /notes/stats      EditorTokens[notes:write] notes.apps.notes.api.stats
+DELETE  /notes/{item_id}  EditorTokens[notes:write] notes.apps.notes.routes.NoteCrud.delete
+GET     /notes/{item_id}  EditorTokens[notes:write] notes.apps.notes.routes.NoteCrud.retrieve
+PATCH   /notes/{item_id}  EditorTokens[notes:write] notes.apps.notes.routes.NoteCrud.update
 ```
 
-The list accepts `?title=...`, `?search=...` and `?ordering=title` from the `FilterSet`, and pages by number. Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `hinoki migrations plan notes` writes the migration, `hinoki migrations apply` runs it. For logic that is not CRUD, write plain functions on a `RouteGroup`, which shares a path, an access policy and a transaction across its actions, or a class-based `API` with hooks ([function-based APIs](docs/function-endpoints.md), [CRUD](docs/crud.md), [class-based APIs](docs/class-endpoints.md)).
+The list accepts `?title=...`, `?search=...` and `?ordering=title` from the `FilterSet`, and pages by number. Input is validated before the handler runs and a response contains only its declared fields. Tables change only through reviewed SQL: `hinoki migrations plan notes` writes the migration, `hinoki migrations apply` runs it. For several handwritten actions, group the `@http` functions on a `RouteGroup`, which shares a path, an access policy and a transaction across its actions, or use a class-based `API` with `crud` hooks ([function-based APIs](docs/function-endpoints.md), [CRUD](docs/crud.md), [class-based APIs](docs/class-endpoints.md)).
 
 ## What you get
 
