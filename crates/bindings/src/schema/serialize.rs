@@ -178,7 +178,9 @@ fn convert_narrowed<'py>(
         && !mode.storage
         && class_fields(declared, true, mode.by_alias, false)?.is_none()
     {
-        return convert(value, mode, depth);
+        // The declared class decides its own shape, not the subclass.
+        let dumped = declared.call_method1(pyo3::intern!(value.py(), "dump"), (value,))?;
+        return convert(&dumped, mode, depth);
     }
     Ok(dump_instance_at(
         value,

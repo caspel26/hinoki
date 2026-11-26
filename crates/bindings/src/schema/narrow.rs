@@ -445,7 +445,7 @@ impl Narrowed {
         if include.is_none() && exclude.is_empty() && !exclude_unset && by_alias {
             return match super::serialize::dump_as(value, declared)? {
                 Some(dumped) => Ok(dumped.into_any()),
-                None => value.call_method0("dump"),
+                None => declared.call_method1(intern!(py, "dump"), (value,)),
             };
         }
         let known = declared.call_method0(intern!(py, "specs"))?;

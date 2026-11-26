@@ -171,7 +171,9 @@ class WebSocket:
         if not isinstance(value, reply):
             return reply.validate(value)
         narrowed = core.dump_as(value, reply)
-        return value.dump(include=reply.specs()) if narrowed is None else narrowed
+        return (
+            reply.dump(value, include=reply.specs()) if narrowed is None else narrowed
+        )
 
     async def close(self, code: int = CloseCode.NORMAL, reason: str = "") -> None:
         """Close after the messages already queued. ``ValueError`` for a code that

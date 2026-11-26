@@ -272,7 +272,12 @@ impl<'py> XmlEncoder<'py> {
             // A subclass instance where its base class is declared.
             match crate::schema::class_fields(&declared, true, true, true)? {
                 Some(fields) => self.schema_object(tag, &source, fields, depth)?,
-                None => self.object(tag, &source, depth)?,
+                None => {
+                    // The declared class decides its own shape, not the subclass.
+                    let dumped =
+                        declared.call_method1(pyo3::intern!(value.py(), "dump"), (&source,))?;
+                    self.replace(tag, &dumped, depth)?;
+                }
             }
         } else if let Some(fields) =
             crate::schema::class_fields(&value.get_type(), true, true, true)?

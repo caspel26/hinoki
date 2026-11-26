@@ -1319,7 +1319,9 @@ impl<'py> Encoder<'py> {
         depth: usize,
     ) -> PyResult<()> {
         let Some(plan) = crate::schema::json_field_plan_of(declared, quoted_json_key)? else {
-            return self.object(value, depth);
+            // The declared class decides its own shape, not the subclass.
+            let dumped = declared.call_method1(pyo3::intern!(value.py(), "dump"), (value,))?;
+            return self.replace(&dumped, depth);
         };
         self.schemas += 1;
         let result =

@@ -1920,7 +1920,7 @@ def narrow_instance(schema: type[Schema], value: Schema, view: bool = False) -> 
         return value
     narrowed = core.dump_as(value, schema)
     if narrowed is None:
-        return value.dump(include=schema.specs())
+        return schema.dump(value, include=schema.specs())
     return core.Narrowed(value, schema) if view else narrowed
 
 
