@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any, ClassVar, cast
 
 from hinoki import core
@@ -19,6 +20,7 @@ from hinoki.blocking import call_hook, is_coroutine_hook
 from hinoki.errors import Unauthorized
 
 _EMPTY_FROZENSET: frozenset[str] = frozenset()
+_EMPTY_CLAIMS: Mapping[str, Any] = MappingProxyType({})
 
 
 class Permission(StrEnum):
@@ -46,18 +48,27 @@ class Caller[T]:
     id: str
     user: T
     permissions: frozenset[str]
+    claims: Mapping[str, Any]
 
-    def __init__(self, id: str, user: T, permissions: Iterable[str] = ()) -> None:
+    def __init__(
+        self,
+        id: str,
+        user: T,
+        permissions: Iterable[str] = (),
+        claims: Mapping[str, Any] = _EMPTY_CLAIMS,
+    ) -> None:
         object.__setattr__(self, "id", id)
         object.__setattr__(self, "user", user)
         if isinstance(permissions, str | bytes):
             raise TypeError("permissions is a list of names, not one string")
-        if not permissions:
-            object.__setattr__(self, "permissions", _EMPTY_FROZENSET)
-            return
+        resolved_permissions = (
+            frozenset(str(p) for p in permissions) if permissions else _EMPTY_FROZENSET
+        )
         # Plain strings, as ``Access`` stores them: a ``Permission`` member
         # equals its value, so checks match either way.
-        object.__setattr__(self, "permissions", frozenset(str(p) for p in permissions))
+        object.__setattr__(self, "permissions", resolved_permissions)
+        resolved_claims = MappingProxyType(dict(claims)) if claims else _EMPTY_CLAIMS
+        object.__setattr__(self, "claims", resolved_claims)
 
 
 class _LazyHeaders(Mapping[str, str]):

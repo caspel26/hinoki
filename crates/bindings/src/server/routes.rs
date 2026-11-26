@@ -383,8 +383,13 @@ impl Core {
             .auth
             .admit(first.map(|(_, value)| value.as_slice()), now)
         {
-            Admission::Admit { subject, scopes } => {
-                input.principal = Some((subject, scopes));
+            Admission::Admit {
+                subject,
+                scopes,
+                raw_claims,
+                ..
+            } => {
+                input.principal = Some((subject, scopes, raw_claims));
                 return None;
             }
             Admission::Defer => return None,

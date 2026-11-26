@@ -136,8 +136,8 @@ class NativeBody(NamedTuple):
     headers: list[tuple[bytes, bytes]]
     query: bytes
     client: tuple[str, int] | None
-    # The caller Rust already authenticated: the `sub` and every string scope.
-    principal: tuple[str, list[str]] | None = None
+    # The caller Rust already authenticated: `sub`, string scopes, and verified claims.
+    principal: tuple[str, list[str], dict[str, Any]] | None = None
     # Lower-cased header dict built directly from Rust's native header vector
     # when available, avoiding the intermediate list[tuple[bytes, bytes]].
     header_dict: dict[str, str] | None = None
@@ -1550,8 +1550,8 @@ class Pipeline:
             raise native_input_exception(input_error)
         principal = None
         if access is not None and native.principal is not None:
-            subject, scopes = native.principal
-            principal = Caller(subject, None, frozenset(scopes))
+            subject, scopes, claims = native.principal
+            principal = Caller(subject, None, frozenset(scopes), claims=claims)
         elif access is not None:
             query = parse_query(native.query) if native.query else {}
             headers = (

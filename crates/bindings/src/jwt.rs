@@ -528,7 +528,10 @@ fn value_to_py<'py>(py: Python<'py>, value: &Value) -> PyResult<Bound<'py, PyAny
     }
 }
 
-fn map_to_py_dict<'py>(py: Python<'py>, map: &Map<String, Value>) -> PyResult<Bound<'py, PyDict>> {
+pub(crate) fn map_to_py_dict<'py>(
+    py: Python<'py>,
+    map: &Map<String, Value>,
+) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
     for (key, value) in map {
         out.set_item(key, value_to_py(py, value)?)?;
@@ -549,18 +552,23 @@ pub(crate) struct ClaimsAuth {
     require_exp: bool,
     scope_claim: String,
     required: Vec<String>,
+    extra_claims: Vec<String>,
 }
 
 fn is_token_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
 }
 
+pub(crate) type ClaimList = Vec<(String, Option<String>)>;
+
 impl ClaimsAuth {
-    /// The `sub` of `Authorization: Bearer <token>` when it is a valid token
-    /// whose claims give a non-empty `sub` and every required permission.
-    pub(crate) fn subject(&self, authorization: &[u8], now: i64) -> Option<String> {
+    /// The `sub` and any requested non-empty string claims of a valid
+    /// `Authorization: Bearer <token>` with every required permission.
+    pub(crate) fn caller(&self, authorization: &[u8], now: i64) -> Option<(String, ClaimList)> {
         match self.admit(Some(authorization), now) {
-            Admission::Admit { subject, .. } => Some(subject),
+            Admission::Admit {
+                subject, claims, ..
+            } => Some((subject, claims)),
             _ => None,
         }
     }
@@ -583,12 +591,12 @@ impl ClaimsAuth {
             require_exp: self.require_exp,
         };
         match decode_claims(token, &self.keys, &rules) {
-            Ok(claims) => self.grants(&claims),
+            Ok(claims) => self.grants(claims),
             Err(_) => Admission::Invalid,
         }
     }
 
-    fn grants(&self, claims: &Map<String, Value>) -> Admission {
+    fn grants(&self, claims: Map<String, Value>) -> Admission {
         let subject = match claims.get("sub") {
             Some(Value::String(subject)) if !subject.is_empty() => subject.clone(),
             _ => return Admission::Invalid,
@@ -602,10 +610,26 @@ impl ClaimsAuth {
                 .collect(),
             Some(_) => return Admission::Invalid,
         };
-        if self.required.iter().all(|need| scopes.contains(need)) {
-            Admission::Admit { subject, scopes }
-        } else {
-            Admission::Forbidden
+        if !self.required.iter().all(|need| scopes.contains(need)) {
+            return Admission::Forbidden;
+        }
+        let extracted = self
+            .extra_claims
+            .iter()
+            .map(|name| {
+                let value = claims
+                    .get(name)
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_owned);
+                (name.clone(), value)
+            })
+            .collect();
+        Admission::Admit {
+            subject,
+            scopes,
+            claims: extracted,
+            raw_claims: claims,
         }
     }
 }
@@ -628,10 +652,13 @@ fn plain_bearer(authorization: &[u8]) -> Option<&str> {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Admission {
     /// Authenticated, with every permission the route requires; `scopes` are all
-    /// the string scopes of the token.
+    /// the string scopes of the token, `claims` are any extra non-empty string
+    /// claims requested by a CRUD plan, and `raw_claims` is the verified claim map.
     Admit {
         subject: String,
         scopes: Vec<String>,
+        claims: Vec<(String, Option<String>)>,
+        raw_claims: Map<String, Value>,
     },
     /// No credentials: Python answers `401`.
     Missing,
@@ -652,6 +679,11 @@ pub(crate) struct PyClaimsAuth {
 #[pymethods]
 impl PyClaimsAuth {
     #[new]
+    #[pyo3(signature = (
+        keys, issuer, audience, leeway, require_exp, scope_claim, required,
+        extra_claims=Vec::new()
+    ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         keys: Vec<KeySpec>,
         issuer: Option<String>,
@@ -660,6 +692,7 @@ impl PyClaimsAuth {
         require_exp: bool,
         scope_claim: String,
         required: Vec<String>,
+        extra_claims: Vec<String>,
     ) -> PyResult<Self> {
         if keys.is_empty() || !(0..=MAX_LEEWAY).contains(&leeway) {
             return Err(PyValueError::new_err("invalid claims authentication"));
@@ -677,6 +710,7 @@ impl PyClaimsAuth {
                 require_exp,
                 scope_claim,
                 required,
+                extra_claims,
             }),
         })
     }
@@ -746,7 +780,7 @@ mod tests {
 
     impl Admits for ClaimsAuth {
         fn admits(&self, authorization: &[u8], now: i64) -> bool {
-            self.subject(authorization, now).is_some()
+            self.caller(authorization, now).is_some()
         }
     }
 
@@ -1018,6 +1052,7 @@ mod tests {
             require_exp: true,
             scope_claim: "scopes".to_owned(),
             required: required.iter().map(|name| (*name).to_owned()).collect(),
+            extra_claims: Vec::new(),
         }
     }
 
@@ -1076,6 +1111,8 @@ mod tests {
             Admission::Admit {
                 subject: "u1".to_owned(),
                 scopes: vec!["posts:write".to_owned(), "x".to_owned()],
+                claims: Vec::new(),
+                raw_claims: serde_json::from_str(good).unwrap(),
             }
         );
         assert_eq!(auth.admit(None, 1000), Admission::Missing);
@@ -1096,6 +1133,31 @@ mod tests {
         );
         assert_eq!(auth.admit(Some(b"Basic abc"), 1000), Admission::Defer);
         assert_eq!(auth.admit(Some(b"Bearer "), 1000), Admission::Defer);
+    }
+
+    #[test]
+    fn claims_auth_extracts_non_empty_string_extra_claims() {
+        let mut auth = claims_auth(&[]);
+        auth.extra_claims = vec!["tenant_id".to_owned(), "org".to_owned()];
+        let header = bearer(r#"{"sub":"u1","exp":2000,"tenant_id":"acme","org":""}"#);
+        assert_eq!(
+            auth.caller(&header, 1000),
+            Some((
+                "u1".to_owned(),
+                vec![
+                    ("tenant_id".to_owned(), Some("acme".to_owned())),
+                    ("org".to_owned(), None),
+                ],
+            ))
+        );
+        let non_str = bearer(r#"{"sub":"u1","exp":2000,"tenant_id":42}"#);
+        assert_eq!(
+            auth.caller(&non_str, 1000),
+            Some((
+                "u1".to_owned(),
+                vec![("tenant_id".to_owned(), None), ("org".to_owned(), None)],
+            ))
+        );
     }
 
     #[test]
