@@ -822,14 +822,14 @@ def check_filter_dialect_support(
 def _scoped_query(self: Any, query: Any, principal: Any, *, hook: str) -> Any:
     """Validate hook ``QuerySet`` model and enforce ``resource.row_scope``."""
     row_scope = self.resource.row_scope
-    if isinstance(query, QuerySet) and query.model is not self.resource.model:
+    if row_scope is None:
+        return query
+    if not isinstance(query, QuerySet) or query.model is not self.resource.model:
         raise RegistrationError(
             f"{type(self).__name__}.{hook} must return a "
             f"{self.resource.model.__name__} QuerySet"
         )
-    if row_scope is not None:
-        return row_scope.apply(query, principal)
-    return query
+    return row_scope.apply(query, principal)
 
 
 async def narrowed(
@@ -983,13 +983,15 @@ async def schema_items(self: CrudBase, rows: list[Any]) -> list[Any]:
 
 def _scoped_link_query(self: Any, side: LinkEnd, query: Any, principal: Any) -> Any:
     """Validate link hook ``QuerySet`` model and enforce declared ``RowScope``."""
-    if isinstance(query, QuerySet) and query.model is not side.target:
+    row_scope = self.resource.link_scopes.get(side.declared)
+    if row_scope is None:
+        return query
+    if not isinstance(query, QuerySet) or query.model is not side.target:
         raise RegistrationError(
             f"{type(self).__name__}.link_queryset({side.declared!r}) must return a "
             f"{side.target.__name__} QuerySet"
         )
-    row_scope = self.resource.link_scopes.get(side.declared)
-    if row_scope is not None and (
+    if (
         not isinstance(self, CrudBase)
         or type(self).link_queryset is not CrudBase.link_queryset
     ):
