@@ -8,13 +8,14 @@ import dataclasses
 import gc
 import json
 import pickle
-from typing import Any
+from typing import Any, TypedDict
 
 import pytest
 
-from hinoki import Hinoki, Schema, computed_field
+from hinoki import Hinoki, JSONRenderer, Schema, computed_field
 from hinoki.core import Narrowed
 from hinoki.http.request import Request
+from hinoki.pagination import Page
 from hinoki.renderers import Renderer
 from hinoki.routing import RouteGroup
 from hinoki.testing import ASGIClient
@@ -54,17 +55,32 @@ def holder() -> HolderPriv:
     )
 
 
+def exact_holder() -> Holder:
+    return Holder(inner=private(1), items=[private(2)], named={"a": private(3)})
+
+
+class Outer(Schema):
+    mid: Holder
+
+
+class Box(TypedDict):
+    holder: Holder
+
+
 def walk(value: object) -> object:
     """A generic renderer: it reads every declared field and computed value."""
+    out: object = value
     if isinstance(value, dict):
-        return {key: walk(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [walk(item) for item in value]
-    if isinstance(value, Schema):
+        out = {key: walk(item) for key, item in value.items()}
+    elif isinstance(value, (list, tuple)):
+        out = [walk(item) for item in value]
+    elif isinstance(value, Page):
+        out = {"items": walk(value.items), "total": value.total}
+    elif isinstance(value, Schema):
         cls = value.__class__
         names = [*cls.specs(), *cls.computed_fields()]
-        return {name: walk(getattr(value, name)) for name in names}
-    return value
+        out = {name: walk(getattr(value, name)) for name in names}
+    return out
 
 
 class WalkRenderer(Renderer):
@@ -73,6 +89,18 @@ class WalkRenderer(Renderer):
 
     def render(self, value: object, request: Request) -> bytes:
         return json.dumps(walk(value)).encode()
+
+
+class WalkJSON(JSONRenderer):
+    media_type = "application/vnd.walk+json"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.seen: list[type[object]] = []
+
+    def prepare(self, value: object, request: Request) -> object:
+        self.seen.append(type(value))
+        return walk(value)
 
 
 EXPECTED = {
@@ -112,6 +140,75 @@ async def test_walker_renderer_reaches_no_secret(
     assert reply.status == 200
     assert SECRET.encode() not in reply.raw
     assert json.loads(reply.raw) == expected
+
+
+@pytest.mark.parametrize("validate", [True, False])
+@pytest.mark.parametrize(
+    ("annotation", "value", "expected"),
+    [
+        (Holder, exact_holder(), EXPECTED),
+        (Holder | None, exact_holder(), EXPECTED),
+        (list[Holder], [exact_holder()], [EXPECTED]),
+        (
+            Page[Holder],
+            Page([exact_holder()], 1, 10, 1),
+            {"items": [EXPECTED], "total": 1},
+        ),
+        (Outer, Outer(mid=exact_holder()), {"mid": EXPECTED}),
+    ],
+    ids=["top", "optional", "list", "page", "nested"],
+)
+async def test_walker_renderer_wraps_exact_instances_with_nested_subclasses(
+    annotation: Any, value: Any, expected: object, validate: bool
+) -> None:
+    group = RouteGroup("")
+    group.get("/x", renderers=[WalkRenderer()], validate_response=validate)(
+        handler(annotation, value)
+    )
+    async with ASGIClient(Hinoki(include=[group])) as client:
+        reply = await client.get("/x")
+    assert reply.status == 200
+    assert SECRET.encode() not in reply.raw
+    assert json.loads(reply.raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("annotation", "value", "expected"),
+    [
+        (dict[str, Holder], {"a": exact_holder()}, {"a": EXPECTED}),
+        (Box, {"holder": exact_holder()}, {"holder": EXPECTED}),
+    ],
+    ids=["dict", "typeddict"],
+)
+async def test_walker_renderer_wraps_exact_instances_in_guide_containers(
+    annotation: Any, value: Any, expected: object
+) -> None:
+    group = RouteGroup("")
+    group.get("/x", renderers=[WalkRenderer()], validate_response=False)(
+        handler(annotation, value)
+    )
+    async with ASGIClient(Hinoki(include=[group])) as client:
+        reply = await client.get("/x")
+    assert reply.status == 200
+    assert SECRET.encode() not in reply.raw
+    assert json.loads(reply.raw) == expected
+
+
+@pytest.mark.parametrize("validate", [True, False])
+async def test_json_prepare_receives_narrowed_view_for_exact_holder(
+    validate: bool,
+) -> None:
+    renderer = WalkJSON()
+    group = RouteGroup("")
+    group.get("/x", renderers=[renderer], validate_response=validate)(
+        handler(Holder, exact_holder())
+    )
+    async with ASGIClient(Hinoki(include=[group])) as client:
+        reply = await client.get("/x")
+    assert reply.status == 200
+    assert renderer.seen == [Narrowed]
+    assert SECRET.encode() not in reply.raw
+    assert json.loads(reply.raw) == EXPECTED
 
 
 def view() -> Any:
