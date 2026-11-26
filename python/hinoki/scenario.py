@@ -15,7 +15,7 @@ from typing import Any
 
 from hinoki import core
 from hinoki.app import Hinoki
-from hinoki.runtime.asgi import IN_PROCESS
+from hinoki.runtime.origins import IN_PROCESS
 
 SAFE = frozenset({"GET", "HEAD", "OPTIONS", "QUERY"})
 METHODS = SAFE | {"POST", "PUT", "PATCH", "DELETE"}
@@ -85,6 +85,7 @@ def build_scope(
         "path": path,
         "query_string": (query or "").encode(),
         "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+        IN_PROCESS: True,
     }
 
 

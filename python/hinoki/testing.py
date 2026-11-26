@@ -25,7 +25,7 @@ from typing import Any, TypeVar
 
 from hinoki import core
 from hinoki.app import Hinoki
-from hinoki.runtime.asgi import IN_PROCESS
+from hinoki.runtime.origins import IN_PROCESS
 from hinoki.utils import _read_utc
 
 HeaderInput = Mapping[str, str] | Sequence[tuple[str, str]]
@@ -212,6 +212,7 @@ class ASGIClient:
             "path": path,
             "query_string": query.encode(),
             "headers": [(k.encode(), v.encode()) for k, v in sent],
+            IN_PROCESS: True,
         }
         return scope, body
 

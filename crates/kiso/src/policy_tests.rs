@@ -50,6 +50,36 @@ fn host_names_match_the_python_policy_shapes() {
 }
 
 #[test]
+fn the_loopback_entry_matches_every_ipv4_loopback_address_only() {
+    let allowed = hosts(&["localhost", "::1", "127.0.0.0/8"], &[".localhost"]);
+    for host in [
+        "127.0.0.1",
+        "127.0.0.1:8000",
+        "127.255.255.254",
+        "LOCALHOST:8000",
+        "dev.localhost",
+        "[::1]:8000",
+        "localhost.",
+    ] {
+        assert!(allowed.allows(host.as_bytes()), "{host}");
+    }
+    for host in [
+        "",
+        "128.0.0.1",
+        "192.168.1.5",
+        "127.0.0",
+        "127.0.0.1.evil.example",
+        "evil.example",
+        "evil-localhost",
+        "[::2]",
+        "127.0.0.0/8",
+    ] {
+        assert!(!allowed.allows(host.as_bytes()), "{host}");
+    }
+    assert!(!hosts(&["example.com"], &[]).allows(b"127.0.0.1"));
+}
+
+#[test]
 fn repeated_host_headers_never_match_one_allowed_host() {
     assert!(!hosts(&["example.com"], &[]).allows(b"example.com, example.com"));
 }

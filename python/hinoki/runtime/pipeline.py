@@ -74,7 +74,12 @@ from hinoki.runtime.deprecation import Reminders
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.inline import RequestDeadline, run_inline
 from hinoki.runtime.lifespan import Lifespan
-from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
+from hinoki.runtime.origins import (
+    ALLOW_ORIGIN,
+    CorsPolicy,
+    HostPolicy,
+    host_trusting_feature,
+)
 from hinoki.runtime.proxy import (
     build_proxy_policy,
     effective_client,
@@ -242,7 +247,9 @@ class Pipeline:
             app.settings.logging if isinstance(app.settings, AppSettings) else None
         )
         self.debug = isinstance(app.settings, AppSettings) and app.settings.debug
-        self.hosts = HostPolicy.of(app.settings)
+        self.hosts = HostPolicy.of(
+            app.settings, host_trusting=host_trusting_feature(app) is not None
+        )
         self.cors = CorsPolicy.of(app.settings)
         self.route_cors = [
             None if b.route.cors is None else CorsPolicy.from_cors(b.route.cors)
@@ -1326,7 +1333,7 @@ class Pipeline:
 
     def _guard(self, scope: Scope, headers: dict[str, str]) -> Response | None:
         """Refuse a host that is not allowed; answer a CORS preflight."""
-        if self.hosts is not None:
+        if self.hosts is not None and not self.hosts.exempts(scope):
             self.hosts.check(headers.get("host", ""))
         policy = self._preflight_policy(scope, headers)
         if policy is None:

@@ -1,6 +1,10 @@
 //! Host allow-list matching, equivalent to `hinoki.runtime.origins.HostPolicy`.
 
-use std::net::Ipv6Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
+
+/// An `exact` entry standing for the whole `127.0.0.0/8` block, which no
+/// host name or suffix can express.
+pub const LOOPBACK_V4: &[u8] = b"127.0.0.0/8";
 
 #[derive(Debug, Clone, Default)]
 pub struct Hosts {
@@ -27,9 +31,18 @@ impl Hosts {
         let Some(name) = host_name(header) else {
             return false;
         };
-        self.exact.iter().any(|host| host == &name)
+        self.exact
+            .iter()
+            .any(|host| host == &name || (host == LOOPBACK_V4 && is_ipv4_loopback(&name)))
             || self.suffixes.iter().any(|suffix| name.ends_with(suffix))
     }
+}
+
+fn is_ipv4_loopback(name: &[u8]) -> bool {
+    std::str::from_utf8(name)
+        .ok()
+        .and_then(|text| text.parse::<Ipv4Addr>().ok())
+        .is_some_and(|address| address.is_loopback())
 }
 
 pub fn host_entry(entry: &str) -> String {

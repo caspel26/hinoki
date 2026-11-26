@@ -20,6 +20,7 @@ from hinoki.runtime.asgisocket import (
     origin_allowed,
     refuse,
 )
+from hinoki.runtime.origins import IN_PROCESS, host_trusting_feature
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.proxy import effective_scope
 from hinoki.runtime.requests import Scope, decode_params, header_map, read_body
@@ -41,11 +42,6 @@ log = logging.getLogger("hinoki.runtime")
 
 PATHSEND = "http.response.pathsend"
 
-# A lifespan scope key set by in-process drivers (the test clients, the MCP
-# scenario runner): no network Host header reaches them, so the startup warning
-# about ``allowed_hosts = *`` would only be noise there.
-IN_PROCESS = "hinoki.in_process"
-
 ANY_HOST_WARNING = (
     "allowed_hosts is '*' and debug is off: every Host header is accepted, so "
     "links, redirects and cache keys built from it (a password-reset link, for "
@@ -62,11 +58,11 @@ HOST_CHECK_REQUIRED = (
 )
 
 
-def host_trusting_feature(app: Any) -> str | None:
-    """What the app serves that decides same-origin from the Host header."""
-    if app.has_admin:
-        return "the admin"
-    return "WebSocket routes" if app.websockets else None
+LOOPBACK_ONLY_WARNING = (
+    "debug is on and allowed_hosts is '*': this app serves the admin or "
+    "WebSocket routes, so only loopback Host names (localhost, 127.0.0.0/8, "
+    "[::1]) are accepted; set allowed_hosts to serve other names"
+)
 
 
 def accepts_any_host(pipeline: Pipeline) -> bool:
@@ -140,10 +136,13 @@ class ASGIAdapter:
         decoded, so decoding it again would turn ``%252f`` into ``/``), after
         the Host policy. ``None`` refuses the handshake."""
         pipeline = self.pipeline
-        if pipeline.hosts is not None:
-            host = header_map(scope).get("host", "")
-            if not pipeline.hosts.allows(host):
-                return None
+        hosts = pipeline.hosts
+        if (
+            hosts is not None
+            and not hosts.exempts(scope)
+            and not hosts.allows(header_map(scope).get("host", ""))
+        ):
+            return None
         raw_path = scope.get("raw_path")
         try:
             path = scope["path"] if raw_path is None else pipeline.raw_target(raw_path)
@@ -182,6 +181,10 @@ class ASGIAdapter:
                 await send({"type": "lifespan.startup.failed", "message": message})
                 return True
             log.warning(ANY_HOST_WARNING)
+        elif (
+            served and self.pipeline.hosts is not None and self.pipeline.hosts.implicit
+        ):
+            log.warning(LOOPBACK_ONLY_WARNING)
         try:
             await self.lifespan.startup()
         except StartupError as exc:
