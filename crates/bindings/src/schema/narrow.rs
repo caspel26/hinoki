@@ -411,7 +411,7 @@ impl ReturnGuide {
     }
 }
 
-fn from_spec(spec: &Bound<'_, PyAny>) -> PyResult<Guide> {
+pub(super) fn from_spec(spec: &Bound<'_, PyAny>) -> PyResult<Guide> {
     let (kind, arg): (String, Bound<'_, PyAny>) = spec.extract()?;
     let bad = || pyo3::exceptions::PyValueError::new_err(format!("unknown guide {kind}"));
     Ok(match kind.as_str() {

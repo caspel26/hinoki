@@ -17,7 +17,8 @@ use super::typeddecode;
 pub type SchemaWireNames = Vec<(String, String)>;
 /// Wire names, the `UNSET` sentinel and how many trailing names are computed.
 pub type SchemaInstanceFields = Option<(SchemaWireNames, Py<PyAny>, usize)>;
-/// What each declared field's annotation says about nested schemas, by position.
+/// What each declared field's and computed value's annotation says about nested
+/// schemas, by position (declared fields first).
 pub(crate) type FieldGuides = Arc<[Option<Guide>]>;
 
 /// One pre-resolved field entry in a schema's cached JSON encoding plan.
@@ -32,7 +33,7 @@ pub(crate) struct JsonFieldPlan {
     pub(crate) entries: Box<[JsonFieldEntry]>,
     pub(crate) unset: Py<PyAny>,
     pub(crate) streamable: bool,
-    /// The declared fields' guides; computed entries follow with none.
+    /// The declared fields' guides, then the computed entries'.
     pub(crate) guides: FieldGuides,
     /// Whether any field declares a nested schema (otherwise nothing to narrow).
     pub(crate) guided: bool,

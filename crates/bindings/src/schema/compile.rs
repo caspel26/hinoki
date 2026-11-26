@@ -196,7 +196,8 @@ type DirectEntry = (usize, Option<Py<PyAny>>, Py<PyDict>, Py<PyDict>);
 /// `(class, [(name, wire_name, node, required), ...], forbid_extra)`; nested
 /// schemas refer to a definition by index.
 #[pyfunction]
-#[pyo3(signature = (definitions, root, uuid_class, from_iso, unset, direct=None))]
+#[allow(clippy::too_many_arguments)] // the Python call is one flat signature
+#[pyo3(signature = (definitions, root, uuid_class, from_iso, unset, direct=None, computed_guides=None))]
 pub fn compile_schemas(
     py: Python<'_>,
     definitions: Vec<(Py<PyAny>, FieldTable<'_>, bool)>,
@@ -205,6 +206,7 @@ pub fn compile_schemas(
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
     direct: Option<Vec<DirectEntry>>,
+    computed_guides: Option<Vec<Option<Bound<'_, PyAny>>>>,
 ) -> PyResult<Compiled> {
     let mut direct = direct.unwrap_or_default();
     let mut built = Vec::with_capacity(definitions.len());
@@ -255,11 +257,19 @@ pub fn compile_schemas(
         .as_deref()
         .and_then(|lowered| typeddecode::typed(py, &built, lowered, root))
         .map(Arc::new);
-    let guides = built[root]
+    // The declared fields' guides, then one per computed value (its return annotation).
+    let mut guides: Vec<Option<super::narrow::Guide>> = built[root]
         .fields
         .iter()
         .map(|field| super::narrow::guide_of(py, &field.node, &built))
         .collect();
+    for spec in computed_guides.unwrap_or_default() {
+        guides.push(match spec {
+            Some(spec) => Some(super::narrow::from_spec(&spec)?),
+            None => None,
+        });
+    }
+    let guides = guides.into();
     Ok(Compiled {
         definitions: built,
         root,

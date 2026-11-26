@@ -158,6 +158,7 @@ def node(kind, nullable=False, item=None, index=None, **constraints):
             from_iso.unbind(),
             py.None(),
             None,
+            None,
         )
         .unwrap()
     }
