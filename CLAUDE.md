@@ -27,7 +27,7 @@ uv run --locked --group docs mkdocs build --strict
 - CRUD generation is required; its advanced syntax is provisional.
 - Explicit application modules and dependencies, a defined worker lifespan, bounded sync execution, startup and graceful shutdown.
 - Remote services do not share ORM joins or pretend to share local transactions.
-- The admin is an optional extra with explicit activation and migrations. Installing or importing Hinoki never mutates a database.
+- The admin (`hinoki.admin`) ships in `hinoki-api` with explicit mounting and migrations. Installing or importing Hinoki never mutates a database.
 - Vocabulary: `Schema` (code font) is the Hinoki class; use "table state"/"migration state", "OpenAPI document" and "JSON Schema" for the other meanings ([`docs/glossary.md`](docs/glossary.md)).
 
 ## Code conventions
