@@ -179,7 +179,7 @@ async def feed(socket: http.WebSocket) -> None:
 | `await socket.receive_bytes()` | the next binary message; a text one closes with `1003` |
 | `await socket.receive_json(schema=None)` | text parsed as JSON, then validated against the `Schema` given or the route's `message` |
 | `await socket.send_text(text)`, `send_bytes(data)` | queue a message, waiting while the outgoing queue is full |
-| `await socket.send_json(value)` | a JSON text message; with `reply=` on the route, validated against it |
+| `await socket.send_json(value)` | a JSON text message; with `reply=` on the route, a `dict` is validated against it and an instance of a subclass of it is sent with the fields of `reply` only |
 | `await socket.close(code=1000, reason="")` | close after the queued messages |
 | `async for message in socket` | each message, until the connection ends; with `message=` on the route, each is a validated `Schema` instance |
 

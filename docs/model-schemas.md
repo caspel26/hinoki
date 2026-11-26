@@ -121,23 +121,52 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
     it and the `HNK-API-001` rule (`Actions.forbid_model_responses`) reports
     it. Lists or pages of models, models of another class, and plain `dict`
     values are `500 internal_error` unless the action sets
-    `validate_response=False`. A subclass instance is sent with the declared
-    fields only (and the declared `@computed_field` values, as an exact instance
-    shows them), at the top level (`Schema`, `Schema | None`, `list[Schema]`,
-    `Page[Schema]`, `CursorPage[Schema]`) and nested in a `Schema` field declared
-    as `S`, `S | None`, `list[S]`, `list[S | None]`, `list[list[S]]`,
-    `tuple[S, ...]`, `tuple[S, T]`, `dict[str, S]`, the `T` field of a generic `Envelope[S]`, or a
-    union of `S` with scalars, in the JSON, XML and `dump()` outputs alike. A
-    list or page of exact `Schema` instances is sent as it is. A position that
-    declares no schema (`Any`, `object`) writes the value it holds, whole; so
-    does a nested class that overrides `dump()`, which decides its own shape. A
-    `@computed_field` is not itself narrowed: a computed value that returns a
-    subclass instance is written as it is (its subclass can override the value).
-    The same holds for a top-level `dict[str, S]`, `tuple[S, ...]`,
-    `list[S | None]`, `list[list[S]]`, a union containing `S` and a `TypedDict` of
-    them; a dataclass, or a `Page` inside another container, is written as it is.
-    A narrowed value is written with wire names (aliases) like an exact one; a
-    lazy projection (`aget_as`, `aproject`) held in a field is narrowed too. See [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
+    `validate_response=False`. A subclass instance is sent as the
+    declared type: see [Subclass instances](#subclass-instances) below. See
+    [the response check](endpoints.md#the-response-is-checked-against-the-annotation).
+
+## Subclass instances
+
+A response sends the type its annotation declares. An instance of a subclass
+(`Private(Public)`) shows the fields and `@computed_field` values of the
+declared class, never the fields the subclass added, in the JSON, XML and
+`dump()` outputs alike. An exact instance is sent unchanged.
+
+Narrowed, wherever the annotation names a `Schema` `S`:
+
+- the top level and a `Schema` field: `S`, `S | None`, a union of `S` with other
+  types, `list[S]`, `list[S | None]`, `list[list[S]]`, `tuple[S, ...]`,
+  `tuple[S, T]`, `dict[str, S]`, `Page[S]` and `CursorPage[S]` (the top level
+  only for the two pages), and the `T` field of a generic `Envelope[S]`;
+- the top level also takes a `TypedDict` of these and any combination of them;
+  top-level `dict`, `tuple` and `TypedDict` shapes are narrowed too, with
+  `validate_response=False` where the check refuses the annotation;
+- the abstract forms `Sequence[S]`, `MutableSequence[S]`, `Collection[S]`,
+  `Iterable[S]` (a returned `list` or `tuple`), `Mapping[str, S]` and
+  `MutableMapping[str, S]` (a returned `dict`), and a PEP 695 `type` alias of
+  any of these (`type Items = list[S]`, also a generic one);
+- the return annotation of a `@computed_field`: a method declared `-> Public`
+  that returns a `Private` sends `Public`'s fields;
+- a list or tuple returned where `list[S]` is declared, and a lazy projection
+  (`aget_as`, `aproject`) held anywhere above;
+- the `reply=` of a WebSocket route, for `send_json`.
+
+Written whole, because no declared schema decides them:
+
+- a position typed `Any` or `object`;
+- a dataclass, and a `Page` inside another container (`dict[str, Page[S]]`);
+- a declared class that overrides `dump()`: its own `dump()` decides the shape;
+- a value that is not a `list`, `tuple` or `dict` where a collection is
+  declared (a generator or iterator returned for `Iterable[S]`, a mapping that is
+  not a `dict`) is not walked, and the JSON encoder refuses it: return the
+  declared container;
+- the back-reference of a `TypedDict` that refers to itself
+  (`class Tree(TypedDict): item: S; child: Tree | None`): its first level is
+  narrowed, the nested `Tree` values are written as they are.
+
+A narrowed value keeps the wire names (aliases) of an exact one.
+[Custom renderers](codecs.md#inherit-and-override) that take objects receive the
+narrowed instance as a `Narrowed` view of the declared class.
 
 ## See also
 

@@ -119,7 +119,7 @@ out.dump(by_alias=False)
   computed values, never the fields its subclass added. An exact instance is
   written unchanged. A field typed `Any` or `object` has no declared schema and
   writes the value whole, and a declared class that overrides `dump()` decides
-  its own shape. `dump_for_storage` (the cache) narrows the same way. The OpenAPI document already describes the declared type.
+  its own shape. A `@computed_field` is narrowed by its return annotation. `dump_for_storage` (the cache) narrows the same way. The OpenAPI document already describes the declared type. [Which positions are narrowed](model-schemas.md#subclass-instances).
 * Filtering a dump is not authorization and does not change the OpenAPI
   document: declare a `Schema` with only the fields the caller may see.
 * `dump` and `replace` are reserved method names; a field with either name
