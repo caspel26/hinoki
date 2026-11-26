@@ -40,6 +40,9 @@ type Outer = Inner | Public
 type Inner = list[Inner2]
 type Inner2 = list[Inner]
 type Json = dict[str, Json] | list[Json] | int
+type Bad = list[Undefined]  # type: ignore[name-defined]  # noqa: F821
+type BadGen[T] = list[Undefined]  # type: ignore[name-defined]  # noqa: F821
+type OuterBad = dict[str, Bad]
 
 
 def private(n: int = 1) -> Private:
@@ -114,3 +117,16 @@ async def test_a_cycle_that_does_not_hold_a_schema_does_not_refuse_the_alias() -
     async with ASGIClient(app(Outer, private(), False)) as client:
         reply = await client.get("/x")
     assert json.loads(reply.raw) == {"id": 1}
+
+
+@pytest.mark.parametrize("validate", [True, False])
+@pytest.mark.parametrize(
+    "annotation",
+    [Bad, BadGen[Public], OuterBad],
+    ids=["plain", "generic", "nested"],
+)
+def test_unresolved_alias_raises_registration_error_naming_action(
+    annotation: Any, validate: bool
+) -> None:
+    with pytest.raises(RegistrationError, match=r"serve.*cannot be resolved"):
+        app(annotation, [], validate)
