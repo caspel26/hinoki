@@ -81,13 +81,16 @@ INTERNAL_HOOKS = ("reload_written",)
 
 
 class Crud(enum.StrEnum):
-    """The generated actions ``replaces=`` can name (each is also its plain string)."""
+    """The generated CRUD action names (each is also its plain string)."""
 
     LIST = "list"
     RETRIEVE = "retrieve"
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
+
+
+CrudAction = Literal["list", "retrieve", "create", "update", "delete"]
 
 
 def caller_id(user: object) -> NoReturn:
@@ -494,9 +497,9 @@ class _CrudConfig:
         return assigned_values
 
     def writes(self) -> list[str]:
-        found = ["create"] if self.create else []
-        found += ["update"] if self.update else []
-        found += ["delete"] if self.deletable else []
+        found = ["create"] if self.create and "create" not in self.omit else []
+        found += ["update"] if self.update and "update" not in self.omit else []
+        found += ["delete"] if self.deletable and "delete" not in self.omit else []
         return found
 
     def check(self, *, custom_output: bool = False, custom_links: bool = False) -> None:
@@ -566,7 +569,11 @@ class _CrudConfig:
                 f"{name}: links= names {unknown}, which are not many_to_many "
                 "relations of the model"
             )
-        for schema in (self.read, self.create, self.update):
+        for schema in (
+            self.read,
+            self.create if "create" not in self.omit else None,
+            self.update if "update" not in self.omit else None,
+        ):
             if schema is None:
                 continue
             for side in self.link_fields(schema):
@@ -661,11 +668,11 @@ class _CrudConfig:
                 f"{self.read.__derived_model__.__name__}"
             )
         names = columns | set(self.link_ids)
-        if self.create is not None:
+        if self.create is not None and "create" not in self.omit:
             self.check_derived_model("create", self.create)
             self.check_input("create", self.create, names)
             self.check_required(self.create)
-        if self.update is not None:
+        if self.update is not None and "update" not in self.omit:
             self.check_derived_model("update", self.update)
             self.check_input("update", self.update, names)
             self.check_patch(self.update)
@@ -1675,7 +1682,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     assign: Mapping[str, Callable[[Any], Any]] | None = None,
     pagination: Pagination = PageNumberPagination(),  # noqa: B008
     filters: type[FilterSet] | None = None,
-    omit: tuple[str, ...] = (),
+    omit: Sequence[CrudAction | Crud] = (),
     name: str | None = None,
     cors: Cors | None = None,
     include_in_schema: bool | Mapping[str, bool] = True,
@@ -1696,6 +1703,9 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     ``cors=http.Cors(...)`` gives every generated action that CORS policy instead
     of the application's. ``filters=`` takes a ``FilterSet`` subclass: the list then
     accepts the filters, ordering and search it declares.
+    ``omit=`` drops any generated action (``"list"``, ``"retrieve"``,
+    ``"create"``, ``"update"``, ``"delete"``) so it can be omitted or
+    handwritten instead.
     ``include_in_schema=False`` leaves every generated action out of the OpenAPI
     document; ``include_in_schema={"delete": False}`` leaves out
     only the named actions. ``tags`` and ``deprecated`` apply to every action.
@@ -1704,10 +1714,15 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     (``tag_ids``) may link and show: a function of the caller's user that returns
     a ``QuerySet`` of the target. Every ids field needs an entry.
     """
-    unknown = sorted(set(omit) - {"list", "retrieve"})
+    if isinstance(omit, str | bytes):
+        raise RegistrationError(
+            "crud(...) omit= takes a sequence of action names, not a string"
+        )
+    omitted = [str(action) for action in omit]
+    unknown = sorted(set(omitted) - set(ACTIONS))
     if unknown:
         raise RegistrationError(
-            f"crud(...) omit= takes 'list' or 'retrieve', not {unknown}"
+            f"crud(...) omit= takes action names from {list(ACTIONS)}, not {unknown}"
         )
     if name is not None:
         check_name(name)
@@ -1753,7 +1768,7 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         pagination=pagination,
         filters=filters,
         actions=actions,
-        omit=frozenset(omit),
+        omit=frozenset(omitted),
         cors=cors,
         schema_shown=shown,
         tags=check_tags(tags),

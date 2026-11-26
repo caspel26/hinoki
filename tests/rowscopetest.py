@@ -1245,3 +1245,265 @@ async def test_kiso_scoped_crud_native_vs_python_parity(tmp_path: Path) -> None:
     assert native_log == python_log
     assert python_counts[0] == 0
     assert python_counts[1] == len(native_log)
+
+
+def _build_manual_patch_app(url: str) -> Hinoki:
+    @crud(
+        Invoice,
+        path="/manual-patch-invoices",
+        read=InvoiceOut,
+        create=InvoiceIn,
+        update=InvoicePatch,
+        delete=True,
+        access=staff,
+        owner="owner_id",
+        scope=invoice_scope,
+        links={"tags": tag_scope},
+        omit=("update",),
+    )
+    class ManualPatchInvoices(API):
+        def get_queryset(self, caller: Caller[User]) -> QuerySet[Invoice]:
+            _ = caller
+            return Invoice.filter(archived=False)
+
+        @http.patch(
+            "/{item_id}",
+            access=staff,
+            atomic=True,
+            errors=(errors.NotFound, errors.Forbidden, errors.BadRequest),
+        )
+        async def update(
+            self, item_id: UUID, data: InvoicePatch, caller: Caller[User]
+        ) -> InvoiceOut:
+            row = (
+                await invoice_scope.apply(Invoice.all(), caller)
+                .filter(id=item_id)
+                .aget()
+            )
+            if row.owner_id != caller.id:
+                raise errors.Forbidden("You cannot change this item.")
+            await _apply_manual_invoice_patch(item_id, row, data, caller)
+            loaded = (
+                await invoice_scope.apply(Invoice.all(), caller)
+                .filter(id=item_id)
+                .prefetch_related(tags=tag_scope.for_caller(caller))
+                .aget()
+            )
+            return InvoiceOut.from_model(loaded)
+
+    class IgnoredBadPatch(Schema):
+        title: str = "default-not-unset"
+
+    @crud(
+        PlainInvoice,
+        path="/jwt-partial",
+        read=PlainOut,
+        create=PlainIn,
+        update=IgnoredBadPatch,
+        delete=True,
+        access=jwt_access,
+        owner="owner_id",
+        identity_key=caller_id,
+        scope=plain_invoice_scope,
+        links={"tags": plain_tag_scope},
+        omit=("update",),
+    )
+    class JwtPartialNative(API):
+        @http.patch(
+            "/{item_id}",
+            access=jwt_access,
+            atomic=True,
+            errors=(errors.NotFound, errors.Forbidden),
+        )
+        async def update(
+            self, item_id: UUID, data: PlainPatch, caller: Caller[None]
+        ) -> PlainOut:
+            row = await plain_invoice_scope.for_caller(caller).filter(id=item_id).aget()
+            if row.owner_id != caller.id:
+                raise errors.Forbidden("You cannot change this item.")
+            if not isinstance(data.title, Unset):
+                await PlainInvoice.aupdate_where(
+                    {
+                        "id": item_id,
+                        "tenant_id": plain_invoice_scope.value_for(caller),
+                        "owner_id": caller.id,
+                    },
+                    {"title": data.title},
+                )
+            loaded = (
+                await plain_invoice_scope.for_caller(caller)
+                .filter(id=item_id)
+                .prefetch_related(tags=plain_tag_scope.for_caller(caller))
+                .aget()
+            )
+            return PlainOut.from_model(loaded)
+
+    return Hinoki(
+        include=[ManualPatchInvoices, JwtPartialNative],
+        modules=[DatabaseModule(url)],
+    )
+
+
+async def _apply_manual_invoice_patch(
+    item_id: UUID, row: Invoice, data: InvoicePatch, caller: Caller[User]
+) -> None:
+    updates: dict[str, Any] = {}
+    if not isinstance(data.title, Unset):
+        updates["title"] = data.title
+    if not isinstance(data.archived, Unset):
+        updates["archived"] = data.archived
+    if updates:
+        await Invoice.aupdate_where(
+            {
+                "id": item_id,
+                "tenant_id": invoice_scope.value_for(caller),
+                "owner_id": caller.id,
+            },
+            updates,
+        )
+    if not isinstance(data.tag_ids, Unset):
+        allowed = await tag_scope.for_caller(caller).filter(id__in=list(data.tag_ids))
+        if len(allowed) != len(data.tag_ids):
+            raise errors.ValidationError(
+                [errors.ErrorDetail("tag_ids", "unknown_reference", "invalid")]
+            )
+        await row.tags.aset(allowed)
+    if updates.get("title") == "ROLLBACK":
+        raise errors.BadRequest("trigger transaction rollback")
+
+
+async def _verify_manual_patch_http(
+    client: ASGIClient, acme_tag: Tag, globex_tag: Tag, plain_acme_tag: PlainTag
+) -> None:
+    created = await client.post(
+        "/manual-patch-invoices",
+        json={"title": "Initial", "tag_ids": [str(acme_tag.id)]},
+        headers=ALICE,
+    )
+    assert created.status == 201
+    inv_id = created.body["id"]
+
+    # Generated list still isolates tenants.
+    bob_list = await client.get("/manual-patch-invoices", headers=BOB)
+    assert bob_list.status == 200
+    assert [row["title"] for row in bob_list.body["items"]] == ["Globex Seed"]
+
+    # Manual PATCH enforces tenant scope (404), owner (403), and M2M scope (422).
+    assert (
+        await client.patch(
+            f"/manual-patch-invoices/{inv_id}", json={"title": "Steal"}, headers=BOB
+        )
+    ).status == 404
+    assert (
+        await client.patch(
+            f"/manual-patch-invoices/{inv_id}", json={"title": "Hijack"}, headers=AARON
+        )
+    ).status == 403
+    assert (
+        await client.patch(
+            f"/manual-patch-invoices/{inv_id}",
+            json={"tag_ids": [str(globex_tag.id)]},
+            headers=ALICE,
+        )
+    ).status == 422
+
+    # Manual PATCH runs inside atomic=True and rolls back on failure.
+    failed_tx = await client.patch(
+        f"/manual-patch-invoices/{inv_id}", json={"title": "ROLLBACK"}, headers=ALICE
+    )
+    assert failed_tx.status == 400
+    after_rollback = await client.get(f"/manual-patch-invoices/{inv_id}", headers=ALICE)
+    assert after_rollback.status == 200
+    assert after_rollback.body["title"] == "Initial"
+
+    # Valid manual PATCH updates title and returns scoped M2M tags.
+    updated = await client.patch(
+        f"/manual-patch-invoices/{inv_id}",
+        json={"title": "Manually Updated", "tag_ids": [str(acme_tag.id)]},
+        headers=ALICE,
+    )
+    assert updated.status == 200
+    assert updated.body["title"] == "Manually Updated"
+    assert updated.body["tag_ids"] == [str(acme_tag.id)]
+    assert (
+        await client.delete(f"/manual-patch-invoices/{inv_id}", headers=ALICE)
+    ).status == 204
+
+    # JWT resource keeps generated reads/writes + manual PATCH working together.
+    alice_jwt = make_jwt({"sub": "alice", "tenant_id": "acme"})
+    bob_jwt = make_jwt({"sub": "bob", "tenant_id": "globex"})
+    jwt_created = await client.post(
+        "/jwt-partial",
+        json={"title": "JWT Draft", "tag_ids": [str(plain_acme_tag.id)]},
+        headers=alice_jwt,
+    )
+    assert jwt_created.status == 201
+    jwt_id = jwt_created.body["id"]
+    assert (
+        await client.patch(
+            f"/jwt-partial/{jwt_id}", json={"title": "Cross"}, headers=bob_jwt
+        )
+    ).status == 404
+    jwt_patched = await client.patch(
+        f"/jwt-partial/{jwt_id}", json={"title": "JWT Patched"}, headers=alice_jwt
+    )
+    assert jwt_patched.status == 200
+    assert jwt_patched.body["title"] == "JWT Patched"
+    assert (
+        await client.delete(f"/jwt-partial/{jwt_id}", headers=alice_jwt)
+    ).status == 204
+
+
+async def test_two_tenant_scoped_crud_replaces_only_update_with_manual_patch(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "manual_patch_transition.sqlite3"
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+    url = f"sqlite://{db_path}"
+    models: tuple[type[Model], ...] = (
+        Tag,
+        Invoice,
+        *Invoice.__bridges__,
+        PlainTag,
+        PlainInvoice,
+        *PlainInvoice.__bridges__,
+    )
+    plan(list(models), mig_dir, "initial", dialect="sqlite")
+    db = await Database.connect(url, max_size=1, wait=1)
+    try:
+        await migrator.apply(db, mig_dir)
+        with use_database(db):
+            acme_tag = await Tag.acreate(tenant_id="acme", name="urgent")
+            globex_tag = await Tag.acreate(tenant_id="globex", name="secret")
+            await Invoice.acreate(
+                tenant_id="globex", owner_id="bob", title="Globex Seed"
+            )
+            plain_acme_tag = await PlainTag.acreate(tenant_id="acme", name="plain-a")
+            await PlainTag.acreate(tenant_id="globex", name="plain-g")
+    finally:
+        db.close()
+
+    app = _build_manual_patch_app(url)
+    pipeline = Pipeline(app)
+    jwt_bindings = {
+        (b.route.method, b.route.path): b
+        for b in pipeline.bindings
+        if b.route.path.startswith("/jwt-partial")
+    }
+    for action_key in (
+        ("GET", "/jwt-partial"),
+        ("GET", "/jwt-partial/{item_id}"),
+        ("POST", "/jwt-partial"),
+        ("DELETE", "/jwt-partial/{item_id}"),
+    ):
+        selection, reason = select_crud_plan(jwt_bindings[action_key], pipeline)
+        assert reason == "eligible", action_key
+        assert selection is not None
+    patch_selection, _ = select_crud_plan(
+        jwt_bindings[("PATCH", "/jwt-partial/{item_id}")], pipeline
+    )
+    assert patch_selection is None
+
+    async with ASGIClient(app) as client:
+        await _verify_manual_patch_http(client, acme_tag, globex_tag, plain_acme_tag)

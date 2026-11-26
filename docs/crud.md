@@ -50,7 +50,7 @@ class InvoicePatch(Schema): ...
 | `update=InvoicePatch` | `update` | `PATCH /invoices/{item_id}` | `200`, `InvoiceOut` |
 | `delete=True` | `delete` | `DELETE /invoices/{item_id}` | `204`, no body |
 
-Writes run in a transaction. `pagination=` selects the pagination policy of the list route: `PageNumberPagination()` (the default) or `CursorPagination()` for keyset [cursor pagination](pagination.md#cursor-keyset-pagination). `omit=("list",)` or `omit=("retrieve",)` drops a read so that you can write it yourself. The generated actions are ordinary routes, visible to OpenAPI, `hinoki routes` and the route registry; nothing is registered at import time.
+Writes run in a transaction. `pagination=` selects the pagination policy of the list route: `PageNumberPagination()` (the default) or `CursorPagination()` for keyset [cursor pagination](pagination.md#cursor-keyset-pagination). `omit=` takes any generated action name (`"list"`, `"retrieve"`, `"create"`, `"update"`, `"delete"`) to drop it so you can omit it or write your own handler instead. The generated actions are ordinary routes, visible to OpenAPI, `hinoki routes` and the route registry; nothing is registered at import time.
 
 ### Access per action
 
@@ -281,14 +281,48 @@ Hooks run inside the transaction and before the commit, so do not send mail or p
 
 ### Generate or hand-write
 
-Each action is generated **or** handwritten, never both:
+Each action is generated **or** handwritten, never both. Omit any action via `omit=` (or leave `create=`, `update=`, or `delete=True` out) and declare an explicit method on the class:
 
-| To hand-write | Do this |
-| --- | --- |
-| `create`, `update`, `delete` | Leave `create=`, `update=` or `delete=True` out, and declare your own method |
-| `list`, `retrieve` | Pass `omit=("list",)` or `omit=("retrieve",)` and declare a method with another name |
+```python
+from uuid import UUID
 
-A method named like an action that `crud(...)` still generates (`list`, `retrieve`, `create`, `update`, `delete`) raises `RegistrationError` when the class is declared. A handwritten route at the same method and path as a generated one fails when the class is included.
+from hinoki import API, Caller, crud, http
+from hinoki.errors import Forbidden, NotFound
+from notes.security import StaffUser
+
+from .models import Invoice
+from .schemas import InvoiceIn, InvoiceOut, InvoicePatch
+from .scopes import billing_staff, invoice_scope, tag_scope
+
+
+@crud(
+    Invoice,
+    path="/invoices",
+    read=InvoiceOut,
+    create=InvoiceIn,
+    update=InvoicePatch,
+    delete=True,
+    access=billing_staff,
+    owner="owner_id",
+    scope=invoice_scope,
+    links={"tags": tag_scope},
+    omit=("update",),
+)
+class Invoices(API):
+    @http.patch(
+        "/{item_id}", access=billing_staff, atomic=True, errors=(NotFound, Forbidden)
+    )
+    async def update(
+        self, item_id: UUID, data: InvoicePatch, caller: Caller[StaffUser]
+    ) -> InvoiceOut:
+        row = await invoice_scope.for_caller(caller).filter(id=item_id).aget()
+        if row.owner_id != caller.id:
+            raise Forbidden("You cannot change this item.")
+        # apply domain updates inside the transaction using invoice_scope
+        ...
+```
+
+When `omit=("update",)` (or any other subset) drops a generated action, the remaining generated actions keep their behavior and native-lane eligibility. A method named like an action that `crud(...)` still generates (`list`, `retrieve`, `create`, `update`, `delete`) raises `RegistrationError` when the class is declared. A handwritten route at the same method and path as a still-generated one fails when the class is included.
 
 ## Reuse
 

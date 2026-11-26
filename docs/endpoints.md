@@ -41,7 +41,6 @@ Use `@http.get`, `@http.post`, `@http.put`, `@http.patch`, `@http.delete` or `@h
 | `cors` | `http.Cors(...)`: this action's own CORS policy, replacing the application's ([CORS](web-security.md#cors-per-route)) |
 | `include_in_schema`, `tags`, `deprecated`, `operation_id` | What the [OpenAPI document](openapi.md#per-action-controls) says about the action; `include_in_schema=False` leaves it out without changing how it is served or protected, and `deprecated` (`True` or a `date`) also adds a `Deprecation` header and a warning log ([deprecate an action](openapi.md#deprecate-an-action)) |
 | `validate_response` | `False` skips the [response check](#the-response-is-checked-against-the-annotation) |
-| `replaces` | Class form only ([class pitfalls](class-endpoints.md#pitfalls)) |
 
 Each option is checked when the route is declared or registered.
 

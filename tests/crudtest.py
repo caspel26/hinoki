@@ -31,8 +31,8 @@ from hinoki.db import Database, DatabaseModule
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field, use_database
-from hinoki.pagination import Page, PageNumberPagination, PageParams
-from hinoki.resources import UserAttr, _CrudConfig
+from hinoki.pagination import PageNumberPagination
+from hinoki.resources import Crud, UserAttr, _CrudConfig
 from hinoki.runtime.crudplan import assign_is_plain
 from hinoki.testing import ASGIClient
 from tests.harness import Client, Pool
@@ -273,17 +273,42 @@ def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:
     assert "/posts/health" in app_for(Posts).openapi()["paths"]
 
 
-def test_class_api_custom_route_can_replace_generated_action() -> None:
-    @crud(Memo, path="/custom", read=MemoOut)
+def test_crud_omit_drops_any_action_and_allows_handwritten_replacement() -> None:
+    @crud(
+        Memo,
+        path="/custom",
+        read=MemoOut,
+        create=MemoIn,
+        update=MemoPatch,
+        delete=True,
+        access=writer,
+        omit=("list", "create", "update", "delete"),
+    )
     class Custom(API):
-        @http.get("/", replaces="list")
-        async def listing(self, request: Request) -> dict[str, str]:
+        @http.get("/", access=writer)
+        async def list(self, request: Request) -> dict[str, str]:
             return {"custom": "yes"}
 
+        @http.post("/", access=writer, atomic=True)
+        async def create(self, request: Request) -> dict[str, str]:
+            return {"created": "custom"}
+
+        @http.patch("/{item_id}", access=writer, atomic=True)
+        async def update(self, item_id: UUID) -> dict[str, str]:
+            return {"updated": str(item_id)}
+
+        @http.delete("/{item_id}", access=writer, atomic=True)
+        async def delete(self, item_id: UUID) -> None:
+            _ = item_id
+
     assert {route.handler.__name__ for route in Custom.routes()} == {
-        "listing",
+        "list",
         "retrieve",
+        "create",
+        "update",
+        "delete",
     }
+    assert app_for(Custom).openapi()
 
 
 def test_a_handwritten_action_name_must_not_shadow_a_generated_one() -> None:
@@ -299,35 +324,52 @@ def test_reads_only_resources_generate_only_reads() -> None:
     assert {r.handler.__name__ for r in api.routes()} == {"list", "retrieve"}
 
 
-def test_replaces_must_name_an_action() -> None:
-    @crud(Memo, path="/y", read=MemoOut)
-    class Bad(API):
-        @http.get("/", replaces="nothing")
-        async def mine(self, request: Request) -> dict[str, str]:
-            return {}
+def test_crud_omit_accepts_crud_enum_and_excludes_omitted_write_from_checks() -> None:
+    decl = crud(
+        Memo,
+        path="/z",
+        read=MemoOut,
+        create=MemoIn,
+        update=MemoPatch,
+        delete=True,
+        access=CrudAccess(default=writer, update=None),
+        owner="owner",
+        omit=(Crud.RETRIEVE, Crud.UPDATE),
+    )
 
-    with pytest.raises(RegistrationError, match="nothing"):
-        Bad.routes()
-
-
-def test_replaces_swaps_a_generated_action_for_a_handwritten_route() -> None:
-    @crud(Memo, path="/z", read=MemoOut, omit=("retrieve",))
+    @decl
     class Custom(API):
-        @http.get("/", replaces="list", pagination=PageNumberPagination())
-        async def mine(self, request: Request, page: PageParams) -> Page[MemoOut]:
-            return Page([], 1, 10, 0)
+        @http.patch("/{item_id}", access=writer, atomic=True)
+        async def mine(self, item_id: UUID) -> dict[str, str]:
+            return {"id": str(item_id)}
 
-        @http.get("/{item_id}")
-        async def retrieve_mine(
-            self, request: Request, item_id: UUID
-        ) -> dict[str, str]:
-            return {"custom": "yes"}
-
+    assert decl.config.writes() == ["create", "delete"]
     assert sorted(r.handler.__name__ for r in Custom.routes()) == [
+        "create",
+        "delete",
+        "list",
         "mine",
-        "retrieve_mine",
     ]
     assert app_for(Custom).openapi()
+
+
+def test_crud_omit_skips_create_and_update_schema_checks_when_omitted() -> None:
+    class UncheckedIn(Schema):
+        title: str | Unset = UNSET
+
+    @crud(
+        Memo,
+        path="/omitted-write-schemas",
+        read=MemoOut,
+        create=UncheckedIn,
+        update=MemoIn,
+        access=writer,
+        omit=("create", "update"),
+    )
+    class Custom(API):
+        pass
+
+    assert {r.handler.__name__ for r in Custom.routes()} == {"list", "retrieve"}
 
 
 @pytest.fixture
@@ -686,39 +728,12 @@ def test_update_schemas_cannot_carry_the_key_or_loud_defaults() -> None:
             ).check()
 
 
-def test_replaces_rejects_duplicates_chains_and_loose_functions() -> None:
-    @crud(Memo, path="/t", read=MemoOut)
-    class Twice(API):
-        @http.get("/a", replaces="list")
-        async def a(self, request: Request) -> dict[str, str]:
-            return {}
+def test_replaces_keyword_is_removed_and_omit_rejects_bare_string() -> None:
+    with pytest.raises(TypeError, match="replaces"):
+        http.get("/", replaces="list")  # type: ignore[call-arg]
 
-        @http.get("/b", replaces="list")
-        async def b(self, request: Request) -> dict[str, str]:
-            return {}
-
-    with pytest.raises(RegistrationError, match="once"):
-        Twice.routes()
-
-    @crud(Memo, path="/u", read=MemoOut)
-    class Chain(API):
-        @http.get("/a", replaces="list")
-        async def a(self, request: Request) -> dict[str, str]:
-            return {}
-
-        @http.get("/b", replaces="a")
-        async def b(self, request: Request) -> dict[str, str]:
-            return {}
-
-    with pytest.raises(RegistrationError, match="never a route"):
-        Chain.routes()
-
-    @http.get("/loose", replaces="list")
-    async def loose(request: Request) -> dict[str, str]:
-        return {}
-
-    with pytest.raises(RegistrationError, match="inside an API class"):
-        Hinoki().include(loose)
+    with pytest.raises(RegistrationError, match="not a string"):
+        crud(Memo, path="/bad-omit", read=MemoOut, omit="list")  # type: ignore[arg-type]
 
 
 def test_a_required_column_is_not_covered_by_an_optional_create_field() -> None:
