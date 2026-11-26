@@ -46,6 +46,10 @@ def bad_group_keyword(request: Request) -> None: ...
 def bad_group_access(request: Request) -> None: ...
 
 
+@group.get("/schema", include_in_schema=None)  # type: ignore[arg-type]
+def bad_group_schema(request: Request) -> None: ...
+
+
 @db.atomic
 async def renamed(post_id: UUID) -> str:
     return str(post_id)

@@ -275,7 +275,7 @@ def test_route_group_is_includable_with_shared_options_once() -> None:
     assert public.access is None and public.atomic is False
     with pytest.raises(ValueError, match="prefix"):
         RouteGroup("things")
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unknown action options"):
         group.get("/x", nope=1)  # type: ignore[call-arg]
     with pytest.raises(TypeError, match="unknown action options"):
         group.declare("GET", "/x", {"nope": 1})
@@ -428,3 +428,28 @@ async def test_route_group_runs_sync_and_async_wrappers_below_group_decorator() 
     assert (first.status, first.body) == (200, 10)
     assert (second.status, second.body) == (201, 25)
     assert events == ["sync-before", "sync-handler", "async-before", "async-handler"]
+
+
+def test_route_group_inherits_include_in_schema_and_rejects_explicit_none() -> None:
+    visible = RouteGroup("/visible", include_in_schema=True)
+    hidden = RouteGroup("/hidden", include_in_schema=False)
+
+    @visible.get("/default")
+    def default_visible() -> str:
+        return "ok"
+
+    @hidden.get("/default")
+    def default_hidden() -> str:
+        return "ok"
+
+    routes = {
+        r.path: r.include_in_schema for r in Hinoki(include=[visible, hidden]).routes
+    }
+    assert routes == {"/visible/default": True, "/hidden/default": False}
+
+    fresh = RouteGroup("/other", include_in_schema=True)
+    with pytest.raises(ValueError, match="takes True or False"):
+
+        @fresh.get("/invalid", include_in_schema=None)  # type: ignore[arg-type]
+        def invalid_visible() -> str:
+            return "ok"
