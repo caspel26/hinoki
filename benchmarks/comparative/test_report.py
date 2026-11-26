@@ -11,7 +11,6 @@ from typing import Any
 
 import pytest
 import report  # type: ignore[import-not-found]
-import report_html  # type: ignore[import-not-found]
 
 JSONData = dict[str, Any]
 
@@ -156,6 +155,24 @@ def results_root() -> Iterator[Path]:
         yield Path(raw) / "results" / "2026-11-21"
 
 
+X = "\u00d7"
+
+
+def view_of(page: str, name: str, workers: int = 1) -> str:
+    """The markup of one view (python, same-granian, other-runtimes) of one worker count."""
+    start = page.index(f'id="bench-w{workers}-{name}"')
+    return page[start : page.index("</div></section>", start)]
+
+
+def panel_of(page: str, scenario: str, view: str = "python", workers: int = 1) -> str:
+    start = page.index(f'id="bench-w{workers}-{view}-{scenario}-panel"')
+    return page[start : page.index("</section>", start)]
+
+
+def route_rows(panel: str) -> list[str]:
+    return re.findall(r'<tr class="[^"]*" data-stack="[^"]*">.*?</tr>', panel)
+
+
 def full_session(root: Path, kiso_overrides: Any = None) -> list[Path]:
     """Documented, same-Granian and Kiso runs, the Kiso one taken at another time."""
     documented, granian, kiso = (
@@ -203,14 +220,6 @@ def test_latency_spread_is_median_of_per_run_percentiles_with_run_range() -> Non
     p95 = report.run_summary(runs, "200")["latency_ms"]["p95"]
 
     assert p95 == {"median": 4.0, "low": 2.0, "high": 10.0}
-
-
-def test_value_axis_labels_zero_midpoint_and_maximum() -> None:
-    axis = report_html.value_axis(12000.0)
-
-    assert axis.count("<span>") == 4
-    assert "<span>0</span><span>6,000</span><span>12,000</span>" in axis
-    assert 'aria-hidden="true"' in axis
 
 
 def test_stack_labels_name_the_framework_and_the_server_the_same_way_everywhere() -> (
@@ -283,38 +292,41 @@ def test_the_best_stable_cell_is_marked_and_a_close_second_ties_with_it() -> Non
     assert report.best_stacks({"ninja": rows["ninja"]}) == (None, set())
 
 
-def test_one_table_shows_every_stack_together_with_hinoki_on_granian_next_to_kiso() -> (
+def test_the_python_table_puts_kiso_first_and_compares_every_stack_with_it() -> None:
+    with results_root() as root:
+        page = page_of(*full_session(root))
+
+    panel = panel_of(page, "json-1k")
+    rows = route_rows(panel)
+    labels = [re.search(r"<th scope=\"row\">([^<]+)", r)[1] for r in rows]
+    assert labels == [
+        "Hinoki (Kiso, native server)",
+        "Hinoki (Granian)",
+        "FastAPI (Uvicorn)",
+    ]
+    assert "vs Hinoki (Kiso)" in panel
+    assert ">reference<" in rows[0]
+    assert f">1.5{X} slower<" in rows[1]  # 100 against 150
+    assert f">2.5{X} slower<" in rows[2]  # 60 against 150
+    assert "Django Bolt (Actix" not in panel
+
+
+def test_the_best_row_of_each_request_type_is_highlighted_for_text_readers_too() -> (
     None
 ):
     with results_root() as root:
         page = page_of(*full_session(root))
 
-    matrix = page[page.index('<table class="bench-matrix"') :]
-    matrix = matrix[: matrix.index("</table>")]
-    columns = re.findall(r'<th scope="col"[^>]*>(?:<[^>]+>)*([^<]+)', matrix)
-    assert columns[:4] == [
-        "Request type",
-        "Hinoki (Granian)",
-        "Hinoki (Kiso, native server)",
-        "FastAPI (Uvicorn)",
-    ]
-    assert "<caption>" in matrix
-    assert page.count('<table class="bench-matrix"') == 3
-    assert "Django Bolt" not in matrix
+    for scenario in report.SCENARIOS:
+        best = [
+            r for r in route_rows(panel_of(page, scenario)) if 'class="is-best"' in r
+        ]
+        assert len(best) == 1
+        assert "Hinoki (Kiso, native server)" in best[0]  # 150, the highest here
+        assert '<span class="bench-sr">Highest median' in best[0]
 
 
-def test_the_best_cell_of_each_row_is_highlighted_for_text_readers_too() -> None:
-    with results_root() as root:
-        page = page_of(*full_session(root))
-
-    overview = page[page.index('<table class="bench-matrix"') :]
-    overview = overview[: overview.index("</table>")]
-    assert overview.count("is-best") == len(report.SCENARIOS)
-    assert re.search(r'is-best[^>]*>.*?<span class="bench-sr">Highest median', overview)
-    assert "150" in overview  # Kiso, the highest median of this fixture
-
-
-def test_the_first_lines_say_what_was_measured_and_how_kiso_compares_with_granian() -> (
+def test_the_first_lines_say_what_was_measured_and_the_summary_how_kiso_compares() -> (
     None
 ):
     overrides = {
@@ -335,13 +347,14 @@ def test_the_first_lines_say_what_was_measured_and_how_kiso_compares_with_grania
     assert "8 logical CPUs" in lead
     assert "2026-11-21" in lead
     assert "100 concurrent connections" in lead
+    assert "1 worker (single-process)" in lead
+    assert "not a ranking" in lead.lower()
     assert (
         "Hinoki (Kiso, native server) against Hinoki (Granian): ahead in 3 of 7 "
         "request types, tied (within 10%) in 1, behind in 2, not settled in 1 "
-        "(overlapping ranges or an unstable result)." in lead
+        "(overlapping ranges or an unstable result)." in page
     )
-    assert "not a ranking" in lead.lower()
-    assert page.index("bench-lead") < page.index('<table class="bench-matrix"')
+    assert page.index("bench-lead") < page.index('<table class="bench-summary"')
 
 
 def test_without_a_kiso_run_the_page_makes_no_kiso_claim() -> None:
@@ -362,12 +375,12 @@ def test_an_unstable_result_stays_visible_with_its_reason_and_every_sample() -> 
     assert 'class="bench-badge is-unstable"' in page
     assert "Unstable" in page
     assert "coefficient of variation" in page.lower()
-    panel = page[page.index('id="bench-request-auth-articles"') :]
-    panel = panel[: panel.index("</section>")]
+    panel = panel_of(page, "auth-articles")
     assert "Hinoki (Kiso, native server)" in panel
     assert "above 15%" in panel
     assert "All 5 samples" in panel
     assert "50, 60, 100, 140, 150" in panel
+    assert "not settled" in panel  # nothing is compared with an unstable result
 
 
 def test_an_unstable_stack_never_wins_the_highest_median_mark() -> None:
@@ -375,58 +388,56 @@ def test_an_unstable_stack_never_wins_the_highest_median_mark() -> None:
     with results_root() as root:
         page = page_of(*full_session(root, overrides))
 
-    panel = page[page.index('id="bench-request-auth-articles"') :]
-    panel = panel[: panel.index("</section>")]
-    best_row = re.search(r'<tr data-stack="[^"]*" class="is-best">.*?</tr>', panel)
-    assert best_row is not None
-    assert "Hinoki (Granian)" in best_row[0]
+    best = [
+        r for r in route_rows(panel_of(page, "auth-articles")) if 'class="is-best"' in r
+    ]
+    assert len(best) == 1
+    assert "Hinoki (Granian)" in best[0]
 
 
-def test_each_request_type_has_a_chart_a_real_table_and_a_labelled_tab() -> None:
+def test_each_request_type_has_a_real_table_and_a_labelled_tab() -> None:
     with results_root() as root:
         page = page_of(*full_session(root))
 
-    explorer = page[page.index("data-bench-explorer") :]
-    explorer = explorer[: explorer.index("## Server setups in detail")]
-    assert explorer.count('role="tab"') == len(report.SCENARIOS)
-    assert explorer.count('role="tabpanel"') == len(report.SCENARIOS)
+    view = view_of(page, "python")
+    assert view.count('role="tab"') == len(report.SCENARIOS)
+    assert view.count('role="tabpanel"') == len(report.SCENARIOS)
     for scenario in report.SCENARIOS:
-        assert f'aria-controls="bench-request-{scenario}"' in explorer
-        assert f'id="bench-request-{scenario}"' in explorer
-    assert explorer.count('class="bench-chart"') == len(report.SCENARIOS)
-    assert explorer.count('class="bench-chart" aria-hidden="true"') == len(
-        report.SCENARIOS
-    )
-    assert explorer.count("<caption>") == len(report.SCENARIOS)
-    for heading in ("Median req/s", "Lowest&ndash;highest", "p50 ms", "p99 ms", "CV"):
-        assert f'<th scope="col">{heading}</th>' in explorer
-    assert page.count('aria-pressed="true"') == 3  # the one legend, a toggle per stack
+        assert f'aria-controls="bench-w1-python-{scenario}-panel"' in view
+        assert f'id="bench-w1-python-{scenario}-tab"' in view
+    assert view.count('<table class="bench-route">') == len(report.SCENARIOS)
+    assert view.count("<caption>") == 2 * len(report.SCENARIOS)  # route and exact
+    for heading in (
+        "Requests per second",
+        "p50 ms",
+        "p99 ms",
+        "Lowest&ndash;highest",
+    ):
+        assert f'<th scope="col">{heading}</th>' in view
+    assert "bench-chart" not in page
+    assert "bench-chip" not in page
 
 
-def test_the_legend_names_each_stack_once_with_a_stable_family_key() -> None:
+def test_each_row_keeps_a_stable_family_key_for_its_colour() -> None:
     with results_root() as root:
         page = page_of(*full_session(root))
 
-    legend = page[page.index('<ul class="bench-legend"') :]
-    legend = legend[: legend.index("</ul>")]
-    assert legend.count("<li") == 3
-    assert 'data-stack="hinoki"' in legend
-    assert 'data-stack="hinoki-kiso"' in legend
-    assert 'data-stack="fastapi"' in legend
+    rows = "".join(route_rows(panel_of(page, "db")))
+    for family in ("hinoki", "hinoki-kiso", "fastapi"):
+        assert rows.count(f'data-stack="{family}"') == 1
 
 
-def test_the_expert_views_keep_documented_and_same_granian_below_the_overview() -> None:
+def test_the_same_server_view_follows_the_python_view_without_kiso() -> None:
     with results_root() as root:
         page = page_of(*full_session(root))
 
-    assert page.index("## Results at a glance") < page.index(
-        "## Server setups in detail"
+    assert page.index("<h3>Python frameworks</h3>") < page.index(
+        "<h3>Same ASGI server (Granian)</h3>"
     )
-    assert '=== "Each stack on its own server"' in page
-    assert '=== "All on the same server (Granian)"' in page
-    detail = page[page.index("## Server setups in detail") :]
-    assert "FastAPI (Granian)" in detail
-    assert "Kiso" not in detail.split("## Method and limits")[0]
+    same = view_of(page, "same-granian")
+    assert "FastAPI (Granian)" in same
+    assert "Kiso" not in same
+    assert "Each stack on its own server" not in page
 
 
 def test_the_page_has_the_sections_a_reader_needs_in_order() -> None:
@@ -435,16 +446,22 @@ def test_the_page_has_the_sections_a_reader_needs_in_order() -> None:
 
     headings = [
         "# Benchmarks",
-        "## Results at a glance",
-        "## One request type at a time",
-        "## Server setups in detail",
+        "<h2>Results with 1 worker (single-process)</h2>",
+        "<h3>Summary</h3>",
+        "<h3>Python frameworks</h3>",
+        "<h3>Same ASGI server (Granian)</h3>",
         "## Method and limits",
     ]
     positions = [page.index(heading) for heading in headings]
     assert positions == sorted(positions)
     assert page.index("FIELD NOTE") < page.index("# Benchmarks")
     assert not page.startswith("---")
-    for title in ("Conditions", "How the numbers are computed", "Reproduce"):
+    for title in (
+        "Conditions",
+        "Workloads, stacks and versions",
+        "How the numbers are computed",
+        "Reproduce",
+    ):
         assert f'??? info "{title}"' in page
 
 
@@ -702,10 +719,7 @@ def test_scenarios_follow_bolts_order_without_a_database_first() -> None:
         write_results(root / "documented", "documented", {"hinoki": (100.0, 101.0)})
         page = page_of(root / "documented")
 
-    table = page[page.index('<table class="bench-matrix"') :]
-    names = re.findall(
-        r'<th scope="row">([^<]+)</th>', table[: table.index("</table>")]
-    )
+    names = re.findall(r'role="tab"[^>]*>([^<]+)</button>', page)
     assert names == [
         "JSON 1 KB",
         "JSON 10 KB",
@@ -774,55 +788,37 @@ def test_javascript_stacks_are_labelled_by_framework_and_runtime() -> None:
     assert {report.STACKS[key].group for key in ("hinoki", "bolt")} == {"Python"}
 
 
-def test_other_runtimes_sit_after_python_in_a_separate_overview_group() -> None:
+def test_other_runtimes_are_their_own_view_after_the_python_ones() -> None:
     with results_root() as root:
         page = page_of(*with_javascript_run(root))
 
-    matrix = page[page.index('<table class="bench-matrix"') :]
-    matrix = matrix[: matrix.index("</table>")]
-    groups = re.findall(r'<th scope="colgroup" colspan="(\d)"[^>]*>([^<]+)', matrix)
-    assert groups == [("2", "Python"), ("3", "Other runtimes")]
-    columns = re.findall(r'<th scope="col"[^>]*>(?:<[^>]+>)*([^<]+)', matrix)
-    assert columns == [
-        "Request type",
-        "Hinoki (Granian)",
-        "FastAPI (Uvicorn)",
-        "Elysia (Bun)",
-        "Hono (Bun)",
-        "Hono (Node.js)",
-    ]
-    assert matrix.count("is-group-start") == 1 + len(report.SCENARIOS)
-    legend = page[page.index('<ul class="bench-legend"') :]
-    legend = legend[: legend.index("</ul>")]
-    assert legend.count("<li") == 5
-    assert legend.count('data-group-label="Other runtimes"') == 1
-    assert "JavaScript runtimes" in page
-    assert "## Server setups in detail" in page  # the documented view only
-    assert (
-        "Elysia"
-        not in page.split("## Server setups in detail")[1].split(
-            "## Method and limits"
-        )[0]
+    assert page.index("<h3>Python frameworks</h3>") < page.index(
+        "<h3>Other runtimes (Bun and Node.js)</h3>"
     )
+    other = view_of(page, "other-runtimes")
+    for label in ("Elysia (Bun)", "Hono (Bun)", "Hono (Node.js)"):
+        assert label in other
+    python = view_of(page, "python")
+    assert "Elysia" not in python
+    assert "JavaScript runtimes" in page
 
 
-def test_the_highest_mark_and_cv_rule_apply_across_both_groups() -> None:
+def test_the_highest_mark_and_cv_rule_apply_inside_the_other_runtimes_view() -> None:
     with results_root() as root:
         page = page_of(*with_javascript_run(root))
 
-    overview = page[page.index('<table class="bench-matrix"') :]
-    overview = overview[: overview.index("</table>")]
-    assert overview.count("is-best") == len(report.SCENARIOS)
-    assert "Unstable" not in overview
+    other = view_of(page, "other-runtimes")
+    assert other.count('<tr class="is-best" data-stack') == len(report.SCENARIOS)
+    assert "Unstable" not in other
 
 
-def test_one_group_needs_no_group_header() -> None:
+def test_one_worker_count_needs_no_tabs() -> None:
     with results_root() as root:
         page = page_of(*full_session(root))
 
-    assert 'scope="colgroup"' not in page
-    assert "is-group-start" not in page
-    assert "data-group-label" not in page
+    assert "bench-tabs--workers" not in page
+    assert "bench-workerpanel" not in page
+    assert "<h2>Results with 1 worker (single-process)</h2>" in page
 
 
 def test_method_lists_javascript_runtimes_drivers_and_how_to_install_them() -> None:
@@ -859,11 +855,146 @@ def test_exact_tables_add_the_upper_median_django_bolt_publishes() -> None:
         )
         page = page_of(root / "documented")
 
-    panel = page[page.index('id="bench-request-db"') :]
-    panel = panel[: panel.index("</section>")]
+    panel = panel_of(page, "db")
     assert '<th scope="col">Upper median</th>' in panel
     hinoki = re.search(r'<tr data-stack="hinoki".*?</tr>', panel)
     bolt = re.search(r'<tr data-stack="bolt".*?</tr>', panel)
     assert hinoki is not None and bolt is not None
     assert "<td>150</td><td>200</td><td>100&ndash;200</td>" in hinoki[0]
     assert "<td>400</td><td>400</td><td>300&ndash;500</td>" in bolt[0]
+
+
+def test_a_ratio_is_worded_in_the_direction_it_points() -> None:
+    base = row(100.0, 99.0, 101.0)
+
+    assert report.standing(row(240.0, 239.0, 241.0), base) == (
+        "higher",
+        f"2.4{X} faster",
+    )
+    assert report.standing(base, row(140.0, 139.0, 141.0)) == (
+        "lower",
+        f"1.4{X} slower",
+    )
+    assert report.standing(row(3200.0, 3190.0, 3210.0), base)[1] == f"32{X} faster"
+    assert report.standing(row(95.0, 94.0, 96.0), base) == ("tie", "tie (within 10%)")
+    assert report.standing(row(150.0, 90.0, 160.0), base) == (
+        "unsettled",
+        "not settled",
+    )
+
+
+def test_the_summary_shows_where_kiso_is_not_ahead_and_the_data_it_comes_from() -> None:
+    with results_root() as root:
+        write_results(
+            root / "documented",
+            "documented",
+            {"bolt": (200.0, 201.0, 199.0), "litestar": (60.0, 61.0, 59.0)},
+        )
+        write_results(root / "kiso", "kiso", {"hinoki-kiso": (150.0, 151.0, 149.0)})
+        page = page_of(root / "documented", root / "kiso")
+
+    summary = page[page.index('<table class="bench-summary">') :]
+    summary = summary[: summary.index("</table>")]
+    text = re.sub(r"<[^>]+>", "", summary)
+    assert (
+        ">150</b> req/s" in summary
+    )  # the median of the Kiso samples, not a typed number
+    assert f"1.3{X} slower than Django Bolt (Actix, native server)" in text
+    assert f"2.5{X} faster than Litestar (Uvicorn)" in text
+    assert text.count("1 worker, 100 connections") == 1
+    assert re.search(r'class="bench-cmp is-lower"[^>]*>(?:(?!</td>).)*Bolt', summary)
+    assert re.search(
+        r'class="bench-cmp is-higher"[^>]*>(?:(?!</td>).)*Litestar', summary
+    )
+
+
+def summary_cells(page: str) -> list[str]:
+    summary = page[page.index('<table class="bench-summary">') :]
+    return re.findall(r'<td class="bench-cmp[^>]*>.*?</td>', summary)
+
+
+def test_a_tie_and_an_unsettled_pair_carry_no_ratio() -> None:
+    with results_root() as root:
+        write_results(
+            root / "documented",
+            "documented",
+            {"bolt": (95.0, 94.0, 96.0), "litestar": (60.0, 20.0, 160.0)},
+        )
+        write_results(root / "kiso", "kiso", {"hinoki-kiso": (100.0, 99.0, 101.0)})
+        page = page_of(root / "documented", root / "kiso")
+
+    cells = {
+        name: next(c for c in summary_cells(page) if name in c)
+        for name in ("Bolt", "Litestar")
+    }
+    assert "is-tie" in cells["Bolt"] and "is-unsettled" in cells["Litestar"]
+    assert "within 10%" in cells["Bolt"]
+    assert "ranges overlap or CV" in cells["Litestar"]
+    for cell in cells.values():
+        assert X not in cell
+
+
+def test_a_route_missing_a_competitor_shows_it_as_not_measured() -> None:
+    with results_root() as root:
+        write_results(root / "documented", "documented", {"bolt": (200.0,) * 3})
+        write_results(root / "narrow", "documented", {"litestar": (60.0,) * 3})
+        path = root / "narrow" / "environment.json"
+        env = json.loads(path.read_text())
+        env["settings"]["scenarios"] = ["json-1k", "auth-articles"]
+        path.write_text(json.dumps(env))
+        write_results(root / "kiso", "kiso", {"hinoki-kiso": (150.0,) * 3})
+        page = page_of(root / "documented", root / "narrow", root / "kiso")
+
+    missing = [c for c in summary_cells(page) if "is-missing" in c]
+    assert len(missing) == 1
+    assert "not measured" in missing[0] and "Litestar" in missing[0]
+    assert X not in missing[0]
+
+
+def two_worker_session(root: Path) -> list[Path]:
+    """The same stacks measured with 1 worker and, in `w8/`, with 8."""
+    dirs = []
+    for workers, base, scale in ((1, root, 1.0), (8, root / "w8", 5.0)):
+        write_results(
+            base / "documented",
+            "documented",
+            {"hinoki": (100.0 * scale,) * 3, "bolt": (80.0 * scale,) * 3},
+        )
+        write_results(base / "kiso", "kiso", {"hinoki-kiso": (150.0 * scale,) * 3})
+        for directory in (base / "documented", base / "kiso"):
+            path = directory / "environment.json"
+            env = json.loads(path.read_text())
+            env["settings"]["workers"] = workers
+            path.write_text(json.dumps(env))
+            dirs.append(directory)
+    return dirs
+
+
+def test_one_and_eight_workers_share_a_page_behind_tabs_found_from_the_data() -> None:
+    with results_root() as root:
+        page = page_of(*two_worker_session(root))
+
+    tabs = re.findall(r'id="bench-workers-(w\d)-tab"[^>]*>([^<]+)', page)
+    assert tabs == [("w8", "8 workers "), ("w1", "1 worker ")]
+    assert page.count('role="tabpanel" id="bench-workers-') == 2
+    assert page.index('id="bench-w8-summary"') < page.index('id="bench-w1-summary"')
+    eight = panel_of(page, "json-1k", workers=8)
+    one = panel_of(page, "json-1k", workers=1)
+    assert ">750</b>" in eight and ">150</b>" in one
+    assert "8 workers, 100 connections" in page
+    assert "1 worker, 100 connections" in page
+
+
+def test_the_conditions_and_commands_tell_the_worker_counts_apart() -> None:
+    with results_root() as root:
+        page = page_of(*two_worker_session(root))
+
+    assert "| Server processes | 1 per stack; 8 per stack |" in page
+    assert "Command (kiso, 8 workers)" in page
+    assert "--workers 8 --pool 8 --restarts" in page
+    assert "--out results/YYYY-MM-DD/w8/kiso" in page
+    assert "--out results/YYYY-MM-DD/kiso" in page
+    assert (
+        "python report.py results/YYYY-MM-DD/documented results/YYYY-MM-DD/kiso "
+        "results/YYYY-MM-DD/w8/documented results/YYYY-MM-DD/w8/kiso"
+    ) in page
