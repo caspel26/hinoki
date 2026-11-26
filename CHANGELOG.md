@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### ✂️ Uniform `crud(..., omit=...)` and removal of `replaces=`
+> `python/hinoki/resources.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/routing.py`, `python/hinoki/api.py`, `python/hinoki/app.py`, `docs/crud.md`, `docs/class-endpoints.md`, `docs/endpoints.md`
+
+`crud(..., omit=...)` now uniformly accepts any subset of the five generated CRUD actions (`"list"`, `"retrieve"`, `"create"`, `"update"`, `"delete"`, or `Crud.*` members), skipping omitted write actions from write/schema/link checks while keeping remaining eligible actions on the native lane. The legacy `replaces=` option on `@http.*` decorators, `Route`, `RouteGroup`, `API`, and `Hinoki` has been removed in favor of explicit `omit=` and standard `@http.*` methods.
+
 #### 🛡️ Reusable `RowScope` and `crud(..., scope=...)` with Rust native-lane parity
 > `python/hinoki/auth.py`, `python/hinoki/crypto.py`, `python/hinoki/resources.py`, `python/hinoki/runtime/crudplan.py`, `crates/bindings/src/jwt.rs`, `crates/bindings/src/crudplan.rs`, `crates/bindings/src/nativecrud.rs`, `crates/bindings/src/nativelinks.rs`, `crates/bindings/src/kiso.rs`, `docs/crud.md`, `docs/kiso.md`
 
