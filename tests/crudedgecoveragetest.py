@@ -567,5 +567,5 @@ async def test_an_async_custom_hook_is_awaited_directly() -> None:
 
 
 def test_crud_omit_refuses_an_unknown_action() -> None:
-    with pytest.raises(RegistrationError, match="takes 'list' or 'retrieve'"):
-        crud(Memo, path="/omit-edge", read=MemoOut, omit=("delete",))
+    with pytest.raises(RegistrationError, match="takes action names from"):
+        crud(Memo, path="/omit-edge", read=MemoOut, omit=("archive",))  # type: ignore[arg-type]
