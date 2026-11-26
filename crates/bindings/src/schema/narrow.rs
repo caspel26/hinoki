@@ -448,11 +448,11 @@ impl Narrowed {
     ) -> PyResult<Bound<'py, PyAny>> {
         let value = self.value.bind(py);
         let declared = self.declared.bind(py).cast::<PyType>()?;
-        if include.is_none() && exclude.is_empty() && !exclude_unset && by_alias {
-            return match super::serialize::dump_as(value, declared)? {
-                Some(dumped) => Ok(dumped.into_any()),
-                None => declared.call_method1(intern!(py, "dump"), (value,)),
-            };
+        let plain = include.is_none() && exclude.is_empty() && !exclude_unset && by_alias;
+        if plain {
+            if let Some(dumped) = super::serialize::dump_as(value, declared)? {
+                return Ok(dumped.into_any());
+            }
         }
         let known = declared.call_method0(intern!(py, "specs"))?;
         let computed = declared.call_method0(intern!(py, "computed_fields"))?;
@@ -462,6 +462,17 @@ impl Narrowed {
                     "unknown include or exclude field: {name}"
                 )));
             }
+        }
+        if super::compile::class_fields(declared, true, true, false)?.is_none() {
+            // The declared class decides its own shape; the keywords go to it.
+            return super::serialize::declared_dump(
+                value,
+                declared,
+                include.as_deref(),
+                &exclude,
+                exclude_unset,
+                by_alias,
+            );
         }
         Ok(super::serialize::serialize_as(
             value,

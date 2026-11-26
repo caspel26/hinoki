@@ -1311,7 +1311,8 @@ impl<'py> Encoder<'py> {
     /// A subclass instance where its base class is declared: written with the
     /// declared class's fields (its plan, resolved here by class: a plan holds no
     /// plan of a nested class), never seeding the one-entry cache. A declared
-    /// class that decides its own `dump()` keeps writing the value as it is.
+    /// class that decides its own `dump()` runs it on the instance through
+    /// `declared_dump`, restricted to the declared fields.
     fn narrowed_object(
         &mut self,
         value: &Bound<'py, PyAny>,
@@ -1320,7 +1321,7 @@ impl<'py> Encoder<'py> {
     ) -> PyResult<()> {
         let Some(plan) = crate::schema::json_field_plan_of(declared, quoted_json_key)? else {
             // The declared class decides its own shape, not the subclass.
-            let dumped = declared.call_method1(pyo3::intern!(value.py(), "dump"), (value,))?;
+            let dumped = crate::schema::declared_dump(value, declared, None, &[], false, true)?;
             return self.replace(&dumped, depth);
         };
         self.schemas += 1;

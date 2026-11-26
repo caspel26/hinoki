@@ -1917,7 +1917,8 @@ def narrow_instance(schema: type[Schema], value: Schema, view: bool = False) -> 
     """``value`` as the declared ``schema``: itself when it is exactly that
     Schema (or its lazy projection), else what ``schema`` declares: its fields and
     computed values, nested values narrowed by its own field types. A ``schema``
-    that decides its own ``dump()`` keeps the plain projection."""
+    that overrides ``dump()`` decides: that ``dump()`` runs on the instance,
+    restricted to the declared fields."""
     is_exact = type(value) is schema or (
         isinstance(value, _ProjectedItem)
         and value._projected_handle is not None
@@ -1927,7 +1928,7 @@ def narrow_instance(schema: type[Schema], value: Schema, view: bool = False) -> 
         return value
     narrowed = core.dump_as(value, schema)
     if narrowed is None:
-        return schema.dump(value, include=schema.specs())
+        return core.declared_dump(value, schema)
     return core.Narrowed(value, schema) if view else narrowed
 
 

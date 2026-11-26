@@ -275,7 +275,7 @@ impl<'py> XmlEncoder<'py> {
                 None => {
                     // The declared class decides its own shape, not the subclass.
                     let dumped =
-                        declared.call_method1(pyo3::intern!(value.py(), "dump"), (&source,))?;
+                        crate::schema::declared_dump(&source, &declared, None, &[], false, true)?;
                     self.replace(tag, &dumped, depth)?;
                 }
             }

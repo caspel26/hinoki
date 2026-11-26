@@ -192,6 +192,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(schema::wire_text_of, m)?)?;
     m.add_function(wrap_pyfunction!(schema::dump_instance, m)?)?;
     m.add_function(wrap_pyfunction!(schema::dump_as, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::declared_dump_py, m)?)?;
     m.add_function(wrap_pyfunction!(schema::serialize_instance, m)?)?;
     m.add_function(wrap_pyfunction!(schema::dump_for_storage, m)?)?;
     m.add_class::<schema::ModelPlan>()?;

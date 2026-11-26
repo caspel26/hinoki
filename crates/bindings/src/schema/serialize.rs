@@ -166,8 +166,8 @@ fn convert_schema<'py>(
 }
 
 /// A subclass instance found where its base class is declared: written with the
-/// declared fields only. A declared class that decides its own `dump()` keeps
-/// writing the value as it is.
+/// declared fields only. A declared class that decides its own `dump()` runs it
+/// on the instance through `declared_dump`, restricted to the declared fields.
 fn convert_narrowed<'py>(
     value: &Bound<'py, PyAny>,
     declared: &Bound<'py, PyType>,
@@ -179,8 +179,11 @@ fn convert_narrowed<'py>(
         && class_fields(declared, true, mode.by_alias, false)?.is_none()
     {
         // The declared class decides its own shape, not the subclass.
-        let dumped = declared.call_method1(pyo3::intern!(value.py(), "dump"), (value,))?;
-        return convert(&dumped, mode, depth);
+        return convert(
+            &declared_dump(value, declared, None, &[], false, true)?,
+            mode,
+            depth,
+        );
     }
     Ok(dump_instance_at(
         value,
@@ -438,6 +441,59 @@ pub(crate) fn serialize_as<'py>(
         },
         0,
     )
+}
+
+/// A subclass instance written by the `dump()` its declared class overrides:
+/// `declared.dump(value, include=<declared fields>)`, the unbound call, so that
+/// `super().dump(**kw)` inside the override cannot reach a subclass field. One
+/// site for every output (JSON, XML, WebSocket reply, view). `include` narrows
+/// it further (declared fields only); a keyword is passed on only when it is not
+/// its default, so an override that forwards `**kw` sees what a caller asked for.
+/// An override that does not take `include` raises the `TypeError` Python gives.
+pub(crate) fn declared_dump<'py>(
+    value: &Bound<'py, PyAny>,
+    declared: &Bound<'py, PyType>,
+    include: Option<&[String]>,
+    exclude: &[String],
+    exclude_unset: bool,
+    by_alias: bool,
+) -> PyResult<Bound<'py, PyAny>> {
+    let py = value.py();
+    let kwargs = PyDict::new(py);
+    match include {
+        Some(names) => kwargs.set_item("include", names)?,
+        None => {
+            let names = PyList::empty(py);
+            for fields in [
+                declared.call_method0(pyo3::intern!(py, "specs"))?,
+                declared.call_method0(pyo3::intern!(py, "computed_fields"))?,
+            ] {
+                for name in fields.try_iter()? {
+                    names.append(name?)?;
+                }
+            }
+            kwargs.set_item("include", names)?;
+        }
+    }
+    if !exclude.is_empty() {
+        kwargs.set_item("exclude", exclude)?;
+    }
+    if exclude_unset {
+        kwargs.set_item("exclude_unset", true)?;
+    }
+    if !by_alias {
+        kwargs.set_item("by_alias", false)?;
+    }
+    declared.call_method(pyo3::intern!(py, "dump"), (value,), Some(&kwargs))
+}
+
+/// `declared_dump` with no keyword of its own, for the Python call sites.
+#[pyfunction(name = "declared_dump")]
+pub fn declared_dump_py<'py>(
+    value: &Bound<'py, PyAny>,
+    declared: &Bound<'py, PyType>,
+) -> PyResult<Bound<'py, PyAny>> {
+    declared_dump(value, declared, None, &[], false, true)
 }
 
 /// A schema instance as the class it derives from declares it, for a value
