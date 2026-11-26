@@ -9,10 +9,11 @@ not a project dependency.
 
 Checks run in Chromium, Firefox and WebKit when installed, in the light and dark
 themes: no horizontal page scroll at 1440x900, 390x844, 360x740 and 320x740; the
-request-type tabs work by click, by touch and by keyboard (arrows, Home, End) and
-keep a single tab stop; the legend hides and shows a stack in the overview and in
-the open panel and never lets the last stack go; the wide tables are keyboard
-reachable. Screenshots (Chromium only) go to --out. Exit status is 1 on any failure.
+worker-count tabs (8 workers, 1 worker) and request-type tabs work by click, by
+touch and by keyboard (arrows, Home, End) and keep a single tab stop; Hinoki (Kiso)
+is the first row of the Python frameworks table; no cell overlaps another in a row;
+the wide tables are keyboard reachable. Screenshots (Chromium only) go to --out.
+Exit status is 1 on any failure.
 """
 
 import argparse
@@ -58,12 +59,18 @@ def serve(site: Path) -> Iterator[str]:
             server.shutdown()
 
 
-def selected(page: Page) -> str:
-    return page.locator('[role="tab"][aria-selected="true"]').inner_text()
+VIEW = "#bench-w8-python"
+WORKERS = ".bench-tabs--workers"
 
 
-def visible_panels(page: Page) -> int:
-    return page.locator('[role="tabpanel"]:visible').count()
+def selected(page: Page, scope: str) -> str:
+    return page.locator(
+        f'{scope} [role="tab"][aria-selected="true"]'
+    ).first.inner_text()
+
+
+def visible_panels(page: Page, scope: str) -> int:
+    return page.locator(f"{scope} .bench-panel:visible").count()
 
 
 def check_layout(page: Page, label: str) -> None:
@@ -79,80 +86,150 @@ def check_layout(page: Page, label: str) -> None:
         break
 
 
-def check_tabs(page: Page, label: str) -> None:
-    tabs = page.locator('[role="tab"]')
-    check(visible_panels(page) == 1, f"{label}: exactly one request type is shown")
+def check_no_collisions(page: Page, label: str) -> None:
+    """In every visible row the stack name, the number and the bar never overlap."""
+    overlaps = page.evaluate(
+        """() => {
+          const hit = (a, b) => a.left < b.right - 1 && b.left < a.right - 1
+            && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+          let bad = 0;
+          const rows = '.bench-route tr, .bench-summary tr';
+          document.querySelectorAll(rows).forEach((row) => {
+            if (!row.offsetParent) return;
+            const cells = Array.from(row.children)
+              .map((c) => c.getBoundingClientRect());
+            for (let i = 0; i < cells.length; i++)
+              for (let j = i + 1; j < cells.length; j++)
+                if (hit(cells[i], cells[j])) bad++;
+          });
+          return bad;
+        }"""
+    )
+    check(overlaps == 0, f"{label}: no cell overlaps another in a table row")
+
+
+def check_summary(page: Page, label: str) -> None:
+    for group, conditions in (("w8", "8 workers, 100 connections"), ("w1", None)):
+        if group == "w1":
+            page.locator(f'{WORKERS} [role="tab"]').nth(1).click()
+        view = page.locator(f"#bench-{group}-summary")
+        summary = view.locator(".bench-summary")
+        text = " ".join(summary.inner_text().split())
+        name = f"{label} ({group})"
+        check(
+            "faster than" in text or "slower than" in text,
+            f"{name}: the summary states a ratio from the data",
+        )
+        if conditions:
+            check(conditions in text, f"{name}: the summary states its conditions")
+        rows = summary.locator("tbody tr").count()
+        columns = summary.locator("thead th").count() - 2
+        check(
+            summary.locator(".bench-cmp").count() == rows * columns,
+            f"{name}: one comparison cell per row and competitor",
+        )
+        if group == "w1":
+            check(
+                summary.locator(".bench-cmp:not(.is-higher):not(.is-missing)").count()
+                > 0,
+                f"{name}: a cell where Kiso is not clearly ahead is shown",
+            )
+        words = view.locator(".bench-cmp:not(.is-missing) .bench-word")
+        check(
+            words.count() > 0 and all(w.strip() for w in words.all_inner_texts()),
+            f"{name}: every comparison cell carries its word",
+        )
+        if page.viewport_size and page.viewport_size["width"] >= 1440:
+            fits = view.locator(".bench-scroll").evaluate(
+                "el => el.scrollWidth <= el.clientWidth"
+            )
+            check(fits, f"{name}: the summary fits without scrolling")
+    page.locator(f'{WORKERS} [role="tab"]').nth(0).click()
+
+
+def check_workers(page: Page, label: str) -> None:
+    tabs = page.locator(f'{WORKERS} [role="tab"]')
+    check(tabs.count() == 2, f"{label}: a tab per worker count")
     check(
-        page.locator('[role="tab"][tabindex="0"]').count() == 1,
+        selected(page, WORKERS).startswith("8 workers"),
+        f"{label}: 8 workers is shown first",
+    )
+    check(
+        page.locator(".bench-workerpanel:visible").count() == 1,
+        f"{label}: one worker count is shown",
+    )
+    tabs.nth(0).focus()
+    page.keyboard.press("ArrowRight")
+    check(
+        selected(page, WORKERS).startswith("1 worker")
+        and page.locator("#bench-w1-summary:visible").count() == 1
+        and page.locator("#bench-w8-summary:visible").count() == 0,
+        f"{label}: ArrowRight shows the 1-worker results",
+    )
+    check_no_collisions(page, f"{label} (1 worker)")
+    page.keyboard.press("ArrowLeft")
+    check(
+        page.locator("#bench-w8-summary:visible").count() == 1,
+        f"{label}: ArrowLeft comes back to 8 workers",
+    )
+
+
+def check_tabs(page: Page, label: str) -> None:
+    tabs = page.locator(f'{VIEW} [role="tab"]')
+    check(
+        visible_panels(page, VIEW) == 1, f"{label}: exactly one request type is shown"
+    )
+    check(
+        page.locator(f'{VIEW} [role="tab"][tabindex="0"]').count() == 1,
         f"{label}: one tab stop",
     )
     tabs.nth(3).click()
     check(
-        selected(page) == "List" and visible_panels(page) == 1,
+        selected(page, VIEW) == "Articles" and visible_panels(page, VIEW) == 1,
         f"{label}: click selects a tab",
     )
-    tabs.nth(3).focus()
     page.keyboard.press("ArrowRight")
-    check(selected(page) == "Detail", f"{label}: ArrowRight moves on")
+    check(selected(page, VIEW) == "Article", f"{label}: ArrowRight moves on")
     page.keyboard.press("End")
-    check(selected(page) == "Create", f"{label}: End goes to the last tab")
+    check(
+        selected(page, VIEW) == "Auth: articles", f"{label}: End goes to the last tab"
+    )
     page.keyboard.press("ArrowRight")
-    check(selected(page) == "Health", f"{label}: ArrowRight wraps around")
+    check(selected(page, VIEW) == "JSON 1 KB", f"{label}: ArrowRight wraps around")
     page.keyboard.press("ArrowLeft")
-    check(selected(page) == "Create", f"{label}: ArrowLeft wraps around")
+    check(selected(page, VIEW) == "Auth: articles", f"{label}: ArrowLeft wraps around")
     page.keyboard.press("Home")
-    check(selected(page) == "Health", f"{label}: Home goes to the first tab")
+    check(selected(page, VIEW) == "JSON 1 KB", f"{label}: Home goes to the first tab")
     page.keyboard.press("Tab")
     focused = page.evaluate("document.activeElement.getAttribute('role')")
     check(focused == "tabpanel", f"{label}: Tab moves from the tab into its panel")
+    check_no_collisions(page, label)
 
 
 def check_touch(page: Page, label: str) -> None:
-    page.locator('[role="tab"]').nth(5).tap()
+    page.locator(f'{VIEW} [role="tab"]').nth(5).tap()
     check(
-        selected(page) == "Create" and visible_panels(page) == 1,
+        selected(page, VIEW) == "Auth: me" and visible_panels(page, VIEW) == 1,
         f"{label}: a tap selects a tab",
     )
 
 
-def check_legend(page: Page, label: str) -> None:
-    chip = page.locator('.bench-chip[data-stack="hinoki-kiso"]')
-    cells = '#bench-overview [data-stack="hinoki-kiso"]:visible'
-    check(page.locator(cells).count() > 0, f"{label}: the Kiso column starts visible")
-    chip.click()
-    check(
-        chip.get_attribute("aria-pressed") == "false",
-        f"{label}: the chip reports it is off",
+def check_views(page: Page, label: str) -> None:
+    for view in ("python", "same-granian", "other-runtimes"):
+        check(
+            page.locator(f"#bench-w8-{view} .bench-route:visible").count() == 1,
+            f"{label}: the {view} view shows its table",
+        )
+    kiso = page.locator(
+        f'{VIEW} .bench-panel:visible .bench-route tr[data-stack="hinoki-kiso"]'
     )
-    check(page.locator(cells).count() == 0, f"{label}: the Kiso column is hidden")
     check(
-        page.locator(
-            '.bench-panel:visible .bench-row[data-stack="hinoki-kiso"]:visible'
-        ).count()
-        == 0,
-        f"{label}: the open chart follows the legend",
+        kiso.count() == 1, f"{label}: Hinoki (Kiso) sits in the Python frameworks table"
     )
-    chip.click()
-    check(page.locator(cells).count() > 0, f"{label}: the Kiso column comes back")
-    chips = page.locator(".bench-chip")
-    for index in range(chips.count() - 1):
-        chips.nth(index).click()
-    chips.nth(chips.count() - 1).click()
+    first = page.locator(f"{VIEW} .bench-panel:visible .bench-route tbody tr").first
     check(
-        page.locator('.bench-chip[aria-pressed="true"]').count() == 1,
-        f"{label}: the last stack cannot be hidden",
-    )
-    for index in range(chips.count()):
-        if chips.nth(index).get_attribute("aria-pressed") == "false":
-            chips.nth(index).click()
-
-
-def check_details_tabs(page: Page, label: str) -> None:
-    second = page.locator(".tabbed-labels label").nth(1)
-    second.click()
-    check(
-        page.locator(".tabbed-block:visible .bench-matrix").count() == 1,
-        f"{label}: the second server view opens",
+        first.get_attribute("data-stack") == "hinoki-kiso",
+        f"{label}: Hinoki (Kiso) is the first row, the reference",
     )
 
 
@@ -172,9 +249,10 @@ def run_engine(engine: BrowserType, base: str, out: Path | None, name: str) -> N
             page.goto(f"{base}/benchmarks/")
             page.wait_for_selector(".bench-explorer.is-enhanced")
             check_layout(page, label)
+            check_summary(page, label)
+            check_views(page, label)
             check_tabs(page, label)
-            check_legend(page, label)
-            check_details_tabs(page, label)
+            check_workers(page, label)
             if touch:
                 check_touch(page, label)
             if out and name == "chromium":
