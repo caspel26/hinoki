@@ -26,7 +26,7 @@ from hinoki.ai.errorcatalog import CATALOG, explain
 from hinoki.ai.mcp import DevProject, Server
 from hinoki.cli import appprompts
 from hinoki.cli import new as newcli
-from hinoki.cli.appprompts import name_check, prefix_check, report_app, requires_check
+from hinoki.cli.appprompts import name_check, report_app, requires_check
 from hinoki.cli.new import fill_from_prompts
 from hinoki.cli.project import create_app as create_project_app
 from hinoki.cli.prompts import (
@@ -157,7 +157,8 @@ def test_the_command_reports_success_and_failure(
 
 def test_the_generated_project_passes_its_own_rules_and_tests(tmp_path: Path) -> None:
     target = create("shop", tmp_path)
-    assert "include=manifest_routes()" in (target / "shop/main.py").read_text()
+    assert "include=" not in (target / "shop/main.py").read_text()
+    assert "manifest_routes" not in (target / "shop/main.py").read_text()
     assert "rules=" not in (target / "shop/main.py").read_text()
     manifest = tomllib.loads((target / "hinoki.toml").read_text())
     assert manifest["project"]["rules"] == ["shop.rules:project_rules"]
@@ -844,24 +845,31 @@ def test_names_are_checked_before_an_app_is_created() -> None:
     assert check("") == "an app name is required"
     assert check("blog") == "app 'blog' is already registered"
     assert check("my-app") is not None and check("posts") is None
-    assert prefix_check("posts") is not None and prefix_check("/posts/") is not None
-    assert prefix_check("/posts") is None
     assert requires_check(["blog"])("blog, shop, x") == "unknown app: shop, x"
     assert requires_check(["blog"])(" , ") is None
 
 
 def test_the_app_report_lists_its_files_and_the_next_step() -> None:
     created = Path("shop/apps/posts")
-    lines = report_app(FANCY, "posts", created, Path("hinoki.toml"), "", ("blog",))
+    lines = report_app(FANCY, "posts", created, Path("hinoki.toml"), ("blog",))
     shown = plain("\n".join(lines))
-    assert "Created app posts" in shown and "mounted at /posts, requires blog" in shown
+    assert "Created app posts" in shown and "requires blog" in shown
     assert "migrations/" in shown and "registered app posts" in shown
+    assert 'Mount("/posts", posts_routes)' in shown
     assert "uv run hinoki migrations plan" in shown
     quiet = report_app(
-        FANCY, "posts", created, Path("hinoki.toml"), "/p", (), next_steps=False
+        FANCY,
+        "posts",
+        created,
+        Path("hinoki.toml"),
+        (),
+        no_models=True,
+        next_steps=False,
     )
-    assert "mounted at /p" in plain("\n".join(quiet))
-    assert "migrations plan" not in "\n".join(quiet)
+    quiet_shown = plain("\n".join(quiet))
+    assert "API-only" in quiet_shown
+    assert "migrations/" not in quiet_shown
+    assert "migrations plan" not in quiet_shown
 
 
 def test_the_app_questions_are_asked_with_keys_on_a_terminal(
@@ -869,16 +877,16 @@ def test_the_app_questions_are_asked_with_keys_on_a_terminal(
 ) -> None:
     @contextlib.contextmanager
     def typed(_out: Any) -> Iterator[Iterator[str]]:
-        yield tokens("posts\r\r\r")
+        yield tokens("posts\r\r")
 
     monkeypatch.setattr(appprompts, "keys_available", lambda: True)
     monkeypatch.setattr(appprompts, "raw_keys", typed)
     monkeypatch.setattr(appprompts, "show_banner", lambda *_args: None)
     manifest = argparse.Namespace(apps=[argparse.Namespace(name="blog")])
-    args = argparse.Namespace(name=None, prefix=None, requires=None)
+    args = argparse.Namespace(name=None, requires=None)
     assert appprompts.ask_app(args, manifest, answers(), FANCY) == 0  # type: ignore[arg-type]
-    assert (args.name, args.prefix, args.requires) == ("posts", "/posts", "")
-    assert "Prefix" in plain(capsys.readouterr().out)
+    assert (args.name, args.requires) == ("posts", "")
+    assert "Requires" in plain(capsys.readouterr().out)
 
 
 def test_the_project_summary_shows_key_files_and_next_steps(
@@ -1093,15 +1101,15 @@ def test_the_app_questions_fall_back_to_lines_and_can_be_cancelled(
 ) -> None:
     monkeypatch.setattr(appprompts, "show_banner", lambda *_args: None)
     manifest = argparse.Namespace(apps=[])
-    args = argparse.Namespace(name=None, prefix=None, requires=None)
-    asked = answers("posts", "")
+    args = argparse.Namespace(name=None, requires=None)
+    asked = answers("posts")
     assert appprompts.ask_app(args, manifest, asked, Style()) == 0  # type: ignore[arg-type]
-    assert (args.name, args.prefix) == ("posts", "/posts")
+    assert args.name == "posts"
 
     def interrupted(_prompt: str) -> str:
         raise KeyboardInterrupt
 
-    blank = argparse.Namespace(name=None, prefix=None, requires=None)
+    blank = argparse.Namespace(name=None, requires=None)
     assert appprompts.ask_app(blank, manifest, interrupted, Style()) == 130  # type: ignore[arg-type]
     assert "nothing was created" in capsys.readouterr().err
 

@@ -109,7 +109,7 @@ def test_an_unresolvable_or_wrong_events_target_is_an_error(
         manifest.event_handlers()
 
 
-@pytest.mark.parametrize("key", ["events", "routes"])
+@pytest.mark.parametrize("key", ["events"])
 @pytest.mark.parametrize("bad", ["false", "0"])
 def test_a_non_string_target_is_rejected_even_when_falsy(
     project: Path, key: str, bad: str
