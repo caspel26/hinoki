@@ -127,12 +127,24 @@ name the hosts you serve, and silence it, add
 [`allowed_hosts`](https://hinoki.caspel.dev/dev/web-security.md#allowed_hosts).
 
 Open `http://127.0.0.1:8000/docs` for the generated OpenAPI UI, or run
-`uv run hinoki routes` to list every route with its access policy.
+`uv run hinoki routes` to inspect the route map that `Hinoki(settings=ProjectSettings, ...)`
+loaded automatically from `notes/routes.py` (`[project] routes` in `hinoki.toml`):
+
+```sh
+uv run hinoki routes
+```
+
+```text
+METHOD  PATH     HANDLER           ACCESS  ATOMIC  ERRORS
+GET     /health  notes.api.health  public  -       -
+```
 
 ## What the manifest does
 
-`hinoki.toml` names the application, where its routes live and which rules it
-runs; each app you create adds its own models, migrations and routes:
+`hinoki.toml` registers the application, the project's route map (`[project] routes`),
+the rules it runs and each app's persistence and dependencies. `notes/main.py`
+loads `[project] routes` automatically, while `notes/routes.py` decides which
+apps are mounted over HTTP (`Mount("/entries", ...)`):
 
 ```toml
 [project]
@@ -253,15 +265,16 @@ to your own project.
 | --- | --- | --- |
 | [1. Models](https://hinoki.caspel.dev/dev/tutorial/1-models.md) | tables, a foreign key, an index, a default order | models and migrations |
 | [2. Schemas](https://hinoki.caspel.dev/dev/tutorial/2-schemas.md) | what clients send and receive | strict validation, derived schemas |
-| [3. Operations](https://hinoki.caspel.dev/dev/tutorial/3-operations.md) | the business rules and the events they announce | ownership inside the statement, events between apps |
-| [4. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md) | the HTTP layer | access, generated CRUD with filters, transactions, declared errors |
-| [5. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md) | checks that keep the layers apart | `hinoki check` |
-| [6. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md) | the manifest, settings, a server, tests | `hinoki dev`, the test client |
-| [7. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md) | normalizers and checks | field and cross-field errors |
-| [8. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md) | an app in your own project | `hinoki app create`, planned migrations |
+| [3. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md) | the HTTP layer and explicit app mounts | access, generated CRUD with filters, transactions, declared errors |
+| [4. Implement a business rule](https://hinoki.caspel.dev/dev/tutorial/3-operations.md) | `complete_task(...)` and `delete_task(...)` | why domain rules live in `operations.py` with ownership in SQL |
+| [5. Events between apps](https://hinoki.caspel.dev/dev/tutorial/events.md) | `Created[Task]`, `Updated[Task]` and `activity` | decoupled `in_transaction` handlers and `hinoki events` |
+| [6. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md) | checks that keep the layers apart | `hinoki check` |
+| [7. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md) | the manifest, settings, a server, tests | `hinoki dev`, the test client |
+| [8. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md) | normalizers and checks | field and cross-field errors |
+| [9. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md) | an app in your own project | `hinoki app create`, planned migrations |
 
-Chapters 1–6 cover the Tracker. Chapter 7 uses standalone examples, and
-chapter 8 continues the project from the [Quick start](https://hinoki.caspel.dev/dev/quick-start.md).
+Chapters 1–7 cover the Tracker. Chapter 8 uses standalone examples, and
+chapter 9 continues the project from the [Quick start](https://hinoki.caspel.dev/dev/quick-start.md).
 
 ## The Tracker's shape
 
@@ -271,7 +284,7 @@ purpose. Each app is a package with its own models, endpoints and migrations:
 ```text
 tracker/
 ├── main.py, settings.py   the application and its typed settings
-├── routes.py              routes that belong to no app (GET /health)
+├── routes.py              the project route map (GET /health and explicit app mounts)
 ├── middleware.py          a project-wide middleware
 ├── rules.py               architecture rules
 └── apps/
@@ -280,9 +293,8 @@ tracker/
     └── activity/          Activity, written by listening to task events
 ```
 
-`hinoki.toml` is the whole wiring. `[project]` names the application, the
-project routes, the middleware and the rule sets; each `[[apps]]` names its
-models, migrations and routes, and `requires` fixes the order:
+`hinoki.toml` registers the application, its route map, middleware, rules and
+apps, while `tracker/routes.py` decides where each exposed app is mounted:
 
 ```toml
 # examples/tracker/hinoki.toml
@@ -296,21 +308,18 @@ rules = ["tracker.rules:policy", "tracker.rules:layers"]
 name = "members"
 models = "tracker.apps.members.models"
 migrations = "tracker.apps.members.migrations"
-routes = "tracker.apps.members.api:routes"
 requires = []
 
 [[apps]]
 name = "tasks"
 models = "tracker.apps.tasks.models"
 migrations = "tracker.apps.tasks.migrations"
-routes = "tracker.apps.tasks.api:routes"
 requires = ["members"]
 
 [[apps]]
 name = "activity"
 models = "tracker.apps.activity.models"
 migrations = "tracker.apps.activity.migrations"
-routes = "tracker.apps.activity.api:routes"
 events = "tracker.apps.activity.events:handlers"
 requires = ["tasks", "members"]
 ```
@@ -520,148 +529,9 @@ Schemas also support aliases, computed fields and tagged unions; see
 - Output schemas can be derived from a model, minus what must stay private.
 - Ownership comes from the caller, never from the request body.
 
-Next: [3. Operations](https://hinoki.caspel.dev/dev/tutorial/3-operations.md).
+Next: [3. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md).
 
-# 3. Operations
-
-Source: https://hinoki.caspel.dev/dev/tutorial/3-operations.md
-
-The rules of the application live in plain async functions. They take the
-acting member's id and plain values, never a `Request`, so an endpoint, a
-command, a test or an admin hook can call them. The list, retrieve and create
-of tasks are generated ([chapter 4](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md)); what remains for
-`operations.py` is what the generator cannot know. It starts with one query
-that every action reuses:
-
-```python
-# tracker/apps/tasks/operations.py
-from uuid import UUID
-
-from hinoki import events
-from hinoki.events import Updated
-from hinoki.orm import QuerySet
-from hinoki.utils import utc_now
-
-from .errors import DoneTasksAreKept, TaskAlreadyDone
-from .models import Task
-
-
-def mine(owner_id: UUID) -> QuerySet[Task]:
-    return Task.filter(owner_id=owner_id)
-```
-
-Writes put the owner in the statement itself:
-
-```python
-# tracker/apps/tasks/operations.py (continued)
-async def complete_task(owner_id: UUID, task_id: UUID) -> Task:
-    """Mark an own open task done in one statement."""
-    changed = await Task.aupdate_where(
-        {"id": task_id, "owner_id": owner_id, "done": False},
-        {"done": True, "completed_at": utc_now()},
-    )
-    if changed:
-        # aupdate_where emits no model event, so announce the change ourselves.
-        await events.emit(Updated(Task, changed[0], ("done", "completed_at")))
-        return changed[0]
-    await mine(owner_id).filter(id=task_id).aget()  # missing or not yours: 404
-    raise TaskAlreadyDone()
-
-
-async def delete_task(owner_id: UUID, task_id: UUID) -> None:
-    """Delete an own open task; completed ones are kept."""
-    removed = await Task.adelete(id=task_id, owner_id=owner_id, done=False)
-    if removed:
-        return
-    await mine(owner_id).filter(id=task_id).aget()  # missing or not yours: 404
-    raise DoneTasksAreKept()
-```
-
-There is no gap between reading a row, checking its owner and writing it.
-Another member's task looks exactly like a missing one (404), so nothing leaks.
-
-Business failures are named after the rule they report. Each carries its HTTP
-status (409 for `Conflict`) and a stable code:
-
-```python
-# tracker/apps/tasks/errors.py
-from hinoki import errors
-
-
-class TaskAlreadyDone(errors.Conflict):
-    code = "task_already_done"
-    message = "The task is already done."
-
-
-class DoneTasksAreKept(errors.Conflict):
-    code = "done_tasks_are_kept"
-    message = "Completed tasks are kept as a record and cannot be deleted."
-```
-
-## Events between apps
-
-Creating a task and completing one both leave a line in the member's activity
-feed, but `tasks` does not know the feed exists. It announces: generated create
-emits `Created[Task]`, and `complete_task` emits `Updated[Task]` itself because
-`aupdate_where` emits no model event. The `activity` app listens:
-
-```python
-# tracker/apps/activity/events.py
-from hinoki import events
-from tracker.apps.tasks.models import Task
-
-from .models import Activity
-
-handlers = events.Handlers("activity")
-
-
-async def record(task: Task, kind: str) -> None:
-    await Activity.acreate(member_id=task.owner_id, task_id=task.id, kind=kind)
-
-
-@handlers.in_transaction(events.Created[Task])
-async def task_created(event: events.Created[Task]) -> None:
-    await record(event.instance, "created")
-
-
-@handlers.in_transaction(events.Updated[Task])
-async def task_updated(event: events.Updated[Task]) -> None:
-    await record(event.instance, "updated")
-```
-
-`in_transaction` runs the handler inside the transaction of the change, so the
-task and its activity line commit together or not at all. The handlers are
-registered by the `events` entry of the `activity` app in `hinoki.toml`
-([chapter 6](https://hinoki.caspel.dev/dev/tutorial/6-run.md)), and one command lists them:
-
-```sh
-uv run hinoki events
-```
-
-```text
-Created[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_created
-Updated[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_updated
-
-limits: events.handler_timeout=5.0, events.max_handlers=16, events.max_depth=4
-declared in hinoki.toml: activity -> tracker.apps.activity.events:handlers
-```
-
-The dependency points from `activity` to `tasks` only, which is also why
-`activity` lists `requires = ["tasks", "members"]`. [Chapter 5](https://hinoki.caspel.dev/dev/tutorial/5-rules.md)
-makes the other direction a failing check. See [events](https://hinoki.caspel.dev/dev/events.md) for
-`after_commit` handlers and the limits.
-
-## Recap
-
-- Operations hold the rules and know nothing about HTTP.
-- Ownership is part of the `WHERE` clause, not a separate check.
-- Errors are classes with a status and a stable code.
-- An app announces what happened; another app listens, without an import in
-  the other direction.
-
-Next: [4. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md).
-
-# 4. Endpoints
+# 3. Endpoints
 
 Source: https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md
 
@@ -791,12 +661,16 @@ the class is declared and raises `RegistrationError` otherwise. For a resource
 that mixes public and protected actions, annotate `Caller[Member] | None`. See
 [hooks](https://hinoki.caspel.dev/dev/crud.md#hooks-in-the-class-form) in the CRUD guide.
 
-The project's `GET /health` is a plain function in `tracker/routes.py`, public
-on purpose, and it answers a `Schema` like every other action:
+The project's `tracker/routes.py` defines the public `GET /health` check and
+mounts each exposed app explicitly with `Mount(...)`:
 
 ```python
 # tracker/routes.py
-from hinoki import Includable, Schema, http
+from hinoki import Includable, Mount, Schema, http
+
+from .apps.activity.api import routes as activity_routes
+from .apps.members.api import routes as members_routes
+from .apps.tasks.api import routes as tasks_routes
 
 
 class Health(Schema):
@@ -804,11 +678,16 @@ class Health(Schema):
 
 
 @http.get("/health")
-def health() -> Health:
+async def health() -> Health:
     return Health(status="ok")
 
 
-routes: list[Includable] = [health]
+routes: list[Includable] = [
+    health,
+    Mount("/members", members_routes),
+    Mount("/tasks", tasks_routes),
+    Mount("/activity", activity_routes),
+]
 ```
 
 - **`@crud(...)`** generates the list, retrieve, create and delete actions with
@@ -887,9 +766,169 @@ default `/<app name>`), which is why `path=""` above repeats nothing
 - Handlers call operations and convert rows with `from_model`.
 - Every error an action raises is declared.
 
-Next: [5. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md). In the guides: [function-based APIs](https://hinoki.caspel.dev/dev/function-endpoints.md) and [class-based APIs](https://hinoki.caspel.dev/dev/class-endpoints.md).
+Next: [4. Implement a business rule](https://hinoki.caspel.dev/dev/tutorial/3-operations.md). In the guides: [function-based APIs](https://hinoki.caspel.dev/dev/function-endpoints.md) and [class-based APIs](https://hinoki.caspel.dev/dev/class-endpoints.md).
 
-# 5. Rules
+# 4. Implement a business rule
+
+Source: https://hinoki.caspel.dev/dev/tutorial/3-operations.md
+
+Generated CRUD ([chapter 3](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md)) already handles listing, retrieving,
+creating and deleting rows. When an action encodes a domain rule — such as
+marking an open task done or refusing to delete a completed one — put that rule
+in `operations.py` instead of writing SQL or state checks directly inside the
+HTTP handler:
+
+- **Reuse across entry points**: plain `async def` functions take `owner_id` and
+  plain values, never a `Request`, so an endpoint, a management command, a test
+  or an admin hook can call the same rule.
+- **Layer isolation**: `api.py` stays responsible only for HTTP shapes, status
+  codes, `Access` policies and `atomic=True` transaction boundaries, while
+  [chapter 6](https://hinoki.caspel.dev/dev/tutorial/5-rules.md) enforces that `operations.py` never imports HTTP types.
+- **Single-statement ownership**: writes include the owner in the `WHERE` clause
+  so there is no race between reading a row, checking ownership and updating it.
+
+It starts with one scoped query that every action reuses:
+
+```python
+# tracker/apps/tasks/operations.py
+from uuid import UUID
+
+from hinoki import events
+from hinoki.events import Updated
+from hinoki.orm import QuerySet
+from hinoki.utils import utc_now
+
+from .errors import DoneTasksAreKept, TaskAlreadyDone
+from .models import Task
+
+
+def mine(owner_id: UUID) -> QuerySet[Task]:
+    return Task.filter(owner_id=owner_id)
+```
+
+Writes put the owner in the statement itself:
+
+```python
+# tracker/apps/tasks/operations.py (continued)
+async def complete_task(owner_id: UUID, task_id: UUID) -> Task:
+    """Mark an own open task done in one statement."""
+    changed = await Task.aupdate_where(
+        {"id": task_id, "owner_id": owner_id, "done": False},
+        {"done": True, "completed_at": utc_now()},
+    )
+    if changed:
+        # aupdate_where emits no model event, so announce the change ourselves.
+        await events.emit(Updated(Task, changed[0], ("done", "completed_at")))
+        return changed[0]
+    await mine(owner_id).filter(id=task_id).aget()  # missing or not yours: 404
+    raise TaskAlreadyDone()
+
+
+async def delete_task(owner_id: UUID, task_id: UUID) -> None:
+    """Delete an own open task; completed ones are kept."""
+    removed = await Task.adelete(id=task_id, owner_id=owner_id, done=False)
+    if removed:
+        return
+    await mine(owner_id).filter(id=task_id).aget()  # missing or not yours: 404
+    raise DoneTasksAreKept()
+```
+
+There is no gap between reading a row, checking its owner and writing it.
+Another member's task looks exactly like a missing one (404), so nothing leaks.
+
+Business failures are named after the rule they report. Each carries its HTTP
+status (409 for `Conflict`) and a stable code:
+
+```python
+# tracker/apps/tasks/errors.py
+from hinoki import errors
+
+
+class TaskAlreadyDone(errors.Conflict):
+    code = "task_already_done"
+    message = "The task is already done."
+
+
+class DoneTasksAreKept(errors.Conflict):
+    code = "done_tasks_are_kept"
+    message = "Completed tasks are kept as a record and cannot be deleted."
+```
+
+## Recap
+
+- Business rules such as `complete_task(...)` belong in `operations.py`,
+  separate from HTTP handlers in `api.py`.
+- Ownership is part of the `WHERE` clause, not a separate check.
+- Errors are classes with a status and a stable code.
+
+Next: [5. Events between apps](https://hinoki.caspel.dev/dev/tutorial/events.md).
+
+# 5. Events between apps
+
+Source: https://hinoki.caspel.dev/dev/tutorial/events.md
+
+Creating a task and completing one both leave a line in the member's activity
+feed, but `tasks` does not know the feed exists. It announces: generated create
+emits `Created[Task]`, and `complete_task` ([chapter 4](https://hinoki.caspel.dev/dev/tutorial/3-operations.md)) emits
+`Updated[Task]` itself because `aupdate_where` emits no model event. The
+`activity` app listens:
+
+```python
+# tracker/apps/activity/events.py
+from hinoki import events
+from tracker.apps.tasks.models import Task
+
+from .models import Activity
+
+handlers = events.Handlers("activity")
+
+
+async def record(task: Task, kind: str) -> None:
+    await Activity.acreate(member_id=task.owner_id, task_id=task.id, kind=kind)
+
+
+@handlers.in_transaction(events.Created[Task])
+async def task_created(event: events.Created[Task]) -> None:
+    await record(event.instance, "created")
+
+
+@handlers.in_transaction(events.Updated[Task])
+async def task_updated(event: events.Updated[Task]) -> None:
+    await record(event.instance, "updated")
+```
+
+`in_transaction` runs the handler inside the transaction of the change, so the
+task and its activity line commit together or not at all. The handlers are
+registered by the `events` entry of the `activity` app in `hinoki.toml`
+([chapter 7](https://hinoki.caspel.dev/dev/tutorial/6-run.md)), and one command lists them:
+
+```sh
+uv run hinoki events
+```
+
+```text
+Created[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_created
+Updated[Task]  in_transaction  activity     async  tracker.apps.activity.events.task_updated
+
+limits: events.handler_timeout=5.0, events.max_handlers=16, events.max_depth=4
+declared in hinoki.toml: activity -> tracker.apps.activity.events:handlers
+```
+
+The dependency points from `activity` to `tasks` only, which is also why
+`activity` lists `requires = ["tasks", "members"]`. [Chapter 6](https://hinoki.caspel.dev/dev/tutorial/5-rules.md)
+makes the other direction a failing check. See [events](https://hinoki.caspel.dev/dev/events.md) for
+`after_commit` handlers and the limits.
+
+## Recap
+
+- An app announces what happened; another app listens without an import in the
+  other direction.
+- `in_transaction` keeps the main write and its audit trail atomic.
+- `hinoki events` inspects the handlers declared in `hinoki.toml`.
+
+Next: [6. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md).
+
+# 6. Rules
 
 Source: https://hinoki.caspel.dev/dev/tutorial/5-rules.md
 
@@ -989,9 +1028,9 @@ carries one.
 - Each failure has a stable id, a location and a fix.
 - Exceptions are explicit, owned waivers.
 
-Next: [6. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md).
+Next: [7. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md).
 
-# 6. Run and test it
+# 7. Run and test it
 
 Source: https://hinoki.caspel.dev/dev/tutorial/6-run.md
 
@@ -1041,8 +1080,7 @@ What the manifest ([the index](https://hinoki.caspel.dev/dev/tutorial/index.md#t
 
 | `hinoki.toml` | What `Hinoki()` loads |
 | --- | --- |
-| `[project] routes` | `tracker/routes.py`: `GET /health` |
-| `[[apps]] routes` | each app's routes, at `/<app name>` |
+| `[project] routes` | `tracker/routes.py`: `GET /health` and explicit `Mount(...)` entries for `members`, `tasks` and `activity` |
 | `[[apps]] events` | the handlers of `activity` |
 | `[project] middleware` | `ApiVersion`, which adds `x-tracker-version` to every answer of a matched route |
 | `[project] rules` | `policy` and `layers`, checked at startup and by `hinoki check` |
@@ -1190,9 +1228,9 @@ error it did not declare. For tests without `async`, use `SyncClient`. See
 - `hinoki dev` serves with reload; migrations stay a separate step.
 - Test operations directly and the stack with `ASGIClient`.
 
-Next: [7. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md).
+Next: [8. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md).
 
-# 7. Validate input
+# 8. Validate input
 
 Source: https://hinoki.caspel.dev/dev/tutorial/7-validation.md
 
@@ -1350,9 +1388,9 @@ See [field constraints and validators](https://hinoki.caspel.dev/dev/models.md#m
 - Unknown keys are an error unless a `Schema` opts out.
 - Model constraints guard writes that bypass HTTP.
 
-Next: [8. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md).
+Next: [9. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md).
 
-# 8. Projects and apps
+# 9. Projects and apps
 
 Source: https://hinoki.caspel.dev/dev/tutorial/8-projects.md
 
@@ -1371,7 +1409,6 @@ uv run hinoki app create
 | Prompt | Default | Answer |
 | --- | --- | --- |
 | App name | | `billing` |
-| URL prefix | `/billing` | `/billing` |
 | Depends on | | (none) |
 
 The command writes the package and registers it:
@@ -5032,7 +5069,6 @@ The handlers are plain functions, so a unit test can also `await get_invoice(inv
 | `RuntimeError: a RouteGroup cannot change after it is included` | An action is added after the group is included | Declare every action at import time |
 | `RegistrationError: a RouteGroup must declare at least one action` | An empty group in `routes.py` | Remove it or add an action |
 | `RegistrationError: a RouteGroup can be included only once` | The group is listed twice in one application | List it once; mount the list, not each group |
-| `RegistrationError: … replaces=... only works inside an API class` | `replaces=` on a group action | Remove it; it belongs to [classes](https://hinoki.caspel.dev/dev/class-endpoints.md) |
 | `ValueError: … already declares an HTTP route` | Two HTTP decorators on one function | One decorator per function |
 | `RegistrationError: 1 rule violation(s)` naming `HNK-ACC-001` | A public action not listed in `notes/rules.py` | Add it to `except_`, or give it a policy |
 
@@ -12710,7 +12746,7 @@ A `Model` describes a table and its queries (SQLite, PostgreSQL, MySQL or MariaD
 
 ## A declaration is reused
 
-An action's signature and decorator options state its route, inputs, access policy, transaction (`atomic=`), declared errors and response. Routing, binding, the OpenAPI document, the rules, the admin and MCP all read that one declaration. Actions are [plain functions](https://hinoki.caspel.dev/dev/function-endpoints.md), optionally grouped in a `RouteGroup` with shared options, or [methods of an `API` class](https://hinoki.caspel.dev/dev/class-endpoints.md). Each app lists them in its `routes.py`, and `hinoki.toml` mounts every app under its prefix ([register routes](https://hinoki.caspel.dev/dev/routes.md)).
+An action's signature and decorator options state its route, inputs, access policy, transaction (`atomic=`), declared errors and response. Routing, binding, the OpenAPI document, the rules, the admin and MCP all read that one declaration. Actions are [plain functions](https://hinoki.caspel.dev/dev/function-endpoints.md), optionally grouped in a `RouteGroup` with shared options, or [methods of an `API` class](https://hinoki.caspel.dev/dev/class-endpoints.md). Each app lists them in its `routes.py`, and the project's `routes.py` mounts exposed apps with `Mount(...)` ([register routes](https://hinoki.caspel.dev/dev/routes.md)).
 
 ## One application object
 
@@ -12731,7 +12767,7 @@ def card_error(error: stripe.CardError) -> errors.APIError:
     return errors.APIError(error.user_message, status=402, code="card_declined")
 ```
 
-`Hinoki(...)` loads the routes, events, middleware and rules that `hinoki.toml` declares (each of `include=`, `events=`, `middleware=` and `rules=` you pass replaces its manifest value; the [Notes example](https://github.com/caspel26/hinoki/blob/main/examples/notes/notes/main.py) passes `include=` because its manifest lists no routes) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` are packages of models, migrations and routes, not further `Hinoki` objects.
+`Hinoki(...)` loads `[project] routes`, app `events`, `[project] middleware` and `[project] rules` that `hinoki.toml` declares (each of `include=`, `events=`, `middleware=` and `rules=` you pass replaces its manifest value; for example, the [Blog example](https://github.com/caspel26/hinoki/blob/main/examples/blog/blog/main.py) passes `include=` for conditional routes) and opens nothing, so importing the module is safe: commands, servers and tests use the same `app`. The `[[apps]]` of `hinoki.toml` register app packages (optional `models`/`migrations`, `events`, `requires`), not further `Hinoki` objects.
 
 ## One request
 
@@ -12936,10 +12972,10 @@ One word, one meaning. "Schema" has four meanings in this field, so the docs kee
 
 | Term | Meaning |
 | --- | --- |
-| manifest | `hinoki.toml`: the project's application, its project-wide routes, middleware and rules, and its apps with their routes, events, prefixes and dependencies. |
+| manifest | `hinoki.toml`: the project's application, its `[project] routes` map, middleware and rules, and its registered `[[apps]]` with their optional persistence, events and dependencies. |
 | project application | The `Hinoki` object named by `project.application` (`notes.main:app`); the one a server process serves. |
-| app | A package listed under `[[apps]]`: models, migrations and a `routes.py`. Not a second `Hinoki` object. |
-| app prefix | The path an app's routes are mounted under, set only in `hinoki.toml` (`/billing`). |
+| app | A package listed under `[[apps]]` (with optional `models`/`migrations`, `events`, `requires`, and reusable `routes.py`). Not a second `Hinoki` object. |
+| app mount | `Mount("/billing", billing_routes)` in the project's `routes.py`, deciding whether and at which prefix an app is exposed over HTTP. |
 | target | `module:attribute` naming an app, such as `notes.main:app`. Commands use `project.application` from `hinoki.toml` when it is omitted. |
 
 ## Code

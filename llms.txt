@@ -51,12 +51,13 @@ assert "/greeting" in app.openapi()["paths"]
 - [Overview](https://hinoki.caspel.dev/dev/tutorial/index.md): Follow the Tracker, an API where members keep their own tasks, one layer per chapter.
 - [1. Models](https://hinoki.caspel.dev/dev/tutorial/1-models.md): A model declares a table.
 - [2. Schemas](https://hinoki.caspel.dev/dev/tutorial/2-schemas.md): A model describes a table; a `Schema` describes what crosses the API.
-- [3. Operations](https://hinoki.caspel.dev/dev/tutorial/3-operations.md): The rules of the application live in plain async functions.
-- [4. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md): The HTTP layer maps requests to operations and results to responses.
-- [5. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md): Rules turn the project's promises into checks.
-- [6. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md): Settings are a typed class.
-- [7. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md): A `Schema` validates in three steps, all before your code runs: built-in constraints reject invalid input, normalizers make valid strings canonical, and…
-- [8. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md): An app is a package with its own models, migrations and routes, registered in `hinoki.toml`.
+- [3. Endpoints](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md): The HTTP layer maps requests to operations and results to responses.
+- [4. Implement a business rule](https://hinoki.caspel.dev/dev/tutorial/3-operations.md): Generated CRUD (chapter 3) already handles listing, retrieving, creating and deleting rows.
+- [5. Events between apps](https://hinoki.caspel.dev/dev/tutorial/events.md): Creating a task and completing one both leave a line in the member's activity feed, but `tasks` does not know the feed exists.
+- [6. Rules](https://hinoki.caspel.dev/dev/tutorial/5-rules.md): Rules turn the project's promises into checks.
+- [7. Run and test it](https://hinoki.caspel.dev/dev/tutorial/6-run.md): Settings are a typed class.
+- [8. Validate input](https://hinoki.caspel.dev/dev/tutorial/7-validation.md): A `Schema` validates in three steps, all before your code runs: built-in constraints reject invalid input, normalizers make valid strings canonical, and…
+- [9. Projects and apps](https://hinoki.caspel.dev/dev/tutorial/8-projects.md): An app is a package with its own models, migrations and routes, registered in `hinoki.toml`.
 
 ## Guides
 
