@@ -369,4 +369,9 @@ class ClaimsJWTAuth(JWTAuth[None]):
         subject, raw = claims.get("sub"), claims.get(self.scope_claim, [])
         if not isinstance(subject, str) or not subject or not isinstance(raw, list):
             return None
-        return Caller(subject, None, frozenset(s for s in raw if isinstance(s, str)))
+        return Caller(
+            subject,
+            None,
+            frozenset(s for s in raw if isinstance(s, str)),
+            claims=claims,
+        )
