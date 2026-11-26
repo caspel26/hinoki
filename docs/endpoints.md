@@ -98,7 +98,7 @@ async def invoice_label(request: Request, invoice_id: UUID) -> InvoiceLabel:
 
 Request path, query and body values are validated before the handler runs; a `Schema` body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper `Schema` field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types, except in `Query[...]`, [`Form[...]`](#form-bodies) and [`XML[...]`](#xml-bodies).
 
-Return a `Schema` built from the row: `InvoiceOut.from_model(row)` or `InvoiceOut.from_models(rows)` ([model schemas](model-schemas.md)). A returned `dict` where a `Schema` is declared is a `500 internal_error` ([the response check](#the-response-is-checked-against-the-annotation)). Use a wrapper `Schema` for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
+Return a `Schema` built from the row: `InvoiceOut.from_model(row)` or `InvoiceOut.from_models(rows)` ([model schemas](model-schemas.md)). A returned `dict` or `Model` where a `Schema` is declared is a `500 internal_error` ([the response check](#the-response-is-checked-against-the-annotation)). Use a wrapper `Schema` for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
 
 ## Query strings as a Schema
 

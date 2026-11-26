@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import API, Hinoki, Schema, crud
+from hinoki import API, Hinoki, Schema, crud, derive
 from hinoki.db import Database, DatabaseModule
 from hinoki.fieldtypes import MAX_BYTES_LENGTH
 from hinoki.orm import Model, field
@@ -27,11 +27,13 @@ class Blob(Model, table="scalar_crud_blobs"):
     preview: bytes | None = None
 
 
-class BlobOut(Schema, model=Blob):
+@derive(Blob)
+class BlobOut(Schema):
     pass
 
 
-class BlobIn(Schema, model=Blob):
+@derive(Blob)
+class BlobIn(Schema):
     pass
 
 

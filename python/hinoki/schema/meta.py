@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hinoki import core
 from hinoki.errors import RegistrationError
 from hinoki.schema.compile import graph_is_stock
-from hinoki.schema.decorators import _CONFIG_UNSET, _NO_MODEL, _ConfigOmitted
+from hinoki.schema.decorators import _CONFIG_UNSET, _ConfigOmitted
 from hinoki.schema.hooks import (
     graph_has_before,
     graph_has_checks,
@@ -76,7 +76,6 @@ class SchemaMeta(type):
         bases: tuple[type, ...],
         namespace: dict[str, Any],
         slots: bool = True,
-        model: object = _NO_MODEL,
         config: SchemaConfig | _ConfigOmitted = _CONFIG_UNSET,
     ) -> SchemaMeta:
         if (
@@ -92,8 +91,6 @@ class SchemaMeta(type):
                 }
                 namespace["__slots__"] = tuple(names)
         options: dict[str, object] = {}
-        if model is not _NO_MODEL:
-            options["model"] = model
         if config is not _CONFIG_UNSET:
             options["config"] = config
         try:
@@ -112,7 +109,6 @@ class SchemaMeta(type):
         bases: tuple[type, ...],
         namespace: dict[str, Any],
         slots: bool = True,  # noqa: ARG002 - read by `__new__`
-        model: object = _NO_MODEL,  # noqa: ARG002
         config: SchemaConfig | _ConfigOmitted = _CONFIG_UNSET,  # noqa: ARG002
     ) -> None:
         super().__init__(name, bases, namespace)

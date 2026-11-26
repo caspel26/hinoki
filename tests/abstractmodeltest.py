@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from hinoki import Schema
+from hinoki import Schema, derive
 from hinoki.admin import Admin
 from hinoki.db import Database, UniqueViolation
 from hinoki.errors import ModelError, RegistrationError
@@ -341,7 +341,8 @@ def test_a_fixed_reverse_name_shared_by_two_models_is_explained() -> None:
 
 
 def test_a_schema_can_be_derived_from_an_abstract_model() -> None:
-    class TrackedOut(Schema, model=Tracked):
+    @derive(Tracked)
+    class TrackedOut(Schema):
         pass
 
     assert list(TrackedOut.specs()) == ["updated_at"]

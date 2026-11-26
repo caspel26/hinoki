@@ -7,8 +7,6 @@ from typing import Any
 
 from hinoki.errors import RegistrationError
 
-_NO_MODEL = object()
-
 
 class _ConfigOmitted:
     """Private marker used to type the omitted class config keyword."""

@@ -15,6 +15,7 @@ from hinoki import (
     Invalid,
     Schema,
     Schemas,
+    derive,
     field_check,
     field_normalize,
     http,
@@ -306,7 +307,8 @@ class Settings(Model, table="mapping_settings"):
     payload: dict[str, int]
 
 
-class SettingsOut(Schema, model=Settings):
+@derive(Settings)
+class SettingsOut(Schema):
     pass
 
 

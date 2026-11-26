@@ -176,8 +176,7 @@ the slots; a class that defines `__copy__`, `__deepcopy__`, `__reduce__`,
 
 A `Schema` subclass keeps its fields in `__slots__` (the instance still has a
 `__dict__` for attributes you set yourself), which lets Rust fill them without a
-lookup per field. Consequences: field values are not in `vars(instance)`, and a
-class made with `model=` keeps its fields in the instance dict. A class can
+lookup per field. Consequences: field values are not in `vars(instance)`. A class can
 combine only one base that declares fields with slots; declare the others with
 `slots=False`:
 

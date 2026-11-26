@@ -57,8 +57,13 @@ async def unchecked() -> NoteOut:
 
 
 @http.get("/model")
+async def raw_model() -> NoteOut:
+    return Row(id=2, title=SECRET)  # type: ignore[return-value]
+
+
+@http.get("/from-model")
 async def from_model() -> NoteOut:
-    return Row(id=2, title="from a model")  # type: ignore[return-value]
+    return NoteOut.from_model(Row(id=2, title="from a model"))
 
 
 @http.get("/optional/{found}")
@@ -111,6 +116,7 @@ def every_route() -> Hinoki:
         good,
         as_dict,
         unchecked,
+        raw_model,
         from_model,
         optional,
         missing,
@@ -129,7 +135,10 @@ async def test_valid_results_pass_and_the_opt_out_skips_the_check(
     async with ASGIClient(every_route) as client:
         assert (await client.get("/good")).body == {"id": 1, "title": "ok"}
         assert (await client.get("/unchecked")).status == 200
-        assert (await client.get("/model")).body == {"id": 2, "title": "from a model"}
+        assert (await client.get("/from-model")).body == {
+            "id": 2,
+            "title": "from a model",
+        }
         assert (await client.get("/optional/true")).status == 200
         assert (await client.get("/optional/false")).status == 204
         assert len((await client.get("/many")).body) == 2
@@ -139,7 +148,7 @@ async def test_valid_results_pass_and_the_opt_out_skips_the_check(
         assert (await client.get("/gone")).status == 204
 
 
-@pytest.mark.parametrize("path", ["/dict", "/missing", "/many-bad", "/count"])
+@pytest.mark.parametrize("path", ["/dict", "/model", "/missing", "/many-bad", "/count"])
 async def test_a_mismatch_is_a_value_free_500(
     every_route: Hinoki, path: str, caplog: pytest.LogCaptureFixture
 ) -> None:
