@@ -312,8 +312,8 @@ async def test_without_a_current_database_entering_fails_clearly() -> None:
 def test_the_old_route_option_name_is_rejected() -> None:
     with pytest.raises(TypeError):
         http.post("/x", **{"transaction": True})  # type: ignore[arg-type]
-    with pytest.raises(TypeError, match="unknown action options"):
-        RouteGroup("/g").post("/", **{"transaction": True})
+    with pytest.raises(TypeError):
+        RouteGroup("/g").post("/", **{"transaction": True})  # type: ignore[arg-type]
     assert not hasattr(Database, "transaction")
 
 

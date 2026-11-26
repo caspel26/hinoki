@@ -6,7 +6,7 @@ passes only while every line below is still flagged.
 
 from uuid import UUID
 
-from hinoki import API, db, http
+from hinoki import API, RouteGroup, db, http
 from hinoki.http.request import Request
 
 
@@ -29,6 +29,21 @@ def bad_option(request: Request) -> None: ...
 
 @http.post("/x", access="admin")  # type: ignore[arg-type]
 def bad_access(request: Request) -> None: ...
+
+
+group = RouteGroup("/group")
+
+
+@group.post("/x", atomic="yes")  # type: ignore[arg-type]
+def bad_group_option(request: Request) -> None: ...
+
+
+@group.post("/y", stauts=201)  # type: ignore[call-arg]
+def bad_group_keyword(request: Request) -> None: ...
+
+
+@group.get("/z", access="admin")  # type: ignore[arg-type]
+def bad_group_access(request: Request) -> None: ...
 
 
 @db.atomic
