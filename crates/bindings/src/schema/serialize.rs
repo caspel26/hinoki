@@ -450,6 +450,26 @@ pub(crate) fn serialize_as<'py>(
 /// it further (declared fields only); a keyword is passed on only when it is not
 /// its default, so an override that forwards `**kw` sees what a caller asked for.
 /// An override that does not take `include` raises the `TypeError` Python gives.
+fn declared_field_names<'py>(
+    py: Python<'py>,
+    declared: &Bound<'py, PyType>,
+) -> PyResult<Bound<'py, PyList>> {
+    let names = PyList::empty(py);
+    for fields in [
+        declared.call_method0(pyo3::intern!(py, "specs"))?,
+        declared.call_method0(pyo3::intern!(py, "computed_fields"))?,
+    ] {
+        for name in fields.try_iter()? {
+            names.append(name?)?;
+        }
+    }
+    Ok(names)
+}
+
+/// The `dump` method `declared` defines, called on `value` with `include` when
+/// `value` is a strict subclass (or `include` is given) so `super().dump(**kw)`
+/// does not pull in subclass fields. An exact instance without `include` calls
+/// `declared.dump(value)` directly unless another keyword was given.
 pub(crate) fn declared_dump<'py>(
     value: &Bound<'py, PyAny>,
     declared: &Bound<'py, PyType>,
@@ -460,20 +480,10 @@ pub(crate) fn declared_dump<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = value.py();
     let kwargs = PyDict::new(py);
-    match include {
-        Some(names) => kwargs.set_item("include", names)?,
-        None => {
-            let names = PyList::empty(py);
-            for fields in [
-                declared.call_method0(pyo3::intern!(py, "specs"))?,
-                declared.call_method0(pyo3::intern!(py, "computed_fields"))?,
-            ] {
-                for name in fields.try_iter()? {
-                    names.append(name?)?;
-                }
-            }
-            kwargs.set_item("include", names)?;
-        }
+    if let Some(names) = include {
+        kwargs.set_item("include", names)?;
+    } else if !value.get_type().is(declared) {
+        kwargs.set_item("include", declared_field_names(py, declared)?)?;
     }
     if !exclude.is_empty() {
         kwargs.set_item("exclude", exclude)?;
@@ -484,7 +494,8 @@ pub(crate) fn declared_dump<'py>(
     if !by_alias {
         kwargs.set_item("by_alias", false)?;
     }
-    declared.call_method(pyo3::intern!(py, "dump"), (value,), Some(&kwargs))
+    let kw = (!kwargs.is_empty()).then_some(&kwargs);
+    declared.call_method(pyo3::intern!(py, "dump"), (value,), kw)
 }
 
 /// `declared_dump` with no keyword of its own, for the Python call sites.

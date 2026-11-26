@@ -137,12 +137,15 @@ pub(crate) fn narrow<'py>(
         Guide::Map(inner) => narrow_map(value, inner, view),
         Guide::Keyed(keys) => narrow_keyed(value, keys, view),
         Guide::Union(members) => {
+            let mut current = value.clone();
+            let mut changed = false;
             for member in members.iter() {
-                if let Some(narrowed) = narrow(value, member, view)? {
-                    return Ok(Some(narrowed));
+                if let Some(narrowed) = narrow(&current, member, view)? {
+                    current = narrowed;
+                    changed = true;
                 }
             }
-            Ok(None)
+            Ok(changed.then_some(current))
         }
     }
 }
@@ -174,7 +177,14 @@ fn narrow_instance<'py>(
             .getattr(intern!(py, "_schema"))?
             .cast_into::<PyType>()?;
         if classes.iter().any(|known| known.as_ptr() == class.as_ptr()) {
-            return Ok(None); // pre-encoded as exactly the declared Schema
+            if !view {
+                return Ok(None); // pre-encoded as exactly the declared Schema
+            }
+            let wrapped = Narrowed {
+                value: value.clone().unbind(),
+                declared: class.into_any().unbind(),
+            };
+            return Ok(Some(Bound::new(py, wrapped)?.into_any()));
         }
     }
     let mro = class.getattr(intern!(py, "__mro__"))?;

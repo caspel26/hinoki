@@ -1921,14 +1921,12 @@ def narrow_instance(schema: type[Schema], value: Schema, view: bool = False) -> 
     restricted to the declared fields. With ``view`` an exact instance is a
     ``core.Narrowed`` too, so that a subclass instance in one of its fields
     reaches a renderer that reads objects as the class its field declares."""
-    if type(value) is schema:
-        return core.Narrowed(value, schema) if view else value
-    if (
+    if type(value) is schema or (
         isinstance(value, _ProjectedItem)
         and value._projected_handle is not None
         and value._schema is schema
     ):
-        return value
+        return core.Narrowed(value, schema) if view else value
     narrowed = core.dump_as(value, schema)
     if narrowed is None:
         return core.declared_dump(value, schema)
@@ -1959,7 +1957,8 @@ def narrow_items(
     """``items`` with every strict subclass of ``schema`` narrowed to its
     declared fields; the same list when every item is exactly ``schema``."""
     if (
-        type(items) is not list
+        not view
+        and type(items) is not list
         and isinstance(items, _ProjectedList)
         and items._projected_handle is not None
     ):
@@ -1978,7 +1977,11 @@ def narrow_page(
     schema: type[Schema], page: ResultPage[Any] | CursorPage[Any], view: bool = False
 ) -> ResultPage[Any] | CursorPage[Any]:
     """The same narrowing for the items of a page (a new page when any changed)."""
-    if isinstance(page, _ProjectedPage) and page._projected_handle is not None:
+    if (
+        not view
+        and isinstance(page, _ProjectedPage)
+        and page._projected_handle is not None
+    ):
         lazy = page._schema
         if lazy is schema or not issubclass(lazy, schema):
             return page
@@ -2011,9 +2014,10 @@ def project_response(
             f"not {type(value).__name__}"
         )
     try:
-        return schema.from_model(value)
+        projected = schema.from_model(value)
     except ValidationError as exc:
         raise ResponseProjectionError(
             f"the {type(value).__name__} returned by the handler does not "
             f"satisfy {schema.__name__}"
         ) from exc
+    return narrow_instance(schema, projected, view) if view else projected
