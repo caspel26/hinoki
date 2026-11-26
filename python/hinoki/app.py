@@ -101,6 +101,15 @@ def check_startup_url(value: str | None) -> str | None:
 log = logging.getLogger("hinoki")
 
 
+def admin_of(item: object) -> object | None:
+    """The admin an included item is, or exposes as ``admin``."""
+    if callable(getattr(item, "bind_timezone", None)):
+        return item
+    exposed = getattr(item, "admin", None)
+    # Any attribute can be named ``admin``; only an object that binds is one.
+    return exposed if callable(getattr(exposed, "bind_timezone", None)) else None
+
+
 def bind_app_timezone(
     item: object,
     timezone: tzinfo,
@@ -109,11 +118,7 @@ def bind_app_timezone(
 ) -> None:
     """Bind the timezone and server secret of the app to an included admin,
     whether it is included as an object or as an API class."""
-    admin = (
-        item
-        if callable(getattr(item, "bind_timezone", None))
-        else getattr(item, "admin", None)
-    )
+    admin = admin_of(item)
     bind_timezone = getattr(admin, "bind_timezone", None)
     if callable(bind_timezone):
         bind_timezone(timezone)
@@ -378,6 +383,7 @@ class Hinoki:
         self.errors = ErrorRegistry()
         self._routes: list[Route] = []
         self._websockets: list[WebSocketRoute] = []
+        self.has_admin = False  # an admin was included
         self._ws_router = Router()
         self._bindings: list[Binding] = []
         self._modules: list[Module] = []
@@ -503,6 +509,9 @@ class Hinoki:
         staged = self._stage_router(pending)
         bind_app_timezones(
             items, self._timezone, self.admin_settings(), self._env_prefix()
+        )
+        self.has_admin = self.has_admin or any(
+            admin_of(item) is not None for item, _prefix in flatten(items)
         )
         self._router = staged
         self._ws_router = ws_router

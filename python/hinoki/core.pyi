@@ -33,6 +33,36 @@ class _ResponseObjectList:
 class _ResponseTypeList:
     def __init__(self, target: type, fallback: Callable[[object], bool]) -> None: ...
     def __call__(self, value: object) -> bool: ...
+    def scan(self, value: object) -> int:
+        """0 invalid, 1 valid and every item exactly ``target``, 2 valid otherwise."""
+
+class Narrowed:
+    """A Schema subclass instance seen as the Schema its position declares: its
+    fields and computed values read as attributes, ``dump()`` gives those only,
+    and ``isinstance`` answers the declared class. A field that holds a subclass
+    instance reads as a ``Narrowed`` of the class its type declares."""
+
+    def __init__(self, value: Any, declared: type) -> None:
+        """``TypeError`` unless ``declared`` is a Schema class of ``value``."""
+    def dump(
+        self,
+        *,
+        include: Iterable[str] | None = None,
+        exclude: Iterable[str] = (),
+        exclude_unset: bool = False,
+        by_alias: bool = True,
+    ) -> dict[str, Any]: ...
+    def __getattr__(self, name: str) -> Any: ...
+
+class _ReturnGuide:
+    def __init__(self, spec: tuple[str, Any]) -> None: ...
+    def narrow(self, value: Any, view: bool = False) -> Any:
+        """``value`` with every subclass of a declared Schema narrowed to it;
+        with ``view`` an instance of exactly a declared Schema is a ``Narrowed``
+        too (for a renderer that reads objects)."""
+
+def all_exact(value: object, target: type) -> bool:
+    """Whether ``value`` is a list whose items are all exactly of ``target``."""
 
 CURSOR_MAX_TOKEN: int
 """Longest cursor token, in characters, that the native codec issues or accepts."""
@@ -283,6 +313,17 @@ def dump_instance(
     by_alias: bool = True,
 ) -> dict[str, Any]: ...
 def dump_for_storage(value: Any) -> dict[str, Any]: ...
+def dump_as(value: Any, declared: type) -> dict[str, Any] | None:
+    """``value`` written as the schema class ``declared`` it derives from: that
+    class's fields and computed values only, nested values narrowed by its field
+    types; ``None`` when ``declared`` decides its own ``dump()``."""
+
+def declared_dump(value: Any, declared: type) -> Any:
+    """``declared.dump(value, include=<declared fields>)``: the ``dump()`` that
+    ``declared`` overrides, run on ``value`` (an instance of a subclass) and
+    restricted to the declared fields. ``TypeError`` when that ``dump()`` takes no
+    ``include``."""
+
 def serialize_instance(
     value: Any,
     include: list[str] | None,
@@ -299,6 +340,7 @@ def compile_schemas(
     direct: (
         list[tuple[int, frozenset[str] | None, dict[str, Any], dict[str, Any]]] | None
     ) = None,
+    computed_guides: list[tuple[str, Any] | None] | None = None,
 ) -> CompiledSchema: ...
 def parse_query_string(raw: bytes, max_pairs: int) -> dict[str, list[str]]: ...
 def parse_xml_body(raw: bytes, max_depth: int, max_elements: int) -> Any: ...
@@ -1259,6 +1301,13 @@ def parse_uuid(raw: str) -> UUID: ...
 def extract_boundary(content_type: str) -> str: ...
 def same_site_origin(
     origin: str | None, fetch_site: str, host: str, scheme: str
+) -> bool: ...
+def websocket_origin_allowed(
+    origin: str | None,
+    host: str | None,
+    https: bool,
+    route_origins: list[str],
+    cors_origins: list[str],
 ) -> bool: ...
 def parse_page_params(
     query: dict[str, list[str]], default_size: int, upper: int

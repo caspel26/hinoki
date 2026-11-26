@@ -13,7 +13,7 @@ CREATE TABLE "blog_users" (
     "id" UUID PRIMARY KEY,
     "publication_id" UUID NOT NULL REFERENCES "blog_publications" ("id") ON DELETE RESTRICT,
     "name" varchar(80) NOT NULL,
-    "token" text NOT NULL UNIQUE,
+    "token_hash" text NOT NULL UNIQUE,
     "is_editor" boolean NOT NULL,
     "username" varchar(40) UNIQUE,
     "password_hash" text

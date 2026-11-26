@@ -1,5 +1,7 @@
 //! Hinoki database engine (pure Rust). The Python bridge lives in `hinoki-bindings`.
 
+#![forbid(unsafe_code)]
+
 mod database;
 mod error;
 pub mod links;

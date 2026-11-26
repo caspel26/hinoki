@@ -499,6 +499,7 @@ pub(crate) fn io_error(err: std::io::Error) -> PyErr {
 /// (a negative number is the one value that is not taken, it names nothing).
 /// A descriptor that is not an IP stream socket is refused, and so is one that
 /// is not listening where the platform lets this crate tell (Linux).
+#[allow(unsafe_code)] // see the SAFETY comments in the body
 pub(crate) fn inherited_listener(fd: i32) -> PyResult<std::net::TcpListener> {
     if fd < 0 {
         return Err(PyValueError::new_err("fd must be a descriptor"));

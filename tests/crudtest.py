@@ -2,6 +2,7 @@
 
 import json
 import os
+import warnings
 from collections.abc import AsyncIterator
 from operator import attrgetter
 from pathlib import Path
@@ -18,6 +19,7 @@ from hinoki import (
     Access,
     BearerAuth,
     Caller,
+    Crud,
     CrudAccess,
     Field,
     Hinoki,
@@ -32,10 +34,18 @@ from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
 from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import PageNumberPagination
-from hinoki.resources import Crud, UserAttr, _CrudConfig
+from hinoki.resources import UserAttr, _CrudConfig
 from hinoki.runtime.crudplan import assign_is_plain
 from hinoki.testing import ASGIClient
 from tests.harness import Client, Pool
+
+# Fixtures declare owner= resources on purpose: the owner read-scope warning is
+# not what these tests check.
+OWNER_READS = r"\w+. owner=.* constrains writes only"
+pytestmark = pytest.mark.filterwarnings(f"ignore:{OWNER_READS}:UserWarning")
+warnings.filterwarnings(
+    "ignore", message=OWNER_READS, category=UserWarning, module=__name__
+)
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
@@ -240,6 +250,67 @@ def test_generated_actions_are_real_routes_in_the_documentation() -> None:
     assert "201" in create["responses"]
     assert create["security"]
     assert "security" not in document["paths"]["/memos"]["get"]
+
+
+def test_owner_without_scoped_reads_warns_at_declaration() -> None:
+    with pytest.warns(UserWarning, match=r"Memo: owner='owner'.*retrieve"):
+        crud(
+            Memo,
+            path="/leaky",
+            read=MemoOut,
+            create=MemoIn,
+            access=writer,
+            owner="owner",
+            identity_key=str,
+        )(type("Leaky", (API,), {}))
+
+
+def _declare_leaky_crud() -> None:
+    crud(
+        Memo,
+        path="/leaky",
+        read=MemoOut,
+        create=MemoIn,
+        access=writer,
+        owner="owner",
+        identity_key=str,
+    )(type("Leaky", (API,), {}))
+
+
+def test_owner_warning_is_attributed_to_the_caller_module() -> None:
+    with pytest.warns(UserWarning, match="constrains writes only") as record:
+        _declare_leaky_crud()
+    assert record[0].filename == __file__
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        warnings.filterwarnings("error", module=__name__)
+        with pytest.raises(UserWarning, match="constrains writes only"):
+            _declare_leaky_crud()
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error")
+        warnings.filterwarnings("ignore", module=__name__)
+        _declare_leaky_crud()
+
+
+@pytest.mark.parametrize("scoped", ["get_queryset", "omit"])
+def test_owner_with_scoped_or_omitted_reads_does_not_warn(scoped: str) -> None:
+    def get_queryset(self: Any, principal: Caller[Any] | None) -> QuerySet[Memo]:
+        return Memo.filter(owner=principal.user if principal else None)
+
+    members = {"get_queryset": get_queryset} if scoped == "get_queryset" else {}
+    omit = (Crud.LIST, Crud.RETRIEVE) if scoped == "omit" else ()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        crud(
+            Memo,
+            path="/safe",
+            read=MemoOut,
+            create=MemoIn,
+            access=writer,
+            owner="owner",
+            identity_key=str,
+            omit=omit,
+        )(type("Safe", (API,), members))
 
 
 def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:

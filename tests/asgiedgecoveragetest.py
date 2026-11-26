@@ -57,6 +57,7 @@ async def test_adapter_applies_logging_and_reports_startup_failure(
     adapter.pipeline = SimpleNamespace(
         logging=SimpleNamespace(apply=lambda: applied.append(True)),
         debug=True,
+        hosts=None,
         app=SimpleNamespace(settings=None),
     )
     adapter.lifespan = SimpleNamespace(startup=startup)

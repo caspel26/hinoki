@@ -1195,6 +1195,9 @@ impl<'py> Encoder<'py> {
                 return self.schema_object(value, &plan, depth);
             }
         }
+        if let Some((inner, declared)) = crate::schema::narrowed_parts(value) {
+            return self.narrowed_object(&inner, &declared, depth);
+        }
         if value.is_instance_of::<PyList>() || value.is_instance_of::<PyTuple>() {
             return self.sequence(value, depth);
         }
@@ -1305,6 +1308,41 @@ impl<'py> Encoder<'py> {
         Ok(true)
     }
 
+    /// A subclass instance where its base class is declared: written with the
+    /// declared class's fields (its plan, resolved here by class: a plan holds no
+    /// plan of a nested class), never seeding the one-entry cache. A declared
+    /// class that decides its own `dump()` runs it on the instance through
+    /// `declared_dump`, restricted to the declared fields.
+    fn narrowed_object(
+        &mut self,
+        value: &Bound<'py, PyAny>,
+        declared: &Bound<'py, pyo3::types::PyType>,
+        depth: usize,
+    ) -> PyResult<()> {
+        let Some(plan) = crate::schema::json_field_plan_of(declared, quoted_json_key)? else {
+            // The declared class decides its own shape, not the subclass.
+            let dumped = crate::schema::declared_dump(value, declared, None, &[], false, true)?;
+            return self.replace(&dumped, depth);
+        };
+        self.schemas += 1;
+        let result =
+            Self::enter(depth).and_then(|()| self.schema_fields_staged(value, &plan, depth));
+        self.schemas -= 1;
+        result
+    }
+
+    /// The value of the `index`th field as its declared type has it written.
+    fn declared_field(
+        plan: &crate::schema::JsonFieldPlan,
+        index: usize,
+        item: Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let Some(Some(guide)) = plan.guides.get(index) else {
+            return Ok(item);
+        };
+        Ok(crate::schema::narrow(&item, guide, false)?.unwrap_or(item))
+    }
+
     fn schema_object(
         &mut self,
         value: &Bound<'py, PyAny>,
@@ -1340,10 +1378,13 @@ impl<'py> Encoder<'py> {
         let py = value.py();
         self.open(b'{');
         let mut written = false;
-        for entry in &plan.entries {
-            let item = value.getattr(entry.attr.bind(py))?;
+        for (index, entry) in plan.entries.iter().enumerate() {
+            let mut item = value.getattr(entry.attr.bind(py))?;
             if item.is(&plan.unset) {
                 continue;
+            }
+            if plan.guided {
+                item = Self::declared_field(plan, index, item)?;
             }
             if written {
                 self.out.push(b',');
@@ -1366,9 +1407,12 @@ impl<'py> Encoder<'py> {
     ) -> PyResult<()> {
         let py = value.py();
         let mut present = Vec::with_capacity(plan.entries.len());
-        for entry in &plan.entries {
-            let item = value.getattr(entry.attr.bind(py))?;
+        for (index, entry) in plan.entries.iter().enumerate() {
+            let mut item = value.getattr(entry.attr.bind(py))?;
             if !item.is(&plan.unset) {
+                if plan.guided {
+                    item = Self::declared_field(plan, index, item)?;
+                }
                 present.push((entry, item));
             }
         }

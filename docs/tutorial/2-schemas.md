@@ -42,7 +42,7 @@ class TaskOut(Schema):
   never carries the primary key.
 - Every response is a `Schema`, never a model, a dict or a dataclass. The
   `members` app does the same with `MemberOut`, which names `id` and `name`
-  and so never sends the token.
+  and so never sends the token digest.
 
 Schemas also support aliases, computed fields and tagged unions; see
 [discriminated unions](../schema-collections.md#discriminated-unions).

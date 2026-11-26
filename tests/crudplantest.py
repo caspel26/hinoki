@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import types
+import warnings
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -70,6 +71,14 @@ from hinoki.runtime.servercore import build_server_core
 from hinoki.settings import AppSettings, CorsSettings, ServerSettings
 from hinoki.testing import ASGIClient
 from hinoki.utils import utc_now
+
+# Fixtures declare owner= resources on purpose: the owner read-scope warning is
+# not what these tests check.
+OWNER_READS = r"\w+. owner=.* constrains writes only"
+pytestmark = pytest.mark.filterwarnings(f"ignore:{OWNER_READS}:UserWarning")
+warnings.filterwarnings(
+    "ignore", message=OWNER_READS, category=UserWarning, module=__name__
+)
 
 DATABASE_URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 REQUIRE_SQL_TRACE = os.environ.get("HINOKI_REQUIRE_SQL_TRACE") == "1"

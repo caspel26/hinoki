@@ -119,6 +119,8 @@ async def recent_invoices(filters: Query[InvoiceFilter]) -> InvoiceRecent:
 
 Text is converted to the `int`, `float` and `bool` the `Schema` declares before the strict validation (a repeated key fills a `list` field, a single one still does). A value that does not convert, a repeated key for a scalar, a missing required field and an unknown key (by default) are `422` errors, reported with the parameter name as prefix. The `Schema` owns the whole query string, so the action takes no other query or page parameters, at most one `Query[...]`, and it cannot be a path parameter. OpenAPI lists one query parameter per field.
 
+A plain path or query parameter (`n: int`, `slug: str`) takes no constraints: `Annotated[int, Field(ge=1)]` on one is refused with a `RegistrationError` when the routes are declared, because nothing would enforce it. Any `Field(...)` is refused, even one with only `description` or `examples`: scalar parameters read none of its attributes, and refusing every form is simpler and more explicit than allowing a subset. The same holds for the path and query parameters of a WebSocket route. Put the constraints in a `Schema` and take it as `Query[...]` (above) or as the body; on a WebSocket, validate inside the handler.
+
 ## Form bodies
 
 A plain `Schema` parameter is a strict JSON body. Wrap it in `Form[...]` to read the same `Schema` from a form, whose values are all text:
@@ -270,6 +272,8 @@ The refusal is `errors.TooManyRequests(retry_after)`: status 429, code `rate_lim
 
 Limiting failed credentials of a `BearerAuth` provider belongs in that provider, because authentication runs first.
 
+The policy runs after the route is matched and the caller is authenticated, so it never sees a request whose credentials were refused and cannot throttle failed authentication attempts (guessing a password or a token). To bound those, limit at the reverse proxy, or put the limit on an unauthenticated login route (as `/auth/login` above), where the handler checks the credentials after the policy has run.
+
 A refusal emits a `RateLimited` [event](events.md#authentication-and-rate-limit-events) (policy class name, route template, `retry_after`; no key, caller or address) when the application has a handler for it. A handler cannot change the `429`.
 
 ### The response is checked against the annotation
@@ -285,7 +289,7 @@ async def raw_invoice(invoice_id: UUID) -> InvoiceOut:
 
 - **At startup.** An annotation that cannot be checked stops the app with a `RegistrationError` that names the action: no annotation, `Any`, `object`, `set[...]`, a plain class, or `Response` inside a collection. Annotate a concrete type, or declare the action with `validate_response=False` to skip the check for that action.
 - **At runtime.** A result that does not match is a `500 internal_error`, because the fault is the server's, not the client's. With the [`debug` setting](web-security.md#debug) on (development only; `hinoki dev` does not turn it on) the answer names the action, the type it returned and the annotation it broke, for example `raw_invoice returned a dict that does not match its return annotation InvoiceOut`. Without debug the body is generic. The log and the answer never contain the value itself. With `atomic=True` the check runs inside the transaction, so a mismatch rolls the write back.
-- **What is accepted.** A `Schema` class, `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` is unwrapped. The check never coerces.
+- **What is accepted.** A `Schema` class, `list[...]`, `dict[str, ...]` and `Page[...]` of these, `str`, `int`, `float`, `bool` (a `bool` is not an `int`), `bytes`, `datetime`, `date`, `UUID`, `Decimal`, `None`, plain `dict` and `list`, `Any` or `object` as an item type, and unions of these. `Annotated[...]` and a PEP 695 `type` alias are unwrapped (a recursive alias stops the app with a `RegistrationError`; with `validate_response=False` too when it holds a `Schema`, because it cannot be narrowed; an alias that cannot be resolved, such as one with a `TypeVarTuple` parameter, is refused the same way, naming the action). The check never coerces.
 - **`Response`.** `-> Response` and `InvoiceOut | Response` are accepted: a returned `Response` carries its own status, headers and body and is not checked. The OpenAPI document describes `InvoiceOut | Response` by its typed arm, `InvoiceOut`. Actions with a bodyless status (`204`, `304`) are not checked.
 - **What it does not check.** A `Schema` instance is valid by construction, so the check is about the shape of the result, not the field values. A custom renderer or a `dump()` override can still change the bytes afterwards.
 

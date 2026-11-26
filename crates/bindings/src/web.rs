@@ -418,6 +418,57 @@ pub fn same_site_origin(origin: Option<&str>, fetch_site: &str, host: &str, sche
     a == b
 }
 
+/// The WebSocket origin rule both lanes share. An absent (empty) `Origin` is not
+/// a browser and passes. Otherwise the origin must be one the route lists (`*`
+/// opens the route), one the application's CORS policy lists by name (a CORS
+/// `*` is never honoured: a handshake carries cookies and a browser does not
+/// hide its answer), or exactly the scheme the connection has (`https` for TLS
+/// or a trusted proxy reporting it, otherwise `http`) followed by the request
+/// `Host`. Comparison is ASCII case-insensitive; the lists are lower case.
+pub fn websocket_origin_allowed(
+    origin: &[u8],
+    host: Option<&[u8]>,
+    https: bool,
+    route_origins: &[Vec<u8>],
+    cors_origins: &[Vec<u8>],
+) -> bool {
+    if origin.is_empty() {
+        return true;
+    }
+    let origin = origin.to_ascii_lowercase();
+    if route_origins.iter().any(|o| o == b"*" || *o == origin)
+        || cors_origins.iter().any(|o| o != b"*" && *o == origin)
+    {
+        return true;
+    }
+    let scheme: &[u8] = if https { b"https://" } else { b"http://" };
+    match (host, origin.strip_prefix(scheme)) {
+        (Some(host), Some(authority)) => !host.is_empty() && host.eq_ignore_ascii_case(authority),
+        _ => false,
+    }
+}
+
+#[pyfunction]
+#[pyo3(name = "websocket_origin_allowed")]
+pub fn py_websocket_origin_allowed(
+    origin: Option<&str>,
+    host: Option<&str>,
+    https: bool,
+    route_origins: Vec<String>,
+    cors_origins: Vec<String>,
+) -> bool {
+    let bytes = |items: Vec<String>| -> Vec<Vec<u8>> {
+        items.into_iter().map(String::into_bytes).collect()
+    };
+    websocket_origin_allowed(
+        origin.unwrap_or("").as_bytes(),
+        host.map(str::as_bytes),
+        https,
+        &bytes(route_origins),
+        &bytes(cors_origins),
+    )
+}
+
 type ParamError = (&'static str, &'static str, String);
 
 fn parse_positive_param(
@@ -656,6 +707,44 @@ mod tests {
             "a;b"
         );
         assert_eq!(extract_boundary("application/json"), "");
+    }
+
+    #[test]
+    fn websocket_origin_follows_the_connection_scheme() {
+        let none: [Vec<u8>; 0] = [];
+        let allowed = |origin: &str, host: &str, https: bool| {
+            websocket_origin_allowed(
+                origin.as_bytes(),
+                Some(host.as_bytes()),
+                https,
+                &none,
+                &none,
+            )
+        };
+        assert!(allowed("http://app", "app", false));
+        assert!(!allowed("https://app", "app", false));
+        assert!(allowed("https://app", "app", true));
+        assert!(!allowed("http://app", "app", true));
+        assert!(allowed("HTTPS://App:8443", "app:8443", true));
+        assert!(!allowed("https://app", "app:443", true));
+        assert!(!allowed("https://app.", "app", true));
+        assert!(!allowed("https://app", "", true));
+        assert!(websocket_origin_allowed(b"", None, true, &none, &none));
+        let star = [b"*".to_vec()];
+        assert!(!websocket_origin_allowed(
+            b"https://x",
+            None,
+            true,
+            &none,
+            &star
+        ));
+        assert!(websocket_origin_allowed(
+            b"https://x",
+            None,
+            true,
+            &star,
+            &none
+        ));
     }
 
     #[test]

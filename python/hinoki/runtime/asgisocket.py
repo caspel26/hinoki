@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from hinoki import core
 from hinoki.runtime.requests import Scope
 from hinoki.websocket import CloseCode, WebSocketRoute
 
@@ -65,23 +66,32 @@ class ASGITransport:
         return sent
 
 
+# ``wss`` from the server, ``https`` from a trusted proxy's X-Forwarded-Proto
+# (``effective_scope`` writes that over the socket scheme).
+TLS_SCHEMES = ("wss", "https")
+
+
 def origin_allowed(
     route: WebSocketRoute, scope: Scope, cors_origins: frozenset[str] = frozenset()
 ) -> bool:
-    """An absent Origin (not a browser) passes; otherwise it must be one the
-    route names, one the application's CORS policy lists, or the scheme and
-    host the request was addressed to. The CORS wildcard is not honoured: a
-    handshake carries cookies and a browser does not hide its answer."""
+    """The Origin rule of the native lane, called rather than copied: an absent
+    Origin (not a browser) passes; otherwise it must be one the route names, one
+    the application's CORS policy lists, or the scheme the connection has
+    (``wss`` or a proxy-reported ``https`` is TLS, ``ws`` is http) and the Host
+    the request was addressed to. The CORS wildcard is not honoured: a
+    handshake carries cookies and a browser does not hide its answer. The route
+    and CORS origins are lower case already (registration and policy build), so
+    they are passed as is."""
     headers = {k.decode("latin-1").lower(): v for k, v in scope.get("headers", [])}
     origin = headers.get("origin")
-    if origin is None:
-        return True
-    value = origin.decode("latin-1").lower()
-    if "*" in route.origins or value in route.origins or value in cors_origins:
-        return True
-    host = headers.get("host", b"").decode("latin-1").lower()
-    page_scheme = "https" if scope.get("scheme") == "wss" else "http"
-    return bool(host) and value == f"{page_scheme}://{host}"
+    host = headers.get("host")
+    return core.websocket_origin_allowed(
+        None if origin is None else origin.decode("latin-1"),
+        None if host is None else host.decode("latin-1"),
+        scope.get("scheme") in TLS_SCHEMES,
+        list(route.origins),
+        list(cors_origins),
+    )
 
 
 async def connected(receive: Any) -> bool:

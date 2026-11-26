@@ -145,6 +145,7 @@ def run_of(payload: object, check: Callable[[object], bool]) -> tuple[Run, Recor
     binding = SimpleNamespace(
         response_check=check,
         response_schema=None,
+        response_scan=None,
         route=SimpleNamespace(status=200, name="route"),
         response_annotation="rows",
     )

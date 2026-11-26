@@ -158,7 +158,7 @@ class Note(Model):
 @db.table("notes_editors")
 class Editor(Model):
     id: UUID = pk(default_factory=uuid4)
-    token: str = field(unique=True)
+    token_hash: str = field(unique=True)  # SHA-256 hex digest of the token
 ```
 
 ```python
@@ -201,6 +201,8 @@ An `Access` policy pairs a token check with the permissions it requires ([Authen
 
 ```python
 # notes/apps/notes/security.py
+import hashlib
+
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from notes.apps.notes.models import Editor
@@ -212,7 +214,8 @@ class NotePermission(Permission):
 
 class EditorTokens(BearerAuth[Editor]):
     async def resolve_token(self, token: str) -> Caller[Editor] | None:
-        editor = await Editor.aget_or_none(token=token)
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        editor = await Editor.aget_or_none(token_hash=digest)
         if editor is None:
             return None
         return Caller(

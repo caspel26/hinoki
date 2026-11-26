@@ -203,7 +203,9 @@ class Client:
 
 def app(cors: tuple[str, ...] = (), **execution: Any) -> Hinoki:
     settings = AppSettings(
-        execution=ExecutionSettings(**execution), cors=CorsSettings(origins=cors)
+        allowed_hosts=("127.0.0.1",),  # WebSocket apps refuse "*" outside debug
+        execution=ExecutionSettings(**execution),
+        cors=CorsSettings(origins=cors),
     )
     built = Hinoki(settings=settings)
     built.include(echo, room, typed, private, speak, small, boom, browser, room_stats)

@@ -40,6 +40,13 @@ SCALARS = (
 )
 PAIR = 2
 NO_ANNOTATION = object()  # the action has no return annotation
+SIMPLE_RESPONSE_TYPES: frozenset[type] = frozenset(
+    {*SCALARS, dict, list, Response, type(None)}
+)
+
+
+class AliasError(RegistrationError):
+    """A PEP 695 alias that cannot be resolved; the binder adds the action's name."""
 
 
 class ResponseContractError(RuntimeError):
@@ -53,6 +60,14 @@ def compile_response_check(name: str, annotation: object) -> Check:
     """The check for ``annotation``; ``RegistrationError`` if it cannot be one.
 
     ``annotation`` is ``NO_ANNOTATION`` when the action has no return annotation."""
+    return compile_response_check_arms(name, annotation)[0]
+
+
+def compile_response_check_arms(
+    name: str, annotation: object
+) -> tuple[Check, list[object]]:
+    """Compile the check for ``annotation`` and return it with its split union
+    arms so route binding reuses them without unwrapping a second time."""
     if annotation is NO_ANNOTATION or annotation is Any or annotation is object:
         raise RegistrationError(
             f"{name}: the return annotation must name a concrete type so the "
@@ -60,11 +75,19 @@ def compile_response_check(name: str, annotation: object) -> Check:
             "scalar, dict, None or a union); annotate it, or declare the action "
             "with validate_response=False"
         )
-    arms = union_arms(annotation)
-    checks = [arm_check(name, arm) for arm in arms if arm is not Response]
+    try:
+        arms = union_arms(annotation)
+        checks = [arm_check(name, arm) for arm in arms if arm is not Response]
+    except RecursionError:  # a type alias that refers to itself
+        raise RegistrationError(
+            f"{name}: a recursive return type cannot be checked; declare the "
+            "action with validate_response=False"
+        ) from None
+    except AliasError as exc:
+        raise RegistrationError(f"{name}: {exc}") from exc
     if Response in arms:
         checks.append(lambda value: isinstance(value, Response))
-    return any_arm(checks)
+    return any_arm(checks), arms
 
 
 def any_arm(checks: list[Check]) -> Check:
@@ -94,9 +117,59 @@ def union_arms(annotation: object) -> list[object]:
 
 
 def unwrap(annotation: object) -> object:
-    while typing.get_origin(annotation) is typing.Annotated:
-        annotation = typing.get_args(annotation)[0]
-    return annotation
+    """``annotation`` without ``Annotated`` and without a PEP 695 ``type`` alias
+    (``type Items = list[Item]`` is ``list[Item]``, ``Box[Item]`` of
+    ``type Box[T] = list[T]`` too)."""
+    while True:
+        origin = typing.get_origin(annotation)
+        if origin is typing.Annotated:
+            annotation = typing.get_args(annotation)[0]
+        elif isinstance(annotation, typing.TypeAliasType):
+            annotation = read_alias_value(annotation)
+        elif isinstance(origin, typing.TypeAliasType):
+            annotation = alias_value(origin, typing.get_args(annotation))
+        else:
+            return annotation
+
+
+def read_alias_value(alias: typing.TypeAliasType) -> object:
+    """The target of ``alias``; ``AliasError`` when a forward name inside it
+    does not resolve."""
+    try:
+        return alias.__value__
+    except NameError as exc:
+        raise AliasError(
+            f"the type alias {alias.__name__} cannot be resolved ({exc}); "
+            "import the name outside TYPE_CHECKING or declare the action with "
+            "a plain return type"
+        ) from exc
+
+
+def alias_value(alias: typing.TypeAliasType, args: tuple[object, ...]) -> object:
+    """The value of ``alias[args]``: each type parameter replaced by its argument
+    (the order of ``__type_params__``, not the order the value first names them).
+    ``AliasError`` for a ``TypeVarTuple`` parameter or one that cannot be replaced."""
+    value = read_alias_value(alias)
+    if any(isinstance(p, typing.TypeVarTuple) for p in alias.__type_params__):
+        raise AliasError(
+            f"the type alias {alias.__name__}[...] has a TypeVarTuple parameter, "
+            "which cannot be resolved; declare the action with a plain return type"
+        )
+    mapping = dict(zip(alias.__type_params__, args, strict=False))
+    if isinstance(value, typing.TypeVar):
+        return mapping.get(value, value)
+    free = getattr(value, "__parameters__", ())
+    try:
+        return (
+            typing.cast("Any", value)[tuple(mapping[param] for param in free)]
+            if free
+            else value
+        )
+    except (KeyError, TypeError) as exc:
+        raise AliasError(
+            f"the type alias {alias.__name__}[...] cannot be resolved ({exc}); "
+            "declare the action with a plain return type"
+        ) from exc
 
 
 def arm_check(name: str, arm: object) -> Check:
@@ -159,15 +232,40 @@ def _schema_matches_annotation(schema_cls: type[Schema], annotation: object) -> 
     return False
 
 
-def page_check(annotation: object, item: Check) -> Check:
-    def check(value: object) -> bool:
-        if not isinstance(value, Page):
-            return False
-        if isinstance(value, _ProjectedPage) and value._projected_handle is not None:
-            return _schema_matches_annotation(value._schema, annotation)
-        return all(item(v) for v in value.items)
+class PageCheck:
+    """The check of ``Page[X]``. ``scan`` is the check and the narrowing scan in
+    one pass: 0 invalid, 1 valid with every item exactly ``X``, 2 valid otherwise."""
 
-    return check
+    def __init__(self, annotation: object, item: Check) -> None:
+        self.annotation = annotation
+        self.item = item
+        nested = unwrap(annotation)
+        self.native: core._ResponseTypeList | None = (
+            core._ResponseTypeList(nested, self.items_fallback)
+            if isinstance(nested, type) and issubclass(nested, Schema | Model)
+            else None
+        )
+
+    def items_fallback(self, value: object) -> bool:
+        return isinstance(value, list) and all(self.item(v) for v in value)
+
+    def scan(self, value: object) -> int:
+        if not isinstance(value, Page):
+            return 0
+        if isinstance(value, _ProjectedPage) and value._projected_handle is not None:
+            return (
+                2 if _schema_matches_annotation(value._schema, self.annotation) else 0
+            )
+        if self.native is not None:
+            return self.native.scan(value.items)
+        return 2 if self.items_fallback(value.items) else 0
+
+    def __call__(self, value: object) -> bool:
+        return self.scan(value) != 0
+
+
+def page_check(annotation: object, item: Check) -> Check:
+    return PageCheck(annotation, item)
 
 
 def list_check(annotation: object, item: Check) -> Check:

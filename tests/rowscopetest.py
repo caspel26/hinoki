@@ -263,6 +263,19 @@ class JwtScopedInvoices(API):
     pass
 
 
+@pytest.mark.filterwarnings("error:.*constrains writes only:UserWarning")
+def test_a_declared_row_scope_satisfies_the_owner_read_warning() -> None:
+    crud(
+        PlainInvoice,
+        path="/owner-with-scope",
+        read=PlainOut,
+        access=jwt_access,
+        owner="owner_id",
+        scope=plain_invoice_scope,
+        links={"tags": plain_tag_scope},
+    ).api()
+
+
 class CallerOwned(Model, table="rs_caller_owned"):
     id: UUID = uuid_pk()
     account_id: str

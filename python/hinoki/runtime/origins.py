@@ -21,6 +21,23 @@ PREFLIGHT_VARY = b"access-control-request-method, access-control-request-headers
 VARY_ORIGIN = (b"vary", b"origin")
 ALLOW_ORIGIN = b"access-control-allow-origin"
 
+# A lifespan or request scope key set by in-process drivers (the test clients,
+# the MCP scenario runner): no network Host header reaches them.
+IN_PROCESS = "hinoki.in_process"
+
+# What the host policy accepts when ``debug`` is on, ``allowed_hosts`` is ``*``
+# and the app serves a feature that decides same-origin from the Host header:
+# ``localhost`` and its subdomains, the whole 127.0.0.0/8 block (the entry the
+# Rust matcher reads as that block) and the IPv6 loopback address.
+LOOPBACK_HOSTS = ("localhost", ".localhost", "127.0.0.0/8", "::1")
+
+
+def host_trusting_feature(app: Any) -> str | None:
+    """What the app serves that decides same-origin from the Host header."""
+    if app.has_admin:
+        return "the admin"
+    return "WebSocket routes" if app.websockets else None
+
 
 class _HostNameFn(Protocol):
     def __call__(self, value: str) -> str: ...
@@ -74,21 +91,37 @@ class HostPolicy:
     exact: frozenset[str]
     suffixes: tuple[str, ...]
     _native: _NativeHostPolicy = field(init=False, repr=False, compare=False)
+    # True for the loopback-only policy no setting asked for (see ``of``).
+    implicit: bool = field(default=False, compare=False)
 
     def __post_init__(self) -> None:
         native = _HostPolicyCls([*self.exact, *self.suffixes])
         object.__setattr__(self, "_native", native)
 
     @classmethod
-    def of(cls, settings: object) -> HostPolicy | None:
-        if not isinstance(settings, AppSettings) or ANY in settings.allowed_hosts:
+    def of(cls, settings: object, *, host_trusting: bool = False) -> HostPolicy | None:
+        """The policy the settings name. With ``allowed_hosts`` left at ``*`` and
+        ``debug`` on, an app that serves a ``host_trusting`` feature (the admin,
+        WebSocket routes) gets the loopback hosts only, so DNS rebinding cannot
+        reach a development server; an explicit list is always used as given."""
+        if not isinstance(settings, AppSettings):
             return None
-        native = _HostPolicyCls(list(settings.allowed_hosts))
+        implicit = ANY in settings.allowed_hosts
+        if implicit and not (settings.debug and host_trusting):
+            return None
+        entries = LOOPBACK_HOSTS if implicit else settings.allowed_hosts
+        native = _HostPolicyCls(list(entries))
         policy = object.__new__(cls)
         object.__setattr__(policy, "exact", frozenset(native.exact))
         object.__setattr__(policy, "suffixes", tuple(native.suffixes))
         object.__setattr__(policy, "_native", native)
+        object.__setattr__(policy, "implicit", implicit)
         return policy
+
+    def exempts(self, scope: Any) -> bool:
+        """Whether an in-process driver's request skips an implicit policy: its
+        Host is not a network Host. An explicit policy always applies."""
+        return self.implicit and bool(scope.get(IN_PROCESS))
 
     def allows(self, header: str) -> bool:
         return self._native.allows(header)

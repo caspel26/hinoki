@@ -50,13 +50,15 @@ from hinoki.modules import ModuleContext
 from hinoki.orm.context import database_var
 from hinoki.orm.links import check_resolved
 from hinoki.orm.model import Model
-from hinoki.orm.projection import _ProjectedItem
+from hinoki.orm.projection import _ProjectedItem, _ProjectedList, _ProjectedPage
+from hinoki.pagination import CursorPage
 from hinoki.pagination import Page as ResultPage
 from hinoki.parsers import JSONParser, Parser, choose, is_native_parser
 from hinoki.ratelimit import RateLimit, RateLimitContext
 from hinoki.renderers import (
     JSONRenderer,
     Renderer,
+    XMLRenderer,
     is_default_json_renderer,
     negotiate,
 )
@@ -72,7 +74,12 @@ from hinoki.runtime.deprecation import Reminders
 from hinoki.runtime.executor import ExecutorSaturated, SyncExecutor
 from hinoki.runtime.inline import RequestDeadline, run_inline
 from hinoki.runtime.lifespan import Lifespan
-from hinoki.runtime.origins import ALLOW_ORIGIN, CorsPolicy, HostPolicy
+from hinoki.runtime.origins import (
+    ALLOW_ORIGIN,
+    CorsPolicy,
+    HostPolicy,
+    host_trusting_feature,
+)
 from hinoki.runtime.proxy import (
     build_proxy_policy,
     effective_client,
@@ -240,7 +247,9 @@ class Pipeline:
             app.settings.logging if isinstance(app.settings, AppSettings) else None
         )
         self.debug = isinstance(app.settings, AppSettings) and app.settings.debug
-        self.hosts = HostPolicy.of(app.settings)
+        self.hosts = HostPolicy.of(
+            app.settings, host_trusting=host_trusting_feature(app) is not None
+        )
         self.cors = CorsPolicy.of(app.settings)
         self.route_cors = [
             None if b.route.cors is None else CorsPolicy.from_cors(b.route.cors)
@@ -539,7 +548,7 @@ class Pipeline:
                 try:
                     result = await self._hydrate_native_rows(action, fallback)
                     binding = self.bindings[action]
-                    result = project_response(binding.response_schema, result)
+                    result = shape_result(binding, result)
                     body = core.encode_json(result, None, False, None)
                     return Response.rendered(
                         binding.route.status, body, "application/json", False
@@ -1324,7 +1333,7 @@ class Pipeline:
 
     def _guard(self, scope: Scope, headers: dict[str, str]) -> Response | None:
         """Refuse a host that is not allowed; answer a CORS preflight."""
-        if self.hosts is not None:
+        if self.hosts is not None and not self.hosts.exempts(scope):
             self.hosts.check(headers.get("host", ""))
         policy = self._preflight_policy(scope, headers)
         if policy is None:
@@ -1516,9 +1525,12 @@ class Pipeline:
             return await self._streamed(binding, result)
         if isinstance(result, HandlerResponse):
             return Response(result.status, result.body, result.headers)
-        enforce_response(binding, result)
+        exact = enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
-            result = project_response(binding.response_schema, result)
+            # a built-in renderer encodes the declared fields itself (one type
+            # lookup per request); any other takes objects as a readable view
+            view = renderer.consumes_objects and type(renderer) not in BUILTIN_OBJECTS
+            result = shape_result(binding, result, exact, view)
             shown = result if renderer.consumes_objects else encode(result)
             if request is None:  # only the stock JSON renderer runs without one
                 body = core.encode_json(shown, None, False, None)
@@ -1728,10 +1740,9 @@ class Pipeline:
             return await self._plain_response(binding, result)
         # A deferred exact list is checked while Rust encodes it (`Response.strict`).
         fused = defer and binding.fused_check and type(result) is list
-        if not fused:
-            enforce_response(binding, result)
+        exact = False if fused else enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
-            result = project_response(binding.response_schema, result)
+            result = shape_result(binding, result, exact)
             return self._native_rendered(
                 binding, result, native, defer=defer, strict=fused
             )
@@ -1828,14 +1839,22 @@ class Pipeline:
             ) from None
 
 
-def enforce_response(binding: Binding, result: object) -> None:
+def enforce_response(binding: Binding, result: object) -> bool:
     """With ``validate_response=True``, refuse a result the annotation does not
-    allow; the error names the action, never the value."""
+    allow; the error names the action, never the value. ``True`` when the same
+    pass proved a list holds exactly the declared item Schema (nothing to narrow)."""
     check = binding.response_check
-    if check is None or binding.route.status in BODYLESS or check(result):
-        return
+    if check is None or binding.route.status in BODYLESS:
+        return False
+    scan = binding.response_scan
+    if scan is not None:
+        verdict = scan(result)
+        if verdict:
+            return verdict == 1
+    elif check(result):
+        return False
     if binding.response_schema is not None and isinstance(result, Model):
-        return  # a Model is projected through the declared Schema right after
+        return False  # a Model is projected through the declared Schema right after
     raise ResponseContractError(
         f"{binding.route.name} returned a {type(result).__name__} that does not "
         f"match its return annotation {binding.response_annotation}"
@@ -1869,6 +1888,9 @@ def valid_refusal(error: TooManyRequests) -> bool:
     )
 
 
+BUILTIN_OBJECTS = frozenset({JSONRenderer, XMLRenderer})
+
+
 class ResponseProjectionError(RuntimeError):
     """The handler's own return value does not satisfy its response Schema.
 
@@ -1877,7 +1899,103 @@ class ResponseProjectionError(RuntimeError):
     client."""
 
 
-def project_response(schema: type[Schema] | None, value: object) -> object:
+def shape_result(
+    binding: Binding, result: object, exact: bool = False, view: bool = False
+) -> object:
+    """A handler result as the declared annotation shows it: narrowed to the
+    Schema its annotation names, wherever the annotation holds one. ``view``: for
+    a renderer that reads objects, a narrowed instance is a ``core.Narrowed``
+    (it reads as the declared Schema) and not its dumped dict."""
+    if binding.narrow_schema is not None:
+        return narrow_result(binding.narrow_schema, result, exact, view)
+    if binding.narrow_guide is not None:
+        return binding.narrow_guide.narrow(result, view)
+    return project_response(binding.response_schema, result, view)
+
+
+def narrow_instance(schema: type[Schema], value: Schema, view: bool = False) -> object:
+    """``value`` as the declared ``schema``: itself when it is exactly that
+    Schema (or its lazy projection), else what ``schema`` declares: its fields and
+    computed values, nested values narrowed by its own field types. A ``schema``
+    that overrides ``dump()`` decides: that ``dump()`` runs on the instance,
+    restricted to the declared fields. With ``view`` an exact instance is a
+    ``core.Narrowed`` too, so that a subclass instance in one of its fields
+    reaches a renderer that reads objects as the class its field declares."""
+    if type(value) is schema or (
+        isinstance(value, _ProjectedItem)
+        and value._projected_handle is not None
+        and value._schema is schema
+    ):
+        return core.Narrowed(value, schema) if view else value
+    narrowed = core.dump_as(value, schema)
+    if narrowed is None:
+        return core.declared_dump(value, schema)
+    return core.Narrowed(value, schema) if view else narrowed
+
+
+def narrow_result(
+    schema: type[Schema], value: object, exact: bool = False, view: bool = False
+) -> object:
+    """Shape a handler result declared ``list[S]``, ``Page[S]``, ``CursorPage[S]``
+    or ``S | None`` (``schema`` is ``S``): strict subclasses of ``S`` are sent
+    with the declared fields only. ``exact``: the validation pass already proved a
+    list holds nothing but ``S`` (a view still wraps each of them)."""
+    if exact and not view:
+        return value
+    if isinstance(value, tuple):  # a tuple returned for list[S] is narrowed too
+        value = list(value)
+    if isinstance(value, list):
+        return narrow_items(schema, value, view)
+    if isinstance(value, (ResultPage, CursorPage)):
+        return narrow_page(schema, value, view)
+    return narrow_instance(schema, value, view) if isinstance(value, schema) else value
+
+
+def narrow_items(
+    schema: type[Schema], items: list[Any], view: bool = False
+) -> list[Any]:
+    """``items`` with every strict subclass of ``schema`` narrowed to its
+    declared fields; the same list when every item is exactly ``schema``."""
+    if (
+        not view
+        and type(items) is not list
+        and isinstance(items, _ProjectedList)
+        and items._projected_handle is not None
+    ):
+        lazy = items._schema
+        if lazy is schema or not issubclass(lazy, schema):
+            return items  # pre-encoded as the declared Schema, or not ours to narrow
+    if not view and core.all_exact(items, schema):
+        return items
+    return [
+        narrow_instance(schema, item, view) if isinstance(item, schema) else item
+        for item in items
+    ]
+
+
+def narrow_page(
+    schema: type[Schema], page: ResultPage[Any] | CursorPage[Any], view: bool = False
+) -> ResultPage[Any] | CursorPage[Any]:
+    """The same narrowing for the items of a page (a new page when any changed)."""
+    if (
+        not view
+        and isinstance(page, _ProjectedPage)
+        and page._projected_handle is not None
+    ):
+        lazy = page._schema
+        if lazy is schema or not issubclass(lazy, schema):
+            return page
+    narrowed = narrow_items(schema, page.items, view)
+    if narrowed is page.items:
+        return page
+    if isinstance(page, ResultPage):
+        return ResultPage(narrowed, page.page, page.page_size, page.total)
+    return CursorPage(narrowed, page.next, page.previous, page.page_size)
+
+
+def project_response(
+    schema: type[Schema] | None, value: object, view: bool = False
+) -> object:
     """Shape a handler result by its single declared response Schema.
 
     A Model is projected with ``from_model()``; an instance of a Schema subclass
@@ -1886,12 +2004,7 @@ def project_response(schema: type[Schema] | None, value: object) -> object:
     if schema is None:
         return value
     if isinstance(value, schema):
-        is_exact = type(value) is schema or (
-            isinstance(value, _ProjectedItem)
-            and value._projected_handle is not None
-            and value._schema is schema
-        )
-        return value if is_exact else value.dump(include=schema.specs())
+        return narrow_instance(schema, value, view)
     if not isinstance(value, Model):
         return value
     source = schema.__derived_model__
@@ -1901,9 +2014,10 @@ def project_response(schema: type[Schema] | None, value: object) -> object:
             f"not {type(value).__name__}"
         )
     try:
-        return schema.from_model(value)
+        projected = schema.from_model(value)
     except ValidationError as exc:
         raise ResponseProjectionError(
             f"the {type(value).__name__} returned by the handler does not "
             f"satisfy {schema.__name__}"
         ) from exc
+    return narrow_instance(schema, projected, view) if view else projected

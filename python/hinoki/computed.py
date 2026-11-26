@@ -30,14 +30,42 @@ class ComputedSpec:
     def wire_name(self) -> str:
         return self.alias or self.name
 
+    def return_hint(self, owner: type, include_extras: bool) -> Any:
+        """The resolved return annotation. The type parameters of ``owner``
+        resolve by name (a ``from __future__ import annotations`` module writes
+        ``-> V`` as text), and a parameterized ``Envelope[Public]`` gets its
+        arguments in their place. ``RegistrationError`` for a name that does not
+        resolve."""
+        from hinoki.generics import TYPE_ARGUMENTS, substitute  # noqa: PLC0415 - generics import schema
+
+        arguments = getattr(owner, TYPE_ARGUMENTS, None)
+        parameters = arguments or getattr(owner, "__parameters__", None) or ()
+        try:
+            hints = typing.get_type_hints(
+                self.function,
+                localns={parameter.__name__: parameter for parameter in parameters},
+                include_extras=include_extras,
+            )
+        except NameError as exc:
+            raise RegistrationError(f"{owner.__name__}.{self.name}: {exc}") from exc
+        return substitute(hints["return"], arguments) if arguments else hints["return"]
+
     def field_type(self, owner: type) -> FieldType:
         """The type of the value, from the return annotation of the method."""
         where = f"{owner.__name__}.{self.name}"
-        try:
-            hints = typing.get_type_hints(self.function, include_extras=True)
-        except NameError as exc:
-            raise RegistrationError(f"{where}: {exc}") from exc
-        return parse_annotation(hints["return"], where, input_bounds=False)
+        return parse_annotation(
+            self.return_hint(owner, True), where, input_bounds=False
+        )
+
+    def guide_spec(self, owner: type) -> tuple[str, Any] | None:
+        """What the return annotation declares about nested Schemas, as the spec
+        of ``core._ReturnGuide`` (``None`` when it declares none): a method that
+        returns a subclass instance is written as the declared class.
+        ``RegistrationError`` for a name that does not resolve: the value would
+        be written whole."""
+        from hinoki.runtime.binding import guide_spec  # noqa: PLC0415 - runtime imports schema
+
+        return guide_spec(self.return_hint(owner, False))
 
 
 class ComputedMark:

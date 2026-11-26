@@ -21,6 +21,7 @@ mod compile;
 mod internet;
 mod model;
 mod modelplan;
+mod narrow;
 mod scalars;
 mod serialize;
 #[cfg(test)]
@@ -29,21 +30,26 @@ mod typeddecode;
 mod validate;
 mod views;
 
-pub(crate) use compile::json_field_plan;
-pub use compile::{check_pattern, compile_schemas, instance_fields};
+pub use compile::{check_pattern, compile_schemas};
+pub(crate) use compile::{class_fields, json_field_plan, json_field_plan_of};
 pub use model::Compiled;
 #[allow(unused_imports)]
 pub(crate) use model::{
-    Defer, Direct, JsonFieldPlan, NativeLimit, NativeRules, NativeSchema, Number, Options, Problem,
-    PyRules, Validated,
+    Defer, Direct, FieldGuides, JsonFieldPlan, NativeLimit, NativeRules, NativeSchema, Number,
+    Options, Problem, PyRules, Validated,
 };
 use model::{Definition, Kind, Node, MAX_DEPTH};
 #[allow(unused_imports)]
 pub use model::{SchemaInstanceFields, SchemaWireNames};
 pub use modelplan::ModelPlan;
+pub(crate) use narrow::{narrow, narrowed_parts};
+pub use narrow::{Narrowed, ReturnGuide};
 pub use scalars::wire_text_of;
 pub(crate) use scalars::{parse_date, wire_text, DECIMAL_DIGITS_CEILING, SECRET_MASK};
-pub use serialize::{dump_for_storage, dump_instance, serialize_instance};
+pub(crate) use serialize::declared_dump;
+pub use serialize::{
+    declared_dump_py, dump_as, dump_for_storage, dump_instance, serialize_instance,
+};
 pub use typeddecode::{NativeInit, NativeMethod, Pinned};
 use validate::is_composite;
 use views::{compare_numbers, holds};

@@ -11,7 +11,7 @@ related:
 The HTTP layer maps requests to operations and results to responses. It holds
 no business rule and no SQL.
 
-First, who may call. A bearer token resolves to a `Member`, and the policy
+First, who may call. A bearer token resolves to a `Member` through its SHA-256 digest (the table never holds the token), and the policy
 names the permission that every task action requires. The policy lives in the
 members app, so every app reuses it:
 
@@ -19,9 +19,16 @@ members app, so every app reuses it:
 # tracker/apps/members/security.py
 """Authentication: an opaque bearer token resolved to a ``Member``."""
 
+import hashlib
+
 from hinoki import Access, BearerAuth, Caller, Permission
 
 from .models import Member
+
+
+def hash_token(token: str) -> str:
+    """The SHA-256 hex digest stored instead of the token (high-entropy, so no KDF)."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class MemberPermission(Permission):
@@ -30,7 +37,7 @@ class MemberPermission(Permission):
 
 class MemberTokens(BearerAuth[Member]):
     async def resolve_token(self, token: str) -> Caller[Member] | None:
-        member = await Member.aget_or_none(token=token)
+        member = await Member.aget_or_none(token_hash=hash_token(token))
         if member is None:
             return None
         return Caller(

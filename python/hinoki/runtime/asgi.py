@@ -20,6 +20,7 @@ from hinoki.runtime.asgisocket import (
     origin_allowed,
     refuse,
 )
+from hinoki.runtime.origins import IN_PROCESS, host_trusting_feature
 from hinoki.runtime.pipeline import Pipeline
 from hinoki.runtime.proxy import effective_scope
 from hinoki.runtime.requests import Scope, decode_params, header_map, read_body
@@ -32,7 +33,6 @@ from hinoki.runtime.streaming import (
     pump_asgi,
     reader_for,
 )
-from hinoki.settings import ANY, AppSettings
 from hinoki.websocket import WebSocketRoute
 
 if TYPE_CHECKING:
@@ -42,11 +42,6 @@ log = logging.getLogger("hinoki.runtime")
 
 PATHSEND = "http.response.pathsend"
 
-# A lifespan scope key set by in-process drivers (the test clients, the MCP
-# scenario runner): no network Host header reaches them, so the startup warning
-# about ``allowed_hosts = *`` would only be noise there.
-IN_PROCESS = "hinoki.in_process"
-
 ANY_HOST_WARNING = (
     "allowed_hosts is '*' and debug is off: every Host header is accepted, so "
     "links, redirects and cache keys built from it (a password-reset link, for "
@@ -55,15 +50,25 @@ ANY_HOST_WARNING = (
     '(".example.com",) for a domain and its subdomains'
 )
 
+HOST_CHECK_REQUIRED = (
+    "allowed_hosts is '*' and debug is off, but this app serves {what}, whose "
+    "same-origin check trusts the Host header the client sent (DNS rebinding "
+    "passes it); name the served hosts, e.g. "
+    'allowed_hosts=("app.example.com",)'
+)
 
-def accepts_any_host(settings: object) -> bool:
-    """Whether a deployment with these settings answers to every Host header
-    while ``debug`` is off."""
-    return (
-        isinstance(settings, AppSettings)
-        and not settings.debug
-        and settings.allowed_hosts == (ANY,)
-    )
+
+LOOPBACK_ONLY_WARNING = (
+    "debug is on and allowed_hosts is '*': this app serves the admin or "
+    "WebSocket routes, so only loopback Host names (localhost, 127.0.0.0/8, "
+    "[::1]) are accepted; set allowed_hosts to serve other names"
+)
+
+
+def accepts_any_host(pipeline: Pipeline) -> bool:
+    """Whether the app answers to every Host header while ``debug`` is off:
+    no host policy applies, which includes an app built without settings."""
+    return pipeline.hosts is None and not pipeline.debug
 
 
 class ASGIBody:
@@ -131,10 +136,13 @@ class ASGIAdapter:
         decoded, so decoding it again would turn ``%252f`` into ``/``), after
         the Host policy. ``None`` refuses the handshake."""
         pipeline = self.pipeline
-        if pipeline.hosts is not None:
-            host = header_map(scope).get("host", "")
-            if not pipeline.hosts.allows(host):
-                return None
+        hosts = pipeline.hosts
+        if (
+            hosts is not None
+            and not hosts.exempts(scope)
+            and not hosts.allows(header_map(scope).get("host", ""))
+        ):
+            return None
         raw_path = scope.get("raw_path")
         try:
             path = scope["path"] if raw_path is None else pipeline.raw_target(raw_path)
@@ -165,8 +173,18 @@ class ASGIAdapter:
             self.pipeline.logging.apply()
         if self.pipeline.debug:
             log.warning("debug is on: error responses include tracebacks")
-        if served and accepts_any_host(self.pipeline.app.settings):
+        if served and accepts_any_host(self.pipeline):
+            what = host_trusting_feature(self.pipeline.app)
+            if what is not None:
+                message = HOST_CHECK_REQUIRED.format(what=what)
+                log.error(message)
+                await send({"type": "lifespan.startup.failed", "message": message})
+                return True
             log.warning(ANY_HOST_WARNING)
+        elif (
+            served and self.pipeline.hosts is not None and self.pipeline.hosts.implicit
+        ):
+            log.warning(LOOPBACK_ONLY_WARNING)
         try:
             await self.lifespan.startup()
         except StartupError as exc:

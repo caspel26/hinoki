@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from blog.apps.blog import models
+from blog.apps.blog.security import hash_token
 from blog.settings import BlogSettings
 from blogworld import ADMIN_SECRET, JWT_SECRET, PASSWORD, World
 
@@ -40,19 +41,25 @@ async def world(tmp_path: Path) -> AsyncIterator[World]:
         ada = await models.User.acreate(
             publication_id=press.id,
             name="Ada",
-            token="ada-token",
+            token_hash=hash_token("ada-token"),
             is_editor=True,
             username="ada",
             password_hash=await hasher.hash(PASSWORD),
         )
         await models.User.acreate(
-            publication_id=press.id, name="Rae", token="rae-token"
+            publication_id=press.id, name="Rae", token_hash=hash_token("rae-token")
         )
         await models.User.acreate(
-            publication_id=press.id, name="NoPassword", token="np", username="nopass"
+            publication_id=press.id,
+            name="NoPassword",
+            token_hash=hash_token("np"),
+            username="nopass",
         )
         bob = await models.User.acreate(
-            publication_id=cedar.id, name="Bob", token="bob-token", is_editor=True
+            publication_id=cedar.id,
+            name="Bob",
+            token_hash=hash_token("bob-token"),
+            is_editor=True,
         )
         await models.Post.acreate(
             publication_id=press.id,

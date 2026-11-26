@@ -3,6 +3,9 @@
 //! Scope: the path router, the database bridge, the SQL compiler and request
 //! decoding / JSON (see `request.rs`).
 
+// Unsafe code is denied crate-wide; each use is allowed on its own function with a SAFETY comment.
+#![deny(unsafe_code)]
+
 #[cfg(not(unix))]
 compile_error!("Hinoki supports Linux and macOS. On Windows, install and run it inside WSL2.");
 
@@ -130,6 +133,9 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRouter>()?;
     m.add_class::<responsecheck::ResponseObjectList>()?;
     m.add_class::<responsecheck::ResponseTypeList>()?;
+    m.add_class::<schema::ReturnGuide>()?;
+    m.add_class::<schema::Narrowed>()?;
+    m.add_function(wrap_pyfunction!(responsecheck::all_exact, m)?)?;
     m.add_class::<crudplan::PyCrudPlan>()?;
     m.add_class::<filters::PyFilterPlan>()?;
     db::register(m)?;
@@ -185,6 +191,8 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(schema::check_pattern, m)?)?;
     m.add_function(wrap_pyfunction!(schema::wire_text_of, m)?)?;
     m.add_function(wrap_pyfunction!(schema::dump_instance, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::dump_as, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::declared_dump_py, m)?)?;
     m.add_function(wrap_pyfunction!(schema::serialize_instance, m)?)?;
     m.add_function(wrap_pyfunction!(schema::dump_for_storage, m)?)?;
     m.add_class::<schema::ModelPlan>()?;
@@ -225,6 +233,7 @@ fn core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(web::parse_uuid, m)?)?;
     m.add_function(wrap_pyfunction!(web::extract_boundary, m)?)?;
     m.add_function(wrap_pyfunction!(web::same_site_origin, m)?)?;
+    m.add_function(wrap_pyfunction!(web::py_websocket_origin_allowed, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_page_params, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_cursor_params, m)?)?;
     m.add_function(wrap_pyfunction!(web::parse_dotenv, m)?)?;

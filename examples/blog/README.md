@@ -30,10 +30,15 @@ migrations (`0002-tags` adds the tags and the generated bridge table); the admin
 
 ## Run
 
-From this directory. The admin needs a signing secret of at least 32 bytes:
+From this directory. The admin needs a signing secret of at least 32 bytes and,
+because its CSRF check compares the `Origin` header with the `Host` header, named
+`allowed_hosts`; a served app with the admin and `allowed_hosts` left at `*`
+refuses to start (with `BLOG_DEBUG=true` it starts and accepts only loopback
+hosts: `localhost`, `127.0.0.0/8`, `[::1]`):
 
 ```sh
 export BLOG_ADMIN__SECRET=a-local-development-secret-with-32-bytes
+export BLOG_ALLOWED_HOSTS=127.0.0.1,localhost
 uv run hinoki migrations apply
 uv run hinoki admin create-superuser ada
 uv run hinoki dev
@@ -41,7 +46,7 @@ uv run hinoki dev
 
 `migrations apply` creates the Blog tables and the admin's user tables in
 `.hinoki/local.sqlite3`. For another database export `BLOG_DATABASE__URL`;
-`hinoki migrations` and `hinoki dev` both read it.
+`hinoki migrations` and `hinoki dev` both read it. A local SQLite database created before tokens were stored as digests has the old `blog_users` column: delete `.hinoki/local.sqlite3` and migrate again.
 
 Open `/admin` and sign in as the superuser; `/docs` shows the OpenAPI UI.
 `BLOG_JWT_SECRET` switches on `POST /auth/login`.
@@ -55,13 +60,14 @@ uv run hinoki migrations apply admin
 
 The seed applies the Blog migrations itself (use it instead of
 `migrations apply` on a fresh disposable database), then inserts two
-publications, three users and twelve posts. The first publication's editor
-token is `demo-editor-token` and the second's is `demo-other-token`: each sees
-only its own drafts.
+publications, three users and twelve posts. It prints one random bearer token
+per user, once (the table keeps only its SHA-256 digest): `ada` is the first publication's editor and `bob` the
+second's, and each sees only their own drafts. Export `ada`'s token:
 
 ```sh
-curl localhost:8000/posts/drafts -H "authorization: Bearer demo-editor-token"
-curl localhost:8000/posts/export.csv -H "authorization: Bearer demo-editor-token"
+export TOKEN=<the token printed for ada>
+curl localhost:8000/posts/drafts -H "authorization: Bearer $TOKEN"
+curl localhost:8000/posts/export.csv -H "authorization: Bearer $TOKEN"
 ```
 
 ## Check, MCP and metrics

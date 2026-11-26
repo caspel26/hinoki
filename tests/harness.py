@@ -19,8 +19,9 @@ class Reply:
 class Client:
     """Drives one adapter through the ASGI lifespan and http protocols."""
 
-    def __init__(self, adapter: ASGIAdapter) -> None:
+    def __init__(self, adapter: ASGIAdapter, *, host: str | None = None) -> None:
         self.adapter = adapter
+        self.host = host  # sent when a request names no Host, as a browser would
         self.inbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self.outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self.task: asyncio.Task[None] | None = None
@@ -48,6 +49,8 @@ class Client:
         scheme: str | None = None,
     ) -> Reply:
         incoming = {"type": "http.request", "body": body, "more_body": False}
+        if self.host is not None and "host" not in {k.lower() for k in headers or {}}:
+            headers = {**(headers or {}), "host": self.host}
         scope: dict[str, Any] = {
             "type": "http",
             "method": method,
@@ -104,8 +107,8 @@ class Pool:
     def __init__(self) -> None:
         self.clients: list[Client] = []
 
-    async def start(self, app: Hinoki) -> Client:
-        client = Client(app.asgi())
+    async def start(self, app: Hinoki, *, host: str | None = None) -> Client:
+        client = Client(app.asgi(), host=host)
         self.clients.append(client)
         assert await client.lifespan_event("startup") == "lifespan.startup.complete"
         return client

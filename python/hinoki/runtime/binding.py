@@ -13,6 +13,7 @@ constructible without arguments.
 
 from __future__ import annotations
 
+import collections.abc
 import inspect
 import re
 import typing
@@ -29,15 +30,19 @@ from hinoki.errors import (
     RegistrationError,
     ValidationError,
 )
+from hinoki.fields import carries_field
 from hinoki.filters import FilterSet
 from hinoki.handlerhints import hints_of, signature_of
 from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.http.stream import Streamed
 from hinoki.modules import Resource
+from hinoki.orm.model import Model
 from hinoki.pagination import (
+    CursorPage,
     CursorPagination,
     CursorParams,
+    Page,
     PageNumberPagination,
     PageParams,
     Pagination,
@@ -48,9 +53,13 @@ from hinoki.routing import Route
 from hinoki.runtime.deprecation import header_of
 from hinoki.runtime.responsecheck import (
     NO_ANNOTATION,
+    SIMPLE_RESPONSE_TYPES,
+    AliasError,
     Check,
-    compile_response_check,
+    compile_response_check_arms,
+    read_alias_value,
     union_arms,
+    unwrap,
 )
 from hinoki.runtime.responses import BODYLESS
 from hinoki.schema import Schema
@@ -242,6 +251,11 @@ class Binding:
     response_annotation: str = field(default="", repr=False, compare=False)
     row_wire: RowWireSelection | None = field(default=None, repr=False, compare=False)
     streams: bool = False  # the return annotation names Stream, EventStream or File
+    # S when the return type is `list[S]`, `Page[S]`, `CursorPage[S]` or `S | None`
+    narrow_schema: type[Schema] | None = None
+    # any other return annotation that holds a Schema (`dict[str, S]`,
+    # `tuple[S, ...]`, `list[list[S]]`, a `TypedDict`...): its native guide
+    narrow_guide: core._ReturnGuide | None = None
     stream_capable: bool = False  # Response may be a stream, including FileStorage
     is_async: bool = field(init=False, repr=False, compare=False)
     native_input_names: tuple[str, ...] = field(init=False, repr=False, compare=False)
@@ -249,6 +263,10 @@ class Binding:
     principal_name: str | None = field(init=False, repr=False, compare=False)
     default_json: bool = field(init=False, repr=False, compare=False)
     fused_check: bool = field(init=False, repr=False, compare=False)
+    # the response check and the narrowing scan of a `list[S]` in one native pass
+    response_scan: Callable[[object], int] | None = field(
+        init=False, repr=False, compare=False
+    )
     native_defaults: tuple[tuple[str, object], ...] = field(
         init=False, repr=False, compare=False
     )
@@ -284,6 +302,11 @@ class Binding:
             and self.response_schema is None
             and isinstance(self.response_check, core._ResponseObjectList)
             and self.route.status not in BODYLESS,
+        )
+        object.__setattr__(
+            self,
+            "response_scan",
+            getattr(self.response_check, "scan", None) if self.narrow_schema else None,
         )
         principals = [p.name for p in self.params if p.source == "principal"]
         object.__setattr__(
@@ -648,6 +671,30 @@ def text_sources(route: Route) -> dict[str, TextSource]:
     return found
 
 
+def check_scalar_constraints(route: Route, params: tuple[Param, ...]) -> None:
+    """Refuse ``Field(...)`` on a scalar path or query parameter: nothing would
+    enforce it, so the constraint would be silently ignored. ``bind`` has already
+    resolved the annotations, so a failure here cannot happen."""
+    scalars = {p.name for p in params if p.source in {"path", "query"}}
+    try:
+        written = route.handler.__annotations__
+    except (
+        NameError,
+        TypeError,
+    ):  # pragma: no cover - Python 3.14 evaluates annotations lazily
+        written = {}
+    if all(isinstance(written.get(name), type) for name in scalars):
+        return  # a plain class (`n: int`) cannot carry a `Field(...)`
+    for name, hint in hints_of(route.handler, include_extras=True).items():
+        if name in scalars and carries_field(hint):
+            raise RegistrationError(
+                f"{route.name}: `Field(...)` on the scalar parameter {name!r} "
+                "is not enforced, and its description and examples are not read "
+                "either; declare the constraints in a `Schema` and take it as "
+                "`Query[Schema]` or as the body"
+            )
+
+
 def declared_source(route: Route) -> TextSource | None:
     """The text source a body action binds with ``Form[...]``/``XML[...]``, which
     decides the parsers it needs."""
@@ -811,6 +858,14 @@ def describe_annotation(annotation: object) -> str:
 
 
 def bind(route: Route) -> Binding:
+    try:
+        return bind_checked(route)
+    except AliasError as exc:
+        # a PEP 695 alias in an annotation that cannot be resolved
+        raise RegistrationError(f"{route.name}: {exc}") from exc
+
+
+def bind_checked(route: Route) -> Binding:
     parameters = handler_parameters(route)
     check_owner(route)
     try:
@@ -844,6 +899,7 @@ def bind(route: Route) -> Binding:
         raise RegistrationError(
             f"{route.name}: pagination=... needs a PageParams or CursorParams parameter"
         )
+    check_scalar_constraints(route, params)
     check_query_schema(route, params)
     check_filters(route, params)
     check_body_and_files(route, params, sources)
@@ -857,10 +913,14 @@ def bind(route: Route) -> Binding:
         and response is not Schema
         else None
     )
-    response_check = (
-        compile_response_check(route.name, hints.get("return", NO_ANNOTATION))
-        if route.validate_response
-        else None
+    if route.validate_response:
+        response_check, response_arms = compile_response_check_arms(
+            route.name, hints.get("return", NO_ANNOTATION)
+        )
+    else:
+        response_check, response_arms = None, None
+    narrow_schema, narrow_guide = response_narrowing(
+        response, response_schema, response_arms
     )
     return Binding(
         route,
@@ -872,6 +932,236 @@ def bind(route: Route) -> Binding:
         describe_annotation(hints.get("return", NO_ANNOTATION)),
         streams=streams,
         stream_capable=stream_capable,
+        narrow_schema=narrow_schema,
+        narrow_guide=narrow_guide,
+    )
+
+
+def is_plain_return(annotation: object) -> bool:
+    """Whether ``annotation`` is a plain scalar, container class, ``Response``,
+    ``Model``, ``None`` or ``Any``/``object`` that can hold no ``Schema``."""
+    return (
+        annotation is None
+        or annotation is typing.Any
+        or annotation is object
+        or (
+            isinstance(annotation, type)
+            and (annotation in SIMPLE_RESPONSE_TYPES or issubclass(annotation, Model))
+        )
+    )
+
+
+def response_narrowing(
+    annotation: object,
+    response_schema: type[Schema] | None,
+    arms: list[object] | None = None,
+) -> tuple[type[Schema] | None, core._ReturnGuide | None]:
+    """How a result is narrowed to the return annotation: the Schema of a
+    ``list[S]``, page or optional shape, else the guide of any other shape that
+    holds a Schema (``None`` for both when there is nothing to do per request)."""
+    if response_schema is not None or is_plain_return(annotation):
+        return None, None
+    narrow_schema = collection_narrow_schema(annotation, arms)
+    if narrow_schema is not None:
+        return narrow_schema, None
+    spec = guide_spec(annotation, arms=arms)
+    return None, None if spec is None else core._ReturnGuide(spec)
+
+
+def collection_narrow_schema(
+    annotation: object, arms: list[object] | None = None
+) -> type[Schema] | None:
+    """The Schema ``S`` that a result is narrowed to when the return annotation is
+    ``list[S]``, ``Page[S]``, ``CursorPage[S]`` or ``S | None``; ``None`` for any
+    other annotation (a bare ``S`` is ``response_schema``)."""
+    resolved = union_arms(annotation) if arms is None else arms
+    non_none = [arm for arm in resolved if arm is not NoneType]
+    if len(non_none) != 1:
+        return None
+    arm = non_none[0]
+    if typing.get_origin(arm) not in {list, Page, CursorPage}:
+        return arm if is_schema(arm) and arm is not unwrap(annotation) else None
+    args = typing.get_args(arm)
+    item = unwrap(args[0]) if len(args) == 1 else None
+    return item if is_schema(item) else None
+
+
+Spec = tuple[str, typing.Any]
+
+
+SEQUENCE_ORIGINS = frozenset(
+    {
+        list,
+        collections.abc.Sequence,
+        collections.abc.MutableSequence,
+        collections.abc.Collection,
+        collections.abc.Iterable,
+        collections.abc.Set,
+        collections.abc.MutableSet,
+        set,
+        frozenset,
+    }
+)
+MAPPING_ORIGINS = frozenset(
+    {dict, collections.abc.Mapping, collections.abc.MutableMapping}
+)
+Visiting = tuple[object, ...]
+
+
+def guide_spec(
+    annotation: object,
+    visiting: Visiting = (),
+    arms: list[object] | None = None,
+    recursive: set[object] | None = None,
+) -> Spec | None:
+    """The nested spec of ``core._ReturnGuide`` for the Schema positions of an
+    annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``,
+    ``set`` and ``frozenset``, their abstract forms (``Sequence``, ``Iterable``,
+    ``Set``, ``Mapping``), a PEP 695
+    alias of any of these and ``TypedDict`` containers; ``None`` when it holds
+    none. A ``Page``, a dataclass or an ``Any`` position is not narrowed.
+    ``visiting`` holds the aliases and ``TypedDict`` classes on the current path."""
+    alias = alias_of(annotation)
+    if alias is not None:
+        if back_reference(alias, visiting, recursive):
+            return None
+        visiting = (*visiting, alias)
+    classes: list[type[Schema]] = []
+    others: list[Spec] = []
+    for arm in union_arms(annotation) if arms is None else arms:
+        if is_schema(arm):
+            classes.append(arm)
+        elif (spec := container_spec(arm, visiting, recursive)) is not None:
+            others.append(spec)
+    members: list[Spec] = ([("schema", classes)] if classes else []) + others
+    if not members:
+        return None
+    if alias is not None and refers_to_itself(alias):
+        raise AliasError(
+            f"the recursive type alias {getattr(alias, '__name__', alias)} holds a "
+            "Schema and cannot be narrowed; use a non-recursive type, or return "
+            "only the declared class"
+        )
+    return members[0] if len(members) == 1 else ("union", members)
+
+
+def refers_to_itself(alias: object) -> bool:
+    """Whether the value of a PEP 695 alias reaches the alias again, through its
+    arguments or through the value of another alias."""
+    seen: set[int] = set()
+    pending: list[object] = [
+        read_alias_value(alias)
+        if isinstance(alias, typing.TypeAliasType)
+        else getattr(alias, "__value__", None)
+    ]
+    while pending:
+        item = pending.pop()
+        origin = typing.get_origin(item)
+        named = origin if isinstance(origin, typing.TypeAliasType) else item
+        if named is alias:
+            return True
+        if isinstance(named, typing.TypeAliasType):
+            if id(named) in seen:
+                continue
+            seen.add(id(named))
+            pending.append(read_alias_value(named))
+        pending.extend(typing.get_args(item))
+    return False
+
+
+def alias_of(annotation: object) -> object | None:
+    """The PEP 695 alias an annotation names, bare or subscripted: the key of a
+    back-reference (``Tree[T]`` inside ``type Tree[T] = list[Tree[T]] | T``)."""
+    origin = typing.get_origin(annotation)
+    if isinstance(origin, typing.TypeAliasType):
+        return origin
+    return annotation if isinstance(annotation, typing.TypeAliasType) else None
+
+
+def container_spec(
+    arm: object, visiting: Visiting, recursive: set[object] | None
+) -> Spec | None:
+    if typing.is_typeddict(arm):
+        return typeddict_spec(arm, visiting, recursive)
+    args = typing.get_args(arm)
+    origin = typing.get_origin(arm)
+    if origin in MAPPING_ORIGINS and args:
+        return wrapped("map", guide_spec(args[-1], visiting, recursive=recursive))
+    if args and (origin in SEQUENCE_ORIGINS or origin is tuple):
+        return sequence_spec(origin, args, visiting, recursive)
+    return None
+
+
+def sequence_spec(
+    origin: object,
+    args: tuple[object, ...],
+    visiting: Visiting,
+    recursive: set[object] | None,
+) -> Spec | None:
+    if origin is not tuple or args[1:] == (Ellipsis,):
+        return wrapped("seq", guide_spec(args[0], visiting, recursive=recursive))
+    specs = [guide_spec(item, visiting, recursive=recursive) for item in args]
+    return ("tuple", specs) if any(specs) else None
+
+
+def wrapped(kind: str, inner: Spec | None) -> Spec | None:
+    return None if inner is None else (kind, inner)
+
+
+def back_reference(
+    annotation: object, visiting: Visiting, recursive: set[object] | None
+) -> bool:
+    """Record the members of a type cycle without marking its outer containers."""
+    for index, ancestor in enumerate(visiting):
+        if annotation is ancestor:
+            if recursive is not None:
+                recursive.update(visiting[index:])
+            return True
+    return False
+
+
+def typeddict_spec(
+    arm: object, visiting: Visiting, recursive: set[object] | None
+) -> Spec | None:
+    cycles: set[object] = set() if recursive is None else recursive
+    if back_reference(arm, visiting, cycles):
+        return None
+    inside = (*visiting, arm)
+    found = [
+        (key, spec)
+        for key, hint in typeddict_hints(arm).items()
+        if (spec := guide_spec(hint, inside, recursive=cycles))
+    ]
+    if found and arm in cycles:
+        raise AliasError(
+            f"the recursive TypedDict {getattr(arm, '__name__', arm)} holds a "
+            "Schema and cannot be narrowed; use a Schema for the recursive structure"
+        )
+    return ("keyed", found) if found else None
+
+
+def typeddict_hints(arm: object) -> dict[str, object]:
+    try:
+        return typing.get_type_hints(arm)
+    except NameError as exc:  # left whole it would be written with every key
+        keys = [
+            key
+            for key, hint in getattr(arm, "__annotations__", {}).items()
+            if str(exc.name) in str(getattr(hint, "__forward_arg__", hint))
+        ]
+        raise AliasError(
+            f"the TypedDict {getattr(arm, '__name__', arm)} cannot be narrowed: "
+            f"the annotation of key {', '.join(map(repr, keys)) or '(unknown)'} "
+            f"does not resolve ({exc}); import the name outside TYPE_CHECKING "
+            "or return a type whose annotations all resolve"
+        ) from exc
+
+
+def is_schema(candidate: object) -> typing.TypeGuard[type[Schema]]:
+    return (
+        isinstance(candidate, type)
+        and issubclass(candidate, Schema)
+        and candidate is not Schema
     )
 
 

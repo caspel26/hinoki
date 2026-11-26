@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from tracker.apps.members.models import Member
+from tracker.apps.members.security import hash_token
 from tracker.main import create_app
 from tracker.settings import TrackerSettings
 from trackerworld import World
@@ -24,8 +25,8 @@ async def world(tmp_path: Path) -> AsyncIterator[World]:
     for name in ORDER:
         await migrator.apply(database, APPS / name / "migrations", namespace=name)
     with use_database(database):
-        ann = await Member.acreate(name="Ann", token="ann-token")
-        ben = await Member.acreate(name="Ben", token="ben-token")
+        ann = await Member.acreate(name="Ann", token_hash=hash_token("ann-token"))
+        ben = await Member.acreate(name="Ben", token_hash=hash_token("ben-token"))
     database.close()
     settings = TrackerSettings.load(overrides={"database": {"url": url}})
     async with ASGIClient(create_app(settings)) as client:

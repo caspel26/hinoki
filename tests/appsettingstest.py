@@ -7,8 +7,19 @@ from typing import Any
 
 import pytest
 
-from hinoki import Access, BearerAuth, Caller, Hinoki, Request, Response, errors, http
+from hinoki import (
+    API,
+    Access,
+    BearerAuth,
+    Caller,
+    Hinoki,
+    Request,
+    Response,
+    errors,
+    http,
+)
 from hinoki.__main__ import main
+from hinoki.admin import Admin
 from hinoki.runtime.config import RuntimeConfig
 from hinoki.runtime.origins import HostPolicy, host_name
 from hinoki.scenario import build_scope, drive
@@ -715,6 +726,64 @@ async def test_debug_or_named_hosts_do_not_warn(
     with caplog.at_level(logging.WARNING, logger="hinoki.runtime"):
         await served_startup(app_of(**env))
     assert host_warnings(caplog) == []
+
+
+@http.websocket("/live")
+async def live(socket: http.WebSocket) -> None:
+    await socket.close()
+
+
+def admin_app(**env: str) -> Hinoki:
+    return Hinoki(settings=load(APP_ADMIN__SECRET="s" * 32, **env), include=[Admin()])
+
+
+def socket_app(**env: str) -> Hinoki:
+    return Hinoki(settings=load(**env), include=[live])
+
+
+@pytest.mark.parametrize("make", [admin_app, socket_app])
+async def test_admin_or_websockets_with_any_host_refuse_to_start(
+    make: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = Client(make().asgi())
+    with caplog.at_level(logging.ERROR, logger="hinoki.runtime"):
+        assert await client.lifespan_event("startup") == "lifespan.startup.failed"
+    assert any("allowed_hosts" in record.getMessage() for record in caplog.records)
+
+
+async def test_an_app_without_settings_is_checked_like_any_host_any(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="hinoki.runtime"):
+        await served_startup(Hinoki())
+    assert len(host_warnings(caplog)) == 1
+    caplog.clear()
+    for app in (Hinoki(include=[live]), Hinoki(include=[Admin(secret="s" * 32)])):
+        client = Client(app.asgi())
+        with caplog.at_level(logging.ERROR, logger="hinoki.runtime"):
+            assert await client.lifespan_event("startup") == "lifespan.startup.failed"
+    assert len(host_warnings(caplog)) == 2
+
+
+async def test_an_api_with_a_non_admin_admin_attribute_starts_with_any_host() -> None:
+    class Users(API):
+        admin = False
+
+    app = Hinoki(settings=load(), include=[Users])
+    assert app.has_admin is False
+    await served_startup(app)
+
+
+@pytest.mark.parametrize(
+    "env", [{"APP_DEBUG": "true"}, {"APP_ALLOWED_HOSTS": "app.example.com"}]
+)
+async def test_websockets_start_with_debug_or_named_hosts(env: dict[str, str]) -> None:
+    await served_startup(socket_app(**env))
+
+
+async def test_the_in_process_client_runs_websocket_apps_with_any_host() -> None:
+    async with ASGIClient(socket_app()) as client:
+        assert (await client.get("/missing")).status == 404
 
 
 def test_the_wsgi_adapter_warns_like_a_server(

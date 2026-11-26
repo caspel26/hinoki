@@ -4,6 +4,7 @@ the Python lane: reads, writes, refusals, per backend."""
 import asyncio
 import os
 import time
+import warnings
 from collections.abc import AsyncIterator, Awaitable, Callable
 from enum import StrEnum
 from pathlib import Path
@@ -49,6 +50,14 @@ from hinoki.runtime.crudplan import (
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.rowplan import schema_fields
 from hinoki.settings import AppSettings, EventsSettings, ServerSettings
+
+# Fixtures declare owner= resources on purpose: the owner read-scope warning is
+# not what these tests check.
+OWNER_READS = r"\w+. owner=.* constrains writes only"
+pytestmark = pytest.mark.filterwarnings(f"ignore:{OWNER_READS}:UserWarning")
+warnings.filterwarnings(
+    "ignore", message=OWNER_READS, category=UserWarning, module=__name__
+)
 
 SECRET = b"n" * 32
 URLS = {

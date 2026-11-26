@@ -750,6 +750,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
 
     /// A string value: its text, escapes resolved. A lone surrogate or a NUL
     /// is left to the ordinary path.
+    #[allow(unsafe_code)] // see the SAFETY comments in the body
     fn string(&mut self) -> Step<Cow<'a, str>> {
         self.take(b'"')?;
         let mut owned: Option<String> = None;
@@ -848,6 +849,7 @@ impl<'a, 'py, 't> Reader<'a, 'py, 't> {
 
     /// A number token by the JSON grammar; an integer outside `i64` and a
     /// float outside `f64` are left to the ordinary path.
+    #[allow(unsafe_code)] // see the SAFETY comments in the body
     fn number(&mut self) -> Step<Num> {
         let start = self.at;
         let negative = self.peek() == Some(b'-');
@@ -967,6 +969,7 @@ fn within(size: usize, min: Option<i64>, max: Option<i64>) -> Step<()> {
 
 /// `object.__setattr__(instance, name, value)`: what a frozen dataclass's own
 /// generated constructor does for each field, without the Python call.
+#[allow(unsafe_code)] // see the SAFETY comments in the body
 pub(super) fn assign(
     instance: &Bound<'_, PyAny>,
     name: &Bound<'_, PyString>,
@@ -988,6 +991,7 @@ pub(super) fn assign(
 /// The slot offsets of the fields of `class`, when every field is a plain
 /// object slot of a heap type and the class can be allocated like
 /// `object.__new__` does.
+#[allow(unsafe_code)] // see the SAFETY comments in the body
 fn layout_of(
     py: Python<'_>,
     class: &Bound<'_, PyAny>,
@@ -1045,6 +1049,7 @@ fn member_offset(mro: &Bound<'_, PyTuple>, name: &str, basicsize: isize) -> Opti
     None
 }
 
+#[allow(unsafe_code)] // see the SAFETY comments in the body
 fn slot_offset(klass: &Bound<'_, PyType>, name: &str, basicsize: isize) -> Option<isize> {
     use pyo3::ffi;
     let ptr = klass.as_type_ptr();
@@ -1077,6 +1082,7 @@ fn slot_offset(klass: &Bound<'_, PyType>, name: &str, basicsize: isize) -> Optio
 }
 
 /// A new instance of `class` with every slot empty, as `object.__new__` makes.
+#[allow(unsafe_code)] // see the SAFETY comments in the body
 fn allocate<'py>(class: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let class_type = class.cast::<PyType>()?;
     // SAFETY: `class_type` is a live type whose layout was checked when the
@@ -1092,6 +1098,7 @@ fn allocate<'py>(class: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
 }
 
 /// Put `value` in the slot at `offset` of `instance`.
+#[allow(unsafe_code)] // see the SAFETY comments in the body
 fn store(instance: &Bound<'_, PyAny>, offset: isize, value: Bound<'_, PyAny>) {
     // SAFETY: `offset` is the offset of an object slot of `instance`'s class,
     // checked against its basic size when the plan was made, and the slot is

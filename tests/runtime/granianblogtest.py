@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from blog.apps.blog import models
+from blog.apps.blog.security import hash_token
 
 from hinoki.db import Database
 from hinoki.orm import migrator, use_database
@@ -47,7 +48,10 @@ async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
     with use_database(admin):
         press = await models.Publication.acreate(name="Press", slug="press")
         await models.User.acreate(
-            publication_id=press.id, name="Ada", token="editor-token", is_editor=True
+            publication_id=press.id,
+            name="Ada",
+            token_hash=hash_token("editor-token"),
+            is_editor=True,
         )
     admin.close()
     port = free_port()
@@ -58,6 +62,7 @@ async def test_blog_flow_over_http_and_clean_shutdown(tmp_path: Path) -> None:
         cwd=BLOG,
         BLOG_DATABASE__URL=url,
         BLOG_ADMIN__SECRET="g" * 40,
+        BLOG_ALLOWED_HOSTS="127.0.0.1",
         PYTHONPATH=str(BLOG),
     )
     try:

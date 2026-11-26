@@ -8,9 +8,10 @@ use regex::Regex;
 
 use super::internet::NetKind;
 use super::model::{
-    Choice, Collection, Compiled, Definition, Direct, Field, FieldTable, JsonFieldEntry,
-    JsonFieldPlan, Kind, LimitValue, NativeChoices, NativeLimit, NativeRules, NativeSchema, Node,
-    Normalize, Number, PyClass, PyRules, Rules, SchemaInstanceFields, SchemaWireNames,
+    Choice, Collection, Compiled, Definition, Direct, Field, FieldGuides, FieldTable,
+    JsonFieldEntry, JsonFieldPlan, Kind, LimitValue, NativeChoices, NativeLimit, NativeRules,
+    NativeSchema, Node, Normalize, Number, PyClass, PyRules, Rules, SchemaInstanceFields,
+    SchemaWireNames,
 };
 use super::scalars::DecimalNumber;
 use super::typeddecode;
@@ -195,7 +196,8 @@ type DirectEntry = (usize, Option<Py<PyAny>>, Py<PyDict>, Py<PyDict>);
 /// `(class, [(name, wire_name, node, required), ...], forbid_extra)`; nested
 /// schemas refer to a definition by index.
 #[pyfunction]
-#[pyo3(signature = (definitions, root, uuid_class, from_iso, unset, direct=None))]
+#[allow(clippy::too_many_arguments)] // the Python call is one flat signature
+#[pyo3(signature = (definitions, root, uuid_class, from_iso, unset, direct=None, computed_guides=None))]
 pub fn compile_schemas(
     py: Python<'_>,
     definitions: Vec<(Py<PyAny>, FieldTable<'_>, bool)>,
@@ -204,6 +206,7 @@ pub fn compile_schemas(
     from_iso: Py<PyAny>,
     unset: Py<PyAny>,
     direct: Option<Vec<DirectEntry>>,
+    computed_guides: Option<Vec<Option<Bound<'_, PyAny>>>>,
 ) -> PyResult<Compiled> {
     let mut direct = direct.unwrap_or_default();
     let mut built = Vec::with_capacity(definitions.len());
@@ -254,6 +257,19 @@ pub fn compile_schemas(
         .as_deref()
         .and_then(|lowered| typeddecode::typed(py, &built, lowered, root))
         .map(Arc::new);
+    // The declared fields' guides, then one per computed value (its return annotation).
+    let mut guides: Vec<Option<super::narrow::Guide>> = built[root]
+        .fields
+        .iter()
+        .map(|field| super::narrow::guide_of(py, &field.node, &built))
+        .collect();
+    for spec in computed_guides.unwrap_or_default() {
+        guides.push(match spec {
+            Some(spec) => Some(super::narrow::from_spec(&spec)?),
+            None => None,
+        });
+    }
+    let guides = guides.into();
     Ok(Compiled {
         definitions: built,
         root,
@@ -262,6 +278,7 @@ pub fn compile_schemas(
         unset,
         native,
         typed,
+        guides,
         json_plan: PyOnceLock::new(),
     })
 }
@@ -645,6 +662,8 @@ fn build_json_field_plan(
         entries: entries.into_boxed_slice(),
         unset: compiled.unset.clone_ref(py),
         streamable,
+        guided: compiled.guides.iter().any(Option::is_some),
+        guides: Arc::clone(&compiled.guides),
         computed_source: computed_obj.map(|obj| obj.clone().unbind()),
     })
 }
@@ -655,18 +674,25 @@ pub(crate) fn json_field_plan(
     value: &Bound<'_, PyAny>,
     quote_key: fn(&str) -> Box<[u8]>,
 ) -> PyResult<Option<Arc<JsonFieldPlan>>> {
-    let class = value.get_type();
-    let py = value.py();
+    json_field_plan_of(&value.get_type(), quote_key)
+}
+
+/// The same plan for a class (the declared class of a narrowed value).
+pub(crate) fn json_field_plan_of(
+    class: &Bound<'_, PyType>,
+    quote_key: fn(&str) -> Box<[u8]>,
+) -> PyResult<Option<Arc<JsonFieldPlan>>> {
+    let py = class.py();
     if !class.hasattr(intern!(py, "__hinoki_schema__"))? {
         return Ok(None);
     }
     let table = class.getattr(intern!(py, "__dict__"))?;
-    let Some(compiled) = resolve_compiled(py, &class, &table, true)? else {
+    let Some(compiled) = resolve_compiled(py, class, &table, true)? else {
         return Ok(None);
     };
     let current_computed = table.get_item(intern!(py, "__hinoki_computed__")).ok();
     let cached = compiled.json_plan.get_or_try_init(py, || {
-        build_json_field_plan(py, &class, &compiled, current_computed.as_ref(), quote_key)
+        build_json_field_plan(py, class, &compiled, current_computed.as_ref(), quote_key)
             .map(Arc::new)
     })?;
     if same_computed(cached.computed_source.as_ref(), current_computed.as_ref()) {
@@ -674,7 +700,7 @@ pub(crate) fn json_field_plan(
     } else {
         Ok(Some(Arc::new(build_json_field_plan(
             py,
-            &class,
+            class,
             &compiled,
             current_computed.as_ref(),
             quote_key,
@@ -693,13 +719,29 @@ pub fn instance_fields(
     with_computed: bool,
 ) -> PyResult<SchemaInstanceFields> {
     let class = value.get_type();
-    let py = value.py();
+    Ok(
+        class_fields(&class, honour_custom_dump, by_alias, with_computed)?
+            .map(|(names, unset, extra, _)| (names, unset, extra)),
+    )
+}
+
+/// What [`instance_fields`] reads from a class, and the guides of its declared fields.
+pub(crate) type ClassFields = Option<(SchemaWireNames, Py<PyAny>, usize, FieldGuides)>;
+
+/// The fields of a schema class (`instance_fields` of one of its instances).
+pub(crate) fn class_fields(
+    class: &Bound<'_, PyType>,
+    honour_custom_dump: bool,
+    by_alias: bool,
+    with_computed: bool,
+) -> PyResult<ClassFields> {
+    let py = class.py();
     if !class.hasattr(intern!(py, "__hinoki_schema__"))? {
         return Ok(None);
     }
     // Read the class's own entries: a subclass must not use its parent's table.
     let table = class.getattr(intern!(py, "__dict__"))?;
-    let Some(compiled) = resolve_compiled(py, &class, &table, honour_custom_dump)? else {
+    let Some(compiled) = resolve_compiled(py, class, &table, honour_custom_dump)? else {
         return Ok(None);
     };
     let mut names: SchemaWireNames = compiled.definitions[compiled.root]
@@ -723,7 +765,12 @@ pub fn instance_fields(
     };
     let extra = computed.len();
     names.extend(computed);
-    Ok(Some((names, compiled.unset.clone_ref(value.py()), extra)))
+    Ok(Some((
+        names,
+        compiled.unset.clone_ref(py),
+        extra,
+        Arc::clone(&compiled.guides),
+    )))
 }
 
 /// The class's own `(name, wire name)` pairs for its computed fields.

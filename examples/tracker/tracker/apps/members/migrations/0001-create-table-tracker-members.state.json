@@ -16,7 +16,7 @@
           "unique": false,
           "references": null
         },
-        "token": {
+        "token_hash": {
           "type": "text",
           "nullable": false,
           "primary_key": false,

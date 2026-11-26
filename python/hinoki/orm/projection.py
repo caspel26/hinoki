@@ -301,6 +301,21 @@ _ITEM_SLOTS = frozenset(
 )
 
 
+class _Forwarded:
+    """Forwards a dataclass attribute to the projected Schema of an instance.
+    ``dataclasses.is_dataclass`` reads it from the type, so the class must have
+    it; on the bare class it is empty (no fields), not a property object."""
+
+    def __init__(self, name: str, bare: object) -> None:
+        self.name = name
+        self.bare = bare
+
+    def __get__(self, instance: object, owner: type | None = None) -> Any:
+        if instance is None:
+            return self.bare
+        return getattr(instance._schema, self.name)  # type: ignore[attr-defined]
+
+
 class _ProjectedItem[S: Schema]:
     """A single ``S`` backed by an owned Rust row and pre-encoded JSON bytes.
 
@@ -343,6 +358,12 @@ class _ProjectedItem[S: Schema]:
     @property  # type: ignore[misc]
     def __class__(self) -> type[S]:  # type: ignore[override]
         return self._schema
+
+    # `dataclasses` reads these from `type(item)`, which stays `_ProjectedItem` (the
+    # native encoder recognises that exact type), so they are forwarded to the
+    # projected Schema: `is_dataclass`, `asdict` and `replace` work as on the Schema.
+    __dataclass_fields__ = _Forwarded("__dataclass_fields__", {})
+    __dataclass_params__ = _Forwarded("__dataclass_params__", None)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._ensure(), name)

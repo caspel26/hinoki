@@ -217,3 +217,37 @@ def test_manual_clock_normalizes_and_controls_aware_instants() -> None:
         clock.set(datetime(2026, 1, 3))
     with pytest.raises(ValueError, match="timezone-aware"):
         ManualClock(datetime(2026, 1, 3))
+
+
+@http.get("/b")
+async def bounded(request: Request) -> dict[str, str]:
+    return {"found": "yes"}
+
+
+@pytest.mark.parametrize("path", ["/b?n=999", "/b#top", "/b?n=1#top"])
+async def test_a_query_or_fragment_in_the_path_is_refused(path: str) -> None:
+    app = Hinoki()
+    app.include(bounded)
+    async with ASGIClient(app) as client:
+        for call in (client.get, client.post, client.query):
+            with pytest.raises(ValueError, match=r"query="):
+                await call(path)
+        with pytest.raises(ValueError, match=r"query="):
+            async with client.stream("GET", path):
+                pass
+        assert (await client.get("/b", query="n=999")).status == 200
+
+
+@pytest.mark.parametrize("path", ["/b?n=999", "/b#top"])
+def test_the_sync_client_refuses_a_query_or_fragment_in_the_path(path: str) -> None:
+    app = Hinoki()
+    app.include(bounded)
+    with SyncClient(app) as client:
+        with pytest.raises(ValueError, match=r"query="):
+            client.get(path)
+        with (
+            pytest.raises(ValueError, match=r"query="),
+            client.stream("GET", path),
+        ):
+            pass
+        assert client.get("/b", query="n=999").status == 200

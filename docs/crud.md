@@ -133,6 +133,8 @@ invoices = crud(
 
 Each attribute name is the column it filters. Types are `bool`, `int`, `float`, `str`, `UUID`, `date`, `datetime` (an RFC 3339 instant, read as UTC), `Decimal` and `Literal[...]` of strings; an `Eq`, `In` or `Range` is also what the typed OpenAPI parameter documents. A bool, UUID or `Literal` has no `Range`. An empty value (`?paid=`) is ignored.
 
+Without `filters=` a generated list ignores query parameters it does not know (`?name=x` returns the unfiltered page); with `filters=` an unknown one is a `422`, as described below.
+
 A name that is not declared, an operator that the field does not have (`?paid.from=1`), a value of the wrong type or outside the `Literal`, a repeated parameter, an ordering key outside `ordering`, or a value that is too long is a `422` listing every problem with its `path` and a `code` (`type`, `choice`, `unknown`, `operator`, `duplicate`, `too_long`, `too_many`); the message never repeats the client's value. Values are parsed and coerced in Rust, bound as parameters and never become SQL text, and column names come only from the declaration, checked against the model when the routes are declared.
 
 SQLite keeps a `Decimal` column as text, which compares by spelling and orders alphabetically, not numerically. A `Range[Decimal]` filter (`?amount.from=...`/`?amount.to=...`) or an `ordering` entry naming a `Decimal` column is a `422` there, with `code` `unsupported` and `path` naming the field (or `ordering`); only equality (`Eq`, `In`, `.null`) is checked against a `Decimal` column on SQLite. PostgreSQL and MySQL compare and order a `Decimal` numerically and accept the full `Range`.
@@ -235,6 +237,8 @@ class Invoices(API):
 ```
 
 Apply visibility filters (such as `archived=False`) in `get_queryset` or `filter_queryset`, and enforce mandatory tenant or account boundaries with [`RowScope`](#mandatory-row-scope) via `scope=`; `owner=` is an independent write safeguard, not read authorization. Relations are never loaded implicitly: load them in `to_schema`, and in `written_queryset` for the answer to a write, independently of filters that might hide the changed row from later list requests. Writes are constrained by the mandatory `scope=`, the query of `get_queryset`, the primary key and the owner column inside the mutation statement. `change` and `remove` must write through that `scoped_queryset` (call `super()` to keep the default mutation).
+
+With `owner=` and generated reads, Hinoki issues a `UserWarning` when neither `scope=` nor a `get_queryset` override bounds the reads. The warning is attributed to the resource declaration. Set `scope=`, override `get_queryset`, or omit the read actions. For intentionally public reads, a standard-library warning filter matching `<Model>: owner=<column> constrains writes only` preserves native-lane eligibility.
 
 ## Mandatory row scope
 

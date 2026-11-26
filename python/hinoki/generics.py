@@ -14,6 +14,11 @@ _CACHE: dict[tuple[type, tuple[Any, ...]], type] = {}
 _BUILDING: set[tuple[type, tuple[Any, ...]]] = set()
 
 
+TYPE_ARGUMENTS = "__type_arguments__"
+"""The class attribute that maps the type parameters of a parameterized class
+(``Envelope[User]``) to its arguments."""
+
+
 def substitute(value: Any, mapping: dict[Any, Any]) -> Any:
     if isinstance(value, TypeVar):
         return mapping.get(value, value)
@@ -65,4 +70,6 @@ def build(cls: type[Schema], mapping: dict[Any, Any], args: tuple[Any, ...]) -> 
         "__qualname__": name,
     }
     bases = tuple(b for b in cls.__bases__ if b is not typing.Generic)
-    return recreate(cls, body, bases, name)
+    built = recreate(cls, body, bases, name)
+    setattr(built, TYPE_ARGUMENTS, mapping)
+    return built

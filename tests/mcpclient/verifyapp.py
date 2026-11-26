@@ -25,6 +25,7 @@ SETUP = """
 import asyncio, os
 from pathlib import Path
 from blog.apps.blog.models import Post, Publication, User
+from blog.apps.blog.security import hash_token
 from hinoki.orm import migrator
 from hinoki.db import Database
 from hinoki.orm import use_database
@@ -35,7 +36,8 @@ async def main():
     with use_database(db):
         press = await Publication.acreate(name="Press", slug="press")
         ann = await User.acreate(
-            publication_id=press.id, name="Ann", token="ann-token", is_editor=True
+            publication_id=press.id, name="Ann",
+            token_hash=hash_token("ann-token"), is_editor=True,
         )
         await Post.acreate(
             publication_id=press.id, author_id=ann.id,
@@ -54,6 +56,7 @@ async def main() -> None:
         **os.environ,
         "BLOG_DATABASE__URL": f"sqlite://{database}",
         "BLOG_ADMIN__SECRET": "m" * 40,
+        "BLOG_ALLOWED_HOSTS": "127.0.0.1",
         "PYTHONPATH": str(project),
     }
     subprocess.run(

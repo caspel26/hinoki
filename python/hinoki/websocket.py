@@ -37,7 +37,7 @@ from hinoki import core
 from hinoki.access import Access
 from hinoki.auth import Caller
 from hinoki.errors import RegistrationError, ValidationError
-from hinoki.fields import UNSET, Unset
+from hinoki.fields import UNSET, Unset, carries_field
 from hinoki.schema import Schema, encode
 
 S = TypeVar("S", bound=Schema)
@@ -157,12 +157,21 @@ class WebSocket:
 
     async def send_json(self, value: object) -> None:
         """Send ``value`` as a JSON text message. With ``reply=`` on the route a
-        ``dict`` is validated into that ``Schema`` first."""
-        if self.reply is not None and not isinstance(value, self.reply):
-            value = self.reply.validate(value)
+        ``dict`` is validated into that ``Schema`` first, and an instance of a
+        subclass of it is sent with the fields of ``reply`` only."""
+        reply = self.reply
+        if reply is not None and type(value) is not reply:
+            value = self._as_reply(reply, value)
         await self.send_text(
             core.encode_json(encode(value), None, False, None).decode()
         )
+
+    @staticmethod
+    def _as_reply(reply: type[Schema], value: object) -> object:
+        if not isinstance(value, reply):
+            return reply.validate(value)
+        narrowed = core.dump_as(value, reply)
+        return core.declared_dump(value, reply) if narrowed is None else narrowed
 
     async def close(self, code: int = CloseCode.NORMAL, reason: str = "") -> None:
         """Close after the messages already queued. ``ValueError`` for a code that
@@ -383,9 +392,11 @@ def check_origins(origins: Sequence[str]) -> tuple[str, ...]:
     return tuple(origin.lower() for origin in origins)
 
 
-def handler_hints(fn: Callable[..., object]) -> dict[str, Any]:
+def handler_hints(
+    fn: Callable[..., object], include_extras: bool = False
+) -> dict[str, Any]:
     try:
-        return typing.get_type_hints(fn)
+        return typing.get_type_hints(fn, include_extras=include_extras)
     except Exception as exc:
         raise RegistrationError(
             f"{fn.__qualname__}: cannot resolve annotations: {exc}"
@@ -418,6 +429,8 @@ def bind_signature(
     """The socket and caller parameter names, and the others as ``Param``."""
     fn, path, access = route.handler, route.path, route.access
     hints = handler_hints(fn)
+    # a second read that keeps ``Annotated`` metadata, to refuse ``Field(...)``
+    extras = handler_hints(fn, include_extras=True)
     in_path = set(PATH_PARAM.findall(path))
     socket: str | None = None
     caller: str | None = None
@@ -430,6 +443,13 @@ def bind_signature(
         elif typing.get_origin(hint) is Caller or hint is Caller:
             caller = name
         else:
+            if carries_field(extras.get(name)):
+                raise RegistrationError(
+                    f"{fn.__qualname__}: `Field(...)` on the scalar parameter "
+                    f"{name!r} is not enforced, and its description and examples are "
+                    "not read either; validate it inside the handler or take a "
+                    "`Schema`"
+                )
             params.append(scalar_param(fn, name, hint, parameter, name in in_path))
     if socket is None:
         raise RegistrationError(

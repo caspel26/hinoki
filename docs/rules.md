@@ -115,7 +115,7 @@ blog_rules = RuleSet(
     Actions.require_access(match="blog.*", except_=PUBLIC),
     Actions.require_permissions(match="blog.*", except_=[*PUBLIC, *SIGNED_IN]),
     Transactions.require_atomic(except_=["hinoki.ai.mcpapp.*"]),
-    Schemas.forbid_exposure("token", "password_hash"),
+    Schemas.forbid_exposure("token_hash", "password_hash"),
     Imports.forbid(source="blog.apps.blog.models", target="blog.apps.blog.api"),
     # ... and the other six rules, see the file
 )

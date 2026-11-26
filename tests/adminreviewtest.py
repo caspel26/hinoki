@@ -12,7 +12,8 @@ from hinoki.admin import Admin, ModelAdmin
 from hinoki.db import Database, DatabaseModule
 from hinoki.errors import RegistrationError
 from hinoki.orm import Model, OnDelete, field, foreign_key
-from tests.admintest import FORM, SECRET, STAFF, session, submit
+from hinoki.settings import AppSettings
+from tests.admintest import FORM, SECRET, STAFF, TEST_HOST, session, submit
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 
@@ -74,7 +75,7 @@ def build(*, hide_accts: bool = False, register_accts: bool = True) -> Hinoki:
     admin.register(Loose, slug="loose")
     admin.register(Parent, ParentAdmin, slug="parents")
     admin.register(Kid, slug="kids")
-    app = Hinoki()
+    app = Hinoki(settings=AppSettings(allowed_hosts=(TEST_HOST,)))
     app.include(admin.api())
     if URL:
         app.install(DatabaseModule(URL, max_size=3))
@@ -112,7 +113,7 @@ async def world(pool: Pool) -> AsyncIterator[tuple[Client, Database, Pool]]:
     await db.execute(
         "INSERT INTO arv_accts VALUES (1, 'alice', 's3cr3t-alice', 0), (2, 'bob', 's3cr3t-bob', 1)"
     )
-    yield await pool.start(build()), db, pool
+    yield await pool.start(build(), host=TEST_HOST), db, pool
     for table in TABLES:
         await db.execute(f"DROP TABLE IF EXISTS {table} CASCADE")
     db.close()
@@ -142,12 +143,12 @@ async def test_foreign_key_selects_never_list_rows_the_caller_may_not_see(
     assert "alice" in visible.body and "bob" not in visible.body  # only tenant 0
     assert "s3cr3t" not in visible.body
     # the target has no admin at all: a plain id input, no option labels
-    unregistered = await (await pool.start(build(register_accts=False))).request(
-        "GET", "/admin/items/add", headers=STAFF
-    )
+    unregistered = await (
+        await pool.start(build(register_accts=False), host=TEST_HOST)
+    ).request("GET", "/admin/items/add", headers=STAFF)
     assert "<select" not in unregistered.body and "alice" not in unregistered.body
     # the target is registered but the caller may not view it
-    hidden = await (await pool.start(build(hide_accts=True))).request(
+    hidden = await (await pool.start(build(hide_accts=True), host=TEST_HOST)).request(
         "GET", "/admin/items/add", headers=STAFF
     )
     assert "<select" not in hidden.body and "alice" not in hidden.body

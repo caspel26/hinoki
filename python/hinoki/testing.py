@@ -25,7 +25,7 @@ from typing import Any, TypeVar
 
 from hinoki import core
 from hinoki.app import Hinoki
-from hinoki.runtime.asgi import IN_PROCESS
+from hinoki.runtime.origins import IN_PROCESS
 from hinoki.utils import _read_utc
 
 HeaderInput = Mapping[str, str] | Sequence[tuple[str, str]]
@@ -192,7 +192,13 @@ class ASGIClient:
         headers: HeaderInput | None = None,
         token: str | None = None,
     ) -> tuple[dict[str, Any], bytes]:
-        """The ASGI scope and the body of one test request."""
+        """The ASGI scope and the body of one test request. ``ASGIClient`` and
+        ``SyncClient`` (``request`` and ``stream``) all build their scope here."""
+        if "?" in path or "#" in path:
+            raise ValueError(
+                f"{method} {path!r}: put the query string in `query=`, "
+                "not in the path (and leave out any #fragment)"
+            )
         sent = _header_items(headers)
         if token is not None:
             sent = [(name, value) for name, value in sent if name != "authorization"]
@@ -206,6 +212,7 @@ class ASGIClient:
             "path": path,
             "query_string": query.encode(),
             "headers": [(k.encode(), v.encode()) for k, v in sent],
+            IN_PROCESS: True,
         }
         return scope, body
 

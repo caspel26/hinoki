@@ -186,6 +186,8 @@ def test_a_bad_content_length_is_a_client_error(running: Running) -> None:
 def test_kiso_refuses_a_body_over_the_limit_and_granian_has_no_limit(
     running: Running,
 ) -> None:
-    status, _, _ = call(running.port, "POST", "/echo", b"x" * 2_000_000)
+    # Just over the default 1 MiB limit: Kiso decides 413 from Content-Length
+    # and drains at most 1 MiB (or 2 s), so the client still reads the 413.
+    status, _, _ = call(running.port, "POST", "/echo", b"x" * 1_100_000)
     expected = 413 if running.server == "kiso" else 200
     assert status == expected
