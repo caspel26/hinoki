@@ -1,6 +1,7 @@
-"""The optional admin extra: ``from hinoki.admin import Admin, ModelAdmin``.
+"""Built-in admin interface: ``from hinoki.admin import Admin, ModelAdmin``.
 
-Importing this package registers nothing and touches no database.
+Shipped in ``hinoki-api`` with explicit mounting and migrations. Importing this
+package registers nothing and touches no database.
 """
 
 from hinoki.admin.core import Admin
