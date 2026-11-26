@@ -34,7 +34,15 @@ from hinoki.parsers import (
 )
 from hinoki.ratelimit import RateLimit, RateLimitContext, RateLimitPolicy
 from hinoki.renderers import HTMLRenderer, JSONRenderer, Renderer, XMLRenderer
-from hinoki.resources import Crud, CrudAccess, all_rows, crud, from_user, own_rows
+from hinoki.resources import (
+    Crud,
+    CrudAccess,
+    RowScope,
+    all_rows,
+    crud,
+    from_user,
+    own_rows,
+)
 from hinoki.routing import Includable, Mount, Route, RouteGroup
 from hinoki.rules import Actions, Imports, Models, Schemas, Transactions
 from hinoki.runtime.config import RuntimeConfig
@@ -116,6 +124,7 @@ __all__ = [
     "Response",
     "Route",
     "RouteGroup",
+    "RowScope",
     "RuntimeConfig",
     "Schema",
     "SchemaConfig",

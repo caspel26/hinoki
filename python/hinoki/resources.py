@@ -13,7 +13,8 @@ import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import date
 from operator import attrgetter
-from typing import Any, ClassVar, NoReturn, cast
+from typing import Any, ClassVar, Literal, NoReturn, cast
+from uuid import UUID
 
 from hinoki import context
 from hinoki.access import Access
@@ -124,6 +125,122 @@ def from_user(attr: str) -> UserAttr:
     """Extract ``attr`` (or a dotted attribute path) from ``Caller.user`` for
     ``crud(..., assign={...})`` or ``identity_key=...``."""
     return UserAttr(attr)
+
+
+def _coerce_scope_value(kind: str, raw: Any) -> Any:
+    coercers: dict[str, Callable[[Any], Any]] = {
+        "str": lambda val: val if isinstance(val, str) and val else None,
+        "int": lambda val: val if type(val) is int else None,
+        "uuid": _coerce_uuid_scope,
+        "bool": lambda val: val if type(val) is bool else None,
+    }
+    if raw is None:
+        return None
+    coerce = coercers.get(kind)
+    return coerce(raw) if coerce is not None else raw
+
+
+def _coerce_uuid_scope(raw: Any) -> UUID | None:
+    resolved: UUID | None = raw if isinstance(raw, UUID) else None
+    if resolved is None and isinstance(raw, str):
+        with contextlib.suppress(ValueError):
+            resolved = UUID(raw)
+    return resolved
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RowScope[M: Model, U]:
+    """Declarative mandatory row boundary for CRUD, manual actions, and links.
+
+    Instantiate via :meth:`by`, :meth:`by_claim`, or :meth:`by_caller`.
+    """
+
+    model: type[M]
+    column: str
+    _source: Literal["user", "claim", "caller"]
+    _key: UserAttr | Callable[[U], Any] | str | None = None
+
+    def __post_init__(self) -> None:
+        if not (isinstance(self.model, type) and issubclass(self.model, Model)):
+            raise RegistrationError("RowScope model must be a Model subclass")
+        if self.model.__abstract__:
+            raise RegistrationError(
+                f"{self.model.__name__} is abstract; RowScope requires a concrete Model"
+            )
+        field_type = self.model.__field_types__.get(self.column)
+        if field_type is None:
+            raise RegistrationError(
+                f"{self.model.__name__} has no column {self.column!r} for RowScope"
+            )
+        if self._source == "caller" and field_type.kind != "str":
+            raise RegistrationError(
+                f"RowScope.by_caller({self.model.__name__}, {self.column!r}) "
+                "requires a text column"
+            )
+        if self._source == "claim" and (
+            not isinstance(self._key, str) or not self._key
+        ):
+            raise RegistrationError(
+                "RowScope.by_claim claim name must be a non-empty string"
+            )
+        if self._source == "user" and not callable(self._key):
+            raise RegistrationError(
+                "RowScope.by requires a callable key or from_user(...)"
+            )
+
+    @classmethod
+    def by(
+        cls,
+        model: type[M],
+        column: str,
+        key: UserAttr | Callable[[U], Any],
+    ) -> RowScope[M, U]:
+        """Scope rows of ``model`` by ``column == key(caller.user)``."""
+        return cls(model=model, column=column, _source="user", _key=key)
+
+    @classmethod
+    def by_claim(cls, model: type[M], column: str, claim: str) -> RowScope[M, Any]:
+        """Scope rows of ``model`` by ``column == caller.claims[claim]``."""
+        return cls(model=model, column=column, _source="claim", _key=claim)
+
+    @classmethod
+    def by_caller(cls, model: type[M], column: str) -> RowScope[M, Any]:
+        """Scope rows of ``model`` by ``column == caller.id``."""
+        return cls(model=model, column=column, _source="caller", _key=None)
+
+    def value_for(self, caller: Caller[U] | None) -> Any:
+        """Resolve and validate the mandatory scope value for ``caller``."""
+        if caller is None:
+            raise Forbidden("You cannot access this item.")
+        if self._source == "caller":
+            raw: Any = caller.id
+        elif self._source == "claim":
+            raw = caller.claims.get(cast(str, self._key))
+        else:
+            if caller.user is None:
+                raise Forbidden("You cannot access this item.")
+            raw = cast(Callable[[U], Any], self._key)(caller.user)
+        kind = self.model.__field_types__[self.column].kind
+        value = _coerce_scope_value(kind, raw)
+        if value is None:
+            raise Forbidden("You cannot access this item.")
+        return value
+
+    def apply(self, query: QuerySet[M], caller: Caller[U] | None) -> QuerySet[M]:
+        """AND the mandatory row scope onto ``query`` for ``caller``."""
+        if not isinstance(query, QuerySet) or query.model is not self.model:
+            got = getattr(
+                getattr(query, "model", None), "__name__", type(query).__name__
+            )
+            raise RegistrationError(
+                f"RowScope({self.model.__name__}, {self.column!r}) expected a "
+                f"{self.model.__name__} QuerySet, got {got}"
+            )
+        return query.filter(**{self.column: self.value_for(caller)})
+
+    def for_caller(self, caller: Caller[U] | None) -> QuerySet[M]:
+        """Return ``model.all()`` filtered by this scope for ``caller``."""
+        return self.apply(self.model.all(), caller)
 
 
 HOOK_CALLER_INDEX: dict[str, int] = {
@@ -301,7 +418,11 @@ class _CrudConfig:
     schema_shown: Mapping[str, bool] = dataclasses.field(default_factory=dict)
     tags: tuple[str, ...] = ()
     deprecated: bool | date = False
+    row_scope: RowScope[Any, Any] | None = None
     links: Mapping[str, Callable[[Any], QuerySet[Any]]] = dataclasses.field(
+        default_factory=dict
+    )
+    link_scopes: Mapping[str, RowScope[Any, Any]] = dataclasses.field(
         default_factory=dict
     )
 
@@ -354,6 +475,24 @@ class _CrudConfig:
         extra = {self.owner: self.identity_key} if self.owner else {}
         return {**self.assign, **extra}
 
+    def server_columns(self) -> set[str]:
+        cols = set(self.assigned())
+        if self.row_scope is not None:
+            cols.add(self.row_scope.column)
+        return cols
+
+    def assign_values(self, principal: Any) -> dict[str, Any]:
+        assigned_values: dict[str, Any] = {}
+        if self.row_scope is not None:
+            assigned_values[self.row_scope.column] = self.row_scope.value_for(principal)
+        for column, derive in self.assigned().items():
+            assigned_values[column] = (
+                self.owner_of(principal)
+                if column == self.owner
+                else derive(principal.user)
+            )
+        return assigned_values
+
     def writes(self) -> list[str]:
         found = ["create"] if self.create else []
         found += ["update"] if self.update else []
@@ -378,16 +517,50 @@ class _CrudConfig:
         for column in self.assigned():
             if column not in columns:
                 raise RegistrationError(f"{name} has no column {column!r} to assign")
+        self.check_row_scope(columns)
         self.check_schemas(columns, custom_output=custom_output)
         self.check_links(custom=custom_links)
         self.check_filters()
+
+    def check_row_scope(self, columns: set[str]) -> None:
+        if self.row_scope is None:
+            return
+        name = self.model.__name__
+        scope = self.row_scope
+        if scope.model is not self.model:
+            raise RegistrationError(
+                f"{name}: scope= belongs to {scope.model.__name__}, not {name}"
+            )
+        if scope.column not in columns or scope.column == self.model.__primary_key__:
+            raise RegistrationError(
+                f"{name}: scope= column {scope.column!r} must be a "
+                "non-primary-key column"
+            )
+        active = [
+            action
+            for action in ACTIONS
+            if action not in self.omit and enabled(self, action)
+        ]
+        if any(self.access_for(action) is None for action in active):
+            raise RegistrationError(
+                f"{name}: scope= needs an access policy on every active action"
+            )
+        if self.owner and scope.column == self.owner:
+            raise RegistrationError(
+                f"{name}: scope= column {scope.column!r} cannot also be owner="
+            )
+        if scope.column in self.assign:
+            raise RegistrationError(
+                f"{name}: assign= cannot set scope column {scope.column!r}"
+            )
 
     def check_links(self, *, custom: bool) -> None:
         """Every ids field needs a scope for its targets, or the CRUD would let
         a caller link rows it cannot see."""
         name = self.model.__name__
         declared = {side.declared for side in self.link_ids.values()}
-        unknown = sorted(set(self.links) - declared)
+        configured = set(self.links) | set(self.link_scopes)
+        unknown = sorted(configured - declared)
         if unknown:
             raise RegistrationError(
                 f"{name}: links= names {unknown}, which are not many_to_many "
@@ -403,7 +576,8 @@ class _CrudConfig:
         self, schema: type[Schema], side: LinkEnd, *, custom: bool
     ) -> None:
         name = self.model.__name__
-        if side.declared not in self.links and not custom:
+        configured = set(self.links) | set(self.link_scopes)
+        if side.declared not in configured and not custom:
             raise RegistrationError(
                 f"crud({name}): {side.ids_name} needs links="
                 f'{{"{side.declared}": ...}}; use all_rows({side.target.__name__}) '
@@ -429,11 +603,17 @@ class _CrudConfig:
             )
 
     def check_link_scope(self, side: LinkEnd) -> None:
-        """An ``own_rows`` entry names a text column of the targets and needs
-        the caller's id on every action."""
-        scope = self.links.get(side.declared)
-        if not isinstance(scope, OwnedRows):
+        """An ``own_rows`` or ``RowScope`` entry names a target column and needs
+        access on every active action."""
+        row_scope = self.link_scopes.get(side.declared)
+        if row_scope is not None:
+            self._check_row_link_scope(side, row_scope)
             return
+        scope = self.links.get(side.declared)
+        if isinstance(scope, OwnedRows):
+            self._check_owned_link_scope(side, scope)
+
+    def _check_owned_link_scope(self, side: LinkEnd, scope: OwnedRows[Any]) -> None:
         name = self.model.__name__
         kind = side.target.__field_types__.get(scope.column)
         if scope.model is not side.target or kind is None or kind.kind != "str":
@@ -441,12 +621,27 @@ class _CrudConfig:
                 f"crud({name}): own_rows({scope.model.__name__}, {scope.column!r}) "
                 f"must name a text column of {side.target.__name__}"
             )
-        used = ["list", "retrieve"]
-        used += [a for a, s in (("create", self.create), ("update", self.update)) if s]
-        if any(self.access_for(a) is None for a in used if a not in self.omit):
+        if self._unprotected_link_actions():
             raise RegistrationError(
                 f"crud({name}): own_rows needs access= on every action"
             )
+
+    def _check_row_link_scope(self, side: LinkEnd, scope: RowScope[Any, Any]) -> None:
+        name = self.model.__name__
+        if scope.model is not side.target:
+            raise RegistrationError(
+                f"crud({name}): links[{side.declared!r}] RowScope belongs to "
+                f"{scope.model.__name__}, not {side.target.__name__}"
+            )
+        if self._unprotected_link_actions():
+            raise RegistrationError(
+                f"crud({name}): RowScope in links= needs access= on every action"
+            )
+
+    def _unprotected_link_actions(self) -> bool:
+        used = ["list", "retrieve"]
+        used += [a for a, s in (("create", self.create), ("update", self.update)) if s]
+        return any(self.access_for(a) is None for a in used if a not in self.omit)
 
     def check_filters(self) -> None:
         if self.filters is None:
@@ -495,7 +690,7 @@ class _CrudConfig:
     def check_input(self, label: str, schema: type[Schema], columns: set[str]) -> None:
         self.check_names(label, schema, columns)
         self.check_nullable(label, schema)
-        sent = set(schema.specs()) & set(self.assigned())
+        sent = set(schema.specs()) & self.server_columns()
         if sent:
             raise RegistrationError(
                 f"{self.model.__name__}: {label} schema accepts {sorted(sent)}, "
@@ -537,7 +732,7 @@ class _CrudConfig:
             for item in dataclasses.fields(create)  # type: ignore[arg-type]
             if item.name in create.specs() and item.default is not UNSET
         }
-        covered = sent | set(self.assigned())
+        covered = sent | self.server_columns()
         missing = [
             f.name
             for f in dataclasses.fields(self.model)  # type: ignore[arg-type]
@@ -624,6 +819,19 @@ def check_filter_dialect_support(
             )
 
 
+def _scoped_query(self: Any, query: Any, principal: Any, *, hook: str) -> Any:
+    """Validate hook ``QuerySet`` model and enforce ``resource.row_scope``."""
+    row_scope = self.resource.row_scope
+    if isinstance(query, QuerySet) and query.model is not self.resource.model:
+        raise RegistrationError(
+            f"{type(self).__name__}.{hook} must return a "
+            f"{self.resource.model.__name__} QuerySet"
+        )
+    if row_scope is not None:
+        return row_scope.apply(query, principal)
+    return query
+
+
 async def narrowed(
     self: CrudBase, query: QuerySet[Any], filters: FilterSet | None, principal: Any
 ) -> QuerySet[Any]:
@@ -637,6 +845,7 @@ async def narrowed(
     narrower = await self.call_hook(
         "filter_queryset", filters.apply(query), filters, principal
     )
+    narrower = _scoped_query(self, narrower, principal, hook="filter_queryset")
     return filters.arrange(narrower)
 
 
@@ -648,7 +857,12 @@ async def list_rows(
     principal: Any = None,
     _row_plan: RowWireSelection | None = None,
 ) -> Any:
-    base = await self.call_hook("get_queryset", principal)
+    base = _scoped_query(
+        self,
+        await self.call_hook("get_queryset", principal),
+        principal,
+        hook="get_queryset",
+    )
     query = await narrowed(self, base, filters, principal)
     if not query.order:
         query = query.order_by(self.resource.model.__primary_key__)
@@ -711,7 +925,12 @@ async def list_cursor_rows(
     """The keyset list: the same ``get_queryset`` (ownership, tenant) as the
     offset list, the client's filters on top of it, and the cursor bound to
     those filters and to the ordering."""
-    base = await self.call_hook("get_queryset", principal)
+    base = _scoped_query(
+        self,
+        await self.call_hook("get_queryset", principal),
+        principal,
+        hook="get_queryset",
+    )
     query = await narrowed(self, base, filters, principal)
     query = await with_links(self, query, principal)
     cursor = prepare(query, page, b"" if filters is None else filters.scope)
@@ -808,7 +1027,12 @@ async def retrieve_row(
     self: CrudBase, request: Request, item_id: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
-    query = await self.call_hook("get_queryset", principal)
+    query = _scoped_query(
+        self,
+        await self.call_hook("get_queryset", principal),
+        principal,
+        hook="get_queryset",
+    )
     query = await with_links(self, query, principal)
     item = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
     return await self.call_hook("to_schema", item)
@@ -819,13 +1043,7 @@ async def create_row(
 ) -> Any:
     resource = self.resource
     values = resource.values(data)
-    assigned_values: dict[str, Any] = {}
-    for column, derive in resource.assigned().items():
-        assigned_values[column] = (
-            resource.owner_of(principal)
-            if column == resource.owner
-            else derive(principal.user)
-        )
+    assigned_values = resource.assign_values(principal)
     values.update(assigned_values)
     created = await self.call_hook("store", values, principal)
     self.check_written(created)
@@ -843,7 +1061,12 @@ async def update_row(
     self: CrudBase, request: Request, item_id: Any, data: Any, principal: Any = None
 ) -> Any:
     resource = self.resource
-    query = await self.call_hook("get_queryset", principal)
+    query = _scoped_query(
+        self,
+        await self.call_hook("get_queryset", principal),
+        principal,
+        hook="get_queryset",
+    )
     try:
         visible = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
     except resource.model.NotFound:
@@ -857,7 +1080,7 @@ async def update_row(
     if resource.owner:
         scoped = scoped.filter(**{resource.owner: resource.owner_of(principal)})
     item = visible
-    assigned_before = {name: getattr(item, name) for name in resource.assigned()}
+    assigned_before = {name: getattr(item, name) for name in resource.server_columns()}
     updated = await self.call_hook("change", item, scoped, values, principal)
     self.check_written(updated)
     if getattr(updated, resource.model.__primary_key__) != item_id:
@@ -878,7 +1101,12 @@ async def delete_row(
     self: CrudBase, request: Request, item_id: Any, principal: Any = None
 ) -> None:
     resource = self.resource
-    query = await self.call_hook("get_queryset", principal)
+    query = _scoped_query(
+        self,
+        await self.call_hook("get_queryset", principal),
+        principal,
+        hook="get_queryset",
+    )
     visible = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
     if resource.owner and getattr(visible, resource.owner) != resource.owner_of(
         principal
@@ -1029,10 +1257,21 @@ class CrudBase(API):
         """Build a query for reading back a successful write."""
         return self.resource.model.all()
 
+    def scoped_query(
+        self, query: Any, principal: Caller[Any] | None, *, hook: str
+    ) -> QuerySet[Any]:
+        """Verify hook return model and enforce ``resource.row_scope``."""
+        return cast(QuerySet[Any], _scoped_query(self, query, principal, hook=hook))
+
     async def reload_written(self, item_id: Any, principal: Any) -> Any:
         """Read back a write through ``written_queryset``."""
         key = self.resource.model.__primary_key__
-        query = await self.call_hook("written_queryset", principal)
+        query = _scoped_query(
+            self,
+            await self.call_hook("written_queryset", principal),
+            principal,
+            hook="written_queryset",
+        )
         query = await with_links(self, query, principal)
         return await query.filter(**{key: item_id}).aget()
 
@@ -1044,12 +1283,15 @@ class CrudBase(API):
         """The targets of ``relation`` the caller may link and see: the
         ``links=`` entry applied to the caller's user (``None`` on a public
         route)."""
-        user = None if principal is None else principal.user
+        row_scope = self.resource.link_scopes.get(relation)
+        if row_scope is not None:
+            return row_scope.for_caller(principal)
         scope = self.resource.links[relation]
         if isinstance(scope, OwnedRows):
             if principal is None or principal.id is None:
                 raise Forbidden("You cannot change this item.")
             return scope(principal.id)
+        user = None if principal is None else principal.user
         return scope(user)
 
     def to_schema(self, item: Any) -> Schema | Awaitable[Schema]:
@@ -1077,7 +1319,12 @@ class CrudBase(API):
     async def refuse(self, item_id: Any, principal: Any) -> Forbidden:
         """Preserve hidden-row 404s and owner-change 403s after a race."""
         resource = self.resource
-        query = await self.call_hook("get_queryset", principal)
+        query = _scoped_query(
+            self,
+            await self.call_hook("get_queryset", principal),
+            principal,
+            hook="get_queryset",
+        )
         item = await query.filter(**{resource.model.__primary_key__: item_id}).aget()
         if resource.owner and getattr(item, resource.owner) != resource.owner_of(
             principal
@@ -1406,7 +1653,9 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
     include_in_schema: bool | Mapping[str, bool] = True,
     tags: Sequence[str] = (),
     deprecated: bool | date = False,
-    links: Mapping[str, Callable[[Any], QuerySet[Any]]] | None = None,
+    scope: RowScope[Any, Any] | None = None,
+    links: Mapping[str, Callable[[Any], QuerySet[Any]] | RowScope[Any, Any]]
+    | None = None,
 ) -> CrudDeclaration:
     """Declare generated CRUD for ``model``.
 
@@ -1438,6 +1687,8 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         isinstance(filters, type) and issubclass(filters, FilterSet)
     ):
         raise RegistrationError("crud(...) filters= takes a FilterSet subclass")
+    if scope is not None and not isinstance(scope, RowScope):
+        raise RegistrationError("crud(...) scope= takes a RowScope")
     try:
         check_tags(tags)
         check_deprecated(deprecated)
@@ -1449,6 +1700,16 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         if isinstance(access, CrudAccess)
         else dict.fromkeys(ACTIONS, access)
     )
+    callable_links = {
+        key: value
+        for key, value in (links or {}).items()
+        if not isinstance(value, RowScope)
+    }
+    row_link_scopes = {
+        key: value
+        for key, value in (links or {}).items()
+        if isinstance(value, RowScope)
+    }
     config = _CrudConfig(
         model=model,
         read=read,
@@ -1469,7 +1730,9 @@ def crud(  # noqa: PLR0913 - each keyword is an independent CRUD option
         schema_shown=shown,
         tags=check_tags(tags),
         deprecated=deprecated,
-        links=dict(links or {}),
+        row_scope=scope,
+        links=callable_links,
+        link_scopes=row_link_scopes,
     )
     return CrudDeclaration(config, path, declaring_module(), name or "")
 
