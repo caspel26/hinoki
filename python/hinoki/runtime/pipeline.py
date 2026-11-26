@@ -1918,6 +1918,8 @@ def narrow_result(schema: type[Schema], value: object, exact: bool = False) -> o
     list holds nothing but ``S``."""
     if exact:
         return value
+    if isinstance(value, tuple):  # a tuple returned for list[S] is narrowed too
+        value = list(value)
     if isinstance(value, list):
         return narrow_items(schema, value)
     if isinstance(value, (ResultPage, CursorPage)):
