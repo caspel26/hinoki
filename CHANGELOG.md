@@ -6,6 +6,13 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ---
 
+### 💥 Breaking Changes
+
+#### 🧹 Remove deprecated `hinoki.Reply` alias and `hinoki.reply` shim
+> `python/hinoki/__init__.py`, `python/hinoki/reply.py`
+
+Removed the deprecated `hinoki.Reply` top-level alias and the `hinoki.reply` compatibility module. Import `Response` (`hinoki.Response`, `hinoki.http.Response`, or `hinoki.http.response.Response`) and `ResponseHeaders` / `set_cookie` / `encode_header` from `hinoki.http.response` instead.
+
 ### ✨ New Features
 
 #### ✂️ Uniform `crud(..., omit=...)` and removal of `replaces=`
