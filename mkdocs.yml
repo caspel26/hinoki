@@ -1,5 +1,5 @@
 site_name: Hinoki
-site_description: A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, validation, OpenAPI, architecture rules and MCP.
+site_description: High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.
 site_url: https://hinoki.caspel.dev/
 docs_dir: docs
 strict: true
