@@ -941,17 +941,22 @@ def collection_narrow_schema(annotation: object) -> type[Schema] | None:
 Spec = tuple[str, typing.Any]
 
 
-def guide_spec(annotation: object) -> Spec | None:
+Visiting = frozenset[object]
+
+
+def guide_spec(annotation: object, visiting: Visiting = frozenset()) -> Spec | None:
     """The nested spec of ``core._ReturnGuide`` for the Schema positions of an
     annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``
     and ``TypedDict`` containers; ``None`` when it holds none. A ``Page``, a
-    dataclass or an ``Any`` position is not narrowed."""
+    dataclass or an ``Any`` position is not narrowed, and a ``TypedDict`` that
+    refers to itself is narrowed down to the first reference. ``visiting``
+    holds the ``TypedDict`` classes being resolved."""
     classes: list[type[Schema]] = []
     others: list[Spec] = []
     for arm in union_arms(annotation):
         if is_schema(arm):
             classes.append(arm)
-        elif (spec := container_spec(arm)) is not None:
+        elif (spec := container_spec(arm, visiting)) is not None:
             others.append(spec)
     members: list[Spec] = ([("schema", classes)] if classes else []) + others
     if not members:
@@ -959,22 +964,24 @@ def guide_spec(annotation: object) -> Spec | None:
     return members[0] if len(members) == 1 else ("union", members)
 
 
-def container_spec(arm: object) -> Spec | None:
+def container_spec(arm: object, visiting: Visiting) -> Spec | None:
     if typing.is_typeddict(arm):
-        return typeddict_spec(arm)
+        return typeddict_spec(arm, visiting)
     args = typing.get_args(arm)
     origin = typing.get_origin(arm)
     if origin is dict and args:
-        return wrapped("map", guide_spec(args[-1]))
+        return wrapped("map", guide_spec(args[-1], visiting))
     if origin in {list, tuple} and args:
-        return sequence_spec(origin, args)
+        return sequence_spec(origin, args, visiting)
     return None
 
 
-def sequence_spec(origin: object, args: tuple[object, ...]) -> Spec | None:
+def sequence_spec(
+    origin: object, args: tuple[object, ...], visiting: Visiting
+) -> Spec | None:
     if origin is list or args[1:] == (Ellipsis,):
-        return wrapped("seq", guide_spec(args[0]))
-    specs = [guide_spec(item) for item in args]
+        return wrapped("seq", guide_spec(args[0], visiting))
+    specs = [guide_spec(item, visiting) for item in args]
     return ("tuple", specs) if any(specs) else None
 
 
@@ -982,12 +989,23 @@ def wrapped(kind: str, inner: Spec | None) -> Spec | None:
     return None if inner is None else (kind, inner)
 
 
-def typeddict_spec(arm: object) -> Spec | None:
+def is_visiting(annotation: object, visiting: Visiting) -> bool:
+    """Whether ``annotation`` is a ``TypedDict`` being resolved: a back-reference,
+    left whole (it has no guide of its own)."""
+    return any(annotation is seen for seen in visiting)
+
+
+def typeddict_spec(arm: object, visiting: Visiting) -> Spec | None:
+    if is_visiting(arm, visiting):
+        return None
     try:
         hints = typing.get_type_hints(arm)
     except NameError:  # a forward reference that does not resolve: left whole
         return None
-    found = [(key, spec) for key, hint in hints.items() if (spec := guide_spec(hint))]
+    inside = visiting | {arm}
+    found = [
+        (key, spec) for key, hint in hints.items() if (spec := guide_spec(hint, inside))
+    ]
     return ("keyed", found) if found else None
 
 
