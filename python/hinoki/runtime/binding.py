@@ -1002,33 +1002,33 @@ SEQUENCE_ORIGINS = frozenset(
 MAPPING_ORIGINS = frozenset(
     {dict, collections.abc.Mapping, collections.abc.MutableMapping}
 )
-Visiting = frozenset[object]
+Visiting = tuple[object, ...]
 
 
 def guide_spec(
     annotation: object,
-    visiting: Visiting = frozenset(),
+    visiting: Visiting = (),
     arms: list[object] | None = None,
+    recursive: set[object] | None = None,
 ) -> Spec | None:
     """The nested spec of ``core._ReturnGuide`` for the Schema positions of an
     annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``,
     ``set`` and ``frozenset``, their abstract forms (``Sequence``, ``Iterable``,
     ``Set``, ``Mapping``), a PEP 695
     alias of any of these and ``TypedDict`` containers; ``None`` when it holds
-    none. A ``Page``, a dataclass or an ``Any`` position is not narrowed, and a
-    ``TypedDict`` that refers to itself is narrowed down to the first reference.
-    ``visiting`` holds the aliases and ``TypedDict`` classes being resolved."""
+    none. A ``Page``, a dataclass or an ``Any`` position is not narrowed.
+    ``visiting`` holds the aliases and ``TypedDict`` classes on the current path."""
     alias = alias_of(annotation)
     if alias is not None:
-        if is_visiting(alias, visiting):
+        if back_reference(alias, visiting, recursive):
             return None
-        visiting = visiting | {alias}
+        visiting = (*visiting, alias)
     classes: list[type[Schema]] = []
     others: list[Spec] = []
     for arm in union_arms(annotation) if arms is None else arms:
         if is_schema(arm):
             classes.append(arm)
-        elif (spec := container_spec(arm, visiting)) is not None:
+        elif (spec := container_spec(arm, visiting, recursive)) is not None:
             others.append(spec)
     members: list[Spec] = ([("schema", classes)] if classes else []) + others
     if not members:
@@ -1075,24 +1075,29 @@ def alias_of(annotation: object) -> object | None:
     return annotation if isinstance(annotation, typing.TypeAliasType) else None
 
 
-def container_spec(arm: object, visiting: Visiting) -> Spec | None:
+def container_spec(
+    arm: object, visiting: Visiting, recursive: set[object] | None
+) -> Spec | None:
     if typing.is_typeddict(arm):
-        return typeddict_spec(arm, visiting)
+        return typeddict_spec(arm, visiting, recursive)
     args = typing.get_args(arm)
     origin = typing.get_origin(arm)
     if origin in MAPPING_ORIGINS and args:
-        return wrapped("map", guide_spec(args[-1], visiting))
+        return wrapped("map", guide_spec(args[-1], visiting, recursive=recursive))
     if args and (origin in SEQUENCE_ORIGINS or origin is tuple):
-        return sequence_spec(origin, args, visiting)
+        return sequence_spec(origin, args, visiting, recursive)
     return None
 
 
 def sequence_spec(
-    origin: object, args: tuple[object, ...], visiting: Visiting
+    origin: object,
+    args: tuple[object, ...],
+    visiting: Visiting,
+    recursive: set[object] | None,
 ) -> Spec | None:
     if origin is not tuple or args[1:] == (Ellipsis,):
-        return wrapped("seq", guide_spec(args[0], visiting))
-    specs = [guide_spec(item, visiting) for item in args]
+        return wrapped("seq", guide_spec(args[0], visiting, recursive=recursive))
+    specs = [guide_spec(item, visiting, recursive=recursive) for item in args]
     return ("tuple", specs) if any(specs) else None
 
 
@@ -1100,17 +1105,41 @@ def wrapped(kind: str, inner: Spec | None) -> Spec | None:
     return None if inner is None else (kind, inner)
 
 
-def is_visiting(annotation: object, visiting: Visiting) -> bool:
-    """Whether ``annotation`` is an alias or ``TypedDict`` being resolved: a
-    back-reference, left whole (it has no guide of its own)."""
-    return any(annotation is seen for seen in visiting)
+def back_reference(
+    annotation: object, visiting: Visiting, recursive: set[object] | None
+) -> bool:
+    """Record the members of a type cycle without marking its outer containers."""
+    for index, ancestor in enumerate(visiting):
+        if annotation is ancestor:
+            if recursive is not None:
+                recursive.update(visiting[index:])
+            return True
+    return False
 
 
-def typeddict_spec(arm: object, visiting: Visiting) -> Spec | None:
-    if is_visiting(arm, visiting):
+def typeddict_spec(
+    arm: object, visiting: Visiting, recursive: set[object] | None
+) -> Spec | None:
+    cycles: set[object] = set() if recursive is None else recursive
+    if back_reference(arm, visiting, cycles):
         return None
+    inside = (*visiting, arm)
+    found = [
+        (key, spec)
+        for key, hint in typeddict_hints(arm).items()
+        if (spec := guide_spec(hint, inside, recursive=cycles))
+    ]
+    if found and arm in cycles:
+        raise AliasError(
+            f"the recursive TypedDict {getattr(arm, '__name__', arm)} holds a "
+            "Schema and cannot be narrowed; use a Schema for the recursive structure"
+        )
+    return ("keyed", found) if found else None
+
+
+def typeddict_hints(arm: object) -> dict[str, object]:
     try:
-        hints = typing.get_type_hints(arm)
+        return typing.get_type_hints(arm)
     except NameError as exc:  # left whole it would be written with every key
         keys = [
             key
@@ -1123,11 +1152,6 @@ def typeddict_spec(arm: object, visiting: Visiting) -> Spec | None:
             f"does not resolve ({exc}); import the name outside TYPE_CHECKING "
             "or return a type whose annotations all resolve"
         ) from exc
-    inside = visiting | {arm}
-    found = [
-        (key, spec) for key, hint in hints.items() if (spec := guide_spec(hint, inside))
-    ]
-    return ("keyed", found) if found else None
 
 
 def is_schema(candidate: object) -> typing.TypeGuard[type[Schema]]:
