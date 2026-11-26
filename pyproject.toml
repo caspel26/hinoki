@@ -50,7 +50,7 @@ dev = [
     { include-group = "test" },
     "pre-commit>=4.0",
 ]
-lint = ["complexipy==9.0.0", "ruff==0.17.5"]
+lint = ["complexipy==9.0.0", "ruff==0.17.6"]
 docs = [
     "mike==2.2.0",
     "mkdocs-git-revision-date-localized-plugin>=1.7.0",
