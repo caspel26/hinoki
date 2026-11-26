@@ -55,6 +55,7 @@ from hinoki.runtime.responsecheck import (
     AliasError,
     Check,
     compile_response_check,
+    read_alias_value,
     union_arms,
     unwrap,
 )
@@ -1015,7 +1016,11 @@ def refers_to_itself(alias: object) -> bool:
     """Whether the value of a PEP 695 alias reaches the alias again, through its
     arguments or through the value of another alias."""
     seen: set[int] = set()
-    pending = [getattr(alias, "__value__", None)]
+    pending: list[object] = [
+        read_alias_value(alias)
+        if isinstance(alias, typing.TypeAliasType)
+        else getattr(alias, "__value__", None)
+    ]
     while pending:
         item = pending.pop()
         origin = typing.get_origin(item)
@@ -1026,7 +1031,7 @@ def refers_to_itself(alias: object) -> bool:
             if id(named) in seen:
                 continue
             seen.add(id(named))
-            pending.append(named.__value__)
+            pending.append(read_alias_value(named))
         pending.extend(typing.get_args(item))
     return False
 

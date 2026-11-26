@@ -114,18 +114,31 @@ def unwrap(annotation: object) -> object:
         if origin is typing.Annotated:
             annotation = typing.get_args(annotation)[0]
         elif isinstance(annotation, typing.TypeAliasType):
-            annotation = annotation.__value__
+            annotation = read_alias_value(annotation)
         elif isinstance(origin, typing.TypeAliasType):
             annotation = alias_value(origin, typing.get_args(annotation))
         else:
             return annotation
 
 
+def read_alias_value(alias: typing.TypeAliasType) -> object:
+    """The target of ``alias``; ``AliasError`` when a forward name inside it
+    does not resolve."""
+    try:
+        return alias.__value__
+    except NameError as exc:
+        raise AliasError(
+            f"the type alias {alias.__name__} cannot be resolved ({exc}); "
+            "import the name outside TYPE_CHECKING or declare the action with "
+            "a plain return type"
+        ) from exc
+
+
 def alias_value(alias: typing.TypeAliasType, args: tuple[object, ...]) -> object:
     """The value of ``alias[args]``: each type parameter replaced by its argument
     (the order of ``__type_params__``, not the order the value first names them).
     ``AliasError`` for a ``TypeVarTuple`` parameter or one that cannot be replaced."""
-    value = alias.__value__
+    value = read_alias_value(alias)
     if any(isinstance(p, typing.TypeVarTuple) for p in alias.__type_params__):
         raise AliasError(
             f"the type alias {alias.__name__}[...] has a TypeVarTuple parameter, "
@@ -136,7 +149,11 @@ def alias_value(alias: typing.TypeAliasType, args: tuple[object, ...]) -> object
         return mapping.get(value, value)
     free = getattr(value, "__parameters__", ())
     try:
-        return value[tuple(mapping[param] for param in free)] if free else value
+        return (
+            typing.cast("Any", value)[tuple(mapping[param] for param in free)]
+            if free
+            else value
+        )
     except (KeyError, TypeError) as exc:
         raise AliasError(
             f"the type alias {alias.__name__}[...] cannot be resolved ({exc}); "
