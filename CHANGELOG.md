@@ -321,6 +321,8 @@ The [benchmarks page](docs/benchmarks.md) now shows a run on a dedicated 8 vCPU 
 
 The [benchmarks page](docs/benchmarks.md) is redesigned: 8 workers and 1 worker sit behind tabs, a Summary compares Hinoki on Kiso with the other stacks (ratios of medians, ties and unsettled results shown), and each route has its own table with the ratio, p50, p99, range and CV; the other runtimes stay a separate view (#529).
 
+The README, the site description and the docs home now use the repository description, and the README's `Write an API` example follows the recommended syntax: `crud(...)` with `update` and `delete` in `routes.py` and a handwritten `@http.get` action. The footer credits MkDocs in a compact link (#531).
+
 ---
 
 ### 🎯 Summary
