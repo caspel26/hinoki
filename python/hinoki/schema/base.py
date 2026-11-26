@@ -33,7 +33,6 @@ from hinoki.schema.construct import (
 )
 from hinoki.schema.decorators import (
     _CONFIG_UNSET,
-    _NO_MODEL,
     _SUPPLIED_FIELDS,
     _TRACKS_SUPPLIED_FIELDS,
     ForwardReference,
@@ -78,8 +77,8 @@ from hinoki.schemaconfig import SchemaConfig
 
 if typing.TYPE_CHECKING:
     # A custom metaclass makes the type checkers stop validating class keywords
-    # (`config=`, `model=`), so they see the plain `type`; `SchemaMeta` is the
-    # runtime metaclass.
+    # (`config=`), so they see the plain `type`; `SchemaMeta` is the runtime
+    # metaclass.
     _SchemaMeta = type
 else:
     _SchemaMeta = SchemaMeta
@@ -123,18 +122,15 @@ class Schema(metaclass=_SchemaMeta):
 
     def __init_subclass__(
         cls,
-        model: object = _NO_MODEL,
         config: SchemaConfig | _ConfigOmitted = _CONFIG_UNSET,
         **kwargs: object,
     ) -> None:
         super().__init_subclass__(**kwargs)
         with _SlotsHeld(cls):
-            cls._build_schema(model, config)
+            cls._build_schema(config)
 
     @classmethod
-    def _build_schema(
-        cls, model: object, config: SchemaConfig | _ConfigOmitted
-    ) -> None:
+    def _build_schema(cls, config: SchemaConfig | _ConfigOmitted) -> None:
         resolved_config = resolve_schema_config(cls, config)
         custom_init = "__init__" in cls.__dict__
         cls.__source__ = class_source(cls)
@@ -147,11 +143,6 @@ class Schema(metaclass=_SchemaMeta):
         if plan is not None:
             cls.__derived_model__ = cast(type, plan[0])
             derive_from_model(cls, *plan)
-        elif model is not _NO_MODEL:
-            source = cast(type, model)
-            cls.__derived_model__ = source
-            cls.__derivation__ = (source, None, (), False)
-            derive_from_model(cls, source, None, (), False)
         cls.__checks__ = collect_checks(cls)
         cls.__normalizers__ = collect_normalizers(cls)
         cls.__before__ = collect_before(cls)

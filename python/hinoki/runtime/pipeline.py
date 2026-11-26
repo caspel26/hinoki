@@ -49,7 +49,6 @@ from hinoki.mail import Mailer, mailer_var
 from hinoki.modules import ModuleContext
 from hinoki.orm.context import database_var
 from hinoki.orm.links import check_resolved
-from hinoki.orm.model import Model
 from hinoki.orm.projection import _ProjectedItem, _ProjectedList, _ProjectedPage
 from hinoki.pagination import CursorPage
 from hinoki.pagination import Page as ResultPage
@@ -1853,8 +1852,6 @@ def enforce_response(binding: Binding, result: object) -> bool:
             return verdict == 1
     elif check(result):
         return False
-    if binding.response_schema is not None and isinstance(result, Model):
-        return False  # a Model is projected through the declared Schema right after
     raise ResponseContractError(
         f"{binding.route.name} returned a {type(result).__name__} that does not "
         f"match its return annotation {binding.response_annotation}"
@@ -1889,14 +1886,6 @@ def valid_refusal(error: TooManyRequests) -> bool:
 
 
 BUILTIN_OBJECTS = frozenset({JSONRenderer, XMLRenderer})
-
-
-class ResponseProjectionError(RuntimeError):
-    """The handler's own return value does not satisfy its response Schema.
-
-    It is a server fault, answered as ``500 internal_error`` and logged with the
-    original ``ValidationError`` as its cause; no constraint detail reaches the
-    client."""
 
 
 def shape_result(
@@ -1996,28 +1985,11 @@ def narrow_page(
 def project_response(
     schema: type[Schema] | None, value: object, view: bool = False
 ) -> object:
-    """Shape a handler result by its single declared response Schema.
+    """Narrow a Schema subclass return value to the declared Schema's fields.
 
-    A Model is projected with ``from_model()``; an instance of a Schema subclass
-    is sent with the declared Schema's fields only. Other values pass through.
+    Exact instances and matching lazy Rust ``_ProjectedItem`` values pass
+    through without materialization; other values pass through unchanged.
     """
-    if schema is None:
+    if schema is None or not isinstance(value, schema):
         return value
-    if isinstance(value, schema):
-        return narrow_instance(schema, value, view)
-    if not isinstance(value, Model):
-        return value
-    source = schema.__derived_model__
-    if source is not None and not isinstance(value, source):
-        raise TypeError(
-            f"{schema.__name__} is derived from {source.__name__}, "
-            f"not {type(value).__name__}"
-        )
-    try:
-        projected = schema.from_model(value)
-    except ValidationError as exc:
-        raise ResponseProjectionError(
-            f"the {type(value).__name__} returned by the handler does not "
-            f"satisfy {schema.__name__}"
-        ) from exc
-    return narrow_instance(schema, projected, view) if view else projected
+    return narrow_instance(schema, value, view)

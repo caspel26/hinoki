@@ -1,9 +1,11 @@
 """Schemas derived from models with ``@derive(Model, ...)``."""
 
+import asyncio
 import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from functools import cached_property
+from pathlib import Path
 from types import CellType, FunctionType, SimpleNamespace
 from typing import Annotated, Any, cast, get_type_hints
 from uuid import UUID, uuid4
@@ -24,12 +26,16 @@ from hinoki import (
     http,
     object_check,
 )
+from hinoki.db import Database, DatabaseModule
 from hinoki.derive import _class_cell as find_class_cell
 from hinoki.derive import rebuild
 from hinoki.errors import RegistrationError, ValidationError
-from hinoki.orm import Model, OnDelete, field, foreign_key
+from hinoki.orm import Model, OnDelete, field, foreign_key, use_database
+from hinoki.orm.migrations import create_table_sql, table_state
 from hinoki.pagination import Page
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.pipeline import Pipeline, project_response
+from hinoki.runtime.responsecheck import ResponseContractError
 from hinoki.schema import graph_has_checks
 from hinoki.testing import ASGIClient
 
@@ -207,9 +213,9 @@ def test_mistakes_fail_when_the_class_is_declared_or_first_used() -> None:
         class C(Schema):
             pass
 
-    with pytest.raises(RegistrationError, match="Model class"):
+    with pytest.raises(TypeError, match="model"):
 
-        class E(Schema, model=int):
+        class E(Schema, model=Post):
             pass
 
     with pytest.raises(RegistrationError, match="source must be a Model class"):
@@ -218,33 +224,18 @@ def test_mistakes_fail_when_the_class_is_declared_or_first_used() -> None:
         class InvalidSource(Schema):
             pass
 
-    with pytest.raises(RegistrationError, match="requires a Model argument"):
+    with pytest.raises(TypeError, match="missing 1 required positional argument"):
 
-        @derive(only=("title",))
+        @derive(only=("title",))  # type: ignore[call-arg]
         class D(Schema):
             pass
-
-    with pytest.raises(RegistrationError, match="not both"):
-
-        @derive(Post, only=("title",))
-        class DuplicateSource(Schema, model=Post):
-            pass
-
-
-def test_legacy_derive_form_warns_and_remains_usable() -> None:
-    with pytest.warns(DeprecationWarning, match="pass the Model to @derive"):
-
-        @derive(only=("title",))
-        class Legacy(Schema, model=Post):
-            pass
-
-    assert list(Legacy.specs()) == ["title"]
 
 
 def test_without_a_selection_every_column_is_taken_and_partial_can_name_fields() -> (
     None
 ):
-    class Everything(Schema, model=Post):
+    @derive(Post)
+    class Everything(Schema):
         pass
 
     assert list(Everything.specs()) == list(Post.__columns__)
@@ -262,7 +253,7 @@ def test_derive_is_one_callable_with_tuple_options() -> None:
         hasattr(derive, name) for name in ("model", "only", "exclude", "partial")
     )
     with pytest.raises(RegistrationError, match="selects no columns"):
-        derive(only=())
+        derive(Post, only=())
 
     @derive(Post, exclude=())
     class EmptyExclusion(Schema):
@@ -272,7 +263,7 @@ def test_derive_is_one_callable_with_tuple_options() -> None:
 
 
 def test_derive_model_annotation_resolves_for_runtime_introspection() -> None:
-    assert get_type_hints(derive)["model"] == type[Model] | None
+    assert get_type_hints(derive)["model"] == type[Model]
 
 
 @pytest.mark.parametrize(
@@ -289,7 +280,7 @@ def test_derive_rejects_invalid_option_shapes(
     options: dict[str, object], message: str
 ) -> None:
     with pytest.raises(RegistrationError, match=message):
-        derive(**options)  # type: ignore[arg-type]
+        derive(Post, **options)  # type: ignore[arg-type]
 
 
 class DescriptorBase(Schema):
@@ -579,52 +570,149 @@ class AutomaticPostOut(Schema):
     title: str
 
 
-async def test_handler_model_result_is_projected_to_declared_schema() -> None:
+async def test_handler_returning_model_fails_response_contract_on_both_lanes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     @http.get("/auto")
     def synchronous() -> AutomaticPostOut:
-        return post_row("sync")  # type: ignore[return-value]
+        return post_row("sync-leak")  # type: ignore[return-value]
 
     @http.get("/auto-async")
     async def asynchronous() -> AutomaticPostOut:
-        return post_row("async")  # type: ignore[return-value]
+        return post_row("async-leak")  # type: ignore[return-value]
+
+    @http.get("/wrong")
+    def wrong() -> AutomaticPostOut:
+        return Author(id=uuid4(), name="author-leak")  # type: ignore[return-value]
 
     app = Hinoki()
-    app.include(synchronous, asynchronous)
-    async with ASGIClient(app) as client:
-        sync_response = await client.get("/auto")
-        async_response = await client.get("/auto-async")
-
-    assert sync_response.status == async_response.status == 200
-    assert sync_response.body == {"title": "sync"}
-    assert async_response.body == {"title": "async"}
+    app.include(synchronous, asynchronous, wrong)
+    with caplog.at_level("ERROR", logger="hinoki.runtime"):
+        async with ASGIClient(app) as client:
+            for path in ("/auto", "/auto-async", "/wrong"):
+                response = await client.get(path)
+                assert_internal_error(response.status, response.body)
+                assert "leak" not in json.dumps(response.body)
 
     native_app = Hinoki()
 
     @http.get("/native")
     async def native() -> AutomaticPostOut:
-        return post_row("native")  # type: ignore[return-value]
+        return post_row("native-leak")  # type: ignore[return-value]
 
     native_app.include(native)
     built = Pipeline(native_app)
-    native_response = await built._call_native(built.bindings[0], {})
-    assert native_response.status == 200
-    assert native_response.body == b'{"title":"native"}'
+    with caplog.at_level("ERROR", logger="hinoki.runtime"):
+        native_response = await built.handle_native(
+            built.bindings[0], "n" * 32, {}, None
+        )
+    assert_internal_error(native_response.status, json.loads(native_response.body))
+    assert b"native-leak" not in native_response.body
+    assert any(
+        isinstance(cause, ResponseContractError) and "Post" in str(cause)
+        for cause in logged_causes(caplog)
+    )
 
 
-async def test_handler_model_projection_rejects_an_unrelated_model() -> None:
-    with pytest.raises(TypeError, match="derived from Post, not Author"):
-        project_response(AutomaticPostOut, Author(id=uuid4(), name="author"))
-
-    @http.get("/wrong")
-    def wrong() -> AutomaticPostOut:
-        return Author(id=uuid4(), name="author")  # type: ignore[return-value]
+async def test_explicit_from_model_works_on_both_lanes() -> None:
+    @http.get("/explicit")
+    async def explicit() -> AutomaticPostOut:
+        return AutomaticPostOut.from_model(post_row("explicit"))
 
     app = Hinoki()
-    app.include(wrong)
+    app.include(explicit)
     async with ASGIClient(app) as client:
-        response = await client.get("/wrong")
+        asgi_response = await client.get("/explicit")
+    built = Pipeline(app)
+    native_response = await built._call_native(built.bindings[0], {})
 
-    assert response.status == 500
+    assert (asgi_response.status, asgi_response.body) == (200, {"title": "explicit"})
+    assert native_response.status == 200
+    assert native_response.body == b'{"title":"explicit"}'
+
+
+async def test_atomic_model_return_rolls_back_before_response(tmp_path: Path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'atomic_rollback.sqlite3'}"
+    db = await Database.connect(db_url, max_size=1, wait=1)
+    try:
+        await db.execute(create_table_sql("ds_authors", table_state(Author), "sqlite"))
+    finally:
+        db.close()
+
+    @derive(Author, only=("id", "name"))
+    class AuthorOut(Schema):
+        pass
+
+    @http.post("/atomic-model", atomic=True)
+    async def create_author_raw() -> AuthorOut:
+        return await Author.acreate(name="must-rollback")  # type: ignore[return-value]
+
+    app = Hinoki(include=[create_author_raw], modules=[DatabaseModule(db_url)])
+    async with ASGIClient(app) as client:
+        response = await client.post("/atomic-model")
+        assert_internal_error(response.status, response.body)
+
+    check_db = await Database.connect(db_url, max_size=1, wait=1)
+    try:
+        with use_database(check_db):
+            assert await Author.all().acount() == 0
+    finally:
+        check_db.close()
+
+
+async def test_kiso_atomic_model_return_rolls_back_before_response(
+    tmp_path: Path,
+) -> None:
+    db_url = f"sqlite:///{tmp_path / 'kiso_atomic_rollback.sqlite3'}"
+    db = await Database.connect(db_url, max_size=1, wait=1)
+    try:
+        await db.execute(create_table_sql("ds_authors", table_state(Author), "sqlite"))
+    finally:
+        db.close()
+
+    @derive(Author, only=("id", "name"))
+    class AuthorOut(Schema):
+        pass
+
+    @http.post("/kiso-atomic-model", atomic=True)
+    async def create_author_raw() -> AuthorOut:
+        return await Author.acreate(name="kiso-rollback")  # type: ignore[return-value]
+
+    app = Hinoki(include=[create_author_raw], modules=[DatabaseModule(db_url)])
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    await worker.start()
+    try:
+        reader, writer = await asyncio.open_connection("127.0.0.1", worker.address[1])
+        writer.write(
+            b"POST /kiso-atomic-model HTTP/1.1\r\n"
+            b"host: test\r\n"
+            b"content-length: 0\r\n\r\n"
+        )
+        await writer.drain()
+        raw_head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
+        status = int(raw_head.decode("latin-1").split("\r\n")[0].split()[1])
+        writer.close()
+        await writer.wait_closed()
+        assert status == 500
+    finally:
+        await worker.stop()
+
+    check_db = await Database.connect(db_url, max_size=1, wait=1)
+    try:
+        with use_database(check_db):
+            assert await Author.all().acount() == 0
+    finally:
+        check_db.close()
+
+
+def test_project_response_keeps_schema_narrowing_and_ignores_models() -> None:
+    class Extended(AutomaticPostOut):
+        label: str = ""
+
+    ext = Extended(title="kept", label="hidden")
+    assert project_response(AutomaticPostOut, ext) == {"title": "kept"}
+    author = Author(id=uuid4(), name="author")
+    assert project_response(AutomaticPostOut, author) is author
 
 
 async def test_handler_projection_keeps_schema_reply_and_bodyless_responses() -> None:
@@ -726,41 +814,12 @@ def test_derive_rejects_a_non_schema_class_and_a_second_derivation() -> None:
             pass
 
 
-def test_projection_checks_the_source_model_of_an_inherited_derivation() -> None:
-    class Extended(AutomaticPostOut):
-        label: str = ""
-
-    with pytest.raises(TypeError, match="derived from Post, not Author"):
-        project_response(Extended, Author(id=uuid4(), name="author"))
-
-
 def logged_causes(caplog: pytest.LogCaptureFixture) -> list[BaseException]:
     return [
         record.exc_info[1]
         for record in caplog.records
         if record.exc_info and record.exc_info[1] is not None
     ]
-
-
-async def test_unrelated_model_failure_is_logged_with_its_cause(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    @http.get("/wrong")
-    def wrong() -> AutomaticPostOut:
-        return Author(id=uuid4(), name="author")  # type: ignore[return-value]
-
-    app = Hinoki()
-    app.include(wrong)
-    with caplog.at_level("ERROR", logger="hinoki.runtime"):
-        async with ASGIClient(app) as client:
-            response = await client.get("/wrong")
-
-    assert response.status == 500
-    assert response.body["error"] == "internal_error"
-    assert any(
-        isinstance(cause, TypeError) and "derived from Post, not Author" in str(cause)
-        for cause in logged_causes(caplog)
-    )
 
 
 def assert_internal_error(status: int, body: dict[str, object]) -> None:
@@ -774,29 +833,10 @@ class LimitedPostOut(Schema):
     pass
 
 
-async def test_an_invalid_stored_row_is_a_server_error_on_both_paths(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    @http.get("/invalid")
-    async def invalid() -> LimitedPostOut:
-        return post_row("x" * 100)  # type: ignore[return-value]
-
-    app = Hinoki()
-    app.include(invalid)
-    with caplog.at_level("ERROR", logger="hinoki.runtime"):
-        async with ASGIClient(app) as client:
-            response = await client.get("/invalid")
-        built = Pipeline(app)
-        native = await built.handle_native(built.bindings[0], "r" * 32, {}, None)
-
-    assert_internal_error(response.status, response.body)
-    native_body = json.loads(native.body)
-    assert_internal_error(native.status, native_body)
-    assert native_body["request_id"] == "r" * 32
-    assert b"max_length" not in native.body
-    causes = logged_causes(caplog)
-    assert len(causes) == 2
-    assert all(isinstance(cause.__cause__, ValidationError) for cause in causes)
+def test_from_model_rejects_an_invalid_stored_row() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        LimitedPostOut.from_model(post_row("x" * 100))
+    assert exc_info.value.details[0].code == "max_length"
 
 
 class LeakyPostOut(AutomaticPostOut):
@@ -853,14 +893,15 @@ async def test_lists_and_pages_of_models_fail_closed_without_a_body_leak() -> No
         assert "leak" not in json.dumps(response.body)
 
 
-async def test_an_annotated_response_schema_still_projects_a_model() -> None:
+async def test_an_annotated_response_schema_rejects_a_model() -> None:
     @http.get("/annotated")
     def annotated() -> Annotated[AutomaticPostOut, "summary"]:
-        return post_row("annotated")  # type: ignore[return-value]
+        return post_row("annotated-leak")  # type: ignore[return-value]
 
     app = Hinoki()
     app.include(annotated)
     async with ASGIClient(app) as client:
         response = await client.get("/annotated")
 
-    assert (response.status, response.body) == (200, {"title": "annotated"})
+    assert_internal_error(response.status, response.body)
+    assert "annotated-leak" not in json.dumps(response.body)

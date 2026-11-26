@@ -1,8 +1,5 @@
 """Hinoki: a typed Python API framework with a native Rust core."""
 
-import warnings
-from typing import TYPE_CHECKING
-
 from hinoki import errors, http, settings
 from hinoki.access import Access
 from hinoki.api import API
@@ -62,24 +59,6 @@ from hinoki.schema import (
 from hinoki.sources import XML, Form, Query
 
 __version__ = core_version()
-
-if TYPE_CHECKING:
-    # Deprecated alias for one compatibility cycle; ``__getattr__`` warns at
-    # runtime. Type checkers see only this name, not a catch-all ``__getattr__``.
-    Reply = Response
-else:
-
-    def __getattr__(name: str) -> object:
-        """Resolve the deprecated ``Reply`` alias with a warning."""
-        if name == "Reply":
-            warnings.warn(
-                "hinoki.Reply is deprecated; use hinoki.http.response.Response "
-                "(also exported as hinoki.Response)",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return Response
-        raise AttributeError(f"module 'hinoki' has no attribute {name!r}")
 
 
 __all__ = [

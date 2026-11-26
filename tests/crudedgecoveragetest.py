@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 
 import hinoki.resources as crud_module
-from hinoki import API, Caller, Schema, crud
+from hinoki import API, Caller, Schema, crud, derive
 from hinoki.context import sync_runner
 from hinoki.errors import Forbidden, RegistrationError
 from hinoki.http.request import Request
@@ -84,7 +84,8 @@ def test_crud_config_rejects_abstract_and_derived_schemas() -> None:
     class OtherEntry(Model, table="crud_edge_other_entries"):
         id: int = field(primary_key=True)
 
-    class OtherEntryOut(Schema, model=OtherEntry):
+    @derive(OtherEntry)
+    class OtherEntryOut(Schema):
         id: int
 
     with pytest.raises(RegistrationError, match="read_schema is derived"):

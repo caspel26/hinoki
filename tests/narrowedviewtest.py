@@ -275,14 +275,14 @@ async def test_overlapping_union_narrows_all_elements(
             assert json.loads(reply.raw) == expected, path
 
 
-async def test_model_return_projected_to_derived_schema_wraps_view() -> None:
+async def test_from_model_derived_schema_wraps_view() -> None:
     renderer = WalkJSON()
     group = RouteGroup("")
     group.get("/walk", renderers=[WalkRenderer()], validate_response=True)(
-        handler(DerivedItem, ViewItem(id=1, name="ada"))
+        handler(DerivedItem, DerivedItem.from_model(ViewItem(id=1, name="ada")))
     )
     group.get("/json-sub", renderers=[renderer], validate_response=True)(
-        handler(DerivedItem, ViewItem(id=1, name="ada"))
+        handler(DerivedItem, DerivedItem.from_model(ViewItem(id=1, name="ada")))
     )
     expected = {"id": 1, "name": "ada", "kid": {"id": 9}}
     async with ASGIClient(Hinoki(include=[group])) as client:
