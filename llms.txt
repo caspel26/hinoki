@@ -149,7 +149,7 @@ assert "/greeting" in app.openapi()["paths"]
 - [Operating: Native CRUD orientation run](https://hinoki.caspel.dev/dev/rust-crud-orientation.md): a workload-specific measurement of generated CRUD.
 - [Reference: Overview](https://hinoki.caspel.dev/dev/reference/index.md): public names, signatures and docstrings.
 - [Reference: Core API](https://hinoki.caspel.dev/dev/reference/web.md): `from hinoki import Hinoki, RouteGroup, Mount, http, errors` and `from hinoki.project import manifest_routes`.
-- [Reference: Generated CRUD](https://hinoki.caspel.dev/dev/reference/crud.md): The CRUD guide explains action generation, access policies, ownership, schema requirements and route replacement.
+- [Reference: Generated CRUD](https://hinoki.caspel.dev/dev/reference/crud.md): The CRUD guide explains action generation, access policies, ownership, schema requirements and omitting generated actions.
 - [Reference: Schemas](https://hinoki.caspel.dev/dev/reference/schemas.md): API reference for `Schema`, its fields and the checks that run on input.
 - [Reference: Models and queries](https://hinoki.caspel.dev/dev/reference/orm.md): API reference for `Model`, columns, relations, indexes and querysets.
 - [Reference: Parsers and renderers](https://hinoki.caspel.dev/dev/reference/codecs.md): API reference for request parsers and response renderers.
