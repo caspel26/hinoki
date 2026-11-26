@@ -502,7 +502,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>32 min read</span>
+            <span>33 min read</span>
           </p>
           
         </header>
@@ -671,7 +671,17 @@ async def reindex() -&gt; dict[str, str]: ...
 <blockquote>
 <p><code>python/hinoki/runtime/banner.py</code>, <code>python/hinoki/terminal.py</code> (#412, #415)</p>
 </blockquote>
-<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>⚡ Fewer allocations per native-lane response, and a one-pass response check</h4>
+<p>The Hinoki box appears on every colour terminal and shows Kiso's startup in the <code>hinoki new</code> box.</p></section><section class="cl__sec" data-kind="improvements"><h3>🔧 Improvements</h3><h4>🔒 Explicit <code>access=</code> on handwritten actions of protected <code>@crud</code> classes (breaking)</h4>
+<blockquote>
+<p><code>python/hinoki/routing.py</code>, <code>python/hinoki/websocket.py</code>, <code>python/hinoki/resources.py</code>, <code>examples/blog/blog/apps/blog/api.py</code>, <code>docs/crud.md</code>, <code>docs/class-endpoints.md</code></p>
+</blockquote>
+<p>Handwritten <code>@http.*</code> and <code>@http.websocket</code> actions on a protected <code>@crud</code> class (any resource where at least one generated action has an <code>Access</code> policy) must now declare <code>access=...</code> explicitly (or <code>access=None</code> to make the action public on purpose). Route descriptors distinguish omitted <code>access</code> from explicit <code>access=None</code>, so omitting <code>access=</code> raises <code>RegistrationError</code> at class declaration instead of silently exposing a public endpoint.</p>
+<pre><code class="language-python">@crud(Post, path=&quot;/posts&quot;, read=PostOut, create=PostCreate, access=editor)
+class Posts(API):
+    @http.get(&quot;/&quot;, access=None)  # public on purpose
+    async def listing(self) -&gt; list[PostOut]: ...
+</code></pre>
+<h4>⚡ Fewer allocations per native-lane response, and a one-pass response check</h4>
 <blockquote>
 <p><code>crates/kiso/src/headers.rs</code>, <code>crates/bindings/src/server/core.rs</code>, <code>crates/bindings/src/server/routes.rs</code>, <code>crates/bindings/src/server/prepared.rs</code>, <code>crates/bindings/src/request/pyapi.rs</code>, <code>crates/bindings/src/request/json.rs</code>, <code>python/hinoki/runtime/pipeline.py</code>, <code>python/hinoki/runtime/nativelane.py</code></p>
 </blockquote>

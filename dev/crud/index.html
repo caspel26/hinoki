@@ -501,7 +501,7 @@
           <h1 id="generate-crud-routes">Generate CRUD routes<a class="headerlink" href="#generate-crud-routes" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></span>
             <span>16 min read</span>
           </p>
           
@@ -587,7 +587,7 @@
     <span class="n">default</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span> <span class="nb">list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">retrieve</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="n">billing_admin</span>
 <span class="p">)</span>
 </code></pre></div>
-<p>Here list and retrieve are public, create and update need <code>billing_staff</code>, delete needs <code>billing_admin</code>. Unknown action names raise <code>TypeError</code>. Generated writes always need a policy: a write left without one raises <code>RegistrationError</code> (when a <code>@crud</code> class is declared, or when a <code>crud(...)</code> value is included) unless you pass <code>public_writes=True</code> on purpose. The <code>access=</code> of <code>crud(...)</code> covers generated actions only; a handwritten action in the class form states its own.</p>
+<p>Here list and retrieve are public, create and update need <code>billing_staff</code>, delete needs <code>billing_admin</code>. Unknown action names raise <code>TypeError</code>. Generated writes always need a policy: a write left without one raises <code>RegistrationError</code> (when a <code>@crud</code> class is declared, or when a <code>crud(...)</code> value is included) unless you pass <code>public_writes=True</code> on purpose. The <code>access=</code> of <code>crud(...)</code> covers generated actions only; on a protected <code>@crud</code> class (any resource where at least one generated action has an <code>Access</code> policy), every handwritten action must declare <code>access=...</code> explicitly (or <code>access=None</code> to make it public on purpose), and omitting <code>access=</code> raises <code>RegistrationError</code> when the class is declared.</p>
 <p>Rules see a generated action under the module that declares the <code>crud(...)</code> value: the value in <code>notes/apps/billing/routes.py</code> produces <code>notes.apps.billing.routes.InvoiceCrud.list</code>, <code>.retrieve</code>, <code>.create</code>, <code>.update</code> and <code>.delete</code>, and the class form uses its class (<code>notes.apps.billing.api.Invoices.list</code>). So the scaffold's <code>match="notes.*"</code> rules check them, and a public list goes in <code>except_</code> like any other action:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="n">Actions</span><span class="o">.</span><span class="n">require_access</span><span class="p">(</span>
     <span class="n">match</span><span class="o">=</span><span class="s2">"notes.*"</span><span class="p">,</span>
@@ -926,7 +926,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

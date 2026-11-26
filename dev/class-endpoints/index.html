@@ -501,7 +501,7 @@
           <h1 id="class-based-apis">Class-based APIs<a class="headerlink" href="#class-based-apis" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -702,7 +702,7 @@
 <ol>
 <li><strong>Use a class for <code>@crud</code>, inheritance or a shipped resource</strong>, functions otherwise.</li>
 <li><strong>One base, <code>API</code>.</strong> A <code>@crud</code> class accepts no other base. Share configuration with a value (<code>staff_crud = functools.partial(crud, access=billing_staff)</code>) instead of a mixin.</li>
-<li><strong>State <code>access=</code>, <code>atomic=</code> and <code>errors=</code> on every handwritten action.</strong> The class carries a path only.</li>
+<li><strong>State <code>access=</code>, <code>atomic=</code> and <code>errors=</code> on every handwritten action.</strong> The class carries a path only; on a protected <code>@crud</code> class, omitting <code>access=</code> on a handwritten action raises <code>RegistrationError</code> (pass <code>access=None</code> to make it public on purpose).</li>
 <li><strong>Scope writes in the statement</strong> (<code>aupdate_where</code> with the conditions), not check-then-write.</li>
 <li><strong>Hooks build queries.</strong> <code>get_queryset</code> does no I/O; load relations explicitly in <code>to_schema</code> or <code>written_queryset</code>.</li>
 <li><strong>Let <code>crud</code> generate or omit, not compete.</strong> To write <code>list</code> or <code>retrieve</code> yourself, pass <code>omit=("list",)</code> and define a method with another name; to write <code>create</code> yourself, leave <code>create=</code> out.</li>
@@ -756,9 +756,9 @@
 <td>Rename one class, or pass <code>crud(..., name="ArchiveCrud")</code></td>
 </tr>
 <tr>
-<td>A handwritten action is public</td>
-<td><code>crud(access=...)</code> covers generated actions only</td>
-<td>Add <code>access=</code> to its decorator</td>
+<td><code>RegistrationError</code> naming a handwritten action and <code>access=</code></td>
+<td>A handwritten action on a protected <code>@crud</code> class omitted <code>access=</code></td>
+<td>Add <code>access=...</code> to its decorator, or <code>access=None</code> to make it public on purpose</td>
 </tr>
 <tr>
 <td>A route vanished in a subclass</td>
@@ -800,7 +800,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/class-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
