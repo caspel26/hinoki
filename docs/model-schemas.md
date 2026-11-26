@@ -150,7 +150,8 @@ Narrowed, wherever the annotation names a `Schema` `S`:
   any of these (`type Items = list[S]`; a generic one with its arguments substituted, `type Box[T] = list[T]` as `Box[S]`, `type Ident[T] = T`, `type Pair[A, B] = dict[B, A]`). A recursive alias that holds a `Schema` (`type Tree[T] = list[Tree[T]] | T`) and an alias with a `TypeVarTuple` parameter cannot be narrowed: the app stops with a `RegistrationError` that names the action;
 - the return annotation of a `@computed_field`: a method declared `-> Public`
   that returns a `Private` sends `Public`'s fields;
-- a list or tuple returned where `list[S]` is declared, and a lazy projection
+- a tuple returned where `list[S]` is declared (with `validate_response=False`:
+  the response check, on by default, answers `500` for it), and a lazy projection
   (`aget_as`, `aproject`) held anywhere above;
 - the `reply=` of a WebSocket route, for `send_json`.
 
@@ -159,13 +160,18 @@ Written whole, because no declared schema decides them:
 - a position typed `Any` or `object`;
 - a dataclass, and a `Page` inside another container (`dict[str, Page[S]]`);
 - a declared class that overrides `dump()`: its own `dump()` decides the shape;
-- a value that is not a `list`, `tuple` or `dict` where a collection is
-  declared (a generator or iterator returned for `Iterable[S]`, a mapping that is
-  not a `dict`) is not walked, and the JSON encoder refuses it: return the
-  declared container;
-- the back-reference of a `TypedDict` that refers to itself
-  (`class Tree(TypedDict): item: S; child: Tree | None`): its first level is
-  narrowed, the nested `Tree` values are written as they are.
+- a value that is not a `list`, `tuple`, `set`, `frozenset` or `dict` where a
+  collection is declared (a generator or iterator returned for `Iterable[S]`, a
+  mapping that is not a `dict`) is not walked, and the JSON and XML encoders
+  refuse it: return the declared container;
+- a `TypedDict` that refers to itself
+  (`class Tree(TypedDict): item: S; kids: list[Tree]`) is narrowed at its first
+  level only: a `Tree` nested inside it, at any depth, is written as it is, so a
+  subclass of `S` held there shows its added fields. Declare a `Schema` for a
+  recursive structure instead;
+- a `list` that a lazy projection already holds, changed afterwards with
+  `list.append(projection, subclass_instance)`: the JSON encoder drops the
+  appended item and the XML encoder writes the list storage as it is.
 
 A narrowed value keeps the wire names (aliases) of an exact one.
 [Custom renderers](codecs.md#inherit-and-override) that take objects receive the
