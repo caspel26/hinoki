@@ -19,6 +19,7 @@ from hinoki import (
     Access,
     BearerAuth,
     Caller,
+    Crud,
     CrudAccess,
     Field,
     Hinoki,
@@ -297,7 +298,7 @@ def test_owner_with_scoped_or_omitted_reads_does_not_warn(scoped: str) -> None:
         return Memo.filter(owner=principal.user if principal else None)
 
     members = {"get_queryset": get_queryset} if scoped == "get_queryset" else {}
-    omit = ("list", "retrieve") if scoped == "omit" else ()
+    omit = (Crud.LIST, Crud.RETRIEVE) if scoped == "omit" else ()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         crud(
