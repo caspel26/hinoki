@@ -6,8 +6,25 @@ survives Markdown's HTML-block rules.
 """
 
 import html
-import itertools
 from dataclasses import dataclass
+from typing import NamedTuple
+
+
+class SummaryCell(NamedTuple):
+    """One comparison in the summary: the verdict, the figure, its word and the rest of the sentence."""
+
+    verdict: str
+    value: str
+    word: str
+    sentence: str
+
+
+class SummaryRow(NamedTuple):
+    """One summary test: the reference's requests per second and a cell per competitor (None if not measured)."""
+
+    test: str
+    value: str
+    cells: list[SummaryCell | None]
 
 
 @dataclass(frozen=True)
@@ -27,7 +44,8 @@ class Cell:
     wrong: int
     mark: str = ""  # "best", "tie" or "" for a stable cell that is neither
     reason: str | None = None  # why the cell is unstable; None when it is stable
-    group: str = ""
+    versus: str = ""  # how this cell stands against the reference stack
+    verdict: str = ""  # "reference", "higher", "lower", "tie" or "unsettled"
 
 
 @dataclass(frozen=True)
@@ -37,27 +55,7 @@ class Scenario:
     request: str
     description: str
     cells: tuple[Cell, ...]
-    versus: str = ""
-
-
-@dataclass(frozen=True)
-class Stack:
-    family: str
-    label: str
-    group: str = ""
-
-
-def group_starts(stacks: list[Stack]) -> dict[str, str]:
-    """Family to group name for each stack that opens a group after the first one."""
-    starts = {}
-    for previous, stack in itertools.pairwise(stacks):
-        if stack.group != previous.group:
-            starts[stack.family] = stack.group
-    return starts
-
-
-def group_class(start: bool) -> str:
-    return " is-group-start" if start else ""
+    reference: str = ""  # label of the stack every "vs" column compares with
 
 
 def esc(text: str) -> str:
@@ -97,28 +95,6 @@ def state_class(cell: Cell) -> str:
     return {"best": "is-best", "tie": "is-tie"}.get(cell.mark, "")
 
 
-def value_axis(axis_max: float) -> str:
-    ticks = "".join(f"<span>{rps(axis_max * share)}</span>" for share in (0, 0.5, 1))
-    return f'<span class="bench-axis" aria-hidden="true"><span>{ticks}</span></span>'
-
-
-def legend(stacks: list[Stack]) -> str:
-    starts = group_starts(stacks)
-
-    def item(stack: Stack) -> str:
-        group = starts.get(stack.family)
-        opens = (
-            f' class="is-group-start" data-group-label="{esc(group)}"' if group else ""
-        )
-        return (
-            f'<li{opens}><button type="button" class="bench-chip" data-stack="{esc(stack.family)}" aria-pressed="true">'
-            f'<span class="bench-swatch" aria-hidden="true"></span>{esc(stack.label)}</button></li>'
-        )
-
-    items = "".join(item(stack) for stack in stacks)
-    return f'<ul class="bench-legend" aria-label="Stacks. Select one to hide or show it.">{items}</ul>'
-
-
 CELL_SR = {
     "is-best": "Highest median. ",
     "is-tie": "Within 10% of the highest. ",
@@ -126,11 +102,11 @@ CELL_SR = {
 }
 
 
-def matrix_cell(cell: Cell | None, row_max: float, start: bool = False) -> str:
-    if cell is None:
-        return (
-            f'<td class="bench-cell is-missing{group_class(start)}">Not measured</td>'
-        )
+def short_name(label: str) -> str:
+    return label.replace(", native server", "")
+
+
+def route_row(cell: Cell, row_max: float, short: str) -> str:
     state = state_class(cell)
     sr = f'<span class="bench-sr">{CELL_SR[state]}</span>' if state else ""
     badge = (
@@ -140,94 +116,39 @@ def matrix_cell(cell: Cell | None, row_max: float, start: bool = False) -> str:
     )
     width = cell.median / row_max * 100 if row_max else 0
     return (
-        f'<td class="{f"bench-cell {state}".strip()}{group_class(start)}" data-stack="{esc(cell.family)}" data-label="{esc(cell.label)}">'
-        f'{sr}<b class="bench-num">{rps(cell.median)}</b>{badge}'
+        f'<tr class="{state}" data-stack="{esc(cell.family)}">'
+        f'<th scope="row">{esc(cell.label)}</th>'
+        f'<td class="bench-rps" data-label="Requests per second">{sr}<b class="bench-num">{rps(cell.median)}</b>{badge}'
         f'<span class="bench-meter" aria-hidden="true"><span style="width:{width:.1f}%"></span></span></td>'
+        f'<td class="bench-vs is-{esc(cell.verdict)}" data-label="vs {esc(short)}">{esc(cell.versus)}</td>'
+        f'<td data-label="p50 ms">{fmt_ms(cell.p50_ms)}</td><td data-label="p99 ms">{fmt_ms(cell.p99_ms)}</td>'
+        f'<td class="bench-spread" data-label="Range and CV"><span>{rps(cell.low)}&ndash;{rps(cell.high)}</span>'
+        f"<small>CV {cv_text(cell)}</small></td></tr>"
     )
 
 
-def matrix_row(scenario: Scenario, stacks: list[Stack]) -> str:
-    by_family = {cell.family: cell for cell in scenario.cells}
+def route_table(scenario: Scenario) -> str:
     row_max = max((cell.median for cell in scenario.cells), default=0.0)
-    starts = group_starts(stacks)
-    cells = "".join(
-        matrix_cell(by_family.get(s.family), row_max, s.family in starts)
-        for s in stacks
-    )
-    return f'<tr><th scope="row">{esc(scenario.name)}</th>{cells}</tr>'
-
-
-def group_row(stacks: list[Stack]) -> str:
-    """A header row naming each group of columns, or nothing for a single group."""
-    if not group_starts(stacks):
-        return ""
-    spans: dict[str, int] = {}
-    for stack in stacks:
-        spans[stack.group] = spans.get(stack.group, 0) + 1
+    short = short_name(scenario.reference)
+    rows = "".join(route_row(cell, row_max, short) for cell in scenario.cells)
     heads = "".join(
-        f'<th scope="colgroup" colspan="{span}" class="bench-group" data-group="{esc(group)}">{esc(group)}</th>'
-        for group, span in spans.items()
-    )
-    return f'<tr class="bench-groups"><td></td>{heads}</tr>'
-
-
-def matrix(
-    table_id: str,
-    stacks: list[Stack],
-    scenarios: list[Scenario],
-    filterable: bool = False,
-) -> str:
-    starts = group_starts(stacks)
-
-    def head(stack: Stack) -> str:
-        grouped = f' data-group="{esc(stack.group)}"' if starts else ""
-        opens = ' class="is-group-start"' if stack.family in starts else ""
-        return (
-            f'<th scope="col" data-stack="{esc(stack.family)}"{grouped}{opens}>'
-            f'<span class="bench-swatch" aria-hidden="true"></span>{esc(stack.label)}</th>'
+        f'<th scope="col">{name}</th>'
+        for name in (
+            "Stack",
+            "Requests per second",
+            f"vs {esc(short)}",
+            "p50 ms",
+            "p99 ms",
+            "Lowest&ndash;highest",
         )
-
-    heads = "".join(head(s) for s in stacks)
-    rows = "".join(matrix_row(scenario, stacks) for scenario in scenarios)
-    flag = " data-bench-filterable" if filterable else ""
-    return (
-        '<div class="bench-scroll" role="region" aria-label="Median requests per second by request type and stack" tabindex="0">'
-        f'<table class="bench-matrix" id="{table_id}"{flag}>'
-        "<caption>Median requests per second. The bar in each cell is relative to the highest median in its row; "
-        "the highest stable median is highlighted and medians within 10% of it are marked as tied.</caption>"
-        f'<thead>{group_row(stacks)}<tr><th scope="col">Request type</th>{heads}</tr></thead><tbody>{rows}</tbody></table></div>'
     )
-
-
-def chart_row(cell: Cell, axis_max: float, start: bool = False) -> str:
-    state = state_class(cell)
-    width = cell.median / axis_max * 100 if axis_max else 0
-    left = cell.low / axis_max * 100 if axis_max else 0
-    span = max((cell.high - cell.low) / axis_max * 100 if axis_max else 0, 0.4)
-    badge = status_badge(cell) if state else ""
     return (
-        f'<div class="bench-row {state}{group_class(start)}" data-stack="{esc(cell.family)}">'
-        f'<span class="bench-name"><span class="bench-swatch" aria-hidden="true"></span>{esc(cell.label)}</span>'
-        '<span class="bench-track">'
-        f'<span class="bench-bar" style="width:{width:.2f}%"></span>'
-        f'<span class="bench-range" style="left:{left:.2f}%;width:{span:.2f}%"></span></span>'
-        f'<span class="bench-value">{rps(cell.median)}<small> req/s</small></span>'
-        f'<span class="bench-flag">{badge}</span></div>'
-    )
-
-
-def chart(cells: tuple[Cell, ...]) -> str:
-    axis_max = max((cell.high for cell in cells), default=0.0)
-    opens = {
-        cell.key
-        for previous, cell in itertools.pairwise(cells)
-        if cell.group != previous.group
-    }
-    rows = "".join(chart_row(cell, axis_max, cell.key in opens) for cell in cells)
-    return (
-        '<div class="bench-chart" aria-hidden="true">'
-        '<span class="bench-gridlines"><span></span></span>'
-        f"{rows}{value_axis(axis_max)}</div>"
+        '<div class="bench-scroll" role="region" tabindex="0" '
+        f'aria-label="{esc(scenario.name)}: requests per second by stack">'
+        '<table class="bench-route">'
+        f"<caption>{esc(scenario.name)}: median requests per second; each bar is relative to the highest median of the table "
+        f"and starts at zero. Higher is better. A gap under 10% is a tie.</caption>"
+        f"<thead><tr>{heads}</tr></thead><tbody>{rows}</tbody></table></div>"
     )
 
 
@@ -299,33 +220,85 @@ def headline(cells: tuple[Cell, ...]) -> str:
     return text
 
 
-def panel(scenario: Scenario, selected: bool) -> str:
-    key = scenario.key
-    versus = (
-        f'<p class="bench-versus">{esc(scenario.versus)}</p>' if scenario.versus else ""
-    )
+def panel(scenario: Scenario, prefix: str, selected: bool) -> str:
+    key = f"{prefix}-{scenario.key}"
     return (
-        f'<section class="bench-panel" role="tabpanel" id="bench-request-{key}" '
-        f'aria-labelledby="bench-tab-{key}" tabindex="0" data-selected="{str(selected).lower()}">'
+        f'<section class="bench-panel" role="tabpanel" id="{key}-panel" '
+        f'aria-labelledby="{key}-tab" tabindex="0" data-selected="{str(selected).lower()}">'
         '<header class="bench-panel__head">'
-        f'<p class="bench-kicker">{esc(scenario.name)}</p><h3>{esc(scenario.request)}</h3>'
+        f'<p class="bench-kicker">{esc(scenario.name)}</p><h4>{esc(scenario.request)}</h4>'
         f"<p>{esc(scenario.description)}</p></header>"
-        f'<p class="bench-headline">{headline(scenario.cells)}</p>{versus}'
-        f"{chart(scenario.cells)}"
-        '<p class="bench-note">Bars show the median and start at zero; the thin line is the lowest to highest sample. '
-        "Higher means more requests served per second.</p>"
-        f"{exact_table(scenario)}{unstable_details(scenario.cells)}</section>"
+        f'<p class="bench-headline">{headline(scenario.cells)}</p>'
+        f"{route_table(scenario)}"
+        '<details class="bench-details"><summary>Exact numbers</summary>'
+        f"{exact_table(scenario)}</details>{unstable_details(scenario.cells)}</section>"
     )
 
 
-def explorer(scenarios: list[Scenario]) -> str:
-    tabs = "".join(
-        f'<button type="button" role="tab" id="bench-tab-{s.key}" aria-controls="bench-request-{s.key}" '
-        f'aria-selected="{str(index == 0).lower()}" tabindex="{0 if index == 0 else -1}">{esc(s.name)}</button>'
-        for index, s in enumerate(scenarios)
+def tabs(items: list[tuple[str, str]], prefix: str, label: str, extra: str = "") -> str:
+    """A tab list; each item is (key, text), its panel id is ``{prefix}-{key}-panel``."""
+    buttons = "".join(
+        f'<button type="button" role="tab" id="{prefix}-{key}-tab" aria-controls="{prefix}-{key}-panel" '
+        f'aria-selected="{str(index == 0).lower()}" tabindex="{0 if index == 0 else -1}">{text}</button>'
+        for index, (key, text) in enumerate(items)
     )
-    panels = "".join(panel(s, index == 0) for index, s in enumerate(scenarios))
+    return f'<div class="bench-tabs{extra}" role="tablist" aria-label="{esc(label)}">{buttons}</div>'
+
+
+def explorer(scenarios: list[Scenario], prefix: str) -> str:
+    bar = tabs([(s.key, esc(s.name)) for s in scenarios], prefix, "Request type")
+    panels = "".join(panel(s, prefix, index == 0) for index, s in enumerate(scenarios))
+    return f'<div class="bench-explorer" data-bench-explorer>{bar}{panels}</div>'
+
+
+def cmp_cell_html(cell: SummaryCell | None, label: str) -> str:
+    """One comparison cell: the figure and its word, with the rest of the sentence for screen readers."""
+    if cell is None:
+        return (
+            f'<td class="bench-cmp is-missing" data-label="{esc(label)}">'
+            '<span aria-hidden="true">&mdash;</span><span class="bench-sr">not measured</span></td>'
+        )
     return (
-        '<div class="bench-explorer" data-bench-explorer data-bench-filterable>'
-        f'<div class="bench-tabs" role="tablist" aria-label="Request type">{tabs}</div>{panels}</div>'
+        f'<td class="bench-cmp is-{cell.verdict}" data-label="{esc(label)}">'
+        f'<b class="bench-ratio">{esc(cell.value)}</b> <span class="bench-word">{esc(cell.word)}</span>'
+        f'<span class="bench-sr">{esc(cell.sentence)}</span></td>'
+    )
+
+
+def summary_table(
+    columns: list[tuple[str, str]],
+    rows: list[SummaryRow],
+    reference: tuple[str, str],
+    conditions: str,
+    tie_pct: int,
+) -> str:
+    """The summary: one row per test, the reference's requests per second, then one cell per competitor.
+
+    `columns` and `reference` are (framework, server) pairs.
+    """
+    labels = [f"{framework} ({server})" for framework, server in columns]
+    ref_label = f"{reference[0]} ({reference[1]})"
+    head = "".join(
+        f'<th scope="col"><span class="bench-col-name">{esc(framework)}</span> '
+        f'<span class="bench-col-server">{esc(server)}</span></th>'
+        for framework, server in columns
+    )
+    body = "".join(
+        f'<tr><th scope="row">{esc(row.test)}</th><td data-label="{esc(ref_label)}">'
+        f'<b class="bench-num">{esc(row.value)}</b> req/s</td>'
+        + "".join(
+            cmp_cell_html(cell, label)
+            for cell, label in zip(row.cells, labels, strict=True)
+        )
+        + "</tr>"
+        for row in rows
+    )
+    return (
+        '<div class="bench-scroll" role="region" tabindex="0" aria-label="Summary">'
+        f'<table class="bench-summary"><caption>{esc(conditions)}. Median requests per second of {esc(ref_label)} '
+        "and how many times faster or slower it is than each framework (ratio of medians). "
+        f"A gap under {tie_pct}% is a tie.</caption>"
+        f'<thead><tr><th scope="col">Test</th><th scope="col">{esc(reference[0])} '
+        f'<span class="bench-col-server">{esc(reference[1])}</span></th>{head}</tr></thead>'
+        f"<tbody>{body}</tbody></table></div>"
     )

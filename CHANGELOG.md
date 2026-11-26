@@ -183,6 +183,18 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### 🔒 Explicit `access=` on handwritten actions of protected `@crud` classes (breaking)
+> `python/hinoki/routing.py`, `python/hinoki/websocket.py`, `python/hinoki/resources.py`, `examples/blog/blog/apps/blog/api.py`, `docs/crud.md`, `docs/class-endpoints.md`
+
+Handwritten `@http.*` and `@http.websocket` actions on a protected `@crud` class (any resource where at least one generated action has an `Access` policy) must now declare `access=...` explicitly (or `access=None` to make the action public on purpose). Route descriptors distinguish omitted `access` from explicit `access=None`, so omitting `access=` raises `RegistrationError` at class declaration instead of silently exposing a public endpoint.
+
+```python
+@crud(Post, path="/posts", read=PostOut, create=PostCreate, access=editor)
+class Posts(API):
+    @http.get("/", access=None)  # public on purpose
+    async def listing(self) -> list[PostOut]: ...
+```
+
 #### ⚡ Fewer allocations per native-lane response, and a one-pass response check
 > `crates/kiso/src/headers.rs`, `crates/bindings/src/server/core.rs`, `crates/bindings/src/server/routes.rs`, `crates/bindings/src/server/prepared.rs`, `crates/bindings/src/request/pyapi.rs`, `crates/bindings/src/request/json.rs`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/nativelane.py`
 
@@ -287,6 +299,8 @@ The command line, the migration state files, the JSON log format, the MCP server
 
 ### 🐛 Fixes
 
+- **Atomic stream rollback:** returning a streamed response (`Stream`, `EventStream`, or `File`) from an `atomic=True` action annotated `-> http.Response` now discards the stream and raises `ResponseContractError` inside the transaction block so the SQL transaction rolls back before translating the `500` response; intentional non-stream `Response` returns such as `409` still commit (`python/hinoki/runtime/pipeline.py`, `docs/transactions.md`, `docs/sessions.md`).
+- **Typed `RouteGroup` decorator options:** `RouteGroup.get`, `post`, `put`, `patch`, `delete`, and `query` now expose the same typed keyword-only options as `http.*` instead of `**options: Any`, so type checkers reject mistyped or misspelled route options at check time (`python/hinoki/routing.py`, `docs/typing.md`, `docs/function-endpoints.md`).
 - **OpenAPI names and decimals.** Security schemes, page envelopes and `Schema` classes that would share a component name get a numeric suffix instead of overwriting each other; page envelopes of scalar items are named after the item (`Page_integer`). `Decimal` bounds are written as `x-minimum`/`x-maximum`/`x-exclusiveMinimum`/`x-exclusiveMaximum` strings and decimal examples as text. `Field(description=..., examples=..., deprecated=..., discriminator=...)` used as a default now reaches the schema, and its overloads type-check as a default.
 - **Kiso request heads:** blank lines before the request line now count toward `execution.max_header_bytes`, so the head bound matches what the HTTP parser reads (`crates/kiso/src/framing.rs`).
 - **Admin forms and lists:** create and edit forms accept `date`, `time`, `Decimal` and `Enum` columns (a select of member names); required columns of these types no longer make creation fail. A soft-delete model with custom `tabs` keeps its Deleted tab, an admin at `Admin(prefix="")` links to `/`, the bento theme keeps Sign out and Change password on phones, the bulk bar works without JavaScript, and the paper and bento lists keep column sorting and select-all. Navigation links drop a stale success banner, the search form and tab bar are omitted when there is nothing to search or choose, and the admin UI reads its component and icon files on first use instead of at import (`python/hinoki/admin/`).
@@ -318,6 +332,10 @@ with `head_framing` and `request_head_limits` (`fuzz/`,
 `.github/workflows/fuzz.yml`, `docs/kiso.md`).
 
 The [benchmarks page](docs/benchmarks.md) now shows a run on a dedicated 8 vCPU AMD EPYC server, with Fastify, Hono and `Bun.serve` as an extra group and the load average held at or below 2 before every sample. Hinoki in this run is commit `478e1452`.
+
+The [benchmarks page](docs/benchmarks.md) is redesigned: 8 workers and 1 worker sit behind tabs, a Summary compares Hinoki on Kiso with the other stacks (ratios of medians, ties and unsettled results shown), and each route has its own table with the ratio, p50, p99, range and CV; the other runtimes stay a separate view (#529).
+
+The README, the site description and the docs home now use the repository description, and the README's `Write an API` example follows the recommended syntax: `crud(...)` with `update` and `delete` in `routes.py` and a handwritten `@http.get` action. The footer credits MkDocs in a compact link (#531).
 
 ---
 

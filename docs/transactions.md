@@ -44,7 +44,9 @@ the returned value against the response annotation before encoding it (see
 
 ## What rolls back
 
-If the handler raises, response encoding/rendering fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. A value that does not match the response annotation is rejected as a `500`, and the transaction rolled back, unless the action opts out with `validate_response=False`. Do not send email or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.
+If the handler raises, response encoding/rendering fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. A value that does not match the response annotation is rejected as a `500`, and the transaction rolled back, unless the action opts out with `validate_response=False`. Returning a streamed response (`Stream`, `EventStream`, or `File`) from an `atomic=True` action annotated `-> http.Response` is rejected as a `500` inside the transaction and rolls back as well, whereas returning a plain non-stream `http.Response` with a `4xx` status (such as `409`) is a normal return and commits; raise an `APIError` when a rejected operation should roll back.
+
+Session persistence (`Session.commit()`) runs after the handler and its `atomic=True` SQL transaction have committed, so a session store write failure happens in a separate boundary after the SQL commit. Do not send email, write local files, or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.
 
 `RouteGroup(..., atomic=True)` makes `POST`, `PUT`, `PATCH` and `DELETE` atomic
 by default; `GET` actions are not. An action opts out with `atomic=False`.

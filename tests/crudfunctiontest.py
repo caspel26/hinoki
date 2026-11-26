@@ -200,7 +200,7 @@ def test_one_crud_value_mounted_twice_keeps_one_name() -> None:
 def test_omit_leaves_an_action_to_handwritten_code() -> None:
     @crud(Note, path="/notes", read=NoteOut, access=writer, omit=("list",))
     class Notes(API):
-        @http.get("/")
+        @http.get("/", access=writer)
         async def listing(self, request: Request) -> list[NoteOut]:
             return []
 
@@ -215,7 +215,7 @@ def test_decorator_keeps_hooks_and_handwritten_actions() -> None:
         def get_queryset(self, principal: Caller[Any] | None) -> QuerySet[Note]:
             return Note.all()
 
-        @http.get("/health")
+        @http.get("/health", access=None)
         async def health(self, request: Request) -> dict[str, str]:
             return {"status": "ok"}
 
