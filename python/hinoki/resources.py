@@ -49,6 +49,7 @@ from hinoki.pagination import (
 )
 from hinoki.routing import (
     Options,
+    Route,
     RouteDeclaration,
     check_deprecated,
     check_flag,
@@ -56,7 +57,7 @@ from hinoki.routing import (
     route_of,
 )
 from hinoki.schema import Schema
-from hinoki.websocket import websocket_of
+from hinoki.websocket import WebSocketRoute, websocket_of
 
 if typing.TYPE_CHECKING:
     from hinoki.runtime.rowplan import RowWireSelection
@@ -343,9 +344,11 @@ class _CrudConfig:
 
     def is_protected(self) -> bool:
         """Whether any generated CRUD action declares an ``Access`` policy."""
-        if self.actions is not None:
-            return any(policy is not None for policy in self.actions.values())
-        return self.access is not None or self.read_access is not None
+        return any(
+            self.access_for(action) is not None
+            for action in ACTIONS
+            if action not in self.omit and enabled(self, action)
+        )
 
     def assigned(self) -> dict[str, Callable[[Any], Any]]:
         extra = {self.owner: self.identity_key} if self.owner else {}
@@ -989,6 +992,18 @@ class CrudBase(API):
             # must not keep them running against the new one.
             setattr(cls, name, generated.get(name))
         check_handwritten_access(cls, config)
+
+    @classmethod
+    def routes(cls) -> list[Route]:
+        if hasattr(cls, "resource"):
+            check_handwritten_access(cls, cls.resource)
+        return super().routes()
+
+    @classmethod
+    def websockets(cls) -> list[WebSocketRoute]:
+        if hasattr(cls, "resource"):
+            check_handwritten_access(cls, cls.resource)
+        return super().websockets()
 
     def get_queryset(
         self,
