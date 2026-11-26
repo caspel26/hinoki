@@ -66,8 +66,6 @@ The Billing app of the Notes project serves invoices. `hinoki app create billing
     name = "billing"
     models = "notes.apps.billing.models"
     migrations = "notes.apps.billing.migrations"
-    routes = "notes.apps.billing.routes:routes"
-    prefix = "/billing"
     requires = []
     ```
 

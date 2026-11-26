@@ -501,7 +501,7 @@
           <h1 id="create-a-project">Create a project<a class="headerlink" href="#create-a-project" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -658,10 +658,10 @@ asked either):</p>
     └── healthtest.py    one test, no database needed
 </code></pre></div>
 <p><code>hinoki.toml</code> names the application, so project commands find it on their own.
-<code>notes/main.py</code> binds the routes the manifest lists with
-<code>include=manifest_routes()</code>: <code>project.routes</code> first, then each app's <code>routes</code>
-under its <code>prefix</code>. The <code>rules</code> list in the same table is how the application
-gets <code>notes/rules.py</code> (see <a href="../rules/#which-rules-run">which rules run</a>).</p>
+<code>notes/main.py</code> creates <code>Hinoki(settings=ProjectSettings, ...)</code> and automatically
+loads <code>[project] routes</code> (<code>notes/routes.py</code>), where you mount exposed apps with
+<code>Mount("/&lt;name&gt;", ...)</code>. The <code>rules</code> list in the same table is how the
+application gets <code>notes/rules.py</code> (see <a href="../rules/#which-rules-run">which rules run</a>).</p>
 <div class="language-toml highlight"><pre><span></span><code><span class="c1"># hinoki.toml</span>
 <span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
@@ -786,7 +786,7 @@ database</a> lists the URL forms and the connection fields.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 13:30:34 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/new-project.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

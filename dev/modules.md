@@ -33,14 +33,12 @@ names only what is specific to this app:
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.passwords import Passwords
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     title="Notes",
     modules=[Passwords()],
 )

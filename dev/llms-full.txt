@@ -146,23 +146,21 @@ rules = ["notes.rules:project_rules"]
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,  # NOTES_* variables and .env
-    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # the rules come from `rules` in hinoki.toml
+)  # routes, rules and middleware come from hinoki.toml
 ```
 
-`manifest_routes()` reads `hinoki.toml`, so the application lists no routes of
-its own, and `Hinoki()` loads the `rules` list the same way unless you pass
-`rules=`. Commands read the same file, so inside the project they need no module
-paths.
+`Hinoki(settings=ProjectSettings, ...)` reads `hinoki.toml` automatically,
+loading `notes/routes.py` (`[project] routes`) and `rules`, so `main.py` stays
+short. Commands read the same manifest, so inside the project they need no
+module paths.
 
 ## Where the database is configured
 
@@ -201,7 +199,7 @@ when you answered the last question:
 ```text
 notes/apps/entries/
 ├── api.py         endpoints of the app
-├── routes.py      the routes served, mounted at /entries
+├── routes.py      reusable routes of the app
 ├── models.py      tables of the app
 └── migrations/    migration history
 ```
@@ -213,10 +211,11 @@ It is registered in `hinoki.toml`:
 name = "entries"
 models = "notes.apps.entries.models"
 migrations = "notes.apps.entries.migrations"
-routes = "notes.apps.entries.routes:routes"
-prefix = "/entries"
 requires = []
 ```
+
+To expose the app's endpoints over HTTP, mount them in `notes/routes.py` with
+`Mount("/entries", entries_routes)`.
 
 App names are lower-case letters and digits with single underscores between words
 (for example `api_v1`), starting with a letter. Define the
@@ -1495,32 +1494,30 @@ Add `@db.table("billing_invoices")` above the class (the first line of its
 decorators) and the check passes. Pinning the derived name changes no table:
 `migrations plan billing` then reports `no changes`.
 
-Endpoints for billing go in `notes/apps/billing/api.py`, and `routes.py` lists
-them. The application in `notes/main.py` includes every app's list with
-`manifest_routes()`, which mounts this one at `/billing`, so paths inside the
-app never repeat the prefix:
+Endpoints for billing go in `notes/apps/billing/api.py`, and
+`notes/apps/billing/routes.py` exports them. You decide where they are served by
+mounting them in `notes/routes.py` with `Mount("/billing", billing_routes)`, so
+paths inside the app never repeat the prefix, and `notes/main.py` loads
+`notes/routes.py` from `hinoki.toml` automatically:
 
 ```python
 # notes/main.py (as hinoki new wrote it)
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,  # NOTES_* variables and .env
-    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # the rules come from `rules` in hinoki.toml
+)  # routes, rules and middleware come from hinoki.toml
 ```
 
-`include=manifest_routes()` is the explicit form of what `Hinoki()` does by
-itself when you leave `include=` out, as the [Tracker](https://hinoki.caspel.dev/dev/tutorial/6-run.md) does; the
-scaffold writes it so the line shows where routes come from. The same manifest
-can also list project-wide `middleware`, an `events` module per app and more than
-one rule set (`rules`), as the Tracker's `hinoki.toml` does.
+Passing `include=` explicitly overrides `[project] routes` when you need it (for
+example in tests or conditional mounts). The same manifest can also list
+project-wide `middleware`, an `events` module per app and more than one rule
+set (`rules`), as the Tracker's `hinoki.toml` does.
 
 The project's rules (listed in `hinoki.toml`) require every action to name an
 `Access` policy with permissions; build one as in [chapter 4](https://hinoki.caspel.dev/dev/tutorial/4-endpoints.md).
@@ -1529,7 +1526,7 @@ The project's rules (listed in `hinoki.toml`) require every action to name an
 
 - `hinoki app create` writes an app and registers it in `hinoki.toml`.
 - Table names, migration numbers and slugs are derived; you review the SQL.
-- The manifest sets each app's prefix; code never repeats it.
+- The project's `routes.py` mounts each exposed app explicitly; code inside the app never repeats the prefix.
 
 # Overview
 
@@ -4896,8 +4893,6 @@ The Billing app of the Notes project serves invoices. `hinoki app create billing
     name = "billing"
     models = "notes.apps.billing.models"
     migrations = "notes.apps.billing.migrations"
-    routes = "notes.apps.billing.routes:routes"
-    prefix = "/billing"
     requires = []
     ```
 
@@ -5247,7 +5242,7 @@ def test_invoice_routes() -> None:
 
 Source: https://hinoki.caspel.dev/dev/routes.md
 
-An application serves the routes that `hinoki.toml` points to. The project and each app keep their routes in a `routes.py` that exports a list, and `notes/main.py` includes them all with `manifest_routes()`.
+An application serves the route map that `[project] routes` in `hinoki.toml` points to. Registering an app in `hinoki.toml` and exposing its HTTP routes in the project's `routes.py` are two separate decisions.
 
 ## From the manifest to the application
 
@@ -5255,49 +5250,55 @@ An application serves the routes that `hinoki.toml` points to. The project and e
 # hinoki.toml
 [project]
 application = "notes.main:app"
-routes = "notes.routes:routes"            # the project's own routes
+routes = "notes.routes:routes"            # the project's single route map
 
 [[apps]]
 name = "billing"
 models = "notes.apps.billing.models"
 migrations = "notes.apps.billing.migrations"
-routes = "notes.apps.billing.routes:routes"
-prefix = "/billing"                       # "/<name>" when omitted
 requires = []
+```
+
+```python
+# notes/routes.py
+from hinoki import Includable, Mount
+
+from notes.api import health
+from notes.apps.billing.routes import routes as billing_routes
+
+routes: list[Includable] = [
+    health,
+    Mount("/billing", billing_routes),
+]
 ```
 
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # rules, events and middleware come from hinoki.toml as well
+)  # routes, rules, events and middleware come from hinoki.toml
 ```
 
-`manifest_routes()` finds `hinoki.toml` from the calling file's directory upwards and returns, in order:
+When the module named by `project.application` builds `Hinoki(...)` without `include=`, it loads `[project] routes` automatically (`[]` if omitted). Passing `include=` explicitly (even `include=[]`) always wins over the manifest, which is useful for tests or conditional routes. `manifest_routes()` reads `[project] routes` explicitly for scripts or separate modules, and raises `ProjectError` outside a project.
 
-1. the project's `routes` list, at its own paths;
-2. each app's `routes` list under the app's `prefix`, apps in dependency order (`requires`).
-
-An app without a `routes` key, or with an empty list, adds nothing. Outside a project it raises `ProjectError`. `include=manifest_routes()` is the explicit form that `hinoki new` writes: when the module named by `project.application` builds `Hinoki(...)` without `include=`, it loads the same list itself, as the [Tracker example](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/main.py) does (an explicit `include=`, even empty, wins). `hinoki app create billing` writes the `routes.py` and the manifest keys; `hinoki app create billing --prefix /payments` chooses another prefix. `hinoki app list` prints each app with its routes and prefix.
+`hinoki app create billing` scaffolds `notes/apps/billing/routes.py` and prints the `Mount("/billing", billing_routes)` snippet to add to `notes/routes.py` if you want to expose the app over HTTP. An app registered in `hinoki.toml` without a `Mount(...)` in `notes/routes.py` still participates in migrations, events and `requires` without serving HTTP endpoints; an API-only app created with `hinoki app create gateway --no-models` (or `hinoki app add gateway`) has no models or migrations and is mounted in `notes/routes.py` like any other app.
 
 ## One place for each prefix
 
 | Segment | Declared by | Example |
 | --- | --- | --- |
-| The app | `prefix` in `hinoki.toml` | `/billing` |
-| A version inside the app | `Mount` in `routes.py` | `/v2` |
+| The app | `Mount(...)` in the project's `routes.py` | `/billing` |
+| A version inside the app | `Mount` in the app's `routes.py` | `/v2` |
 | The resource | `RouteGroup(...)` or `API, path=...` | `/invoices` |
 
-Write each segment once. Paths in code are relative to the app, so moving an app is a one-line change in `hinoki.toml`.
+Write each segment once. Paths inside an app stay relative to the app, so the same app package can be mounted at different prefixes in different projects.
 
 ## Versions with `Mount`
 
@@ -7965,7 +7966,6 @@ Per action, or for the whole application (an action's own choice wins):
 ```python
 # notes/main.py
 from hinoki import Hinoki, JSONRenderer
-from hinoki.project import manifest_routes
 from hinoki.renderers import TextRenderer
 
 from notes.rules import project_rules
@@ -7973,7 +7973,6 @@ from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     rules=project_rules,
     renderers=[JSONRenderer(sort_keys=True), TextRenderer()],
 )
@@ -8077,13 +8076,11 @@ All three URLs are disabled by default. Set `openapi_url` to serve JSON; add `do
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -9295,14 +9292,12 @@ names only what is specific to this app:
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.passwords import Passwords
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     title="Notes",
     modules=[Passwords()],
 )
@@ -10645,9 +10640,9 @@ async def test_health_with_its_own_database() -> None:
 ```
 
 A `Hinoki(...)` built in any other module (a test, a script) does not read the
-manifest; pass what it lists explicitly, with `include=manifest_routes()` and
-the `manifest_events()`, `manifest_middleware()` and `manifest_rules()` helpers
-of `hinoki.project`.
+manifest; pass what you want explicitly (or use `manifest_routes()`,
+`manifest_events()`, `manifest_middleware()` and `manifest_rules()` from
+`hinoki.project`).
 
 Use synthetic rows and credentials, and never point test settings at production
 data.
@@ -10882,22 +10877,24 @@ The generated `hinoki.toml` registers no app unless `hinoki new` created one (th
 
 ```sh
 uv run hinoki app create billing
+uv run hinoki app create gateway --no-models
 ```
 
-This creates `NAME/apps/billing/{models.py,routes.py,migrations/}` and registers the model, migration and routes modules in `hinoki.toml` (`routes = "NAME.apps.billing.routes:routes"`, `prefix = "/billing"`). Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
+This creates `NAME/apps/billing/{models.py,api.py,routes.py,migrations/}` (or omits `models.py` and `migrations/` with `--no-models`) and registers the app in `hinoki.toml`, printing the `Mount("/billing", billing_routes)` snippet to add to `NAME/routes.py` if the app should be served over HTTP. Cross-app foreign keys require the referencing app to list the referenced app in `requires` in `hinoki.toml`; migrations are then planned/applied in dependency order across the full app graph. The project registry is explicit: Hinoki does not scan arbitrary installed packages or run imports at install time.
 
 Both commands report `hinoki.toml`: `hinoki new` lists it among the generated files and `app create` says it registered the app there.
 
-`--prefix` and `--requires` (comma-separated) set the mount prefix and dependencies directly. `app create` writes no events module: to add one, create the module yourself and use `app add --events` or the app's `events` key (see [Events](https://hinoki.caspel.dev/dev/events.md#declaring-handlers-in-hinokitoml)). Middleware and rules are project-wide lists in the `[project]` table that you edit by hand (see [Middleware](https://hinoki.caspel.dev/dev/middleware.md#declaring-middleware-in-hinokitoml) and [Rules](https://hinoki.caspel.dev/dev/rules.md#which-rules-run)). In a terminal, `app create` asks for whatever is not given — the name, the prefix (default `/NAME`) and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the defaults are `/NAME` and no `requires`.
+`--no-models` creates an API-only app without persistence, and `--requires` (comma-separated) sets dependencies directly. `app create` writes no events module: to add one, create the module yourself and use `app add --events` or the app's `events` key (see [Events](https://hinoki.caspel.dev/dev/events.md#declaring-handlers-in-hinokitoml)). Middleware and rules are project-wide lists in the `[project]` table that you edit by hand (see [Middleware](https://hinoki.caspel.dev/dev/middleware.md#declaring-middleware-in-hinokitoml) and [Rules](https://hinoki.caspel.dev/dev/rules.md#which-rules-run)). In a terminal, `app create` asks for whatever is not given — the name and, when other apps exist, `requires` — with the same prompts, Esc-to-cancel (exit 130, nothing created) and `NO_COLOR` handling as `hinoki new`. Without a terminal or with `--no-input` it never asks: the name is required (exit 2) and the default is no `requires`.
 
 To register a package that already exists, name its modules. Nothing is created or imported; only `hinoki.toml` changes:
 
 ```sh
 uv run hinoki app add billing --models legacy.billing.models
-uv run hinoki app add invoices --models legacy.invoices.models --migrations legacy.db.invoices --routes legacy.invoices.routes:routes --prefix /invoices --requires billing
+uv run hinoki app add invoices --models legacy.invoices.models --migrations legacy.db.invoices --requires billing
+uv run hinoki app add gateway --requires billing
 ```
 
-`--migrations` defaults to the `migrations` package next to the models module (`legacy.billing.migrations`); `--events module:attribute` registers the app's event `Handlers`; a models module without a parent package needs it explicitly. `--prefix` defaults to `/NAME` once `--routes` is given. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic `--requires`, or a malformed module name leaves `hinoki.toml` untouched and exits 2. Whether the modules import is checked later, when a command such as `hinoki migrations plan` loads the app.
+`--models` is optional: omit both `--models` and `--migrations` to register an API-only app without persistence. When `--models` is given, `--migrations` defaults to the `migrations` package next to the models module (`legacy.billing.migrations`); passing `--migrations` without `--models` is rejected. `--events module:attribute` registers the app's event `Handlers`. The whole manifest is validated before it is replaced, so a duplicate name, an unknown or cyclic `--requires`, or a malformed module name leaves `hinoki.toml` untouched and exits 2. Whether the modules import is checked later, when a command such as `hinoki migrations plan` loads the app.
 
 List the registered apps from the project root or any subdirectory:
 
@@ -10906,7 +10903,7 @@ uv run hinoki app list
 uv run hinoki app list --format json
 ```
 
-The text output shows each app in dependency order with its model module, migration package, routes and prefix, the `events` target when set, and prerequisites. JSON contains the same fields under an `apps` key (`routes` and `prefix` are empty strings for an app without routes; `events` is an empty string when unset). The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
+The text output shows each app in dependency order with its model module and migration package (or `models: none` for API-only apps), the `events` target when set, and prerequisites. JSON contains the same fields (`name`, `models`, `migrations`, `requires`, `events`) under an `apps` key. The command only reads and validates `hinoki.toml`: it does not import app modules, connect to a database or start the app. Without a manifest, it prints an error and exits 2.
 
 ## `admin` {#admin}
 
@@ -11133,10 +11130,10 @@ notes/
 ```
 
 `hinoki.toml` names the application, so project commands find it on their own.
-`notes/main.py` binds the routes the manifest lists with
-`include=manifest_routes()`: `project.routes` first, then each app's `routes`
-under its `prefix`. The `rules` list in the same table is how the application
-gets `notes/rules.py` (see [which rules run](https://hinoki.caspel.dev/dev/rules.md#which-rules-run)).
+`notes/main.py` creates `Hinoki(settings=ProjectSettings, ...)` and automatically
+loads `[project] routes` (`notes/routes.py`), where you mount exposed apps with
+`Mount("/<name>", ...)`. The `rules` list in the same table is how the
+application gets `notes/rules.py` (see [which rules run](https://hinoki.caspel.dev/dev/rules.md#which-rules-run)).
 
 ```toml
 # hinoki.toml

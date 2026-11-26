@@ -109,9 +109,9 @@ async def test_health_with_its_own_database() -> None:
 ```
 
 A `Hinoki(...)` built in any other module (a test, a script) does not read the
-manifest; pass what it lists explicitly, with `include=manifest_routes()` and
-the `manifest_events()`, `manifest_middleware()` and `manifest_rules()` helpers
-of `hinoki.project`.
+manifest; pass what you want explicitly (or use `manifest_routes()`,
+`manifest_events()`, `manifest_middleware()` and `manifest_rules()` from
+`hinoki.project`).
 
 Use synthetic rows and credentials, and never point test settings at production
 data.

@@ -34,7 +34,6 @@ Per action, or for the whole application (an action's own choice wins):
 ```python
 # notes/main.py
 from hinoki import Hinoki, JSONRenderer
-from hinoki.project import manifest_routes
 from hinoki.renderers import TextRenderer
 
 from notes.rules import project_rules
@@ -42,7 +41,6 @@ from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     rules=project_rules,
     renderers=[JSONRenderer(sort_keys=True), TextRenderer()],
 )

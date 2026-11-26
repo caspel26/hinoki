@@ -14,7 +14,7 @@
 
 - `hinoki.routing.Route(...)`: Declared contract of one action, before it is bound to an application. [reference](https://hinoki.caspel.dev/dev/reference/web/#hinoki.routing.Route)
 
-- `hinoki.project.manifest_routes(start: 'Path | None' = None) -> 'list[Includable]'`: The routes ``hinoki.toml`` declares: the project's, then each app's at its prefix, for ``Hinoki(include=manifest_routes())``. [reference](https://hinoki.caspel.dev/dev/reference/web/#hinoki.project.manifest_routes)
+- `hinoki.project.manifest_routes(start: 'Path | None' = None) -> 'list[Includable]'`: The routes ``[project] routes`` declares in ``hinoki.toml`` (or ``[]`` when omitted). [reference](https://hinoki.caspel.dev/dev/reference/web/#hinoki.project.manifest_routes)
 
 - `hinoki.project.manifest_events(start: 'Path | None' = None) -> 'list[Handlers]'`: The ``Handlers`` each app of ``hinoki.toml`` declares, in dependency order, for ``Hinoki(events=manifest_events())``. [reference](https://hinoki.caspel.dev/dev/reference/web/#hinoki.project.manifest_events)
 

@@ -229,7 +229,7 @@
           <h1 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -363,22 +363,20 @@ runs; each app you create adds its own models, migrations and routes:</p>
 <p><code>notes/main.py</code> declares the application:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
     <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>  <span class="c1"># NOTES_* variables and .env</span>
-    <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span>  <span class="c1"># notes/routes.py, then each app's routes at its prefix</span>
     <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-<span class="p">)</span>  <span class="c1"># the rules come from `rules` in hinoki.toml</span>
+<span class="p">)</span>  <span class="c1"># routes, rules and middleware come from hinoki.toml</span>
 </code></pre></div>
-<p><code>manifest_routes()</code> reads <code>hinoki.toml</code>, so the application lists no routes of
-its own, and <code>Hinoki()</code> loads the <code>rules</code> list the same way unless you pass
-<code>rules=</code>. Commands read the same file, so inside the project they need no module
-paths.</p>
+<p><code>Hinoki(settings=ProjectSettings, ...)</code> reads <code>hinoki.toml</code> automatically,
+loading <code>notes/routes.py</code> (<code>[project] routes</code>) and <code>rules</code>, so <code>main.py</code> stays
+short. Commands read the same manifest, so inside the project they need no
+module paths.</p>
 <h2 id="where-the-database-is-configured">Where the database is configured<a class="headerlink" href="#where-the-database-is-configured" title="Permanent link">&para;</a></h2>
 <p>Answering <code>sqlite</code> added one field to <code>notes/settings.py</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/settings.py</span>
@@ -405,7 +403,7 @@ the app, as <a href="#your-first-app">the next section</a> and the
 when you answered the last question:</p>
 <div class="language-text highlight"><pre><span></span><code>notes/apps/entries/
 ├── api.py         endpoints of the app
-├── routes.py      the routes served, mounted at /entries
+├── routes.py      reusable routes of the app
 ├── models.py      tables of the app
 └── migrations/    migration history
 </code></pre></div>
@@ -414,10 +412,10 @@ when you answered the last question:</p>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"entries"</span>
 <span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.entries.models"</span>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.entries.migrations"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.entries.routes:routes"</span>
-<span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/entries"</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
 </code></pre></div>
+<p>To expose the app's endpoints over HTTP, mount them in <code>notes/routes.py</code> with
+<code>Mount("/entries", entries_routes)</code>.</p>
 <p>App names are lower-case letters and digits with single underscores between words
 (for example <code>api_v1</code>), starting with a letter. Define the
 app's models in <code>notes/apps/entries/models.py</code>, then
@@ -465,7 +463,7 @@ walks through it.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/quick-start.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

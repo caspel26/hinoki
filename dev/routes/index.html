@@ -501,47 +501,50 @@
           <h1 id="register-routes">Register routes<a class="headerlink" href="#register-routes" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></span>
             <span>4 min read</span>
           </p>
           
         </header>
         
-<p>An application serves the routes that <code>hinoki.toml</code> points to. The project and each app keep their routes in a <code>routes.py</code> that exports a list, and <code>notes/main.py</code> includes them all with <code>manifest_routes()</code>.</p>
+<p>An application serves the route map that <code>[project] routes</code> in <code>hinoki.toml</code> points to. Registering an app in <code>hinoki.toml</code> and exposing its HTTP routes in the project's <code>routes.py</code> are two separate decisions.</p>
 <h2 id="from-the-manifest-to-the-application">From the manifest to the application<a class="headerlink" href="#from-the-manifest-to-the-application" title="Permanent link">&para;</a></h2>
 <div class="language-toml highlight"><pre><span></span><code><span class="c1"># hinoki.toml</span>
 <span class="k">[project]</span>
 <span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.main:app"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span><span class="w">            </span><span class="c1"># the project's own routes</span>
+<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.routes:routes"</span><span class="w">            </span><span class="c1"># the project's single route map</span>
 
 <span class="k">[[apps]]</span>
 <span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"billing"</span>
 <span class="n">models</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.models"</span>
 <span class="n">migrations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.migrations"</span>
-<span class="n">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"notes.apps.billing.routes:routes"</span>
-<span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"/billing"</span><span class="w">                       </span><span class="c1"># "/&lt;name&gt;" when omitted</span>
 <span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/routes.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Includable</span><span class="p">,</span> <span class="n">Mount</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">health</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.apps.billing.routes</span><span class="w"> </span><span class="kn">import</span> <span class="n">routes</span> <span class="k">as</span> <span class="n">billing_routes</span>
+
+<span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Includable</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">health</span><span class="p">,</span>
+    <span class="n">Mount</span><span class="p">(</span><span class="s2">"/billing"</span><span class="p">,</span> <span class="n">billing_routes</span><span class="p">),</span>
+<span class="p">]</span>
 </code></pre></div>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
     <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
-    <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span>
     <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-<span class="p">)</span>  <span class="c1"># rules, events and middleware come from hinoki.toml as well</span>
+<span class="p">)</span>  <span class="c1"># routes, rules, events and middleware come from hinoki.toml</span>
 </code></pre></div>
-<p><code>manifest_routes()</code> finds <code>hinoki.toml</code> from the calling file's directory upwards and returns, in order:</p>
-<ol>
-<li>the project's <code>routes</code> list, at its own paths;</li>
-<li>each app's <code>routes</code> list under the app's <code>prefix</code>, apps in dependency order (<code>requires</code>).</li>
-</ol>
-<p>An app without a <code>routes</code> key, or with an empty list, adds nothing. Outside a project it raises <code>ProjectError</code>. <code>include=manifest_routes()</code> is the explicit form that <code>hinoki new</code> writes: when the module named by <code>project.application</code> builds <code>Hinoki(...)</code> without <code>include=</code>, it loads the same list itself, as the <a href="https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/main.py">Tracker example</a> does (an explicit <code>include=</code>, even empty, wins). <code>hinoki app create billing</code> writes the <code>routes.py</code> and the manifest keys; <code>hinoki app create billing --prefix /payments</code> chooses another prefix. <code>hinoki app list</code> prints each app with its routes and prefix.</p>
+<p>When the module named by <code>project.application</code> builds <code>Hinoki(...)</code> without <code>include=</code>, it loads <code>[project] routes</code> automatically (<code>[]</code> if omitted). Passing <code>include=</code> explicitly (even <code>include=[]</code>) always wins over the manifest, which is useful for tests or conditional routes. <code>manifest_routes()</code> reads <code>[project] routes</code> explicitly for scripts or separate modules, and raises <code>ProjectError</code> outside a project.</p>
+<p><code>hinoki app create billing</code> scaffolds <code>notes/apps/billing/routes.py</code> and prints the <code>Mount("/billing", billing_routes)</code> snippet to add to <code>notes/routes.py</code> if you want to expose the app over HTTP. An app registered in <code>hinoki.toml</code> without a <code>Mount(...)</code> in <code>notes/routes.py</code> still participates in migrations, events and <code>requires</code> without serving HTTP endpoints; an API-only app created with <code>hinoki app create gateway --no-models</code> (or <code>hinoki app add gateway</code>) has no models or migrations and is mounted in <code>notes/routes.py</code> like any other app.</p>
 <h2 id="one-place-for-each-prefix">One place for each prefix<a class="headerlink" href="#one-place-for-each-prefix" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -554,12 +557,12 @@
 <tbody>
 <tr>
 <td>The app</td>
-<td><code>prefix</code> in <code>hinoki.toml</code></td>
+<td><code>Mount(...)</code> in the project's <code>routes.py</code></td>
 <td><code>/billing</code></td>
 </tr>
 <tr>
 <td>A version inside the app</td>
-<td><code>Mount</code> in <code>routes.py</code></td>
+<td><code>Mount</code> in the app's <code>routes.py</code></td>
 <td><code>/v2</code></td>
 </tr>
 <tr>
@@ -569,7 +572,7 @@
 </tr>
 </tbody>
 </table>
-<p>Write each segment once. Paths in code are relative to the app, so moving an app is a one-line change in <code>hinoki.toml</code>.</p>
+<p>Write each segment once. Paths inside an app stay relative to the app, so the same app package can be mounted at different prefixes in different projects.</p>
 <h2 id="versions-with-mount">Versions with <code>Mount</code><a class="headerlink" href="#versions-with-mount" title="Permanent link">&para;</a></h2>
 <p><code>Mount(prefix, *items)</code> prepends its prefix to everything it holds. Use it inside <code>routes.py</code> when one app serves several versions:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py</span>
@@ -707,7 +710,7 @@ hinoki<span class="w"> </span>routes<span class="w"> </span>--format<span class=
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/routes.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

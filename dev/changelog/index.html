@@ -502,13 +502,41 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>41 min read</span>
+            <span>42 min read</span>
           </p>
           
         </header>
         
 <p>Every user-facing change to Hinoki, newest first. Hinoki is pre-alpha and no release has been tagged yet, so changes are listed under <strong>Unreleased</strong>. In the planned <code>0.1.x</code> line, documented Python, CLI, settings and runtime contracts, plus migration files, stay compatible across patch releases. A later <code>0.y.0</code> may include breaking changes, described in its release notes. The same text lives in <a href="https://github.com/caspel26/hinoki/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>.</p>
-<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="other"><h3>💥 Breaking Changes</h3><h4>🧹 Remove deprecated <code>hinoki.Reply</code> alias and <code>hinoki.reply</code> shim</h4>
+<div class="cl" data-changelog><div class="cl__bar" data-search-exclude><nav class="cl__versions" aria-label="Versions"><a class="cl__ver" href="#v-unreleased" data-target="v-unreleased">Unreleased</a></nav><div class="cl__kinds" role="group" aria-label="Filter by type"><button type="button" class="cl__kind" data-kind="features" aria-pressed="false">New Features</button><button type="button" class="cl__kind" data-kind="improvements" aria-pressed="false">Improvements</button><button type="button" class="cl__kind" data-kind="fixes" aria-pressed="false">Fixes</button><button type="button" class="cl__kind" data-kind="docs" aria-pressed="false">Documentation</button></div></div><div class="cl__cards"><article class="cl__card" id="v-unreleased" data-version="v-unreleased"><header class="cl__head"><h2>Unreleased</h2><span class="cl__chip cl__chip--next">Next</span></header><section class="cl__sec" data-kind="other"><h3>💥 Breaking Changes</h3><h4>🗺️ Explicit project route map and removal of <code>[[apps]] routes</code> / <code>prefix</code></h4>
+<blockquote>
+<p><code>python/hinoki/project.py</code>, <code>python/hinoki/scaffold.py</code>, <code>python/hinoki/cli/project.py</code>, <code>docs/routes.md</code>, <code>docs/cli.md</code></p>
+</blockquote>
+<p>Registering an app in <code>hinoki.toml</code> and exposing its HTTP routes in the project's <code>routes.py</code> are now separate decisions:</p>
+<ul>
+<li>Removed <code>routes</code> and <code>prefix</code> from <code>[[apps]]</code> in <code>hinoki.toml</code> (<code>load_manifest()</code> rejects them with a <code>ProjectError</code> migration hint showing the <code>Mount(...)</code> line to add to <code>&lt;project&gt;/routes.py</code>, without inventing a target when only <code>prefix</code> is present).</li>
+<li>Removed <code>--prefix</code> from <code>hinoki app create</code>, and removed <code>--routes</code> and <code>--prefix</code> from <code>hinoki app add</code>. <code>hinoki app create</code> prints the <code>Mount("/&lt;name&gt;", &lt;name&gt;_routes)</code> snippet instead of editing <code>&lt;project&gt;/routes.py</code>.</li>
+<li><code>manifest_routes()</code> and automatic <code>Hinoki(settings=ProjectSettings)</code> loading now read only <code>[project] routes</code> (returning <code>[]</code> when omitted). Scaffolded <code>main.py</code> omits <code>include=manifest_routes()</code> and relies on automatic <code>[project] routes</code> loading; explicit <code>include=</code> (including <code>include=[]</code>) continues to override it.</li>
+</ul>
+<p>Before:</p>
+<pre><code class="language-toml">[[apps]]
+name = &quot;billing&quot;
+models = &quot;acme.apps.billing.models&quot;
+migrations = &quot;acme.apps.billing.migrations&quot;
+routes = &quot;acme.apps.billing.routes:routes&quot;
+prefix = &quot;/billing&quot;
+</code></pre>
+<p>After:</p>
+<pre><code class="language-toml"># hinoki.toml
+[[apps]]
+name = &quot;billing&quot;
+models = &quot;acme.apps.billing.models&quot;
+migrations = &quot;acme.apps.billing.migrations&quot;
+</code></pre>
+<pre><code class="language-python"># acme/routes.py
+routes: list[Includable] = [health, Mount(&quot;/billing&quot;, billing_routes)]
+</code></pre>
+<h4>🧹 Remove deprecated <code>hinoki.Reply</code> alias and <code>hinoki.reply</code> shim</h4>
 <blockquote>
 <p><code>python/hinoki/__init__.py</code>, <code>python/hinoki/reply.py</code></p>
 </blockquote>
@@ -522,7 +550,12 @@
 <blockquote>
 <p><code>python/hinoki/runtime/pipeline.py</code>, <code>docs/model-schemas.md</code>, <code>docs/endpoints.md</code></p>
 </blockquote>
-<p>Handlers annotated with a <code>Schema</code> return type no longer implicitly convert a returned <code>Model</code> via <code>from_model()</code>; returning a <code>Model</code> now fails the response contract check with <code>500 internal_error</code> (<code>ResponseContractError</code>, rolling back <code>atomic=True</code> transactions before the HTTP response). Convert explicitly with <code>Out.from_model(row)</code> or an ORM projection (<code>QuerySet.aproject</code>, <code>apaginate_as</code>, generated CRUD).</p></section><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>✂️ Uniform <code>crud(..., omit=...)</code> and removal of <code>replaces=</code></h4>
+<p>Handlers annotated with a <code>Schema</code> return type no longer implicitly convert a returned <code>Model</code> via <code>from_model()</code>; returning a <code>Model</code> now fails the response contract check with <code>500 internal_error</code> (<code>ResponseContractError</code>, rolling back <code>atomic=True</code> transactions before the HTTP response). Convert explicitly with <code>Out.from_model(row)</code> or an ORM projection (<code>QuerySet.aproject</code>, <code>apaginate_as</code>, generated CRUD).</p></section><section class="cl__sec" data-kind="features"><h3>✨ New Features</h3><h4>🧩 Optional persistence and <code>--no-models</code> apps in <code>hinoki.toml</code></h4>
+<blockquote>
+<p><code>python/hinoki/project.py</code>, <code>python/hinoki/cli/project.py</code>, <code>python/hinoki/cli/migrations.py</code>, <code>python/hinoki/__main__.py</code></p>
+</blockquote>
+<p>Apps registered in <code>hinoki.toml</code> may now omit both <code>models</code> and <code>migrations</code> to represent API-only apps (<code>hinoki app create &lt;name&gt; --no-models</code> or <code>hinoki app add &lt;name&gt;</code> without <code>--models</code>). Declaring only one of <code>models</code> or <code>migrations</code> is rejected with <code>ProjectError</code>. <code>ProjectManifest.persistent_apps()</code> computes topological order over the full app dependency graph before filtering to persistent apps, and <code>hinoki migrations plan/status/apply/sql</code> skip API-only apps unless explicitly targeted with <code>--app</code>.</p>
+<h4>✂️ Uniform <code>crud(..., omit=...)</code> and removal of <code>replaces=</code></h4>
 <blockquote>
 <p><code>python/hinoki/resources.py</code>, <code>python/hinoki/runtime/crudplan.py</code>, <code>python/hinoki/routing.py</code>, <code>python/hinoki/api.py</code>, <code>python/hinoki/app.py</code>, <code>docs/crud.md</code>, <code>docs/class-endpoints.md</code>, <code>docs/endpoints.md</code></p>
 </blockquote>

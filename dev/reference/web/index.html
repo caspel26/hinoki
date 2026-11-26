@@ -2393,8 +2393,8 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
 
     <div class="doc doc-contents first">
 
-        <p>The routes <code>hinoki.toml</code> declares: the project's, then each app's at its
-prefix, for <code>Hinoki(include=manifest_routes())</code>.</p>
+        <p>The routes <code>[project] routes</code> declares in <code>hinoki.toml</code> (or <code>[]</code>
+when omitted).</p>
 <p>The manifest is found from <code>start</code>, by default the directory of the calling
 file (the working directory when the caller has no file), upwards. Outside a
 project this raises <code>ProjectError</code>.</p>

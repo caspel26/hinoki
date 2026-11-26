@@ -257,7 +257,7 @@
           <h1 id="8-projects-and-apps">8. Projects and apps<a class="headerlink" href="#8-projects-and-apps" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></span>
             <span>4 min read</span>
           </p>
           
@@ -389,36 +389,34 @@ Now that billing has <code>Invoice</code>, turn them on (and import <code>Models
 <p>Add <code>@db.table("billing_invoices")</code> above the class (the first line of its
 decorators) and the check passes. Pinning the derived name changes no table:
 <code>migrations plan billing</code> then reports <code>no changes</code>.</p>
-<p>Endpoints for billing go in <code>notes/apps/billing/api.py</code>, and <code>routes.py</code> lists
-them. The application in <code>notes/main.py</code> includes every app's list with
-<code>manifest_routes()</code>, which mounts this one at <code>/billing</code>, so paths inside the
-app never repeat the prefix:</p>
+<p>Endpoints for billing go in <code>notes/apps/billing/api.py</code>, and
+<code>notes/apps/billing/routes.py</code> exports them. You decide where they are served by
+mounting them in <code>notes/routes.py</code> with <code>Mount("/billing", billing_routes)</code>, so
+paths inside the app never repeat the prefix, and <code>notes/main.py</code> loads
+<code>notes/routes.py</code> from <code>hinoki.toml</code> automatically:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py (as hinoki new wrote it)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProjectSettings</span>
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
     <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>  <span class="c1"># NOTES_* variables and .env</span>
-    <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span>  <span class="c1"># notes/routes.py, then each app's routes at its prefix</span>
     <span class="n">title</span><span class="o">=</span><span class="s2">"Notes"</span><span class="p">,</span>
     <span class="n">openapi_url</span><span class="o">=</span><span class="s2">"/openapi.json"</span><span class="p">,</span>
     <span class="n">docs_url</span><span class="o">=</span><span class="s2">"/docs"</span><span class="p">,</span>
-<span class="p">)</span>  <span class="c1"># the rules come from `rules` in hinoki.toml</span>
+<span class="p">)</span>  <span class="c1"># routes, rules and middleware come from hinoki.toml</span>
 </code></pre></div>
-<p><code>include=manifest_routes()</code> is the explicit form of what <code>Hinoki()</code> does by
-itself when you leave <code>include=</code> out, as the <a href="../6-run/">Tracker</a> does; the
-scaffold writes it so the line shows where routes come from. The same manifest
-can also list project-wide <code>middleware</code>, an <code>events</code> module per app and more than
-one rule set (<code>rules</code>), as the Tracker's <code>hinoki.toml</code> does.</p>
+<p>Passing <code>include=</code> explicitly overrides <code>[project] routes</code> when you need it (for
+example in tests or conditional mounts). The same manifest can also list
+project-wide <code>middleware</code>, an <code>events</code> module per app and more than one rule
+set (<code>rules</code>), as the Tracker's <code>hinoki.toml</code> does.</p>
 <p>The project's rules (listed in <code>hinoki.toml</code>) require every action to name an
 <code>Access</code> policy with permissions; build one as in <a href="../4-endpoints/">chapter 4</a>.</p>
 <h2 id="recap">Recap<a class="headerlink" href="#recap" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>hinoki app create</code> writes an app and registers it in <code>hinoki.toml</code>.</li>
 <li>Table names, migration numbers and slugs are derived; you review the SQL.</li>
-<li>The manifest sets each app's prefix; code never repeats it.</li>
+<li>The project's <code>routes.py</code> mounts each exposed app explicitly; code inside the app never repeats the prefix.</li>
 </ul>
         
         <aside class="related" aria-label="Related pages">
@@ -448,7 +446,7 @@ one rule set (<code>rules</code>), as the Tracker's <code>hinoki.toml</code> doe
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 15:52:26 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/tutorial/8-projects.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

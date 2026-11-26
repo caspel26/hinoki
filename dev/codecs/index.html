@@ -501,7 +501,7 @@
           <h1 id="parsers-and-renderers">Parsers and renderers<a class="headerlink" href="#parsers-and-renderers" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:45:18 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -588,7 +588,6 @@
 <p>Per action, or for the whole application (an action's own choice wins):</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/main.py</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">Hinoki</span><span class="p">,</span> <span class="n">JSONRenderer</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">manifest_routes</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.renderers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextRenderer</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">notes.rules</span><span class="w"> </span><span class="kn">import</span> <span class="n">project_rules</span>
@@ -596,7 +595,6 @@
 
 <span class="n">app</span> <span class="o">=</span> <span class="n">Hinoki</span><span class="p">(</span>
     <span class="n">settings</span><span class="o">=</span><span class="n">ProjectSettings</span><span class="p">,</span>
-    <span class="n">include</span><span class="o">=</span><span class="n">manifest_routes</span><span class="p">(),</span>
     <span class="n">rules</span><span class="o">=</span><span class="n">project_rules</span><span class="p">,</span>
     <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">JSONRenderer</span><span class="p">(</span><span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">TextRenderer</span><span class="p">()],</span>
 <span class="p">)</span>
@@ -711,7 +709,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:45:18 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/codecs.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

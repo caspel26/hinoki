@@ -109,23 +109,21 @@ rules = ["notes.rules:project_rules"]
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,  # NOTES_* variables and .env
-    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # the rules come from `rules` in hinoki.toml
+)  # routes, rules and middleware come from hinoki.toml
 ```
 
-`manifest_routes()` reads `hinoki.toml`, so the application lists no routes of
-its own, and `Hinoki()` loads the `rules` list the same way unless you pass
-`rules=`. Commands read the same file, so inside the project they need no module
-paths.
+`Hinoki(settings=ProjectSettings, ...)` reads `hinoki.toml` automatically,
+loading `notes/routes.py` (`[project] routes`) and `rules`, so `main.py` stays
+short. Commands read the same manifest, so inside the project they need no
+module paths.
 
 ## Where the database is configured
 
@@ -164,7 +162,7 @@ when you answered the last question:
 ```text
 notes/apps/entries/
 ├── api.py         endpoints of the app
-├── routes.py      the routes served, mounted at /entries
+├── routes.py      reusable routes of the app
 ├── models.py      tables of the app
 └── migrations/    migration history
 ```
@@ -176,10 +174,11 @@ It is registered in `hinoki.toml`:
 name = "entries"
 models = "notes.apps.entries.models"
 migrations = "notes.apps.entries.migrations"
-routes = "notes.apps.entries.routes:routes"
-prefix = "/entries"
 requires = []
 ```
+
+To expose the app's endpoints over HTTP, mount them in `notes/routes.py` with
+`Mount("/entries", entries_routes)`.
 
 App names are lower-case letters and digits with single underscores between words
 (for example `api_v1`), starting with a letter. Define the

@@ -501,7 +501,7 @@
           <h1 id="test-an-application">Test an application<a class="headerlink" href="#test-an-application" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 21:58:28 UTC">November 25, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></span>
             <span>8 min read</span>
           </p>
           
@@ -593,9 +593,9 @@ its new database needs no tables; to give a test migrated tables, copy them as
         <span class="k">assert</span> <span class="p">(</span><span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/health"</span><span class="p">))</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">200</span>
 </code></pre></div>
 <p>A <code>Hinoki(...)</code> built in any other module (a test, a script) does not read the
-manifest; pass what it lists explicitly, with <code>include=manifest_routes()</code> and
-the <code>manifest_events()</code>, <code>manifest_middleware()</code> and <code>manifest_rules()</code> helpers
-of <code>hinoki.project</code>.</p>
+manifest; pass what you want explicitly (or use <code>manifest_routes()</code>,
+<code>manifest_events()</code>, <code>manifest_middleware()</code> and <code>manifest_rules()</code> from
+<code>hinoki.project</code>).</p>
 <p>Use synthetic rows and credentials, and never point test settings at production
 data.</p>
 <h3 id="give-each-test-its-own-database">Give each test its own database<a class="headerlink" href="#give-each-test-its-own-database" title="Permanent link">&para;</a></h3>
@@ -737,7 +737,7 @@ uv<span class="w"> </span>run<span class="w"> </span>--locked<span class="w"> </
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 21:58:28 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 21:13:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/testing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
