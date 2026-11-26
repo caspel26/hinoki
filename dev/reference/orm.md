@@ -62,3 +62,23 @@ Model write validation raises `ModelValidationError` from `hinoki.errors`, with 
 - `hinoki.orm.urlsafe_token(...)`: Declare a URL-safe random token column backed by Rust's CSPRNG (``hinoki.core.make_token``). [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.urlsafe_token)
 
 - `hinoki.orm.uuid7() -> 'UUID'`: Return a time-ordered UUID version 7 (RFC 9562), generated in Rust. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.uuid7)
+
+- `hinoki.orm.current_database() -> 'Database'`. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.current_database)
+
+- `hinoki.orm.use_database(database: 'Database') -> 'Iterator[Database]'`: Make ``database`` the default for models inside the block (the ASGI adapter does this for every request when a ``Database`` is provided). [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.use_database)
+
+- `hinoki.orm.Loading(...)`: Relations a query joins for filtering, joins and loads, or prefetches. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.Loading)
+
+- `hinoki.orm.Relation(name: 'str', model: 'type[Model]', column: 'str', forward: 'bool', one_to_one: 'bool' = False) -> None`: One side of a foreign key. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.Relation)
+
+- `hinoki.orm.ManyToMany(declaration: 'Declaration | None' = None) -> 'None'`: The declaration (``many_to_many(Tag)``) and, once bound, the attribute that gives each instance its ``LinkSet``. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.ManyToMany)
+
+- `hinoki.orm.LinkKey`: Represent a PEP 604 union type. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.LinkKey)
+
+- `hinoki.orm.LinkSet(owner: 'Model', side: 'LinkSide') -> 'None'`: ``post.tags``: the links of one owner. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.LinkSet)
+
+- `hinoki.orm.LinkChange(added: 'tuple[LinkKey, ...]' = (), removed: 'tuple[LinkKey, ...]' = ()) -> None`: The target keys a write linked and unlinked, in ascending order. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.LinkChange)
+
+- `hinoki.orm.Change(old: 'Any', new: 'Any') -> None`: One column's stored and current value; ``old`` is ``UNSET`` for a row that has not been written yet. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.Change)
+
+- `hinoki.orm.StatusTrack(field: 'str', changed_at: 'str', clock: 'Clock | None' = None) -> None`: A status column and the datetime column recording its last change. [reference](https://hinoki.caspel.dev/dev/reference/orm/#hinoki.orm.StatusTrack)

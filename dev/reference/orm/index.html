@@ -297,8 +297,8 @@
           <h1 id="models-and-queries">Models and queries<a class="headerlink" href="#models-and-queries" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:26:26 UTC">November 24, 2026</span></span>
-            <span>32 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 22:11:48 UTC">November 26, 2026</span></span>
+            <span>35 min read</span>
           </p>
           
         </header>
@@ -5803,6 +5803,665 @@ secrets, store a hash instead of the raw token.</p>
     </div>
 
 </div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.current_database" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.current_database</span>
+
+
+<a href="#hinoki.orm.current_database" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">current_database</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Database</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="hinoki.orm.use_database" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">hinoki.orm.use_database</span>
+
+
+<a href="#hinoki.orm.use_database" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">use_database</span><span class="p">(</span><span class="n">database</span><span class="p">:</span> <span class="n">Database</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">Database</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Make <code>database</code> the default for models inside the block (the ASGI
+adapter does this for every request when a <code>Database</code> is provided).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.Loading" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.Loading</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.orm.Loading" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Loading</span><span class="p">(</span>
+    <span class="n">joined</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">selected</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">prefetched</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">scoped</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Relations a query joins for filtering, joins and loads, or prefetches.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.Loading.scoped" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">scoped</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.Loading.scoped" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">scoped</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Many-to-many prefetches narrowed by a query of the target model.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.Relation" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.Relation</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.orm.Relation" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Relation</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span>
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">forward</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">one_to_one</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>One side of a foreign key.</p>
+<p>Forward (<code>forward=True</code>): <code>model</code> is the referenced model and <code>column</code>
+the local foreign-key column. Reverse: <code>model</code> is the model that holds
+<code>column</code>, pointing back at the owner.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.ManyToMany" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.ManyToMany</span>
+
+
+<a href="#hinoki.orm.ManyToMany" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">ManyToMany</span><span class="p">(</span><span class="n">declaration</span><span class="p">:</span> <span class="n">Declaration</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The declaration (<code>many_to_many(Tag)</code>) and, once bound, the attribute
+that gives each instance its <code>LinkSet</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="hinoki.orm.LinkKey" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">hinoki.orm.LinkKey</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkKey" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">LinkKey</span> <span class="o">=</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">UUID</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.LinkSet" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.LinkSet</span>
+
+
+<a href="#hinoki.orm.LinkSet" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">LinkSet</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span> <span class="n">side</span><span class="p">:</span> <span class="n">LinkSide</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p><code>post.tags</code>: the links of one owner. Writes run in one transaction in
+the native layer; <code>within</code> narrows which targets the call may touch.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.orm.LinkSet.loaded" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">loaded</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkSet.loaded" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">loaded</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">T</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The targets <code>prefetch_related</code> loaded.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.LinkSet.query" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">query</span>
+
+
+<a href="#hinoki.orm.LinkSet.query" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">query</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">within</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The linked targets as a query (filter, order, count, paginate).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.LinkSet.aadd" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">aadd</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkSet.aadd" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">aadd</span><span class="p">(</span>
+    <span class="o">*</span><span class="n">targets</span><span class="p">:</span> <span class="n">T</span> <span class="o">|</span> <span class="n">LinkKey</span><span class="p">,</span> <span class="n">within</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LinkChange</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Link the targets; already linked ones are kept. A target that does
+not exist or is outside <code>within</code> raises <code>UnknownLinkTarget</code> and
+nothing is written.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.LinkSet.aremove" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">aremove</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkSet.aremove" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">aremove</span><span class="p">(</span>
+    <span class="o">*</span><span class="n">targets</span><span class="p">:</span> <span class="n">T</span> <span class="o">|</span> <span class="n">LinkKey</span><span class="p">,</span> <span class="n">within</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LinkChange</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Unlink the targets; unknown or out-of-scope ones are ignored.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.LinkSet.aset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">aset</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkSet.aset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">aset</span><span class="p">(</span>
+    <span class="n">targets</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">T</span> <span class="o">|</span> <span class="n">LinkKey</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">within</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LinkChange</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Make the targets within <code>within</code> exactly the given ones; links to
+targets outside it are left alone.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.LinkSet.keys" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">keys</span>
+
+
+<a href="#hinoki.orm.LinkSet.keys" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">keys</span><span class="p">(</span><span class="n">targets</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">object</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">builtins</span><span class="o">.</span><span class="n">list</span><span class="p">[</span><span class="n">LinkKey</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The primary keys of <code>targets</code> (rows or keys), validated natively.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.LinkSet.write" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">write</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkSet.write" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">write</span><span class="p">(</span>
+    <span class="n">op</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">targets</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">object</span><span class="p">],</span>
+    <span class="n">within</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">T</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">owner_within</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LinkChange</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Write the links. <code>owner_within</code> (internal to generated CRUD and the
+admin) is a query of the owner model: once the owner row is locked it
+must still match it, else the owner counts as missing.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.orm.LinkSet.announce" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">announce</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkSet.announce" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">announce</span><span class="p">(</span><span class="n">owner</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">change</span><span class="p">:</span> <span class="n">LinkChange</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Emit <code>Linked</code> and <code>Unlinked</code> for the declaring model's rows.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.LinkChange" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.LinkChange</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.orm.LinkChange" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">LinkChange</span><span class="p">(</span>
+    <span class="n">added</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">LinkKey</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">removed</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">LinkKey</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The target keys a write linked and unlinked, in ascending order.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.Change" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.Change</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.orm.Change" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">Change</span><span class="p">(</span><span class="n">old</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>One column's stored and current value; <code>old</code> is <code>UNSET</code> for a row
+that has not been written yet.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.orm.StatusTrack" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.orm.StatusTrack</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.orm.StatusTrack" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">StatusTrack</span><span class="p">(</span>
+    <span class="n">field</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">changed_at</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">clock</span><span class="p">:</span> <span class="n">Clock</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A status column and the datetime column recording its last change.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
         
       </article>
 
@@ -5836,13 +6495,17 @@ secrets, store a hash instead of the raw token.</p>
             <ul><li><a href="#hinoki.pagination.CursorPagination.resolved">resolved</a></li></ul>
           </li><li><a href="#hinoki.orm.Related">Related</a>
             <ul><li><a href="#hinoki.orm.Related.stale">stale</a></li></ul>
-          </li><li><a href="#mixins-options-and-helpers">Mixins, options and helpers</a></li><li><a href="#hinoki.orm.TimestampedModel">TimestampedModel</a></li><li><a href="#hinoki.orm.SoftDeleteModel">SoftDeleteModel</a></li><li><a href="#hinoki.orm.UUIDModel">UUIDModel</a></li><li><a href="#hinoki.orm.soft_delete">soft_delete</a></li><li><a href="#hinoki.orm.track_status">track_status</a></li><li><a href="#hinoki.orm.many_to_many">many_to_many</a></li><li><a href="#hinoki.orm.uuid_pk">uuid_pk</a></li><li><a href="#hinoki.orm.urlsafe_token">urlsafe_token</a></li><li><a href="#hinoki.orm.uuid7">uuid7</a></li></ul>
+          </li><li><a href="#mixins-options-and-helpers">Mixins, options and helpers</a></li><li><a href="#hinoki.orm.TimestampedModel">TimestampedModel</a></li><li><a href="#hinoki.orm.SoftDeleteModel">SoftDeleteModel</a></li><li><a href="#hinoki.orm.UUIDModel">UUIDModel</a></li><li><a href="#hinoki.orm.soft_delete">soft_delete</a></li><li><a href="#hinoki.orm.track_status">track_status</a></li><li><a href="#hinoki.orm.many_to_many">many_to_many</a></li><li><a href="#hinoki.orm.uuid_pk">uuid_pk</a></li><li><a href="#hinoki.orm.urlsafe_token">urlsafe_token</a></li><li><a href="#hinoki.orm.uuid7">uuid7</a></li><li><a href="#hinoki.orm.current_database">current_database</a></li><li><a href="#hinoki.orm.use_database">use_database</a></li><li><a href="#hinoki.orm.Loading">Loading</a>
+            <ul><li><a href="#hinoki.orm.Loading.scoped">scoped</a></li></ul>
+          </li><li><a href="#hinoki.orm.Relation">Relation</a></li><li><a href="#hinoki.orm.ManyToMany">ManyToMany</a></li><li><a href="#hinoki.orm.LinkKey">LinkKey</a></li><li><a href="#hinoki.orm.LinkSet">LinkSet</a>
+            <ul><li><a href="#hinoki.orm.LinkSet.loaded">loaded</a></li><li><a href="#hinoki.orm.LinkSet.query">query</a></li><li><a href="#hinoki.orm.LinkSet.aadd">aadd</a></li><li><a href="#hinoki.orm.LinkSet.aremove">aremove</a></li><li><a href="#hinoki.orm.LinkSet.aset">aset</a></li><li><a href="#hinoki.orm.LinkSet.keys">keys</a></li><li><a href="#hinoki.orm.LinkSet.write">write</a></li><li><a href="#hinoki.orm.LinkSet.announce">announce</a></li></ul>
+          </li><li><a href="#hinoki.orm.LinkChange">LinkChange</a></li><li><a href="#hinoki.orm.Change">Change</a></li><li><a href="#hinoki.orm.StatusTrack">StatusTrack</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 17:26:26 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 22:11:48 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/orm.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

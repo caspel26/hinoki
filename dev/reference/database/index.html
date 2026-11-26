@@ -297,8 +297,8 @@
           <h1 id="database-api">Database API<a class="headerlink" href="#database-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 22:11:48 UTC">November 26, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -964,6 +964,153 @@ already atomic scope becomes a savepoint.</p>
 
 
 
+<h2 id="hinoki.db.AtomicScope" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.db.AtomicScope</span>
+
+
+<a href="#hinoki.db.AtomicScope" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">AtomicScope</span><span class="p">(</span><span class="n">database</span><span class="p">:</span> <span class="n">Database</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">migration</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p><code>async with database.atomic():</code> — commit, rollback or savepoint.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.AtomicScope.open" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">open</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.AtomicScope.open" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">open</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">shared</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Begin the transaction, or a savepoint inside the open one. <code>shared</code>
+lets a scope opened by a different task of a sync handler's thread nest.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.AtomicScope.leave_savepoint" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">leave_savepoint</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.AtomicScope.leave_savepoint" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">leave_savepoint</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">ActiveTransaction</span><span class="p">,</span> <span class="n">ok</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Release the savepoint, or roll back to it and then release it: a
+<code>ROLLBACK TO</code> keeps the savepoint open. A failed release counts as a
+rollback, so the block's <code>after_commit</code> callbacks are dropped.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.AtomicScope.undo_savepoint" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">undo_savepoint</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#hinoki.db.AtomicScope.undo_savepoint" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">undo_savepoint</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">ActiveTransaction</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Best effort after a failed release; the release error propagates.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.db.AtomicScope.rollback" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">rollback</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+      <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
+  </span>
+
+<a href="#hinoki.db.AtomicScope.rollback" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">rollback</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">ActiveTransaction</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Roll back; if that fails the native side discards the connection.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h2 id="hinoki.db.DatabaseModule" class="doc doc-heading">
             <span class="doc doc-object-name doc-class-name">hinoki.db.DatabaseModule</span>
 
@@ -1400,6 +1547,8 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
             <ul><li><a href="#hinoki.db.Database.engine">engine</a></li><li><a href="#hinoki.db.Database.dialect">dialect</a></li><li><a href="#hinoki.db.Database.connect">connect</a></li><li><a href="#hinoki.db.Database.active">active</a></li><li><a href="#hinoki.db.Database.fetch">fetch</a></li><li><a href="#hinoki.db.Database.fetch_models">fetch_models</a></li><li><a href="#hinoki.db.Database.fetch_page_models">fetch_page_models</a></li><li><a href="#hinoki.db.Database.fetch_page_rows">fetch_page_rows</a></li><li><a href="#hinoki.db.Database.fetch_projected_list">fetch_projected_list</a></li><li><a href="#hinoki.db.Database.fetch_projected_one">fetch_projected_one</a></li><li><a href="#hinoki.db.Database.fetch_projected_page">fetch_projected_page</a></li><li><a href="#hinoki.db.Database.fetch_one">fetch_one</a></li><li><a href="#hinoki.db.Database.execute">execute</a></li><li><a href="#hinoki.db.Database.atomic">atomic</a></li><li><a href="#hinoki.db.Database.after_commit">after_commit</a></li><li><a href="#hinoki.db.Database.migration">migration</a></li><li><a href="#hinoki.db.Database.close">close</a></li><li><a href="#hinoki.db.Database.status">status</a></li></ul>
           </li><li><a href="#hinoki.db.atomic">atomic</a></li><li><a href="#hinoki.db.Atomic">Atomic</a>
             <ul><li><a href="#hinoki.db.Atomic.leave">leave</a></li></ul>
+          </li><li><a href="#hinoki.db.AtomicScope">AtomicScope</a>
+            <ul><li><a href="#hinoki.db.AtomicScope.open">open</a></li><li><a href="#hinoki.db.AtomicScope.leave_savepoint">leave_savepoint</a></li><li><a href="#hinoki.db.AtomicScope.undo_savepoint">undo_savepoint</a></li><li><a href="#hinoki.db.AtomicScope.rollback">rollback</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseModule">DatabaseModule</a>
             <ul><li><a href="#hinoki.db.DatabaseModule.name">name</a></li><li><a href="#hinoki.db.DatabaseModule.url">url</a></li><li><a href="#hinoki.db.DatabaseModule.max_size">max_size</a></li><li><a href="#hinoki.db.DatabaseModule.wait">wait</a></li><li><a href="#hinoki.db.DatabaseModule.from_settings">from_settings</a></li><li><a href="#hinoki.db.DatabaseModule.lifespan">lifespan</a></li></ul>
           </li><li><a href="#hinoki.db.DatabaseError">DatabaseError</a></li><li><a href="#hinoki.db.UniqueViolation">UniqueViolation</a></li><li><a href="#hinoki.db.ForeignKeyViolation">ForeignKeyViolation</a></li><li><a href="#hinoki.db.NotNullViolation">NotNullViolation</a></li><li><a href="#hinoki.db.CheckViolation">CheckViolation</a></li></ul>
@@ -1408,7 +1557,7 @@ max_size), so <code>Hinoki(settings=..., modules=[DatabaseModule])</code> works.
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 16:41:06 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 22:11:48 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/database.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

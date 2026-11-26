@@ -60,6 +60,8 @@ operations may need backend-specific SQL.
 
 - `hinoki.db.Atomic()`: ``db.atomic()``: an atomic scope on the current database, as a block or as a decorator. [reference](https://hinoki.caspel.dev/dev/reference/database/#hinoki.db.Atomic)
 
+- `hinoki.db.AtomicScope(database: 'Database', *, migration: 'bool' = False) -> 'None'`: ``async with database.atomic():`` — commit, rollback or savepoint. [reference](https://hinoki.caspel.dev/dev/reference/database/#hinoki.db.AtomicScope)
+
 - `hinoki.db.DatabaseModule(url: 'str', *, max_size: 'int' = 10, wait: 'float' = 5.0) -> 'None'`: Opens a ``Database`` for the worker and provides it to other modules. [reference](https://hinoki.caspel.dev/dev/reference/database/#hinoki.db.DatabaseModule)
 
 - `hinoki.db.DatabaseError`: Common base class for all non-exit exceptions. [reference](https://hinoki.caspel.dev/dev/reference/database/#hinoki.db.DatabaseError)
