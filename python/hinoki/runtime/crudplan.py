@@ -281,6 +281,7 @@ CRUD_RUNTIME_NAMES = (
     "Page",
     "Response",
     "_scoped_query",
+    "_scoped_link_query",
 )
 CRUD_RUNTIME_ORIGINALS = tuple(
     crud_module.list_rows.__globals__[name] for name in CRUD_RUNTIME_NAMES

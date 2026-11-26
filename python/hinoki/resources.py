@@ -981,6 +981,22 @@ async def schema_items(self: CrudBase, rows: list[Any]) -> list[Any]:
     return list(items)
 
 
+def _scoped_link_query(self: Any, side: LinkEnd, query: Any, principal: Any) -> Any:
+    """Validate link hook ``QuerySet`` model and enforce declared ``RowScope``."""
+    if isinstance(query, QuerySet) and query.model is not side.target:
+        raise RegistrationError(
+            f"{type(self).__name__}.link_queryset({side.declared!r}) must return a "
+            f"{side.target.__name__} QuerySet"
+        )
+    row_scope = self.resource.link_scopes.get(side.declared)
+    if row_scope is not None and (
+        not isinstance(self, CrudBase)
+        or type(self).link_queryset is not CrudBase.link_queryset
+    ):
+        return row_scope.apply(query, principal)
+    return query
+
+
 async def with_links(
     self: CrudBase, query: QuerySet[Any], principal: Any
 ) -> QuerySet[Any]:
@@ -990,7 +1006,12 @@ async def with_links(
     if not sides:
         return query
     scopes = {
-        side.declared: await self.call_hook("link_queryset", side.declared, principal)
+        side.declared: _scoped_link_query(
+            self,
+            side,
+            await self.call_hook("link_queryset", side.declared, principal),
+            principal,
+        )
         for side in sides
     }
     return query.prefetch_related(**scopes)
@@ -1013,7 +1034,12 @@ async def write_links(
         ids = getattr(data, side.ids_name)
         if ids is UNSET:
             continue
-        scope = await self.call_hook("link_queryset", side.declared, principal)
+        scope = _scoped_link_query(
+            self,
+            side,
+            await self.call_hook("link_queryset", side.declared, principal),
+            principal,
+        )
         try:
             await getattr(row, side.declared).write(
                 "set", tuple(ids), scope, owner_within
