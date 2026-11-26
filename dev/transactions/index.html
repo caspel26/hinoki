@@ -501,8 +501,8 @@
           <h1 id="run-writes-in-transactions">Run writes in transactions<a class="headerlink" href="#run-writes-in-transactions" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></span>
-            <span>6 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></span>
+            <span>7 min read</span>
           </p>
           
         </header>
@@ -538,7 +538,8 @@ write method of the group is atomic:</p>
 the returned value against the response annotation before encoding it (see
 <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>).</p>
 <h2 id="what-rolls-back">What rolls back<a class="headerlink" href="#what-rolls-back" title="Permanent link">&para;</a></h2>
-<p>If the handler raises, response encoding/rendering fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. A value that does not match the response annotation is rejected as a <code>500</code>, and the transaction rolled back, unless the action opts out with <code>validate_response=False</code>. Do not send email or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.</p>
+<p>If the handler raises, response encoding/rendering fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. A value that does not match the response annotation is rejected as a <code>500</code>, and the transaction rolled back, unless the action opts out with <code>validate_response=False</code>. Returning a streamed response (<code>Stream</code>, <code>EventStream</code>, or <code>File</code>) from an <code>atomic=True</code> action annotated <code>-&gt; http.Response</code> is rejected as a <code>500</code> inside the transaction and rolls back as well, whereas returning a plain non-stream <code>http.Response</code> with a <code>4xx</code> status (such as <code>409</code>) is a normal return and commits; raise an <code>APIError</code> when a rejected operation should roll back.</p>
+<p>Session persistence (<code>Session.commit()</code>) runs after the handler and its <code>atomic=True</code> SQL transaction have committed, so a session store write failure happens in a separate boundary after the SQL commit. Do not send email, write local files, or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.</p>
 <p><code>RouteGroup(..., atomic=True)</code> makes <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> atomic
 by default; <code>GET</code> actions are not. An action opts out with <code>atomic=False</code>.</p>
 <p>A project created with <code>hinoki new</code> enforces <code>Transactions.require_atomic()</code>
@@ -667,7 +668,7 @@ you record the decision. List the action in <code>except_</code> in <code>notes/
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 12:01:51 UTC">November 25, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/transactions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

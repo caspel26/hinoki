@@ -501,7 +501,7 @@
           <h1 id="function-based-apis">Function-based APIs<a class="headerlink" href="#function-based-apis" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:56:24 UTC">November 26, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -675,10 +675,10 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 </table>
 <p>A public action must also be listed in <code>except_</code> of <code>Actions.require_access</code> in <code>notes/rules.py</code>, for example <code>except_=["notes.api.health", "notes.apps.billing.api.summary"]</code>, or the application refuses to start (<code>HNK-ACC-001</code>). The rule exists so that public endpoints are a written decision. <code>Actions.require_permissions</code> (<code>HNK-ACC-002</code>) only checks actions that have a policy, so it needs no entry.</p>
 <h2 id="compose-with-other-decorators">Compose with other decorators<a class="headerlink" href="#compose-with-other-decorators" title="Permanent link">&para;</a></h2>
-<p>Put the HTTP decorator outermost. The group records the function it receives when <code>@invoices.get(...)</code> runs, so a decorator above it would not be served:</p>
+<p>Put the HTTP decorator outermost. The group records the function it receives when <code>@invoices.get(...)</code> runs, so a decorator above it would not be served. Both sync and async decorators written with <code>functools.wraps</code> preserve their signature and run when placed underneath <code>@invoices.&lt;method&gt;(...)</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
 <span class="nd">@invoices</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/export"</span><span class="p">)</span>
-<span class="nd">@audited</span>  <span class="c1"># your decorator, written with functools.wraps</span>
+<span class="nd">@audited</span>  <span class="c1"># your sync or async decorator, written with functools.wraps</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">export_invoices</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">InvoiceExport</span><span class="p">:</span> <span class="o">...</span>
 </code></pre></div>
 <p>A wrapped function runs in an asyncio task. The <a href="../kiso/#the-native-handler-lane">native handler lane</a> needs a plain <code>async def</code>.</p>
@@ -735,7 +735,7 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
 </tr>
 <tr>
 <td><code>TypeError: unknown action options</code></td>
-<td>A misspelled keyword on a group action</td>
+<td>An unknown or misspelled keyword on a group action</td>
 <td>Use the option names listed in <a href="../endpoints/#declare-an-action">Requests and responses</a></td>
 </tr>
 <tr>
@@ -798,7 +798,7 @@ GET     /billing/invoices/{invoice_id}  StaffTokens[billing:manage] notes.apps.b
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 14:55:19 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:56:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/function-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

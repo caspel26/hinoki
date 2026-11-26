@@ -501,7 +501,7 @@
           <h1 id="type-checking-hinoki-applications">Type checking Hinoki applications<a class="headerlink" href="#type-checking-hinoki-applications" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></span>
             <span>2 min read</span>
           </p>
           
@@ -526,11 +526,11 @@ group:</p>
 <tbody>
 <tr>
 <td>HTTP decorators</td>
-<td>Preserve a handler's parameter and return types. Invalid decorator options such as <code>atomic="yes"</code> are type errors.</td>
+<td>Preserve a handler's parameter and return types. <code>http.*</code> and <code>RouteGroup</code> methods share the same typed keyword options, so <code>atomic="yes"</code> or a misspelled keyword such as <code>stauts=201</code> is a type error.</td>
 </tr>
 <tr>
 <td><code>Schema</code> classes</td>
-<td>Generated constructors check required, unknown and mistyped fields; <code>Field(default_factory=...)</code> preserves the value type.</td>
+<td>Generated constructors check required, unknown and mistyped fields; <code>Field(default_factory=...)</code> preserves the value type. <code>@derive(...)</code> synthesizes fields at runtime, so declare explicit fields when you need static attribute checking on a public schema.</td>
 </tr>
 <tr>
 <td>Application and route groups</td>
@@ -542,10 +542,11 @@ group:</p>
 </tr>
 <tr>
 <td>Decorator composition</td>
-<td>User decorators should preserve signatures with <code>functools.wraps</code>, <code>ParamSpec</code> and <code>TypeVar</code>. For standalone handlers the final decorated function is dispatched. With <code>RouteGroup</code>, put the HTTP decorator outermost so it captures the final handler.</td>
+<td>User decorators should preserve signatures with <code>functools.wraps</code>, <code>ParamSpec</code> and <code>TypeVar</code>. For standalone handlers the final decorated function is dispatched. With <code>RouteGroup</code>, put the HTTP decorator outermost so it captures the final sync or async wrapped handler.</td>
 </tr>
 </tbody>
 </table>
+<p>Hinoki separates three checks: a preserved handler signature for the type checker, statically known fields on explicitly annotated <code>Schema</code> classes, and registration-time validation of the route contract when <code>Hinoki</code> builds its routes.</p>
 <h2 id="orm-method-signatures">ORM method signatures<a class="headerlink" href="#orm-method-signatures" title="Permanent link">&para;</a></h2>
 <p>Model construction and common instance operations are typed. Some ORM methods that accept arbitrary model field names still have broad keyword signatures, so a checker may not catch a misspelled field passed to these methods:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="n">task</span> <span class="o">=</span> <span class="n">Task</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Write docs"</span><span class="p">)</span>  <span class="c1"># constructor fields and values are checked</span>
@@ -583,7 +584,7 @@ group:</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 11:38:35 UTC">November 20, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/typing.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

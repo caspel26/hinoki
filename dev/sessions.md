@@ -80,9 +80,11 @@ values returned by reads are copies; assign the updated value back through
 
 Hinoki loads a session when a route declares `session: Session` or uses
 `SessionAuth`. Mutations are saved and `Set-Cookie` is added only after the
-handler returns successfully (that is, without raising an exception). A
-returned `Response` with an error status is still a successful handler return.
-If the handler raises, pending changes and cookie changes are discarded.
+handler returns successfully (that is, without raising an exception) and after
+any `atomic=True` SQL transaction has committed, so a session store failure
+does not roll back an already-committed SQL transaction. A returned `Response`
+with an error status is still a successful handler return. If the handler
+raises, pending changes and cookie changes are discarded.
 
 `rotate()` issues a fresh token and revokes the old one on successful response;
 use it on login and privilege changes to prevent fixation. `invalidate()`

@@ -1584,7 +1584,9 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 <a href="#hinoki.routing.RouteGroup.get" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">get</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">get</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">GroupActionOptions</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1602,7 +1604,9 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 <a href="#hinoki.routing.RouteGroup.post" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">post</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">post</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">GroupActionOptions</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1620,7 +1624,9 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 <a href="#hinoki.routing.RouteGroup.put" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">put</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">put</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">GroupActionOptions</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1638,7 +1644,9 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 <a href="#hinoki.routing.RouteGroup.patch" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">patch</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">patch</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">GroupActionOptions</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1656,7 +1664,9 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 <a href="#hinoki.routing.RouteGroup.delete" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">delete</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">delete</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">GroupActionOptions</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -1674,7 +1684,9 @@ The result is an ordinary action: rules, OpenAPI and the MCP see no difference.<
 
 
 <a href="#hinoki.routing.RouteGroup.query" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">query</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">query</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">GroupActionOptions</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_GroupRouteDeclaration</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">

@@ -19,11 +19,13 @@ uv run mypy notes
 
 | Contract | Result |
 | --- | --- |
-| HTTP decorators | Preserve a handler's parameter and return types. Invalid decorator options such as `atomic="yes"` are type errors. |
-| `Schema` classes | Generated constructors check required, unknown and mistyped fields; `Field(default_factory=...)` preserves the value type. |
+| HTTP decorators | Preserve a handler's parameter and return types. `http.*` and `RouteGroup` methods share the same typed keyword options, so `atomic="yes"` or a misspelled keyword such as `stauts=201` is a type error. |
+| `Schema` classes | Generated constructors check required, unknown and mistyped fields; `Field(default_factory=...)` preserves the value type. `@derive(...)` synthesizes fields at runtime, so declare explicit fields when you need static attribute checking on a public schema. |
 | Application and route groups | `Hinoki.include`, `API` classes and `RouteGroup` provide typed declarations. Unknown include items fail at app construction. |
 | Authentication context | Annotate a parameter as `Caller[User]` to receive the typed caller and application user. |
-| Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. For standalone handlers the final decorated function is dispatched. With `RouteGroup`, put the HTTP decorator outermost so it captures the final handler. |
+| Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. For standalone handlers the final decorated function is dispatched. With `RouteGroup`, put the HTTP decorator outermost so it captures the final sync or async wrapped handler. |
+
+Hinoki separates three checks: a preserved handler signature for the type checker, statically known fields on explicitly annotated `Schema` classes, and registration-time validation of the route contract when `Hinoki` builds its routes.
 
 ## ORM method signatures
 

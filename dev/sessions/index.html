@@ -501,7 +501,7 @@
           <h1 id="application-sessions">Application sessions<a class="headerlink" href="#application-sessions" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></span>
             <span>5 min read</span>
           </p>
           
@@ -577,9 +577,11 @@ values returned by reads are copies; assign the updated value back through
 <code>session[key]</code> to persist a nested change.</p>
 <p>Hinoki loads a session when a route declares <code>session: Session</code> or uses
 <code>SessionAuth</code>. Mutations are saved and <code>Set-Cookie</code> is added only after the
-handler returns successfully (that is, without raising an exception). A
-returned <code>Response</code> with an error status is still a successful handler return.
-If the handler raises, pending changes and cookie changes are discarded.</p>
+handler returns successfully (that is, without raising an exception) and after
+any <code>atomic=True</code> SQL transaction has committed, so a session store failure
+does not roll back an already-committed SQL transaction. A returned <code>Response</code>
+with an error status is still a successful handler return. If the handler
+raises, pending changes and cookie changes are discarded.</p>
 <p><code>rotate()</code> issues a fresh token and revokes the old one on successful response;
 use it on login and privilege changes to prevent fixation. <code>invalidate()</code>
 revokes the current token and sends a clearing cookie. Revocations are retained
@@ -677,7 +679,7 @@ and cache migrations.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:48:42 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 10:41:24 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/sessions.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

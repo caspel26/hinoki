@@ -4888,12 +4888,12 @@ A public action must also be listed in `except_` of `Actions.require_access` in 
 
 ## Compose with other decorators
 
-Put the HTTP decorator outermost. The group records the function it receives when `@invoices.get(...)` runs, so a decorator above it would not be served:
+Put the HTTP decorator outermost. The group records the function it receives when `@invoices.get(...)` runs, so a decorator above it would not be served. Both sync and async decorators written with `functools.wraps` preserve their signature and run when placed underneath `@invoices.<method>(...)`:
 
 ```python
 # notes/apps/billing/api.py (continued)
 @invoices.get("/export")
-@audited  # your decorator, written with functools.wraps
+@audited  # your sync or async decorator, written with functools.wraps
 async def export_invoices() -> InvoiceExport: ...
 ```
 
@@ -4937,7 +4937,7 @@ The handlers are plain functions, so a unit test can also `await get_invoice(inv
 | The route is missing from `hinoki routes` | The group is not in `routes.py`, or the app has no `routes` key in `hinoki.toml` | Add it to `routes: list[Includable]` |
 | Paths read `/billing/billing/...` | The prefix is in code and in `hinoki.toml` | Keep the app prefix in `hinoki.toml` only |
 | `ValueError` on `RouteGroup("/invoices/")` | A prefix starts with `/` and does not end with one | `RouteGroup("/invoices")` |
-| `TypeError: unknown action options` | A misspelled keyword on a group action | Use the option names listed in [Requests and responses](https://hinoki.caspel.dev/dev/endpoints.md#declare-an-action) |
+| `TypeError: unknown action options` | An unknown or misspelled keyword on a group action | Use the option names listed in [Requests and responses](https://hinoki.caspel.dev/dev/endpoints.md#declare-an-action) |
 | `RuntimeError: a RouteGroup cannot change after it is included` | An action is added after the group is included | Declare every action at import time |
 | `RegistrationError: a RouteGroup must declare at least one action` | An empty group in `routes.py` | Remove it or add an action |
 | `RegistrationError: a RouteGroup can be included only once` | The group is listed twice in one application | List it once; mount the list, not each group |
@@ -8442,9 +8442,11 @@ values returned by reads are copies; assign the updated value back through
 
 Hinoki loads a session when a route declares `session: Session` or uses
 `SessionAuth`. Mutations are saved and `Set-Cookie` is added only after the
-handler returns successfully (that is, without raising an exception). A
-returned `Response` with an error status is still a successful handler return.
-If the handler raises, pending changes and cookie changes are discarded.
+handler returns successfully (that is, without raising an exception) and after
+any `atomic=True` SQL transaction has committed, so a session store failure
+does not roll back an already-committed SQL transaction. A returned `Response`
+with an error status is still a successful handler return. If the handler
+raises, pending changes and cookie changes are discarded.
 
 `rotate()` issues a fresh token and revokes the old one on successful response;
 use it on login and privilege changes to prevent fixation. `invalidate()`
@@ -9444,7 +9446,9 @@ the returned value against the response annotation before encoding it (see
 
 ## What rolls back
 
-If the handler raises, response encoding/rendering fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. A value that does not match the response annotation is rejected as a `500`, and the transaction rolled back, unless the action opts out with `validate_response=False`. Do not send email or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.
+If the handler raises, response encoding/rendering fails, the request times out, or the task is cancelled, the transaction rolls back before the error response is translated. A value that does not match the response annotation is rejected as a `500`, and the transaction rolled back, unless the action opts out with `validate_response=False`. Returning a streamed response (`Stream`, `EventStream`, or `File`) from an `atomic=True` action annotated `-> http.Response` is rejected as a `500` inside the transaction and rolls back as well, whereas returning a plain non-stream `http.Response` with a `4xx` status (such as `409`) is a normal return and commits; raise an `APIError` when a rejected operation should roll back.
+
+Session persistence (`Session.commit()`) runs after the handler and its `atomic=True` SQL transaction have committed, so a session store write failure happens in a separate boundary after the SQL commit. Do not send email, write local files, or perform another irreversible side effect inside the transaction; arrange it after the transaction commits, or use an outbox owned by the application.
 
 `RouteGroup(..., atomic=True)` makes `POST`, `PUT`, `PATCH` and `DELETE` atomic
 by default; `GET` actions are not. An action opts out with `atomic=False`.
@@ -11354,11 +11358,13 @@ uv run mypy notes
 
 | Contract | Result |
 | --- | --- |
-| HTTP decorators | Preserve a handler's parameter and return types. Invalid decorator options such as `atomic="yes"` are type errors. |
-| `Schema` classes | Generated constructors check required, unknown and mistyped fields; `Field(default_factory=...)` preserves the value type. |
+| HTTP decorators | Preserve a handler's parameter and return types. `http.*` and `RouteGroup` methods share the same typed keyword options, so `atomic="yes"` or a misspelled keyword such as `stauts=201` is a type error. |
+| `Schema` classes | Generated constructors check required, unknown and mistyped fields; `Field(default_factory=...)` preserves the value type. `@derive(...)` synthesizes fields at runtime, so declare explicit fields when you need static attribute checking on a public schema. |
 | Application and route groups | `Hinoki.include`, `API` classes and `RouteGroup` provide typed declarations. Unknown include items fail at app construction. |
 | Authentication context | Annotate a parameter as `Caller[User]` to receive the typed caller and application user. |
-| Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. For standalone handlers the final decorated function is dispatched. With `RouteGroup`, put the HTTP decorator outermost so it captures the final handler. |
+| Decorator composition | User decorators should preserve signatures with `functools.wraps`, `ParamSpec` and `TypeVar`. For standalone handlers the final decorated function is dispatched. With `RouteGroup`, put the HTTP decorator outermost so it captures the final sync or async wrapped handler. |
+
+Hinoki separates three checks: a preserved handler signature for the type checker, statically known fields on explicitly annotated `Schema` classes, and registration-time validation of the route contract when `Hinoki` builds its routes.
 
 ## ORM method signatures
 
