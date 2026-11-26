@@ -1426,14 +1426,19 @@ class Pipeline:
         if binding.streams:
             return await self._invoke_streaming(binding, request, renderer, kwargs)
         if binding.route.atomic:
-            async with self.ctx.get(Database).atomic():
-                response = await self._call(binding, request, renderer, kwargs)
-                if response.stream is not None:
-                    await discard_answer(response.stream.answer, self.executor)
-                    raise ResponseContractError(
-                        f"{binding.route.name}: atomic=True cannot return a "
-                        "streamed response"
-                    )
+            stream_to_discard: Streamed | None = None
+            try:
+                async with self.ctx.get(Database).atomic():
+                    response = await self._call(binding, request, renderer, kwargs)
+                    if response.stream is not None:
+                        stream_to_discard = response.stream.answer
+                        raise ResponseContractError(
+                            f"{binding.route.name}: atomic=True cannot return a "
+                            "streamed response"
+                        )
+            finally:
+                if stream_to_discard is not None:
+                    await discard_answer(stream_to_discard, self.executor)
             return response
         if binding.stream_capable:
             return await self._invoke_streaming(binding, request, renderer, kwargs)
