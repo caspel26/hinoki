@@ -31,7 +31,8 @@ from tests.providers import TokenAuth
 
 FORM = "application/x-www-form-urlencoded"
 STAFF = {"authorization": "Bearer editor-token"}
-# The test client runs a served lifespan: an admin under "*" needs debug on.
+# The test client runs a served lifespan: an admin under "*" needs debug on,
+# and then answers loopback Host names only (the client sends one).
 SETTINGS = AppSettings(debug=True)
 SECRET = "s" * 40
 URLS = {
@@ -121,7 +122,7 @@ async def send(
 
 @pytest.fixture
 async def client(pool: Pool, database: tuple[str, Database]) -> Client:
-    return await pool.start(build(database[0]))
+    return await pool.start(build(database[0]), host="localhost")
 
 
 async def tags_named(*names: str, hidden: bool = False) -> list[Tag]:
@@ -247,7 +248,7 @@ async def test_the_choices_and_the_search_are_bounded(
 async def test_without_a_target_admin_the_field_is_read_only_without_a_count(
     pool: Pool, database: tuple[str, Database]
 ) -> None:
-    client = await pool.start(build(database[0], tags=False))
+    client = await pool.start(build(database[0], tags=False), host="localhost")
     (red,) = await tags_named("red")
     post = await Post.acreate(title="p")
     await post.tags.aadd(red)
@@ -270,7 +271,7 @@ async def test_without_a_target_admin_the_field_is_read_only_without_a_count(
 async def test_every_theme_renders_the_multi_select(
     theme: str, pool: Pool, database: tuple[str, Database]
 ) -> None:
-    client = await pool.start(build(database[0], theme=theme))
+    client = await pool.start(build(database[0], theme=theme), host="localhost")
     (red,) = await tags_named("red")
     page = await client.request("GET", "/admin/posts/add", headers=STAFF)
     assert option_values(page.body) == [str(red.id)]
@@ -305,7 +306,7 @@ async def test_a_search_on_an_admin_without_search_fields_matches_the_key(
     app = Hinoki(settings=SETTINGS)
     app.include(admin.api())
     app.install(DatabaseModule(database[0], max_size=3))
-    client = await pool.start(app)
+    client = await pool.start(app, host="localhost")
     red, blue = await tags_named("red", "blue")
     post = await Post.acreate(title="p")
     found = await client.request(
