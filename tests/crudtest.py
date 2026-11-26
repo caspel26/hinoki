@@ -1144,3 +1144,81 @@ def test_unprotected_crud_and_standalone_routes_allow_omitted_access() -> None:
     routes = {(r.method, r.path): r for r in Hinoki(include=[OpenCrud, health]).routes}
     assert routes[("GET", "/open/extra")].access is None
     assert routes[("GET", "/health")].access is None
+
+
+def test_crud_access_on_non_generated_actions_does_not_require_handwritten_access() -> (
+    None
+):
+    @crud(Memo, path="/no-delete", read=MemoOut, access=CrudAccess(delete=writer))
+    class NoDeleteCrud(API):
+        @http.get("/extra")
+        async def extra(self) -> str:
+            return "ok"
+
+    @crud(
+        Memo,
+        path="/omit-list",
+        read=MemoOut,
+        access=CrudAccess(list=writer),
+        omit=("list",),
+    )
+    class OmitListCrud(API):
+        @http.get("/extra")
+        async def extra(self) -> str:
+            return "ok"
+
+    routes = {
+        (r.method, r.path): r
+        for r in Hinoki(include=[NoDeleteCrud, OmitListCrud]).routes
+    }
+    assert routes[("GET", "/no-delete/extra")].access is None
+    assert routes[("GET", "/omit-list/extra")].access is None
+
+
+def test_protected_crud_rechecks_handwritten_access_when_decorated_after_crud() -> None:
+    def add_missing_http(cls: type[API]) -> type[API]:
+        @http.get("/late")
+        async def late(self: API) -> str:
+            return "ok"
+
+        cls.late = late  # type: ignore[attr-defined]
+        return cls
+
+    def add_missing_ws(cls: type[API]) -> type[API]:
+        @http.websocket("/late-ws")
+        async def late_ws(self: API, socket: http.WebSocket) -> None:
+            await socket.close()
+
+        cls.late_ws = late_ws  # type: ignore[attr-defined]
+        return cls
+
+    def add_explicit_http(cls: type[API]) -> type[API]:
+        @http.get("/late-ok", access=None)
+        async def late_ok(self: API) -> str:
+            return "ok"
+
+        cls.late_ok = late_ok  # type: ignore[attr-defined]
+        return cls
+
+    @add_missing_http
+    @crud(Memo, path="/late-http", read=MemoOut, access=writer)
+    class LateHttp(API):
+        pass
+
+    @add_missing_ws
+    @crud(Memo, path="/late-ws", read=MemoOut, access=writer)
+    class LateWs(API):
+        pass
+
+    @add_explicit_http
+    @crud(Memo, path="/late-ok", read=MemoOut, access=writer)
+    class LateOk(API):
+        pass
+
+    with pytest.raises(RegistrationError, match=r"LateHttp\.late.*access="):
+        Hinoki(include=[LateHttp])
+    with pytest.raises(RegistrationError, match=r"LateWs\.late_ws.*access="):
+        Hinoki(include=[LateWs])
+
+    routes = {(r.method, r.path): r for r in Hinoki(include=[LateOk]).routes}
+    assert routes[("GET", "/late-ok/late-ok")].access is None
