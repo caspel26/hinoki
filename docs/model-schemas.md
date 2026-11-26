@@ -159,6 +159,32 @@ Narrowed, wherever the annotation names a `Schema` `S`:
   (`aget_as`, `aproject`) held anywhere above;
 - the `reply=` of a WebSocket route, for `send_json`.
 
+
+A recursive `TypedDict` that holds a `Schema` at a position that requires
+response narrowing raises `RegistrationError` when the route is registered,
+including with `validate_response=False`. For example, this return declaration
+requires narrowing the `item` field at every depth:
+
+```python
+from __future__ import annotations
+
+from typing import TypedDict
+
+from hinoki import Schema
+
+
+class Item(Schema):
+    id: int
+
+
+class Tree(TypedDict):
+    item: Item
+    children: list[Tree]
+```
+
+Use a `Schema` for the recursive structure. A recursive `TypedDict` whose fields
+only hold plain values can still be registered.
+
 Written whole, because no declared schema decides them:
 
 - a position typed `Any` or `object`;
@@ -170,11 +196,6 @@ Written whole, because no declared schema decides them:
   collection is declared (a generator or iterator returned for `Iterable[S]`, a
   mapping that is not a `dict`) is not walked, and the JSON and XML encoders
   refuse it: return the declared container;
-- a `TypedDict` that refers to itself
-  (`class Tree(TypedDict): item: S; kids: list[Tree]`) is narrowed at its first
-  level only: a `Tree` nested inside it, at any depth, is written as it is, so a
-  subclass of `S` held there shows its added fields. Declare a `Schema` for a
-  recursive structure instead;
 - a `list` that a lazy projection already holds, changed afterwards with
   `list.append(projection, subclass_instance)`: the JSON encoder drops the
   appended item and the XML encoder writes the list storage as it is.
