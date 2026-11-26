@@ -1,5 +1,6 @@
 import functools
-from collections.abc import Callable
+import inspect
+from collections.abc import Awaitable, Callable
 from typing import cast
 
 import pytest
@@ -10,6 +11,7 @@ from hinoki.errors import APIError, Conflict, Forbidden, NotFound, RegistrationE
 from hinoki.handlerhints import hints_of, module_scope_hints, signature_of
 from hinoki.http.request import Request
 from hinoki.resources import Crud
+from hinoki.testing import ASGIClient
 from tests.providers import TokenAuth
 
 editor = Access(auth=TokenAuth(), permissions=["posts:write"])
@@ -274,7 +276,9 @@ def test_route_group_is_includable_with_shared_options_once() -> None:
     with pytest.raises(ValueError, match="prefix"):
         RouteGroup("things")
     with pytest.raises(TypeError, match="unknown action options"):
-        group.get("/x", nope=1)
+        group.get("/x", nope=1)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="unknown action options"):
+        group.declare("GET", "/x", {"nope": 1})
     assert str(Crud.LIST) == "list" and Crud.DELETE.value == "delete"
 
 
@@ -376,3 +380,76 @@ def test_handler_hints_can_be_resolved_from_source_text_in_module_scope() -> Non
     assert module_scope_hints(handler, written) == {"count": int, "return": list[int]}
     assert list(signature_of(handler).parameters) == ["count"]
     assert hints_of(handler) == {"count": int, "return": type(None)}
+
+
+async def test_route_group_runs_sync_and_async_wrappers_below_group_decorator() -> None:
+    events: list[str] = []
+
+    def sync_wrap[**P](fn: Callable[P, int]) -> Callable[P, int]:
+        @functools.wraps(fn)
+        def wrapped(*args: P.args, **kwargs: P.kwargs) -> int:
+            events.append("sync-before")
+            return fn(*args, **kwargs) * 2
+
+        return wrapped
+
+    def async_wrap[**P](
+        fn: Callable[P, Awaitable[int]],
+    ) -> Callable[P, Awaitable[int]]:
+        @functools.wraps(fn)
+        async def wrapped(*args: P.args, **kwargs: P.kwargs) -> int:
+            events.append("async-before")
+            return (await fn(*args, **kwargs)) + 10
+
+        return wrapped
+
+    group = RouteGroup("/wrapped")
+
+    @group.get("/sync/{value}")
+    @sync_wrap
+    def read_sync(value: int) -> int:
+        events.append("sync-handler")
+        return value + 1
+
+    @group.post("/async/{value}", status=201)
+    @async_wrap
+    async def write_async(value: int) -> int:
+        events.append("async-handler")
+        return value * 3
+
+    assert list(inspect.signature(read_sync).parameters) == ["value"]
+    assert list(inspect.signature(write_async).parameters) == ["value"]
+
+    app = Hinoki(include=[group])
+    async with ASGIClient(app) as client:
+        first = await client.get("/wrapped/sync/4")
+        second = await client.post("/wrapped/async/5")
+
+    assert (first.status, first.body) == (200, 10)
+    assert (second.status, second.body) == (201, 25)
+    assert events == ["sync-before", "sync-handler", "async-before", "async-handler"]
+
+
+def test_route_group_inherits_include_in_schema_and_rejects_explicit_none() -> None:
+    visible = RouteGroup("/visible", include_in_schema=True)
+    hidden = RouteGroup("/hidden", include_in_schema=False)
+
+    @visible.get("/default")
+    def default_visible() -> str:
+        return "ok"
+
+    @hidden.get("/default")
+    def default_hidden() -> str:
+        return "ok"
+
+    routes = {
+        r.path: r.include_in_schema for r in Hinoki(include=[visible, hidden]).routes
+    }
+    assert routes == {"/visible/default": True, "/hidden/default": False}
+
+    fresh = RouteGroup("/other", include_in_schema=True)
+    with pytest.raises(ValueError, match="takes True or False"):
+
+        @fresh.get("/invalid", include_in_schema=None)  # type: ignore[arg-type]
+        def invalid_visible() -> str:
+            return "ok"

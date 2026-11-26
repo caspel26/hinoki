@@ -14,7 +14,7 @@ import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypedDict, TypeVar, Unpack
 
 from hinoki.access import Access
 from hinoki.errors import APIError, TooManyRequests
@@ -504,6 +504,27 @@ class Mount:
         self.items = items
 
 
+class GroupActionOptions(TypedDict, total=False):
+    """Typed keyword options accepted by ``RouteGroup`` action decorators."""
+
+    status: int
+    access: Access | None
+    atomic: bool | None
+    pagination: Pagination | None
+    replaces: str
+    parsers: Sequence[Parser] | None
+    renderers: Sequence[Renderer] | None
+    errors: Sequence[type[APIError]]
+    validate_response: bool
+    rate_limit: RateLimitPolicy | None
+    middleware: Sequence[Middleware]
+    cors: Cors | None
+    include_in_schema: bool
+    tags: Sequence[str]
+    deprecated: bool | date
+    operation_id: str | None
+
+
 class RouteGroup:
     """A function-based route group with a shared path prefix and defaults.
 
@@ -608,23 +629,35 @@ class RouteGroup:
             raise TypeError(f"unknown action options {sorted(options)}")
         return RouteDeclaration(method, full, chosen)
 
-    def get(self, path: str, **options: Any) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(self, self.declare("GET", path, options))
+    def get(
+        self, path: str, **options: Unpack[GroupActionOptions]
+    ) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("GET", path, dict(options)))
 
-    def post(self, path: str, **options: Any) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(self, self.declare("POST", path, options))
+    def post(
+        self, path: str, **options: Unpack[GroupActionOptions]
+    ) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("POST", path, dict(options)))
 
-    def put(self, path: str, **options: Any) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(self, self.declare("PUT", path, options))
+    def put(
+        self, path: str, **options: Unpack[GroupActionOptions]
+    ) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("PUT", path, dict(options)))
 
-    def patch(self, path: str, **options: Any) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(self, self.declare("PATCH", path, options))
+    def patch(
+        self, path: str, **options: Unpack[GroupActionOptions]
+    ) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("PATCH", path, dict(options)))
 
-    def delete(self, path: str, **options: Any) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(self, self.declare("DELETE", path, options))
+    def delete(
+        self, path: str, **options: Unpack[GroupActionOptions]
+    ) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("DELETE", path, dict(options)))
 
-    def query(self, path: str, **options: Any) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(self, self.declare("QUERY", path, options))
+    def query(
+        self, path: str, **options: Unpack[GroupActionOptions]
+    ) -> _GroupRouteDeclaration:
+        return _GroupRouteDeclaration(self, self.declare("QUERY", path, dict(options)))
 
 
 class _GroupRouteDeclaration:
