@@ -343,7 +343,7 @@ impl<'py> XmlEncoder<'py> {
                 continue;
             }
             if let Some(Some(guide)) = guides.get(index) {
-                item = crate::schema::narrow(&item, guide)?.unwrap_or(item);
+                item = crate::schema::narrow(&item, guide, false)?.unwrap_or(item);
             }
             present.push((wire_name, item));
         }

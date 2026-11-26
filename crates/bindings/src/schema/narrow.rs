@@ -121,20 +121,24 @@ fn union_guide(
 }
 
 /// `value` as its declared form, or `None` when it is written as it is. Only a
-/// strict subclass of a declared class changes.
+/// strict subclass of a declared class changes. With `view`, for a renderer that
+/// reads objects, an instance of exactly a declared class is wrapped as well:
+/// a subclass instance held in one of its fields must not reach that renderer
+/// raw.
 pub(crate) fn narrow<'py>(
     value: &Bound<'py, PyAny>,
     guide: &Guide,
+    view: bool,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     match guide {
-        Guide::Schema(classes) => narrow_instance(value, classes),
-        Guide::Seq(inner) => narrow_sequence(value, inner),
-        Guide::Tuple(guides) => narrow_tuple(value, guides),
-        Guide::Map(inner) => narrow_map(value, inner),
-        Guide::Keyed(keys) => narrow_keyed(value, keys),
+        Guide::Schema(classes) => narrow_instance(value, classes, view),
+        Guide::Seq(inner) => narrow_sequence(value, inner, view),
+        Guide::Tuple(guides) => narrow_tuple(value, guides, view),
+        Guide::Map(inner) => narrow_map(value, inner, view),
+        Guide::Keyed(keys) => narrow_keyed(value, keys, view),
         Guide::Union(members) => {
             for member in members.iter() {
-                if let Some(narrowed) = narrow(value, member)? {
+                if let Some(narrowed) = narrow(value, member, view)? {
                     return Ok(Some(narrowed));
                 }
             }
@@ -146,11 +150,22 @@ pub(crate) fn narrow<'py>(
 fn narrow_instance<'py>(
     value: &Bound<'py, PyAny>,
     classes: &[Py<PyAny>],
+    view: bool,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
-    if value.is_none() || is_declared(value, classes) {
+    let py = value.py();
+    if value.is_none() {
         return Ok(None);
     }
-    let py = value.py();
+    if is_declared(value, classes) {
+        if !view {
+            return Ok(None);
+        }
+        let wrapped = Narrowed {
+            value: value.clone().unbind(),
+            declared: value.get_type().into_any().unbind(),
+        };
+        return Ok(Some(Bound::new(py, wrapped)?.into_any()));
+    }
     let mut class = value.get_type();
     if class.is(crate::pytypes::projected_item_class(py)?) {
         // A lazy projection reports its Schema as its class (`__class__`), but
@@ -180,8 +195,9 @@ fn narrow_instance<'py>(
 fn narrow_sequence<'py>(
     value: &Bound<'py, PyAny>,
     inner: &Guide,
+    view: bool,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
-    if let Guide::Schema(classes) = inner {
+    if let (Guide::Schema(classes), false) = (inner, view) {
         // The usual case, every item exactly a declared class: a pointer compare each.
         let exact = if let Ok(list) = value.cast_exact::<PyList>() {
             list.iter().all(|item| is_declared(&item, classes))
@@ -194,7 +210,7 @@ fn narrow_sequence<'py>(
             return Ok(None);
         }
     }
-    narrow_positions(value, |_| Some(inner))
+    narrow_positions(value, view, |_| Some(inner))
 }
 
 /// A lazy projection still holding its rows has no items in its list storage:
@@ -229,34 +245,36 @@ fn is_declared(value: &Bound<'_, PyAny>, classes: &[Py<PyAny>]) -> bool {
 fn narrow_tuple<'py>(
     value: &Bound<'py, PyAny>,
     guides: &[Option<Guide>],
+    view: bool,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     if !value.is_instance_of::<PyTuple>() {
         return Ok(None);
     }
-    narrow_positions(value, |at| guides.get(at).and_then(Option::as_ref))
+    narrow_positions(value, view, |at| guides.get(at).and_then(Option::as_ref))
 }
 
 fn narrow_positions<'py, 'g>(
     value: &Bound<'py, PyAny>,
+    view: bool,
     guide_at: impl Fn(usize) -> Option<&'g Guide> + Copy,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     if let Ok(list) = value.cast_exact::<PyList>() {
-        return narrow_walk(value, || list.iter(), guide_at);
+        return narrow_walk(value, view, || list.iter(), guide_at);
     }
     if let Ok(tuple) = value.cast::<PyTuple>() {
-        return narrow_walk(value, || tuple.iter(), guide_at);
+        return narrow_walk(value, view, || tuple.iter(), guide_at);
     }
     if value.is_instance_of::<pyo3::types::PySet>()
         || value.is_instance_of::<pyo3::types::PyFrozenSet>()
     {
         let members = value.try_iter()?.collect::<PyResult<Vec<_>>>()?;
-        return narrow_walk(value, || members.iter().cloned(), guide_at);
+        return narrow_walk(value, view, || members.iter().cloned(), guide_at);
     }
     if value.is_instance_of::<PyList>() {
         // A list subclass may keep its items elsewhere than the list storage (a
         // lazy projection materialises on iteration): read them through Python.
         let items = value.try_iter()?.collect::<PyResult<Vec<_>>>()?;
-        return narrow_walk(value, || items.iter().cloned(), guide_at);
+        return narrow_walk(value, view, || items.iter().cloned(), guide_at);
     }
     Ok(None)
 }
@@ -264,11 +282,12 @@ fn narrow_positions<'py, 'g>(
 /// The first item that changes decides: only then is the new container built.
 fn narrow_walk<'py, 'g, I: Iterator<Item = Bound<'py, PyAny>>>(
     value: &Bound<'py, PyAny>,
+    view: bool,
     items: impl Fn() -> I,
     guide_at: impl Fn(usize) -> Option<&'g Guide>,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     let narrow_at = |at: usize, item: &Bound<'py, PyAny>| match guide_at(at) {
-        Some(guide) => narrow(item, guide),
+        Some(guide) => narrow(item, guide, view),
         None => Ok(None),
     };
     let mut first = None;
@@ -307,11 +326,12 @@ fn rebuild<'py>(
 fn narrow_map<'py>(
     value: &Bound<'py, PyAny>,
     inner: &Guide,
+    view: bool,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     let Ok(map) = value.cast::<PyDict>() else {
         return Ok(None);
     };
-    if let Guide::Schema(classes) = inner {
+    if let (Guide::Schema(classes), false) = (inner, view) {
         if map.iter().all(|(_, item)| is_declared(&item, classes)) {
             return Ok(None);
         }
@@ -319,7 +339,7 @@ fn narrow_map<'py>(
     // Nothing is allocated until a value changes.
     let mut first = None;
     for (key, item) in map.iter() {
-        if let Some(new) = narrow(&item, inner)? {
+        if let Some(new) = narrow(&item, inner, view)? {
             first = Some((key, new));
             break;
         }
@@ -332,7 +352,7 @@ fn narrow_map<'py>(
         if key.is(&changed) {
             out.set_item(key, &new)?;
         } else {
-            out.set_item(key, narrow(&item, inner)?.unwrap_or(item))?;
+            out.set_item(key, narrow(&item, inner, view)?.unwrap_or(item))?;
         }
     }
     Ok(Some(out.into_any()))
@@ -352,6 +372,7 @@ pub(crate) fn narrowed_parts<'py>(
 fn narrow_keyed<'py>(
     value: &Bound<'py, PyAny>,
     keys: &[(String, Guide)],
+    view: bool,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     let Ok(map) = value.cast::<PyDict>() else {
         return Ok(None);
@@ -368,7 +389,7 @@ fn narrow_keyed<'py>(
             })
             .map(|(_, guide)| guide);
         let narrowed = match guide {
-            Some(guide) => narrow(&item, guide)?,
+            Some(guide) => narrow(&item, guide, view)?,
             None => None,
         };
         changed |= narrowed.is_some();
@@ -430,7 +451,7 @@ impl Narrowed {
             .ok_or_else(missing)?;
         let item = self.value.bind(py).getattr(name)?;
         match guides.get(index) {
-            Some(Some(guide)) => Ok(narrow(&item, guide)?.unwrap_or(item)),
+            Some(Some(guide)) => Ok(narrow(&item, guide, true)?.unwrap_or(item)),
             _ => Ok(item),
         }
     }
@@ -504,9 +525,11 @@ impl ReturnGuide {
     }
 
     /// `value` with every subclass of a declared class narrowed to it; the
-    /// same object when nothing changes.
-    fn narrow<'py>(&self, value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        Ok(narrow(value, &self.guide)?.unwrap_or_else(|| value.clone()))
+    /// same object when nothing changes. With `view`, for a renderer that reads
+    /// objects, an instance of exactly a declared class is a `Narrowed` too.
+    #[pyo3(signature = (value, view=false))]
+    fn narrow<'py>(&self, value: &Bound<'py, PyAny>, view: bool) -> PyResult<Bound<'py, PyAny>> {
+        Ok(narrow(value, &self.guide, view)?.unwrap_or_else(|| value.clone()))
     }
 }
 

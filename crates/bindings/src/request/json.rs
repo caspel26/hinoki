@@ -1340,7 +1340,7 @@ impl<'py> Encoder<'py> {
         let Some(Some(guide)) = plan.guides.get(index) else {
             return Ok(item);
         };
-        Ok(crate::schema::narrow(&item, guide)?.unwrap_or(item))
+        Ok(crate::schema::narrow(&item, guide, false)?.unwrap_or(item))
     }
 
     fn schema_object(

@@ -1909,7 +1909,7 @@ def shape_result(
     if binding.narrow_schema is not None:
         return narrow_result(binding.narrow_schema, result, exact, view)
     if binding.narrow_guide is not None:
-        return binding.narrow_guide.narrow(result)
+        return binding.narrow_guide.narrow(result, view)
     return project_response(binding.response_schema, result, view)
 
 
@@ -1918,13 +1918,16 @@ def narrow_instance(schema: type[Schema], value: Schema, view: bool = False) -> 
     Schema (or its lazy projection), else what ``schema`` declares: its fields and
     computed values, nested values narrowed by its own field types. A ``schema``
     that overrides ``dump()`` decides: that ``dump()`` runs on the instance,
-    restricted to the declared fields."""
-    is_exact = type(value) is schema or (
+    restricted to the declared fields. With ``view`` an exact instance is a
+    ``core.Narrowed`` too, so that a subclass instance in one of its fields
+    reaches a renderer that reads objects as the class its field declares."""
+    if type(value) is schema:
+        return core.Narrowed(value, schema) if view else value
+    if (
         isinstance(value, _ProjectedItem)
         and value._projected_handle is not None
         and value._schema is schema
-    )
-    if is_exact:
+    ):
         return value
     narrowed = core.dump_as(value, schema)
     if narrowed is None:
@@ -1938,8 +1941,8 @@ def narrow_result(
     """Shape a handler result declared ``list[S]``, ``Page[S]``, ``CursorPage[S]``
     or ``S | None`` (``schema`` is ``S``): strict subclasses of ``S`` are sent
     with the declared fields only. ``exact``: the validation pass already proved a
-    list holds nothing but ``S``."""
-    if exact:
+    list holds nothing but ``S`` (a view still wraps each of them)."""
+    if exact and not view:
         return value
     if isinstance(value, tuple):  # a tuple returned for list[S] is narrowed too
         value = list(value)
@@ -1963,7 +1966,7 @@ def narrow_items(
         lazy = items._schema
         if lazy is schema or not issubclass(lazy, schema):
             return items  # pre-encoded as the declared Schema, or not ours to narrow
-    if core.all_exact(items, schema):
+    if not view and core.all_exact(items, schema):
         return items
     return [
         narrow_instance(schema, item, view) if isinstance(item, schema) else item

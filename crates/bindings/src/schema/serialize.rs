@@ -255,7 +255,7 @@ fn dump_instance_at<'py>(
             continue;
         }
         if let Some(Some(guide)) = guides.get(index) {
-            item = narrow(&item, guide)?.unwrap_or(item);
+            item = narrow(&item, guide, false)?.unwrap_or(item);
         }
         out.set_item(&wire_name, convert(&item, mode, depth)?)?;
     }

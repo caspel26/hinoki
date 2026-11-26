@@ -56,8 +56,10 @@ class Narrowed:
 
 class _ReturnGuide:
     def __init__(self, spec: tuple[str, Any]) -> None: ...
-    def narrow(self, value: Any) -> Any:
-        """``value`` with every subclass of a declared Schema narrowed to it."""
+    def narrow(self, value: Any, view: bool = False) -> Any:
+        """``value`` with every subclass of a declared Schema narrowed to it;
+        with ``view`` an instance of exactly a declared Schema is a ``Narrowed``
+        too (for a renderer that reads objects)."""
 
 def all_exact(value: object, target: type) -> bool:
     """Whether ``value`` is a list whose items are all exactly of ``target``."""
