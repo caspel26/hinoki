@@ -1,7 +1,7 @@
 # Generated CRUD API
 
 The [CRUD guide](https://hinoki.caspel.dev/dev/crud.md) explains action generation, access policies,
-ownership, schema requirements and route replacement.
+ownership, schema requirements and omitting generated actions.
 
 - `hinoki.resources.crud(...)`: Declare generated CRUD for ``model``. [reference](https://hinoki.caspel.dev/dev/reference/crud/#hinoki.resources.crud)
 
@@ -9,7 +9,7 @@ ownership, schema requirements and route replacement.
 
 - `hinoki.resources.CrudDeclaration(config: '_CrudConfig', path: 'str', module: 'str' = 'hinoki.resources', name: 'str' = '') -> 'None'`: What ``crud(...)`` returns: include it for plain CRUD, or apply it to a class that adds hooks and handwritten actions. [reference](https://hinoki.caspel.dev/dev/reference/crud/#hinoki.resources.CrudDeclaration)
 
-- `hinoki.resources.Crud(*values)`: The generated actions ``replaces=`` can name (each is also its plain string). [reference](https://hinoki.caspel.dev/dev/reference/crud/#hinoki.resources.Crud)
+- `hinoki.resources.Crud(*values)`: The generated CRUD action names (each is also its plain string). [reference](https://hinoki.caspel.dev/dev/reference/crud/#hinoki.resources.Crud)
 
 ## Filters
 

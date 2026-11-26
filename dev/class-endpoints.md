@@ -167,7 +167,7 @@ A class that keeps the stock constructor and sets no `response_headers` is eligi
 3. **State `access=`, `atomic=` and `errors=` on every handwritten action.** The class carries a path only; on a protected `@crud` class, omitting `access=` on a handwritten action raises `RegistrationError` (pass `access=None` to make it public on purpose).
 4. **Scope writes in the statement** (`aupdate_where` with the conditions), not check-then-write.
 5. **Hooks build queries.** `get_queryset` does no I/O; load relations explicitly in `to_schema` or `written_queryset`.
-6. **Let `crud` generate or omit, not compete.** To write `list` or `retrieve` yourself, pass `omit=("list",)` and define a method with another name; to write `create` yourself, leave `create=` out.
+6. **Let `crud` generate or omit, not compete.** To write any generated action yourself, pass it in `omit=` (for example `omit=("list",)` or `omit=("update",)`), or leave `create=` / `update=` / `delete=True` out.
 
 ## Test it
 
@@ -197,4 +197,3 @@ def test_invoice_routes() -> None:
 | `RegistrationError: … is declared by two classes (/a and /b)` | Two different classes (often two `crud(...)` values for one model in one module) give an action the same qualified name | Rename one class, or pass `crud(..., name="ArchiveCrud")` |
 | `RegistrationError` naming a handwritten action and `access=` | A handwritten action on a protected `@crud` class omitted `access=` | Add `access=...` to its decorator, or `access=None` to make it public on purpose |
 | A route vanished in a subclass | The method was redefined without a decorator | Re-declare it with its decorator |
-| Old code uses `replaces=Crud.CREATE` | An older way to swap a generated action | Leave `create=` out and name the method freely; `replaces=` still works while `create=` is given |

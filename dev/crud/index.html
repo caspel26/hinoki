@@ -501,8 +501,8 @@
           <h1 id="generate-crud-routes">Generate CRUD routes<a class="headerlink" href="#generate-crud-routes" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></span>
-            <span>18 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></span>
+            <span>19 min read</span>
           </p>
           
         </header>
@@ -575,7 +575,7 @@
 </tr>
 </tbody>
 </table>
-<p>Writes run in a transaction. <code>pagination=</code> selects the pagination policy of the list route: <code>PageNumberPagination()</code> (the default) or <code>CursorPagination()</code> for keyset <a href="../pagination/#cursor-keyset-pagination">cursor pagination</a>. <code>omit=("list",)</code> or <code>omit=("retrieve",)</code> drops a read so that you can write it yourself. The generated actions are ordinary routes, visible to OpenAPI, <code>hinoki routes</code> and the route registry; nothing is registered at import time.</p>
+<p>Writes run in a transaction. <code>pagination=</code> selects the pagination policy of the list route: <code>PageNumberPagination()</code> (the default) or <code>CursorPagination()</code> for keyset <a href="../pagination/#cursor-keyset-pagination">cursor pagination</a>. <code>omit=</code> takes any generated action name (<code>"list"</code>, <code>"retrieve"</code>, <code>"create"</code>, <code>"update"</code>, <code>"delete"</code>) to drop it so you can omit it or write your own handler instead. The generated actions are ordinary routes, visible to OpenAPI, <code>hinoki routes</code> and the route registry; nothing is registered at import time.</p>
 <h3 id="access-per-action">Access per action<a class="headerlink" href="#access-per-action" title="Permanent link">&para;</a></h3>
 <p><code>access=</code> takes one <code>Access</code>, which protects <strong>every</strong> generated action including reads, or <code>CrudAccess</code> to set actions apart. An action without its own entry uses <code>default</code>; <code>None</code> means public:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/routes.py (variant)</span>
@@ -834,26 +834,45 @@
 </ul>
 <p>Hooks run inside the transaction and before the commit, so do not send mail or publish external events from them. They are trusted application code: do not bypass the scoped query with an unscoped write or raw SQL. Hinoki checks the persisted item after create and update for model identity and server-assigned fields, but cannot sandbox arbitrary side effects.</p>
 <h3 id="generate-or-hand-write">Generate or hand-write<a class="headerlink" href="#generate-or-hand-write" title="Permanent link">&para;</a></h3>
-<p>Each action is generated <strong>or</strong> handwritten, never both:</p>
-<table>
-<thead>
-<tr>
-<th>To hand-write</th>
-<th>Do this</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>create</code>, <code>update</code>, <code>delete</code></td>
-<td>Leave <code>create=</code>, <code>update=</code> or <code>delete=True</code> out, and declare your own method</td>
-</tr>
-<tr>
-<td><code>list</code>, <code>retrieve</code></td>
-<td>Pass <code>omit=("list",)</code> or <code>omit=("retrieve",)</code> and declare a method with another name</td>
-</tr>
-</tbody>
-</table>
-<p>A method named like an action that <code>crud(...)</code> still generates (<code>list</code>, <code>retrieve</code>, <code>create</code>, <code>update</code>, <code>delete</code>) raises <code>RegistrationError</code> when the class is declared. A handwritten route at the same method and path as a generated one fails when the class is included.</p>
+<p>Each action is generated <strong>or</strong> handwritten, never both. Omit any action via <code>omit=</code> (or leave <code>create=</code>, <code>update=</code>, or <code>delete=True</code> out) and declare an explicit method on the class:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">crud</span><span class="p">,</span> <span class="n">http</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">Forbidden</span><span class="p">,</span> <span class="n">NotFound</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">notes.security</span><span class="w"> </span><span class="kn">import</span> <span class="n">StaffUser</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Invoice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvoiceIn</span><span class="p">,</span> <span class="n">InvoiceOut</span><span class="p">,</span> <span class="n">InvoicePatch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.scopes</span><span class="w"> </span><span class="kn">import</span> <span class="n">billing_staff</span><span class="p">,</span> <span class="n">invoice_scope</span><span class="p">,</span> <span class="n">tag_scope</span>
+
+
+<span class="nd">@crud</span><span class="p">(</span>
+    <span class="n">Invoice</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span>
+    <span class="n">create</span><span class="o">=</span><span class="n">InvoiceIn</span><span class="p">,</span>
+    <span class="n">update</span><span class="o">=</span><span class="n">InvoicePatch</span><span class="p">,</span>
+    <span class="n">delete</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span>
+    <span class="n">owner</span><span class="o">=</span><span class="s2">"owner_id"</span><span class="p">,</span>
+    <span class="n">scope</span><span class="o">=</span><span class="n">invoice_scope</span><span class="p">,</span>
+    <span class="n">links</span><span class="o">=</span><span class="p">{</span><span class="s2">"tags"</span><span class="p">:</span> <span class="n">tag_scope</span><span class="p">},</span>
+    <span class="n">omit</span><span class="o">=</span><span class="p">(</span><span class="s2">"update"</span><span class="p">,),</span>
+<span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Invoices</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
+    <span class="nd">@http</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span>
+        <span class="s2">"/</span><span class="si">{item_id}</span><span class="s2">"</span><span class="p">,</span> <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span> <span class="n">atomic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="p">(</span><span class="n">NotFound</span><span class="p">,</span> <span class="n">Forbidden</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">InvoicePatch</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">StaffUser</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvoiceOut</span><span class="p">:</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="k">await</span> <span class="n">invoice_scope</span><span class="o">.</span><span class="n">for_caller</span><span class="p">(</span><span class="n">caller</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">item_id</span><span class="p">)</span><span class="o">.</span><span class="n">aget</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">row</span><span class="o">.</span><span class="n">owner_id</span> <span class="o">!=</span> <span class="n">caller</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">Forbidden</span><span class="p">(</span><span class="s2">"You cannot change this item."</span><span class="p">)</span>
+        <span class="c1"># apply domain updates inside the transaction using invoice_scope</span>
+        <span class="o">...</span>
+</code></pre></div>
+<p>When <code>omit=("update",)</code> (or any other subset) drops a generated action, the remaining generated actions keep their behavior and native-lane eligibility. A method named like an action that <code>crud(...)</code> still generates (<code>list</code>, <code>retrieve</code>, <code>create</code>, <code>update</code>, <code>delete</code>) raises <code>RegistrationError</code> when the class is declared. A handwritten route at the same method and path as a still-generated one fails when the class is included.</p>
 <h2 id="reuse">Reuse<a class="headerlink" href="#reuse" title="Permanent link">&para;</a></h2>
 <p>CRUD configuration is plain Python values. Share one <code>Access</code> or <code>CrudAccess</code>, or bind your defaults once:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/resources.py</span>
@@ -964,7 +983,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -501,7 +501,7 @@
           <h1 id="class-based-apis">Class-based APIs<a class="headerlink" href="#class-based-apis" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -705,7 +705,7 @@
 <li><strong>State <code>access=</code>, <code>atomic=</code> and <code>errors=</code> on every handwritten action.</strong> The class carries a path only; on a protected <code>@crud</code> class, omitting <code>access=</code> on a handwritten action raises <code>RegistrationError</code> (pass <code>access=None</code> to make it public on purpose).</li>
 <li><strong>Scope writes in the statement</strong> (<code>aupdate_where</code> with the conditions), not check-then-write.</li>
 <li><strong>Hooks build queries.</strong> <code>get_queryset</code> does no I/O; load relations explicitly in <code>to_schema</code> or <code>written_queryset</code>.</li>
-<li><strong>Let <code>crud</code> generate or omit, not compete.</strong> To write <code>list</code> or <code>retrieve</code> yourself, pass <code>omit=("list",)</code> and define a method with another name; to write <code>create</code> yourself, leave <code>create=</code> out.</li>
+<li><strong>Let <code>crud</code> generate or omit, not compete.</strong> To write any generated action yourself, pass it in <code>omit=</code> (for example <code>omit=("list",)</code> or <code>omit=("update",)</code>), or leave <code>create=</code> / <code>update=</code> / <code>delete=True</code> out.</li>
 </ol>
 <h2 id="test-it">Test it<a class="headerlink" href="#test-it" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># tests/invoicestest.py</span>
@@ -765,11 +765,6 @@
 <td>The method was redefined without a decorator</td>
 <td>Re-declare it with its decorator</td>
 </tr>
-<tr>
-<td>Old code uses <code>replaces=Crud.CREATE</code></td>
-<td>An older way to swap a generated action</td>
-<td>Leave <code>create=</code> out and name the method freely; <code>replaces=</code> still works while <code>create=</code> is given</td>
-</tr>
 </tbody>
 </table>
         
@@ -800,7 +795,7 @@
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/class-endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

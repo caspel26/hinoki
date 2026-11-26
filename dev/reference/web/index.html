@@ -1211,30 +1211,6 @@ decorator removes the inherited action.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="hinoki.api.API.apply_replacements" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">apply_replacements</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
-  </span>
-
-<a href="#hinoki.api.API.apply_replacements" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">apply_replacements</span><span class="p">(</span><span class="n">found</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Route</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Route</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Drop the routes that another route names in <code>replaces=</code>.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="hinoki.api.API.declared_route" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">declared_route</span>
 
@@ -1854,7 +1830,6 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
     <span class="n">owner</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Parser</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_PARSERS</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Renderer</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_RENDERERS</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -2064,29 +2039,6 @@ accepts, including lists and other mounts; prefixes join outside in.</p>
 
 <a href="#hinoki.routing.Route.pagination" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="hinoki.routing.Route.replaces" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">replaces</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-<a href="#hinoki.routing.Route.replaces" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2545,7 +2497,6 @@ the <a href="../crud/">CRUD API reference</a>.</p>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -2586,7 +2537,6 @@ MCP tool description then show.</p>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -2627,7 +2577,6 @@ MCP tool description then show.</p>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -2668,7 +2617,6 @@ MCP tool description then show.</p>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -2709,7 +2657,6 @@ MCP tool description then show.</p>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -2750,7 +2697,6 @@ MCP tool description then show.</p>
     <span class="n">access</span><span class="p">:</span> <span class="n">Access</span> <span class="o">|</span> <span class="n">Unset</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
     <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">replaces</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">parsers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Parser</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">renderers</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Renderer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">errors</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">APIError</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(),</span>
@@ -6234,13 +6180,13 @@ first request, so routes given the same instance and the same <code>scope</code>
             <ul><li><a href="#hinoki.app.Hinoki">Hinoki</a>
             <ul><li><a href="#hinoki.app.Hinoki.settings">settings</a></li><li><a href="#hinoki.app.Hinoki.middleware">middleware</a></li><li><a href="#hinoki.app.Hinoki.waiver_file">waiver_file</a></li><li><a href="#hinoki.app.Hinoki.routes">routes</a></li><li><a href="#hinoki.app.Hinoki.websockets">websockets</a></li><li><a href="#hinoki.app.Hinoki.startup_url">startup_url</a></li><li><a href="#hinoki.app.Hinoki.bindings">bindings</a></li><li><a href="#hinoki.app.Hinoki.modules">modules</a></li><li><a href="#hinoki.app.Hinoki.commands">commands</a></li><li><a href="#hinoki.app.Hinoki.events">events</a></li><li><a href="#hinoki.app.Hinoki.on_startup">on_startup</a></li><li><a href="#hinoki.app.Hinoki.on_shutdown">on_shutdown</a></li><li><a href="#hinoki.app.Hinoki.admin_settings">admin_settings</a></li><li><a href="#hinoki.app.Hinoki.now">now</a></li><li><a href="#hinoki.app.Hinoki.settings_database">settings_database</a></li><li><a href="#hinoki.app.Hinoki.settings_email">settings_email</a></li><li><a href="#hinoki.app.Hinoki.module_of">module_of</a></li><li><a href="#hinoki.app.Hinoki.include">include</a></li><li><a href="#hinoki.app.Hinoki.lookup_websocket">lookup_websocket</a></li><li><a href="#hinoki.app.Hinoki.routes_of">routes_of</a></li><li><a href="#hinoki.app.Hinoki.inherited_parsers">inherited_parsers</a></li><li><a href="#hinoki.app.Hinoki.with_defaults">with_defaults</a></li><li><a href="#hinoki.app.Hinoki.resolved_pagination">resolved_pagination</a></li><li><a href="#hinoki.app.Hinoki.install">install</a></li><li><a href="#hinoki.app.Hinoki.lookup">lookup</a></li><li><a href="#hinoki.app.Hinoki.resolve">resolve</a></li><li><a href="#hinoki.app.Hinoki.openapi">openapi</a></li><li><a href="#hinoki.app.Hinoki.asgi">asgi</a></li><li><a href="#hinoki.app.Hinoki.enforce">enforce</a></li><li><a href="#hinoki.app.Hinoki.error_handler">error_handler</a></li></ul>
           </li><li><a href="#hinoki.api.API">API</a>
-            <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.websockets">websockets</a></li><li><a href="#hinoki.api.API.member_names">member_names</a></li><li><a href="#hinoki.api.API.apply_replacements">apply_replacements</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li><li><a href="#hinoki.api.API.mounted_path">mounted_path</a></li></ul>
+            <ul><li><a href="#hinoki.api.API.prefix">prefix</a></li><li><a href="#hinoki.api.API.routes">routes</a></li><li><a href="#hinoki.api.API.websockets">websockets</a></li><li><a href="#hinoki.api.API.member_names">member_names</a></li><li><a href="#hinoki.api.API.declared_route">declared_route</a></li><li><a href="#hinoki.api.API.mount">mount</a></li><li><a href="#hinoki.api.API.mounted_path">mounted_path</a></li></ul>
           </li><li><a href="#hinoki.routing.RouteGroup">RouteGroup</a>
             <ul><li><a href="#hinoki.routing.RouteGroup.prefix">prefix</a></li><li><a href="#hinoki.routing.RouteGroup.access">access</a></li><li><a href="#hinoki.routing.RouteGroup.atomic">atomic</a></li><li><a href="#hinoki.routing.RouteGroup.errors">errors</a></li><li><a href="#hinoki.routing.RouteGroup.cors">cors</a></li><li><a href="#hinoki.routing.RouteGroup.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.RouteGroup.tags">tags</a></li><li><a href="#hinoki.routing.RouteGroup.handlers">handlers</a></li><li><a href="#hinoki.routing.RouteGroup.declare">declare</a></li><li><a href="#hinoki.routing.RouteGroup.get">get</a></li><li><a href="#hinoki.routing.RouteGroup.post">post</a></li><li><a href="#hinoki.routing.RouteGroup.put">put</a></li><li><a href="#hinoki.routing.RouteGroup.patch">patch</a></li><li><a href="#hinoki.routing.RouteGroup.delete">delete</a></li><li><a href="#hinoki.routing.RouteGroup.query">query</a></li></ul>
           </li><li><a href="#hinoki.routing.Includable">Includable</a></li><li><a href="#hinoki.routing.Mount">Mount</a>
             <ul><li><a href="#hinoki.routing.Mount.prefix">prefix</a></li><li><a href="#hinoki.routing.Mount.items">items</a></li></ul>
           </li><li><a href="#hinoki.routing.Route">Route</a>
-            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.replaces">replaces</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.middleware">middleware</a></li><li><a href="#hinoki.routing.Route.cors">cors</a></li><li><a href="#hinoki.routing.Route.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.Route.tags">tags</a></li><li><a href="#hinoki.routing.Route.deprecated">deprecated</a></li><li><a href="#hinoki.routing.Route.operation_id">operation_id</a></li><li><a href="#hinoki.routing.Route.access_explicit">access_explicit</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li></ul>
+            <ul><li><a href="#hinoki.routing.Route.method">method</a></li><li><a href="#hinoki.routing.Route.path">path</a></li><li><a href="#hinoki.routing.Route.handler">handler</a></li><li><a href="#hinoki.routing.Route.status">status</a></li><li><a href="#hinoki.routing.Route.access">access</a></li><li><a href="#hinoki.routing.Route.atomic">atomic</a></li><li><a href="#hinoki.routing.Route.owner">owner</a></li><li><a href="#hinoki.routing.Route.pagination">pagination</a></li><li><a href="#hinoki.routing.Route.parsers">parsers</a></li><li><a href="#hinoki.routing.Route.renderers">renderers</a></li><li><a href="#hinoki.routing.Route.errors">errors</a></li><li><a href="#hinoki.routing.Route.validate_response">validate_response</a></li><li><a href="#hinoki.routing.Route.rate_limit">rate_limit</a></li><li><a href="#hinoki.routing.Route.middleware">middleware</a></li><li><a href="#hinoki.routing.Route.cors">cors</a></li><li><a href="#hinoki.routing.Route.include_in_schema">include_in_schema</a></li><li><a href="#hinoki.routing.Route.tags">tags</a></li><li><a href="#hinoki.routing.Route.deprecated">deprecated</a></li><li><a href="#hinoki.routing.Route.operation_id">operation_id</a></li><li><a href="#hinoki.routing.Route.access_explicit">access_explicit</a></li><li><a href="#hinoki.routing.Route.is_async">is_async</a></li><li><a href="#hinoki.routing.Route.name">name</a></li></ul>
           </li><li><a href="#hinoki.project.manifest_routes">manifest_routes</a></li><li><a href="#hinoki.project.manifest_events">manifest_events</a></li><li><a href="#hinoki.project.manifest_middleware">manifest_middleware</a></li><li><a href="#hinoki.project.manifest_rules">manifest_rules</a></li><li><a href="#http-method-decorators">HTTP method decorators</a></li><li><a href="#hinoki.http.get">get</a></li><li><a href="#hinoki.http.post">post</a></li><li><a href="#hinoki.http.put">put</a></li><li><a href="#hinoki.http.patch">patch</a></li><li><a href="#hinoki.http.delete">delete</a></li><li><a href="#hinoki.http.query">query</a></li><li><a href="#request-response-and-errors">Request, response and errors</a></li><li><a href="#hinoki.http.request.Request">Request</a>
             <ul><li><a href="#hinoki.http.request.Request.method">method</a></li><li><a href="#hinoki.http.request.Request.path">path</a></li><li><a href="#hinoki.http.request.Request.scheme">scheme</a></li><li><a href="#hinoki.http.request.Request.host">host</a></li><li><a href="#hinoki.http.request.Request.client">client</a></li><li><a href="#hinoki.http.request.Request.headers">headers</a></li><li><a href="#hinoki.http.request.Request.GET">GET</a></li><li><a href="#hinoki.http.request.Request.body">body</a></li><li><a href="#hinoki.http.request.Request.path_params">path_params</a></li><li><a href="#hinoki.http.request.Request.user">user</a></li><li><a href="#hinoki.http.request.Request.request_id">request_id</a></li><li><a href="#hinoki.http.request.Request.parsers">parsers</a></li><li><a href="#hinoki.http.request.Request.cached">cached</a></li><li><a href="#hinoki.http.request.Request.COOKIES">COOKIES</a></li><li><a href="#hinoki.http.request.Request.content_type">content_type</a></li><li><a href="#hinoki.http.request.Request.data">data</a></li><li><a href="#hinoki.http.request.Request.POST">POST</a></li><li><a href="#hinoki.http.request.Request.FILES">FILES</a></li><li><a href="#hinoki.http.request.Request.parsed">parsed</a></li><li><a href="#hinoki.http.request.Request.accepts_form">accepts_form</a></li></ul>
           </li><li><a href="#hinoki.http.response.Response">Response</a>

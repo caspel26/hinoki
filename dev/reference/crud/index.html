@@ -297,14 +297,14 @@
           <h1 id="generated-crud-api">Generated CRUD API<a class="headerlink" href="#generated-crud-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></span>
             <span>9 min read</span>
           </p>
           
         </header>
         
 <p>The <a href="../../crud/">CRUD guide</a> explains action generation, access policies,
-ownership, schema requirements and route replacement.</p>
+ownership, schema requirements and omitting generated actions.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -331,7 +331,7 @@ ownership, schema requirements and route replacement.</p>
     <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">pagination</span><span class="p">:</span> <span class="n">Pagination</span> <span class="o">=</span> <span class="n">PageNumberPagination</span><span class="p">(),</span>
     <span class="n">filters</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">FilterSet</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">omit</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="n">omit</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">CrudAction</span> <span class="o">|</span> <span class="n">Crud</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">cors</span><span class="p">:</span> <span class="n">Cors</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
@@ -358,6 +358,9 @@ class (<code>"notes.apps.archive.ArchiveCrud"</code>) that rules and MCP pattern
 <code>cors=http.Cors(...)</code> gives every generated action that CORS policy instead
 of the application's. <code>filters=</code> takes a <code>FilterSet</code> subclass: the list then
 accepts the filters, ordering and search it declares.
+<code>omit=</code> drops any generated action (<code>"list"</code>, <code>"retrieve"</code>,
+<code>"create"</code>, <code>"update"</code>, <code>"delete"</code>) so it can be omitted or
+handwritten instead.
 <code>include_in_schema=False</code> leaves every generated action out of the OpenAPI
 document; <code>include_in_schema={"delete": False}</code> leaves out
 only the named actions. <code>tags</code> and <code>deprecated</code> apply to every action.
@@ -856,7 +859,7 @@ declared it (or <code>name=</code>) so rules scoped to that module see its actio
 
 
 
-        <p>The generated actions <code>replaces=</code> can name (each is also its plain string).</p>
+        <p>The generated CRUD action names (each is also its plain string).</p>
 
 
 
@@ -1998,7 +2001,7 @@ lane.</p>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
