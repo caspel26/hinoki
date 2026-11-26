@@ -163,12 +163,12 @@ A public action must also be listed in `except_` of `Actions.require_access` in 
 
 ## Compose with other decorators
 
-Put the HTTP decorator outermost. The group records the function it receives when `@invoices.get(...)` runs, so a decorator above it would not be served:
+Put the HTTP decorator outermost. The group records the function it receives when `@invoices.get(...)` runs, so a decorator above it would not be served. Both sync and async decorators written with `functools.wraps` preserve their signature and run when placed underneath `@invoices.<method>(...)`:
 
 ```python
 # notes/apps/billing/api.py (continued)
 @invoices.get("/export")
-@audited  # your decorator, written with functools.wraps
+@audited  # your sync or async decorator, written with functools.wraps
 async def export_invoices() -> InvoiceExport: ...
 ```
 
@@ -212,7 +212,7 @@ The handlers are plain functions, so a unit test can also `await get_invoice(inv
 | The route is missing from `hinoki routes` | The group is not in `routes.py`, or the app has no `routes` key in `hinoki.toml` | Add it to `routes: list[Includable]` |
 | Paths read `/billing/billing/...` | The prefix is in code and in `hinoki.toml` | Keep the app prefix in `hinoki.toml` only |
 | `ValueError` on `RouteGroup("/invoices/")` | A prefix starts with `/` and does not end with one | `RouteGroup("/invoices")` |
-| `TypeError: unknown action options` | A misspelled keyword on a group action | Use the option names listed in [Requests and responses](endpoints.md#declare-an-action) |
+| `TypeError` on a group action | An unknown or misspelled keyword on a group action | Use the option names listed in [Requests and responses](endpoints.md#declare-an-action) |
 | `RuntimeError: a RouteGroup cannot change after it is included` | An action is added after the group is included | Declare every action at import time |
 | `RegistrationError: a RouteGroup must declare at least one action` | An empty group in `routes.py` | Remove it or add an action |
 | `RegistrationError: a RouteGroup can be included only once` | The group is listed twice in one application | List it once; mount the list, not each group |
