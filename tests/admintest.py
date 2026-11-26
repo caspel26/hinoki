@@ -84,6 +84,7 @@ from hinoki.utils import utc_now
 from tests.harness import Client, Pool
 from tests.providers import TokenAuth
 
+TEST_HOST = "app.test"
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
 needs_database = pytest.mark.skipif(
     URL is None, reason="HINOKI_TEST_DATABASE_URL is not set"
@@ -227,7 +228,9 @@ def build(
     admin.register(Note, note_admin, slug="notes")
     admin.register(Secret, SecretAdmin, slug="secrets")
     admin.register(Owner, slug="owners")
-    app = Hinoki(openapi_url="/openapi.json")
+    app = Hinoki(
+        openapi_url="/openapi.json", settings=AppSettings(allowed_hosts=(TEST_HOST,))
+    )
     app.include(Mount(mount, admin.api()) if mount else admin.api())
     if URL:
         app.install(DatabaseModule(URL, max_size=3))
@@ -1084,7 +1087,7 @@ async def site(pool: Pool) -> AsyncIterator[tuple[Client, Database]]:
         "hidden boolean NOT NULL)"
     )
     SecretAdmin.saved = []
-    yield await pool.start(build()), db
+    yield await pool.start(build(), host=TEST_HOST), db
     for table in TABLES:
         await db.execute(f"DROP TABLE IF EXISTS {table} CASCADE")
     db.close()
@@ -1393,7 +1396,7 @@ async def test_edit_opens_beside_the_list_in_drawer_themes_and_on_a_page_otherwi
 ) -> None:
     _, db = site
     key = await note_id(db, "shown")
-    drawer = await (await pool.start(build("studio"))).request(
+    drawer = await (await pool.start(build("studio"), host=TEST_HOST)).request(
         "GET", f"/admin/notes/{key}", headers=STAFF
     )
     assert (
@@ -1401,7 +1404,7 @@ async def test_edit_opens_beside_the_list_in_drawer_themes_and_on_a_page_otherwi
         and "hn-table" in drawer.body
         and 'class="is-open"' in drawer.body
     )
-    page = await (await pool.start(build("paper"))).request(
+    page = await (await pool.start(build("paper"), host=TEST_HOST)).request(
         "GET", f"/admin/notes/{key}", headers=STAFF
     )
     assert (
@@ -1409,7 +1412,7 @@ async def test_edit_opens_beside_the_list_in_drawer_themes_and_on_a_page_otherwi
         and "hn-page-form" in page.body
         and 'data-theme="paper"' in page.body
     )
-    bento = await (await pool.start(build("bento"))).request(
+    bento = await (await pool.start(build("bento"), host=TEST_HOST)).request(
         "GET", f"/admin/notes/{key}", headers=STAFF
     )
     assert (
@@ -1606,7 +1609,7 @@ async def test_custom_bulk_action_holds_row_lock_through_the_handler(
     """A concurrent permission-field change waits until the action commits."""
     _, db = site
     key = await note_id(db, "race")
-    client = await pool.start(build(note_admin=RaceNoteAdmin))
+    client = await pool.start(build(note_admin=RaceNoteAdmin), host=TEST_HOST)
     token, headers = await session(client, "/admin/notes")
     RaceActionState.started = asyncio.Event()
     RaceActionState.release = asyncio.Event()
@@ -1876,7 +1879,7 @@ async def test_rows_the_caller_may_not_view_are_not_listed(
     _, db = site
     await note_id(db, "show-me")
     await note_id(db, "hide-me")
-    client = await pool.start(build(note_admin=HidingNotes))
+    client = await pool.start(build(note_admin=HidingNotes), host=TEST_HOST)
     for path in ("/admin/notes", "/admin"):
         page = await client.request("GET", path, headers=STAFF)
         assert page.status == 200
@@ -1890,7 +1893,7 @@ async def test_rows_the_caller_may_not_view_are_not_listed(
 async def test_the_admin_under_a_mount_builds_every_url_from_the_prefix(
     site: tuple[Client, Database], pool: Pool
 ) -> None:
-    client = await pool.start(build(mount="/ops"))
+    client = await pool.start(build(mount="/ops"), host=TEST_HOST)
     page = await client.request("GET", "/ops/admin", headers=STAFF)
     assert page.status == 200
     assert 'href="/ops/admin/notes' in page.body
@@ -2043,7 +2046,7 @@ async def test_an_action_method_confirms_and_runs_like_a_bulk_action(
 ) -> None:
     _, db = site
     chosen = await note_id(db, "declared")
-    client = await pool.start(build(note_admin=DeclaredNoteAdmin))
+    client = await pool.start(build(note_admin=DeclaredNoteAdmin), host=TEST_HOST)
     listing = await client.request("GET", "/admin/notes", headers=STAFF)
     assert listing.status == 200
     assert "Done" in listing.body and "Open" in listing.body  # tabs from the badges
@@ -2171,10 +2174,12 @@ async def test_an_admin_mounted_at_the_root_links_back_to_the_root(
     setup.close()
     admin = Admin(access=staff, secret=SECRET, prefix="", site="Test Admin")
     admin.register(Owner, slug="owners")
-    app = Hinoki(openapi_url="/openapi.json")
+    app = Hinoki(
+        openapi_url="/openapi.json", settings=AppSettings(allowed_hosts=(TEST_HOST,))
+    )
     app.include(admin.api())
     app.install(DatabaseModule(target, max_size=1))
-    async with ASGIClient(app) as client:
+    async with ASGIClient(app, host=TEST_HOST) as client:
         page = await client.request("GET", "/", headers=STAFF)
     body = page.body
     assert page.status == 200 and 'href=""' not in body
