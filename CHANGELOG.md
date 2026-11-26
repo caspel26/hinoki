@@ -183,6 +183,18 @@ The Hinoki box appears on every colour terminal and shows Kiso's startup in the 
 
 ### 🔧 Improvements
 
+#### 🔒 Explicit `access=` on handwritten actions of protected `@crud` classes (breaking)
+> `python/hinoki/routing.py`, `python/hinoki/websocket.py`, `python/hinoki/resources.py`, `examples/blog/blog/apps/blog/api.py`, `docs/crud.md`, `docs/class-endpoints.md`
+
+Handwritten `@http.*` and `@http.websocket` actions on a protected `@crud` class (any resource where at least one generated action has an `Access` policy) must now declare `access=...` explicitly (or `access=None` to make the action public on purpose). Route descriptors distinguish omitted `access` from explicit `access=None`, so omitting `access=` raises `RegistrationError` at class declaration instead of silently exposing a public endpoint.
+
+```python
+@crud(Post, path="/posts", read=PostOut, create=PostCreate, access=editor)
+class Posts(API):
+    @http.get("/", access=None)  # public on purpose
+    async def listing(self) -> list[PostOut]: ...
+```
+
 #### ⚡ Fewer allocations per native-lane response, and a one-pass response check
 > `crates/kiso/src/headers.rs`, `crates/bindings/src/server/core.rs`, `crates/bindings/src/server/routes.rs`, `crates/bindings/src/server/prepared.rs`, `crates/bindings/src/request/pyapi.rs`, `crates/bindings/src/request/json.rs`, `python/hinoki/runtime/pipeline.py`, `python/hinoki/runtime/nativelane.py`
 
