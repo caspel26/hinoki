@@ -1076,8 +1076,18 @@ def typeddict_spec(arm: object, visiting: Visiting) -> Spec | None:
         return None
     try:
         hints = typing.get_type_hints(arm)
-    except NameError:  # a forward reference that does not resolve: left whole
-        return None
+    except NameError as exc:  # left whole it would be written with every key
+        keys = [
+            key
+            for key, hint in getattr(arm, "__annotations__", {}).items()
+            if str(exc.name) in str(getattr(hint, "__forward_arg__", hint))
+        ]
+        raise AliasError(
+            f"the TypedDict {getattr(arm, '__name__', arm)} cannot be narrowed: "
+            f"the annotation of key {', '.join(map(repr, keys)) or '(unknown)'} "
+            f"does not resolve ({exc}); import the name outside TYPE_CHECKING "
+            "or return a type whose annotations all resolve"
+        ) from exc
     inside = visiting | {arm}
     found = [
         (key, spec) for key, hint in hints.items() if (spec := guide_spec(hint, inside))
