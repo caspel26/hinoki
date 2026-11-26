@@ -319,6 +319,8 @@ with `head_framing` and `request_head_limits` (`fuzz/`,
 
 The [benchmarks page](docs/benchmarks.md) now shows a run on a dedicated 8 vCPU AMD EPYC server, with Fastify, Hono and `Bun.serve` as an extra group and the load average held at or below 2 before every sample. Hinoki in this run is commit `478e1452`.
 
+The [benchmarks page](docs/benchmarks.md) is redesigned: 8 workers and 1 worker sit behind tabs, a Summary compares Hinoki on Kiso with the other stacks (ratios of medians, ties and unsettled results shown), and each route has its own table with the ratio, p50, p99, range and CV; the other runtimes stay a separate view (#529).
+
 ---
 
 ### 🎯 Summary
