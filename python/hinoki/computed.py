@@ -39,16 +39,19 @@ class ComputedSpec:
             raise RegistrationError(f"{where}: {exc}") from exc
         return parse_annotation(hints["return"], where, input_bounds=False)
 
-    def guide_spec(self) -> tuple[str, Any] | None:
+    def guide_spec(self, owner: type) -> tuple[str, Any] | None:
         """What the return annotation declares about nested Schemas, as the spec
         of ``core._ReturnGuide`` (``None`` when it declares none): a method that
-        returns a subclass instance is written as the declared class."""
+        returns a subclass instance is written as the declared class.
+        ``RegistrationError`` for a name that does not resolve: the value would
+        be written whole."""
         from hinoki.runtime.binding import guide_spec  # noqa: PLC0415 - runtime imports schema
 
+        where = f"{owner.__name__}.{self.name}"
         try:
             hints = typing.get_type_hints(self.function)
-        except NameError:  # a reference that does not resolve: written whole
-            return None
+        except NameError as exc:
+            raise RegistrationError(f"{where}: {exc}") from exc
         return guide_spec(hints["return"])
 
 

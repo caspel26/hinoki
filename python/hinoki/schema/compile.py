@@ -271,7 +271,7 @@ def compile_native(root: type[Schema]) -> core.CompiledSchema:
                 current.__schema_config__.extra is SchemaExtra.FORBID,
             )
         )
-    computed = [spec.guide_spec() for spec in root.__computed_specs__.values()]
+    computed = [spec.guide_spec(root) for spec in root.__computed_specs__.values()]
     return core.compile_schemas(
         definitions, 0, uuid.UUID, dt.datetime.fromisoformat, UNSET, direct, computed
     )
