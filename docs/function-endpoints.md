@@ -212,7 +212,7 @@ The handlers are plain functions, so a unit test can also `await get_invoice(inv
 | The route is missing from `hinoki routes` | The group is not in `routes.py`, or the app has no `routes` key in `hinoki.toml` | Add it to `routes: list[Includable]` |
 | Paths read `/billing/billing/...` | The prefix is in code and in `hinoki.toml` | Keep the app prefix in `hinoki.toml` only |
 | `ValueError` on `RouteGroup("/invoices/")` | A prefix starts with `/` and does not end with one | `RouteGroup("/invoices")` |
-| `TypeError` on a group action | An unknown or misspelled keyword on a group action | Use the option names listed in [Requests and responses](endpoints.md#declare-an-action) |
+| `TypeError: unknown action options` | An unknown or misspelled keyword on a group action | Use the option names listed in [Requests and responses](endpoints.md#declare-an-action) |
 | `RuntimeError: a RouteGroup cannot change after it is included` | An action is added after the group is included | Declare every action at import time |
 | `RegistrationError: a RouteGroup must declare at least one action` | An empty group in `routes.py` | Remove it or add an action |
 | `RegistrationError: a RouteGroup can be included only once` | The group is listed twice in one application | List it once; mount the list, not each group |
