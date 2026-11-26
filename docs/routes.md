@@ -9,7 +9,7 @@ related:
 
 # Register routes
 
-An application serves the routes that `hinoki.toml` points to. The project and each app keep their routes in a `routes.py` that exports a list, and `notes/main.py` includes them all with `manifest_routes()`.
+An application serves the route map that `[project] routes` in `hinoki.toml` points to. Registering an app in `hinoki.toml` and exposing its HTTP routes in the project's `routes.py` are two separate decisions.
 
 ## From the manifest to the application
 
@@ -17,49 +17,55 @@ An application serves the routes that `hinoki.toml` points to. The project and e
 # hinoki.toml
 [project]
 application = "notes.main:app"
-routes = "notes.routes:routes"            # the project's own routes
+routes = "notes.routes:routes"            # the project's single route map
 
 [[apps]]
 name = "billing"
 models = "notes.apps.billing.models"
 migrations = "notes.apps.billing.migrations"
-routes = "notes.apps.billing.routes:routes"
-prefix = "/billing"                       # "/<name>" when omitted
 requires = []
+```
+
+```python
+# notes/routes.py
+from hinoki import Includable, Mount
+
+from notes.api import health
+from notes.apps.billing.routes import routes as billing_routes
+
+routes: list[Includable] = [
+    health,
+    Mount("/billing", billing_routes),
+]
 ```
 
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # rules, events and middleware come from hinoki.toml as well
+)  # routes, rules, events and middleware come from hinoki.toml
 ```
 
-`manifest_routes()` finds `hinoki.toml` from the calling file's directory upwards and returns, in order:
+When the module named by `project.application` builds `Hinoki(...)` without `include=`, it loads `[project] routes` automatically (`[]` if omitted). Passing `include=` explicitly (even `include=[]`) always wins over the manifest, which is useful for tests or conditional routes. `manifest_routes()` reads `[project] routes` explicitly for scripts or separate modules, and raises `ProjectError` outside a project.
 
-1. the project's `routes` list, at its own paths;
-2. each app's `routes` list under the app's `prefix`, apps in dependency order (`requires`).
-
-An app without a `routes` key, or with an empty list, adds nothing. Outside a project it raises `ProjectError`. `include=manifest_routes()` is the explicit form that `hinoki new` writes: when the module named by `project.application` builds `Hinoki(...)` without `include=`, it loads the same list itself, as the [Tracker example](https://github.com/caspel26/hinoki/blob/main/examples/tracker/tracker/main.py) does (an explicit `include=`, even empty, wins). `hinoki app create billing` writes the `routes.py` and the manifest keys; `hinoki app create billing --prefix /payments` chooses another prefix. `hinoki app list` prints each app with its routes and prefix.
+`hinoki app create billing` scaffolds `notes/apps/billing/routes.py` and prints the `Mount("/billing", billing_routes)` snippet to add to `notes/routes.py` if you want to expose the app over HTTP. An app registered in `hinoki.toml` without a `Mount(...)` in `notes/routes.py` still participates in migrations, events and `requires` without serving HTTP endpoints; an API-only app created with `hinoki app create gateway --no-models` (or `hinoki app add gateway`) has no models or migrations and is mounted in `notes/routes.py` like any other app.
 
 ## One place for each prefix
 
 | Segment | Declared by | Example |
 | --- | --- | --- |
-| The app | `prefix` in `hinoki.toml` | `/billing` |
-| A version inside the app | `Mount` in `routes.py` | `/v2` |
+| The app | `Mount(...)` in the project's `routes.py` | `/billing` |
+| A version inside the app | `Mount` in the app's `routes.py` | `/v2` |
 | The resource | `RouteGroup(...)` or `API, path=...` | `/invoices` |
 
-Write each segment once. Paths in code are relative to the app, so moving an app is a one-line change in `hinoki.toml`.
+Write each segment once. Paths inside an app stay relative to the app, so the same app package can be mounted at different prefixes in different projects.
 
 ## Versions with `Mount`
 

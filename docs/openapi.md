@@ -28,13 +28,11 @@ All three URLs are disabled by default. Set `openapi_url` to serve JSON; add `do
 ```python
 # notes/main.py
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,
-    include=manifest_routes(),
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
