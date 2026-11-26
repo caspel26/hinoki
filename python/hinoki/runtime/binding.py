@@ -13,6 +13,7 @@ constructible without arguments.
 
 from __future__ import annotations
 
+import collections.abc
 import inspect
 import re
 import typing
@@ -941,16 +942,33 @@ def collection_narrow_schema(annotation: object) -> type[Schema] | None:
 Spec = tuple[str, typing.Any]
 
 
+SEQUENCE_ORIGINS = frozenset(
+    {
+        list,
+        collections.abc.Sequence,
+        collections.abc.MutableSequence,
+        collections.abc.Collection,
+        collections.abc.Iterable,
+    }
+)
+MAPPING_ORIGINS = frozenset(
+    {dict, collections.abc.Mapping, collections.abc.MutableMapping}
+)
 Visiting = frozenset[object]
 
 
 def guide_spec(annotation: object, visiting: Visiting = frozenset()) -> Spec | None:
     """The nested spec of ``core._ReturnGuide`` for the Schema positions of an
-    annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``
-    and ``TypedDict`` containers; ``None`` when it holds none. A ``Page``, a
-    dataclass or an ``Any`` position is not narrowed, and a ``TypedDict`` that
-    refers to itself is narrowed down to the first reference. ``visiting``
-    holds the ``TypedDict`` classes being resolved."""
+    annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``,
+    their abstract forms (``Sequence``, ``Iterable``, ``Mapping``), a PEP 695
+    alias of any of these and ``TypedDict`` containers; ``None`` when it holds
+    none. A ``Page``, a dataclass or an ``Any`` position is not narrowed, and a
+    ``TypedDict`` that refers to itself is narrowed down to the first reference.
+    ``visiting`` holds the aliases and ``TypedDict`` classes being resolved."""
+    if is_visiting(annotation, visiting):
+        return None
+    if isinstance(annotation, typing.TypeAliasType):
+        visiting = visiting | {annotation}
     classes: list[type[Schema]] = []
     others: list[Spec] = []
     for arm in union_arms(annotation):
@@ -969,9 +987,9 @@ def container_spec(arm: object, visiting: Visiting) -> Spec | None:
         return typeddict_spec(arm, visiting)
     args = typing.get_args(arm)
     origin = typing.get_origin(arm)
-    if origin is dict and args:
+    if origin in MAPPING_ORIGINS and args:
         return wrapped("map", guide_spec(args[-1], visiting))
-    if origin in {list, tuple} and args:
+    if args and (origin in SEQUENCE_ORIGINS or origin is tuple):
         return sequence_spec(origin, args, visiting)
     return None
 
@@ -979,7 +997,7 @@ def container_spec(arm: object, visiting: Visiting) -> Spec | None:
 def sequence_spec(
     origin: object, args: tuple[object, ...], visiting: Visiting
 ) -> Spec | None:
-    if origin is list or args[1:] == (Ellipsis,):
+    if origin is not tuple or args[1:] == (Ellipsis,):
         return wrapped("seq", guide_spec(args[0], visiting))
     specs = [guide_spec(item, visiting) for item in args]
     return ("tuple", specs) if any(specs) else None
@@ -990,8 +1008,8 @@ def wrapped(kind: str, inner: Spec | None) -> Spec | None:
 
 
 def is_visiting(annotation: object, visiting: Visiting) -> bool:
-    """Whether ``annotation`` is a ``TypedDict`` being resolved: a back-reference,
-    left whole (it has no guide of its own)."""
+    """Whether ``annotation`` is an alias or ``TypedDict`` being resolved: a
+    back-reference, left whole (it has no guide of its own)."""
     return any(annotation is seen for seen in visiting)
 
 

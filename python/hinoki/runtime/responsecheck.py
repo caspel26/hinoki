@@ -60,8 +60,14 @@ def compile_response_check(name: str, annotation: object) -> Check:
             "scalar, dict, None or a union); annotate it, or declare the action "
             "with validate_response=False"
         )
-    arms = union_arms(annotation)
-    checks = [arm_check(name, arm) for arm in arms if arm is not Response]
+    try:
+        arms = union_arms(annotation)
+        checks = [arm_check(name, arm) for arm in arms if arm is not Response]
+    except RecursionError:  # a type alias that refers to itself
+        raise RegistrationError(
+            f"{name}: a recursive return type cannot be checked; declare the "
+            "action with validate_response=False"
+        ) from None
     if Response in arms:
         checks.append(lambda value: isinstance(value, Response))
     return any_arm(checks)
@@ -94,9 +100,19 @@ def union_arms(annotation: object) -> list[object]:
 
 
 def unwrap(annotation: object) -> object:
-    while typing.get_origin(annotation) is typing.Annotated:
-        annotation = typing.get_args(annotation)[0]
-    return annotation
+    """``annotation`` without ``Annotated`` and without a PEP 695 ``type`` alias
+    (``type Items = list[Item]`` is ``list[Item]``, ``Box[Item]`` of
+    ``type Box[T] = list[T]`` too)."""
+    while True:
+        origin = typing.get_origin(annotation)
+        if origin is typing.Annotated:
+            annotation = typing.get_args(annotation)[0]
+        elif isinstance(annotation, typing.TypeAliasType):
+            annotation = annotation.__value__
+        elif isinstance(origin, typing.TypeAliasType):
+            annotation = origin.__value__[typing.get_args(annotation)]
+        else:
+            return annotation
 
 
 def arm_check(name: str, arm: object) -> Check:
