@@ -51,7 +51,6 @@ class Route:
     atomic: bool
     owner: type | None = None
     pagination: Pagination | None = None
-    replaces: str = ""
     parsers: tuple[Parser, ...] = DEFAULT_PARSERS
     renderers: tuple[Renderer, ...] = DEFAULT_RENDERERS
     errors: tuple[type[APIError], ...] = ()
@@ -82,7 +81,6 @@ class Options:
     access: Access | None = None
     atomic: bool = False
     pagination: Pagination | None = None
-    replaces: str = ""
     parsers: Sequence[Parser] | None = None
     renderers: Sequence[Renderer] | None = None
     errors: Sequence[type[APIError]] = ()
@@ -131,7 +129,6 @@ class RouteDeclaration:
             options.access,
             options.atomic,
             pagination=options.pagination,
-            replaces=options.replaces,
             parsers=(
                 DEFAULT_PARSERS
                 if options.parsers is None
@@ -230,7 +227,6 @@ def get(
     access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
-    replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
@@ -252,7 +248,6 @@ def get(
         resolved_access,
         atomic,
         pagination,
-        replaces,
         parsers,
         renderers,
         errors,
@@ -276,7 +271,6 @@ def post(
     access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
-    replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
@@ -298,7 +292,6 @@ def post(
         resolved_access,
         atomic,
         pagination,
-        replaces,
         parsers,
         renderers,
         errors,
@@ -322,7 +315,6 @@ def put(
     access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
-    replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
@@ -344,7 +336,6 @@ def put(
         resolved_access,
         atomic,
         pagination,
-        replaces,
         parsers,
         renderers,
         errors,
@@ -368,7 +359,6 @@ def patch(
     access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
-    replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
@@ -390,7 +380,6 @@ def patch(
         resolved_access,
         atomic,
         pagination,
-        replaces,
         parsers,
         renderers,
         errors,
@@ -414,7 +403,6 @@ def delete(
     access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
-    replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
@@ -436,7 +424,6 @@ def delete(
         resolved_access,
         atomic,
         pagination,
-        replaces,
         parsers,
         renderers,
         errors,
@@ -460,7 +447,6 @@ def query(
     access: Access | Unset | None = UNSET,
     atomic: bool = False,
     pagination: Pagination | None = None,
-    replaces: str = "",
     parsers: Sequence[Parser] | None = None,
     renderers: Sequence[Renderer] | None = None,
     errors: Sequence[type[APIError]] = (),
@@ -485,7 +471,6 @@ def query(
         resolved_access,
         atomic,
         pagination,
-        replaces,
         parsers,
         renderers,
         errors,
@@ -532,7 +517,6 @@ class GroupActionOptions(TypedDict, total=False):
     access: Access | None
     atomic: bool | None
     pagination: Pagination | None
-    replaces: str
     parsers: Sequence[Parser] | None
     renderers: Sequence[Renderer] | None
     errors: Sequence[type[APIError]]
@@ -633,7 +617,6 @@ class RouteGroup:
                 else self.atomic and method in WRITE_METHODS
             ),
             pagination=options.pop("pagination", None),
-            replaces=options.pop("replaces", ""),
             parsers=options.pop("parsers", None),
             renderers=options.pop("renderers", None),
             errors=(*self.errors, *own_errors),
