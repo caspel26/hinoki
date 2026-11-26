@@ -411,6 +411,33 @@ pub fn dump_for_storage<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, P
     )
 }
 
+/// [`serialize_instance`] of a value narrowed to the schema class `declared`.
+pub(crate) fn serialize_as<'py>(
+    value: &Bound<'py, PyAny>,
+    declared: &Bound<'py, PyType>,
+    include: Option<&[String]>,
+    exclude: &[String],
+    exclude_unset: bool,
+    by_alias: bool,
+) -> PyResult<Bound<'py, PyDict>> {
+    dump_instance_at(
+        value,
+        SerializationOptions {
+            declared: Some(declared),
+            mode: Mode {
+                json_mode: true,
+                by_alias,
+                exclude_unset,
+                controlled: exclude_unset || !by_alias,
+                storage: false,
+            },
+            exclude,
+            include,
+        },
+        0,
+    )
+}
+
 /// A schema instance as the class it derives from declares it, for a value
 /// narrowed to its declared response schema: that class's fields and computed
 /// values only, nested values narrowed by its own field types. `None` when the

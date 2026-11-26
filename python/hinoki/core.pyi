@@ -39,10 +39,19 @@ class _ResponseTypeList:
 class Narrowed:
     """A Schema subclass instance seen as the Schema its position declares: its
     fields and computed values read as attributes, ``dump()`` gives those only,
-    and ``isinstance`` answers the declared class."""
+    and ``isinstance`` answers the declared class. A field that holds a subclass
+    instance reads as a ``Narrowed`` of the class its type declares."""
 
-    def __init__(self, value: Any, declared: type) -> None: ...
-    def dump(self) -> dict[str, Any]: ...
+    def __init__(self, value: Any, declared: type) -> None:
+        """``TypeError`` unless ``declared`` is a Schema class of ``value``."""
+    def dump(
+        self,
+        *,
+        include: Iterable[str] | None = None,
+        exclude: Iterable[str] = (),
+        exclude_unset: bool = False,
+        by_alias: bool = True,
+    ) -> dict[str, Any]: ...
     def __getattr__(self, name: str) -> Any: ...
 
 class _ReturnGuide:

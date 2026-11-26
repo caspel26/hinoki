@@ -380,9 +380,25 @@ fn narrow_keyed<'py>(
 
 #[pymethods]
 impl Narrowed {
+    /// `declared` must be a class `value` derives from (or is): any other pair
+    /// would write the value whole under a wrong name.
     #[new]
-    fn new(value: Py<PyAny>, declared: Py<PyAny>) -> Self {
-        Self { value, declared }
+    fn new(value: Py<PyAny>, declared: Bound<'_, PyAny>) -> PyResult<Self> {
+        let py = declared.py();
+        let class = declared.cast::<PyType>().map_err(|_| {
+            pyo3::exceptions::PyTypeError::new_err("declared must be a Schema class")
+        })?;
+        if !class.hasattr(intern!(py, "__hinoki_schema__"))?
+            || !value.bind(py).is_instance(class)?
+        {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "declared must be a Schema class that value is an instance of",
+            ));
+        }
+        Ok(Self {
+            value,
+            declared: declared.unbind(),
+        })
     }
 
     /// `isinstance(narrowed, declared)` holds, as it does for a lazy projection.
@@ -391,30 +407,65 @@ impl Narrowed {
         self.declared.clone_ref(py)
     }
 
-    /// A field or computed value the declared class has; nothing else of the
-    /// subclass is readable through the view.
+    /// A field or computed value the declared class has, narrowed by the type
+    /// the declared class gives it; nothing else of the subclass is readable
+    /// through the view, and no subclass instance comes out of it.
     fn __getattr__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
-        let declared = self.declared.bind(py);
-        let known = declared
-            .call_method0(intern!(py, "specs"))?
-            .contains(name)?
-            || declared
-                .call_method0(intern!(py, "computed_fields"))?
-                .contains(name)?;
-        if !known {
-            return Err(pyo3::exceptions::PyAttributeError::new_err(name.to_owned()));
+        let declared = self.declared.bind(py).cast::<PyType>()?;
+        let missing = || pyo3::exceptions::PyAttributeError::new_err(name.to_owned());
+        let Some((names, _, _, guides)) =
+            super::compile::class_fields(declared, false, false, true)?
+        else {
+            return Err(missing());
+        };
+        let index = names
+            .iter()
+            .position(|(known, _)| known == name)
+            .ok_or_else(missing)?;
+        let item = self.value.bind(py).getattr(name)?;
+        match guides.get(index) {
+            Some(Some(guide)) => Ok(narrow(&item, guide)?.unwrap_or(item)),
+            _ => Ok(item),
         }
-        self.value.bind(py).getattr(name)
     }
 
-    /// The declared form as a dict, for a renderer that reads plain data.
-    fn dump<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    /// The declared form as a dict, for a renderer that reads plain data. The
+    /// keywords are those of `Schema.dump`.
+    #[pyo3(signature = (*, include=None, exclude=Vec::new(), exclude_unset=false, by_alias=true))]
+    fn dump<'py>(
+        &self,
+        py: Python<'py>,
+        include: Option<Vec<String>>,
+        exclude: Vec<String>,
+        exclude_unset: bool,
+        by_alias: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let value = self.value.bind(py);
         let declared = self.declared.bind(py).cast::<PyType>()?;
-        match super::serialize::dump_as(value, declared)? {
-            Some(dumped) => Ok(dumped.into_any()),
-            None => value.call_method0("dump"),
+        if include.is_none() && exclude.is_empty() && !exclude_unset && by_alias {
+            return match super::serialize::dump_as(value, declared)? {
+                Some(dumped) => Ok(dumped.into_any()),
+                None => value.call_method0("dump"),
+            };
         }
+        let known = declared.call_method0(intern!(py, "specs"))?;
+        let computed = declared.call_method0(intern!(py, "computed_fields"))?;
+        for name in include.iter().flatten().chain(&exclude) {
+            if !known.contains(name)? && !computed.contains(name)? {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unknown include or exclude field: {name}"
+                )));
+            }
+        }
+        Ok(super::serialize::serialize_as(
+            value,
+            declared,
+            include.as_deref(),
+            &exclude,
+            exclude_unset,
+            by_alias,
+        )?
+        .into_any())
     }
 }
 
