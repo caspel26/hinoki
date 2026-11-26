@@ -228,6 +228,7 @@ impl CoreBackend {
                 requeue_native(&core, &mut job_wake, request, asked);
                 return;
             };
+            let caller_ctx = caller.as_ref().map(AdmittedCaller::context);
             let write_action = matches!(plan.action.as_str(), "create" | "update" | "delete");
             let fallback = if write_action {
                 let result = crate::nativecrud::execute_write(
@@ -238,7 +239,7 @@ impl CoreBackend {
                     &query,
                     core.max_body_bytes(),
                     core.request_timeout(),
-                    caller.as_deref(),
+                    caller_ctx,
                 )
                 .await;
                 finish_native_write(&request, result)
@@ -250,7 +251,8 @@ impl CoreBackend {
                         &database,
                         &params,
                         &query,
-                        caller.as_deref(),
+                        request.request_id_str(),
+                        caller_ctx,
                     ),
                 )
                 .await
@@ -293,20 +295,34 @@ impl CoreBackend {
     }
 }
 
+struct AdmittedCaller {
+    subject: String,
+    claims: Vec<(String, Option<String>)>,
+}
+
+impl AdmittedCaller {
+    fn context(&self) -> crate::crudplan::CallerContext<'_> {
+        crate::crudplan::CallerContext {
+            subject: &self.subject,
+            claims: &self.claims,
+        }
+    }
+}
+
 /// Whether the request may run natively, and as which caller: a public route
 /// admits everyone, an authenticated one only a request Rust verified itself.
 /// `None` sends the request to the Python pipeline.
-fn admitted(plan: &CrudPlan, request: &PreparedRequest) -> Option<Option<String>> {
+fn admitted(plan: &CrudPlan, request: &PreparedRequest) -> Option<Option<AdmittedCaller>> {
     let Some(auth) = &plan.auth else {
         return Some(None);
     };
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| i64::try_from(elapsed.as_secs()).unwrap_or(0));
-    let subject = request
+    let (subject, claims) = request
         .single_header(b"authorization")
-        .and_then(|value| auth.subject(value, now))?;
-    Some(Some(subject))
+        .and_then(|value| auth.caller(value, now))?;
+    Some(Some(AdmittedCaller { subject, claims }))
 }
 
 fn is_write_action(action: &str) -> bool {

@@ -8,6 +8,7 @@ import functools
 import inspect
 import math
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, cast
@@ -43,11 +44,13 @@ from hinoki.resources import (
     AllRows,
     CrudBase,
     OwnedRows,
+    RowScope,
     UserAttr,
     _CrudConfig,
     caller_id,
     create_row,
     delete_row,
+    enabled,
     list_rows,
     retrieve_row,
     update_row,
@@ -89,6 +92,7 @@ OWNER_METHODS = (
     "__setattr__",
     "get_queryset",
     "filter_queryset",
+    "scoped_query",
     "written_queryset",
     "reload_written",
     "link_queryset",
@@ -276,6 +280,8 @@ CRUD_RUNTIME_NAMES = (
     "current_database",
     "Page",
     "Response",
+    "_scoped_query",
+    "_scoped_link_query",
 )
 CRUD_RUNTIME_ORIGINALS = tuple(
     crud_module.list_rows.__globals__[name] for name in CRUD_RUNTIME_NAMES
@@ -289,7 +295,7 @@ CRUD_HELPER_NAMES = (
     "Page",
 )
 CRUD_HELPER_ORIGINALS = tuple(getattr(crud_module, name) for name in CRUD_HELPER_NAMES)
-CONFIG_METHODS = ("values", "owner_of", "assigned")
+CONFIG_METHODS = ("values", "owner_of", "assigned", "server_columns", "assign_values")
 CONFIG_METHODS_ORIGINAL = static_state(_CrudConfig, CONFIG_METHODS)
 ERROR_REGISTRY_METHODS = ("handle", "add", "find", "translate")
 ERROR_REGISTRY_METHODS_ORIGINAL = static_state(ErrorRegistry, ERROR_REGISTRY_METHODS)
@@ -502,6 +508,7 @@ def public_route_is_plain(
     return (
         owner_is_plain(owner)
         and owner_scope_is_plain(resource)
+        and scope_is_plain(resource)
         and assign_is_plain(resource)
         and access_is_plain(route, resource, action)
         and route.atomic == (action in {"create", "update", "delete"})
@@ -509,6 +516,43 @@ def public_route_is_plain(
         and route_rendering_is_plain(route)
         and route_status_is_plain(route, action)
         and action_binding_is_plain(binding, action, resource)
+    )
+
+
+def row_scope_tuple(
+    scope: Any, target_model: type[Model]
+) -> tuple[str, str, str | None] | None:
+    spec: tuple[str, str, str | None] | None = None
+    if type(scope) is RowScope and scope.model is target_model:
+        field_type = target_model.__field_types__.get(scope.column)
+        if field_type is not None and field_type.kind == "str":
+            if scope._source == "caller":
+                spec = (scope.column, "caller", None)
+            elif (
+                scope._source == "claim" and isinstance(scope._key, str) and scope._key
+            ):
+                spec = (scope.column, "claim", scope._key)
+    return spec
+
+
+def scope_is_plain(resource: _CrudConfig) -> bool:
+    """No scope, or a declarative ``RowScope.by_caller``/``RowScope.by_claim``
+    on a non-PK, non-updatable text column Rust applies itself."""
+    scope = resource.row_scope
+    if scope is None:
+        return True
+    model = resource.model
+    if row_scope_tuple(scope, model) is None:
+        return False
+    active = [
+        action
+        for action in ACTIONS
+        if action not in resource.omit and enabled(resource, action)
+    ]
+    return bool(
+        all(resource.access_for(a) is not None for a in active)
+        and scope.column not in {model.__primary_key__, resource.owner}
+        and scope.column not in write_columns(model, resource, "update")
     )
 
 
@@ -583,7 +627,9 @@ def auth_snapshot(access: Any) -> tuple[object, ...]:
     )
 
 
-def native_claims_auth(access: Any) -> core._ClaimsAuth | None:
+def native_claims_auth(
+    access: Any, extra_claims: Sequence[str] = ()
+) -> core._ClaimsAuth | None:
     if access is None:
         return None
     auth = access.auth
@@ -595,6 +641,7 @@ def native_claims_auth(access: Any) -> core._ClaimsAuth | None:
         auth.require_exp,
         auth.scope_claim,
         sorted(access.permissions),
+        list(extra_claims),
     )
 
 
@@ -993,26 +1040,35 @@ def schemas_are_plain(
     )
 
 
-def native_links(resource: _CrudConfig) -> dict[str, tuple[Any, str | None]] | None:
-    """The relations the schemas expose, by ids field, each with the target
-    column the caller's id must match (``None`` for every target). ``None``
-    when one has a scope Rust cannot apply."""
+type NativeScopeSpec = tuple[str, str, str | None]
+
+
+def native_links(
+    resource: _CrudConfig,
+) -> dict[str, tuple[Any, NativeScopeSpec | None]] | None:
+    """The relations the schemas expose, by ids field, each with an optional
+    native target scope (``None`` for every target). ``None`` when one has a
+    scope Rust cannot apply."""
     shown = {
         name
         for schema in action_schemas(resource)
         for name in schema.specs()
         if name in resource.link_ids
     }
-    found: dict[str, tuple[Any, str | None]] = {}
+    found: dict[str, tuple[Any, NativeScopeSpec | None]] = {}
     for name in sorted(shown):
         side = resource.link_ids[name]
         if side.target.__soft_delete__ is not None:
             return None
-        scope = resource.links.get(side.declared)
+        scope = resource.link_scopes.get(side.declared) or resource.links.get(
+            side.declared
+        )
         if type(scope) is AllRows and scope.model is side.target:
             found[name] = (side, None)
         elif type(scope) is OwnedRows and scope.model is side.target:
-            found[name] = (side, scope.column)
+            found[name] = (side, (scope.column, "caller", None))
+        elif (spec := row_scope_tuple(scope, side.target)) is not None:
+            found[name] = (side, spec)
         else:
             return None
     return found
@@ -1050,7 +1106,7 @@ def plain_crud_schema(
     schema: type[Schema],
     model: type[Model],
     role: str,
-    links: dict[str, tuple[Any, str | None]] | None = None,
+    links: dict[str, tuple[Any, NativeScopeSpec | None]] | None = None,
 ) -> bool:
     ids = frozenset(links or ())
     compatible = (
@@ -1094,7 +1150,7 @@ def schema_members_are_plain(
     schema: type[Schema],
     model: type[Model],
     role: str,
-    links: dict[str, tuple[Any, str | None]],
+    links: dict[str, tuple[Any, NativeScopeSpec | None]],
 ) -> bool:
     fields = {item.name: item for item in dataclasses.fields(cast(Any, schema))}
     for name, spec in schema.specs().items():
@@ -1273,6 +1329,18 @@ def error_registry_is_plain(errors: Any) -> bool:
     )
 
 
+def _collect_claim_names(
+    scope_arg: NativeScopeSpec | None,
+    links: dict[str, tuple[Any, NativeScopeSpec | None]],
+) -> list[str]:
+    names: list[str] = []
+    specs = [scope_arg, *(link_scope for _, link_scope in links.values())]
+    for item in specs:
+        if item is not None and item[1] == "claim" and item[2] and item[2] not in names:
+            names.append(item[2])
+    return names
+
+
 def compile_selection(
     candidate: CrudCandidate,
     binding: Binding,
@@ -1286,11 +1354,17 @@ def compile_selection(
         return None
     schema_args = schema_plan_args(resource)
     links = native_links(resource)
+    scope_arg = (
+        row_scope_tuple(resource.row_scope, model)
+        if resource.row_scope is not None
+        else None
+    )
     create_defaults = schema_default_specs(resource.create)
     update_defaults = schema_default_specs(resource.update)
     read_fields = schema_fields(model, resource.read, frozenset(links or ()))
     if (
         links is None
+        or (resource.row_scope is not None and scope_arg is None)
         or schema_args is None
         or create_defaults is None
         or update_defaults is None
@@ -1298,6 +1372,7 @@ def compile_selection(
         or not schema_defaults_fit(model, create_defaults, update_defaults)
     ):
         return None
+    claim_names = _collect_claim_names(scope_arg, links)
     try:
         plan = core._CrudPlan(
             action,
@@ -1320,11 +1395,13 @@ def compile_selection(
             create_schema=schema_args[1],
             update_schema=schema_args[2],
             validation_error=validation_error_template(),
-            auth=native_claims_auth(binding.route.access),
+            auth=native_claims_auth(binding.route.access, claim_names),
             owner=resource.owner or None,
+            scope=scope_arg,
             soft_delete=model.__soft_delete__,
             links=[
-                (name, side.spec(), column) for name, (side, column) in links.items()
+                (name, side.spec(), link_scope)
+                for name, (side, link_scope) in links.items()
             ],
             filters=(
                 resource.filters.plan
@@ -1433,8 +1510,10 @@ def value_state(
         tuple((resource.actions or {}).items()),
         resource.omit,
         resource.owner,
+        resource.row_scope,
         resource.identity_key,
         tuple(resource.links.items()),
+        tuple(resource.link_scopes.items()),
         tuple(resource.assign.items()),
         (resource.pagination.page_size, resource.pagination.max_page_size),
         resource.filters,

@@ -253,6 +253,7 @@ class _ClaimsAuth:
         require_exp: bool,
         scope_claim: str,
         required: list[str],
+        extra_claims: list[str] = ...,
     ) -> None: ...
 
 class _CrudPlan:
@@ -280,10 +281,13 @@ class _CrudPlan:
         validation_error: bytes = ...,
         auth: _ClaimsAuth | None = ...,
         owner: str | None = ...,
-        links: list[tuple[str, LinkSpec, str | None]] = ...,
+        scope: tuple[str, str, str | None] | None = ...,
+        links: list[tuple[str, LinkSpec, tuple[str, str, str | None] | None]] = ...,
         filters: _FilterPlan | None = ...,
         soft_delete: str | None = ...,
     ) -> None: ...
+    @property
+    def scope_column(self) -> str | None: ...
     @property
     def action(self) -> str: ...
     @property
@@ -659,7 +663,7 @@ class PreparedRequest:
     @property
     def native_args(self) -> dict[str, object]: ...
     @property
-    def native_principal(self) -> tuple[str, list[str]] | None: ...
+    def native_principal(self) -> tuple[str, list[str], dict[str, Any]] | None: ...
     @property
     def native_error(
         self,

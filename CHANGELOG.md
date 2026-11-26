@@ -8,6 +8,11 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### ✨ New Features
 
+#### 🛡️ Reusable `RowScope` and `crud(..., scope=...)` with Rust native-lane parity
+> `python/hinoki/auth.py`, `python/hinoki/crypto.py`, `python/hinoki/resources.py`, `python/hinoki/runtime/crudplan.py`, `crates/bindings/src/jwt.rs`, `crates/bindings/src/crudplan.rs`, `crates/bindings/src/nativecrud.rs`, `crates/bindings/src/nativelinks.rs`, `crates/bindings/src/kiso.rs`, `docs/crud.md`, `docs/kiso.md`
+
+`RowScope` (`hinoki.RowScope`) declares a reusable mandatory row boundary across generated CRUD, handwritten actions and many-to-many `links=`: `RowScope.by(model, column, key)` reads from `Caller.user`, `RowScope.by_claim(model, column, claim)` reads a verified claim from the new immutable `Caller.claims` mapping (`ClaimsJWTAuth` populates it automatically), and `RowScope.by_caller(model, column)` binds `Caller.id`. Passing `scope=` to `crud(...)` requires an `Access` policy on every active generated action, assigns the scope column server-side on `create`, forbids it in input schemas/`assign`/`owner`, rejects missing, empty or type-incompatible scope values with `403` before any query, validates the model returned by `get_queryset`/`filter_queryset`/`written_queryset`, and unconditionally re-applies the mandatory boundary after hooks and during post-write reloads. Declarative `RowScope.by_caller` and `RowScope.by_claim` (on both resource `scope=` and `links=`) compile into `CrudPlan` SQL templates and run on Kiso's native lane with `ClaimsJWTAuth`. See [mandatory row scope](docs/crud.md#mandatory-row-scope).
+
 #### ⚡ Concurrent pagination and guarded Rust row-to-JSON projection
 > `crates/orm/src/database.rs`, `crates/bindings/src/db.rs`, `crates/bindings/src/rows.rs`, `crates/bindings/src/request/json.rs`, `python/hinoki/orm/projection.py`, `python/hinoki/orm/queryset.py`, `docs/pagination.md`, `docs/queries.md`
 

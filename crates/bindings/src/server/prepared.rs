@@ -112,7 +112,7 @@ pub struct PreparedRequest {
     pub(super) native_handler: bool,
     pub(super) native_args: NativeArgs,
     pub(super) native_error: Option<NativeInputError>,
-    pub(super) native_principal: Option<(String, Vec<String>)>,
+    pub(super) native_principal: Option<super::core::NativePrincipal>,
     pub(super) native_policy: Arc<[Header]>,
     /// The CORS headers for the request's `Origin`, added to a native handler's
     /// answer unless it sets its own `access-control-allow-origin`.
@@ -312,10 +312,23 @@ impl PreparedRequest {
         Ok(args)
     }
 
-    /// The caller Rust authenticated (`sub` and every string scope), if it did.
+    /// The caller Rust authenticated (`sub`, string scopes, and verified claims), if it did.
     #[getter]
-    fn native_principal(&self) -> Option<(String, Vec<String>)> {
-        self.native_principal.clone()
+    #[allow(clippy::type_complexity)]
+    fn native_principal<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<Option<(String, Vec<String>, Bound<'py, pyo3::types::PyDict>)>> {
+        self.native_principal
+            .as_ref()
+            .map(|(subject, scopes, raw_claims)| {
+                Ok((
+                    subject.clone(),
+                    scopes.clone(),
+                    crate::jwt::map_to_py_dict(py, raw_claims)?,
+                ))
+            })
+            .transpose()
     }
 
     #[getter]
