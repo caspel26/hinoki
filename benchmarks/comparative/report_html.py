@@ -102,7 +102,11 @@ CELL_SR = {
 }
 
 
-def route_row(cell: Cell, row_max: float) -> str:
+def short_name(label: str) -> str:
+    return label.replace(", native server", "")
+
+
+def route_row(cell: Cell, row_max: float, short: str) -> str:
     state = state_class(cell)
     sr = f'<span class="bench-sr">{CELL_SR[state]}</span>' if state else ""
     badge = (
@@ -116,7 +120,7 @@ def route_row(cell: Cell, row_max: float) -> str:
         f'<th scope="row">{esc(cell.label)}</th>'
         f'<td class="bench-rps" data-label="Requests per second">{sr}<b class="bench-num">{rps(cell.median)}</b>{badge}'
         f'<span class="bench-meter" aria-hidden="true"><span style="width:{width:.1f}%"></span></span></td>'
-        f'<td class="bench-vs is-{esc(cell.verdict)}" data-label="Against the reference">{esc(cell.versus)}</td>'
+        f'<td class="bench-vs is-{esc(cell.verdict)}" data-label="vs {esc(short)}">{esc(cell.versus)}</td>'
         f'<td data-label="p50 ms">{fmt_ms(cell.p50_ms)}</td><td data-label="p99 ms">{fmt_ms(cell.p99_ms)}</td>'
         f'<td class="bench-spread" data-label="Range and CV"><span>{rps(cell.low)}&ndash;{rps(cell.high)}</span>'
         f"<small>CV {cv_text(cell)}</small></td></tr>"
@@ -125,13 +129,14 @@ def route_row(cell: Cell, row_max: float) -> str:
 
 def route_table(scenario: Scenario) -> str:
     row_max = max((cell.median for cell in scenario.cells), default=0.0)
-    rows = "".join(route_row(cell, row_max) for cell in scenario.cells)
+    short = short_name(scenario.reference)
+    rows = "".join(route_row(cell, row_max, short) for cell in scenario.cells)
     heads = "".join(
         f'<th scope="col">{name}</th>'
         for name in (
             "Stack",
             "Requests per second",
-            f"vs {esc(scenario.reference.replace(', native server', ''))}",
+            f"vs {esc(short)}",
             "p50 ms",
             "p99 ms",
             "Lowest&ndash;highest",
