@@ -16,7 +16,8 @@ pub(crate) use self::json::json_to_python;
 pub use self::json::{decode_json, encode_json, JsonDecodeError};
 pub(crate) use self::json::{
     decode_json_document, encode_json_bytes, encode_json_bytes_strict, float_text, int_text,
-    is_instance_of_named, key_text, string_bytes, Json, JsonObject, MAX_DEPTH,
+    is_instance_of_named, key_text, push_i64, push_json_string, push_u64, string_bytes, Json,
+    JsonObject, MAX_DEPTH,
 };
 #[allow(unused_imports)]
 pub use self::multipart::{

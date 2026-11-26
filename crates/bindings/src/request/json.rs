@@ -664,18 +664,21 @@ pub fn decode_json<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Bound<'py, PyAn
         .map_err(ParseError::into_py)
 }
 
-fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
+/// Write `text` as a compact JSON string literal (with surrounding quotes).
+pub(crate) fn push_json_string(out: &mut Vec<u8>, text: &str) {
     out.push(b'"');
     push_escaped(out, text);
     out.push(b'"');
+}
+
+fn write_string(out: &mut Vec<u8>, text: &str) -> PyResult<()> {
+    push_json_string(out, text);
     Ok(())
 }
 
 fn quoted_json_key(text: &str) -> Box<[u8]> {
     let mut out = Vec::with_capacity(text.len() + 2);
-    out.push(b'"');
-    push_escaped(&mut out, text);
-    out.push(b'"');
+    push_json_string(&mut out, text);
     out.into_boxed_slice()
 }
 
@@ -805,10 +808,17 @@ fn push_float(out: &mut Vec<u8>, value: f64) -> PyResult<()> {
 }
 
 /// Append the decimal text of `number`.
-fn push_i64(out: &mut Vec<u8>, number: i64) {
+pub(crate) fn push_i64(out: &mut Vec<u8>, number: i64) {
+    if number < 0 {
+        out.push(b'-');
+    }
+    push_u64(out, number.unsigned_abs());
+}
+
+/// Append the decimal text of an unsigned 64-bit integer.
+pub(crate) fn push_u64(out: &mut Vec<u8>, mut rest: u64) {
     let mut digits = [0u8; 20];
     let mut at = digits.len();
-    let mut rest = number.unsigned_abs();
     loop {
         at -= 1;
         digits[at] = b'0' + (rest % 10) as u8;
@@ -816,9 +826,6 @@ fn push_i64(out: &mut Vec<u8>, number: i64) {
         if rest == 0 {
             break;
         }
-    }
-    if number < 0 {
-        out.push(b'-');
     }
     out.extend_from_slice(&digits[at..]);
 }

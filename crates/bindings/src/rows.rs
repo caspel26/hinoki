@@ -56,15 +56,38 @@ impl Kind {
     }
 }
 
+const MAX_INITIAL_CAPACITY: usize = 4 * 1024 * 1024;
+
 #[derive(Clone, Debug)]
 struct Field {
     column_index: usize,
-    wire_name: String,
+    quoted_key: Box<[u8]>,
     kind: Kind,
     nullable: bool,
     /// For an ids, nested or prefetch field, its position among the plan's slots.
     slot: usize,
     name: String,
+}
+
+fn encode_quoted_key(wire_name: &str) -> Box<[u8]> {
+    let mut buf = Vec::with_capacity(wire_name.len() + 3);
+    crate::request::push_json_string(&mut buf, wire_name);
+    buf.push(b':');
+    buf.into_boxed_slice()
+}
+
+fn fixed_field_bytes(field: &Field) -> usize {
+    let value_bytes = match field.kind {
+        Kind::Uuid => 39,
+        Kind::Timestamp => 35,
+        Kind::Date => 13,
+        _ => 8,
+    };
+    field.quoted_key.len().saturating_add(value_bytes)
+}
+
+fn fixed_fields_bytes(fields: &[Field]) -> usize {
+    fields.iter().map(fixed_field_bytes).sum()
 }
 
 /// One `select_related` forward relation projected from joined SQL alias columns.
@@ -214,7 +237,7 @@ impl PrefetchSlot {
     fn estimated_bytes(&self) -> usize {
         match self {
             Self::Single { items, .. } => items.len(),
-            Self::Multi(_) => 0,
+            Self::Multi(map) => map.values().map(Vec::len).sum(),
         }
     }
 }
@@ -234,6 +257,9 @@ pub(crate) struct RowPlan {
     prefetches: Vec<PrefetchPlan>,
     key_index: Option<usize>,
     key_kind: KeyKind,
+    fixed_row_bytes: usize,
+    text_columns: Box<[usize]>,
+    bytes_columns: Box<[usize]>,
 }
 
 /// Raw nested field input from Python: `(field_name, fk_column, key_column, sub_fields)`.
@@ -421,7 +447,7 @@ fn build_nested_plans(
             let column_index = column_position(columns, &col_name)?;
             fields.push(Field {
                 column_index,
-                wire_name,
+                quoted_key: encode_quoted_key(&wire_name),
                 kind: parsed,
                 nullable,
                 slot: 0,
@@ -585,13 +611,21 @@ impl RowPlan {
             )?;
             planned.push(Field {
                 column_index,
-                wire_name,
+                quoted_key: encode_quoted_key(&wire_name),
                 kind,
                 nullable,
                 slot,
                 name,
             });
         }
+        let nested_bytes: usize = nested
+            .iter()
+            .map(|item| fixed_fields_bytes(&item.fields) + 2)
+            .sum();
+        let fixed_row_bytes = fixed_fields_bytes(&planned)
+            .saturating_add(nested_bytes)
+            .saturating_add(2);
+        let (text_columns, bytes_columns) = collect_dynamic_columns(&planned, &nested);
         Ok(Self {
             columns,
             fields: planned,
@@ -599,6 +633,9 @@ impl RowPlan {
             prefetches,
             key_index,
             key_kind,
+            fixed_row_bytes,
+            text_columns,
+            bytes_columns,
         })
     }
 
@@ -720,13 +757,141 @@ pub(crate) fn group_prefetch_rows(
                 return None;
             }
         }
-        let buf = grouped.entry(owner).or_default();
+        let buf = grouped
+            .entry(owner)
+            .or_insert_with(|| Vec::with_capacity(prefetch.child_plan.fixed_row_bytes));
         if !buf.is_empty() {
             buf.push(b',');
         }
         write_row_values(buf, row, &prefetch.child_plan, &RowIds::default(), &[])?;
     }
     Some(PrefetchSlot::Multi(grouped))
+}
+
+fn push_dynamic_columns(text_out: &mut Vec<usize>, bytes_out: &mut Vec<usize>, fields: &[Field]) {
+    for field in fields {
+        let target = match field.kind {
+            Kind::Text | Kind::Decimal => &mut *text_out,
+            Kind::Bytes => &mut *bytes_out,
+            _ => continue,
+        };
+        if !target.contains(&field.column_index) {
+            target.push(field.column_index);
+        }
+    }
+}
+
+fn collect_dynamic_columns(
+    fields: &[Field],
+    nested: &[NestedPlan],
+) -> (Box<[usize]>, Box<[usize]>) {
+    let mut text_cols = Vec::with_capacity(fields.len());
+    let mut bytes_cols = Vec::new();
+    push_dynamic_columns(&mut text_cols, &mut bytes_cols, fields);
+    for item in nested {
+        push_dynamic_columns(&mut text_cols, &mut bytes_cols, &item.fields);
+    }
+    (text_cols.into_boxed_slice(), bytes_cols.into_boxed_slice())
+}
+
+fn value_extra_bytes(value: &Value, is_bytes: bool) -> usize {
+    match (is_bytes, value) {
+        (false, Value::Text(text)) => text.len().saturating_add(2),
+        (true, Value::Bytes(raw)) => raw.len().div_ceil(3).saturating_mul(4).saturating_add(2),
+        _ => 0,
+    }
+}
+
+fn row_values_extra(row: &[Value], plan: &RowPlan) -> usize {
+    let text: usize = plan
+        .text_columns
+        .iter()
+        .filter_map(|&col| row.get(col))
+        .map(|val| value_extra_bytes(val, false))
+        .sum();
+    let bin: usize = plan
+        .bytes_columns
+        .iter()
+        .filter_map(|&col| row.get(col))
+        .map(|val| value_extra_bytes(val, true))
+        .sum();
+    text.saturating_add(bin)
+}
+
+fn row_pairs_extra(row: &[(String, Value)], plan: &RowPlan) -> usize {
+    let text: usize = plan
+        .text_columns
+        .iter()
+        .filter_map(|&col| row.get(col))
+        .map(|(_, val)| value_extra_bytes(val, false))
+        .sum();
+    let bin: usize = plan
+        .bytes_columns
+        .iter()
+        .filter_map(|&col| row.get(col))
+        .map(|(_, val)| value_extra_bytes(val, true))
+        .sum();
+    text.saturating_add(bin)
+}
+
+fn estimate_set_capacity(
+    set: &RowSet,
+    plan: &RowPlan,
+    prefetched: &[PrefetchSlot],
+    extra: usize,
+) -> usize {
+    let mut bytes = set
+        .rows
+        .len()
+        .saturating_mul(plan.fixed_row_bytes)
+        .saturating_add(extra);
+    if !plan.text_columns.is_empty() || !plan.bytes_columns.is_empty() {
+        for row in &set.rows {
+            bytes = bytes.saturating_add(row_values_extra(row, plan));
+        }
+    }
+    for slot in prefetched {
+        bytes = bytes.saturating_add(slot.estimated_bytes());
+    }
+    bytes.min(MAX_INITIAL_CAPACITY)
+}
+
+fn estimate_single_row_set_capacity(
+    row: &[Value],
+    plan: &RowPlan,
+    prefetched: &[PrefetchSlot],
+    overhead: usize,
+) -> usize {
+    let prefetched_bytes = prefetched
+        .iter()
+        .map(PrefetchSlot::estimated_bytes)
+        .fold(0usize, usize::saturating_add);
+    plan.fixed_row_bytes
+        .saturating_add(row_values_extra(row, plan))
+        .saturating_add(prefetched_bytes)
+        .saturating_add(overhead)
+        .min(MAX_INITIAL_CAPACITY)
+}
+
+fn estimate_rows_capacity(
+    rows: &[Vec<(String, Value)>],
+    plan: &RowPlan,
+    prefetched: &[PrefetchSlot],
+    extra: usize,
+) -> usize {
+    let mut bytes = rows
+        .len()
+        .saturating_mul(plan.fixed_row_bytes)
+        .saturating_add(extra);
+    if !plan.text_columns.is_empty() || !plan.bytes_columns.is_empty() {
+        for row in rows {
+            bytes = bytes.saturating_add(row_pairs_extra(row, plan));
+        }
+    }
+    for slot in prefetched {
+        bytes = bytes.saturating_add(slot.estimated_bytes());
+    }
+    bytes.min(MAX_INITIAL_CAPACITY)
 }
 
 /// Fast-path prefetch grouping when there is a single parent owner: writes
@@ -740,7 +905,7 @@ pub(crate) fn group_prefetch_rows_single(
     if !set.rows.is_empty() {
         validate_column_names(&set.columns, &prefetch.child_plan.columns)?;
     }
-    let mut buf = Vec::with_capacity(set.rows.len().saturating_mul(64));
+    let mut buf = Vec::with_capacity(estimate_set_capacity(set, &prefetch.child_plan, &[], 0));
     let mut count = 0usize;
     for row in &set.rows {
         let row_owner = key_kind.read(row.get(prefetch.link_column_index)?)?;
@@ -783,7 +948,7 @@ pub(crate) fn encode_list_set_with(
     if !set.rows.is_empty() {
         validate_column_names(&set.columns, &plan.columns)?;
     }
-    let mut output = Vec::with_capacity(set.rows.len().saturating_mul(64) + 2);
+    let mut output = Vec::with_capacity(estimate_set_capacity(set, plan, prefetched, 2));
     output.push(b'[');
     for (index, row) in set.rows.iter().enumerate() {
         if index > 0 {
@@ -832,10 +997,8 @@ pub(crate) fn encode_page_set_with_prefetches(
     if !set.rows.is_empty() {
         validate_column_names(&set.columns, &plan.columns)?;
     }
-    let mut output = Vec::with_capacity(set.rows.len().saturating_mul(128) + 64);
-    output.push(b'{');
-    write_key(&mut output, "items")?;
-    output.push(b'[');
+    let mut output = Vec::with_capacity(estimate_set_capacity(set, plan, prefetched, 96));
+    output.extend_from_slice(b"{\"items\":[");
     for (index, row) in set.rows.iter().enumerate() {
         if index > 0 {
             output.push(b',');
@@ -847,14 +1010,17 @@ pub(crate) fn encode_page_set_with_prefetches(
 }
 
 fn write_page_trailer(output: &mut Vec<u8>, page: u64, page_size: u64, total: u64) -> Option<()> {
+    if page == 0 || page_size == 0 {
+        return None;
+    }
     output.extend_from_slice(b"],\"page\":");
-    write_number(output, page)?;
+    write_u64(output, page);
     output.extend_from_slice(b",\"page_size\":");
-    write_number(output, page_size)?;
+    write_u64(output, page_size);
     output.extend_from_slice(b",\"total\":");
-    write_number(output, total)?;
+    write_u64(output, total);
     output.extend_from_slice(b",\"pages\":");
-    write_number(output, total.div_ceil(page_size))?;
+    write_u64(output, total.div_ceil(page_size));
     output.push(b'}');
     Some(())
 }
@@ -869,10 +1035,8 @@ fn encode_page_full(
     if page == 0 || page_size == 0 {
         return None;
     }
-    let mut output = Vec::with_capacity(rows.len().saturating_mul(128) + 64);
-    output.push(b'{');
-    write_key(&mut output, "items")?;
-    output.push(b'[');
+    let mut output = Vec::with_capacity(estimate_rows_capacity(rows, plan, prefetched, 96));
+    output.extend_from_slice(b"{\"items\":[");
     for (index, row) in rows.iter().enumerate() {
         if index > 0 {
             output.push(b',');
@@ -892,10 +1056,15 @@ pub(crate) fn encode_cursor_page(
     if page_size == 0 {
         return None;
     }
-    let mut output = Vec::new();
-    output.push(b'{');
-    write_key(&mut output, "items")?;
-    output.push(b'[');
+    let link_bytes = links.next.as_deref().map_or(4, |s| s.len() + 2)
+        + links.previous.as_deref().map_or(4, |s| s.len() + 2);
+    let mut output = Vec::with_capacity(estimate_rows_capacity(
+        rows,
+        plan,
+        &[],
+        64usize.saturating_add(link_bytes),
+    ));
+    output.extend_from_slice(b"{\"items\":[");
     for (index, row) in rows.iter().enumerate() {
         if index > 0 {
             output.push(b',');
@@ -907,7 +1076,7 @@ pub(crate) fn encode_cursor_page(
     output.extend_from_slice(b",\"previous\":");
     write_link(&mut output, links.previous.as_deref());
     output.extend_from_slice(b",\"page_size\":");
-    write_number(&mut output, page_size)?;
+    write_u64(&mut output, page_size);
     output.push(b'}');
     Some(output)
 }
@@ -929,7 +1098,12 @@ pub(crate) fn encode_item_with(
     plan: &RowPlan,
     ids: &RowIds,
 ) -> Option<Vec<u8>> {
-    let mut output = Vec::with_capacity(plan.fields.len().saturating_mul(24).saturating_add(32));
+    let cap = plan
+        .fixed_row_bytes
+        .saturating_add(row_pairs_extra(row, plan))
+        .saturating_add(32)
+        .min(MAX_INITIAL_CAPACITY);
+    let mut output = Vec::with_capacity(cap);
     write_row(&mut output, row, plan, ids, &[])?;
     Some(output)
 }
@@ -941,14 +1115,8 @@ pub(crate) fn encode_item_set_with_prefetches(
 ) -> Option<Vec<u8>> {
     let row = set.rows.first()?;
     validate_column_names(&set.columns, &plan.columns)?;
-    let prefetch_bytes: usize = prefetched.iter().map(PrefetchSlot::estimated_bytes).sum();
-    let mut output = Vec::with_capacity(
-        plan.fields
-            .len()
-            .saturating_mul(24)
-            .saturating_add(prefetch_bytes)
-            .saturating_add(32),
-    );
+    let mut output =
+        Vec::with_capacity(estimate_single_row_set_capacity(row, plan, prefetched, 32));
     write_row_values(&mut output, row, plan, &RowIds::default(), prefetched)?;
     Some(output)
 }
@@ -966,7 +1134,7 @@ fn write_row(
         if index > 0 {
             output.push(b',');
         }
-        write_key(output, &field.wire_name)?;
+        output.extend_from_slice(&field.quoted_key);
         match field.kind {
             Kind::Ids => write_ids(output, ids.slots.get(field.slot)?.get(&plan.key_of(row)?))?,
             Kind::Nested => {
@@ -996,7 +1164,7 @@ fn write_row_values(
         if index > 0 {
             output.push(b',');
         }
-        write_key(output, &field.wire_name)?;
+        output.extend_from_slice(&field.quoted_key);
         match field.kind {
             Kind::Ids => {
                 let key = plan.key_of_values(row)?;
@@ -1042,7 +1210,7 @@ fn write_nested(
         if index > 0 {
             output.push(b',');
         }
-        write_key(output, &field.wire_name)?;
+        output.extend_from_slice(&field.quoted_key);
         write_value(output, &row[field.column_index].1, field)?;
     }
     output.push(b'}');
@@ -1067,7 +1235,7 @@ fn write_nested_values(
         if index > 0 {
             output.push(b',');
         }
-        write_key(output, &field.wire_name)?;
+        output.extend_from_slice(&field.quoted_key);
         write_value(output, &row[field.column_index], field)?;
     }
     output.push(b'}');
@@ -1082,9 +1250,9 @@ fn write_ids(output: &mut Vec<u8>, keys: Option<&Vec<Canon>>) -> Option<()> {
             output.push(b',');
         }
         match key {
-            Canon::Int(number) => write_number(output, number)?,
+            Canon::Int(number) => write_i64(output, *number),
             Canon::Text(text) => write_json(output, text)?,
-            Canon::Uuid(id) => write_json(output, &id.to_string())?,
+            Canon::Uuid(id) => write_uuid(output, id),
         }
     }
     output.push(b']');
@@ -1138,15 +1306,21 @@ fn write_value(output: &mut Vec<u8>, value: &Value, field: &Field) -> Option<()>
     }
     match (field.kind, value) {
         (Kind::Text, Value::Text(value)) => write_json(output, value),
-        (Kind::Int, Value::Int(value)) => write_number(output, value),
+        (Kind::Int, Value::Int(value)) => {
+            write_i64(output, *value);
+            Some(())
+        }
         (Kind::Float, Value::Float(value)) => write_float(output, *value),
         (Kind::Bool, Value::Bool(value)) => {
             output.extend_from_slice(if *value { b"true" } else { b"false" });
             Some(())
         }
-        (Kind::Uuid, Value::Uuid(value)) => write_json(output, &value.to_string()),
+        (Kind::Uuid, Value::Uuid(value)) => {
+            write_uuid(output, value);
+            Some(())
+        }
         (Kind::Timestamp, Value::Timestamp(value)) => {
-            if !(1..=9999).contains(&value.year()) {
+            if !python_datetime_representable(value) {
                 return None;
             }
             output.push(b'"');
@@ -1154,24 +1328,44 @@ fn write_value(output: &mut Vec<u8>, value: &Value, field: &Field) -> Option<()>
             output.push(b'"');
             Some(())
         }
-        (Kind::Bytes, Value::Bytes(value)) => {
-            use base64::{engine::general_purpose::STANDARD, Engine};
-            write_json(output, &STANDARD.encode(value))
-        }
-        (Kind::Decimal, Value::Text(value)) => write_json(output, &decimal_wire(value)?),
+        (Kind::Bytes, Value::Bytes(value)) => write_bytes_base64(output, value),
+        (Kind::Decimal, Value::Text(value)) => write_decimal(output, value),
         (Kind::Date, Value::Text(value)) => {
             crate::schema::parse_date(value)?;
-            write_json(output, value)
+            output.push(b'"');
+            output.extend_from_slice(value.as_bytes());
+            output.push(b'"');
+            Some(())
         }
         _ => None,
     }
 }
 
-/// `format(Decimal(text), "f")` for stored text without an exponent: the
-/// text with the integer part's leading zeros removed. Any other spelling,
-/// or one longer than the JSON writer allows, returns `None` so Python
-/// writes it.
-fn decimal_wire(text: &str) -> Option<String> {
+fn write_uuid(output: &mut Vec<u8>, value: &uuid::Uuid) {
+    let mut buf = [0u8; uuid::fmt::Hyphenated::LENGTH];
+    let text = value.hyphenated().encode_lower(&mut buf);
+    output.push(b'"');
+    output.extend_from_slice(text.as_bytes());
+    output.push(b'"');
+}
+
+fn write_bytes_base64(output: &mut Vec<u8>, value: &[u8]) -> Option<()> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let encoded_len = base64::encoded_len(value.len(), true)?;
+    output.reserve(encoded_len.saturating_add(2));
+    output.push(b'"');
+    let start = output.len();
+    let end = start.checked_add(encoded_len)?;
+    output.resize(end, 0);
+    let written = STANDARD.encode_slice(value, &mut output[start..]).ok()?;
+    output.truncate(start.checked_add(written)?);
+    output.push(b'"');
+    Some(())
+}
+
+/// `format(Decimal(text), "f")` components for stored text without an exponent:
+/// `(sign, whole, fraction)` with leading zeros removed from `whole`.
+fn decimal_parts(text: &str) -> Option<(&str, &str, Option<&str>)> {
     let (sign, unsigned) = match text.strip_prefix('-') {
         Some(rest) => ("-", rest),
         None => ("", text),
@@ -1191,32 +1385,49 @@ fn decimal_wire(text: &str) -> Option<String> {
     if length > crate::schema::DECIMAL_DIGITS_CEILING {
         return None;
     }
+    Some((sign, whole, fraction))
+}
+
+fn write_decimal(output: &mut Vec<u8>, text: &str) -> Option<()> {
+    let (sign, whole, fraction) = decimal_parts(text)?;
+    output.push(b'"');
+    output.extend_from_slice(sign.as_bytes());
+    output.extend_from_slice(whole.as_bytes());
+    if let Some(fraction) = fraction {
+        output.push(b'.');
+        output.extend_from_slice(fraction.as_bytes());
+    }
+    output.push(b'"');
+    Some(())
+}
+
+#[cfg(test)]
+fn decimal_wire(text: &str) -> Option<String> {
+    let (sign, whole, fraction) = decimal_parts(text)?;
     Some(match fraction {
         Some(fraction) => format!("{sign}{whole}.{fraction}"),
         None => format!("{sign}{whole}"),
     })
 }
 
-fn write_key(output: &mut Vec<u8>, value: &str) -> Option<()> {
-    write_json(output, value)?;
-    output.push(b':');
-    Some(())
-}
-
 fn write_json(output: &mut Vec<u8>, value: &str) -> Option<()> {
-    serde_json::to_writer(output, value).ok()?;
+    crate::request::push_json_string(output, value);
     Some(())
 }
 
-fn write_number<T: serde::Serialize>(output: &mut Vec<u8>, value: T) -> Option<()> {
-    serde_json::to_writer(output, &value).ok()?;
-    Some(())
+fn write_i64(output: &mut Vec<u8>, value: i64) {
+    crate::request::push_i64(output, value);
+}
+
+fn write_u64(output: &mut Vec<u8>, value: u64) {
+    crate::request::push_u64(output, value);
 }
 
 fn write_float(output: &mut Vec<u8>, value: f64) -> Option<()> {
-    let number = serde_json::Number::from_f64(value)?;
-    output.extend_from_slice(number.to_string().as_bytes());
-    Some(())
+    if !value.is_finite() {
+        return None;
+    }
+    serde_json::to_writer(output, &value).ok()
 }
 
 #[cfg(test)]
@@ -1376,7 +1587,7 @@ mod tests {
             planned.fields[1].clone(),
             super::Field {
                 column_index: 2,
-                wire_name: "created".into(),
+                quoted_key: super::encode_quoted_key("created"),
                 kind: super::Kind::Timestamp,
                 nullable: false,
                 slot: 0,
@@ -1384,7 +1595,7 @@ mod tests {
             },
             super::Field {
                 column_index: 3,
-                wire_name: "count".into(),
+                quoted_key: super::encode_quoted_key("count"),
                 kind: super::Kind::Int,
                 nullable: false,
                 slot: 0,
