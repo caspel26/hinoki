@@ -7,12 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from hinoki import Hinoki, RouteGroup, Schema, Transactions, context, db, http
+from hinoki import Hinoki, RouteGroup, Schema, Transactions, context, db, errors, http
 from hinoki.blocking import run_sync
 from hinoki.db import Database, DatabaseModule, current
 from hinoki.orm import current_database, use_database
 from hinoki.rules import Project, RuleSet
 from hinoki.runtime.kiso import KisoWorker
+from hinoki.sessions import (
+    MemorySessionStore,
+    Session,
+    SessionModule,
+    SessionRecord,
+    SessionSettings,
+)
 from hinoki.testing import ASGIClient
 from tests.kisoservertest import fetch, record_lanes
 
@@ -428,3 +435,74 @@ async def test_a_sync_handler_can_use_a_block_in_its_own_code(
     assert (created.status, created.body) == (201, {"name": "a"})
     assert failed.status == 500
     assert await names(database) == ["a"]
+
+
+async def test_atomic_stream_response_rolls_back_before_error_translation(
+    database: Database, url: str, tmp_path: Path
+) -> None:
+    payload = tmp_path / "payload.txt"
+    payload.write_text("streamed")
+
+    @http.post("/atomic-file", atomic=True)
+    async def atomic_file() -> http.Response:
+        await insert("leaked")
+        return http.File(payload)
+
+    app = Hinoki(include=[atomic_file], modules=[DatabaseModule(url)])
+    async with ASGIClient(app) as client:
+        reply = await client.post("/atomic-file")
+    assert reply.status == 500
+    assert await names(database) == []
+
+
+async def test_atomic_explicit_4xx_response_commits_as_normal_return(
+    database: Database, url: str
+) -> None:
+    @http.post("/atomic-409", atomic=True)
+    async def atomic_conflict() -> http.Response:
+        await insert("kept-409")
+        return http.Response(409, b"conflict")
+
+    app = Hinoki(include=[atomic_conflict], modules=[DatabaseModule(url)])
+    async with ASGIClient(app) as client:
+        reply = await client.post("/atomic-409")
+    assert reply.status == 409
+    assert await names(database) == ["kept-409"]
+
+
+async def test_atomic_declared_error_rolls_back(database: Database, url: str) -> None:
+    @http.post("/atomic-conflict", atomic=True, errors=(errors.Conflict,))
+    async def atomic_error() -> Saved:
+        await insert("undone-conflict")
+        raise errors.Conflict("already exists")
+
+    app = Hinoki(include=[atomic_error], modules=[DatabaseModule(url)])
+    async with ASGIClient(app) as client:
+        reply = await client.post("/atomic-conflict")
+    assert reply.status == 409
+    assert await names(database) == []
+
+
+class FailingSaveStore(MemorySessionStore):
+    async def save(self, token_hash: str, record: SessionRecord) -> None:
+        raise RuntimeError("session store unavailable")
+
+
+async def test_atomic_sql_commits_before_session_store_save(
+    database: Database, url: str
+) -> None:
+    @http.post("/atomic-session", atomic=True)
+    async def atomic_session(session: Session) -> Saved:
+        await insert("sql-committed")
+        session["step"] = "done"
+        return Saved(name="sql-committed")
+
+    settings = SessionSettings(csrf_secret=b"t" * 32)
+    app = Hinoki(
+        include=[atomic_session],
+        modules=[DatabaseModule(url), SessionModule(FailingSaveStore(), settings)],
+    )
+    async with ASGIClient(app) as client:
+        reply = await client.post("/atomic-session")
+    assert reply.status == 500
+    assert await names(database) == ["sql-committed"]
