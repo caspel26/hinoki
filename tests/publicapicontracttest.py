@@ -6,7 +6,24 @@ import ast
 import importlib
 from pathlib import Path
 
-PACKAGES = ("hinoki", "hinoki.http", "hinoki.db", "hinoki.orm", "hinoki.admin")
+PACKAGES = (
+    "hinoki",
+    "hinoki.http",
+    "hinoki.db",
+    "hinoki.orm",
+    "hinoki.admin",
+    "hinoki.mail",
+    "hinoki.cache",
+    "hinoki.sessions",
+    "hinoki.storage",
+)
+REGISTRATION_PATHS = (
+    "hinoki.admin.users.models",
+    "hinoki.admin.users.migrations",
+    "hinoki.ratelimit_store.models",
+    "hinoki.ratelimit_store.migrations",
+    "hinoki.cache.migrations_path",
+)
 
 
 def _resolve_target(target: str) -> object | None:
@@ -76,3 +93,10 @@ def test_every_example_hinoki_import_resolves() -> None:
         module = importlib.import_module(module_name)
         if not hasattr(module, symbol):
             importlib.import_module(f"{module_name}.{symbol}")
+
+
+def test_promised_registration_paths_resolve() -> None:
+    for target in REGISTRATION_PATHS:
+        assert _resolve_target(target) is not None, (
+            f"promised registration path {target!r} did not resolve"
+        )
