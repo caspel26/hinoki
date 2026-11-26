@@ -9,7 +9,7 @@ migrations = "blog.apps.blog.migrations"
 events = "blog.apps.blog.events:handlers"
 requires = []
 
-# The admin's own users and grants: an optional extra with its own migrations.
+# The admin's own users and grants: built into hinoki-api, with explicit mounting and migrations.
 [[apps]]
 name = "admin"
 models = "hinoki.admin.users.models"
