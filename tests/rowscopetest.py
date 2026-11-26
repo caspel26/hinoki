@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
+import json
+import re
 import sqlite3
 from pathlib import Path
 from types import MappingProxyType
@@ -42,11 +45,13 @@ from hinoki.orm import (
     use_database,
     uuid_pk,
 )
-from hinoki.orm.migrations import plan
+from hinoki.orm.migrations import create_table_sql, plan, table_state
 from hinoki.pagination import PageNumberPagination, PageParams
-from hinoki.resources import caller_id, create_row, list_rows
+from hinoki.resources import caller_id, create_row, list_rows, retrieve_row
 from hinoki.runtime.crudplan import select_crud_plan
+from hinoki.runtime.kiso import KisoWorker
 from hinoki.runtime.pipeline import Pipeline
+from hinoki.runtime.servercore import build_server_core, native_handler_eligible
 from hinoki.testing import ASGIClient
 
 JWT_SECRET = b"row-scope-test-secret-32-bytes!!"
@@ -840,3 +845,403 @@ async def test_claims_jwt_scoped_routes_parity_and_missing_claim_403(
         assert (
             await client.delete(f"/caller-scoped/{c1.body['id']}", headers=alice_jwt)
         ).status == 204
+
+
+async def test_link_queryset_override_keeps_declared_row_scope(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "link_override.sqlite3"
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+    url = f"sqlite://{db_path}"
+    plan([Tag, Invoice, *Invoice.__bridges__], mig_dir, "initial", dialect="sqlite")
+    db = await Database.connect(url, max_size=1, wait=1)
+    try:
+        await migrator.apply(db, mig_dir)
+        with use_database(db):
+            acme_tag = await Tag.acreate(tenant_id="acme", name="acme-tag")
+            globex_tag = await Tag.acreate(tenant_id="globex", name="globex-tag")
+    finally:
+        db.close()
+
+    @crud(
+        Invoice,
+        path="/link-override",
+        read=InvoiceOut,
+        create=InvoiceIn,
+        update=InvoicePatch,
+        access=staff,
+        owner="owner_id",
+        scope=invoice_scope,
+        links={"tags": tag_scope},
+    )
+    class LinkOverrideInvoices(API):
+        async def link_queryset(
+            self, relation: str, principal: Caller[User] | None
+        ) -> QuerySet[Any]:
+            # Intentionally return an unscoped QuerySet so the test proves the
+            # framework re-applies link_scopes after the override.
+            _ = relation, principal
+            return Tag.all()
+
+    @crud(
+        Invoice,
+        path="/wrong-link-model",
+        read=InvoiceOut,
+        create=InvoiceIn,
+        access=staff,
+        owner="owner_id",
+        scope=invoice_scope,
+        links={"tags": tag_scope},
+    )
+    class WrongLinkModel(API):
+        async def link_queryset(
+            self, relation: str, principal: Caller[User] | None
+        ) -> QuerySet[Any]:
+            _ = relation, principal
+            return Invoice.all()
+
+    app = Hinoki(
+        include=[LinkOverrideInvoices, WrongLinkModel],
+        modules=[DatabaseModule(url)],
+    )
+    async with ASGIClient(app) as client:
+        # Write path still rejects cross-tenant tag despite Tag.all() hook.
+        bad_create = await client.post(
+            "/link-override",
+            json={"title": "Denied", "tag_ids": [str(globex_tag.id)]},
+            headers=ALICE,
+        )
+        assert bad_create.status == 422
+
+        created = await client.post(
+            "/link-override",
+            json={"title": "Allowed", "tag_ids": [str(acme_tag.id)]},
+            headers=ALICE,
+        )
+        assert created.status == 201
+        inv_id = created.body["id"]
+
+        bad_patch = await client.patch(
+            f"/link-override/{inv_id}",
+            json={"tag_ids": [str(globex_tag.id)]},
+            headers=ALICE,
+        )
+        assert bad_patch.status == 422
+
+        # Direct cross-tenant bridge row is filtered out on read too.
+        bridge = Invoice.__bridges__[0]
+        owner_col, target_col = (
+            c for c in bridge.__columns__ if c != bridge.__primary_key__
+        )
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            f"INSERT INTO {bridge.__table__} ({owner_col}, {target_col}) VALUES (?, ?)",  # noqa: S608
+            (inv_id, str(globex_tag.id)),
+        )
+        conn.commit()
+        conn.close()
+
+        fetched = await client.get(f"/link-override/{inv_id}", headers=ALICE)
+        assert fetched.status == 200
+        assert fetched.body["tag_ids"] == [str(acme_tag.id)]
+        listed = await client.get("/link-override", headers=ALICE)
+        assert listed.status == 200
+        assert listed.body["items"][0]["tag_ids"] == [str(acme_tag.id)]
+
+        # Wrong model returned by link_queryset fails loudly.
+        assert (await client.get("/wrong-link-model", headers=ALICE)).status == 500
+
+    caller = Caller(id="alice", user=USERS["alice-token"])
+    direct_db = await Database.connect(url, max_size=1, wait=1)
+    try:
+        with use_database(direct_db):
+            with pytest.raises(RegistrationError, match=r"link_queryset"):
+                await retrieve_row(
+                    cast(Any, WrongLinkModel()),
+                    cast(Any, object()),
+                    UUID(inv_id),
+                    principal=caller,
+                )
+            with pytest.raises(RegistrationError, match=r"link_queryset"):
+                await create_row(
+                    cast(Any, WrongLinkModel()),
+                    cast(Any, object()),
+                    InvoiceIn(title="bad", tag_ids={acme_tag.id}),
+                    principal=caller,
+                )
+    finally:
+        direct_db.close()
+
+
+async def _kiso_http(
+    port: int,
+    method: str,
+    target: str,
+    *,
+    headers: dict[str, str] | None = None,
+    body: bytes = b"",
+) -> tuple[int, bytes]:
+    reader, writer = await asyncio.open_connection("127.0.0.1", port)
+    extra = "".join(f"{name}: {value}\r\n" for name, value in (headers or {}).items())
+    content_type = (
+        "content-type: application/json\r\n"
+        if body or method in {"POST", "PATCH"}
+        else ""
+    )
+    head = (
+        f"{method} {target} HTTP/1.1\r\n"
+        "host: test\r\n"
+        "x-request-id: 00000000000000000000000000000001\r\n"
+        f"{content_type}"
+        f"content-length: {len(body)}\r\n"
+        f"{extra}\r\n"
+    )
+    writer.write(head.encode() + body)
+    await writer.drain()
+    raw_head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
+    status = int(raw_head.decode("latin-1").split("\r\n")[0].split()[1])
+    length = 0
+    for line in raw_head.decode("latin-1").split("\r\n")[1:]:
+        if line.lower().startswith("content-length:"):
+            length = int(line.split(":", 1)[1].strip())
+    payload = await asyncio.wait_for(reader.readexactly(length), 5) if length else b""
+    writer.close()
+    await writer.wait_closed()
+    return status, payload
+
+
+def test_server_core_preserves_verified_claims_on_native_principal(
+    tmp_path: Path,
+) -> None:
+    db_url = f"sqlite://{tmp_path / 'native_claims_core.sqlite3'}"
+
+    @http.get("/manual-claims", access=jwt_access)
+    async def manual_claims(caller: Caller[None]) -> dict[str, Any]:
+        return {"id": caller.id, "claims": dict(caller.claims)}
+
+    app = Hinoki(include=[manual_claims], modules=[DatabaseModule(db_url)])
+    pipeline = Pipeline(app)
+    assert native_handler_eligible(pipeline.bindings[0])
+    server_core = build_server_core(pipeline)
+    server_core.set_ready(True)
+    auth_header = make_jwt({"sub": "alice", "tenant_id": "acme"})["authorization"]
+    _submission = server_core.submit(
+        "GET", "/manual-claims", b"", [(b"authorization", auth_header.encode())]
+    )
+    [prepared] = server_core.drain(1)
+    assert prepared.native_handler is True
+    assert prepared.native_principal is not None
+    subject, scopes, claims = prepared.native_principal
+    assert subject == "alice"
+    assert scopes == ["invoices:use"]
+    assert claims["tenant_id"] == "acme"
+
+
+async def test_kiso_native_handler_lane_preserves_caller_claims_and_row_scope(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "kiso_manual_claims.sqlite3"
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+    url = f"sqlite://{db_path}"
+    plan([PlainTag], mig_dir, "initial", dialect="sqlite")
+    db = await Database.connect(url, max_size=1, wait=1)
+    try:
+        await migrator.apply(db, mig_dir)
+        with use_database(db):
+            await PlainTag.acreate(tenant_id="acme", name="acme-only")
+            await PlainTag.acreate(tenant_id="globex", name="globex-only")
+    finally:
+        db.close()
+
+    @http.get("/manual-scoped-tags", access=jwt_access)
+    async def manual_scoped_tags(caller: Caller[None]) -> dict[str, Any]:
+        rows = await plain_tag_scope.for_caller(caller).order_by("name")
+        return {
+            "tenant_id": caller.claims.get("tenant_id"),
+            "names": [row.name for row in rows],
+        }
+
+    app = Hinoki(include=[manual_scoped_tags], modules=[DatabaseModule(url)])
+    pipeline = Pipeline(app)
+    assert native_handler_eligible(pipeline.bindings[0])
+
+    alice_jwt = make_jwt({"sub": "alice", "tenant_id": "acme"})
+    missing_jwt = make_jwt({"sub": "alice"})
+
+    async with ASGIClient(app) as client:
+        ok_asgi = await client.get("/manual-scoped-tags", headers=alice_jwt)
+        assert ok_asgi.status == 200
+        assert ok_asgi.body == {"tenant_id": "acme", "names": ["acme-only"]}
+        assert (
+            await client.get("/manual-scoped-tags", headers=missing_jwt)
+        ).status == 403
+
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    await worker.start()
+    try:
+        port = worker.address[1]
+        status, body = await _kiso_http(
+            port, "GET", "/manual-scoped-tags", headers=alice_jwt
+        )
+        assert status == 200
+        assert json.loads(body) == {"tenant_id": "acme", "names": ["acme-only"]}
+        miss_status, _ = await _kiso_http(
+            port, "GET", "/manual-scoped-tags", headers=missing_jwt
+        )
+        assert miss_status == 403
+    finally:
+        await worker.stop()
+
+
+async def _scoped_crud_kiso_scenario(
+    url: str, *, native: bool, acme_tag_id: str, globex_tag_id: str
+) -> tuple[list[tuple[str, int, str]], int]:
+    app = Hinoki(include=[JwtScopedInvoices], modules=[DatabaseModule(url)])
+    worker = KisoWorker(app, "127.0.0.1", 0)
+    await worker.start()
+    python_requests = 0
+    try:
+        port = worker.address[1]
+        if not native:
+            worker.core._disarm_crud_plans()
+        serve = worker._serve
+
+        async def counting(request: Any) -> Any:
+            nonlocal python_requests
+            python_requests += 1
+            return await serve(request)
+
+        worker._serve = counting  # type: ignore[method-assign]
+        callers = {
+            "alice": make_jwt({"sub": "alice", "tenant_id": "acme"}),
+            "aaron": make_jwt({"sub": "aaron", "tenant_id": "acme"}),
+            "bob": make_jwt({"sub": "bob", "tenant_id": "globex"}),
+        }
+        bad_claims = (
+            ("missing", make_jwt({"sub": "alice"})),
+            ("empty", make_jwt({"sub": "alice", "tenant_id": ""})),
+            ("wrong_type", make_jwt({"sub": "alice", "tenant_id": 123})),
+        )
+        alice, aaron, bob = callers["alice"], callers["aaron"], callers["bob"]
+
+        row_id = ""
+        log: list[tuple[str, int, str]] = []
+
+        async def call(
+            label: str,
+            method: str,
+            target: str,
+            headers: dict[str, str],
+            payload: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            resolved = target.replace("<id>", row_id)
+            raw_body = json.dumps(payload).encode() if payload is not None else b""
+            status, content = await _kiso_http(
+                port, method, resolved, headers=headers, body=raw_body
+            )
+            text = re.sub(
+                rb'"request_id":"[0-9a-f]+"', b'"request_id":""', content
+            ).decode()
+            if row_id:
+                text = text.replace(row_id, "<id>")
+            log.append((label, status, text))
+            return json.loads(content) if content else {}
+
+        for tag_label, bad_headers in bad_claims:
+            await call(f"list_{tag_label}", "GET", "/jwt-scoped", bad_headers)
+            await call(
+                f"create_{tag_label}",
+                "POST",
+                "/jwt-scoped",
+                bad_headers,
+                {"title": "denied", "tag_ids": [acme_tag_id]},
+            )
+
+        created = await call(
+            "alice_create",
+            "POST",
+            "/jwt-scoped",
+            alice,
+            {"title": "Kiso Scoped", "tag_ids": [acme_tag_id]},
+        )
+        row_id = str(created["id"])
+        # Normalize create log entry with `<id>` substituted now that row_id is known.
+        label, status, raw_text = log[-1]
+        log[-1] = (label, status, raw_text.replace(row_id, "<id>"))
+
+        steps = (
+            ("alice_list", "GET", "/jwt-scoped", alice, None),
+            ("bob_list", "GET", "/jwt-scoped", bob, None),
+            ("alice_retrieve", "GET", "/jwt-scoped/<id>", alice, None),
+            ("bob_retrieve", "GET", "/jwt-scoped/<id>", bob, None),
+            ("aaron_retrieve", "GET", "/jwt-scoped/<id>", aaron, None),
+            (
+                "alice_bad_tag",
+                "PATCH",
+                "/jwt-scoped/<id>",
+                alice,
+                {"tag_ids": [globex_tag_id]},
+            ),
+            ("aaron_patch", "PATCH", "/jwt-scoped/<id>", aaron, {"title": "hijack"}),
+            ("bob_patch", "PATCH", "/jwt-scoped/<id>", bob, {"title": "hijack"}),
+            (
+                "alice_patch",
+                "PATCH",
+                "/jwt-scoped/<id>",
+                alice,
+                {"title": "Updated Scoped"},
+            ),
+            ("aaron_delete", "DELETE", "/jwt-scoped/<id>", aaron, None),
+            ("bob_delete", "DELETE", "/jwt-scoped/<id>", bob, None),
+            ("alice_delete", "DELETE", "/jwt-scoped/<id>", alice, None),
+            ("after_delete", "GET", "/jwt-scoped/<id>", alice, None),
+        )
+        for step_label, method, target, headers, payload in steps:
+            await call(step_label, method, target, headers, payload)
+    finally:
+        await worker.stop()
+    return log, python_requests
+
+
+async def test_kiso_scoped_crud_native_vs_python_parity(tmp_path: Path) -> None:
+    logs: list[list[tuple[str, int, str]]] = []
+    python_counts: list[int] = []
+    for native in (True, False):
+        db_path = tmp_path / f"kiso_parity_{native}.sqlite3"
+        url = f"sqlite://{db_path}"
+        database = await Database.connect(url, max_size=1, wait=1)
+        models: tuple[type[Model], ...] = (
+            PlainTag,
+            PlainInvoice,
+            *PlainInvoice.__bridges__,
+        )
+        try:
+            for model in models:
+                await database.execute(f"DROP TABLE IF EXISTS {model.__table__}")
+                await database.execute(
+                    create_table_sql(model.__table__, table_state(model), "sqlite")
+                )
+            with use_database(database):
+                acme_tag = await PlainTag.acreate(
+                    id=UUID(int=1), tenant_id="acme", name="a"
+                )
+                globex_tag = await PlainTag.acreate(
+                    id=UUID(int=2), tenant_id="globex", name="g"
+                )
+        finally:
+            database.close()
+        log, py_count = await _scoped_crud_kiso_scenario(
+            url,
+            native=native,
+            acme_tag_id=str(acme_tag.id),
+            globex_tag_id=str(globex_tag.id),
+        )
+        logs.append(log)
+        python_counts.append(py_count)
+
+    native_log, python_log = logs
+    assert native_log == python_log
+    assert python_counts[0] == 0
+    assert python_counts[1] == len(native_log)
