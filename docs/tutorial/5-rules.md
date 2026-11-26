@@ -5,7 +5,7 @@ related:
   - patterns.md
 ---
 
-# 5. Rules
+# 6. Rules
 
 Rules turn the project's promises into checks. A failure names the rule, the
 file and the line.
@@ -103,4 +103,4 @@ carries one.
 - Each failure has a stable id, a location and a fix.
 - Exceptions are explicit, owned waivers.
 
-Next: [6. Run and test it](6-run.md).
+Next: [7. Run and test it](6-run.md).

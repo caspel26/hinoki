@@ -6,7 +6,7 @@ related:
   - transactions.md
 ---
 
-# 4. Endpoints
+# 3. Endpoints
 
 The HTTP layer maps requests to operations and results to responses. It holds
 no business rule and no SQL.
@@ -134,12 +134,16 @@ the class is declared and raises `RegistrationError` otherwise. For a resource
 that mixes public and protected actions, annotate `Caller[Member] | None`. See
 [hooks](../crud.md#hooks-in-the-class-form) in the CRUD guide.
 
-The project's `GET /health` is a plain function in `tracker/routes.py`, public
-on purpose, and it answers a `Schema` like every other action:
+The project's `tracker/routes.py` defines the public `GET /health` check and
+mounts each exposed app explicitly with `Mount(...)`:
 
 ```python
 # tracker/routes.py
-from hinoki import Includable, Schema, http
+from hinoki import Includable, Mount, Schema, http
+
+from .apps.activity.api import routes as activity_routes
+from .apps.members.api import routes as members_routes
+from .apps.tasks.api import routes as tasks_routes
 
 
 class Health(Schema):
@@ -147,11 +151,16 @@ class Health(Schema):
 
 
 @http.get("/health")
-def health() -> Health:
+async def health() -> Health:
     return Health(status="ok")
 
 
-routes: list[Includable] = [health]
+routes: list[Includable] = [
+    health,
+    Mount("/members", members_routes),
+    Mount("/tasks", tasks_routes),
+    Mount("/activity", activity_routes),
+]
 ```
 
 - **`@crud(...)`** generates the list, retrieve, create and delete actions with
@@ -230,4 +239,4 @@ default `/<app name>`), which is why `path=""` above repeats nothing
 - Handlers call operations and convert rows with `from_model`.
 - Every error an action raises is declared.
 
-Next: [5. Rules](5-rules.md). In the guides: [function-based APIs](../function-endpoints.md) and [class-based APIs](../class-endpoints.md).
+Next: [4. Implement a business rule](3-operations.md). In the guides: [function-based APIs](../function-endpoints.md) and [class-based APIs](../class-endpoints.md).

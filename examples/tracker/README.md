@@ -11,7 +11,7 @@ admin: Blog adds those.
 
 | # | File | What to see |
 | --- | --- | --- |
-| 1 | [`hinoki.toml`](hinoki.toml) | The whole wiring. `[project]` lists the application, the project routes, the middleware and the rule sets (lines 1-5). Each `[[apps]]` names its models, migrations and routes; `requires` fixes the order (lines 12, 19 and 27) and `events` registers the handlers of `activity` (line 26) |
+| 1 | [`hinoki.toml`](hinoki.toml) | App registration and project-wide wiring: `[project]` lists the application, the project route map, the middleware and the rule sets (lines 1-5); each `[[apps]]` registers its models and migrations, `requires` fixes the order (lines 11, 17 and 24) and `events` registers the handlers of `activity` (line 23). [`tracker/routes.py`](tracker/routes.py) mounts the three apps explicitly with `Mount(...)` |
 | 2 | [`tracker/apps/members/security.py`](tracker/apps/members/security.py) | `MemberTokens` resolves a bearer token to a `Member` by the SHA-256 digest of the token, which is all the table stores (line 19); the reusable `member_only` access policy (line 29) |
 | 3 | [`tracker/apps/tasks/models.py`](tracker/apps/tasks/models.py) | `Task` belongs to a `Member` through a foreign key (lines 12-24) |
 | 4 | [`tracker/apps/tasks/schemas.py`](tracker/apps/tasks/schemas.py) | The request body `TaskIn` (line 10) and the response `TaskOut` derived from the model without the owner (line 18) |

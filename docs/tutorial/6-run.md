@@ -6,7 +6,7 @@ related:
   - testing.md
 ---
 
-# 6. Run and test it
+# 7. Run and test it
 
 ## Settings
 
@@ -54,8 +54,7 @@ What the manifest ([the index](index.md#the-trackers-shape)) supplies:
 
 | `hinoki.toml` | What `Hinoki()` loads |
 | --- | --- |
-| `[project] routes` | `tracker/routes.py`: `GET /health` |
-| `[[apps]] routes` | each app's routes, at `/<app name>` |
+| `[project] routes` | `tracker/routes.py`: `GET /health` and explicit `Mount(...)` entries for `members`, `tasks` and `activity` |
 | `[[apps]] events` | the handlers of `activity` |
 | `[project] middleware` | `ApiVersion`, which adds `x-tracker-version` to every answer of a matched route |
 | `[project] rules` | `policy` and `layers`, checked at startup and by `hinoki check` |
@@ -203,4 +202,4 @@ error it did not declare. For tests without `async`, use `SyncClient`. See
 - `hinoki dev` serves with reload; migrations stay a separate step.
 - Test operations directly and the stack with `ASGIClient`.
 
-Next: [7. Validate input](7-validation.md).
+Next: [8. Validate input](7-validation.md).

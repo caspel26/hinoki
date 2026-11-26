@@ -266,7 +266,7 @@ async def stats() -> NoteStats:
     return NoteStats(total=await Note.all().acount())
 ```
 
-`routes.py` lists the generated `crud(...)` value and `stats`; `main.py` does not change. The app's routes are mounted at its `prefix`, `/notes` here.
+`notes/apps/notes/routes.py` lists the generated `crud(...)` value and `stats`, and `notes/routes.py` mounts them at `/notes` with `Mount("/notes", ...)`; `main.py` does not change.
 
 ```console
 $ hinoki routes
@@ -288,7 +288,7 @@ The list accepts `?title=...`, `?search=...` and `?ordering=title` from the `Fil
 | **Contracts** | `Schema` input and output, access policies, `atomic` writes and declared errors drive validation, the OpenAPI document and the test client. Generated lists take client filters, ordering and search from a `FilterSet`. |
 | **Rules** | `hinoki check` has twelve built-in rules: access, permissions, return types, pagination, transactions, model responses, exposed fields, string limits, pinned tables, foreign-key indexes, import direction and, when you list it, email templates that match their context. A new project turns on eight. Each finding names a file, a line and a fix; a waiver needs an owner and a reason. |
 | **Data** | SQLite, PostgreSQL, MySQL and MariaDB, explicit relation loading, and SQL migration files you review. Importing an app never connects to a database. |
-| **Tools** | Typed settings, generated CRUD, typed events, project-wide middleware, a CLI, MCP servers for the application and for development, `hinoki llms` / `llms.txt` and `AGENTS.md` support for AI agents, and an optional admin. |
+| **Tools** | Typed settings, generated CRUD, typed events, project-wide middleware, a CLI, MCP servers for the application and for development, `hinoki llms` / `llms.txt` and `AGENTS.md` support for AI agents, and a built-in admin. |
 
 ## Examples
 
