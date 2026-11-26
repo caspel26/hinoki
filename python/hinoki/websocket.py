@@ -157,12 +157,21 @@ class WebSocket:
 
     async def send_json(self, value: object) -> None:
         """Send ``value`` as a JSON text message. With ``reply=`` on the route a
-        ``dict`` is validated into that ``Schema`` first."""
-        if self.reply is not None and not isinstance(value, self.reply):
-            value = self.reply.validate(value)
+        ``dict`` is validated into that ``Schema`` first, and an instance of a
+        subclass of it is sent with the fields of ``reply`` only."""
+        reply = self.reply
+        if reply is not None and type(value) is not reply:
+            value = self._as_reply(reply, value)
         await self.send_text(
             core.encode_json(encode(value), None, False, None).decode()
         )
+
+    @staticmethod
+    def _as_reply(reply: type[Schema], value: object) -> object:
+        if not isinstance(value, reply):
+            return reply.validate(value)
+        narrowed = core.dump_as(value, reply)
+        return value.dump(include=reply.specs()) if narrowed is None else narrowed
 
     async def close(self, code: int = CloseCode.NORMAL, reason: str = "") -> None:
         """Close after the messages already queued. ``ValueError`` for a code that
