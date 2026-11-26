@@ -13,6 +13,16 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 Removed the deprecated `hinoki.Reply` top-level alias and the `hinoki.reply` compatibility module. Import `Response` (`hinoki.Response`, `hinoki.http.Response`, or `hinoki.http.response.Response`) and `ResponseHeaders` / `set_cookie` / `encode_header` from `hinoki.http.response` instead.
 
+#### 🧹 Remove legacy `Schema(..., model=...)` class keyword
+> `python/hinoki/schema/base.py`, `python/hinoki/schema/meta.py`, `python/hinoki/schema/decorators.py`, `python/hinoki/derive.py`, `docs/model-schemas.md`, `docs/schema-validation.md`
+
+Removed the legacy `class Out(Schema, model=Model)` class keyword and `@derive(...)` without a model argument (`TypeError`). Use `@derive(Model, only=(...))` (or `@derive(Model)`) instead.
+
+#### 🧹 Remove implicit `Model → Schema` HTTP response conversion
+> `python/hinoki/runtime/pipeline.py`, `docs/model-schemas.md`, `docs/endpoints.md`
+
+Handlers annotated with a `Schema` return type no longer implicitly convert a returned `Model` via `from_model()`; returning a `Model` now fails the response contract check with `500 internal_error` (`ResponseContractError`, rolling back `atomic=True` transactions before the HTTP response). Convert explicitly with `Out.from_model(row)` or an ORM projection (`QuerySet.aproject`, `apaginate_as`, generated CRUD).
+
 ### ✨ New Features
 
 #### ✂️ Uniform `crud(..., omit=...)` and removal of `replaces=`
