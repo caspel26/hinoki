@@ -1943,4 +1943,512 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn fast_string_int_and_float_writers_match_serde_json_byte_for_byte() {
+        let mut all_ctrl = String::new();
+        for b in 0u8..=0x1f {
+            all_ctrl.push(b as char);
+        }
+        let texts = [
+            "".to_owned(),
+            "plain ascii / slash \x7f del".to_owned(),
+            "\"quoted\" and \\backslashed\\".to_owned(),
+            all_ctrl,
+            "café 日本語 🚀".to_owned(),
+        ];
+        for text in &texts {
+            let mut actual = Vec::new();
+            super::write_json(&mut actual, text).unwrap();
+            let expected = serde_json::to_vec(text).unwrap();
+            assert_eq!(actual, expected, "text={text:?}");
+
+            let actual_key = super::encode_quoted_key(text);
+            let mut expected_key = expected;
+            expected_key.push(b':');
+            assert_eq!(actual_key.as_ref(), expected_key.as_slice());
+        }
+
+        // Exercise SWAR 8-byte chunks + tail with escape at every offset 0..=17.
+        for offset in 0..=17 {
+            let mut s = "abcdefgh0123456789".to_owned();
+            s.insert(offset, '\\');
+            let mut actual = Vec::new();
+            super::write_json(&mut actual, &s).unwrap();
+            assert_eq!(actual, serde_json::to_vec(&s).unwrap(), "offset={offset}");
+        }
+
+        for n in [0i64, 1, -1, 42, -42, i64::MIN, i64::MAX] {
+            let mut actual = Vec::new();
+            super::write_i64(&mut actual, n);
+            assert_eq!(actual, serde_json::to_vec(&n).unwrap());
+        }
+        for n in [0u64, 1, 20, 1000, u64::MAX] {
+            let mut actual = Vec::new();
+            super::write_u64(&mut actual, n);
+            assert_eq!(actual, serde_json::to_vec(&n).unwrap());
+        }
+
+        for f in [0.0f64, -0.0, 1.0, -12.375, 1e25, 1e-12] {
+            let mut actual = Vec::new();
+            super::write_float(&mut actual, f).unwrap();
+            assert_eq!(actual, serde_json::to_vec(&f).unwrap(), "float={f:?}");
+        }
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut actual = Vec::new();
+            assert!(super::write_float(&mut actual, bad).is_none());
+        }
+    }
+
+    #[test]
+    fn estimate_set_capacity_matches_encoded_articles_and_handles_multi_prefetch_empty_and_cap() {
+        use hinoki_orm::links::KeyKind;
+        use hinoki_orm::RowSet;
+        use std::sync::Arc;
+
+        let cols: Arc<[String]> = vec![
+            "id".into(),
+            "title".into(),
+            "content".into(),
+            "author__id".into(),
+            "author__name".into(),
+        ]
+        .into();
+        let raw_tags = super::RawPrefetch(
+            "tags".into(),
+            "tags".into(),
+            vec!["id".into(), "label".into()],
+            None,
+            vec![("id".into(), false)],
+            Some((
+                "article_tags".into(),
+                "hinoki_link".into(),
+                "id".into(),
+                "tag_id".into(),
+                "article_id".into(),
+            )),
+            "hinoki_link.article_id".into(),
+            "hinoki_link__0".into(),
+            vec![
+                ("id".into(), "id".into(), "int".into(), false),
+                ("label".into(), "label".into(), "str".into(), false),
+            ],
+            Some(10),
+            "postgres".into(),
+        );
+        let plan = RowPlan::with_relations(
+            cols.to_vec(),
+            vec![
+                ("id".into(), "id".into(), "int".into(), false),
+                ("title".into(), "title\"alias".into(), "str".into(), false),
+                ("content".into(), "content".into(), "str".into(), false),
+                ("author".into(), "author".into(), "nested".into(), false),
+                ("tags".into(), "tags".into(), "prefetch".into(), false),
+            ],
+            vec![(
+                "author".into(),
+                "id".into(),
+                "author__id".into(),
+                vec![
+                    ("author__id".into(), "id".into(), "int".into(), false),
+                    ("author__name".into(), "name".into(), "str".into(), false),
+                ],
+            )],
+            vec![raw_tags],
+            Some("id"),
+            KeyKind::Int,
+        )
+        .unwrap();
+
+        let body = "lorem ipsum dolor sit amet ".repeat(80);
+        let rows: Vec<Vec<Value>> = (1..=20)
+            .map(|i| {
+                vec![
+                    Value::Int(i),
+                    Value::Text(format!("Article {i}")),
+                    Value::Text(body.clone()),
+                    Value::Int(100 + i),
+                    Value::Text("Author Name".into()),
+                ]
+            })
+            .collect();
+        let set = RowSet {
+            columns: Arc::clone(&cols),
+            rows,
+        };
+        let child_cols: Arc<[String]> =
+            vec!["id".into(), "label".into(), "hinoki_link__0".into()].into();
+        let child_rows: Vec<Vec<Value>> = (1..=20)
+            .flat_map(|owner| {
+                [
+                    vec![
+                        Value::Int(owner * 10),
+                        Value::Text(format!("tag-a-{owner}")),
+                        Value::Int(owner),
+                    ],
+                    vec![
+                        Value::Int(owner * 10 + 1),
+                        Value::Text(format!("tag-b-{owner}")),
+                        Value::Int(owner),
+                    ],
+                ]
+            })
+            .collect();
+        let child_set = RowSet {
+            columns: child_cols,
+            rows: child_rows,
+        };
+        let multi_slot =
+            super::group_prefetch_rows(&plan.prefetches()[0], KeyKind::Int, &child_set).unwrap();
+        assert!(matches!(multi_slot, super::PrefetchSlot::Multi(_)));
+        let prefetched = [multi_slot];
+
+        let cap = super::estimate_set_capacity(&set, &plan, &prefetched, 96);
+        let encoded =
+            super::encode_page_set_with_prefetches(&set, &plan, &prefetched, (1, 20, 200)).unwrap();
+        assert!(
+            cap >= encoded.len(),
+            "estimated capacity {cap} < encoded len {}",
+            encoded.len()
+        );
+        let text = std::str::from_utf8(&encoded).unwrap();
+        assert!(
+            text.contains(r#""tags":[{"id":10,"label":"tag-a-1"},{"id":11,"label":"tag-b-1"}]"#)
+        );
+        assert!(text
+            .contains(r#""tags":[{"id":200,"label":"tag-a-20"},{"id":201,"label":"tag-b-20"}]"#));
+
+        // Single-owner detail item with the exact same RowSet, plan, and PrefetchSlot::Single.
+        let one_set = RowSet {
+            columns: Arc::clone(&cols),
+            rows: vec![set.rows[0].clone()],
+        };
+        let one_child = RowSet {
+            columns: child_set.columns.clone(),
+            rows: child_set.rows[..2].to_vec(),
+        };
+        let single_slot = super::group_prefetch_rows_single(
+            &plan.prefetches()[0],
+            KeyKind::Int,
+            hinoki_orm::links::Canon::Int(1),
+            &one_child,
+        )
+        .unwrap();
+        assert!(matches!(single_slot, super::PrefetchSlot::Single { .. }));
+        let one_prefetched = [single_slot];
+        let one_cap = super::estimate_set_capacity(&one_set, &plan, &one_prefetched, 32);
+        let one_encoded =
+            super::encode_item_set_with_prefetches(&one_set, &plan, &one_prefetched).unwrap();
+        assert!(one_cap >= one_encoded.len());
+
+        assert_eq!(
+            super::encode_page_set_with_prefetches(
+                &RowSet {
+                    columns: Arc::clone(&cols),
+                    rows: vec![],
+                },
+                &plan,
+                &[],
+                (1, 20, 0),
+            )
+            .unwrap(),
+            br#"{"items":[],"page":1,"page_size":20,"total":0,"pages":0}"#
+        );
+
+        let huge_set = RowSet {
+            columns: Arc::clone(&cols),
+            rows: vec![vec![
+                Value::Int(1),
+                Value::Text("t".into()),
+                Value::Text("a".repeat(super::MAX_INITIAL_CAPACITY + 1024)),
+                Value::Int(101),
+                Value::Text("Author Name".into()),
+            ]],
+        };
+        assert_eq!(
+            super::estimate_set_capacity(&huge_set, &plan, &[], 96),
+            super::MAX_INITIAL_CAPACITY
+        );
+    }
+
+    #[test]
+    fn estimate_and_direct_writers_cover_uuid_timestamp_decimal_date_bytes_and_single_fallback() {
+        use hinoki_orm::links::KeyKind;
+        use hinoki_orm::RowSet;
+        use std::sync::Arc;
+
+        let cols: Arc<[String]> = vec![
+            "id".into(),
+            "created".into(),
+            "amount".into(),
+            "born".into(),
+            "blob".into(),
+        ]
+        .into();
+        let plan = RowPlan::new(
+            cols.to_vec(),
+            vec![
+                ("id".into(), "id".into(), "uuid".into(), false),
+                ("created".into(), "created".into(), "datetime".into(), false),
+                ("amount".into(), "amount".into(), "decimal".into(), false),
+                ("born".into(), "born".into(), "date".into(), false),
+                ("blob".into(), "blob".into(), "bytes".into(), false),
+            ],
+        )
+        .unwrap();
+
+        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let ts = datetime!(2026-11-26 10:30:00 UTC);
+        let blob = vec![0xde, 0xad, 0xbe, 0xef, 0x01, 0x02, 0x03];
+        let set = RowSet {
+            columns: Arc::clone(&cols),
+            rows: vec![vec![
+                Value::Uuid(id),
+                Value::Timestamp(ts),
+                Value::Text("-0012.340".into()),
+                Value::Text("2026-11-26".into()),
+                Value::Bytes(blob),
+            ]],
+        };
+        let cap = super::estimate_set_capacity(&set, &plan, &[], 96);
+        let encoded = super::encode_page_set_with_prefetches(&set, &plan, &[], (1, 10, 1)).unwrap();
+        assert!(
+            cap >= encoded.len(),
+            "cap {cap} < encoded {}",
+            encoded.len()
+        );
+        let text = std::str::from_utf8(&encoded).unwrap();
+        assert!(text.contains(r#""id":"550e8400-e29b-41d4-a716-446655440000""#));
+        assert!(text.contains(r#""amount":"-12.340""#));
+        assert!(text.contains(r#""born":"2026-11-26""#));
+        assert!(text.contains(r#""blob":"3q2+7wECAw==""#));
+
+        // group_prefetch_rows_single falls back to Multi when encountering a different owner.
+        let pf_plan = RowPlan::with_relations(
+            vec!["id".into()],
+            vec![
+                ("id".into(), "id".into(), "int".into(), false),
+                ("tags".into(), "tags".into(), "prefetch".into(), false),
+            ],
+            vec![],
+            vec![super::RawPrefetch(
+                "tags".into(),
+                "tags".into(),
+                vec!["id".into(), "label".into()],
+                None,
+                vec![("id".into(), false)],
+                Some((
+                    "article_tags".into(),
+                    "hinoki_link".into(),
+                    "id".into(),
+                    "tag_id".into(),
+                    "article_id".into(),
+                )),
+                "hinoki_link.article_id".into(),
+                "hinoki_link__0".into(),
+                vec![
+                    ("id".into(), "id".into(), "int".into(), false),
+                    ("label".into(), "label".into(), "str".into(), false),
+                ],
+                None,
+                "postgres".into(),
+            )],
+            Some("id"),
+            KeyKind::Int,
+        )
+        .unwrap();
+        let mixed = RowSet {
+            columns: Arc::from(vec![
+                "id".to_owned(),
+                "label".to_owned(),
+                "hinoki_link__0".to_owned(),
+            ]),
+            rows: vec![
+                vec![Value::Int(1), Value::Text("a".into()), Value::Int(1)],
+                vec![Value::Int(2), Value::Text("b".into()), Value::Int(2)],
+            ],
+        };
+        let slot = super::group_prefetch_rows_single(
+            &pf_plan.prefetches()[0],
+            KeyKind::Int,
+            hinoki_orm::links::Canon::Int(1),
+            &mixed,
+        )
+        .unwrap();
+        assert!(matches!(slot, super::PrefetchSlot::Multi(_)));
+    }
+
+    #[test]
+    fn estimate_set_capacity_ignores_unprojected_heavy_text_columns() {
+        use hinoki_orm::RowSet;
+        use std::sync::Arc;
+
+        let cols: Arc<[String]> =
+            vec!["id".into(), "title".into(), "heavy_omitted_blob".into()].into();
+        let plan = RowPlan::new(
+            cols.to_vec(),
+            vec![
+                ("id".into(), "id".into(), "int".into(), false),
+                ("title".into(), "title".into(), "str".into(), false),
+            ],
+        )
+        .unwrap();
+        let heavy = "x".repeat(128 * 1024);
+        let rows: Vec<Vec<Value>> = (1..=10)
+            .map(|i| {
+                vec![
+                    Value::Int(i),
+                    Value::Text(format!("Title {i}")),
+                    Value::Text(heavy.clone()),
+                ]
+            })
+            .collect();
+        let set = RowSet {
+            columns: cols,
+            rows,
+        };
+        let cap = super::estimate_set_capacity(&set, &plan, &[], 96);
+        let encoded =
+            super::encode_page_set_with_prefetches(&set, &plan, &[], (1, 10, 10)).unwrap();
+        assert!(
+            cap >= encoded.len(),
+            "cap {cap} < encoded {}",
+            encoded.len()
+        );
+        assert!(
+            cap < 4096,
+            "narrow projection over-allocated {cap} bytes for omitted heavy column"
+        );
+    }
+
+    #[test]
+    fn encodes_empty_bytes_as_empty_json_string_matching_serde_json() {
+        let field = super::Field {
+            column_index: 0,
+            quoted_key: super::encode_quoted_key("raw"),
+            kind: super::Kind::Bytes,
+            nullable: false,
+            slot: 0,
+            name: "raw".into(),
+        };
+        let mut actual = Vec::new();
+        super::write_value(&mut actual, &Value::Bytes(vec![]), &field).unwrap();
+        assert_eq!(actual, serde_json::to_vec("").unwrap());
+        assert_eq!(actual, br#""""#);
+
+        let plan = RowPlan::new(
+            vec!["raw".into()],
+            vec![("raw".into(), "raw".into(), "bytes".into(), false)],
+        )
+        .unwrap();
+        let row = vec![("raw".into(), Value::Bytes(vec![]))];
+        let encoded = encode_item_with(&row, &plan, &RowIds::default()).unwrap();
+        let expected = serde_json::to_vec(&serde_json::json!({ "raw": "" })).unwrap();
+        assert_eq!(encoded, expected);
+    }
+
+    #[test]
+    fn estimate_rows_capacity_covers_page_cursor_and_item_encodings() {
+        let plan = RowPlan::new(
+            vec!["id".into(), "name".into(), "payload".into(), "note".into()],
+            vec![
+                ("id".into(), "id".into(), "int".into(), false),
+                ("name".into(), "name".into(), "str".into(), false),
+                ("payload".into(), "payload".into(), "bytes".into(), false),
+                ("note".into(), "note".into(), "str".into(), true),
+            ],
+        )
+        .unwrap();
+        let rows = vec![
+            vec![
+                ("id".into(), Value::Int(42)),
+                ("name".into(), Value::Text("Hinoki row".into())),
+                ("payload".into(), Value::Bytes(vec![0, 1, 2, 255, 128])),
+                ("note".into(), Value::Null),
+            ],
+            vec![
+                ("id".into(), Value::Int(99)),
+                ("name".into(), Value::Text("Second item".into())),
+                ("payload".into(), Value::Bytes(vec![10; 32])),
+                ("note".into(), Value::Text("optional note".into())),
+            ],
+        ];
+
+        let page_encoded =
+            super::encode_page_full(&rows, &plan, &RowIds::default(), &[], (1, 10, 2)).unwrap();
+        let page_cap = super::estimate_rows_capacity(&rows, &plan, &[], 96);
+        assert!(
+            page_cap >= page_encoded.len(),
+            "page_cap {page_cap} < page_encoded {}",
+            page_encoded.len()
+        );
+
+        let links = crate::cursor::Links {
+            next: Some("next_cursor_token".into()),
+            previous: Some("prev_cursor_token".into()),
+        };
+        let link_bytes = links.next.as_deref().map_or(4, |s| s.len() + 2)
+            + links.previous.as_deref().map_or(4, |s| s.len() + 2);
+        let cursor_encoded = super::encode_cursor_page(&rows, &plan, &links, 10).unwrap();
+        let cursor_cap =
+            super::estimate_rows_capacity(&rows, &plan, &[], 64usize.saturating_add(link_bytes));
+        assert!(
+            cursor_cap >= cursor_encoded.len(),
+            "cursor_cap {cursor_cap} < cursor_encoded {}",
+            cursor_encoded.len()
+        );
+
+        let item_encoded = encode_item_with(&rows[0], &plan, &RowIds::default()).unwrap();
+        let item_cap = super::estimate_rows_capacity(&rows[..1], &plan, &[], 32);
+        assert!(
+            item_cap >= item_encoded.len(),
+            "item_cap {item_cap} < item_encoded {}",
+            item_encoded.len()
+        );
+    }
+
+    #[test]
+    fn encode_item_set_with_prefetches_estimates_only_first_row() {
+        use hinoki_orm::RowSet;
+        use std::sync::Arc;
+
+        let cols: Arc<[String]> = vec!["id".into(), "title".into()].into();
+        let plan = RowPlan::new(
+            cols.to_vec(),
+            vec![
+                ("id".into(), "id".into(), "int".into(), false),
+                ("title".into(), "title".into(), "str".into(), false),
+            ],
+        )
+        .unwrap();
+        let heavy = "x".repeat(128 * 1024);
+        let mut rows = vec![vec![Value::Int(1), Value::Text("First".into())]];
+        for i in 2..=10 {
+            rows.push(vec![Value::Int(i), Value::Text(heavy.clone())]);
+        }
+        let multi_row_set = RowSet {
+            columns: Arc::clone(&cols),
+            rows,
+        };
+        let single_row_set = RowSet {
+            columns: cols,
+            rows: vec![multi_row_set.rows[0].clone()],
+        };
+
+        let cap = super::estimate_single_row_set_capacity(&multi_row_set.rows[0], &plan, &[], 32);
+        let encoded = super::encode_item_set_with_prefetches(&multi_row_set, &plan, &[]).unwrap();
+        let single_encoded =
+            super::encode_item_set_with_prefetches(&single_row_set, &plan, &[]).unwrap();
+        assert!(
+            cap >= encoded.len(),
+            "cap {cap} < encoded {}",
+            encoded.len()
+        );
+        assert!(
+            cap < 4096,
+            "single-row estimate over-allocated {cap} bytes from trailing rows"
+        );
+        assert_eq!(encoded, single_encoded);
+        assert_eq!(encoded, br#"{"id":1,"title":"First"}"#);
+    }
 }
