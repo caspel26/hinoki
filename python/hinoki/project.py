@@ -18,7 +18,7 @@ from hinoki.orm import Model
 from hinoki.orm.migrations import models_of
 from hinoki.orm.model import MARK, FieldMeta
 from hinoki.orm.naming import MIGRATION_LEDGER, table_names_conflict
-from hinoki.routing import Includable, Mount
+from hinoki.routing import Includable
 from hinoki.rules import Rule, RuleSet
 from hinoki.scaffold import NAME, RESERVED_NAMES
 from hinoki.terminal import shown_path
@@ -28,15 +28,18 @@ _MODULE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ProjectApp:
-    """One app's model module, migration package and app dependencies."""
+    """One app's optional persistence modules, event handlers and app dependencies."""
 
     name: str
-    models: str
-    migrations: str
-    requires: tuple[str, ...]
-    routes: str = ""  # ``module:attribute`` of the app's list of routes
-    prefix: str = ""  # where the routes are mounted, ``/<name>`` when empty
+    models: str = ""
+    migrations: str = ""
+    requires: tuple[str, ...] = ()
     events: str = ""  # ``module:attribute`` of the app's ``Handlers``
+
+    @property
+    def has_persistence(self) -> bool:
+        """Whether this app declares models and migrations."""
+        return bool(self.models and self.migrations)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -86,6 +89,10 @@ class ProjectManifest:
                 pending.remove(app.name)
         return tuple(result)
 
+    def persistent_apps(self, selected: str | None = None) -> tuple[ProjectApp, ...]:
+        """Order the full app graph first, then keep only apps with persistence."""
+        return tuple(app for app in self.ordered_apps(selected) if app.has_persistence)
+
     def app(self, name: str | None = None) -> ProjectApp:
         """Resolve one app, requiring a name when the project is modular."""
         if name is None:
@@ -103,6 +110,8 @@ class ProjectManifest:
 
     def migrations_path(self, app: ProjectApp) -> Path:
         """Resolve an app's migration package only when a CLI command needs it."""
+        if not app.has_persistence:
+            raise ProjectError(f"app {app.name!r} has no models or migrations")
         add_project_root(self)
         try:
             module = importlib.import_module(app.migrations)
@@ -120,7 +129,7 @@ class ProjectManifest:
     def migration_directories(self) -> dict[str, Path]:
         """Resolve every registered migration package and reject aliases/overlap."""
         resolved: list[tuple[str, Path]] = []
-        for app in self.ordered_apps():
+        for app in self.persistent_apps():
             try:
                 directory = self.migrations_path(app).resolve(strict=True)
             except (OSError, RuntimeError) as error:
@@ -146,21 +155,15 @@ class ProjectManifest:
         return "" if app.name == root_package else app.name
 
     def route_items(self) -> list[Includable]:
-        """The project's routes, then each app's routes mounted at its prefix.
+        """The project's ``[project] routes`` list, or ``[]`` when omitted.
 
-        Apps follow the dependency order; an app without ``routes`` adds nothing.
-        Importing the route modules is the only effect.
+        App exposure is declared explicitly in the project's ``routes.py`` via
+        ``Mount(...)``. Importing the route module is the only effect.
         """
+        if not self.routes:
+            return []
         add_project_root(self)
-        items: list[Includable] = []
-        if self.routes:
-            items.extend(self._route_list(self.routes, "project"))
-        for app in self.ordered_apps():
-            if app.routes:
-                mine = self._route_list(app.routes, f"app {app.name!r}")
-                if mine:
-                    items.append(Mount(app.prefix or f"/{app.name}", *mine))
-        return items
+        return self._route_list(self.routes, "project")
 
     def event_handlers(self) -> list[Handlers]:
         """Each app's ``Handlers`` in dependency order; an app without ``events``
@@ -245,6 +248,8 @@ class ProjectManifest:
 
     def models(self, app: ProjectApp) -> list[type[Model]]:
         """Load this app's concrete model classes without opening resources."""
+        if not app.has_persistence:
+            raise ProjectError(f"app {app.name!r} has no models or migrations")
         add_project_root(self)
         try:
             return models_of(app.models)
@@ -258,7 +263,7 @@ class ProjectManifest:
         result: dict[str, list[type[Model]]] = {}
         owners: dict[str, str] = {}
         registered: list[tuple[type[Model], str]] = []
-        for app in self.ordered_apps():
+        for app in self.persistent_apps():
             models = self.models(app)
             for model in models:
                 if model.__table_problem__:
@@ -399,7 +404,7 @@ def load_manifest(path: Path | None = None) -> ProjectManifest:
                 f"app {app.name!r} requires unknown app {sorted(unknown)[0]!r}"
             )
     routes = project.get("routes", "")
-    if routes and (not isinstance(routes, str) or not _valid_target(routes)):
+    if not isinstance(routes, str) or (routes and not _valid_target(routes)):
         raise ProjectError("project.routes must be a module:attribute target")
     middleware = _parse_target_list(project, "middleware")
     rules = _parse_target_list(project, "rules")
@@ -448,8 +453,8 @@ def manifest_rules(start: Path | None = None) -> RuleSet:
 
 
 def manifest_routes(start: Path | None = None) -> list[Includable]:
-    """The routes ``hinoki.toml`` declares: the project's, then each app's at its
-    prefix, for ``Hinoki(include=manifest_routes())``.
+    """The routes ``[project] routes`` declares in ``hinoki.toml`` (or ``[]``
+    when omitted).
 
     The manifest is found from ``start``, by default the directory of the calling
     file (the working directory when the caller has no file), upwards. Outside a
@@ -522,24 +527,35 @@ def _parse_app(value: object) -> ProjectApp:
     if not isinstance(value, dict):
         raise ProjectError("each app must be an [[apps]] table")
     name = value.get("name")
-    models = value.get("models")
-    migrations = value.get("migrations")
     requires = value.get("requires", [])
     if not isinstance(name, str) or not NAME.fullmatch(name) or name in RESERVED_NAMES:
         raise ProjectError("app names must be valid lower-case Python package names")
-    if not isinstance(models, str) or not _MODULE.fullmatch(models):
-        raise ProjectError(f"app {name!r} models must be a dotted module name")
-    if not isinstance(migrations, str) or not _MODULE.fullmatch(migrations):
-        raise ProjectError(f"app {name!r} migrations must be a dotted package name")
+    _reject_legacy_app_routing(name, value)
+    models, migrations = _parse_persistence(name, value)
     if not isinstance(requires, list) or any(
         not isinstance(item, str) for item in requires
     ):
         raise ProjectError(f"app {name!r} requires must be a list of app names")
     if len(set(requires)) != len(requires):
         raise ProjectError(f"app {name!r} repeats a dependency")
-    routes, prefix = _parse_app_routes(name, value)
     events = _parse_target(name, value, "events")
-    return ProjectApp(name, models, migrations, tuple(requires), routes, prefix, events)
+    return ProjectApp(name, models, migrations, tuple(requires), events)
+
+
+def _parse_persistence(name: str, value: dict[str, object]) -> tuple[str, str]:
+    models = value.get("models", "")
+    migrations = value.get("migrations", "")
+    if not isinstance(models, str) or (models and not _MODULE.fullmatch(models)):
+        raise ProjectError(f"app {name!r} models must be a dotted module name")
+    if not isinstance(migrations, str) or (
+        migrations and not _MODULE.fullmatch(migrations)
+    ):
+        raise ProjectError(f"app {name!r} migrations must be a dotted package name")
+    if bool(models) != bool(migrations):
+        raise ProjectError(
+            f"app {name!r} must declare both 'models' and 'migrations', or neither"
+        )
+    return models, migrations
 
 
 def _parse_target(name: str, value: dict[str, object], key: str) -> str:
@@ -549,18 +565,40 @@ def _parse_target(name: str, value: dict[str, object], key: str) -> str:
     return target
 
 
-def _parse_app_routes(name: str, value: dict[str, object]) -> tuple[str, str]:
-    routes = value.get("routes", "")
-    prefix = value.get("prefix", "")
-    if not isinstance(routes, str) or (routes and not _valid_target(routes)):
-        raise ProjectError(f"app {name!r} routes must be a module:attribute target")
-    if not isinstance(prefix, str) or (
-        prefix and (not prefix.startswith("/") or prefix.endswith("/"))
-    ):
+def _reject_legacy_app_routing(name: str, value: dict[str, object]) -> None:
+    keys = [key for key in ("routes", "prefix") if key in value]
+    if not keys:
+        return
+    removed = " and ".join(repr(key) for key in keys)
+    raw_routes = value.get("routes")
+    raw_prefix = value.get("prefix")
+    mount_prefix = (
+        raw_prefix
+        if isinstance(raw_prefix, str)
+        and raw_prefix.startswith("/")
+        and not raw_prefix.endswith("/")
+        else f"/{name}"
+    )
+    if isinstance(raw_routes, str) and raw_routes and _valid_target(raw_routes):
+        module_name, _, attribute = raw_routes.partition(":")
+        alias = f"{name}_routes"
         raise ProjectError(
-            f"app {name!r} prefix must start with '/' and not end with one"
+            f"app {name!r} uses removed [[apps]] key(s) {removed}; "
+            "remove them from hinoki.toml and mount the app in your project's "
+            f"routes.py: from {module_name} import {attribute} as {alias}; "
+            f'Mount("{mount_prefix}", {alias})'
         )
-    return str(routes), prefix
+    if "routes" in value:
+        raise ProjectError(
+            f"app {name!r} uses removed [[apps]] key(s) {removed}; "
+            "remove them from hinoki.toml and declare an explicit "
+            f'Mount("{mount_prefix}", ...) in your project\'s routes.py'
+        )
+    raise ProjectError(
+        f"app {name!r} uses removed [[apps]] key {removed}; "
+        "remove it from hinoki.toml and choose the mount prefix with "
+        f'Mount("{mount_prefix}", ...) in your project\'s routes.py'
+    )
 
 
 def add_project_root(manifest: ProjectManifest) -> None:

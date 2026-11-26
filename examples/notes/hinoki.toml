@@ -1,5 +1,6 @@
 [project]
 application = "notes.main:app"
+routes = "notes.routes:routes"
 
 [[apps]]
 name = "notes"

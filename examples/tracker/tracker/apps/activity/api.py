@@ -1,4 +1,4 @@
-"""HTTP layer of the activity app, mounted at ``/activity`` by hinoki.toml."""
+"""HTTP layer of the activity app, mounted at ``/activity`` in ``tracker/routes.py``."""
 
 from hinoki import API, Caller, Includable, crud
 from hinoki.orm import QuerySet

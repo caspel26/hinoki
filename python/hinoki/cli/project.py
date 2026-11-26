@@ -33,21 +33,21 @@ def create_app(
     name: str,
     start: Path | None = None,
     *,
-    prefix: str = "",
     requires: tuple[str, ...] = (),
+    no_models: bool = False,
 ) -> Path:
-    """Create a model/migration package and append it to the project manifest."""
+    """Create an app package and append it to the project manifest."""
     _validate_app_name(name)
     manifest_path = find_manifest(start)
     with _manifest_lock(manifest_path):
-        return _create_app_locked(name, manifest_path, prefix or f"/{name}", requires)
+        return _create_app_locked(name, manifest_path, requires, no_models)
 
 
 def _create_app_locked(
     name: str,
     manifest_path: Path,
-    prefix: str,
     requires: tuple[str, ...],
+    no_models: bool,
 ) -> Path:
     """Re-read and update the manifest while holding its process lock."""
     manifest = load_manifest(manifest_path)
@@ -58,15 +58,20 @@ def _create_app_locked(
     )
     try:
         _write_app_files(
-            name, module_name, prefix, app_directory, apps_directory, made_apps_init
+            name,
+            module_name,
+            app_directory,
+            apps_directory,
+            made_apps_init,
+            no_models,
         )
         _append_app(
             manifest.path,
             manifest.path.read_bytes(),
             name,
             module_name,
-            prefix,
             requires,
+            no_models,
         )
     except OSError as error:
         _remove_app_package(
@@ -201,10 +206,10 @@ def _create_app_package(
 def _write_app_files(
     name: str,
     package: str,
-    prefix: str,
     app_directory: Path,
     apps_directory: Path,
     made_apps_init: bool,
+    no_models: bool,
 ) -> None:
     if made_apps_init:
         (apps_directory / "__init__.py").write_text(
@@ -213,13 +218,15 @@ def _write_app_files(
     (app_directory / "__init__.py").write_text(
         f'"""The {name} project app."""\n', encoding="utf-8"
     )
-    (app_directory / "models.py").write_text(
-        '"""Models owned by this app."""\n', encoding="utf-8"
-    )
     (app_directory / "api.py").write_text(APP_API.format(name=name), encoding="utf-8")
     (app_directory / "routes.py").write_text(
-        APP_ROUTES.format(name=name, package=package, prefix=prefix),
+        APP_ROUTES.format(name=name, package=package),
         encoding="utf-8",
+    )
+    if no_models:
+        return
+    (app_directory / "models.py").write_text(
+        '"""Models owned by this app."""\n', encoding="utf-8"
     )
     migrations_directory = app_directory / "migrations"
     migrations_directory.mkdir()
@@ -245,19 +252,19 @@ def _append_app(
     original: bytes,
     name: str,
     package: str,
-    prefix: str,
     requires: tuple[str, ...],
+    no_models: bool,
 ) -> None:
     module = f"{package}.apps.{name}"
+    models = "" if no_models else f"{module}.models"
+    migrations = "" if no_models else f"{module}.migrations"
     _append_block(
         path,
         original,
         _app_block(
             name,
-            models=f"{module}.models",
-            migrations=f"{module}.migrations",
-            routes=f"{module}.routes:routes",
-            prefix=prefix,
+            models=models,
+            migrations=migrations,
             requires=requires,
         ),
     )
@@ -266,25 +273,21 @@ def _append_app(
 def _app_block(
     name: str,
     *,
-    models: str,
-    migrations: str,
-    routes: str,
-    prefix: str,
-    requires: tuple[str, ...],
+    models: str = "",
+    migrations: str = "",
+    requires: tuple[str, ...] = (),
     events: str = "",
 ) -> str:
     lines = [
         "[[apps]]",
         f"name = {jsontext.toml_value(name)}",
-        f"models = {jsontext.toml_value(models)}",
-        f"migrations = {jsontext.toml_value(migrations)}",
     ]
-    if routes:
-        lines.append(f"routes = {jsontext.toml_value(routes)}")
+    if models:
+        lines.append(f"models = {jsontext.toml_value(models)}")
+    if migrations:
+        lines.append(f"migrations = {jsontext.toml_value(migrations)}")
     if events:
         lines.append(f"events = {jsontext.toml_value(events)}")
-    if prefix:
-        lines.append(f"prefix = {jsontext.toml_value(prefix)}")
     lines.append(f"requires = {jsontext.toml_value(list(requires))}")
     return "\n".join(lines) + "\n"
 
@@ -311,29 +314,30 @@ def _append_block(path: Path, original: bytes, block: str) -> None:
         raise
 
 
-def register_app(  # noqa: PLR0913 - one keyword per manifest key
+def register_app(
     name: str,
     *,
-    models: str,
+    models: str = "",
     migrations: str = "",
-    routes: str = "",
-    prefix: str = "",
     requires: tuple[str, ...] = (),
     events: str = "",
     start: Path | None = None,
 ) -> Path:
     """Register an existing package as an app without creating any file."""
     _validate_app_name(name)
+    if migrations and not models:
+        raise ProjectError("pass --models when --migrations is set")
     manifest_path = find_manifest(start)
     with _manifest_lock(manifest_path):
         manifest = load_manifest(manifest_path)
         _check_duplicate_app(manifest, name)
+        resolved_migrations = migrations or (
+            _sibling_package(models, "migrations") if models else ""
+        )
         block = _app_block(
             name,
             models=models,
-            migrations=migrations or _sibling_package(models, "migrations"),
-            routes=routes,
-            prefix=prefix,
+            migrations=resolved_migrations,
             requires=requires,
             events=events,
         )
@@ -360,7 +364,11 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
     listing.add_argument("--format", choices=("text", "json"), default="text")
     create = actions.add_parser("create", help="create a modular app")
     create.add_argument("name", nargs="?", help="app name (asked for in a terminal)")
-    create.add_argument("--prefix", default=None, help="mount prefix (default: /NAME)")
+    create.add_argument(
+        "--no-models",
+        action="store_true",
+        help="create an API-only app without models.py or migrations/",
+    )
     create.add_argument(
         "--requires", default=None, help="comma-separated apps this one depends on"
     )
@@ -369,17 +377,17 @@ def add_arguments(commands: _SubParsersAction[ArgumentParser]) -> None:
     )
     add = actions.add_parser("add", help="register an existing package as an app")
     add.add_argument("name")
-    add.add_argument("--models", required=True, help="dotted models module")
+    add.add_argument(
+        "--models", default="", help="dotted models module (omit for API-only apps)"
+    )
     add.add_argument(
         "--migrations",
         default="",
         help="dotted migrations package (default: next to the models module)",
     )
-    add.add_argument("--routes", default="", help="module:attribute of the routes")
     add.add_argument(
         "--events", default="", help="module:attribute of the app's Handlers"
     )
-    add.add_argument("--prefix", default="", help="mount prefix (default: /NAME)")
     add.add_argument(
         "--requires", default="", help="comma-separated apps this one depends on"
     )
@@ -404,8 +412,6 @@ def list_apps(args: Namespace) -> int:
                 "name": app.name,
                 "models": app.models,
                 "migrations": app.migrations,
-                "routes": app.routes,
-                "prefix": app.prefix or (f"/{app.name}" if app.routes else ""),
                 "requires": list(app.requires),
                 "events": app.events,
             }
@@ -417,11 +423,14 @@ def list_apps(args: Namespace) -> int:
         print("no apps registered")
         return 0
     for app in apps:
+        persistence = (
+            f"  models: {app.models}\n  migrations: {app.migrations}\n"
+            if app.has_persistence
+            else "  models: none\n"
+        )
         print(
             f"{app.name}\n"
-            f"  models: {app.models}\n"
-            f"  migrations: {app.migrations}\n"
-            f"{_routes_line(app)}"
+            f"{persistence}"
             f"{_events_line(app)}"
             f"  requires: {', '.join(app.requires) or '—'}"
         )
@@ -430,12 +439,6 @@ def list_apps(args: Namespace) -> int:
 
 def _events_line(app: ProjectApp) -> str:
     return f"  events: {app.events}\n" if app.events else ""
-
-
-def _routes_line(app: ProjectApp) -> str:
-    if not app.routes:
-        return ""
-    return f"  routes: {app.routes} at {app.prefix or f'/{app.name}'}\n"
 
 
 def run(args: Namespace) -> int:
@@ -463,10 +466,16 @@ def create_command(args: Namespace) -> int:
         print(style.error(message), file=sys.stderr)
         return 2
     requires = split_requires(args.requires or "")
-    created = create_app(args.name, prefix=args.prefix or "", requires=requires)
-    manifest = find_manifest()
+    no_models = bool(getattr(args, "no_models", False))
+    created = create_app(args.name, requires=requires, no_models=no_models)
+    manifest_path = find_manifest()
     for line in report_app(
-        style, args.name, created, manifest, args.prefix or "", requires
+        style,
+        args.name,
+        created,
+        manifest_path,
+        requires,
+        no_models=no_models,
     ):
         print(line)
     return 0
@@ -478,9 +487,7 @@ def add_app(args: Namespace) -> int:
         args.name,
         models=args.models,
         migrations=args.migrations,
-        routes=args.routes,
         events=args.events,
-        prefix=args.prefix,
         requires=tuple(item for item in args.requires.split(",") if item),
     )
     print(f"registered app {args.name} in {path}")

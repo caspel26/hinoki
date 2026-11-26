@@ -211,7 +211,10 @@ def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
     """Build one focused plan or a read-only preview for every project app."""
     manifest = manifest_for(args)
     if manifest is not None:
-        if args.app is None and len(manifest.apps) > 1 and (args.check or args.dry_run):
+        persistent = manifest.persistent_apps()
+        if args.app is None and not persistent:
+            raise MigrationError("no apps have models or migrations")
+        if args.app is None and len(persistent) > 1 and (args.check or args.dry_run):
             if args.name is not None:
                 raise MigrationError("--name requires --app for a multi-app preview")
             dialect = plan_dialect(args, manifest)
@@ -226,7 +229,7 @@ def migration_plans(args: argparse.Namespace) -> list[tuple[str | None, Plan]]:
                         dialect=dialect,
                     ),
                 )
-                for app in manifest.ordered_apps()
+                for app in persistent
             ]
         return [focused_plan(args, manifest)]
     if not args.models:
@@ -253,13 +256,23 @@ def focused_plan(
     args: argparse.Namespace, manifest: ProjectManifest
 ) -> tuple[str, Plan]:
     """Plan the one selected app; several apps and no name ask for the name."""
-    if args.app is None and len(manifest.apps) > 1:
-        names = ", ".join(app.name for app in manifest.ordered_apps())
-        raise ProjectError(
-            f"this project has multiple apps ({names}); name one with "
-            "`hinoki migrations plan <app>`"
+    if args.app is None:
+        persistent = manifest.persistent_apps()
+        if not persistent:
+            raise MigrationError("no apps have models or migrations")
+        if len(persistent) > 1:
+            names = ", ".join(app.name for app in persistent)
+            raise ProjectError(
+                f"this project has multiple apps ({names}); name one with "
+                "`hinoki migrations plan <app>`"
+            )
+        app = persistent[0]
+        return app.name, plan_project(
+            args, manifest, app.name, dialect=plan_dialect(args, manifest)
         )
     app = manifest.app(args.app)
+    if not app.has_persistence:
+        raise MigrationError(f"app {app.name!r} has no models or migrations")
     return app.name, plan_project(args, manifest, dialect=plan_dialect(args, manifest))
 
 

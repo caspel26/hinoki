@@ -107,6 +107,7 @@ SERVER_OPTIONS = (
 )
 KEY_FILES = (
     ("{name}/main.py", "the application"),
+    ("{name}/routes.py", "route map"),
     ("{name}/api.py", "endpoints"),
     ("{name}/settings.py", "typed settings"),
     ("{name}/rules.py", "architecture rules"),
@@ -435,7 +436,12 @@ def create_first_app(style: Style, target: Path, name: str) -> bool:
         )
         return False
     for line in report_app(
-        style, name, created, target / "hinoki.toml", "", (), next_steps=False
+        style,
+        name,
+        created,
+        target / "hinoki.toml",
+        (),
+        next_steps=False,
     ):
         print(line)
     return True

@@ -21,8 +21,12 @@ from hinoki.terminal import Style, shown_path
 APP_FILES = (
     ("models.py", "tables of the app"),
     ("api.py", "endpoints of the app"),
-    ("routes.py", "routes served, mounted at the prefix"),
+    ("routes.py", "reusable routes of the app"),
     ("migrations/", "migration history"),
+)
+APP_API_ONLY_FILES = (
+    ("api.py", "endpoints of the app"),
+    ("routes.py", "reusable routes of the app"),
 )
 
 
@@ -37,12 +41,6 @@ def name_check(taken: Collection[str]) -> Check:
         return None
 
     return check
-
-
-def prefix_check(prefix: str) -> str | None:
-    if not prefix.startswith("/") or prefix.endswith("/"):
-        return "start with '/' and do not end with one"
-    return None
 
 
 def requires_check(known: Collection[str]) -> Check:
@@ -67,10 +65,6 @@ def fill(args: Namespace, manifest: ProjectManifest, questions: Questions) -> No
             "",
             name_check(known),
             "lower-case letters and digits",
-        )
-    if args.prefix is None:
-        args.prefix = questions.text(
-            "URL prefix", "Prefix", f"/{args.name}", prefix_check
         )
     if args.requires is None:
         args.requires = (
@@ -108,27 +102,38 @@ def report_app(
     name: str,
     created: Path,
     manifest: Path,
-    prefix: str,
     requires: tuple[str, ...],
+    *,
+    no_models: bool = False,
     next_steps: bool = True,
 ) -> list[str]:
     """The lines shown once the app exists.
 
     ``hinoki new`` passes ``next_steps=False`` and shows its own."""
+    package = created.parent.parent.name if created.parent.name == "apps" else ""
+    routes_file = f"{package}/routes.py" if package else "routes.py"
+    import_line = f"from .apps.{name}.routes import routes as {name}_routes"
+    mount_line = f'Mount("/{name}", {name}_routes)'
     if not style.fancy:
         return [
             f"created app {name} at {shown_path(created)}",
             f"registered in {shown_path(manifest)}",
+            f"expose in {routes_file}: {import_line}; {mount_line}",
         ]
-    mounted = f"mounted at {prefix or f'/{name}'}"
+    summary_parts = ["API-only"] if no_models else []
     if requires:
-        mounted += f", requires {', '.join(requires)}"
+        summary_parts.append(f"requires {', '.join(requires)}")
+    detail = ", ".join(summary_parts)
+    heading = f"Created app {style.bold(name)}" + (
+        f"  {style.dim(detail)}" if detail else ""
+    )
+    files = APP_API_ONLY_FILES if no_models else APP_FILES
     lines = [
-        style.ok(f"Created app {style.bold(name)}  {style.dim(mounted)}"),
+        style.ok(heading),
         style.line("rail", style.paint(f"{shown_path(created)}/", "light", bold=True)),
     ]
-    for index, (path, what) in enumerate(APP_FILES):
-        branch = "\u2514\u2500" if index == len(APP_FILES) - 1 else "\u251c\u2500"
+    for index, (path, what) in enumerate(files):
+        branch = "\u2514\u2500" if index == len(files) - 1 else "\u251c\u2500"
         entry = f"{style.dim(branch)} {style.text(f'{path:<14}')}{style.dim(what)}"
         lines.append(style.line("rail", entry))
     registered = style.dim(f"registered app {name}")
@@ -144,10 +149,20 @@ def report_app(
         return lines
     lines += [
         style.line("active", style.bold("Next steps")),
-        style.line(
-            "rail", f"{style.paint('$', 'brand')} uv run hinoki migrations plan"
-        ),
-        style.line("end", style.dim("after adding models to models.py")),
-        "",
+        style.line("rail", style.dim(f"to expose in {routes_file}:")),
+        style.line("rail", f"  {style.text(import_line)}"),
+        style.line("rail", f"  {style.text(mount_line)}"),
     ]
+    if no_models:
+        lines.append(
+            style.line("end", style.dim("API-only app (no models/migrations)"))
+        )
+    else:
+        lines += [
+            style.line(
+                "rail", f"{style.paint('$', 'brand')} uv run hinoki migrations plan"
+            ),
+            style.line("end", style.dim("after adding models to models.py")),
+        ]
+    lines.append("")
     return lines
