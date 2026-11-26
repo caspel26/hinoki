@@ -75,3 +75,23 @@ Model write validation raises `ModelValidationError` from `hinoki.errors`, with 
 ::: hinoki.orm.urlsafe_token
 
 ::: hinoki.orm.uuid7
+
+::: hinoki.orm.current_database
+
+::: hinoki.orm.use_database
+
+::: hinoki.orm.Loading
+
+::: hinoki.orm.Relation
+
+::: hinoki.orm.ManyToMany
+
+::: hinoki.orm.LinkKey
+
+::: hinoki.orm.LinkSet
+
+::: hinoki.orm.LinkChange
+
+::: hinoki.orm.Change
+
+::: hinoki.orm.StatusTrack

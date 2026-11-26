@@ -62,6 +62,8 @@ operations may need backend-specific SQL.
 
 ::: hinoki.db.Atomic
 
+::: hinoki.db.AtomicScope
+
 ::: hinoki.db.DatabaseModule
     options:
       show_if_no_docstring: true
