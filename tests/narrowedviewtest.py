@@ -12,9 +12,10 @@ from typing import Any, TypedDict
 
 import pytest
 
-from hinoki import Hinoki, JSONRenderer, Schema, computed_field
+from hinoki import Hinoki, JSONRenderer, Schema, computed_field, derive
 from hinoki.core import Narrowed
 from hinoki.http.request import Request
+from hinoki.orm import Model, pk
 from hinoki.pagination import Page
 from hinoki.renderers import Renderer
 from hinoki.routing import RouteGroup
@@ -209,6 +210,102 @@ async def test_json_prepare_receives_narrowed_view_for_exact_holder(
     assert renderer.seen == [Narrowed]
     assert SECRET.encode() not in reply.raw
     assert json.loads(reply.raw) == EXPECTED
+
+
+class ViewItem(Model, table="narrowed_view_items"):
+    id: int = pk()
+    name: str
+
+
+@derive(ViewItem, only=("id", "name"))
+class DerivedItem(Schema):
+    @computed_field
+    def kid(self) -> Public:
+        return private(9)
+
+
+class StrictDump(Schema):
+    id: int
+
+    def dump(self) -> dict[str, Any]:  # type: ignore[override]
+        return {"id": self.id, "v": 1}
+
+
+class StrictDumpSub(StrictDump):
+    secret: str = SECRET
+
+
+class MediaOnlyJSON(JSONRenderer):
+    media_type = "application/vnd.mediaonly+json"
+
+
+@pytest.mark.parametrize(
+    ("annotation", "value", "expected"),
+    [
+        (
+            list[Public | int] | list[Public | Holder],
+            [Public(id=1), holder()],
+            [{"id": 1}, EXPECTED],
+        ),
+        (
+            dict[str, Public | int] | dict[str, Public | Holder],
+            {"a": Public(id=1), "b": holder()},
+            {"a": {"id": 1}, "b": EXPECTED},
+        ),
+    ],
+    ids=["list-union", "dict-union"],
+)
+async def test_overlapping_union_narrows_all_elements(
+    annotation: Any, value: Any, expected: object
+) -> None:
+    walk_json = WalkJSON()
+    group = RouteGroup("")
+    group.get("/stock", validate_response=True)(handler(annotation, value))
+    group.get("/walk", renderers=[WalkRenderer()], validate_response=True)(
+        handler(annotation, value)
+    )
+    group.get("/json-sub", renderers=[walk_json], validate_response=True)(
+        handler(annotation, value)
+    )
+    async with ASGIClient(Hinoki(include=[group])) as client:
+        for path in ("/stock", "/walk", "/json-sub"):
+            reply = await client.get(path)
+            assert reply.status == 200, path
+            assert SECRET.encode() not in reply.raw, path
+            assert json.loads(reply.raw) == expected, path
+
+
+async def test_model_return_projected_to_derived_schema_wraps_view() -> None:
+    renderer = WalkJSON()
+    group = RouteGroup("")
+    group.get("/walk", renderers=[WalkRenderer()], validate_response=True)(
+        handler(DerivedItem, ViewItem(id=1, name="ada"))
+    )
+    group.get("/json-sub", renderers=[renderer], validate_response=True)(
+        handler(DerivedItem, ViewItem(id=1, name="ada"))
+    )
+    expected = {"id": 1, "name": "ada", "kid": {"id": 9}}
+    async with ASGIClient(Hinoki(include=[group])) as client:
+        for path in ("/walk", "/json-sub"):
+            reply = await client.get(path)
+            assert reply.status == 200, path
+            assert SECRET.encode() not in reply.raw, path
+            assert json.loads(reply.raw) == expected, path
+    assert renderer.seen == [Narrowed]
+
+
+async def test_exact_schema_with_no_kwargs_dump_works_under_json_subclass() -> None:
+    group = RouteGroup("")
+    group.get("/media", renderers=[MediaOnlyJSON()], validate_response=True)(
+        handler(StrictDump, StrictDump(id=1))
+    )
+    async with ASGIClient(Hinoki(include=[group])) as client:
+        reply = await client.get("/media")
+    assert reply.status == 200
+    assert json.loads(reply.raw) == {"id": 1, "v": 1}
+    assert Narrowed(StrictDump(id=1), StrictDump).dump() == {"id": 1, "v": 1}
+    with pytest.raises(TypeError, match="include"):
+        Narrowed(StrictDumpSub(id=1), StrictDump).dump()
 
 
 def view() -> Any:

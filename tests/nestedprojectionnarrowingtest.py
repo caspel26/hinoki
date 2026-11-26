@@ -10,11 +10,14 @@ from typing import Any
 
 import pytest
 
-from hinoki import Hinoki, Schema, core
+from hinoki import Hinoki, JSONRenderer, Schema, core
 from hinoki.cli.routes import lanes_of
+from hinoki.core import Narrowed
 from hinoki.db import Database, DatabaseModule
+from hinoki.http.request import Request
 from hinoki.orm import Model, pk, use_database
 from hinoki.orm.migrations import create_table_sql, table_state
+from hinoki.pagination import Page, PageParams
 from hinoki.routing import RouteGroup
 from hinoki.runtime.kiso import KisoWorker
 from hinoki.testing import ASGIClient
@@ -168,3 +171,65 @@ async def test_the_encoders_narrow_a_projection_in_a_field(url: str) -> None:
         exact = One(item=await Gadget.filter(id=1).aget_as(GPub))
         assert core.encode_json(exact, None, False, None) == written
     database.close()
+
+
+class CaptureJSON(JSONRenderer):
+    media_type = "application/vnd.capture+json"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.kinds: dict[str, list[type[object]]] = {}
+
+    def prepare(self, value: object, request: Request) -> object:
+        path = request.path
+        if isinstance(value, (list, tuple)):
+            self.kinds[path] = [type(item) for item in value]
+        elif isinstance(value, Page):
+            self.kinds[path] = [type(item) for item in value.items]
+        else:
+            self.kinds[path] = [type(value)]
+        return value
+
+
+async def test_object_renderer_receives_narrowed_view_for_lazy_projections(
+    url: str,
+) -> None:
+    renderer = CaptureJSON()
+    group = RouteGroup("")
+
+    @group.get("/item", renderers=[renderer], validate_response=True)
+    async def item() -> GPub | None:
+        return await Gadget.filter(id=1).aget_or_none_as(GPub)
+
+    @group.get("/list", renderers=[renderer], validate_response=True)
+    async def items() -> list[GPub]:
+        return await Gadget.all().order_by("id").aproject(GPub)
+
+    @group.get("/page", renderers=[renderer], validate_response=True)
+    async def page() -> Page[GPub]:
+        return (
+            await Gadget.all()
+            .order_by("id")
+            .apaginate_as(GPub, PageParams(page=1, page_size=10))
+        )
+
+    @group.get("/tuple", renderers=[renderer], validate_response=False)
+    async def tup() -> tuple[GPub]:
+        return (await Gadget.filter(id=1).aget_as(GPub),)
+
+    app = Hinoki(modules=[DatabaseModule(url)], include=[group])
+    async with ASGIClient(app) as client:
+        assert json.loads((await client.get("/item")).raw) == ONE
+        assert json.loads((await client.get("/list")).raw) == [
+            {"id": n, "name": f"n{n}"} for n in (1, 2)
+        ]
+        assert json.loads((await client.get("/page")).raw)["items"] == [
+            {"id": n, "name": f"n{n}"} for n in (1, 2)
+        ]
+        assert json.loads((await client.get("/tuple")).raw) == [ONE]
+    assert renderer.kinds == {
+        "/item": [Narrowed],
+        "/list": [Narrowed, Narrowed],
+        "/page": [Narrowed, Narrowed],
+        "/tuple": [Narrowed],
+    }
