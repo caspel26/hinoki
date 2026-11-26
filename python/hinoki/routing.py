@@ -14,7 +14,7 @@ import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, TypedDict, TypeVar, Unpack
 
 from hinoki.access import Access
 from hinoki.errors import APIError, TooManyRequests
@@ -504,6 +504,27 @@ class Mount:
         self.items = items
 
 
+class GroupActionOptions(TypedDict, total=False):
+    """Typed keyword options accepted by ``RouteGroup`` action decorators."""
+
+    status: int
+    access: Access | None
+    atomic: bool | None
+    pagination: Pagination | None
+    replaces: str
+    parsers: Sequence[Parser] | None
+    renderers: Sequence[Renderer] | None
+    errors: Sequence[type[APIError]]
+    validate_response: bool
+    rate_limit: RateLimitPolicy | None
+    middleware: Sequence[Middleware]
+    cors: Cors | None
+    include_in_schema: bool
+    tags: Sequence[str]
+    deprecated: bool | date
+    operation_id: str | None
+
+
 class RouteGroup:
     """A function-based route group with a shared path prefix and defaults.
 
@@ -572,358 +593,71 @@ class RouteGroup:
         self._handlers.append(decorated)
         return decorated
 
-    def _declaration(
-        self,
-        method: str,
-        path: str,
-        *,
-        status: int = 200,
-        access: Access | Unset | None = UNSET,
-        atomic: bool | None = None,
-        pagination: Pagination | None = None,
-        replaces: str = "",
-        parsers: Sequence[Parser] | None = None,
-        renderers: Sequence[Renderer] | None = None,
-        errors: Sequence[type[APIError]] = (),
-        validate_response: bool = True,
-        rate_limit: RateLimitPolicy | None = None,
-        middleware: Sequence[Middleware] = (),
-        cors: Cors | Unset | None = UNSET,
-        include_in_schema: bool | None = None,
-        tags: Sequence[str] = (),
-        deprecated: bool | date = False,
-        operation_id: str | None = None,
+    def declare(
+        self, method: str, path: str, options: dict[str, Any]
     ) -> RouteDeclaration:
         if not path.startswith("/"):
             raise ValueError(f"route path must start with '/': {path!r}")
         full = (self.prefix or "/") if path == "/" else self.prefix + path
+        access = options.pop("access", UNSET)
+        atomic = options.pop("atomic", None)
+        cors = options.pop("cors", UNSET)
+        own_errors = tuple(options.pop("errors", ()))
         chosen = Options(
-            status=status,
+            status=options.pop("status", 200),
             access=self.access if isinstance(access, Unset) else access,
             atomic=(
                 atomic
                 if atomic is not None
                 else self.atomic and method in WRITE_METHODS
             ),
-            pagination=pagination,
-            replaces=replaces,
-            parsers=parsers,
-            renderers=renderers,
-            errors=(*self.errors, *errors),
-            validate_response=validate_response,
-            rate_limit=rate_limit,
-            middleware=middleware,
+            pagination=options.pop("pagination", None),
+            replaces=options.pop("replaces", ""),
+            parsers=options.pop("parsers", None),
+            renderers=options.pop("renderers", None),
+            errors=(*self.errors, *own_errors),
+            validate_response=options.pop("validate_response", True),
+            rate_limit=options.pop("rate_limit", None),
+            middleware=options.pop("middleware", ()),
             cors=self.cors if isinstance(cors, Unset) else cors,
-            include_in_schema=(
-                self.include_in_schema
-                if include_in_schema is None
-                else include_in_schema
-            ),
-            tags=(*self.tags, *tags),
-            deprecated=deprecated,
-            operation_id=operation_id,
+            include_in_schema=options.pop("include_in_schema", self.include_in_schema),
+            tags=(*self.tags, *options.pop("tags", ())),
+            deprecated=options.pop("deprecated", False),
+            operation_id=options.pop("operation_id", None),
         )
+        if options:
+            raise TypeError(f"unknown action options {sorted(options)}")
         return RouteDeclaration(method, full, chosen)
 
-    def declare(
-        self, method: str, path: str, options: dict[str, Any]
-    ) -> RouteDeclaration:
-        if not path.startswith("/"):
-            raise ValueError(f"route path must start with '/': {path!r}")
-        known = dict(options)
-        declaration = self._declaration(
-            method,
-            path,
-            status=known.pop("status", 200),
-            access=known.pop("access", UNSET),
-            atomic=known.pop("atomic", None),
-            pagination=known.pop("pagination", None),
-            replaces=known.pop("replaces", ""),
-            parsers=known.pop("parsers", None),
-            renderers=known.pop("renderers", None),
-            errors=tuple(known.pop("errors", ())),
-            validate_response=known.pop("validate_response", True),
-            rate_limit=known.pop("rate_limit", None),
-            middleware=known.pop("middleware", ()),
-            cors=known.pop("cors", UNSET),
-            include_in_schema=known.pop("include_in_schema", None),
-            tags=tuple(known.pop("tags", ())),
-            deprecated=known.pop("deprecated", False),
-            operation_id=known.pop("operation_id", None),
-        )
-        if known:
-            raise TypeError(f"unknown action options {sorted(known)}")
-        return declaration
-
     def get(
-        self,
-        path: str,
-        *,
-        status: int = 200,
-        access: Access | Unset | None = UNSET,
-        atomic: bool | None = None,
-        pagination: Pagination | None = None,
-        replaces: str = "",
-        parsers: Sequence[Parser] | None = None,
-        renderers: Sequence[Renderer] | None = None,
-        errors: Sequence[type[APIError]] = (),
-        validate_response: bool = True,
-        rate_limit: RateLimitPolicy | None = None,
-        middleware: Sequence[Middleware] = (),
-        cors: Cors | Unset | None = UNSET,
-        include_in_schema: bool | None = None,
-        tags: Sequence[str] = (),
-        deprecated: bool | date = False,
-        operation_id: str | None = None,
+        self, path: str, **options: Unpack[GroupActionOptions]
     ) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(
-            self,
-            self._declaration(
-                "GET",
-                path,
-                status=status,
-                access=access,
-                atomic=atomic,
-                pagination=pagination,
-                replaces=replaces,
-                parsers=parsers,
-                renderers=renderers,
-                errors=errors,
-                validate_response=validate_response,
-                rate_limit=rate_limit,
-                middleware=middleware,
-                cors=cors,
-                include_in_schema=include_in_schema,
-                tags=tags,
-                deprecated=deprecated,
-                operation_id=operation_id,
-            ),
-        )
+        return _GroupRouteDeclaration(self, self.declare("GET", path, dict(options)))
 
     def post(
-        self,
-        path: str,
-        *,
-        status: int = 200,
-        access: Access | Unset | None = UNSET,
-        atomic: bool | None = None,
-        pagination: Pagination | None = None,
-        replaces: str = "",
-        parsers: Sequence[Parser] | None = None,
-        renderers: Sequence[Renderer] | None = None,
-        errors: Sequence[type[APIError]] = (),
-        validate_response: bool = True,
-        rate_limit: RateLimitPolicy | None = None,
-        middleware: Sequence[Middleware] = (),
-        cors: Cors | Unset | None = UNSET,
-        include_in_schema: bool | None = None,
-        tags: Sequence[str] = (),
-        deprecated: bool | date = False,
-        operation_id: str | None = None,
+        self, path: str, **options: Unpack[GroupActionOptions]
     ) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(
-            self,
-            self._declaration(
-                "POST",
-                path,
-                status=status,
-                access=access,
-                atomic=atomic,
-                pagination=pagination,
-                replaces=replaces,
-                parsers=parsers,
-                renderers=renderers,
-                errors=errors,
-                validate_response=validate_response,
-                rate_limit=rate_limit,
-                middleware=middleware,
-                cors=cors,
-                include_in_schema=include_in_schema,
-                tags=tags,
-                deprecated=deprecated,
-                operation_id=operation_id,
-            ),
-        )
+        return _GroupRouteDeclaration(self, self.declare("POST", path, dict(options)))
 
     def put(
-        self,
-        path: str,
-        *,
-        status: int = 200,
-        access: Access | Unset | None = UNSET,
-        atomic: bool | None = None,
-        pagination: Pagination | None = None,
-        replaces: str = "",
-        parsers: Sequence[Parser] | None = None,
-        renderers: Sequence[Renderer] | None = None,
-        errors: Sequence[type[APIError]] = (),
-        validate_response: bool = True,
-        rate_limit: RateLimitPolicy | None = None,
-        middleware: Sequence[Middleware] = (),
-        cors: Cors | Unset | None = UNSET,
-        include_in_schema: bool | None = None,
-        tags: Sequence[str] = (),
-        deprecated: bool | date = False,
-        operation_id: str | None = None,
+        self, path: str, **options: Unpack[GroupActionOptions]
     ) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(
-            self,
-            self._declaration(
-                "PUT",
-                path,
-                status=status,
-                access=access,
-                atomic=atomic,
-                pagination=pagination,
-                replaces=replaces,
-                parsers=parsers,
-                renderers=renderers,
-                errors=errors,
-                validate_response=validate_response,
-                rate_limit=rate_limit,
-                middleware=middleware,
-                cors=cors,
-                include_in_schema=include_in_schema,
-                tags=tags,
-                deprecated=deprecated,
-                operation_id=operation_id,
-            ),
-        )
+        return _GroupRouteDeclaration(self, self.declare("PUT", path, dict(options)))
 
     def patch(
-        self,
-        path: str,
-        *,
-        status: int = 200,
-        access: Access | Unset | None = UNSET,
-        atomic: bool | None = None,
-        pagination: Pagination | None = None,
-        replaces: str = "",
-        parsers: Sequence[Parser] | None = None,
-        renderers: Sequence[Renderer] | None = None,
-        errors: Sequence[type[APIError]] = (),
-        validate_response: bool = True,
-        rate_limit: RateLimitPolicy | None = None,
-        middleware: Sequence[Middleware] = (),
-        cors: Cors | Unset | None = UNSET,
-        include_in_schema: bool | None = None,
-        tags: Sequence[str] = (),
-        deprecated: bool | date = False,
-        operation_id: str | None = None,
+        self, path: str, **options: Unpack[GroupActionOptions]
     ) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(
-            self,
-            self._declaration(
-                "PATCH",
-                path,
-                status=status,
-                access=access,
-                atomic=atomic,
-                pagination=pagination,
-                replaces=replaces,
-                parsers=parsers,
-                renderers=renderers,
-                errors=errors,
-                validate_response=validate_response,
-                rate_limit=rate_limit,
-                middleware=middleware,
-                cors=cors,
-                include_in_schema=include_in_schema,
-                tags=tags,
-                deprecated=deprecated,
-                operation_id=operation_id,
-            ),
-        )
+        return _GroupRouteDeclaration(self, self.declare("PATCH", path, dict(options)))
 
     def delete(
-        self,
-        path: str,
-        *,
-        status: int = 200,
-        access: Access | Unset | None = UNSET,
-        atomic: bool | None = None,
-        pagination: Pagination | None = None,
-        replaces: str = "",
-        parsers: Sequence[Parser] | None = None,
-        renderers: Sequence[Renderer] | None = None,
-        errors: Sequence[type[APIError]] = (),
-        validate_response: bool = True,
-        rate_limit: RateLimitPolicy | None = None,
-        middleware: Sequence[Middleware] = (),
-        cors: Cors | Unset | None = UNSET,
-        include_in_schema: bool | None = None,
-        tags: Sequence[str] = (),
-        deprecated: bool | date = False,
-        operation_id: str | None = None,
+        self, path: str, **options: Unpack[GroupActionOptions]
     ) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(
-            self,
-            self._declaration(
-                "DELETE",
-                path,
-                status=status,
-                access=access,
-                atomic=atomic,
-                pagination=pagination,
-                replaces=replaces,
-                parsers=parsers,
-                renderers=renderers,
-                errors=errors,
-                validate_response=validate_response,
-                rate_limit=rate_limit,
-                middleware=middleware,
-                cors=cors,
-                include_in_schema=include_in_schema,
-                tags=tags,
-                deprecated=deprecated,
-                operation_id=operation_id,
-            ),
-        )
+        return _GroupRouteDeclaration(self, self.declare("DELETE", path, dict(options)))
 
     def query(
-        self,
-        path: str,
-        *,
-        status: int = 200,
-        access: Access | Unset | None = UNSET,
-        atomic: bool | None = None,
-        pagination: Pagination | None = None,
-        replaces: str = "",
-        parsers: Sequence[Parser] | None = None,
-        renderers: Sequence[Renderer] | None = None,
-        errors: Sequence[type[APIError]] = (),
-        validate_response: bool = True,
-        rate_limit: RateLimitPolicy | None = None,
-        middleware: Sequence[Middleware] = (),
-        cors: Cors | Unset | None = UNSET,
-        include_in_schema: bool | None = None,
-        tags: Sequence[str] = (),
-        deprecated: bool | date = False,
-        operation_id: str | None = None,
+        self, path: str, **options: Unpack[GroupActionOptions]
     ) -> _GroupRouteDeclaration:
-        return _GroupRouteDeclaration(
-            self,
-            self._declaration(
-                "QUERY",
-                path,
-                status=status,
-                access=access,
-                atomic=atomic,
-                pagination=pagination,
-                replaces=replaces,
-                parsers=parsers,
-                renderers=renderers,
-                errors=errors,
-                validate_response=validate_response,
-                rate_limit=rate_limit,
-                middleware=middleware,
-                cors=cors,
-                include_in_schema=include_in_schema,
-                tags=tags,
-                deprecated=deprecated,
-                operation_id=operation_id,
-            ),
-        )
+        return _GroupRouteDeclaration(self, self.declare("QUERY", path, dict(options)))
 
 
 class _GroupRouteDeclaration:
