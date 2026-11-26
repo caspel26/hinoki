@@ -678,7 +678,10 @@ def check_scalar_constraints(route: Route, params: tuple[Param, ...]) -> None:
     scalars = {p.name for p in params if p.source in {"path", "query"}}
     try:
         written = route.handler.__annotations__
-    except NameError:  # pragma: no cover - Python 3.14 evaluates annotations lazily
+    except (
+        NameError,
+        TypeError,
+    ):  # pragma: no cover - Python 3.14 evaluates annotations lazily
         written = {}
     if all(isinstance(written.get(name), type) for name in scalars):
         return  # a plain class (`n: int`) cannot carry a `Field(...)`
