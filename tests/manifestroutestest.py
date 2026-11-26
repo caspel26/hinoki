@@ -19,15 +19,18 @@ def listing() -> dict[str, str]:
 
 routes = [listing]
 """
-HEALTH = """from hinoki import http
+HEALTH = """from hinoki import Mount, http
+
+from {package}.billing.routes import routes as billing_routes
+from {package}.posts.routes import routes as posts_routes
 
 
 @http.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {{"status": "ok"}}
 
 
-routes = [health]
+routes = [health, Mount("/posts", posts_routes), Mount("/invoicing", billing_routes)]
 """
 APP = """from hinoki import Hinoki
 
@@ -41,15 +44,12 @@ routes = "{package}.routes:routes"
 name = "posts"
 models = "{package}.posts.models"
 migrations = "{package}.posts.migrations"
-routes = "{package}.posts.routes:routes"
 requires = []
 
 [[apps]]
 name = "billing"
 models = "{package}.billing.models"
 migrations = "{package}.billing.migrations"
-routes = "{package}.billing.routes:routes"
-prefix = "/invoicing"
 requires = ["posts"]
 """
 
@@ -65,7 +65,7 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, str]
     root = tmp_path / package
     write(tmp_path / "hinoki.toml", MANIFEST.format(package=package))
     write(root / "__init__.py", "")
-    write(root / "routes.py", HEALTH)
+    write(root / "routes.py", HEALTH.format(package=package))
     write(root / "app.py", APP)
     for name in ("posts", "billing"):
         write(root / name / "__init__.py", "")
@@ -163,25 +163,42 @@ def test_project_routes_must_be_a_target(
 
 
 @pytest.mark.parametrize(
-    ("extra", "message"),
+    ("extra", "expected_parts"),
     [
-        ('routes = "bad"', "routes must be a module:attribute target"),
-        ("routes = 4", "routes must be a module:attribute target"),
-        ('prefix = "billing"', "prefix must start with"),
-        ('prefix = "/billing/"', "prefix must start with"),
-        ("prefix = 5", "prefix must start with"),
+        (
+            'routes = "{package}.billing.routes:routes"\nprefix = "/invoicing"',
+            (
+                "app 'billing'",
+                "'routes' and 'prefix'",
+                'Mount("/invoicing", billing_routes)',
+            ),
+        ),
+        (
+            'routes = "{package}.billing.routes:routes"',
+            ("app 'billing'", "'routes'", 'Mount("/billing", billing_routes)'),
+        ),
+        (
+            'prefix = "/invoicing"',
+            ("app 'billing'", "'prefix'", 'Mount("/invoicing", ...)'),
+        ),
     ],
 )
-def test_app_routes_and_prefix_are_checked(
-    tmp_path: Path, extra: str, message: str
+def test_legacy_app_routes_and_prefix_are_rejected_with_guidance(
+    tmp_path: Path, extra: str, expected_parts: tuple[str, ...]
 ) -> None:
     write(
         tmp_path / "hinoki.toml",
         '[project]\napplication = "a.main:app"\n\n[[apps]]\nname = "billing"\n'
-        f'models = "a.models"\nmigrations = "a.migrations"\n{extra}\n',
+        'models = "a.models"\nmigrations = "a.migrations"\n'
+        f"{extra.format(package='a')}\n",
     )
-    with pytest.raises(ProjectError, match=message):
+    with pytest.raises(ProjectError) as raised:
         load_manifest(tmp_path / "hinoki.toml")
+    message = str(raised.value)
+    for part in expected_parts:
+        assert part in message
+    if "routes =" not in extra:
+        assert "billing_routes" not in message
 
 
 def test_a_malformed_manifest_is_ignored_by_an_unrelated_application(

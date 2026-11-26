@@ -1,5 +1,6 @@
 [project]
 application = "blog.main:app"
+routes = "blog.routes:routes"
 
 [[apps]]
 name = "blog"

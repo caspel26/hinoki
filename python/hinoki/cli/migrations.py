@@ -268,13 +268,15 @@ def plan_project(
     dialect: str | None = None,
 ) -> Plan:
     app = manifest.app(args.app if app_name is None else app_name)
+    if not app.has_persistence:
+        raise MigrationError(f"app {app.name!r} has no models or migrations")
     models = manifest.all_models()
     # Constraint names share one database namespace across every app.
     check_constraint_names(
         {m.__table__: table_state(m) for group in models.values() for m in group}
     )
     directories = manifest.migration_directories()
-    dependencies = manifest.ordered_apps(app.name)
+    dependencies = manifest.persistent_apps(app.name)
     external = [
         model
         for dependency in dependencies
@@ -311,7 +313,7 @@ def _project_migration_history(
 ) -> dict[str, list[State]]:
     return {
         app.name: _migration_history(app.name, directories[app.name])
-        for app in manifest.ordered_apps()
+        for app in manifest.persistent_apps()
     }
 
 
@@ -492,7 +494,13 @@ async def run_database_project(
     database: Database,
     directories: dict[str, Path],
 ) -> None:
-    for app in manifest.ordered_apps(args.app):
+    if args.app is not None and not manifest.app(args.app).has_persistence:
+        raise MigrationError(f"app {args.app!r} has no models or migrations")
+    apps = manifest.persistent_apps(args.app)
+    if not apps:
+        print("no apps with migrations")
+        return
+    for app in apps:
         directory = directories[app.name]
         namespace = manifest.migration_namespace(app)
         if args.action == "apply":
@@ -507,11 +515,13 @@ async def run_database_project(
 
 def sql_project(args: argparse.Namespace, manifest: ProjectManifest) -> None:
     """Print one migration; without ``--app`` search every app for the name."""
-    apps = (
-        [manifest.app(args.app).name]
-        if args.app is not None
-        else [app.name for app in manifest.ordered_apps()]
-    )
+    if args.app is not None:
+        target = manifest.app(args.app)
+        if not target.has_persistence:
+            raise MigrationError(f"app {args.app!r} has no models or migrations")
+        apps = [target.name]
+    else:
+        apps = [app.name for app in manifest.persistent_apps()]
     directories = manifest.migration_directories()
     found = [
         (name, path)

@@ -600,8 +600,6 @@ def test_app_list_json_has_stable_manifest_fields(
                 "name": "sample",
                 "models": "sample.models",
                 "migrations": "sample.migrations",
-                "routes": "",
-                "prefix": "",
                 "requires": [],
                 "events": "",
             }
@@ -1401,15 +1399,15 @@ def test_a_new_project_serves_its_routes_from_the_manifest(
         monkeypatch.delitem(sys.modules, name)
     manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
     assert 'routes = "routedsample.routes:routes"' in manifest
-    assert "include=manifest_routes()" in (
-        project / "routedsample" / "main.py"
-    ).read_text(encoding="utf-8")
+    main_text = (project / "routedsample" / "main.py").read_text(encoding="utf-8")
+    assert "include=" not in main_text
+    assert "manifest_routes" not in main_text
 
     app = importlib.import_module("routedsample.main").app
     assert [route.path for route in app.routes] == ["/health"]
 
 
-def test_app_create_registers_the_routes_of_the_new_app(
+def test_app_create_scaffolds_reusable_routes_and_explicit_mount_guidance(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1420,26 +1418,37 @@ def test_app_create_registers_the_routes_of_the_new_app(
     for name in [key for key in sys.modules if key.startswith("billedsample")]:
         monkeypatch.delitem(sys.modules, name)
 
-    assert main(["app", "create", "billing", "--prefix", "/payments"]) == 0
+    assert main(["app", "create", "billing"]) == 0
+    output = capsys.readouterr().out
+    assert 'Mount("/billing", billing_routes)' in output
     app_directory = project / "billedsample" / "apps" / "billing"
     routes_file = app_directory / "routes.py"
     routes_text = routes_file.read_text(encoding="utf-8")
     assert "routes: list[Includable] = []" in routes_text
-    assert "mounted at /payments by hinoki.toml" in routes_text
+    assert "billedsample/routes.py" in routes_text
     assert "# from billedsample.apps.billing.api import" in routes_text
     assert "RouteGroup(" in (app_directory / "api.py").read_text(encoding="utf-8")
+    manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
+    assert "routes =" not in manifest.split("[[apps]]", 1)[1]
+    assert "prefix =" not in manifest.split("[[apps]]", 1)[1]
+
+    # Creating an app does not expose it until project routes.py mounts it.
     app = importlib.import_module("billedsample.main").app
     assert [route.path for route in app.routes] == ["/health"]
     for name in [key for key in sys.modules if key.startswith("billedsample")]:
         monkeypatch.delitem(sys.modules, name)
-    manifest = (project / "hinoki.toml").read_text(encoding="utf-8")
-    assert 'routes = "billedsample.apps.billing.routes:routes"' in manifest
-    assert 'prefix = "/payments"' in manifest
 
     routes_file.write_text(
         "from hinoki import http\n\n\n"
         '@http.get("/invoices")\ndef invoices() -> list[str]:\n    return []\n\n\n'
         "routes = [invoices]\n",
+        encoding="utf-8",
+    )
+    (project / "billedsample" / "routes.py").write_text(
+        "from hinoki import Includable, Mount\n"
+        "from billedsample.api import health\n"
+        "from billedsample.apps.billing.routes import routes as billing_routes\n\n"
+        'routes: list[Includable] = [health, Mount("/payments", billing_routes)]\n',
         encoding="utf-8",
     )
     app = importlib.import_module("billedsample.main").app
@@ -1448,29 +1457,40 @@ def test_app_create_registers_the_routes_of_the_new_app(
     capsys.readouterr()
     assert main(["app", "list"]) == 0
     listing = capsys.readouterr().out
-    assert "routes: billedsample.apps.billing.routes:routes at /payments" in listing
+    assert "models: billedsample.apps.billing.models" in listing
+    assert "routes:" not in listing
     assert main(["app", "list", "--format", "json"]) == 0
     rows = json.loads(capsys.readouterr().out)["apps"]
-    assert [(row["name"], row["prefix"]) for row in rows] == [
-        ("billedsample", ""),
-        ("billing", "/payments"),
+    assert [(row["name"], row["models"]) for row in rows] == [
+        ("billedsample", "billedsample.models"),
+        ("billing", "billedsample.apps.billing.models"),
     ]
 
 
-def test_app_create_takes_prefix_and_requires_from_flags(
+def test_app_create_takes_no_models_and_requires_from_flags(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.chdir(create("sample", tmp_path))
+    project = create("sample", tmp_path)
+    monkeypatch.chdir(project)
     assert main(["app", "create", "billing"]) == 0
-    args = ["app", "create", "invoices", "--prefix", "/bills", "--requires", "billing"]
+    args = ["app", "create", "gateway", "--no-models", "--requires", "billing"]
     assert main(args) == 0
     capsys.readouterr()
 
-    invoices = next(app for app in load_manifest().apps if app.name == "invoices")
-    assert invoices.prefix == "/bills"
-    assert invoices.requires == ("billing",)
+    gateway = next(app for app in load_manifest().apps if app.name == "gateway")
+    assert not gateway.has_persistence
+    assert (gateway.models, gateway.migrations, gateway.requires) == (
+        "",
+        "",
+        ("billing",),
+    )
+    gateway_dir = project / "sample" / "apps" / "gateway"
+    assert (gateway_dir / "api.py").is_file()
+    assert (gateway_dir / "routes.py").is_file()
+    assert not (gateway_dir / "models.py").exists()
+    assert not (gateway_dir / "migrations").exists()
 
     assert main(["app", "create", "bad", "--requires", "nope"]) == 2
     assert capsys.readouterr().err.startswith("error:")
@@ -1494,13 +1514,13 @@ def test_app_create_asks_for_what_is_missing_in_a_terminal(
     monkeypatch.chdir(create("sample", tmp_path))
     assert main(["app", "create", "billing"]) == 0
     monkeypatch.setattr(projectcli, "interactive", lambda _args: True)
-    answers = iter(["invoices", "/bills", "billing"])
+    answers = iter(["invoices", "billing"])
     monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
 
     assert main(["app", "create"]) == 0
     capsys.readouterr()
     invoices = next(app for app in load_manifest().apps if app.name == "invoices")
-    assert (invoices.prefix, invoices.requires) == ("/bills", ("billing",))
+    assert invoices.requires == ("billing",)
 
 
 def test_cancelling_the_app_questions_creates_nothing(

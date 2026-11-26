@@ -5,7 +5,6 @@ Importing this module reads the settings and opens nothing.
 
 from hinoki import Hinoki
 
-from .apps.notes.routes import routes
 from .settings import NotesSettings
 
 
@@ -16,7 +15,6 @@ def create_app(settings: NotesSettings | type[NotesSettings] = NotesSettings) ->
         title="Notes",
         openapi_url="/openapi.json",
         docs_url="/docs",
-        include=routes,
     )
 
 

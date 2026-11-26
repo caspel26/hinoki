@@ -84,10 +84,10 @@ notes/
 ```
 
 `hinoki.toml` names the application, so project commands find it on their own.
-`notes/main.py` binds the routes the manifest lists with
-`include=manifest_routes()`: `project.routes` first, then each app's `routes`
-under its `prefix`. The `rules` list in the same table is how the application
-gets `notes/rules.py` (see [which rules run](rules.md#which-rules-run)).
+`notes/main.py` creates `Hinoki(settings=ProjectSettings, ...)` and automatically
+loads `[project] routes` (`notes/routes.py`), where you mount exposed apps with
+`Mount("/<name>", ...)`. The `rules` list in the same table is how the
+application gets `notes/rules.py` (see [which rules run](rules.md#which-rules-run)).
 
 ```toml
 # hinoki.toml

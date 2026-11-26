@@ -31,13 +31,13 @@ def test_add_registers_an_existing_package_and_derives_migrations(
     app = next(a for a in load_manifest().apps if a.name == "billing")
     assert app.models == "legacy.billing.models"
     assert app.migrations == "legacy.billing.migrations"
-    assert (app.routes, app.prefix, app.requires) == ("", "", ())
+    assert app.requires == ()
     # only the manifest changed: no package and no lock file left behind
     created = files_under(project) - before
     assert {path.name for path in created} == set()
 
 
-def test_add_takes_routes_prefix_and_dependencies(project: Path) -> None:
+def test_add_takes_migrations_dependencies_and_api_only_apps(project: Path) -> None:
     assert main(["app", "add", "core", "--models", "legacy.core.models"]) == 0
     assert (
         main(
@@ -49,22 +49,21 @@ def test_add_takes_routes_prefix_and_dependencies(project: Path) -> None:
                 "legacy.billing.models",
                 "--migrations",
                 "legacy.db.billing",
-                "--routes",
-                "legacy.billing.routes:routes",
-                "--prefix",
-                "/invoices",
                 "--requires",
                 "core",
             ]
         )
         == 0
     )
+    assert main(["app", "add", "gateway", "--requires", "core"]) == 0
 
-    billing = next(a for a in load_manifest().apps if a.name == "billing")
+    apps = {a.name: a for a in load_manifest().apps}
+    billing = apps["billing"]
     assert billing.migrations == "legacy.db.billing"
-    assert billing.routes == "legacy.billing.routes:routes"
-    assert billing.prefix == "/invoices"
     assert billing.requires == ("core",)
+    gateway = apps["gateway"]
+    assert not gateway.has_persistence
+    assert (gateway.models, gateway.migrations, gateway.requires) == ("", "", ("core",))
 
 
 @pytest.mark.parametrize(
@@ -74,6 +73,7 @@ def test_add_takes_routes_prefix_and_dependencies(project: Path) -> None:
         (["Bad-Name", "--models", "legacy.models"], "app name must be"),
         (["extra", "--models", "bad module.x"], "models must be a dotted module"),
         (["extra", "--models", "models"], "pass --migrations"),
+        (["extra", "--migrations", "legacy.migrations"], "pass --models"),
         (
             ["extra", "--models", "x.models", "--requires", "ghost"],
             "requires unknown app 'ghost'",
@@ -81,11 +81,6 @@ def test_add_takes_routes_prefix_and_dependencies(project: Path) -> None:
         (
             ["extra", "--models", "x.models", "--requires", "extra"],
             "dependencies contain a cycle",
-        ),
-        (["extra", "--models", "x.models", "--prefix", "extra"], "prefix must start"),
-        (
-            ["extra", "--models", "x.models", "--routes", "x.routes"],
-            "routes must be a module:attribute",
         ),
     ],
 )

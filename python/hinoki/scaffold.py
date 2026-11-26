@@ -44,24 +44,24 @@ known-first-party = ["{name}"]
 MAIN = '''"""The application. `hinoki.toml` names it; `uv run hinoki dev` serves it."""
 
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from {name}.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,  # {upper}_* variables and .env
-    include=manifest_routes(),  # {name}/routes.py, then each app's routes at its prefix
     title="{title}",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # the rules come from `rules` in hinoki.toml
+)  # routes, rules and middleware come from hinoki.toml
 '''
 
-ROUTES = '''"""The project's own routes. Apps list theirs in `apps/<name>/routes.py`."""
+ROUTES = '''"""The project's route map. Mount apps explicitly with Mount("/<prefix>", ...)."""
+
+from hinoki import Includable
 
 from {name}.api import health
 
-routes = [health]
+routes: list[Includable] = [health]
 '''
 
 SETTINGS = '''"""Typed settings. Built-in groups (execution, lifecycle, logging, docs) come from
@@ -134,7 +134,7 @@ transaction, then list the group in routes.py:
 """
 '''
 
-APP_ROUTES = '''"""Routes of the {name} app, mounted at {prefix} by hinoki.toml."""
+APP_ROUTES = '''"""Reusable routes of the {name} app; mount them in `{package}/routes.py`."""
 
 from hinoki import Includable
 
@@ -186,6 +186,7 @@ uv run hinoki dev                   # serve with reload on http://127.0.0.1:8000
 uv run hinoki routes                # list the routes
 uv run hinoki check                 # run the project's rules
 uv run hinoki app create <name>     # add an app: its models, routes and migrations
+uv run hinoki app create <name> --no-models  # add an API-only app without persistence
 uv run hinoki migrations plan <app> # plan an app's migrations
 uv run hinoki migrations apply      # initialize the local SQLite database
 uv run hinoki manage                # list project management commands
@@ -248,7 +249,7 @@ The generated project has no database or protected resource, and has an app only
 2. `apps/<name>/schemas.py`: an `In` schema without the owner, an `Out` schema.
 3. `apps/<name>/operations.py`: plain async functions taking `owner_id` and values; row permission goes in the statement (`Model.filter(owner_id=me)`, `aupdate_where({{...}})`), so someone else's row looks missing (404).
 4. `apps/<name>/security.py`: a `BearerAuth` that resolves a token to `Caller(id=..., user=member, permissions=...)` and an `Access(...)`.
-5. `apps/<name>/api.py`: actions with `access=...`, `caller: Caller[Member]`, `atomic=True` on writes, `pagination=` on lists; list them in `apps/<name>/routes.py`, which `hinoki.toml` points to (a new action is not served until it is listed there). `main.py` stays `Hinoki(settings=..., include=manifest_routes())`, which serves the routes `hinoki.toml` lists and opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
+5. `apps/<name>/api.py`: actions with `access=...`, `caller: Caller[Member]`, `atomic=True` on writes, `pagination=` on lists; list them in `apps/<name>/routes.py`, and mount that list explicitly in `{name}/routes.py` with `Mount("/<name>", ...)`. `main.py` stays `Hinoki(settings=ProjectSettings, ...)`, which automatically loads `{name}/routes.py` from `hinoki.toml` and opens the database declared by the settings' `database` field (a URL, or `engine` with its connection fields).
 6. `hinoki migrations plan <name>`, then review the SQL. The project manifest discovers app models and migration packages.
 7. Tests: `from hinoki.testing import ASGIClient`; `async with ASGIClient(app) as client: await client.post("/x", json={{...}}, token="...")`.
 

@@ -51,9 +51,7 @@ def test_toml_value_is_valid_toml_for_text_json_would_escape_badly() -> None:
 
 
 def test_manifest_and_scaffold_sources_quote_non_ascii_and_control_text() -> None:
-    block = _app_block(
-        AWKWARD, models="m", migrations="g", routes="", prefix="", requires=(AWKWARD,)
-    )
+    block = _app_block(AWKWARD, models="m", migrations="g", requires=(AWKWARD,))
     app = tomllib.loads(block)["apps"][0]
     assert (app["name"], app["requires"]) == (AWKWARD, [AWKWARD])
     source = tomllib.loads(git_source("https://example.com/é😀.git@v\x7f1"))

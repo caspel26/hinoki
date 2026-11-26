@@ -8,20 +8,17 @@ rules = ["tracker.rules:policy", "tracker.rules:layers"]
 name = "members"
 models = "tracker.apps.members.models"
 migrations = "tracker.apps.members.migrations"
-routes = "tracker.apps.members.api:routes"
 requires = []
 
 [[apps]]
 name = "tasks"
 models = "tracker.apps.tasks.models"
 migrations = "tracker.apps.tasks.migrations"
-routes = "tracker.apps.tasks.api:routes"
 requires = ["members"]
 
 [[apps]]
 name = "activity"
 models = "tracker.apps.activity.models"
 migrations = "tracker.apps.activity.migrations"
-routes = "tracker.apps.activity.api:routes"
 events = "tracker.apps.activity.events:handlers"
 requires = ["tasks", "members"]

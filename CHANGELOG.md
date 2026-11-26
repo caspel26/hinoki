@@ -8,6 +8,38 @@ All notable user-facing changes to Hinoki are recorded here, newest first. Hinok
 
 ### 💥 Breaking Changes
 
+#### 🗺️ Explicit project route map and removal of `[[apps]] routes` / `prefix`
+> `python/hinoki/project.py`, `python/hinoki/scaffold.py`, `python/hinoki/cli/project.py`, `docs/routes.md`, `docs/cli.md`
+
+Registering an app in `hinoki.toml` and exposing its HTTP routes in the project's `routes.py` are now separate decisions:
+
+- Removed `routes` and `prefix` from `[[apps]]` in `hinoki.toml` (`load_manifest()` rejects them with a `ProjectError` migration hint showing the `Mount(...)` line to add to `<project>/routes.py`, without inventing a target when only `prefix` is present).
+- Removed `--prefix` from `hinoki app create`, and removed `--routes` and `--prefix` from `hinoki app add`. `hinoki app create` prints the `Mount("/<name>", <name>_routes)` snippet instead of editing `<project>/routes.py`.
+- `manifest_routes()` and automatic `Hinoki(settings=ProjectSettings)` loading now read only `[project] routes` (returning `[]` when omitted). Scaffolded `main.py` omits `include=manifest_routes()` and relies on automatic `[project] routes` loading; explicit `include=` (including `include=[]`) continues to override it.
+
+Before:
+```toml
+[[apps]]
+name = "billing"
+models = "acme.apps.billing.models"
+migrations = "acme.apps.billing.migrations"
+routes = "acme.apps.billing.routes:routes"
+prefix = "/billing"
+```
+
+After:
+```toml
+# hinoki.toml
+[[apps]]
+name = "billing"
+models = "acme.apps.billing.models"
+migrations = "acme.apps.billing.migrations"
+```
+```python
+# acme/routes.py
+routes: list[Includable] = [health, Mount("/billing", billing_routes)]
+```
+
 #### 🧹 Remove deprecated `hinoki.Reply` alias and `hinoki.reply` shim
 > `python/hinoki/__init__.py`, `python/hinoki/reply.py`
 
@@ -24,6 +56,11 @@ Removed the legacy `class Out(Schema, model=Model)` class keyword and `@derive(.
 Handlers annotated with a `Schema` return type no longer implicitly convert a returned `Model` via `from_model()`; returning a `Model` now fails the response contract check with `500 internal_error` (`ResponseContractError`, rolling back `atomic=True` transactions before the HTTP response). Convert explicitly with `Out.from_model(row)` or an ORM projection (`QuerySet.aproject`, `apaginate_as`, generated CRUD).
 
 ### ✨ New Features
+
+#### 🧩 Optional persistence and `--no-models` apps in `hinoki.toml`
+> `python/hinoki/project.py`, `python/hinoki/cli/project.py`, `python/hinoki/cli/migrations.py`, `python/hinoki/__main__.py`
+
+Apps registered in `hinoki.toml` may now omit both `models` and `migrations` to represent API-only apps (`hinoki app create <name> --no-models` or `hinoki app add <name>` without `--models`). Declaring only one of `models` or `migrations` is rejected with `ProjectError`. `ProjectManifest.persistent_apps()` computes topological order over the full app dependency graph before filtering to persistent apps, and `hinoki migrations plan/status/apply/sql` skip API-only apps unless explicitly targeted with `--app`.
 
 #### ✂️ Uniform `crud(..., omit=...)` and removal of `replaces=`
 > `python/hinoki/resources.py`, `python/hinoki/runtime/crudplan.py`, `python/hinoki/routing.py`, `python/hinoki/api.py`, `python/hinoki/app.py`, `docs/crud.md`, `docs/class-endpoints.md`, `docs/endpoints.md`

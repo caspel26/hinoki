@@ -146,32 +146,30 @@ Add `@db.table("billing_invoices")` above the class (the first line of its
 decorators) and the check passes. Pinning the derived name changes no table:
 `migrations plan billing` then reports `no changes`.
 
-Endpoints for billing go in `notes/apps/billing/api.py`, and `routes.py` lists
-them. The application in `notes/main.py` includes every app's list with
-`manifest_routes()`, which mounts this one at `/billing`, so paths inside the
-app never repeat the prefix:
+Endpoints for billing go in `notes/apps/billing/api.py`, and
+`notes/apps/billing/routes.py` exports them. You decide where they are served by
+mounting them in `notes/routes.py` with `Mount("/billing", billing_routes)`, so
+paths inside the app never repeat the prefix, and `notes/main.py` loads
+`notes/routes.py` from `hinoki.toml` automatically:
 
 ```python
 # notes/main.py (as hinoki new wrote it)
 from hinoki import Hinoki
-from hinoki.project import manifest_routes
 
 from notes.settings import ProjectSettings
 
 app = Hinoki(
     settings=ProjectSettings,  # NOTES_* variables and .env
-    include=manifest_routes(),  # notes/routes.py, then each app's routes at its prefix
     title="Notes",
     openapi_url="/openapi.json",
     docs_url="/docs",
-)  # the rules come from `rules` in hinoki.toml
+)  # routes, rules and middleware come from hinoki.toml
 ```
 
-`include=manifest_routes()` is the explicit form of what `Hinoki()` does by
-itself when you leave `include=` out, as the [Tracker](6-run.md) does; the
-scaffold writes it so the line shows where routes come from. The same manifest
-can also list project-wide `middleware`, an `events` module per app and more than
-one rule set (`rules`), as the Tracker's `hinoki.toml` does.
+Passing `include=` explicitly overrides `[project] routes` when you need it (for
+example in tests or conditional mounts). The same manifest can also list
+project-wide `middleware`, an `events` module per app and more than one rule
+set (`rules`), as the Tracker's `hinoki.toml` does.
 
 The project's rules (listed in `hinoki.toml`) require every action to name an
 `Access` policy with permissions; build one as in [chapter 4](4-endpoints.md).
@@ -180,4 +178,4 @@ The project's rules (listed in `hinoki.toml`) require every action to name an
 
 - `hinoki app create` writes an app and registers it in `hinoki.toml`.
 - Table names, migration numbers and slugs are derived; you review the SQL.
-- The manifest sets each app's prefix; code never repeats it.
+- The project's `routes.py` mounts each exposed app explicitly; code inside the app never repeats the prefix.

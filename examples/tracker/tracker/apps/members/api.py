@@ -1,4 +1,4 @@
-"""HTTP layer of the members app, mounted at ``/members`` by hinoki.toml."""
+"""HTTP layer of the members app, mounted at ``/members`` in ``tracker/routes.py``."""
 
 from hinoki import Caller, Includable, http
 
