@@ -45,6 +45,7 @@ class ComputedSpec:
         returns a subclass instance is written as the declared class.
         ``RegistrationError`` for a name that does not resolve: the value would
         be written whole."""
+        from hinoki.generics import TYPE_ARGUMENTS, substitute  # noqa: PLC0415 - generics import schema
         from hinoki.runtime.binding import guide_spec  # noqa: PLC0415 - runtime imports schema
 
         where = f"{owner.__name__}.{self.name}"
@@ -52,6 +53,9 @@ class ComputedSpec:
             hints = typing.get_type_hints(self.function)
         except NameError as exc:
             raise RegistrationError(f"{where}: {exc}") from exc
+        arguments = getattr(owner, TYPE_ARGUMENTS, None)
+        if arguments:  # `Envelope[Public]`: `-> T` is `-> Public`
+            hints["return"] = substitute(hints["return"], arguments)
         return guide_spec(hints["return"])
 
 
