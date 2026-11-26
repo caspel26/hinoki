@@ -88,12 +88,13 @@ nav:
       - Overview: tutorial/index.md
       - 1. Models: tutorial/1-models.md
       - 2. Schemas: tutorial/2-schemas.md
-      - 3. Operations: tutorial/3-operations.md
-      - 4. Endpoints: tutorial/4-endpoints.md
-      - 5. Rules: tutorial/5-rules.md
-      - 6. Run and test it: tutorial/6-run.md
-      - 7. Validate input: tutorial/7-validation.md
-      - 8. Projects and apps: tutorial/8-projects.md
+      - 3. Endpoints: tutorial/4-endpoints.md
+      - 4. Implement a business rule: tutorial/3-operations.md
+      - 5. Events between apps: tutorial/events.md
+      - 6. Rules: tutorial/5-rules.md
+      - 7. Run and test it: tutorial/6-run.md
+      - 8. Validate input: tutorial/7-validation.md
+      - 9. Projects and apps: tutorial/8-projects.md
   - Guides:
       - Overview: guides.md
       - Data:

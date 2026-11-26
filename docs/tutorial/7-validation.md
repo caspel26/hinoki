@@ -6,7 +6,7 @@ related:
   - model-schemas.md
 ---
 
-# 7. Validate input
+# 8. Validate input
 
 A `Schema` validates in three steps, all before your code runs: built-in
 constraints reject invalid input, normalizers make valid strings canonical, and
@@ -162,4 +162,4 @@ See [field constraints and validators](../models.md#model-field-constraints-and-
 - Unknown keys are an error unless a `Schema` opts out.
 - Model constraints guard writes that bypass HTTP.
 
-Next: [8. Projects and apps](8-projects.md).
+Next: [9. Projects and apps](8-projects.md).
