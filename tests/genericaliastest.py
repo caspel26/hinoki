@@ -12,6 +12,7 @@ import pytest
 from hinoki import Hinoki, Schema
 from hinoki.errors import RegistrationError
 from hinoki.routing import RouteGroup
+from hinoki.runtime.responsecheck import AliasError, alias_value
 from hinoki.testing import ASGIClient
 
 SECRET = "s3cret-alias"  # noqa: S105 - a marker, not a credential
@@ -33,6 +34,11 @@ type First[T, U] = list[T]
 type Tree[T] = list[Tree[T]] | T
 type Rest[*Ts] = tuple[*Ts]
 type Loop = list[Loop] | Public
+type Ping = list[Pong] | Public
+type Pong = dict[str, Ping]
+type Outer = Inner | Public
+type Inner = list[Inner2]
+type Inner2 = list[Inner]
 type Json = dict[str, Json] | list[Json] | int
 
 
@@ -92,3 +98,19 @@ def test_alias_with_a_type_variable_tuple_is_refused_with_the_action_name() -> N
     for validate in (True, False):
         with pytest.raises(RegistrationError, match=r"serve.*TypeVarTuple"):
             app(Rest[Public, int], (), validate)
+
+
+def test_mutually_recursive_aliases_that_hold_a_schema_are_refused() -> None:
+    with pytest.raises(RegistrationError, match=r"serve.*recursive"):
+        app(Ping, [], False)
+
+
+def test_an_alias_given_too_few_arguments_is_refused() -> None:
+    with pytest.raises(AliasError, match="Box"):
+        alias_value(Box, ())
+
+
+async def test_a_cycle_that_does_not_hold_a_schema_does_not_refuse_the_alias() -> None:
+    async with ASGIClient(app(Outer, private(), False)) as client:
+        reply = await client.get("/x")
+    assert json.loads(reply.raw) == {"id": 1}
