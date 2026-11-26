@@ -37,6 +37,10 @@ list](../crud.md#filter-order-and-search-the-list). Declare each field as
 
 ## Row scoping
 
+::: hinoki.resources.RowScope
+    options:
+      show_if_no_docstring: true
+
 ::: hinoki.resources.all_rows
 
 ::: hinoki.resources.own_rows
