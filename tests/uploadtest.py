@@ -155,8 +155,8 @@ class Documents(API, path="/documents"):
 
 
 class ReplacedDocuments(Documents, path="/replaced"):
-    @http.post("/", replaces="create")
-    def upload(self, document: UploadedFile, extra: UploadedFile) -> list[str]:
+    @http.post("/")
+    def create(self, document: UploadedFile, extra: UploadedFile) -> list[str]:  # type: ignore[override]
         return [document.filename, extra.filename]
 
 
@@ -167,8 +167,8 @@ class JSONDocuments(API, path="/json-documents"):
 
 
 class FileReplacement(JSONDocuments, path="/file-replacement"):
-    @http.post("/", replaces="create")
-    def upload(self, document: UploadedFile) -> dict[str, str]:
+    @http.post("/")
+    def create(self, document: UploadedFile) -> dict[str, str]:  # type: ignore[override]
         return {"filename": document.filename}
 
 

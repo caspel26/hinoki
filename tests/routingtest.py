@@ -342,15 +342,11 @@ def test_failed_route_group_include_does_not_freeze_group() -> None:
     assert two is group.handlers[1]
 
 
-def test_route_group_rejects_api_only_replacement_option() -> None:
+def test_route_group_rejects_removed_replaces_option() -> None:
     group = RouteGroup("/things")
 
-    @group.get("/", replaces="missing")
-    def index() -> str:
-        return "ok"
-
-    with pytest.raises(RegistrationError, match="only works inside an API class"):
-        Hinoki(include=[group])
+    with pytest.raises(TypeError, match="unknown action options"):
+        group.get("/", replaces="missing")  # type: ignore[call-arg]
 
 
 def test_standalone_outer_decorator_is_used_for_dispatch() -> None:

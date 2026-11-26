@@ -1,7 +1,7 @@
 # Generated CRUD API
 
 The [CRUD guide](../crud.md) explains action generation, access policies,
-ownership, schema requirements and route replacement.
+ownership, schema requirements and omitting generated actions.
 
 ::: hinoki.resources.crud
 

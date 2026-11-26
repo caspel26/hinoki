@@ -43,7 +43,7 @@ class API:
             route = cls.declared_route(name, inspect.getattr_static(cls, name))
             if route is not None:
                 found.append(cls.mount(route))
-        return cls.apply_replacements(found)
+        return found
 
     @classmethod
     def websockets(cls) -> list[WebSocketRoute]:
@@ -67,33 +67,6 @@ class API:
         return list(
             dict.fromkeys(n for klass in reversed(cls.__mro__) for n in vars(klass))
         )
-
-    @classmethod
-    def apply_replacements(cls, found: list[Route]) -> list[Route]:
-        """Drop the routes that another route names in ``replaces=``."""
-        replacers = [route for route in found if route.replaces]
-        replaced = [route.replaces for route in replacers]
-        names = {route.handler.__name__ for route in found}
-        unknown = set(replaced) - names
-        if unknown:
-            raise RegistrationError(
-                f"{cls.__name__}: replaces={sorted(unknown)} names no action "
-                f"(actions: {sorted(names)})"
-            )
-        again = sorted({name for name in replaced if replaced.count(name) > 1})
-        chained = sorted(
-            {route.handler.__name__ for route in replacers} & set(replaced)
-        )
-        if again or chained:
-            raise RegistrationError(
-                f"{cls.__name__}: replaces must name an action once and never a "
-                f"route that replaces another ({again or chained})"
-            )
-        return [
-            route
-            for route in found
-            if route.replaces or route.handler.__name__ not in set(replaced)
-        ]
 
     @classmethod
     def declared_route(cls, name: str, member: object) -> Route | None:

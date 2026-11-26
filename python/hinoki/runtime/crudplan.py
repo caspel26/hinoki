@@ -1015,11 +1015,12 @@ def schema_defaults_fit(model: type[Model], *specs: list[tuple[str, str, str]]) 
 
 
 def action_schemas(resource: _CrudConfig) -> tuple[type[Schema], ...]:
-    return tuple(
-        schema
-        for schema in (resource.read, resource.create, resource.update)
-        if schema is not None
-    )
+    schemas: list[type[Schema]] = [resource.read]
+    if resource.create is not None and "create" not in resource.omit:
+        schemas.append(resource.create)
+    if resource.update is not None and "update" not in resource.omit:
+        schemas.append(resource.update)
+    return tuple(schemas)
 
 
 def schemas_are_plain(
@@ -1031,9 +1032,9 @@ def schemas_are_plain(
     if links is None:
         return False
     roles = [(resource.read, "read")]
-    if resource.create is not None:
+    if resource.create is not None and "create" not in resource.omit:
         roles.append((resource.create, "create"))
-    if resource.update is not None:
+    if resource.update is not None and "update" not in resource.omit:
         roles.append((resource.update, "update"))
     return bool(schemas) and all(
         plain_crud_schema(schema, model, role, links) for schema, role in roles
