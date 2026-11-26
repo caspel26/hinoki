@@ -705,7 +705,6 @@ dependencies = [
  "deadpool-postgres",
  "mysql_async",
  "percent-encoding",
- "rusqlite",
  "rustls",
  "rustls-pki-types",
  "serde_json",
