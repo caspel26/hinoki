@@ -674,21 +674,175 @@
     display: inline;
   }
 
+  /* A route row is a compact card: name and number, the bar, the comparison and latencies, the range. */
+  .bench-route tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name name value"
+      "bar bar bar"
+      "vs vs badge"
+      "p50 p99 ."
+      "spread spread spread";
+    gap: 6px var(--sp-3);
+    min-width: 0;
+    align-items: baseline;
+    padding: 12px;
+  }
+
+  .bench-route tbody th {
+    grid-area: name;
+    min-width: 0;
+    padding: 0 var(--sp-2) 0 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    font-size: var(--fs-m);
+    line-height: 1.3;
+  }
+
+  .bench-route tbody tr[data-stack] {
+    box-shadow: inset 4px 0 0 var(--bench-color);
+  }
+
+  .bench-route tbody tr[data-stack] > th {
+    box-shadow: none;
+  }
+
+  .bench-route td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+    font-size: var(--fs-s);
+  }
+
+  .bench-route td::before {
+    display: none;
+  }
+
+  .bench-route .bench-rps {
+    display: contents;
+  }
+
+  .bench-route .bench-rps .bench-num {
+    grid-area: value;
+    color: var(--hn-text);
+    font-size: var(--fs-l);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .bench-route tr.is-best .bench-rps .bench-num {
+    color: var(--bench-good);
+  }
+
+  .bench-route .bench-rps .bench-meter {
+    grid-area: bar;
+    height: 8px;
+    margin: 2px 0 4px;
+  }
+
+  .bench-route .bench-rps .bench-badge {
+    grid-area: badge;
+    margin: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .bench-route .bench-vs {
+    grid-area: vs;
+    min-width: 0;
+    font-weight: 600;
+  }
+
+  .bench-route .bench-vs::before {
+    display: inline;
+    color: var(--hn-text-3);
+    content: attr(data-label) " ";
+    font-weight: 400;
+  }
+
+  .bench-route .bench-vs.is-reference::before {
+    display: none;
+  }
+
+  .bench-route td:nth-child(4),
+  .bench-route td:nth-child(5) {
+    color: var(--hn-text);
+    white-space: nowrap;
+  }
+
+  .bench-route td:nth-child(4) {
+    grid-area: p50;
+  }
+
+  .bench-route td:nth-child(5) {
+    grid-area: p99;
+  }
+
+  .bench-route td:nth-child(4)::before,
+  .bench-route td:nth-child(5)::before {
+    display: inline;
+    color: var(--hn-text-3);
+  }
+
+  .bench-route td:nth-child(4)::before {
+    content: "p50 ";
+  }
+
+  .bench-route td:nth-child(5)::before {
+    content: "p99 ";
+  }
+
+  .bench-route td:nth-child(4)::after,
+  .bench-route td:nth-child(5)::after {
+    color: var(--hn-text-3);
+    content: " ms";
+  }
+
+  .bench-route .bench-spread {
+    grid-area: spread;
+    color: var(--hn-text-3);
+    font-size: var(--fs-xs);
+  }
+
   .bench-route .bench-spread::before {
-    grid-row: 1 / span 2;
+    display: inline;
+    content: "Range ";
   }
 
   .bench-route .bench-spread span,
   .bench-route .bench-spread small {
-    grid-column: 2;
+    display: inline;
   }
 
-  .bench-route .bench-rps .bench-meter {
-    grid-column: 1 / -1;
+  .bench-route .bench-spread small::before {
+    content: " \00b7 ";
   }
 
-  .bench-route .bench-rps .bench-badge {
-    grid-column: 2;
+  /* The summary: the reference first and clearly, then one chip per framework. */
+  .bench-summary td:not(.bench-cmp) {
+    align-items: baseline;
+    padding: 10px 12px 6px;
+    color: var(--hn-text-2);
+  }
+
+  .bench-summary td:not(.bench-cmp)::before {
+    color: var(--hn-text);
+    font-weight: 600;
+  }
+
+  .bench-summary td:not(.bench-cmp) .bench-num {
+    color: var(--hn-text);
+    font-size: var(--fs-l);
+  }
+
+  .bench-summary .bench-cmp::before {
+    content: "vs " attr(data-label);
+    font-size: var(--fs-s);
   }
 
 }
