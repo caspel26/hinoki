@@ -57,6 +57,11 @@ Handlers annotated with a `Schema` return type no longer implicitly convert a re
 
 ### ✨ New Features
 
+#### 📦 Align `hinoki.admin` packaging with `hinoki-api` wheel
+> `python/hinoki/admin/__init__.py`, `CLAUDE.md`, `docs/admin.md`, `examples/blog/hinoki.toml`, `tests/adminpackagingtest.py`
+
+Clarified that `hinoki.admin` (including its UI assets and user migrations) ships in the base `hinoki-api` package with explicit mounting (`Mount("/admin", site)`) and explicit migrations rather than as a separate optional extra.
+
 #### 🧩 Optional persistence and `--no-models` apps in `hinoki.toml`
 > `python/hinoki/project.py`, `python/hinoki/cli/project.py`, `python/hinoki/cli/migrations.py`, `python/hinoki/__main__.py`
 
