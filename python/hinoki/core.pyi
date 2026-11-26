@@ -36,6 +36,15 @@ class _ResponseTypeList:
     def scan(self, value: object) -> int:
         """0 invalid, 1 valid and every item exactly ``target``, 2 valid otherwise."""
 
+class Narrowed:
+    """A Schema subclass instance seen as the Schema its position declares: its
+    fields and computed values read as attributes, ``dump()`` gives those only,
+    and ``isinstance`` answers the declared class."""
+
+    def __init__(self, value: Any, declared: type) -> None: ...
+    def dump(self) -> dict[str, Any]: ...
+    def __getattr__(self, name: str) -> Any: ...
+
 class _ReturnGuide:
     def __init__(self, spec: tuple[str, Any]) -> None: ...
     def narrow(self, value: Any) -> Any:

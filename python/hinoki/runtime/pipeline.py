@@ -58,6 +58,7 @@ from hinoki.ratelimit import RateLimit, RateLimitContext
 from hinoki.renderers import (
     JSONRenderer,
     Renderer,
+    XMLRenderer,
     is_default_json_renderer,
     negotiate,
 )
@@ -1519,7 +1520,10 @@ class Pipeline:
             return Response(result.status, result.body, result.headers)
         exact = enforce_response(binding, result)
         if result is not None and route.status not in BODYLESS:
-            result = shape_result(binding, result, exact)
+            # a built-in renderer encodes the declared fields itself (one type
+            # lookup per request); any other takes objects as a readable view
+            view = renderer.consumes_objects and type(renderer) not in BUILTIN_OBJECTS
+            result = shape_result(binding, result, exact, view)
             shown = result if renderer.consumes_objects else encode(result)
             if request is None:  # only the stock JSON renderer runs without one
                 body = core.encode_json(shown, None, False, None)
@@ -1877,6 +1881,9 @@ def valid_refusal(error: TooManyRequests) -> bool:
     )
 
 
+BUILTIN_OBJECTS = frozenset({JSONRenderer, XMLRenderer})
+
+
 class ResponseProjectionError(RuntimeError):
     """The handler's own return value does not satisfy its response Schema.
 
@@ -1885,17 +1892,21 @@ class ResponseProjectionError(RuntimeError):
     client."""
 
 
-def shape_result(binding: Binding, result: object, exact: bool = False) -> object:
+def shape_result(
+    binding: Binding, result: object, exact: bool = False, view: bool = False
+) -> object:
     """A handler result as the declared annotation shows it: narrowed to the
-    Schema its annotation names, wherever the annotation holds one."""
+    Schema its annotation names, wherever the annotation holds one. ``view``: for
+    a renderer that reads objects, a narrowed instance is a ``core.Narrowed``
+    (it reads as the declared Schema) and not its dumped dict."""
     if binding.narrow_schema is not None:
-        return narrow_result(binding.narrow_schema, result, exact)
+        return narrow_result(binding.narrow_schema, result, exact, view)
     if binding.narrow_guide is not None:
         return binding.narrow_guide.narrow(result)
-    return project_response(binding.response_schema, result)
+    return project_response(binding.response_schema, result, view)
 
 
-def narrow_instance(schema: type[Schema], value: Schema) -> object:
+def narrow_instance(schema: type[Schema], value: Schema, view: bool = False) -> object:
     """``value`` as the declared ``schema``: itself when it is exactly that
     Schema (or its lazy projection), else what ``schema`` declares: its fields and
     computed values, nested values narrowed by its own field types. A ``schema``
@@ -1908,10 +1919,14 @@ def narrow_instance(schema: type[Schema], value: Schema) -> object:
     if is_exact:
         return value
     narrowed = core.dump_as(value, schema)
-    return value.dump(include=schema.specs()) if narrowed is None else narrowed
+    if narrowed is None:
+        return value.dump(include=schema.specs())
+    return core.Narrowed(value, schema) if view else narrowed
 
 
-def narrow_result(schema: type[Schema], value: object, exact: bool = False) -> object:
+def narrow_result(
+    schema: type[Schema], value: object, exact: bool = False, view: bool = False
+) -> object:
     """Shape a handler result declared ``list[S]``, ``Page[S]``, ``CursorPage[S]``
     or ``S | None`` (``schema`` is ``S``): strict subclasses of ``S`` are sent
     with the declared fields only. ``exact``: the validation pass already proved a
@@ -1921,13 +1936,15 @@ def narrow_result(schema: type[Schema], value: object, exact: bool = False) -> o
     if isinstance(value, tuple):  # a tuple returned for list[S] is narrowed too
         value = list(value)
     if isinstance(value, list):
-        return narrow_items(schema, value)
+        return narrow_items(schema, value, view)
     if isinstance(value, (ResultPage, CursorPage)):
-        return narrow_page(schema, value)
-    return narrow_instance(schema, value) if isinstance(value, schema) else value
+        return narrow_page(schema, value, view)
+    return narrow_instance(schema, value, view) if isinstance(value, schema) else value
 
 
-def narrow_items(schema: type[Schema], items: list[Any]) -> list[Any]:
+def narrow_items(
+    schema: type[Schema], items: list[Any], view: bool = False
+) -> list[Any]:
     """``items`` with every strict subclass of ``schema`` narrowed to its
     declared fields; the same list when every item is exactly ``schema``."""
     if (
@@ -1941,20 +1958,20 @@ def narrow_items(schema: type[Schema], items: list[Any]) -> list[Any]:
     if core.all_exact(items, schema):
         return items
     return [
-        narrow_instance(schema, item) if isinstance(item, schema) else item
+        narrow_instance(schema, item, view) if isinstance(item, schema) else item
         for item in items
     ]
 
 
 def narrow_page(
-    schema: type[Schema], page: ResultPage[Any] | CursorPage[Any]
+    schema: type[Schema], page: ResultPage[Any] | CursorPage[Any], view: bool = False
 ) -> ResultPage[Any] | CursorPage[Any]:
     """The same narrowing for the items of a page (a new page when any changed)."""
     if isinstance(page, _ProjectedPage) and page._projected_handle is not None:
         lazy = page._schema
         if lazy is schema or not issubclass(lazy, schema):
             return page
-    narrowed = narrow_items(schema, page.items)
+    narrowed = narrow_items(schema, page.items, view)
     if narrowed is page.items:
         return page
     if isinstance(page, ResultPage):
@@ -1962,7 +1979,9 @@ def narrow_page(
     return CursorPage(narrowed, page.next, page.previous, page.page_size)
 
 
-def project_response(schema: type[Schema] | None, value: object) -> object:
+def project_response(
+    schema: type[Schema] | None, value: object, view: bool = False
+) -> object:
     """Shape a handler result by its single declared response Schema.
 
     A Model is projected with ``from_model()``; an instance of a Schema subclass
@@ -1971,7 +1990,7 @@ def project_response(schema: type[Schema] | None, value: object) -> object:
     if schema is None:
         return value
     if isinstance(value, schema):
-        return narrow_instance(schema, value)
+        return narrow_instance(schema, value, view)
     if not isinstance(value, Model):
         return value
     source = schema.__derived_model__

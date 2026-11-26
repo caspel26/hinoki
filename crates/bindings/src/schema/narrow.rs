@@ -34,8 +34,12 @@ pub(crate) enum Guide {
 }
 
 /// A schema instance to be written as `declared`, a class it derives from.
+///
+/// A renderer that takes objects reads it as a `declared`: `isinstance` and
+/// `__class__` answer `declared`, its fields and computed values read as
+/// attributes, and `dump()` gives the declared fields only.
 #[pyclass(frozen, module = "hinoki.core")]
-pub(crate) struct Narrowed {
+pub struct Narrowed {
     pub(crate) value: Py<PyAny>,
     pub(crate) declared: Py<PyAny>,
 }
@@ -376,6 +380,33 @@ fn narrow_keyed<'py>(
 
 #[pymethods]
 impl Narrowed {
+    #[new]
+    fn new(value: Py<PyAny>, declared: Py<PyAny>) -> Self {
+        Self { value, declared }
+    }
+
+    /// `isinstance(narrowed, declared)` holds, as it does for a lazy projection.
+    #[getter]
+    fn __class__(&self, py: Python<'_>) -> Py<PyAny> {
+        self.declared.clone_ref(py)
+    }
+
+    /// A field or computed value the declared class has; nothing else of the
+    /// subclass is readable through the view.
+    fn __getattr__<'py>(&self, py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
+        let declared = self.declared.bind(py);
+        let known = declared
+            .call_method0(intern!(py, "specs"))?
+            .contains(name)?
+            || declared
+                .call_method0(intern!(py, "computed_fields"))?
+                .contains(name)?;
+        if !known {
+            return Err(pyo3::exceptions::PyAttributeError::new_err(name.to_owned()));
+        }
+        self.value.bind(py).getattr(name)
+    }
+
     /// The declared form as a dict, for a renderer that reads plain data.
     fn dump<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let value = self.value.bind(py);
