@@ -502,7 +502,7 @@
           
           <p class="page-meta" data-search-exclude>
             <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 19:06:38 UTC">November 23, 2026</span></span>
-            <span>31 min read</span>
+            <span>32 min read</span>
           </p>
           
         </header>
@@ -791,7 +791,8 @@ key = JWTKey(&quot;2026-11&quot;, &quot;HS256&quot;, Secret(&quot;from-a-secret-
 <p>Kiso's fuzz workflow now covers request-line framing and request-head limits
 with <code>head_framing</code> and <code>request_head_limits</code> (<code>fuzz/</code>,
 <code>.github/workflows/fuzz.yml</code>, <code>docs/kiso.md</code>).</p>
-<p>The <a href="docs/benchmarks.md">benchmarks page</a> now shows a run on a dedicated 8 vCPU AMD EPYC server, with Fastify, Hono and <code>Bun.serve</code> as an extra group and the load average held at or below 2 before every sample. Hinoki in this run is commit <code>478e1452</code>.</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
+<p>The <a href="docs/benchmarks.md">benchmarks page</a> now shows a run on a dedicated 8 vCPU AMD EPYC server, with Fastify, Hono and <code>Bun.serve</code> as an extra group and the load average held at or below 2 before every sample. Hinoki in this run is commit <code>478e1452</code>.</p>
+<p>The <a href="docs/benchmarks.md">benchmarks page</a> is redesigned: 8 workers and 1 worker sit behind tabs, a Summary compares Hinoki on Kiso with the other stacks (ratios of medians, ties and unsettled results shown), and each route has its own table with the ratio, p50, p99, range and CV; the other runtimes stay a separate view (#529).</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
         
       </article>
 
