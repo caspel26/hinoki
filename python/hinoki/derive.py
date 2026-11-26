@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
 import weakref
 from collections.abc import Callable
 from functools import cached_property
@@ -22,40 +21,20 @@ DERIVED: weakref.WeakSet[type] = weakref.WeakSet()
 
 
 def derive[S: Schema](
-    model: type[Model] | None = None,
+    model: type[Model],
     *,
     only: tuple[str, ...] | None = None,
     exclude: tuple[str, ...] | None = None,
     partial: bool | tuple[str, ...] = False,
 ) -> Callable[[type[S]], type[S]]:
-    """Derive selected fields from ``model`` into a Schema subclass.
-
-    The keyword-only form is retained for one compatibility cycle and is
-    deprecated; it requires the legacy ``model=`` Schema class keyword.
-    """
+    """Derive selected fields from ``model`` into a Schema subclass."""
     _validate_options(only, exclude, partial)
 
     def apply(cls: type[S]) -> type[S]:
         ensure_derivable(cls)
-        source = model if model is not None else cls.__dict__.get("__derived_model__")
-        if source is None:
-            raise RegistrationError(
-                f"{cls.__name__}: @derive requires a Model argument"
-            )
-        if model is None:
-            warnings.warn(
-                "@derive(...), with model= on the Schema class, is deprecated; "
-                "pass the Model to @derive(Model, ...)",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        elif cls.__dict__.get("__derived_model__") is not None:
-            raise RegistrationError(
-                f"{cls.__name__}: pass the Model to @derive or to Schema, not both"
-            )
         return rebuild(
             cls,
-            (source, only, exclude or (), True if partial is True else partial),
+            (model, only, exclude or (), True if partial is True else partial),
         )
 
     return apply
