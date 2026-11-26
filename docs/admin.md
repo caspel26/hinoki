@@ -76,7 +76,7 @@ export BLOG_ADMIN__SECRET="$(python -c 'import secrets; print(secrets.token_urls
 | `admin.min_password_length` | `12` | Shortest password accepted |
 | `admin.theme` | none | Built-in theme (`studio`, `console`, `paper`, `bento`) for an `Admin` that sets no `theme=`; `studio` when neither is set |
 
-`Admin(secret=...)` overrides the secret and `Admin(theme=...)` the theme for one site. An admin with neither stops the app at startup. So does an admin served with `allowed_hosts` at its default `*` and `debug` off: the CSRF check trusts the `Host` header it compares the `Origin` with, so name the served hosts; `debug` only lifts the refusal for local development (see [Hosts, CORS and HTTPS](web-security.md#allowed_hosts)). The in-process test clients are not affected.
+`Admin(secret=...)` overrides the secret and `Admin(theme=...)` the theme for one site. An admin with neither stops the app at startup. So does an admin served with `allowed_hosts` at its default `*` and `debug` off: the CSRF check trusts the `Host` header it compares the `Origin` with, so name the served hosts; `debug` only lifts the refusal for local development, and then the whole app accepts loopback `Host` names only (`localhost`, `*.localhost`, `127.0.0.0/8`, `[::1]`; any other `Host` receives `400`) unless `allowed_hosts` names the hosts (see [Hosts, CORS and HTTPS](web-security.md#allowed_hosts)). The in-process test clients are not affected.
 
 ## Who may sign in
 

@@ -33,7 +33,8 @@ migrations (`0002-tags` adds the tags and the generated bridge table); the admin
 From this directory. The admin needs a signing secret of at least 32 bytes and,
 because its CSRF check compares the `Origin` header with the `Host` header, named
 `allowed_hosts`; a served app with the admin and `allowed_hosts` left at `*`
-refuses to start:
+refuses to start (with `BLOG_DEBUG=true` it starts and accepts only loopback
+hosts: `localhost`, `127.0.0.0/8`, `[::1]`):
 
 ```sh
 export BLOG_ADMIN__SECRET=a-local-development-secret-with-32-bytes

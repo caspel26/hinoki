@@ -148,7 +148,7 @@ compared exactly, in lower case, port included: no default port or trailing dot
 is folded in. Granian handshakes also go through
 `allowed_hosts` and trusted-proxy handling, and the route is matched on the raw
 path, as for HTTP requests. The same-host match trusts the `Host` header, so an app with
-WebSocket routes and `allowed_hosts` left at `*` refuses to start unless `debug` is on, which is for local development only; name the served hosts.
+WebSocket routes and `allowed_hosts` left at `*` refuses to start unless `debug` is on, which is for local development only; with `debug` on the app then accepts loopback `Host` names only (`localhost`, `*.localhost`, `127.0.0.0/8`, `[::1]`), any other `Host` receives `400`, and a handshake to it is refused. Name the served hosts with `allowed_hosts` to serve other names.
 
 ## Subprotocols
 
