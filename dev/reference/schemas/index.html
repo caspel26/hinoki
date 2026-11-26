@@ -1283,7 +1283,7 @@ responses give <code>**********</code>; <code>reveal()</code> returns the text.<
 
 <a href="#hinoki.derive.derive" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">derive</span><span class="p">(</span>
-    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">only</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">exclude</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1294,8 +1294,6 @@ responses give <code>**********</code>; <code>reveal()</code> returns the text.<
     <div class="doc doc-contents first">
 
         <p>Derive selected fields from <code>model</code> into a Schema subclass.</p>
-<p>The keyword-only form is retained for one compatibility cycle and is
-deprecated; it requires the legacy <code>model=</code> Schema class keyword.</p>
 
 
     </div>

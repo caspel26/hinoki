@@ -4479,8 +4479,7 @@ the slots; a class that defines `__copy__`, `__deepcopy__`, `__reduce__`,
 
 A `Schema` subclass keeps its fields in `__slots__` (the instance still has a
 `__dict__` for attributes you set yourself), which lets Rust fill them without a
-lookup per field. Consequences: field values are not in `vars(instance)`, and a
-class made with `model=` keeps its fields in the instance dict. A class can
+lookup per field. Consequences: field values are not in `vars(instance)`. A class can
 combine only one base that declares fields with slots; declare the others with
 `slots=False`:
 
@@ -4532,7 +4531,7 @@ from .models import Invoice
 class InvoiceIn(Schema): ...
 
 
-@derive(Invoice)
+@derive(Invoice, only=("id", "reference", "paid"))
 class InvoiceOut(Schema): ...
 
 
@@ -4561,10 +4560,7 @@ every column by default, so use `only` or `exclude` when a column is private.
 These fail when the class is declared, with `RegistrationError`: unknown
 columns, a non-model, `only` together with `exclude`, an empty `only=()`,
 `partial` names outside the selection, a class that is not a `Schema`, and a
-second `@derive`. (`exclude=()` selects every column.) The older `model=` class
-keyword (`class InvoiceOut(Schema, model=Invoice)`) still derives every
-column; prefer `@derive(Invoice)`. Combining it with `@derive(...)` without a
-model emits `DeprecationWarning`.
+second `@derive`. (`exclude=()` selects every column.)
 
 ## Inherit from a derived schema
 
@@ -4625,11 +4621,11 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
   never a client 422.
 
 !!! note "Returning a model"
-    A handler annotated with one concrete `Schema` still converts a single
-    returned `Model` of the derived class at runtime, but type checkers reject
-    it and the `HNK-API-001` rule (`Actions.forbid_model_responses`) reports
-    it. Lists or pages of models, models of another class, and plain `dict`
-    values are `500 internal_error` unless the action sets
+    A handler annotated with a `Schema` must return an instance of that
+    `Schema` (converted explicitly with `from_model(...)` or an ORM projection).
+    Returning a `Model`, a list or page of models, or a plain `dict` fails
+    the response check with `500 internal_error` (rolling back `atomic=True`
+    transactions before sending the response), unless the action sets
     `validate_response=False`. A subclass instance is sent as the
     declared type: see [Subclass instances](https://hinoki.caspel.dev/dev/model-schemas.md#subclass-instances) below. See
     [the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation).
@@ -5482,7 +5478,7 @@ async def invoice_label(request: Request, invoice_id: UUID) -> InvoiceLabel:
 
 Request path, query and body values are validated before the handler runs; a `Schema` body uses `Schema.validate()` and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper `Schema` field (`Annotated[Cat | Dog, Field(discriminator="kind")]`); bare union body parameters are not supported. Hinoki does not coerce input values into different types, except in `Query[...]`, [`Form[...]`](https://hinoki.caspel.dev/dev/endpoints.md#form-bodies) and [`XML[...]`](https://hinoki.caspel.dev/dev/endpoints.md#xml-bodies).
 
-Return a `Schema` built from the row: `InvoiceOut.from_model(row)` or `InvoiceOut.from_models(rows)` ([model schemas](https://hinoki.caspel.dev/dev/model-schemas.md)). A returned `dict` where a `Schema` is declared is a `500 internal_error` ([the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation)). Use a wrapper `Schema` for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
+Return a `Schema` built from the row: `InvoiceOut.from_model(row)` or `InvoiceOut.from_models(rows)` ([model schemas](https://hinoki.caspel.dev/dev/model-schemas.md)). A returned `dict` or `Model` where a `Schema` is declared is a `500 internal_error` ([the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation)). Use a wrapper `Schema` for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.
 
 ## Query strings as a Schema
 

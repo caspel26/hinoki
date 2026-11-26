@@ -501,7 +501,7 @@
           <h1 id="validate-input">Validate input<a class="headerlink" href="#validate-input" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:26:37 UTC">November 22, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 19:36:18 UTC">November 26, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -684,8 +684,7 @@ the slots; a class that defines <code>__copy__</code>, <code>__deepcopy__</code>
 <h3 id="where-fields-live">Where fields live<a class="headerlink" href="#where-fields-live" title="Permanent link">&para;</a></h3>
 <p>A <code>Schema</code> subclass keeps its fields in <code>__slots__</code> (the instance still has a
 <code>__dict__</code> for attributes you set yourself), which lets Rust fill them without a
-lookup per field. Consequences: field values are not in <code>vars(instance)</code>, and a
-class made with <code>model=</code> keeps its fields in the instance dict. A class can
+lookup per field. Consequences: field values are not in <code>vars(instance)</code>. A class can
 combine only one base that declares fields with slots; declare the others with
 <code>slots=False</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Audited</span><span class="p">(</span><span class="n">Schema</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -741,7 +740,7 @@ lone surrogate) is refused with <code>type</code>.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 22, 2026 04:26:37 UTC">November 22, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 19:36:18 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/schema-validation.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

@@ -15,7 +15,7 @@ from .models import Invoice
 class InvoiceIn(Schema): ...
 
 
-@derive(Invoice)
+@derive(Invoice, only=("id", "reference", "paid"))
 class InvoiceOut(Schema): ...
 
 
@@ -44,10 +44,7 @@ every column by default, so use `only` or `exclude` when a column is private.
 These fail when the class is declared, with `RegistrationError`: unknown
 columns, a non-model, `only` together with `exclude`, an empty `only=()`,
 `partial` names outside the selection, a class that is not a `Schema`, and a
-second `@derive`. (`exclude=()` selects every column.) The older `model=` class
-keyword (`class InvoiceOut(Schema, model=Invoice)`) still derives every
-column; prefer `@derive(Invoice)`. Combining it with `@derive(...)` without a
-model emits `DeprecationWarning`.
+second `@derive`. (`exclude=()` selects every column.)
 
 ## Inherit from a derived schema
 
@@ -108,11 +105,11 @@ async def get_invoice(invoice_id: UUID) -> InvoiceDetail:
   never a client 422.
 
 !!! note "Returning a model"
-    A handler annotated with one concrete `Schema` still converts a single
-    returned `Model` of the derived class at runtime, but type checkers reject
-    it and the `HNK-API-001` rule (`Actions.forbid_model_responses`) reports
-    it. Lists or pages of models, models of another class, and plain `dict`
-    values are `500 internal_error` unless the action sets
+    A handler annotated with a `Schema` must return an instance of that
+    `Schema` (converted explicitly with `from_model(...)` or an ORM projection).
+    Returning a `Model`, a list or page of models, or a plain `dict` fails
+    the response check with `500 internal_error` (rolling back `atomic=True`
+    transactions before sending the response), unless the action sets
     `validate_response=False`. A subclass instance is sent as the
     declared type: see [Subclass instances](https://hinoki.caspel.dev/dev/model-schemas.md#subclass-instances) below. See
     [the response check](https://hinoki.caspel.dev/dev/endpoints.md#the-response-is-checked-against-the-annotation).

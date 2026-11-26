@@ -501,7 +501,7 @@
           <h1 id="schemas-from-models">Schemas from models<a class="headerlink" href="#schemas-from-models" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:39:23 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 19:36:18 UTC">November 26, 2026</span></span>
             <span>6 min read</span>
           </p>
           
@@ -520,7 +520,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">InvoiceIn</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 
 
-<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">)</span>
+<span class="nd">@derive</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="p">(</span><span class="s2">"id"</span><span class="p">,</span> <span class="s2">"reference"</span><span class="p">,</span> <span class="s2">"paid"</span><span class="p">))</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">InvoiceOut</span><span class="p">(</span><span class="n">Schema</span><span class="p">):</span> <span class="o">...</span>
 
 
@@ -569,10 +569,7 @@ every column by default, so use <code>only</code> or <code>exclude</code> when a
 <p>These fail when the class is declared, with <code>RegistrationError</code>: unknown
 columns, a non-model, <code>only</code> together with <code>exclude</code>, an empty <code>only=()</code>,
 <code>partial</code> names outside the selection, a class that is not a <code>Schema</code>, and a
-second <code>@derive</code>. (<code>exclude=()</code> selects every column.) The older <code>model=</code> class
-keyword (<code>class InvoiceOut(Schema, model=Invoice)</code>) still derives every
-column; prefer <code>@derive(Invoice)</code>. Combining it with <code>@derive(...)</code> without a
-model emits <code>DeprecationWarning</code>.</p>
+second <code>@derive</code>. (<code>exclude=()</code> selects every column.)</p>
 <h2 id="inherit-from-a-derived-schema">Inherit from a derived schema<a class="headerlink" href="#inherit-from-a-derived-schema" title="Permanent link">&para;</a></h2>
 <p>A subclass inherits its base's fields; <code>only</code> and <code>exclude</code> cannot remove them.
 A derivation that would leave out a column the base declares fails closed:</p>
@@ -625,11 +622,11 @@ widens the inherited columns is allowed.</p>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Returning a model</p>
-<p>A handler annotated with one concrete <code>Schema</code> still converts a single
-returned <code>Model</code> of the derived class at runtime, but type checkers reject
-it and the <code>HNK-API-001</code> rule (<code>Actions.forbid_model_responses</code>) reports
-it. Lists or pages of models, models of another class, and plain <code>dict</code>
-values are <code>500 internal_error</code> unless the action sets
+<p>A handler annotated with a <code>Schema</code> must return an instance of that
+<code>Schema</code> (converted explicitly with <code>from_model(...)</code> or an ORM projection).
+Returning a <code>Model</code>, a list or page of models, or a plain <code>dict</code> fails
+the response check with <code>500 internal_error</code> (rolling back <code>atomic=True</code>
+transactions before sending the response), unless the action sets
 <code>validate_response=False</code>. A subclass instance is sent as the
 declared type: see <a href="#subclass-instances">Subclass instances</a> below. See
 <a href="../endpoints/#the-response-is-checked-against-the-annotation">the response check</a>.</p>
@@ -742,7 +739,7 @@ nested subclass instances in its fields cannot leak.</p>
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:39:23 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 19:36:18 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/model-schemas.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
@@ -818,7 +815,7 @@ nested subclass instances in its fields cannot leak.</p>
   <div class="toast" data-toast role="status" aria-live="polite"></div>
   <div class="popover" data-popover role="tooltip" hidden></div>
 
-  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://hinoki.caspel.dev/dev", rules: {"HNK-ACC-001": {"decl": "Actions.require_access(match, except_)", "fix": "add access=\u003cpolicy\u003e to the action (or list it in except_ when it is public on purpose)", "phase": "startup", "title": "Actions are public unless they name an Access policy. This project requires every matching action to state its policy explicitly."}, "HNK-ACC-002": {"decl": "Actions.require_permissions(match, except_)", "fix": "name at least one permission in the Access policy of the action", "phase": "startup", "title": "An Access with no permission accepts any authenticated caller. This project requires every protected action to name what it needs."}, "HNK-API-001": {"decl": "Actions.forbid_model_responses(match, except_)", "fix": "return a Schema (for example PostOut.from_model(row)) instead of the Model", "phase": "startup", "title": "An action must not return a Model (or a list/page of them): a response schema names exactly what a client may see, so a column never leaks because someone added it to the table."}, "HNK-API-002": {"decl": "Actions.require_return_type(match, except_)", "fix": "annotate the action\u0027s return type (a Schema, or None for status 204)", "phase": "startup", "title": "The return annotation is the response contract that OpenAPI and rules read. An action without one (or typed Any/object) has no checkable response."}, "HNK-API-003": {"decl": "Actions.require_pagination(match, except_)", "fix": "return Page[Item] or CursorPage[Item] and paginate the action", "phase": "startup", "title": "A GET that returns a plain list grows with the table. A Page or a CursorPage bounds the response."}, "HNK-DB-001": {"decl": "Models.require_explicit_table(match)", "fix": "name the table with @db.table(...) or table=... on the model", "phase": "startup", "title": "A derived table name follows the Python class and module names, so a rename changes the physical table. Pinning it keeps migration identity."}, "HNK-DB-002": {"decl": "Models.require_foreign_key_index(match)", "fix": "index the column: @db.indexed(\"\u003ccolumn\u003e\") on the model, or an index or unique group that starts with it", "phase": "startup", "title": "A foreign key column without an index makes joins and parent deletes scan the child table."}, "HNK-IMP-001": {"decl": "Imports.forbid(source, target)", "fix": "move the code to an allowed layer, or depend on it through the layer in between", "phase": "static", "title": "Code under the source package must not import from the target package, keeping the dependency direction the project declared. Only direct imports in the project\u0027s own files are checked."}, "HNK-MAIL-001": {"decl": "EmailTemplatesMatch()", "fix": "change the template or its context Schema so every variable exists and every field is used", "phase": "static", "title": "A template that names a variable its context does not have, or leaves a field unused, fails when the first message is rendered. Checking it here finds it before the application starts."}, "HNK-SCH-001": {"decl": "Schemas.forbid_exposure(*fields)", "fix": "remove the field from the response Schema, or return a Schema that does not carry it", "phase": "startup", "title": "A field with a forbidden name must never appear in a schema an action returns, directly or nested, so it cannot reach a client."}, "HNK-SCH-002": {"decl": "Schemas.require_string_limits()", "fix": "bound the field: Annotated[str, Field(max_length=...)] or one_of=...", "phase": "startup", "title": "A text field of a request Schema without max_length accepts a body of any size up to the server limit, and stores it."}, "HNK-TXN-001": {"decl": "Transactions.require_atomic(methods, match, except_)", "fix": "add atomic=True to the action (or declare it on a RouteGroup(..., atomic=True) group)", "phase": "startup", "title": "Actions that change state must run in a transaction so a failure rolls everything back before the error is reported."}, "HNK-WVR-001": {"decl": "hinoki-rules.toml", "fix": "remove the waiver, or correct its rule or target", "phase": "hinoki check \u00b7 warning", "title": "A waiver matches no diagnostic."}, "HNK-WVR-002": {"decl": "hinoki-rules.toml", "fix": "fix the violation, or renew the waiver with a new expires date", "phase": "startup \u00b7 warning", "title": "A waiver has expired and no longer applies."}} };</script>
+  <script>window.HN = { base: "..", repo: "https://github.com/caspel26/hinoki", site: "https://hinoki.caspel.dev/dev" };</script>
   <script src="../static/js/hinoki.js" defer></script>
   
   

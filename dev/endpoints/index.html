@@ -501,7 +501,7 @@
           <h1 id="requests-and-responses">Requests and responses<a class="headerlink" href="#requests-and-responses" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 19:36:18 UTC">November 26, 2026</span></span>
             <span>18 min read</span>
           </p>
           
@@ -614,7 +614,7 @@
     <span class="k">return</span> <span class="n">InvoiceLabel</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">invoice_id</span><span class="p">,</span> <span class="n">locale</span><span class="o">=</span><span class="n">locale</span><span class="p">)</span>
 </code></pre></div>
 <p>Request path, query and body values are validated before the handler runs; a <code>Schema</code> body uses <code>Schema.validate()</code> and reports nested field errors with its parameter prefix. Discriminated request variants belong in a wrapper <code>Schema</code> field (<code>Annotated[Cat | Dog, Field(discriminator="kind")]</code>); bare union body parameters are not supported. Hinoki does not coerce input values into different types, except in <code>Query[...]</code>, <a href="#form-bodies"><code>Form[...]</code></a> and <a href="#xml-bodies"><code>XML[...]</code></a>.</p>
-<p>Return a <code>Schema</code> built from the row: <code>InvoiceOut.from_model(row)</code> or <code>InvoiceOut.from_models(rows)</code> (<a href="../model-schemas/">model schemas</a>). A returned <code>dict</code> where a <code>Schema</code> is declared is a <code>500 internal_error</code> (<a href="#the-response-is-checked-against-the-annotation">the response check</a>). Use a wrapper <code>Schema</code> for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
+<p>Return a <code>Schema</code> built from the row: <code>InvoiceOut.from_model(row)</code> or <code>InvoiceOut.from_models(rows)</code> (<a href="../model-schemas/">model schemas</a>). A returned <code>dict</code> or <code>Model</code> where a <code>Schema</code> is declared is a <code>500 internal_error</code> (<a href="#the-response-is-checked-against-the-annotation">the response check</a>). Use a wrapper <code>Schema</code> for a discriminated response union too; bare union return annotations are rejected by OpenAPI generation.</p>
 <h2 id="query-strings-as-a-schema">Query strings as a Schema<a class="headerlink" href="#query-strings-as-a-schema" title="Permanent link">&para;</a></h2>
 <p><code>Query[...]</code> reads a whole query string into a <code>Schema</code>, for any method:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="c1"># notes/apps/billing/api.py (continued)</span>
@@ -832,7 +832,7 @@ hinoki<span class="w"> </span>migrations<span class="w"> </span>apply<span class
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 16:28:45 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 19:36:18 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/endpoints.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
