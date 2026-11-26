@@ -34,6 +34,7 @@ from hinoki.orm import Model, QuerySet, field, use_database
 from hinoki.pagination import Page, PageNumberPagination, PageParams
 from hinoki.resources import UserAttr, _CrudConfig
 from hinoki.runtime.crudplan import assign_is_plain
+from hinoki.testing import ASGIClient
 from tests.harness import Client, Pool
 
 URL = os.environ.get("HINOKI_TEST_DATABASE_URL")
@@ -256,7 +257,7 @@ def test_class_configuration_composes_with_custom_routes_and_hooks() -> None:
             values["title"] = f"hook:{values['title']}"
             return await Memo.acreate(**values)
 
-        @http.get("/health")
+        @http.get("/health", access=None)
         async def health(self, request: Request) -> dict[str, str]:
             return {"status": "ok"}
 
@@ -1068,3 +1069,78 @@ async def test_from_user_and_attrgetter_assign_work_end_to_end(
     )
     assert r2.status == 201
     assert r2.body["owner"] == "org-bob"
+
+
+def test_protected_crud_requires_explicit_access_on_handwritten_actions() -> None:
+    with pytest.raises(RegistrationError, match=r"MissingAccess\.extra.*access="):
+
+        @crud(Memo, path="/missing", read=MemoOut, access=writer)
+        class MissingAccess(API):
+            @http.get("/extra")
+            async def extra(self) -> str:
+                return "ok"
+
+    with pytest.raises(RegistrationError, match=r"PerActionMissing\.extra.*access="):
+
+        @crud(
+            Memo,
+            path="/per-action",
+            read=MemoOut,
+            create=MemoIn,
+            access=CrudAccess(create=writer),
+            owner="owner",
+            identity_key=str,
+        )
+        class PerActionMissing(API):
+            @http.get("/extra")
+            async def extra(self) -> str:
+                return "ok"
+
+    with pytest.raises(RegistrationError, match=r"SocketMissing\.stream.*access="):
+
+        @crud(Memo, path="/ws-missing", read=MemoOut, access=writer)
+        class SocketMissing(API):
+            @http.websocket("/ws")
+            async def stream(self, socket: http.WebSocket) -> None:
+                await socket.close()
+
+
+async def test_protected_crud_accepts_explicit_access_and_none_opt_out() -> None:
+    @crud(Memo, path="/explicit", read=MemoOut, access=writer)
+    class ExplicitCrud(API):
+        @http.get("/public", access=None)
+        async def public_info(self) -> dict[str, str]:
+            return {"scope": "public"}
+
+        @http.get("/staff", access=writer)
+        async def staff_info(self) -> dict[str, str]:
+            return {"scope": "staff"}
+
+        @http.websocket("/ws", access=None)
+        async def public_ws(self, socket: http.WebSocket) -> None:
+            await socket.close()
+
+    app = Hinoki(include=[ExplicitCrud])
+    async with ASGIClient(app) as client:
+        public_res = await client.get("/explicit/public")
+        anon_staff = await client.get("/explicit/staff")
+        auth_staff = await client.get("/explicit/staff", headers=ANN)
+    assert (public_res.status, public_res.body) == (200, {"scope": "public"})
+    assert anon_staff.status == 401
+    assert (auth_staff.status, auth_staff.body) == (200, {"scope": "staff"})
+
+
+def test_unprotected_crud_and_standalone_routes_allow_omitted_access() -> None:
+    @crud(Memo, path="/open", read=MemoOut)
+    class OpenCrud(API):
+        @http.get("/extra")
+        async def extra(self) -> str:
+            return "ok"
+
+    @http.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    routes = {(r.method, r.path): r for r in Hinoki(include=[OpenCrud, health]).routes}
+    assert routes[("GET", "/open/extra")].access is None
+    assert routes[("GET", "/health")].access is None
