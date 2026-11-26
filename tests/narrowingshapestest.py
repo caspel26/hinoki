@@ -198,4 +198,5 @@ def test_a_recursive_type_alias_is_refused_when_checked() -> None:
         Hinoki(include=[group])
     group = RouteGroup("")
     group.get("/loop", validate_response=False)(handler(Loop, [private(1)]))
-    Hinoki(include=[group])
+    with pytest.raises(RegistrationError, match="recursive"):
+        Hinoki(include=[group])

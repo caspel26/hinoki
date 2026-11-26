@@ -144,7 +144,7 @@ Narrowed, wherever the annotation names a `Schema` `S`:
 - the abstract forms `Sequence[S]`, `MutableSequence[S]`, `Collection[S]`,
   `Iterable[S]` (a returned `list` or `tuple`), `Mapping[str, S]` and
   `MutableMapping[str, S]` (a returned `dict`), and a PEP 695 `type` alias of
-  any of these (`type Items = list[S]`, also a generic one);
+  any of these (`type Items = list[S]`; a generic one with its arguments substituted, `type Box[T] = list[T]` as `Box[S]`, `type Ident[T] = T`, `type Pair[A, B] = dict[B, A]`). A recursive alias that holds a `Schema` (`type Tree[T] = list[Tree[T]] | T`) and an alias with a `TypeVarTuple` parameter cannot be narrowed: the app stops with a `RegistrationError` that names the action;
 - the return annotation of a `@computed_field`: a method declared `-> Public`
   that returns a `Private` sends `Public`'s fields;
 - a list or tuple returned where `list[S]` is declared, and a lazy projection

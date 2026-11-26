@@ -52,6 +52,7 @@ from hinoki.routing import Route
 from hinoki.runtime.deprecation import header_of
 from hinoki.runtime.responsecheck import (
     NO_ANNOTATION,
+    AliasError,
     Check,
     compile_response_check,
     union_arms,
@@ -845,6 +846,15 @@ def describe_annotation(annotation: object) -> str:
 
 
 def bind(route: Route) -> Binding:
+    try:
+        return bind_checked(route)
+    except (
+        AliasError
+    ) as exc:  # a PEP 695 alias in an annotation that cannot be resolved
+        raise RegistrationError(f"{route.name}: {exc}") from exc
+
+
+def bind_checked(route: Route) -> Binding:
     parameters = handler_parameters(route)
     check_owner(route)
     try:
@@ -897,6 +907,7 @@ def bind(route: Route) -> Binding:
         if route.validate_response
         else None
     )
+    narrow_schema, narrow_guide = response_narrowing(response, response_schema)
     return Binding(
         route,
         params,
@@ -907,21 +918,22 @@ def bind(route: Route) -> Binding:
         describe_annotation(hints.get("return", NO_ANNOTATION)),
         streams=streams,
         stream_capable=stream_capable,
-        narrow_schema=collection_narrow_schema(response),
-        narrow_guide=other_narrow_guide(response, response_schema),
+        narrow_schema=narrow_schema,
+        narrow_guide=narrow_guide,
     )
 
 
-def other_narrow_guide(
+def response_narrowing(
     annotation: object, response_schema: type[Schema] | None
-) -> core._ReturnGuide | None:
-    """The guide that narrows a result whose annotation holds a Schema outside
-    the shapes of ``response_schema`` and ``collection_narrow_schema``; ``None``
-    (nothing to do per request) when there is no Schema position to narrow."""
-    if response_schema is not None or collection_narrow_schema(annotation):
-        return None
+) -> tuple[type[Schema] | None, core._ReturnGuide | None]:
+    """How a result is narrowed to the return annotation: the Schema of a
+    ``list[S]``, page or optional shape, else the guide of any other shape that
+    holds a Schema (``None`` for both when there is nothing to do per request)."""
+    narrow_schema = collection_narrow_schema(annotation)
+    if response_schema is not None or narrow_schema is not None:
+        return narrow_schema, None
     spec = guide_spec(annotation)
-    return None if spec is None else core._ReturnGuide(spec)
+    return None, None if spec is None else core._ReturnGuide(spec)
 
 
 def collection_narrow_schema(annotation: object) -> type[Schema] | None:
@@ -965,10 +977,11 @@ def guide_spec(annotation: object, visiting: Visiting = frozenset()) -> Spec | N
     none. A ``Page``, a dataclass or an ``Any`` position is not narrowed, and a
     ``TypedDict`` that refers to itself is narrowed down to the first reference.
     ``visiting`` holds the aliases and ``TypedDict`` classes being resolved."""
-    if is_visiting(annotation, visiting):
-        return None
-    if isinstance(annotation, typing.TypeAliasType):
-        visiting = visiting | {annotation}
+    alias = alias_of(annotation)
+    if alias is not None:
+        if is_visiting(alias, visiting):
+            return None
+        visiting = visiting | {alias}
     classes: list[type[Schema]] = []
     others: list[Spec] = []
     for arm in union_arms(annotation):
@@ -979,7 +992,42 @@ def guide_spec(annotation: object, visiting: Visiting = frozenset()) -> Spec | N
     members: list[Spec] = ([("schema", classes)] if classes else []) + others
     if not members:
         return None
+    if alias is not None and refers_to_itself(alias):
+        raise AliasError(
+            f"the recursive type alias {getattr(alias, '__name__', alias)} holds a "
+            "Schema and cannot be narrowed; use a non-recursive type, or return "
+            "only the declared class"
+        )
     return members[0] if len(members) == 1 else ("union", members)
+
+
+def refers_to_itself(alias: object) -> bool:
+    """Whether the value of a PEP 695 alias reaches the alias again, through its
+    arguments or through the value of another alias."""
+    seen: set[int] = set()
+    pending = [getattr(alias, "__value__", None)]
+    while pending:
+        item = pending.pop()
+        origin = typing.get_origin(item)
+        named = origin if isinstance(origin, typing.TypeAliasType) else item
+        if named is alias:
+            return True
+        if isinstance(named, typing.TypeAliasType):
+            if id(named) in seen:
+                continue
+            seen.add(id(named))
+            pending.append(named.__value__)
+        pending.extend(typing.get_args(item))
+    return False
+
+
+def alias_of(annotation: object) -> object | None:
+    """The PEP 695 alias an annotation names, bare or subscripted: the key of a
+    back-reference (``Tree[T]`` inside ``type Tree[T] = list[Tree[T]] | T``)."""
+    origin = typing.get_origin(annotation)
+    if isinstance(origin, typing.TypeAliasType):
+        return origin
+    return annotation if isinstance(annotation, typing.TypeAliasType) else None
 
 
 def container_spec(arm: object, visiting: Visiting) -> Spec | None:
