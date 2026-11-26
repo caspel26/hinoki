@@ -1,5 +1,4 @@
-"""A ``TypedDict`` return type with a key that does not resolve is refused at
-bind time: left whole it would be written with every key it holds."""
+"""Bind-time checks for TypedDict annotations that cannot be narrowed."""
 
 from __future__ import annotations
 
@@ -7,7 +6,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 import pytest
 
-from hinoki import Hinoki, http
+from hinoki import Hinoki, Schema, http
 from hinoki.errors import RegistrationError
 
 if TYPE_CHECKING:
@@ -22,6 +21,37 @@ class Note(TypedDict):
 class Tree(TypedDict):
     id: int
     children: list[Tree]
+
+
+class Item(Schema):
+    id: int
+
+
+class Branch(TypedDict):
+    item: Item
+    children: list[Branch]
+
+
+class Parent(TypedDict):
+    child: Child | None
+
+
+class Child(TypedDict):
+    item: Item
+    parent: Parent | None
+
+
+class AliasedBranch(TypedDict):
+    item: Item
+    children: list[BranchAlias]
+
+
+type BranchAlias = AliasedBranch
+
+
+class Envelope(TypedDict):
+    item: Item
+    plain_tree: Tree
 
 
 def action(annotation: object, **options: object) -> Hinoki:
@@ -44,3 +74,24 @@ def test_a_typeddict_with_an_unresolved_key_stops_startup(annotation: object) ->
 
 def test_a_recursive_typeddict_still_binds() -> None:
     action(Tree, validate_response=False)
+
+
+def test_a_schema_can_sit_beside_a_plain_recursive_typeddict() -> None:
+    action(Envelope, validate_response=False)
+
+
+@pytest.mark.parametrize(
+    "annotation", [Branch, list[Branch], Parent, Child, BranchAlias]
+)
+def test_a_recursive_typeddict_holding_a_schema_stops_startup(
+    annotation: object,
+) -> None:
+    with pytest.raises(
+        RegistrationError, match=r"serve: .*recursive TypedDict .*Schema"
+    ):
+        action(annotation, validate_response=False)
+
+
+def test_the_response_checker_rejects_typeddict_returns() -> None:
+    with pytest.raises(RegistrationError, match=r"serve: .*cannot be checked"):
+        action(Branch, validate_response=True)

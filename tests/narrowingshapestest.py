@@ -1,14 +1,13 @@
 """Every annotation shape that holds a Schema sends the declared fields only: an
 abstract collection, a PEP 695 alias, a container of another kind than declared
-and a recursive TypedDict, on the ASGI pipeline, both Kiso lanes and the XML
-renderer. A value that cannot be walked is documented as written whole."""
+on the ASGI pipeline, both Kiso lanes and the XML renderer."""
 
 from __future__ import annotations
 
 import collections.abc
 import json
 import typing
-from typing import Any, TypedDict
+from typing import Any
 
 import pytest
 
@@ -34,11 +33,6 @@ def private(n: int = 1) -> Private:
     return Private(id=n, secret=SECRET)
 
 
-def whole(n: int) -> dict[str, Any]:
-    """What a position without a guide of its own sends."""
-    return {"id": n, "secret": SECRET}
-
-
 def shown(n: int = 1) -> dict[str, Any]:
     return {"id": n}
 
@@ -47,16 +41,6 @@ type Alias = list[Public]
 type NestedAlias = dict[str, Alias]
 type Box[T] = list[T]
 type Loop = list[Loop] | Public
-
-
-class Tree(TypedDict):
-    item: Public
-    child: Tree | None
-
-
-class Forest(TypedDict):
-    kids: list[Forest]
-    item: Public
 
 
 Cases = dict[str, tuple[Any, Any, object]]
@@ -86,23 +70,6 @@ CASES: Cases = {
         tuple[Public, ...],
         (private(1), private(2)),
         [shown(1), shown(2)],
-    ),
-}
-# A recursive TypedDict is narrowed at its first level: the back-reference to
-# itself is written as it is.
-RECURSIVE: Cases = {
-    "/recursive": (
-        Tree,
-        {"item": private(1), "child": {"item": private(2), "child": None}},
-        {
-            "item": shown(1),
-            "child": {"item": {"id": 2, "secret": SECRET}, "child": None},
-        },
-    ),
-    "/recursive-list": (
-        Forest,
-        {"kids": [{"kids": [], "item": private(2)}], "item": private(1)},
-        {"kids": [{"kids": [], "item": whole(2)}], "item": shown(1)},
     ),
 }
 
@@ -159,29 +126,6 @@ async def test_the_xml_renderer_sends_the_declared_fields(path: str) -> None:
     assert reply.status == 200
     assert SECRET not in reply.raw.decode()
     assert b"<id>" in reply.raw
-
-
-@pytest.mark.parametrize("path", sorted(RECURSIVE))
-async def test_a_recursive_typeddict_builds_and_narrows_its_first_level(
-    path: str,
-) -> None:
-    async with ASGIClient(build(RECURSIVE)) as client:
-        reply = await client.get(path)
-    assert reply.status == 200
-    assert json.loads(reply.raw) == RECURSIVE[path][2]
-
-
-@pytest.mark.parametrize("native", [True, False])
-async def test_a_recursive_typeddict_over_kiso(native: bool) -> None:
-    worker = KisoWorker(build(RECURSIVE), "127.0.0.1", 0, native_dispatch=native)
-    port = await worker.start()
-    try:
-        for path, (_, _, expected) in RECURSIVE.items():
-            reply = await fetch(port, "GET", path)
-            assert reply.status == 200, path
-            assert json.loads(reply.body) == expected, path
-    finally:
-        await worker.stop()
 
 
 async def test_a_type_alias_is_checked_like_what_it_names() -> None:
