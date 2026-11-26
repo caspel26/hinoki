@@ -142,7 +142,10 @@ Narrowed, wherever the annotation names a `Schema` `S`:
   top-level `dict`, `tuple` and `TypedDict` shapes are narrowed too, with
   `validate_response=False` where the check refuses the annotation;
 - the abstract forms `Sequence[S]`, `MutableSequence[S]`, `Collection[S]`,
-  `Iterable[S]` (a returned `list` or `tuple`), `Mapping[str, S]` and
+  `Iterable[S]` (a returned `list`, `tuple`, `set` or `frozenset`), `set[S]`,
+  `frozenset[S]`, `Set[S]`, `MutableSet[S]` (a set holding a subclass instance
+  is written as a list, in JSON and XML alike; the response check refuses a
+  set annotation, so these take `validate_response=False`), `Mapping[str, S]` and
   `MutableMapping[str, S]` (a returned `dict`), and a PEP 695 `type` alias of
   any of these (`type Items = list[S]`; a generic one with its arguments substituted, `type Box[T] = list[T]` as `Box[S]`, `type Ident[T] = T`, `type Pair[A, B] = dict[B, A]`). A recursive alias that holds a `Schema` (`type Tree[T] = list[Tree[T]] | T`) and an alias with a `TypeVarTuple` parameter cannot be narrowed: the app stops with a `RegistrationError` that names the action;
 - the return annotation of a `@computed_field`: a method declared `-> Public`

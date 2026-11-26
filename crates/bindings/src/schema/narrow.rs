@@ -20,8 +20,8 @@ pub(crate) enum Guide {
     /// One class, or the members of a union: a value is written as the first
     /// declared class on its own MRO.
     Schema(Box<[Py<PyAny>]>),
-    /// `list[X]` and `tuple[X, ...]` (a set or frozenset holds no schema: its
-    /// members must be hashable scalars).
+    /// `list[X]`, `tuple[X, ...]`, `set[X]` and `frozenset[X]` (a set whose
+    /// members change is rebuilt as a list: it is written as a list anyway).
     Seq(Box<Guide>),
     /// `tuple[X, Y]`: a guide per position.
     Tuple(Box<[Option<Guide>]>),
@@ -246,6 +246,12 @@ fn narrow_positions<'py, 'g>(
     if let Ok(tuple) = value.cast::<PyTuple>() {
         return narrow_walk(value, || tuple.iter(), guide_at);
     }
+    if value.is_instance_of::<pyo3::types::PySet>()
+        || value.is_instance_of::<pyo3::types::PyFrozenSet>()
+    {
+        let members = value.try_iter()?.collect::<PyResult<Vec<_>>>()?;
+        return narrow_walk(value, || members.iter().cloned(), guide_at);
+    }
     if value.is_instance_of::<PyList>() {
         // A list subclass may keep its items elsewhere than the list storage (a
         // lazy projection materialises on iteration): read them through Python.
@@ -286,7 +292,7 @@ fn narrow_walk<'py, 'g, I: Iterator<Item = Bound<'py, PyAny>>>(
     rebuild(value, out)
 }
 
-/// The kind of container `value` is, holding `items`.
+/// The kind of container `value` is, holding `items` (a set becomes a list).
 fn rebuild<'py>(
     value: &Bound<'py, PyAny>,
     items: Vec<Bound<'py, PyAny>>,

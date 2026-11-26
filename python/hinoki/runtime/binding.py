@@ -961,6 +961,10 @@ SEQUENCE_ORIGINS = frozenset(
         collections.abc.MutableSequence,
         collections.abc.Collection,
         collections.abc.Iterable,
+        collections.abc.Set,
+        collections.abc.MutableSet,
+        set,
+        frozenset,
     }
 )
 MAPPING_ORIGINS = frozenset(
@@ -972,7 +976,8 @@ Visiting = frozenset[object]
 def guide_spec(annotation: object, visiting: Visiting = frozenset()) -> Spec | None:
     """The nested spec of ``core._ReturnGuide`` for the Schema positions of an
     annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``,
-    their abstract forms (``Sequence``, ``Iterable``, ``Mapping``), a PEP 695
+    ``set`` and ``frozenset``, their abstract forms (``Sequence``, ``Iterable``,
+    ``Set``, ``Mapping``), a PEP 695
     alias of any of these and ``TypedDict`` containers; ``None`` when it holds
     none. A ``Page``, a dataclass or an ``Any`` position is not narrowed, and a
     ``TypedDict`` that refers to itself is narrowed down to the first reference.
