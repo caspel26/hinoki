@@ -179,18 +179,42 @@ fn narrow_sequence<'py>(
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
     if let Guide::Schema(classes) = inner {
         // The usual case, every item exactly a declared class: a pointer compare each.
-        let exact = if let Ok(list) = value.cast::<PyList>() {
+        let exact = if let Ok(list) = value.cast_exact::<PyList>() {
             list.iter().all(|item| is_declared(&item, classes))
         } else if let Ok(tuple) = value.cast::<PyTuple>() {
             tuple.iter().all(|item| is_declared(&item, classes))
         } else {
-            false
+            keeps_lazy_projection(value, classes)?
         };
         if exact {
             return Ok(None);
         }
     }
     narrow_positions(value, |_| Some(inner))
+}
+
+/// A lazy projection still holding its rows has no items in its list storage:
+/// it is pre-encoded as the Schema it was projected to, which is kept when that
+/// is a declared class (or none of the declared classes is its base).
+fn keeps_lazy_projection(value: &Bound<'_, PyAny>, classes: &[Py<PyAny>]) -> PyResult<bool> {
+    let py = value.py();
+    if !value
+        .get_type()
+        .is(crate::pytypes::projected_list_class(py)?)
+        || value.getattr(intern!(py, "_projected_handle"))?.is_none()
+    {
+        return Ok(false);
+    }
+    let schema = value
+        .getattr(intern!(py, "_schema"))?
+        .cast_into::<PyType>()?;
+    let mro = schema.getattr(intern!(py, "__mro__"))?;
+    let strict_subclass = mro
+        .cast::<PyTuple>()?
+        .iter()
+        .skip(1)
+        .any(|base| classes.iter().any(|known| known.as_ptr() == base.as_ptr()));
+    Ok(!strict_subclass)
 }
 
 fn is_declared(value: &Bound<'_, PyAny>, classes: &[Py<PyAny>]) -> bool {
@@ -212,11 +236,17 @@ fn narrow_positions<'py, 'g>(
     value: &Bound<'py, PyAny>,
     guide_at: impl Fn(usize) -> Option<&'g Guide> + Copy,
 ) -> PyResult<Option<Bound<'py, PyAny>>> {
-    if let Ok(list) = value.cast::<PyList>() {
+    if let Ok(list) = value.cast_exact::<PyList>() {
         return narrow_walk(value, || list.iter(), guide_at);
     }
     if let Ok(tuple) = value.cast::<PyTuple>() {
         return narrow_walk(value, || tuple.iter(), guide_at);
+    }
+    if value.is_instance_of::<PyList>() {
+        // A list subclass may keep its items elsewhere than the list storage (a
+        // lazy projection materialises on iteration): read them through Python.
+        let items = value.try_iter()?.collect::<PyResult<Vec<_>>>()?;
+        return narrow_walk(value, || items.iter().cloned(), guide_at);
     }
     Ok(None)
 }
