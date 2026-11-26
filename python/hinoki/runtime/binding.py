@@ -673,6 +673,12 @@ def check_scalar_constraints(route: Route, params: tuple[Param, ...]) -> None:
     enforce it, so the constraint would be silently ignored. ``bind`` has already
     resolved the annotations, so a failure here cannot happen."""
     scalars = {p.name for p in params if p.source in {"path", "query"}}
+    try:
+        written = route.handler.__annotations__
+    except (AttributeError, NameError):
+        written = {}
+    if all(isinstance(written.get(name), type) for name in scalars):
+        return  # a plain class (`n: int`) cannot carry a `Field(...)`
     for name, hint in hints_of(route.handler, include_extras=True).items():
         if name in scalars and carries_field(hint):
             raise RegistrationError(
@@ -848,9 +854,8 @@ def describe_annotation(annotation: object) -> str:
 def bind(route: Route) -> Binding:
     try:
         return bind_checked(route)
-    except (
-        AliasError
-    ) as exc:  # a PEP 695 alias in an annotation that cannot be resolved
+    except AliasError as exc:
+        # a PEP 695 alias in an annotation that cannot be resolved
         raise RegistrationError(f"{route.name}: {exc}") from exc
 
 
