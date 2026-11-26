@@ -40,6 +40,9 @@ SCALARS = (
 )
 PAIR = 2
 NO_ANNOTATION = object()  # the action has no return annotation
+SIMPLE_RESPONSE_TYPES: frozenset[type] = frozenset(
+    {*SCALARS, dict, list, Response, type(None)}
+)
 
 
 class AliasError(RegistrationError):
@@ -57,6 +60,14 @@ def compile_response_check(name: str, annotation: object) -> Check:
     """The check for ``annotation``; ``RegistrationError`` if it cannot be one.
 
     ``annotation`` is ``NO_ANNOTATION`` when the action has no return annotation."""
+    return compile_response_check_arms(name, annotation)[0]
+
+
+def compile_response_check_arms(
+    name: str, annotation: object
+) -> tuple[Check, list[object]]:
+    """Compile the check for ``annotation`` and return it with its split union
+    arms so route binding reuses them without unwrapping a second time."""
     if annotation is NO_ANNOTATION or annotation is Any or annotation is object:
         raise RegistrationError(
             f"{name}: the return annotation must name a concrete type so the "
@@ -76,7 +87,7 @@ def compile_response_check(name: str, annotation: object) -> Check:
         raise RegistrationError(f"{name}: {exc}") from exc
     if Response in arms:
         checks.append(lambda value: isinstance(value, Response))
-    return any_arm(checks)
+    return any_arm(checks), arms
 
 
 def any_arm(checks: list[Check]) -> Check:

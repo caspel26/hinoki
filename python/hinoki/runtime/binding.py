@@ -37,6 +37,7 @@ from hinoki.http.request import Request
 from hinoki.http.response import Response
 from hinoki.http.stream import Streamed
 from hinoki.modules import Resource
+from hinoki.orm.model import Model
 from hinoki.pagination import (
     CursorPage,
     CursorPagination,
@@ -52,9 +53,10 @@ from hinoki.routing import Route
 from hinoki.runtime.deprecation import header_of
 from hinoki.runtime.responsecheck import (
     NO_ANNOTATION,
+    SIMPLE_RESPONSE_TYPES,
     AliasError,
     Check,
-    compile_response_check,
+    compile_response_check_arms,
     read_alias_value,
     union_arms,
     unwrap,
@@ -908,12 +910,15 @@ def bind_checked(route: Route) -> Binding:
         and response is not Schema
         else None
     )
-    response_check = (
-        compile_response_check(route.name, hints.get("return", NO_ANNOTATION))
-        if route.validate_response
-        else None
+    if route.validate_response:
+        response_check, response_arms = compile_response_check_arms(
+            route.name, hints.get("return", NO_ANNOTATION)
+        )
+    else:
+        response_check, response_arms = None, None
+    narrow_schema, narrow_guide = response_narrowing(
+        response, response_schema, response_arms
     )
-    narrow_schema, narrow_guide = response_narrowing(response, response_schema)
     return Binding(
         route,
         params,
@@ -929,29 +934,50 @@ def bind_checked(route: Route) -> Binding:
     )
 
 
+def is_plain_return(annotation: object) -> bool:
+    """Whether ``annotation`` is a plain scalar, container class, ``Response``,
+    ``Model``, ``None`` or ``Any``/``object`` that can hold no ``Schema``."""
+    return (
+        annotation is None
+        or annotation is typing.Any
+        or annotation is object
+        or (
+            isinstance(annotation, type)
+            and (annotation in SIMPLE_RESPONSE_TYPES or issubclass(annotation, Model))
+        )
+    )
+
+
 def response_narrowing(
-    annotation: object, response_schema: type[Schema] | None
+    annotation: object,
+    response_schema: type[Schema] | None,
+    arms: list[object] | None = None,
 ) -> tuple[type[Schema] | None, core._ReturnGuide | None]:
     """How a result is narrowed to the return annotation: the Schema of a
     ``list[S]``, page or optional shape, else the guide of any other shape that
     holds a Schema (``None`` for both when there is nothing to do per request)."""
-    narrow_schema = collection_narrow_schema(annotation)
-    if response_schema is not None or narrow_schema is not None:
+    if response_schema is not None or is_plain_return(annotation):
+        return None, None
+    narrow_schema = collection_narrow_schema(annotation, arms)
+    if narrow_schema is not None:
         return narrow_schema, None
-    spec = guide_spec(annotation)
+    spec = guide_spec(annotation, arms=arms)
     return None, None if spec is None else core._ReturnGuide(spec)
 
 
-def collection_narrow_schema(annotation: object) -> type[Schema] | None:
+def collection_narrow_schema(
+    annotation: object, arms: list[object] | None = None
+) -> type[Schema] | None:
     """The Schema ``S`` that a result is narrowed to when the return annotation is
     ``list[S]``, ``Page[S]``, ``CursorPage[S]`` or ``S | None``; ``None`` for any
     other annotation (a bare ``S`` is ``response_schema``)."""
-    arms = [arm for arm in union_arms(annotation) if arm is not NoneType]
-    if len(arms) != 1:
+    resolved = union_arms(annotation) if arms is None else arms
+    non_none = [arm for arm in resolved if arm is not NoneType]
+    if len(non_none) != 1:
         return None
-    arm = arms[0]
+    arm = non_none[0]
     if typing.get_origin(arm) not in {list, Page, CursorPage}:
-        return arm if arm is not unwrap(annotation) and is_schema(arm) else None
+        return arm if is_schema(arm) and arm is not unwrap(annotation) else None
     args = typing.get_args(arm)
     item = unwrap(args[0]) if len(args) == 1 else None
     return item if is_schema(item) else None
@@ -979,7 +1005,11 @@ MAPPING_ORIGINS = frozenset(
 Visiting = frozenset[object]
 
 
-def guide_spec(annotation: object, visiting: Visiting = frozenset()) -> Spec | None:
+def guide_spec(
+    annotation: object,
+    visiting: Visiting = frozenset(),
+    arms: list[object] | None = None,
+) -> Spec | None:
     """The nested spec of ``core._ReturnGuide`` for the Schema positions of an
     annotation: ``S``, unions of them, ``list``, ``tuple``, ``dict[str, ...]``,
     ``set`` and ``frozenset``, their abstract forms (``Sequence``, ``Iterable``,
@@ -995,7 +1025,7 @@ def guide_spec(annotation: object, visiting: Visiting = frozenset()) -> Spec | N
         visiting = visiting | {alias}
     classes: list[type[Schema]] = []
     others: list[Spec] = []
-    for arm in union_arms(annotation):
+    for arm in union_arms(annotation) if arms is None else arms:
         if is_schema(arm):
             classes.append(arm)
         elif (spec := container_spec(arm, visiting)) is not None:
