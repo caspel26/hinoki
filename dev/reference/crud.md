@@ -27,6 +27,8 @@ list](https://hinoki.caspel.dev/dev/crud.md#filter-order-and-search-the-list). D
 
 ## Row scoping
 
+- `hinoki.resources.RowScope(model: 'type[M]', column: 'str', _source: "Literal['user', 'claim', 'caller']", _key: 'UserAttr | Callable[[U], Any] | str | None' = None) -> None`: Declarative mandatory row boundary for CRUD, manual actions, and links. [reference](https://hinoki.caspel.dev/dev/reference/crud/#hinoki.resources.RowScope)
+
 - `hinoki.resources.all_rows(model: 'type[T]') -> 'Callable[[object], QuerySet[T]]'`: A ``links=`` entry that lets the caller link every row of ``model``: the explicit choice for targets that are not private to anyone. [reference](https://hinoki.caspel.dev/dev/reference/crud/#hinoki.resources.all_rows)
 
 - `hinoki.resources.own_rows(model: 'type[T]', column: 'str') -> 'Callable[[object], QuerySet[T]]'`: A ``links=`` entry that lets the caller link and see only the rows of ``model`` whose text ``column`` holds the caller's id (``Caller.id``). [reference](https://hinoki.caspel.dev/dev/reference/crud/#hinoki.resources.own_rows)

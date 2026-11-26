@@ -297,8 +297,8 @@
           <h1 id="generated-crud-api">Generated CRUD API<a class="headerlink" href="#generated-crud-api" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></span>
-            <span>7 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></span>
+            <span>9 min read</span>
           </p>
           
         </header>
@@ -337,7 +337,11 @@ ownership, schema requirements and route replacement.</p>
     <span class="n">include_in_schema</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">tags</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">deprecated</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">date</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">links</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]]]</span>
+    <span class="n">scope</span><span class="p">:</span> <span class="n">RowScope</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">links</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="n">RowScope</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">]</span>
     <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CrudDeclaration</span>
 </code></pre></div>
@@ -1652,6 +1656,247 @@ any of them matching.</p>
 </div><h2 id="row-scoping">Row scoping<a class="headerlink" href="#row-scoping" title="Permanent link">&para;</a></h2>
 
 
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="hinoki.resources.RowScope" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">hinoki.resources.RowScope</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#hinoki.resources.RowScope" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">RowScope</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span>
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">_source</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"user"</span><span class="p">,</span> <span class="s2">"claim"</span><span class="p">,</span> <span class="s2">"caller"</span><span class="p">],</span>
+    <span class="n">_key</span><span class="p">:</span> <span class="n">UserAttr</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">U</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Declarative mandatory row boundary for CRUD, manual actions, and links.</p>
+<p>Instantiate via :meth:<code>by</code>, :meth:<code>by_claim</code>, or :meth:<code>by_caller</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.resources.RowScope.model" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">model</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.resources.RowScope.model" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="hinoki.resources.RowScope.column" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">column</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#hinoki.resources.RowScope.column" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="n">column</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.resources.RowScope.by" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">by</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.resources.RowScope.by" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">by</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span>
+    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">UserAttr</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">U</span><span class="p">],</span> <span class="n">Any</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RowScope</span><span class="p">[</span><span class="n">M</span><span class="p">,</span> <span class="n">U</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Scope rows of <code>model</code> by <code>column == key(caller.user)</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.resources.RowScope.by_claim" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">by_claim</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.resources.RowScope.by_claim" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">by_claim</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">claim</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RowScope</span><span class="p">[</span><span class="n">M</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Scope rows of <code>model</code> by <code>column == caller.claims[claim]</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.resources.RowScope.by_caller" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">by_caller</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#hinoki.resources.RowScope.by_caller" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">by_caller</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">M</span><span class="p">],</span> <span class="n">column</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RowScope</span><span class="p">[</span><span class="n">M</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Scope rows of <code>model</code> by <code>column == caller.id</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.resources.RowScope.value_for" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">value_for</span>
+
+
+<a href="#hinoki.resources.RowScope.value_for" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">value_for</span><span class="p">(</span><span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">U</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Resolve and validate the mandatory scope value for <code>caller</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.resources.RowScope.apply" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">apply</span>
+
+
+<a href="#hinoki.resources.RowScope.apply" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">apply</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">],</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">U</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>AND the mandatory row scope onto <code>query</code> for <code>caller</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="hinoki.resources.RowScope.for_caller" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">for_caller</span>
+
+
+<a href="#hinoki.resources.RowScope.for_caller" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span class="nf">for_caller</span><span class="p">(</span><span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">U</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">M</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return <code>model.all()</code> filtered by this scope for <code>caller</code>.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 <div class="doc doc-object doc-function">
 
 
@@ -1745,13 +1990,15 @@ lane.</p>
             <ul><li><a href="#hinoki.filters.Search.columns">columns</a></li></ul>
           </li><li><a href="#hinoki.filters.Bounds">Bounds</a>
             <ul><li><a href="#hinoki.filters.Bounds.from_">from_</a></li><li><a href="#hinoki.filters.Bounds.to">to</a></li></ul>
-          </li><li><a href="#row-scoping">Row scoping</a></li><li><a href="#hinoki.resources.all_rows">all_rows</a></li><li><a href="#hinoki.resources.own_rows">own_rows</a></li><li><a href="#hinoki.resources.from_user">from_user</a></li></ul>
+          </li><li><a href="#row-scoping">Row scoping</a></li><li><a href="#hinoki.resources.RowScope">RowScope</a>
+            <ul><li><a href="#hinoki.resources.RowScope.model">model</a></li><li><a href="#hinoki.resources.RowScope.column">column</a></li><li><a href="#hinoki.resources.RowScope.by">by</a></li><li><a href="#hinoki.resources.RowScope.by_claim">by_claim</a></li><li><a href="#hinoki.resources.RowScope.by_caller">by_caller</a></li><li><a href="#hinoki.resources.RowScope.value_for">value_for</a></li><li><a href="#hinoki.resources.RowScope.apply">apply</a></li><li><a href="#hinoki.resources.RowScope.for_caller">for_caller</a></li></ul>
+          </li><li><a href="#hinoki.resources.all_rows">all_rows</a></li><li><a href="#hinoki.resources.own_rows">own_rows</a></li><li><a href="#hinoki.resources.from_user">from_user</a></li></ul>
           
         </nav>
         
         <dl class="titleblock">
           
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 02:26:33 UTC">November 24, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/reference/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>

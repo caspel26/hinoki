@@ -224,7 +224,48 @@ class Invoices(API):
         return Invoice.filter(account_id=caller.user.account_id)
 ```
 
-Apply tenant or visibility filters in `get_queryset`; `owner=` is an independent write safeguard, not read authorization. Relations are never loaded implicitly: load them in `to_schema`, and in `written_queryset` for the answer to a write, independently of filters that might hide the changed row from later list requests. Writes are constrained by the query of `get_queryset`, the primary key and the owner column, inside the mutation statement. `change` and `remove` receive that scoped query; call `super()` to keep the default mutation.
+Apply visibility filters (such as `archived=False`) in `get_queryset` or `filter_queryset`, and enforce mandatory tenant or account boundaries with [`RowScope`](https://hinoki.caspel.dev/dev/crud.md#mandatory-row-scope) via `scope=`; `owner=` is an independent write safeguard, not read authorization. Relations are never loaded implicitly: load them in `to_schema`, and in `written_queryset` for the answer to a write, independently of filters that might hide the changed row from later list requests. Writes are constrained by the mandatory `scope=`, the query of `get_queryset`, the primary key and the owner column inside the mutation statement. `change` and `remove` must write through that `scoped_queryset` (call `super()` to keep the default mutation).
+
+## Mandatory row scope
+
+Use `RowScope` (`from hinoki import RowScope`) to declare a reusable row boundary shared by generated CRUD, handwritten actions and many-to-many links:
+
+* `RowScope.by(Invoice, "tenant_id", from_user("tenant_id"))`: reads an attribute from `Caller.user` (or calls a function `key(user)`).
+* `RowScope.by_claim(Invoice, "tenant_id", "tenant_id")`: reads a verified JWT claim from `Caller.claims` (compatible with [`ClaimsJWTAuth`](https://hinoki.caspel.dev/dev/authentication.md#claims-only-tokens-on-the-native-lane)).
+* `RowScope.by_caller(Invoice, "account_id")`: matches a text column against `Caller.id`.
+
+```python
+from hinoki import API, Caller, RowScope, crud, from_user
+from hinoki.orm import QuerySet
+
+invoice_scope = RowScope.by(Invoice, "tenant_id", from_user("tenant_id"))
+tag_scope = RowScope.by(Tag, "tenant_id", from_user("tenant_id"))
+
+
+@crud(
+    Invoice,
+    path="/invoices",
+    read=InvoiceOut,
+    create=InvoiceIn,
+    update=InvoicePatch,
+    delete=True,
+    access=billing_staff,
+    owner="owner_id",
+    scope=invoice_scope,
+    links={"tags": tag_scope},
+)
+class Invoices(API):
+    def get_queryset(self, caller: Caller[StaffUser]) -> QuerySet[Invoice]:
+        # Presentation filter only; scope= still enforces the tenant boundary.
+        return Invoice.filter(archived=False)
+```
+
+Passing `scope=` to `crud(...)` guarantees:
+
+* Every active generated action requires an `Access` policy; `create` assigns `scope.column` on the server, and `create=`/`update=` schemas, `assign=` and `owner=` cannot write it.
+* A missing, empty or type-incompatible scope value stops the request with `403 Forbidden` before any database query runs.
+* Hinoki validates that `get_queryset`, `filter_queryset` and `written_queryset` return a `QuerySet` of the CRUD model, then re-applies `scope=` with `AND` after each hook and in post-write reloads. A hook that replaces the query with `Invoice.all()` can still adjust presentation filters inside the tenant, never across tenants.
+* Reuse `invoice_scope.apply(query, caller)`, `invoice_scope.for_caller(caller)` and `invoice_scope.value_for(caller)` in handwritten actions and domain operations. Write hooks (`change`, `remove`) must mutate the `scoped_queryset` provided by the framework rather than an unscoped query.
 
 Hooks run inside the transaction and before the commit, so do not send mail or publish external events from them. They are trusted application code: do not bypass the scoped query with an unscoped write or raw SQL. Hinoki checks the persisted item after create and update for model identity and server-assigned fields, but cannot sandbox arbitrary side effects.
 
@@ -283,7 +324,7 @@ class PostPatch(Schema):
 class Posts(API): ...
 ```
 
-* `links=` is required for every relation whose ids field appears in a schema; the callable receives `Caller.user` (`None` on public routes) and returns the targets a caller may link and see. The class form can override `link_queryset(relation, principal)` instead.
+* `links=` is required for every relation whose ids field appears in a schema; pass a `RowScope`, `own_rows(Target, column)`, `all_rows(Target)`, or a callable taking `Caller.user` (`None` on public routes). The class form can override `link_queryset(relation, principal)` instead.
 * A write replaces the whole set; an omitted field keeps it and `[]` clears it. Only the links inside the scope are replaced, so links to targets the caller cannot see are neither shown nor removed.
 * An id that does not exist and an id outside the scope give the same `422` (type `unknown_reference`) without echoing the id; more ids than the field's `max_length` is a `422` too. The owner row is checked against `get_queryset` and the owner policy first, and the row and its links are written in one transaction.
 * A read schema includes the ids through a prefetch bounded by the field's limit: one joined target-and-bridge query per owner chunk and relation. Each statement reads that chunk under the database's transaction isolation, and shared targets appear once per link in its rows. Rust builds eligible models; Python orchestrates the prefetch and handles custom row builders. See [many-to-many prefetch](https://hinoki.caspel.dev/dev/relations.md#many-to-many).
@@ -292,7 +333,7 @@ class Posts(API): ...
 
 ### Native lane
 
-A route with an ids field runs on the [native lane](https://hinoki.caspel.dev/dev/kiso.md#generated-crud) when every relation it exposes is scoped with `all_rows(...)` or `own_rows(...)` (the latter needs `ClaimsJWTAuth`, and `identity_key=caller_id` when the resource also sets `owner=`), the target's key is an `int`, `UUID` or `str`, the read field is a non-nullable `set` whose only constraint is `max_length` (at least the relation's `max_items`), with plain items (no item constraints, enums or literals), the create field is required with a `max_length` and the update field is `... | Unset = UNSET`. Rust then reads the ids of a page with one `SELECT` on the bridge (a row with more links than `max_items` is a `500`: the stored data broke its bound), and on create and update it parses and bounds the set, locks the owner row, checks the targets inside the scope and replaces the links in the same transaction as the row; the answers (`403`, `404`, `422` `unknown_reference`, `max_length`) match the Python lane. A key Rust cannot read (a string longer than the key's `max_length`, for example) is answered by the Python lane. A scope callable, a `link_queryset` override, a model or lifecycle hook, or a `Linked`/`Unlinked` handler keeps the route on the Python lane, which accepts the same schemas and also an optional create field and any other rule the schema states.
+A route with `scope=` or an ids field runs on the [native lane](https://hinoki.caspel.dev/dev/kiso.md#generated-crud) when the scopes are `RowScope.by_claim(...)` or `RowScope.by_caller(...)` on text columns with `ClaimsJWTAuth`, and every relation it exposes is scoped with `all_rows(...)`, `own_rows(...)`, `RowScope.by_caller(...)`, or `RowScope.by_claim(...)` (`identity_key=caller_id` when the resource also sets `owner=`), the target's key is an `int`, `UUID` or `str`, the read field is a non-nullable `set` whose only constraint is `max_length` (at least the relation's `max_items`), with plain items (no item constraints, enums or literals), the create field is required with a `max_length` and the update field is `... | Unset = UNSET`. Rust checks every required `RowScope` before querying (`403` on missing or non-string claim), reads the ids of a page with one `SELECT` on the bridge (a row with more links than `max_items` is a `500`: the stored data broke its bound), and on create and update it parses and bounds the set, assigns server `scope=`/`owner=`, locks the owner row inside the row scope, checks the targets inside the link scope and replaces the links in the same transaction as the row; the answers (`403`, `404`, `422` `unknown_reference`, `max_length`) match the Python lane. A key Rust cannot read (a string longer than the key's `max_length`, for example) is answered by the Python lane. `RowScope.by(...)`, a scope callable, a `link_queryset` override, a model or lifecycle hook, or a `Linked`/`Unlinked` handler keeps the route on the Python lane, which accepts the same schemas and also an optional create field and any other rule the schema states.
 
 ## Security and validation
 

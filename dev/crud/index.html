@@ -501,8 +501,8 @@
           <h1 id="generate-crud-routes">Generate CRUD routes<a class="headerlink" href="#generate-crud-routes" title="Permanent link">&para;</a></h1>
           
           <p class="page-meta" data-search-exclude>
-            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></span>
-            <span>16 min read</span>
+            <span>Updated <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></span>
+            <span>18 min read</span>
           </p>
           
         </header>
@@ -793,7 +793,45 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">StaffUser</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Invoice</span><span class="p">]:</span>
         <span class="k">return</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">account_id</span><span class="o">=</span><span class="n">caller</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">account_id</span><span class="p">)</span>
 </code></pre></div>
-<p>Apply tenant or visibility filters in <code>get_queryset</code>; <code>owner=</code> is an independent write safeguard, not read authorization. Relations are never loaded implicitly: load them in <code>to_schema</code>, and in <code>written_queryset</code> for the answer to a write, independently of filters that might hide the changed row from later list requests. Writes are constrained by the query of <code>get_queryset</code>, the primary key and the owner column, inside the mutation statement. <code>change</code> and <code>remove</code> receive that scoped query; call <code>super()</code> to keep the default mutation.</p>
+<p>Apply visibility filters (such as <code>archived=False</code>) in <code>get_queryset</code> or <code>filter_queryset</code>, and enforce mandatory tenant or account boundaries with <a href="#mandatory-row-scope"><code>RowScope</code></a> via <code>scope=</code>; <code>owner=</code> is an independent write safeguard, not read authorization. Relations are never loaded implicitly: load them in <code>to_schema</code>, and in <code>written_queryset</code> for the answer to a write, independently of filters that might hide the changed row from later list requests. Writes are constrained by the mandatory <code>scope=</code>, the query of <code>get_queryset</code>, the primary key and the owner column inside the mutation statement. <code>change</code> and <code>remove</code> must write through that <code>scoped_queryset</code> (call <code>super()</code> to keep the default mutation).</p>
+<h2 id="mandatory-row-scope">Mandatory row scope<a class="headerlink" href="#mandatory-row-scope" title="Permanent link">&para;</a></h2>
+<p>Use <code>RowScope</code> (<code>from hinoki import RowScope</code>) to declare a reusable row boundary shared by generated CRUD, handwritten actions and many-to-many links:</p>
+<ul>
+<li><code>RowScope.by(Invoice, "tenant_id", from_user("tenant_id"))</code>: reads an attribute from <code>Caller.user</code> (or calls a function <code>key(user)</code>).</li>
+<li><code>RowScope.by_claim(Invoice, "tenant_id", "tenant_id")</code>: reads a verified JWT claim from <code>Caller.claims</code> (compatible with <a href="../authentication/#claims-only-tokens-on-the-native-lane"><code>ClaimsJWTAuth</code></a>).</li>
+<li><code>RowScope.by_caller(Invoice, "account_id")</code>: matches a text column against <code>Caller.id</code>.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">API</span><span class="p">,</span> <span class="n">Caller</span><span class="p">,</span> <span class="n">RowScope</span><span class="p">,</span> <span class="n">crud</span><span class="p">,</span> <span class="n">from_user</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hinoki.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuerySet</span>
+
+<span class="n">invoice_scope</span> <span class="o">=</span> <span class="n">RowScope</span><span class="o">.</span><span class="n">by</span><span class="p">(</span><span class="n">Invoice</span><span class="p">,</span> <span class="s2">"tenant_id"</span><span class="p">,</span> <span class="n">from_user</span><span class="p">(</span><span class="s2">"tenant_id"</span><span class="p">))</span>
+<span class="n">tag_scope</span> <span class="o">=</span> <span class="n">RowScope</span><span class="o">.</span><span class="n">by</span><span class="p">(</span><span class="n">Tag</span><span class="p">,</span> <span class="s2">"tenant_id"</span><span class="p">,</span> <span class="n">from_user</span><span class="p">(</span><span class="s2">"tenant_id"</span><span class="p">))</span>
+
+
+<span class="nd">@crud</span><span class="p">(</span>
+    <span class="n">Invoice</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">"/invoices"</span><span class="p">,</span>
+    <span class="n">read</span><span class="o">=</span><span class="n">InvoiceOut</span><span class="p">,</span>
+    <span class="n">create</span><span class="o">=</span><span class="n">InvoiceIn</span><span class="p">,</span>
+    <span class="n">update</span><span class="o">=</span><span class="n">InvoicePatch</span><span class="p">,</span>
+    <span class="n">delete</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">access</span><span class="o">=</span><span class="n">billing_staff</span><span class="p">,</span>
+    <span class="n">owner</span><span class="o">=</span><span class="s2">"owner_id"</span><span class="p">,</span>
+    <span class="n">scope</span><span class="o">=</span><span class="n">invoice_scope</span><span class="p">,</span>
+    <span class="n">links</span><span class="o">=</span><span class="p">{</span><span class="s2">"tags"</span><span class="p">:</span> <span class="n">tag_scope</span><span class="p">},</span>
+<span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Invoices</span><span class="p">(</span><span class="n">API</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">caller</span><span class="p">:</span> <span class="n">Caller</span><span class="p">[</span><span class="n">StaffUser</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Invoice</span><span class="p">]:</span>
+        <span class="c1"># Presentation filter only; scope= still enforces the tenant boundary.</span>
+        <span class="k">return</span> <span class="n">Invoice</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">archived</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+<p>Passing <code>scope=</code> to <code>crud(...)</code> guarantees:</p>
+<ul>
+<li>Every active generated action requires an <code>Access</code> policy; <code>create</code> assigns <code>scope.column</code> on the server, and <code>create=</code>/<code>update=</code> schemas, <code>assign=</code> and <code>owner=</code> cannot write it.</li>
+<li>A missing, empty or type-incompatible scope value stops the request with <code>403 Forbidden</code> before any database query runs.</li>
+<li>Hinoki validates that <code>get_queryset</code>, <code>filter_queryset</code> and <code>written_queryset</code> return a <code>QuerySet</code> of the CRUD model, then re-applies <code>scope=</code> with <code>AND</code> after each hook and in post-write reloads. A hook that replaces the query with <code>Invoice.all()</code> can still adjust presentation filters inside the tenant, never across tenants.</li>
+<li>Reuse <code>invoice_scope.apply(query, caller)</code>, <code>invoice_scope.for_caller(caller)</code> and <code>invoice_scope.value_for(caller)</code> in handwritten actions and domain operations. Write hooks (<code>change</code>, <code>remove</code>) must mutate the <code>scoped_queryset</code> provided by the framework rather than an unscoped query.</li>
+</ul>
 <p>Hooks run inside the transaction and before the commit, so do not send mail or publish external events from them. They are trusted application code: do not bypass the scoped query with an unscoped write or raw SQL. Hinoki checks the persisted item after create and update for model identity and server-assigned fields, but cannot sandbox arbitrary side effects.</p>
 <h3 id="generate-or-hand-write">Generate or hand-write<a class="headerlink" href="#generate-or-hand-write" title="Permanent link">&para;</a></h3>
 <p>Each action is generated <strong>or</strong> handwritten, never both:</p>
@@ -852,7 +890,7 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">Posts</span><span class="p">(</span><span class="n">API</span><span class="p">):</span> <span class="o">...</span>
 </code></pre></div>
 <ul>
-<li><code>links=</code> is required for every relation whose ids field appears in a schema; the callable receives <code>Caller.user</code> (<code>None</code> on public routes) and returns the targets a caller may link and see. The class form can override <code>link_queryset(relation, principal)</code> instead.</li>
+<li><code>links=</code> is required for every relation whose ids field appears in a schema; pass a <code>RowScope</code>, <code>own_rows(Target, column)</code>, <code>all_rows(Target)</code>, or a callable taking <code>Caller.user</code> (<code>None</code> on public routes). The class form can override <code>link_queryset(relation, principal)</code> instead.</li>
 <li>A write replaces the whole set; an omitted field keeps it and <code>[]</code> clears it. Only the links inside the scope are replaced, so links to targets the caller cannot see are neither shown nor removed.</li>
 <li>An id that does not exist and an id outside the scope give the same <code>422</code> (type <code>unknown_reference</code>) without echoing the id; more ids than the field's <code>max_length</code> is a <code>422</code> too. The owner row is checked against <code>get_queryset</code> and the owner policy first, and the row and its links are written in one transaction.</li>
 <li>A read schema includes the ids through a prefetch bounded by the field's limit: one joined target-and-bridge query per owner chunk and relation. Each statement reads that chunk under the database's transaction isolation, and shared targets appear once per link in its rows. Rust builds eligible models; Python orchestrates the prefetch and handles custom row builders. See <a href="../relations/#many-to-many">many-to-many prefetch</a>.</li>
@@ -860,7 +898,7 @@
 <li><code>own_rows(Tag, "owner")</code> scopes the targets to those whose text <code>owner</code> column equals the caller's id (<code>Caller.id</code>); <code>all_rows(Tag)</code> allows every row. The owner value is checked again inside the write's transaction, after the owner row is locked.</li>
 </ul>
 <h3 id="native-lane">Native lane<a class="headerlink" href="#native-lane" title="Permanent link">&para;</a></h3>
-<p>A route with an ids field runs on the <a href="../kiso/#generated-crud">native lane</a> when every relation it exposes is scoped with <code>all_rows(...)</code> or <code>own_rows(...)</code> (the latter needs <code>ClaimsJWTAuth</code>, and <code>identity_key=caller_id</code> when the resource also sets <code>owner=</code>), the target's key is an <code>int</code>, <code>UUID</code> or <code>str</code>, the read field is a non-nullable <code>set</code> whose only constraint is <code>max_length</code> (at least the relation's <code>max_items</code>), with plain items (no item constraints, enums or literals), the create field is required with a <code>max_length</code> and the update field is <code>... | Unset = UNSET</code>. Rust then reads the ids of a page with one <code>SELECT</code> on the bridge (a row with more links than <code>max_items</code> is a <code>500</code>: the stored data broke its bound), and on create and update it parses and bounds the set, locks the owner row, checks the targets inside the scope and replaces the links in the same transaction as the row; the answers (<code>403</code>, <code>404</code>, <code>422</code> <code>unknown_reference</code>, <code>max_length</code>) match the Python lane. A key Rust cannot read (a string longer than the key's <code>max_length</code>, for example) is answered by the Python lane. A scope callable, a <code>link_queryset</code> override, a model or lifecycle hook, or a <code>Linked</code>/<code>Unlinked</code> handler keeps the route on the Python lane, which accepts the same schemas and also an optional create field and any other rule the schema states.</p>
+<p>A route with <code>scope=</code> or an ids field runs on the <a href="../kiso/#generated-crud">native lane</a> when the scopes are <code>RowScope.by_claim(...)</code> or <code>RowScope.by_caller(...)</code> on text columns with <code>ClaimsJWTAuth</code>, and every relation it exposes is scoped with <code>all_rows(...)</code>, <code>own_rows(...)</code>, <code>RowScope.by_caller(...)</code>, or <code>RowScope.by_claim(...)</code> (<code>identity_key=caller_id</code> when the resource also sets <code>owner=</code>), the target's key is an <code>int</code>, <code>UUID</code> or <code>str</code>, the read field is a non-nullable <code>set</code> whose only constraint is <code>max_length</code> (at least the relation's <code>max_items</code>), with plain items (no item constraints, enums or literals), the create field is required with a <code>max_length</code> and the update field is <code>... | Unset = UNSET</code>. Rust checks every required <code>RowScope</code> before querying (<code>403</code> on missing or non-string claim), reads the ids of a page with one <code>SELECT</code> on the bridge (a row with more links than <code>max_items</code> is a <code>500</code>: the stored data broke its bound), and on create and update it parses and bounds the set, assigns server <code>scope=</code>/<code>owner=</code>, locks the owner row inside the row scope, checks the targets inside the link scope and replaces the links in the same transaction as the row; the answers (<code>403</code>, <code>404</code>, <code>422</code> <code>unknown_reference</code>, <code>max_length</code>) match the Python lane. A key Rust cannot read (a string longer than the key's <code>max_length</code>, for example) is answered by the Python lane. <code>RowScope.by(...)</code>, a scope callable, a <code>link_queryset</code> override, a model or lifecycle hook, or a <code>Linked</code>/<code>Unlinked</code> handler keeps the route on the Python lane, which accepts the same schemas and also an optional create field and any other rule the schema states.</p>
 <h2 id="security-and-validation">Security and validation<a class="headerlink" href="#security-and-validation" title="Permanent link">&para;</a></h2>
 <p>Set <code>owner="author_id"</code> to assign that column from the authenticated caller on create and constrain update and delete. <code>identity_key</code> extracts the owner value from <code>Caller.user</code>; its default reads <code>.id</code>. <code>assign</code> maps additional server-owned columns to functions of the caller's user object. Use <code>from_user("publication_id")</code> (from <code>hinoki</code>) to declare an attribute (or dotted attribute path such as <code>from_user("org.id")</code>) read from <code>Caller.user</code>; any callable such as <code>operator.attrgetter</code> also works:</p>
 <div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">hinoki</span><span class="w"> </span><span class="kn">import</span> <span class="n">crud</span><span class="p">,</span> <span class="n">from_user</span>
@@ -916,7 +954,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
           
             <ul><li><a href="#generated-actions">Generated actions</a>
             <ul><li><a href="#access-per-action">Access per action</a></li></ul>
-          </li><li><a href="#filter-order-and-search-the-list">Filter, order and search the list</a></li><li><a href="#hooks-in-the-class-form">Hooks in the class form</a>
+          </li><li><a href="#filter-order-and-search-the-list">Filter, order and search the list</a></li><li><a href="#hooks-in-the-class-form">Hooks in the class form</a></li><li><a href="#mandatory-row-scope">Mandatory row scope</a>
             <ul><li><a href="#generate-or-hand-write">Generate or hand-write</a></li></ul>
           </li><li><a href="#reuse">Reuse</a></li><li><a href="#many-to-many-fields">Many-to-many fields</a>
             <ul><li><a href="#native-lane">Native lane</a></li></ul>
@@ -926,7 +964,7 @@ PATCH   /billing/invoices/{item_id}  StaffTokens[billing:manage] notes.apps.bill
         
         <dl class="titleblock">
           <div><dt>Status</dt><dd><span class="chip chip--implemented">implemented</span></dd></div>
-          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 11:15:47 UTC">November 26, 2026</span></dd></div>
+          <div><dt>Updated</dt><dd><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 26, 2026 14:36:50 UTC">November 26, 2026</span></dd></div>
           <div><dt>Source</dt><dd><a href="https://github.com/caspel26/hinoki/edit/main/docs/crud.md">Edit on GitHub</a></dd></div>
         </dl>
       </div>
