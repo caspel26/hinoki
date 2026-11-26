@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Changelog · Hinoki</title>
-  <meta name="description" content="A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, validation, OpenAPI, architecture rules and MCP.">
+  <meta name="description" content="High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
   <meta name="theme-color" content="#0d0d10" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
   <link rel="icon" href="../static/favicon.svg" type="image/svg+xml">
@@ -12,9 +12,9 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Hinoki">
   <meta property="og:title" content="Changelog · Hinoki">
-  <meta property="og:description" content="A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, validation, OpenAPI, architecture rules and MCP.">
+  <meta property="og:description" content="High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
   <meta property="og:image" content="https://hinoki.caspel.dev/devstatic/og.png">
-  <meta property="og:image:alt" content="Hinoki: A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, validation, OpenAPI, architecture rules and MCP.">
+  <meta property="og:image:alt" content="Hinoki: High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://hinoki.caspel.dev/devstatic/og.png">
   <link rel="canonical" href="https://hinoki.caspel.dev/dev/changelog/">
@@ -792,7 +792,8 @@ key = JWTKey(&quot;2026-11&quot;, &quot;HS256&quot;, Secret(&quot;from-a-secret-
 with <code>head_framing</code> and <code>request_head_limits</code> (<code>fuzz/</code>,
 <code>.github/workflows/fuzz.yml</code>, <code>docs/kiso.md</code>).</p>
 <p>The <a href="docs/benchmarks.md">benchmarks page</a> now shows a run on a dedicated 8 vCPU AMD EPYC server, with Fastify, Hono and <code>Bun.serve</code> as an extra group and the load average held at or below 2 before every sample. Hinoki in this run is commit <code>478e1452</code>.</p>
-<p>The <a href="docs/benchmarks.md">benchmarks page</a> is redesigned: 8 workers and 1 worker sit behind tabs, a Summary compares Hinoki on Kiso with the other stacks (ratios of medians, ties and unsettled results shown), and each route has its own table with the ratio, p50, p99, range and CV; the other runtimes stay a separate view (#529).</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
+<p>The <a href="docs/benchmarks.md">benchmarks page</a> is redesigned: 8 workers and 1 worker sit behind tabs, a Summary compares Hinoki on Kiso with the other stacks (ratios of medians, ties and unsettled results shown), and each route has its own table with the ratio, p50, p99, range and CV; the other runtimes stay a separate view (#529).</p>
+<p>The README, the site description and the docs home now use the repository description, and the README's <code>Write an API</code> example follows the recommended syntax: <code>crud(...)</code> with <code>update</code> and <code>delete</code> in <code>routes.py</code> and a handwritten <code>@http.get</code> action. The footer credits MkDocs in a compact link (#531).</p></section><section class="cl__sec" data-kind="summary"><h3>🎯 Summary</h3><p>This is the running list of changes since the repository started. The first tagged release will be 0.1.0: <code>Unreleased</code> becomes <code>[0.1.0] - date</code>.</p></section></article></div></div>
         
       </article>
 
@@ -831,7 +832,7 @@ with <code>head_framing</code> and <code>request_head_limits</code> (<code>fuzz/
           <svg class="brand__mark" viewBox="0 0 276 394" aria-hidden="true"><use href="../static/hinoki-logo.svg#mark"/></svg>
           <svg class="brand__word" viewBox="0 0 655 184" aria-hidden="true"><use href="../static/hinoki-logo.svg#wordmark"/></svg>
         </a>
-        <p class="foot__tagline">A Python framework for HTTP APIs, with a Rust core and its own Rust server, Kiso. One typed declaration drives routing, validation, OpenAPI, architecture rules and MCP.</p>
+        <p class="foot__tagline">High-throughput Python API framework powered by a Rust HTTP server and SQL ORM. One typed declaration drives routing, validation, OpenAPI, architecture rules, and MCP.</p>
         <a class="foot__repo" href="https://github.com/caspel26/hinoki" target="_blank" rel="noopener noreferrer" aria-label="Hinoki on GitHub (opens in a new tab)"><span>Source on GitHub</span><span class="i i--external-link" aria-hidden="true"></span></a>
       </div>
       <nav aria-labelledby="foot-docs">
@@ -867,10 +868,11 @@ with <code>head_framing</code> and <code>request_head_limits</code> (<code>fuzz/
         <ul>
           <li><a class="foot__ext" href="https://github.com/caspel26/hinoki/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" aria-label="Licence, MIT (opens in a new tab)"><span>Licence (MIT)</span><span class="i i--external-link" aria-hidden="true"></span></a></li>
           <li><a href="../static/icons/lucide/LICENSE.txt">Lucide icons (ISC)</a></li>
-          <li><a class="foot__ext" href="https://www.mkdocs.org/" target="_blank" rel="noopener noreferrer" aria-label="Built with MkDocs (opens in a new tab)"><span>Built with MkDocs</span><span class="i i--external-link" aria-hidden="true"></span></a></li>        </ul>
+        </ul>
       </nav>
       <div class="foot__bottom">
         <span class="foot__version">hinoki <span data-docs-version-footer>v0.0.1</span> <span class="chip">pre-alpha</span></span>
+        <a class="foot__credit" href="https://www.mkdocs.org/" target="_blank" rel="noopener noreferrer" aria-label="Built with MkDocs (opens in a new tab)">Built with MkDocs</a>
         <span>© 2026 caspel26</span>
       </div>
     </div>

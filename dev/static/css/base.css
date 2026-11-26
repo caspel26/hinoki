@@ -925,6 +925,18 @@ body.menu-open .menu-icon-close {
   gap: 10px;
 }
 
+.foot__credit {
+  color: var(--hn-text-3);
+  font-size: var(--fs-xs);
+  text-decoration: none;
+}
+
+.foot__credit:hover,
+.foot__credit:focus-visible {
+  color: var(--hn-text);
+  text-decoration: underline;
+}
+
 .foot__bottom .chip {
   font-size: 12px;
 }
